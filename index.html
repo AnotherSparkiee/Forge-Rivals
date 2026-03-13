@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MOBA Manager</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body { margin:0; padding:20px; background:#111; color:#fff; font-family:sans-serif; text-align:center; }
+    h1 { color:#00ff9d; }
+    button { padding:15px 30px; font-size:18px; background:#00ff9d; border:none; border-radius:10px; margin:20px; }
+  </style>
+</head>
+<body>
+  <h1>MOBA Manager</h1>
+  <p>Привет! Собери свою команду героев 🔥</p>
+  
+  <button onclick="startDraft()">Начать драфт</button>
+  
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+    
+    tg.MainButton.setText("Играть сейчас");
+    tg.MainButton.show();
+    tg.MainButton.onClick(() => {
+      tg.showAlert("Матч симулируется... Твоя команда готова к бою!");
+    });
+    
+    function startDraft() {
+      alert("Выбери 5 героев! (пока заглушка)");
+    }
+    
+    // Показываем имя юзера
+    if (tg.initDataUnsafe.user) {
+      document.body.innerHTML += `<p>Добро пожаловать, ${tg.initDataUnsafe.user.first_name}!</p>`;
+    }
+  </script>
+</body>
+</html>
