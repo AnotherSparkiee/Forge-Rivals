@@ -108,23 +108,25 @@ function HubContent() {
         </div>
       </header>
 
-      {/* Сетка меню 4x5 */}
+      {/* Сетка меню 4x5 - ОПТИМИЗИРОВАНА: нет движения иконок */}
       <div className="grid grid-cols-4 gap-3 mb-8">
         {GRID_ITEMS.map((item, index) => (
           <Link 
             key={index} 
-            href={item.href} 
+            href={item.active ? item.href : '#'} 
             className={cn(
-              "group relative flex flex-col items-center justify-center aspect-square rounded-xl border border-white/5 bg-card/40 transition-all duration-300",
-              item.active ? "hover:bg-primary/10 hover:border-primary/50 active:scale-95 cursor-pointer" : "opacity-40 cursor-not-allowed grayscale"
+              "relative flex flex-col items-center justify-center aspect-square rounded-xl border border-white/5 bg-card/40 transition-colors duration-200",
+              item.active 
+                ? "hover:bg-primary/10 hover:border-primary/50 cursor-pointer" 
+                : "opacity-30 cursor-not-allowed grayscale"
             )}
           >
-            <item.icon className={cn("w-6 h-6 mb-1.5 transition-transform duration-300 group-hover:scale-110", item.color)} />
+            <item.icon className={cn("w-6 h-6 mb-1.5", item.color)} />
             <span className="text-[7px] font-headline font-bold text-center tracking-tighter uppercase leading-none px-1 h-4 flex items-center">
               {item.label}
             </span>
             {item.active && (
-              <div className="absolute top-1 right-1 w-1 h-1 rounded-full bg-primary animate-pulse" />
+              <div className="absolute top-1 right-1 w-1 h-1 rounded-full bg-primary" />
             )}
           </Link>
         ))}
@@ -134,7 +136,7 @@ function HubContent() {
       <Dialog open={showWelcome} onOpenChange={setShowWelcome}>
         <DialogContent className="glass-card border-primary/50 max-w-[90vw] rounded-2xl bg-card/90">
           <DialogHeader className="flex flex-col items-center gap-4 py-4">
-            <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center animate-bounce">
+            <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center">
               <Sparkles className="w-8 h-8 text-primary" />
             </div>
             <DialogTitle className="text-2xl font-headline font-bold text-center uppercase tracking-tighter">
