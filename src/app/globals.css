@@ -4,26 +4,26 @@
 
 @layer base {
   :root {
-    --background: 212 19% 15%;
+    --background: 212 19% 10%;
     --foreground: 210 40% 98%;
-    --card: 212 19% 18%;
+    --card: 212 19% 14%;
     --card-foreground: 210 40% 98%;
-    --popover: 212 19% 15%;
+    --popover: 212 19% 10%;
     --popover-foreground: 210 40% 98%;
     --primary: 217 100% 70%;
     --primary-foreground: 212 19% 10%;
-    --secondary: 212 19% 25%;
+    --secondary: 212 19% 18%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 212 19% 22%;
+    --muted: 212 19% 16%;
     --muted-foreground: 215 20% 65%;
     --accent: 189 71% 71%;
     --accent-foreground: 212 19% 10%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 212 19% 25%;
-    --input: 212 19% 25%;
+    --border: 212 19% 20%;
+    --input: 212 19% 20%;
     --ring: 217 100% 70%;
-    --radius: 0.75rem;
+    --radius: 0.5rem;
   }
 }
 
@@ -33,7 +33,7 @@
   }
   body {
     @apply bg-background text-foreground font-body antialiased;
-    background-image: radial-gradient(circle at 50% -20%, hsl(var(--primary) / 0.1), transparent 70%);
+    background-image: none;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-headline tracking-tight;
@@ -41,7 +41,7 @@
 }
 
 .glass-card {
-  @apply bg-card/60 backdrop-blur-md border border-white/10;
+  @apply bg-card/80 backdrop-blur-md border border-white/5;
 }
 
 .hero-gradient {
@@ -49,11 +49,5 @@
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  @apply bg-background;
-}
-::-webkit-scrollbar-thumb {
-  @apply bg-muted rounded-full;
+  display: none;
 }

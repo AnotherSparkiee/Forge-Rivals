@@ -82,7 +82,7 @@ function HubContent() {
 
   if (isUserLoading || isProfileLoading || !isLoaded || !user) {
     return (
-      <div className="h-dvh flex flex-col items-center justify-center space-y-4 bg-background text-foreground">
+      <div className="fixed inset-0 flex flex-col items-center justify-center space-y-4 bg-background text-foreground z-[999]">
         <Loader2 className="w-12 h-12 text-primary animate-spin" />
         <p className="text-muted-foreground animate-pulse font-headline uppercase tracking-widest text-center px-4">Синхронизация систем...</p>
       </div>
@@ -93,29 +93,28 @@ function HubContent() {
 
   return (
     <div className="fixed inset-0 h-dvh w-full overflow-hidden flex flex-col bg-background text-foreground select-none">
-      {/* Сетка меню 4x5 на весь экран */}
-      <main className="flex-1 p-2 overflow-hidden h-full">
-        <div className="grid grid-cols-4 grid-rows-5 gap-1.5 h-full w-full">
+      <main className="h-full w-full p-1">
+        <div className="grid grid-cols-4 grid-rows-5 gap-1 h-full w-full">
           {GRID_ITEMS.map((item, index) => {
             const Icon = item.icon;
             const isLink = item.active;
             const Content = (
-              <div className="flex flex-col items-center justify-center h-full w-full p-1">
-                <Icon className={cn("w-6 h-6 mb-1.5 shrink-0", item.color)} />
-                <span className="text-[8px] font-headline font-bold text-center tracking-tighter uppercase leading-[1.1] px-0.5 overflow-hidden break-words max-w-full">
+              <div className="flex flex-col items-center justify-center h-full w-full p-1 text-center">
+                <Icon className={cn("w-6 h-6 mb-1 shrink-0", item.color)} />
+                <span className="text-[8px] font-headline font-bold tracking-tighter uppercase leading-[1.1] max-w-full break-words line-clamp-2">
                   {item.label}
                 </span>
                 {item.active && (
-                  <div className="absolute top-1.5 right-1.5 w-1 h-1 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary))]" />
+                  <div className="absolute top-1 right-1 w-1 h-1 rounded-full bg-primary" />
                 )}
               </div>
             );
 
             const baseClass = cn(
-              "relative rounded-lg border flex flex-col items-center justify-center transition-colors duration-200 overflow-hidden",
+              "relative rounded-md border flex flex-col items-center justify-center transition-colors duration-200",
               item.active 
-                ? "bg-card/40 border-white/10 active:bg-primary/20 active:border-primary/50 shadow-sm" 
-                : "bg-black/40 border-white/5 opacity-30 grayscale"
+                ? "bg-card/60 border-white/5 active:bg-primary/20 shadow-none" 
+                : "bg-black/20 border-white/5 opacity-30 grayscale"
             );
 
             return isLink ? (
@@ -131,9 +130,8 @@ function HubContent() {
         </div>
       </main>
 
-      {/* Модальное окно приветствия */}
       <Dialog open={showWelcome} onOpenChange={setShowWelcome}>
-        <DialogContent className="glass-card border-primary/50 max-w-[90vw] rounded-2xl bg-card/90">
+        <DialogContent className="glass-card border-primary/50 max-w-[90vw] rounded-2xl bg-card/95">
           <DialogHeader className="flex flex-col items-center gap-4 py-4">
             <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center">
               <Sparkles className="w-8 h-8 text-primary" />
@@ -166,11 +164,7 @@ function HubContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={
-      <div className="h-dvh flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    }>
+    <Suspense fallback={null}>
       <HubContent />
     </Suspense>
   );
