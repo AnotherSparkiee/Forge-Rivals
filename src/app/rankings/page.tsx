@@ -1,12 +1,13 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useGameState } from '../lib/store';
 import { 
   Trophy, Medal, Star, ChevronLeft, ArrowUpCircle, 
   Users, Target, Shield, Zap, Swords, ChevronRight,
-  LayoutDashboard, TrendingUp, Award, Loader2, Clock
+  LayoutDashboard, TrendingUp, Award, Loader2, Clock,
+  ArrowLeft
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -34,21 +35,33 @@ type RankingTab =
   | 'pyramids_rating' 
   | 'kda_leaders';
 
+type PyramidViewMode = 'levels' | 'divisions' | 'table';
+
 export default function RankingsPage() {
   const { rank, leagueLevel, divisionSubId, groupId, isLoaded, language, promoteLeague, lastLeagueMatchDate, recordMatch, team, strategy } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
+  
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
   const [serverTime, setServerTime] = useState<string>('');
   const [isAutoSimulating, setIsAutoSimulating] = useState(false);
+
+  // Pyramid drill-down state
+  const [pyramidMode, setPyramidMode] = useState<PyramidViewMode>('levels');
+  const [viewingLevel, setViewingLevel] = useState<number>(1);
+  const [viewingDiv, setViewingDiv] = useState<number>(1);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   // Generate group rankings once data is loaded
-  const mockRankings = isLoaded ? getMockGroupTeams(rank, profile?.displayName, leagueLevel, divisionSubId, groupId) : [];
-  const isPlayerFirst = mockRankings[0]?.isPlayer;
+  const myLeagueRankings = useMemo(() => {
+    if (!isLoaded) return [];
+    return getMockGroupTeams(rank, profile?.displayName, leagueLevel, divisionSubId, groupId);
+  }, [isLoaded, rank, profile?.displayName, leagueLevel, divisionSubId, groupId]);
+
+  const isPlayerFirst = myLeagueRankings[0]?.isPlayer;
 
   // Clock effect
   useEffect(() => {
@@ -71,8 +84,7 @@ export default function RankingsPage() {
   const triggerAutoMatch = async () => {
     setIsAutoSimulating(true);
     try {
-      // Find a bot from the current group to be the opponent
-      const opponentTeamData = mockRankings.find(t => !t.isPlayer) || { name: "Shadow Challengers" };
+      const opponentTeamData = myLeagueRankings.find(t => !t.isPlayer) || { name: "Shadow Challengers" };
 
       const result = await simulateMobaMatch({
         teamA: {
@@ -113,12 +125,15 @@ export default function RankingsPage() {
       promoteDesc: "You have moved to a higher division!",
       canPromote: "Rank 1: Eligible for Promotion!",
       backToMenu: "Back to Menu",
+      backToLevels: "Back to Levels",
+      backToDivisions: "Back to Divisions",
       serverClock: "Server Clock (MSK)",
       matchStatus: "League Match Status",
       waiting: "Next match scheduled",
       completed: "Match for today completed",
       processing: "Simulating match...",
       div_label: "Division",
+      level_label: "Level",
       tiers: ["Elite Tier", "Professional Tier", "Challenger Tier"],
       tabs: {
         my_league: { label: "My League", desc: "Current group rankings", icon: Trophy },
@@ -141,12 +156,15 @@ export default function RankingsPage() {
       promoteDesc: "Вы перешли в дивизион уровнем выше!",
       canPromote: "1 Место: Доступно повышение!",
       backToMenu: "В меню",
+      backToLevels: "К уровням",
+      backToDivisions: "К дивизионам",
       serverClock: "Часы Сервера (МСК)",
       matchStatus: "Статус матча лиги",
       waiting: "Ожидание начала матча",
       completed: "Матч на сегодня сыгран",
       processing: "Идет симуляция...",
       div_label: "Дивизион",
+      level_label: "Уровень",
       tiers: ["Элитный уровень", "Профессиональный уровень", "Претендентский уровень"],
       tabs: {
         my_league: { label: "Своя лига", desc: "Рейтинг вашей группы", icon: Trophy },
@@ -181,7 +199,7 @@ export default function RankingsPage() {
     );
   }
 
-  const renderRankingTable = () => (
+  const renderRankingTable = (rankingsData: any[]) => (
     <div className="space-y-2 animate-in fade-in duration-300">
       <div className="flex items-center px-4 text-[10px] uppercase font-bold text-muted-foreground mb-1">
         <div className="w-8">#</div>
@@ -189,7 +207,7 @@ export default function RankingsPage() {
         <div className="w-16 text-center">W-L</div>
         <div className="w-16 text-right">Points</div>
       </div>
-      {mockRankings.map((entry, i) => {
+      {rankingsData.map((entry, i) => {
         const isTop3 = i < 3;
         return (
           <div 
@@ -226,7 +244,7 @@ export default function RankingsPage() {
     </div>
   );
 
-  const renderPyramidView = () => (
+  const renderPyramidLevels = () => (
     <div className="grid grid-cols-1 gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300">
       {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((lvl) => {
         const isCurrent = leagueLevel === lvl;
@@ -238,6 +256,10 @@ export default function RankingsPage() {
               "glass-card hover:bg-white/5 transition-colors border-white/5 cursor-pointer",
               isCurrent && "border-primary/50 bg-primary/5 shadow-[0_0_15px_rgba(var(--primary),0.1)]"
             )}
+            onClick={() => {
+              setViewingLevel(lvl);
+              setPyramidMode('divisions');
+            }}
           >
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -249,7 +271,7 @@ export default function RankingsPage() {
                 </div>
                 <div>
                   <h3 className={cn("text-sm font-bold uppercase", isCurrent && "text-primary")}>
-                    {t.div_label} {lvl}
+                    {t.level_label} {lvl}
                   </h3>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{tier}</p>
                 </div>
@@ -264,6 +286,80 @@ export default function RankingsPage() {
       })}
     </div>
   );
+
+  const renderPyramidDivisions = () => {
+    // Number of divisions at level L is 2^(L-1)
+    const numDivisions = Math.pow(2, viewingLevel - 1);
+    // Limit display for very deep levels to avoid UI freeze, but levels 1-4 are small
+    const displayCount = Math.min(numDivisions, 64);
+
+    return (
+      <div className="space-y-4 animate-in fade-in duration-300">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="text-[10px] gap-2 mb-2" 
+          onClick={() => setPyramidMode('levels')}
+        >
+          <ArrowLeft className="w-3 h-3" /> {t.backToLevels}
+        </Button>
+        <div className="grid grid-cols-2 gap-2">
+          {Array.from({ length: displayCount }).map((_, i) => {
+            const divId = i + 1;
+            const isCurrent = leagueLevel === viewingLevel && divisionSubId === divId;
+            return (
+              <Button
+                key={divId}
+                variant="outline"
+                className={cn(
+                  "h-12 glass-card justify-between font-bold text-xs border-white/5",
+                  isCurrent && "border-primary/50 bg-primary/10"
+                )}
+                onClick={() => {
+                  setViewingDiv(divId);
+                  setPyramidMode('table');
+                }}
+              >
+                {t.div_label} {viewingLevel}.{divId}
+                {isCurrent && <Badge variant="default" className="scale-75 origin-right">ME</Badge>}
+              </Button>
+            );
+          })}
+          {numDivisions > 64 && (
+            <div className="col-span-2 text-center p-4 italic text-[10px] text-muted-foreground">
+              + {numDivisions - 64} more divisions in this tier
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderPyramidTable = () => {
+    const isViewingOwn = leagueLevel === viewingLevel && divisionSubId === viewingDiv;
+    const tableRankings = isViewingOwn 
+      ? myLeagueRankings 
+      : getMockGroupTeams(1000, "Unknown Team", viewingLevel, viewingDiv, 1);
+
+    return (
+      <div className="space-y-4 animate-in fade-in duration-300">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="text-[10px] gap-2" 
+          onClick={() => setPyramidMode('divisions')}
+        >
+          <ArrowLeft className="w-3 h-3" /> {t.backToDivisions}
+        </Button>
+        <div className="px-1">
+          <h3 className="text-sm font-headline font-bold uppercase text-accent mb-4">
+            {t.div_label} {viewingLevel}.{viewingDiv} | Group 1
+          </h3>
+          {renderRankingTable(tableRankings)}
+        </div>
+      </div>
+    );
+  };
 
   if (activeTab === 'menu') {
     return (
@@ -310,7 +406,10 @@ export default function RankingsPage() {
               <Card 
                 key={tabId} 
                 className="glass-card hover:bg-white/5 transition-colors border-white/5 cursor-pointer"
-                onClick={() => setActiveTab(tabId)}
+                onClick={() => {
+                  setActiveTab(tabId);
+                  if (tabId === 'my_pyramid') setPyramidMode('levels');
+                }}
               >
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -366,11 +465,17 @@ export default function RankingsPage() {
               </Card>
             </div>
           )}
-          {renderRankingTable()}
+          {renderRankingTable(myLeagueRankings)}
         </>
       )}
 
-      {activeTab === 'my_pyramid' && renderPyramidView()}
+      {activeTab === 'my_pyramid' && (
+        <>
+          {pyramidMode === 'levels' && renderPyramidLevels()}
+          {pyramidMode === 'divisions' && renderPyramidDivisions()}
+          {pyramidMode === 'table' && renderPyramidTable()}
+        </>
+      )}
 
       {activeTab !== 'my_league' && activeTab !== 'my_pyramid' && (
         <div className="flex flex-col items-center justify-center py-12 text-center space-y-4 animate-in zoom-in duration-300">
@@ -397,3 +502,4 @@ export default function RankingsPage() {
     </div>
   );
 }
+
