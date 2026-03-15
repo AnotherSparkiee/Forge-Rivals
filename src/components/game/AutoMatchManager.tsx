@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogFooter 
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Trophy, Skull, Crosshair, Swords, Clock, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
