@@ -1,15 +1,21 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { useGameState } from './lib/store';
 import { BottomNav } from '@/components/game/BottomNav';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Coins, Trophy, Swords, Shield, Zap, Loader2, Clock, Globe, Award, Sparkles } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
+import { Card, CardContent } from '@/components/ui/card';
+import { 
+  Swords, Users, ShoppingCart, Trophy, 
+  ListTodo, Briefcase, Mail, Shield, 
+  Zap, Brain, BarChart3, Settings, 
+  Newspaper, Dumbbell, Heart, Calendar, 
+  Gift, Headphones, PlayCircle, User,
+  Coins, Loader2, Globe, Sparkles
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { LEAGUES } from './lib/leagues-data';
@@ -21,11 +27,35 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { cn } from '@/lib/utils';
 
-export default function Home() {
+const GRID_ITEMS = [
+  { label: 'БИТВА', icon: Swords, href: '/match', color: 'text-red-400', active: true },
+  { label: 'РОСТЕР', icon: Users, href: '/roster', color: 'text-blue-400', active: true },
+  { label: 'РЫНОК', icon: ShoppingCart, href: '#', color: 'text-yellow-400' },
+  { label: 'РЕЙТИНГ', icon: Trophy, href: '/rankings', color: 'text-orange-400', active: true },
+  { label: 'ЗАДАНИЯ', icon: ListTodo, href: '#', color: 'text-green-400' },
+  { label: 'СКЛАД', icon: Briefcase, href: '#', color: 'text-purple-400' },
+  { label: 'ПОЧТА', icon: Mail, href: '#', color: 'text-sky-400' },
+  { label: 'КЛАН', icon: Shield, href: '#', color: 'text-indigo-400' },
+  { label: 'НАВЫКИ', icon: Zap, href: '#', color: 'text-yellow-300' },
+  { label: 'ТАКТИКА', icon: Brain, href: '#', color: 'text-pink-400' },
+  { label: 'АНАЛИЗ', icon: BarChart3, href: '#', color: 'text-emerald-400' },
+  { label: 'ПРОФИЛЬ', icon: User, href: '/profile', color: 'text-white', active: true },
+  { label: 'НОВОСТИ', icon: Newspaper, href: '#', color: 'text-cyan-400' },
+  { label: 'ЗАЛ', icon: Dumbbell, href: '#', color: 'text-rose-400' },
+  { label: 'ДРУЗЬЯ', icon: Heart, href: '#', color: 'text-red-500' },
+  { label: 'ИВЕНТЫ', icon: Calendar, href: '#', color: 'text-violet-400' },
+  { label: 'БОНУСЫ', icon: Gift, href: '#', color: 'text-amber-400' },
+  { label: 'ПОМОЩЬ', icon: Headphones, href: '#', color: 'text-teal-400' },
+  { label: 'ЗАПИСИ', icon: PlayCircle, href: '#', color: 'text-lime-400' },
+  { label: 'ОПЦИИ', icon: Settings, href: '/profile', color: 'text-slate-400', active: true },
+];
+
+function HubContent() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
-  const { credits, rank, team, isLoaded } = useGameState();
+  const { credits, isLoaded } = useGameState();
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -47,17 +77,15 @@ export default function Home() {
   }, [profile, isProfileLoading, router]);
 
   useEffect(() => {
-    // Если в URL есть welcome=true, показываем попап
     if (searchParams.get('welcome') === 'true') {
       setShowWelcome(true);
-      // Очищаем URL от параметра, чтобы при обновлении попап не вылезал снова
       router.replace('/');
     }
   }, [searchParams, router]);
 
   if (isUserLoading || isProfileLoading || !isLoaded || !user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center space-y-4">
+      <div className="min-h-screen flex flex-col items-center justify-center space-y-4 bg-background text-foreground">
         <Loader2 className="w-12 h-12 text-primary animate-spin" />
         <p className="text-muted-foreground animate-pulse font-headline uppercase tracking-widest text-center px-4">Установка нейролинка с хабом...</p>
       </div>
@@ -67,86 +95,61 @@ export default function Home() {
   const league = LEAGUES.find(l => l.id === profile?.selectedLeagueId);
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-24">
-      <header className="flex justify-between items-end mb-8">
-        <div>
-          <h1 className="text-3xl font-headline font-bold text-foreground tracking-tighter uppercase">Командный Центр</h1>
-          <div className="flex items-center gap-2 mt-1">
+    <div className="max-w-md mx-auto px-4 pt-6 pb-24 min-h-screen bg-background text-foreground">
+      {/* Шапка */}
+      <header className="flex justify-between items-center mb-6">
+        <div className="flex flex-col">
+          <h1 className="text-xl font-headline font-bold uppercase tracking-tighter text-primary">HUD: {profile?.username}</h1>
+          <div className="flex items-center gap-2">
             <Globe className="w-3 h-3 text-accent" />
-            <p className="text-muted-foreground text-[10px] uppercase tracking-tighter italic">Тактический HUD: {profile?.country || 'Глобальный'}</p>
+            <p className="text-[10px] uppercase text-muted-foreground tracking-widest">{profile?.country} | {league?.id}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 bg-secondary/50 px-3 py-1 rounded-full border border-white/5">
+        <div className="flex items-center gap-2 bg-secondary/40 px-3 py-1.5 rounded-full border border-white/10">
           <Coins className="w-4 h-4 text-yellow-500" />
-          <span className="font-bold text-sm">{credits}</span>
+          <span className="font-bold text-sm tabular-nums">{credits}</span>
         </div>
       </header>
 
-      <section className="space-y-4 mb-8">
-        <Card className="glass-card overflow-hidden">
-          <div className="hero-gradient h-2" />
-          <CardHeader className="pb-2">
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground uppercase tracking-widest">Текущий Ранг</span>
-              <span className="text-accent text-xl font-headline font-bold">#{rank}</span>
-            </div>
-            <CardTitle className="text-lg font-headline flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-yellow-500" />
-              {league?.name || 'Лига не выбрана'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-primary" />
-                <span className="text-xs font-medium">Время игры: {league?.startTime}</span>
-              </div>
-              <span className="text-[10px] text-muted-foreground uppercase">Регион: {profile?.country}</span>
-            </div>
-            <Progress value={65} className="h-2" />
-          </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-2 gap-4">
-          <Link href="/match" className="block">
-            <Button className="w-full h-24 flex-col gap-2 hero-gradient border-none hover:opacity-90 transition-all shadow-lg shadow-primary/20">
-              <Swords className="w-8 h-8" />
-              <span className="font-headline font-bold uppercase tracking-widest text-[10px]">Встать в очередь</span>
-            </Button>
+      {/* Сетка меню 4x5 */}
+      <div className="grid grid-cols-4 gap-3 mb-8">
+        {GRID_ITEMS.map((item, index) => (
+          <Link 
+            key={index} 
+            href={item.href} 
+            className={cn(
+              "group relative flex flex-col items-center justify-center aspect-square rounded-xl border border-white/5 bg-card/40 transition-all duration-300",
+              item.active ? "hover:bg-primary/10 hover:border-primary/50 active:scale-95 cursor-pointer" : "opacity-40 cursor-not-allowed grayscale"
+            )}
+          >
+            <item.icon className={cn("w-6 h-6 mb-1.5 transition-transform duration-300 group-hover:scale-110", item.color)} />
+            <span className="text-[8px] font-headline font-bold text-center tracking-tighter uppercase leading-none px-1">
+              {item.label}
+            </span>
+            {item.active && (
+              <div className="absolute top-1 right-1 w-1 h-1 rounded-full bg-primary animate-pulse" />
+            )}
           </Link>
-          <Link href="/roster" className="block">
-            <Button variant="secondary" className="w-full h-24 flex-col gap-2 glass-card hover:bg-white/5">
-              <Shield className="w-8 h-8 text-accent" />
-              <span className="font-headline font-bold uppercase tracking-widest text-[10px]">Управление</span>
-            </Button>
-          </Link>
-        </div>
-      </section>
+        ))}
+      </div>
 
-      <section className="space-y-4 mb-8">
-        <h2 className="text-sm font-headline font-bold flex items-center gap-2 uppercase tracking-widest text-accent">
-          <Zap className="w-4 h-4 text-primary" />
-          Активный Ростер
-        </h2>
-        <div className="grid grid-cols-5 gap-2">
-          {team.map((hero) => (
-            <div key={hero.id} className="aspect-[2/3] rounded-lg overflow-hidden border border-white/10 relative group bg-muted/20">
-              <img 
-                src={hero.image} 
-                alt={hero.name} 
-                className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all"
-              />
-              <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-1">
-                <p className="text-[8px] truncate font-bold uppercase text-center">{hero.name}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* Информационная панель */}
+      <Card className="glass-card overflow-hidden mb-6 border-primary/20">
+        <div className="hero-gradient h-1 opacity-50" />
+        <CardContent className="p-4 space-y-3">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-headline">Оперативный статус</span>
+            <span className="text-[10px] text-accent font-bold uppercase">В норме</span>
+          </div>
+          <div className="text-[11px] leading-relaxed text-muted-foreground italic">
+            "Лига {league?.name} ожидает начала операций в {league?.startTime}. Проверьте готовность ростера."
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Модальное окно приветствия */}
       <Dialog open={showWelcome} onOpenChange={setShowWelcome}>
-        <DialogContent className="glass-card border-primary/50 max-w-[90vw] rounded-2xl">
+        <DialogContent className="glass-card border-primary/50 max-w-[90vw] rounded-2xl bg-card/90">
           <DialogHeader className="flex flex-col items-center gap-4 py-4">
             <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center animate-bounce">
               <Sparkles className="w-8 h-8 text-primary" />
@@ -156,21 +159,18 @@ export default function Home() {
             </DialogTitle>
             <DialogDescription className="text-center text-sm leading-relaxed space-y-4">
               <span className="block text-primary font-bold uppercase text-lg mb-2">
-                Приветствуем, Командир {profile?.username || user?.email?.split('@')[0]}!
+                Приветствуем, Командир {profile?.username}!
               </span>
               <span className="block italic">
-                "Поздравляем вас с началом карьеры нового командующего! Нейролинк с региональным узлом {profile?.country} успешно установлен. Все системы управления ростером в норме."
+                "Нейролинк с региональным узлом {profile?.country} успешно установлен. Все системы управления ростером в норме."
               </span>
               <span className="block">
-                Ваша команда зачислена в <strong className="text-accent">{league?.name}</strong>. Время начала боевых операций: <strong className="text-accent">{league?.startTime}</strong>.
-              </span>
-              <span className="block font-bold text-primary uppercase pt-2">
-                Удачи на полях сражений!
+                Ваша команда зачислена в <strong className="text-accent">{league?.name}</strong>. Время начала операций: <strong className="text-accent">{league?.startTime}</strong>.
               </span>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button onClick={() => setShowWelcome(false)} className="w-full hero-gradient font-headline font-bold">
+            <Button onClick={() => setShowWelcome(false)} className="w-full hero-gradient font-headline font-bold h-12">
               ПРИНЯТЬ КОМАНДОВАНИЕ
             </Button>
           </DialogFooter>
@@ -179,5 +179,17 @@ export default function Home() {
 
       <BottomNav />
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    }>
+      <HubContent />
+    </Suspense>
   );
 }
