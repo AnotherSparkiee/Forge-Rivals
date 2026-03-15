@@ -7,8 +7,21 @@ export interface LeagueGroup {
   groupNumber: number;
 }
 
+export interface LeagueOption {
+  id: string;
+  startTime: string;
+  description: string;
+}
+
 export const MAX_LEVELS = 9;
 export const GROUPS_PER_DIVISION = 8;
+
+export const LEAGUES: LeagueOption[] = [
+  { id: 'ALPHA', startTime: '08:00 - 12:00', description: 'Early morning operations for early birds.' },
+  { id: 'BETA', startTime: '12:00 - 16:00', description: 'Mid-day tactical window.' },
+  { id: 'GAMMA', startTime: '16:00 - 20:00', description: 'Prime time evening matches.' },
+  { id: 'DELTA', startTime: '20:00 - 00:00', description: 'Late night competitive sessions.' },
+];
 
 /**
  * Returns the name of the division based on its level and sub-id
@@ -41,7 +54,7 @@ export function getMockGroupTeams(playerRank: number, isPlayerIn: boolean = true
 
   if (isPlayerIn) {
     // Insert player based on rank
-    const playerTeam = { name: "Ваша Команда", wins: Math.floor(playerRank / 100), losses: 5, points: Math.floor(playerRank / 10), isPlayer: true };
+    const playerTeam = { name: "Ваша Команда", wins: Math.max(0, Math.floor(playerRank / 100)), losses: 5, points: Math.max(0, Math.floor(playerRank / 10)), isPlayer: true };
     teams.push(playerTeam);
   }
 
