@@ -46,6 +46,10 @@ export default function RankingsPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
+  // Generate group rankings once data is loaded
+  const mockRankings = isLoaded ? getMockGroupTeams(rank, profile?.displayName, leagueLevel, divisionSubId, groupId) : [];
+  const isPlayerFirst = mockRankings[0]?.isPlayer;
+
   // Clock effect
   useEffect(() => {
     const timer = setInterval(() => {
@@ -67,6 +71,9 @@ export default function RankingsPage() {
   const triggerAutoMatch = async () => {
     setIsAutoSimulating(true);
     try {
+      // Find a bot from the current group to be the opponent
+      const opponentTeamData = mockRankings.find(t => !t.isPlayer) || { name: "Shadow Challengers" };
+
       const result = await simulateMobaMatch({
         teamA: {
           name: profile?.displayName || "My Team",
@@ -74,16 +81,20 @@ export default function RankingsPage() {
           heroes: team
         },
         teamB: {
-          name: "Opponent Team",
+          name: opponentTeamData.name,
           strategy: "Standard Tactics",
           heroes: INITIAL_HEROES.map(h => ({ ...h, baseStats: { ...h.baseStats, attack: h.baseStats.attack + 2 } }))
         },
         includeRandomEvents: true
       });
+      
       recordMatch(result.winner, result, true);
+      
       toast({
         title: language === 'ru' ? "Матч лиги завершен!" : "League Match Completed!",
-        description: result.winner === (profile?.displayName || "My Team") ? "Victory!" : "Defeat.",
+        description: result.winner === (profile?.displayName || "My Team") 
+          ? (language === 'ru' ? `Победа над ${opponentTeamData.name}!` : `Victory against ${opponentTeamData.name}!`)
+          : (language === 'ru' ? `Поражение от ${opponentTeamData.name}.` : `Defeat by ${opponentTeamData.name}.`),
       });
     } catch (e) {
       console.error("Auto simulation failed", e);
@@ -148,8 +159,6 @@ export default function RankingsPage() {
   };
 
   const t = labels[language as keyof typeof labels] || labels.ru;
-  const mockRankings = getMockGroupTeams(rank, profile?.displayName);
-  const isPlayerFirst = mockRankings[0]?.isPlayer;
 
   const handlePromotion = () => {
     if (promoteLeague()) {

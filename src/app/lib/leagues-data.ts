@@ -24,26 +24,58 @@ export const LEAGUES: LeagueOption[] = [
   { id: 'DELTA', startTime: '20:00 - 00:00', description: 'Late night competitive sessions.' },
 ];
 
-/**
- * Returns the name of the division based on its level and sub-id
- */
-export function getDivisionName(level: number, subId: number): string {
-  return `${level}.${subId}`;
-}
+const BOT_TEAM_NAMES = [
+  "Alpha Strikers", "Void Reapers", "Cyber Knights", "Neon Phantoms", 
+  "Shadow Walkers", "Iron Guardians", "Frost Giants", "Storm Bringers",
+  "Plasma Wolves", "Nexus Rangers", "Titan Brawlers", "Zenith Hunters",
+  "Quantum Phalanx", "Solar Flares", "Lunar Eclipse", "Obsidian Daggers",
+  "Vortex Seekers", "Ember Guard", "Glacier Raiders", "Thunder Fist",
+  "Digital Demons", "Logic Bombs", "Code Breakers", "Data Wraiths",
+  "Signal Ghosts", "Binary Beasts", "Silicon Soldiers", "Circuit Crushers",
+  "Vector Vanguards", "Matrix Masters", "Kernel Kings", "Pixel Predators",
+  "Rune Wardens", "Mystic Monks", "Ancient Aspects", "Spirit Sentinels",
+  "Divine Dragoons", "Celestial Corsairs", "Astral Avengers", "Void Voyagers",
+  "Gravity Grunts", "Nebula Knights", "Star Seekers", "Cosmos Command",
+  "Galaxy Gladiators", "Orbit Outlaws", "Meteor Menace", "Comet Cutters"
+];
 
 /**
- * Mock function to get group members (exactly 8 teams including player)
+ * Deterministically generates bot teams for a specific group in the pyramid.
  */
-export function getMockGroupTeams(playerRank: number, playerName: string = "Player Team") {
-  const baseTeams = [
-    { name: "Alpha Strikers", wins: 12, losses: 2, points: 36, isPlayer: false },
-    { name: "Void Reapers", wins: 10, losses: 4, points: 30, isPlayer: false },
-    { name: "Cyber Knights", wins: 9, losses: 5, points: 27, isPlayer: false },
-    { name: "Neon Phantoms", wins: 8, losses: 6, points: 24, isPlayer: false },
-    { name: "Shadow Walkers", wins: 7, losses: 7, points: 21, isPlayer: false },
-    { name: "Iron Guardians", wins: 5, losses: 9, points: 15, isPlayer: false },
-    { name: "Frost Giants", wins: 3, losses: 11, points: 9, isPlayer: false },
-  ];
+export function getMockGroupTeams(
+  playerRank: number, 
+  playerName: string = "Player Team",
+  level: number = 9,
+  division: number = 1,
+  group: number = 1
+) {
+  // Use a simple hash based on group coordinates to pick bot names
+  const seed = (level * 1000) + (division * 100) + group;
+  
+  const bots = [];
+  const usedIndices = new Set<number>();
+  
+  for (let i = 0; i < 7; i++) {
+    let nameIndex = (seed + i * 7) % BOT_TEAM_NAMES.length;
+    // Avoid duplicate names in the same group
+    while (usedIndices.has(nameIndex)) {
+      nameIndex = (nameIndex + 1) % BOT_TEAM_NAMES.length;
+    }
+    usedIndices.add(nameIndex);
+    
+    // Bots in higher levels have slightly more points/wins
+    const levelModifier = (10 - level) * 5;
+    const wins = Math.max(0, Math.floor(((seed + i) % 15) + levelModifier));
+    const losses = Math.max(0, 15 - wins);
+    
+    bots.push({
+      name: BOT_TEAM_NAMES[nameIndex],
+      wins: wins,
+      losses: losses,
+      points: wins * 3,
+      isPlayer: false
+    });
+  }
 
   const playerTeam = { 
     name: playerName, 
@@ -53,6 +85,13 @@ export function getMockGroupTeams(playerRank: number, playerName: string = "Play
     isPlayer: true 
   };
 
-  const allTeams = [...baseTeams, playerTeam];
-  return allTeams.sort((a, b) => b.points - a.points).slice(0, 8);
+  const allTeams = [...bots, playerTeam];
+  return allTeams.sort((a, b) => b.points - a.points);
+}
+
+/**
+ * Returns the name of the division based on its level and sub-id
+ */
+export function getDivisionName(level: number, subId: number): string {
+  return `${level}.${subId}`;
 }
