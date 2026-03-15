@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -6,7 +5,7 @@ import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, CalendarDays, UserSearch, CalendarClock, 
   History, Calendar, CheckSquare, ChevronRight, Shield,
-  Loader2, Swords, Trophy, Clock
+  Loader2, Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -15,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { getMockGroupTeams, getSchedule, getMatchResult, SEASON_DURATION_DAYS } from '../lib/leagues-data';
+import { getMockGroupTeams, getSchedule, LEAGUES } from '../lib/leagues-data';
 
 type MatchTab = 
   | 'menu'
@@ -33,6 +32,12 @@ export default function MatchesPage() {
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
+
+  // Find user league info
+  const userLeague = useMemo(() => {
+    if (!profile?.selectedLeagueId) return null;
+    return LEAGUES.find(l => l.id === profile.selectedLeagueId);
+  }, [profile?.selectedLeagueId]);
 
   // Generate group data
   const groupTeams = useMemo(() => {
@@ -54,6 +59,7 @@ export default function MatchesPage() {
       status: "Operational Status",
       day: "Day",
       vs: "VS",
+      matchTime: "Deployment Window",
       noData: "No records found for this sector.",
       tabs: {
         next_opponent: { label: "Next Opponent", desc: "Detailed brief on your next rival", icon: UserSearch },
@@ -71,6 +77,7 @@ export default function MatchesPage() {
       status: "Статус операций",
       day: "День",
       vs: "ПРОТИВ",
+      matchTime: "Окно развертывания",
       noData: "Записей в данном секторе не обнаружено.",
       tabs: {
         next_opponent: { label: "Следующий соперник", desc: "Досье на вашего ближайшего врага", icon: UserSearch },
@@ -102,6 +109,9 @@ export default function MatchesPage() {
         <div className="flex flex-col items-center w-12 flex-shrink-0">
           <span className="text-[8px] uppercase font-bold text-muted-foreground">{t.day}</span>
           <span className="text-sm font-headline font-bold">{day}</span>
+          {!isPlayed && userLeague && (
+            <span className="text-[7px] text-accent font-bold mt-1">{userLeague.startTime.split(' ')[0]}</span>
+          )}
         </div>
         <div className="flex-1 flex items-center justify-between gap-2">
           <div className={cn("flex-1 text-right text-xs font-bold uppercase truncate", match.home.isPlayer && "text-primary")}>
@@ -148,6 +158,16 @@ export default function MatchesPage() {
                   <h3 className="text-2xl font-headline font-bold text-primary italic uppercase">{opponent.name}</h3>
                   <Badge variant="secondary" className="mt-2">LEVEL {leagueLevel} | GROUP {groupId}</Badge>
                 </div>
+                
+                {userLeague && (
+                  <div className="w-full bg-accent/10 p-3 rounded-lg border border-accent/20 text-center">
+                    <p className="text-[10px] uppercase text-accent font-bold mb-1 flex items-center justify-center gap-1">
+                      <Clock className="w-3 h-3" /> {t.matchTime}
+                    </p>
+                    <p className="text-sm font-headline font-bold">{userLeague.startTime}</p>
+                  </div>
+                )}
+
                 <div className="w-full grid grid-cols-2 gap-3 pt-4 border-t border-white/5">
                    <div className="text-center">
                      <p className="text-[10px] uppercase text-muted-foreground font-bold">Wins-Draws-Losses</p>
@@ -203,6 +223,7 @@ export default function MatchesPage() {
                 <div className="flex items-center gap-2 px-1">
                   <div className="h-px flex-1 bg-gradient-to-r from-transparent to-white/10"></div>
                   <span className="text-[10px] uppercase font-bold tracking-widest text-accent">DAY {dIdx + 1}</span>
+                  {userLeague && <span className="text-[9px] text-muted-foreground font-mono">{userLeague.startTime.split(' ')[0]}</span>}
                   <div className="h-px flex-1 bg-gradient-to-l from-transparent to-white/10"></div>
                 </div>
                 <div className="space-y-2">
@@ -240,6 +261,16 @@ export default function MatchesPage() {
 
       default: return null;
     }
+  };
+
+  const getMatchResult = (homeId: string, awayId: string, day: number): [number, number] => {
+    const hId = parseInt(homeId.replace('bot_', '').replace('player_team', '99999'));
+    const aId = parseInt(awayId.replace('bot_', '').replace('player_team', '99999'));
+    const seed = hId + aId + day;
+    const val = seed % 10;
+    if (val < 4) return [2, 0];
+    if (val < 7) return [1, 1];
+    return [0, 2];
   };
 
   if (activeTab === 'menu') {
@@ -312,7 +343,11 @@ export default function MatchesPage() {
           <CardContent className="p-3 flex justify-between items-center">
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-[10px] uppercase border-primary/20 text-primary">Season Day {seasonDay}</Badge>
-              <Badge variant="outline" className="text-[10px] uppercase border-accent/20 text-accent">Active</Badge>
+              {userLeague && (
+                <Badge variant="outline" className="text-[10px] uppercase border-accent/20 text-accent flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> {userLeague.startTime.split(' ')[0]}
+                </Badge>
+              )}
             </div>
             <span className="text-[8px] uppercase font-bold text-muted-foreground">Div {leagueLevel}.{divisionSubId}</span>
           </CardContent>
