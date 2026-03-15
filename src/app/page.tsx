@@ -27,26 +27,26 @@ import {
 import { cn } from '@/lib/utils';
 
 const GRID_ITEMS = [
-  { label: 'ОБЗОР МАТЧА', icon: Swords, href: '/match', color: 'text-red-400', active: true },
-  { label: 'СОСТАВ', icon: Users, href: '/roster', color: 'text-blue-400', active: true },
-  { label: 'ТРАНСФЕРЫ', icon: UserPlus, href: '#', color: 'text-yellow-400' },
-  { label: 'РАЗВИТИЕ', icon: TrendingUp, href: '#', color: 'text-green-400' },
-  { label: 'ПЕРСОНАЛ', icon: Briefcase, href: '#', color: 'text-purple-400' },
-  { label: 'ТАЛАНТЫ', icon: Binoculars, href: '#', color: 'text-sky-400' },
-  { label: 'ТАБЛИЦЫ', icon: Trophy, href: '/rankings', color: 'text-orange-400', active: true },
-  { label: 'РАСПИСАНИЕ', icon: Calendar, href: '#', color: 'text-indigo-400' },
-  { label: 'ФИНАНСЫ', icon: BarChart3, href: '#', color: 'text-emerald-400' },
-  { label: 'ТУРНИРЫ', icon: Medal, href: '#', color: 'text-yellow-300' },
-  { label: 'ФАН БАЗА', icon: Heart, href: '#', color: 'text-pink-400' },
-  { label: 'ТОП СЕЗОНА', icon: Star, href: '#', color: 'text-amber-400' },
-  { label: 'ЧАТЫ', icon: MessageSquare, href: '#', color: 'text-cyan-400' },
-  { label: 'ДРУЗЬЯ', icon: UserCheck, href: '#', color: 'text-rose-400' },
-  { label: 'О СЕБЕ', icon: User, href: '/profile', color: 'text-white', active: true },
-  { label: 'АССОЦИАЦИИ', icon: Shield, href: '#', color: 'text-violet-400' },
-  { label: 'МАГАЗИН', icon: ShoppingCart, href: '#', color: 'text-lime-400' },
-  { label: 'НОВОСТИ', icon: Newspaper, href: '#', color: 'text-teal-400' },
-  { label: 'СИСТЕМА', icon: Settings, href: '/profile', color: 'text-slate-400', active: true },
-  { label: 'ПОИСК', icon: Search, href: '#', color: 'text-blue-300' },
+  { label: 'ОБЗОР МАТЧА', icon: Swords, color: 'text-red-400' },
+  { label: 'СОСТАВ', icon: Users, color: 'text-blue-400' },
+  { label: 'ТРАНСФЕРЫ', icon: UserPlus, color: 'text-yellow-400' },
+  { label: 'РАЗВИТИЕ', icon: TrendingUp, color: 'text-green-400' },
+  { label: 'ПЕРСОНАЛ', icon: Briefcase, color: 'text-purple-400' },
+  { label: 'ТАЛАНТЫ', icon: Binoculars, color: 'text-sky-400' },
+  { label: 'ТАБЛИЦЫ', icon: Trophy, color: 'text-orange-400' },
+  { label: 'РАСПИСАНИЕ', icon: Calendar, color: 'text-indigo-400' },
+  { label: 'ФИНАНСЫ', icon: BarChart3, color: 'text-emerald-400' },
+  { label: 'ТУРНИРЫ', icon: Medal, color: 'text-yellow-300' },
+  { label: 'ФАН БАЗА', icon: Heart, color: 'text-pink-400' },
+  { label: 'ТОП СЕЗОНА', icon: Star, color: 'text-amber-400' },
+  { label: 'ЧАТЫ', icon: MessageSquare, color: 'text-cyan-400' },
+  { label: 'ДРУЗЬЯ', icon: UserCheck, color: 'text-rose-400' },
+  { label: 'О СЕБЕ', icon: User, color: 'text-white' },
+  { label: 'АССОЦИАЦИИ', icon: Shield, color: 'text-violet-400' },
+  { label: 'МАГАЗИН', icon: ShoppingCart, color: 'text-lime-400' },
+  { label: 'НОВОСТИ', icon: Newspaper, color: 'text-teal-400' },
+  { label: 'СИСТЕМА', icon: Settings, color: 'text-slate-400' },
+  { label: 'ПОИСК', icon: Search, color: 'text-blue-300' },
 ];
 
 function HubContent() {
@@ -97,33 +97,15 @@ function HubContent() {
         <div className="grid grid-cols-4 grid-rows-5 gap-1 h-full w-full">
           {GRID_ITEMS.map((item, index) => {
             const Icon = item.icon;
-            const isLink = item.active;
-            const Content = (
-              <div className="flex flex-col items-center justify-center h-full w-full p-1 text-center">
+            return (
+              <div 
+                key={index} 
+                className="relative rounded-md border border-white/5 bg-card/40 flex flex-col items-center justify-center p-1 text-center"
+              >
                 <Icon className={cn("w-6 h-6 mb-1 shrink-0", item.color)} />
-                <span className="text-[8px] font-headline font-bold tracking-tighter uppercase leading-[1.1] max-w-full break-words line-clamp-2">
+                <span className="text-[8px] font-headline font-bold tracking-tighter uppercase leading-tight max-w-full break-words line-clamp-2 px-1">
                   {item.label}
                 </span>
-                {item.active && (
-                  <div className="absolute top-1 right-1 w-1 h-1 rounded-full bg-primary" />
-                )}
-              </div>
-            );
-
-            const baseClass = cn(
-              "relative rounded-md border flex flex-col items-center justify-center transition-colors duration-200",
-              item.active 
-                ? "bg-card/60 border-white/5 active:bg-primary/20 shadow-none" 
-                : "bg-black/20 border-white/5 opacity-30 grayscale"
-            );
-
-            return isLink ? (
-              <Link key={index} href={item.href} className={baseClass}>
-                {Content}
-              </Link>
-            ) : (
-              <div key={index} className={baseClass}>
-                {Content}
               </div>
             );
           })}
