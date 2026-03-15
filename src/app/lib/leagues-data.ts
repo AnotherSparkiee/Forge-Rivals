@@ -26,23 +26,32 @@ export const LEAGUES: LeagueOption[] = [
 ];
 
 /**
- * Generates a round-robin schedule for 8 teams.
- * Returns an array of pairings for each day.
+ * Deterministic match result based on team IDs and day.
+ * Returns score [homeScore, awayScore] (Bo2)
  */
-export function getSchedule(teams: any[], day: number) {
-  if (day < 1 || day > SEASON_DURATION_DAYS) return null;
+export function getMatchResult(homeId: string, awayId: string, day: number): [number, number] {
+  const hId = parseInt(homeId.replace('bot_', '').replace('player_team', '99999'));
+  const aId = parseInt(awayId.replace('bot_', '').replace('player_team', '99999'));
+  
+  const seed = hId + aId + day;
+  const val = seed % 10;
+  
+  if (val < 4) return [2, 0]; // Home Win
+  if (val < 7) return [1, 1]; // Draw
+  return [0, 2]; // Away Win
+}
 
-  // Day 1-7: First round. Day 8-14: Second round (reversed home/away)
-  const isSecondRound = day > 7;
-  const matchDay = isSecondRound ? day - 7 : day;
-
-  // Circle method for round robin
-  const teamsCopy = [...teams];
-  const n = teamsCopy.length;
+/**
+ * Generates a round-robin schedule for 8 teams using Circle Method.
+ */
+export function getSchedule(teams: any[], day?: number) {
+  const n = teams.length;
   const rounds = n - 1;
   const half = n / 2;
 
-  const schedule = [];
+  const teamsCopy = [...teams];
+  const fullSchedule = [];
+
   for (let r = 0; r < rounds; r++) {
     const roundMatches = [];
     for (let i = 0; i < half; i++) {
@@ -50,18 +59,33 @@ export function getSchedule(teams: any[], day: number) {
       const away = teamsCopy[n - 1 - i];
       roundMatches.push({ home, away });
     }
-    schedule.push(roundMatches);
-    // Rotate teams except the first one
+    fullSchedule.push(roundMatches);
+    // Rotate all except first element
     teamsCopy.splice(1, 0, teamsCopy.pop());
   }
 
-  const currentDayMatches = schedule[matchDay - 1];
-  
-  if (isSecondRound) {
-    // Reverse home/away for second round
-    return currentDayMatches.map(m => ({ home: m.away, away: m.home }));
+  // Round 1: Days 1-7
+  // Round 2: Days 8-14 (reverse home/away)
+  if (day !== undefined) {
+    const matchDay = ((day - 1) % rounds) + 1;
+    const isSecondRound = day > rounds;
+    const dayMatches = fullSchedule[matchDay - 1];
+    
+    if (isSecondRound) {
+      return dayMatches.map(m => ({ home: m.away, away: m.home }));
+    }
+    return dayMatches;
   }
-  return currentDayMatches;
+
+  // Return all 14 days
+  const seasonSchedule = [];
+  for (let d = 1; d <= SEASON_DURATION_DAYS; d++) {
+    const matchDay = ((d - 1) % rounds) + 1;
+    const isSecondRound = d > rounds;
+    const dayMatches = fullSchedule[matchDay - 1];
+    seasonSchedule.push(isSecondRound ? dayMatches.map(m => ({ home: m.away, away: m.home })) : dayMatches);
+  }
+  return seasonSchedule;
 }
 
 /**
@@ -104,30 +128,23 @@ export function getMockGroupTeams(
     });
   }
 
-  // To make standings deterministic but progressing, we simulate results up to (currentDay - 1)
-  // Each day has results based on team strength (derived from ID)
+  // Calculate standings up to (currentDay - 1)
+  const seasonSchedule = getSchedule(teams);
   for (let day = 1; day < currentDay; day++) {
-    const matches = getSchedule(teams, day);
-    if (!matches) continue;
-
-    matches.forEach(m => {
-      // Deterministic outcome based on IDs
-      const hId = parseInt(m.home.id.replace('bot_', '').replace('player_team', '99999'));
-      const aId = parseInt(m.away.id.replace('bot_', '').replace('player_team', '99999'));
+    const matches = seasonSchedule[day - 1];
+    matches.forEach((m: any) => {
+      const [hScore, aScore] = getMatchResult(m.home.id, m.away.id, day);
       
-      const combined = hId + aId + day;
-      const resultValue = combined % 10;
-
-      if (resultValue < 4) { // Home win 2-0
+      if (hScore === 2) {
         m.home.wins++;
         m.home.points += 3;
         m.away.losses++;
-      } else if (resultValue < 7) { // Draw 1-1
+      } else if (hScore === 1) {
         m.home.draws++;
         m.home.points += 1;
         m.away.draws++;
         m.away.points += 1;
-      } else { // Away win 0-2
+      } else {
         m.away.wins++;
         m.away.points += 3;
         m.home.losses++;
