@@ -12,7 +12,8 @@ interface ArenaState {
   screensLevel: number;
   roofLevel: number;
   lightingLevel: number;
-  constructionFinishes: Record<string, string | null>; // facilityId -> ISO string timestamp
+  pendingCapacitySeats: number | null;
+  constructionFinishes: Record<string, string | null>; // facilityId or 'capacity' -> ISO string timestamp
 }
 
 interface GameState {
@@ -55,6 +56,7 @@ const DEFAULT_ARENA: ArenaState = {
   screensLevel: 0,
   roofLevel: 0,
   lightingLevel: 0,
+  pendingCapacitySeats: null,
   constructionFinishes: {},
 };
 
@@ -107,7 +109,7 @@ export function useGameState() {
 
         const isNewSeason = parsed.seasonDay && currentDay > 0 && currentDay < parsed.seasonDay;
 
-        // Safely merge arena state with defaults to ensure constructionFinishes exists
+        // Safely merge arena state
         const rawArena = parsed.arena || {};
         const updatedArena: ArenaState = {
           ...DEFAULT_ARENA,
@@ -118,21 +120,25 @@ export function useGameState() {
           }
         };
 
-        const constructionFinishes = updatedArena.constructionFinishes;
-        const newArenaLevels = { ...updatedArena };
-        const newConstructionFinishes = { ...constructionFinishes };
+        const newArena = { ...updatedArena };
+        const newFinishes = { ...(newArena.constructionFinishes || {}) };
         let hasChanges = false;
 
-        Object.entries(constructionFinishes).forEach(([facility, finishTime]) => {
+        Object.entries(newFinishes).forEach(([id, finishTime]) => {
           if (finishTime && mskNowTime >= new Date(finishTime as string).getTime()) {
-            (newArenaLevels as any)[facility] = ((newArenaLevels as any)[facility] || 0) + 1;
-            newConstructionFinishes[facility] = null;
+            if (id === 'capacity') {
+              newArena.capacity += (newArena.pendingCapacitySeats || 0);
+              newArena.pendingCapacitySeats = null;
+            } else {
+              (newArena as any)[id] = ((newArena as any)[id] || 0) + 1;
+            }
+            newFinishes[id] = null;
             hasChanges = true;
           }
         });
 
         if (hasChanges) {
-          newArenaLevels.constructionFinishes = newConstructionFinishes;
+          newArena.constructionFinishes = newFinishes;
         }
 
         setState(prev => {
@@ -146,7 +152,7 @@ export function useGameState() {
             draws: isNewSeason ? 0 : (parsed.draws || 0),
             losses: isNewSeason ? 0 : (parsed.losses || 0),
             points: isNewSeason ? 0 : (parsed.points || 0),
-            arena: hasChanges ? newArenaLevels : updatedArena,
+            arena: hasChanges ? newArena : updatedArena,
           };
           
           if (newState.credits < TEST_CREDITS) {
@@ -172,8 +178,7 @@ export function useGameState() {
     setState(s => ({ ...s, credits: s.credits + amount }));
   };
 
-  const startArenaConstruction = (facility: keyof Omit<ArenaState, 'capacity' | 'constructionFinishes'>, cost: number) => {
-    // Check if ANY construction is currently in progress
+  const startArenaConstruction = (facility: keyof Omit<ArenaState, 'capacity' | 'constructionFinishes' | 'pendingCapacitySeats'>, cost: number) => {
     const isAnyBuilding = Object.values(state.arena.constructionFinishes).some(v => v !== null && v !== undefined);
     
     if (state.credits >= cost && !isAnyBuilding) {
@@ -199,12 +204,24 @@ export function useGameState() {
     return false;
   };
 
-  const upgradeArenaCapacity = (cost: number) => {
-    if (state.credits >= cost) {
+  const startCapacityExpansion = (seats: number, cost: number, hours: number) => {
+    const isAnyBuilding = Object.values(state.arena.constructionFinishes).some(v => v !== null && v !== undefined);
+    
+    if (state.credits >= cost && !isAnyBuilding) {
+      const finishTime = getMoscowTime();
+      finishTime.setHours(finishTime.getHours() + hours);
+
       setState(s => ({
         ...s,
         credits: s.credits - cost,
-        arena: { ...s.arena, capacity: s.arena.capacity + 500 }
+        arena: {
+          ...s.arena,
+          pendingCapacitySeats: seats,
+          constructionFinishes: {
+            ...s.arena.constructionFinishes,
+            capacity: finishTime.toISOString()
+          }
+        }
       }));
       return true;
     }
@@ -217,10 +234,15 @@ export function useGameState() {
     const newArena = { ...state.arena };
     const newFinishes = { ...(newArena.constructionFinishes || {}) };
 
-    Object.entries(newFinishes).forEach(([facility, finishTime]) => {
+    Object.entries(newFinishes).forEach(([id, finishTime]) => {
       if (finishTime && mskNow >= new Date(finishTime as string).getTime()) {
-        (newArena as any)[facility] = ((newArena as any)[facility] || 0) + 1;
-        newFinishes[facility] = null;
+        if (id === 'capacity') {
+          newArena.capacity += (newArena.pendingCapacitySeats || 0);
+          newArena.pendingCapacitySeats = null;
+        } else {
+          (newArena as any)[id] = ((newArena as any)[id] || 0) + 1;
+        }
+        newFinishes[id] = null;
         hasChanges = true;
       }
     });
@@ -250,7 +272,6 @@ export function useGameState() {
     let matchLosses = 0;
     let matchPoints = 0;
 
-    // Score format strictly Bo2: 2:0 (Win), 1:1 (Draw), 0:2 (Loss)
     if (scoreA === 2 && scoreB === 0) {
       creditsEarned = 200;
       rankChange = 25;
@@ -286,7 +307,7 @@ export function useGameState() {
     addCredits,
     setTeam,
     startArenaConstruction,
-    upgradeArenaCapacity,
+    startCapacityExpansion,
     checkConstructions,
     setLanguage,
     recordMatch
