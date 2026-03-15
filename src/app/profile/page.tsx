@@ -3,23 +3,42 @@
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { User, Settings, ShieldCheck, History, LogOut, ChevronRight, Mail, ChevronLeft, Languages, Check, Loader2 } from 'lucide-react';
+import { User, Settings, ShieldCheck, History, LogOut, ChevronRight, Mail, ChevronLeft, Check, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/firebase';
+import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { doc } from 'firebase/firestore';
 
 export default function ProfilePage() {
-  const { ownedHeroes, rank, language, setLanguage, isLoaded } = useGameState();
+  const { ownedHeroes, rank, language, setLanguage, isLoaded: isStoreLoaded } = useGameState();
+  const { user, isUserLoading } = useUser();
   const auth = useAuth();
+  const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  if (!isLoaded) return null;
+  // Получаем ссылку на документ профиля пользователя
+  const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
+
+  if (!isStoreLoaded || isUserLoading || isProfileLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const translations = {
     en: {
@@ -90,9 +109,11 @@ export default function ProfilePage() {
             <User className="w-12 h-12 text-primary-foreground" />
           </div>
         </div>
-        <h1 className="text-2xl font-headline font-bold">{t.title}</h1>
-        <p className="text-muted-foreground text-sm flex items-center gap-1">
-          <Mail className="w-3 h-3" /> manager@moba-tactics.online
+        <h1 className="text-2xl font-headline font-bold uppercase tracking-tight">
+          {profile?.displayName || t.title}
+        </h1>
+        <p className="text-muted-foreground text-sm flex items-center gap-1 mt-1">
+          <Mail className="w-3 h-3" /> {user?.email}
         </p>
       </header>
 
@@ -162,7 +183,7 @@ export default function ProfilePage() {
 
       <Button 
         variant="destructive" 
-        className="w-full mb-8 flex items-center gap-2"
+        className="w-full mb-8 flex items-center gap-2 font-bold"
         onClick={handleLogout}
         disabled={isLoggingOut}
       >
