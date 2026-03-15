@@ -1,24 +1,42 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useUser } from '@/firebase';
 import { useGameState } from './lib/store';
 import { BottomNav } from '@/components/game/BottomNav';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Coins, Trophy, Swords, Shield, Zap } from 'lucide-react';
+import { Coins, Trophy, Swords, Shield, Zap, Loader2 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
 export default function Home() {
+  const { user, isUserLoading } = useUser();
   const { credits, rank, team, isLoaded } = useGameState();
+  const router = useRouter();
 
-  if (!isLoaded) return null;
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
+
+  if (isUserLoading || !isLoaded || !user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center space-y-4">
+        <Loader2 className="w-12 h-12 text-primary animate-spin" />
+        <p className="text-muted-foreground animate-pulse font-headline uppercase tracking-widest">Establishing Neural Link...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8">
       <header className="flex justify-between items-end mb-8">
         <div>
           <h1 className="text-3xl font-headline font-bold text-foreground">MOBA TACTICS</h1>
-          <p className="text-muted-foreground text-sm">Manager Online</p>
+          <p className="text-muted-foreground text-sm uppercase tracking-tighter italic">Tactical HUD Active</p>
         </div>
         <div className="flex items-center gap-2 bg-secondary/50 px-3 py-1 rounded-full border border-white/5">
           <Coins className="w-4 h-4 text-yellow-500" />
@@ -85,7 +103,7 @@ export default function Home() {
         <h2 className="text-lg font-headline font-bold">Recent Intelligence</h2>
         <Card className="glass-card">
           <CardContent className="p-4 text-sm text-muted-foreground italic">
-            "The enemy meta is shifting towards heavy sustain. Consider recruiting Aura Bloom to counter burst strategies."
+            "Welcome, Commander {user?.email?.split('@')[0]}. Neural link stable. Your team is awaiting orders."
           </CardContent>
         </Card>
       </section>
