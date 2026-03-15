@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect } from 'react';
@@ -8,7 +7,7 @@ import { doc } from 'firebase/firestore';
 import { useGameState } from './lib/store';
 import { BottomNav } from '@/components/game/BottomNav';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Coins, Trophy, Swords, Shield, Zap, Loader2, Clock, Globe } from 'lucide-react';
+import { Coins, Trophy, Swords, Shield, Zap, Loader2, Clock, Globe, Award } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -47,7 +46,7 @@ export default function Home() {
   const league = LEAGUES.find(l => l.id === profile?.selectedLeagueId);
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-24">
       <header className="flex justify-between items-end mb-8">
         <div>
           <h1 className="text-3xl font-headline font-bold text-foreground tracking-tighter uppercase">Командный Центр</h1>
@@ -81,7 +80,7 @@ export default function Home() {
                 <Clock className="w-4 h-4 text-primary" />
                 <span className="text-xs font-medium">Время игры: {league?.startTime}</span>
               </div>
-              <span className="text-[10px] text-muted-foreground uppercase">Лига: {profile?.country}</span>
+              <span className="text-[10px] text-muted-foreground uppercase">Регион: {profile?.country}</span>
             </div>
             <Progress value={65} className="h-2" />
           </CardContent>
@@ -125,15 +124,25 @@ export default function Home() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-headline font-bold uppercase tracking-widest text-accent">Сводка разведки</h2>
-        <Card className="glass-card">
-          <CardContent className="p-4 text-xs text-muted-foreground italic leading-relaxed">
-            "Добро пожаловать, Командир {profile?.username || user?.email?.split('@')[0]}. Нейролинк стабилен. Представляемый регион: {profile?.country}. Ваша команда ожидает приказов для участия в Лиге {league?.id}."
+        <h2 className="text-sm font-headline font-bold flex items-center gap-2 uppercase tracking-widest text-accent">
+          <Award className="w-4 h-4 text-primary" />
+          Сводка разведки
+        </h2>
+        <Card className="glass-card border-primary/20">
+          <CardContent className="p-4 text-xs text-muted-foreground italic leading-relaxed space-y-2">
+            <p className="text-primary font-bold not-italic uppercase tracking-wider">
+              Внимание, Командир {profile?.username || user?.email?.split('@')[0]}!
+            </p>
+            <p>
+              "Поздравляем вас с началом карьеры нового командующего! Нейролинк с региональным узлом {profile?.country} успешно установлен. Все системы управления ростером в норме."
+            </p>
+            <p>
+              "Ваша команда зачислена в {league?.name} и ожидает первых тактических приказов. Время начала боевых операций: {league?.startTime}. Удачи на полях сражений!"
+            </p>
           </CardContent>
         </Card>
       </section>
 
-      <div className="h-24" />
       <BottomNav />
     </div>
   );
