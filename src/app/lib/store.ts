@@ -27,7 +27,7 @@ const DEFAULT_STATE: GameState = {
   rank: 1000,
   matchHistory: [],
   language: 'ru',
-  leagueLevel: 9, // Start at bottom
+  leagueLevel: 1, // New logic: priority of the highest division (Level 1)
   divisionSubId: 1,
   groupId: 1,
   lastLeagueMatchDate: null

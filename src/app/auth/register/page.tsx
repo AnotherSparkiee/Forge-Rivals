@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -36,7 +37,7 @@ export default function RegisterPage() {
       alreadyRegistered: "Already registered?",
       loginLink: "Synchronize Link",
       successTitle: "Profile Initialized",
-      successDesc: "Welcome to the league, Commander. Now, choose your operational sector.",
+      successDesc: "Welcome to the league, Commander. You have been assigned to the Elite Division.",
       errorTitle: "Registration Failed"
     },
     ru: {
@@ -48,7 +49,7 @@ export default function RegisterPage() {
       alreadyRegistered: "Уже зарегистрированы?",
       loginLink: "Установить связь",
       successTitle: "Профиль инициализирован",
-      successDesc: "Добро пожаловать в лигу, Командир. Выберите сектор развертывания.",
+      successDesc: "Добро пожаловать в лигу, Командир. Вы зачислены в Элитный Дивизион (Уровень 1).",
       errorTitle: "Ошибка регистрации"
     }
   };
@@ -64,6 +65,8 @@ export default function RegisterPage() {
       const user = userCredential.user;
 
       const userProfileRef = doc(db, 'users', user.uid);
+      
+      // Assigning to the highest possible pyramid slot (Level 1)
       const profileData = {
         id: user.uid,
         displayName: username,
@@ -72,7 +75,12 @@ export default function RegisterPage() {
         lastLoginDate: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         ownedHeroIds: ['h1', 'h2', 'h3', 'h4', 'h5'],
-        leagueRankingId: 'none'
+        leagueRankingId: 'none',
+        // New user takes a place of a bot in the highest division (Level 1)
+        leagueLevel: 1,
+        divisionSubId: 1,
+        groupId: 1,
+        country: 'RU' // Default country, will be updated in setup
       };
 
       await setDoc(userProfileRef, profileData);

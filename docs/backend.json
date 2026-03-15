@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -20,7 +21,7 @@
         },
         "experiencePoints": {
           "type": "number",
-          "description": "The total experience points accumulated by the player, influencing player level."
+          "description": "The total experience points accumulated by the player."
         },
         "lastLoginDate": {
           "type": "string",
@@ -34,14 +35,34 @@
         },
         "ownedHeroIds": {
           "type": "array",
-          "description": "References to heroes owned by this player. (Relationship: UserProfile N:N Hero)",
+          "description": "References to heroes owned by this player.",
           "items": {
             "type": "string"
           }
         },
         "leagueRankingId": {
           "type": "string",
-          "description": "Reference to the player's current league ranking. (Relationship: UserProfile 1:1 LeagueRanking)"
+          "description": "Reference to the player's current league ranking."
+        },
+        "leagueLevel": {
+          "type": "number",
+          "description": "The level in the pyramid (1 is highest)."
+        },
+        "divisionSubId": {
+          "type": "number",
+          "description": "Sub-division ID at the current level."
+        },
+        "groupId": {
+          "type": "number",
+          "description": "Group ID within the division (1-8)."
+        },
+        "country": {
+          "type": "string",
+          "description": "The player's selected operational sector (country)."
+        },
+        "selectedLeagueId": {
+          "type": "string",
+          "description": "The ID of the league window selected by the player."
         }
       },
       "required": [
@@ -52,7 +73,9 @@
         "lastLoginDate",
         "createdAt",
         "ownedHeroIds",
-        "leagueRankingId"
+        "leagueLevel",
+        "divisionSubId",
+        "groupId"
       ]
     },
     "Hero": {
@@ -144,18 +167,18 @@
         },
         "userProfileId": {
           "type": "string",
-          "description": "Reference to the UserProfile that owns this team. (Relationship: UserProfile 1:N PlayerTeam)"
+          "description": "Reference to the UserProfile that owns this team."
         },
         "rosterSlotIds": {
           "type": "array",
-          "description": "References to the TeamRosterSlots that compose this team's lineup. (Relationship: PlayerTeam 1:N TeamRosterSlot)",
+          "description": "References to the TeamRosterSlots that compose this team's lineup.",
           "items": {
             "type": "string"
           }
         },
         "strategyId": {
           "type": "string",
-          "description": "Reference to the strategy assigned to this team. (Relationship: PlayerTeam 1:1 Strategy)"
+          "description": "Reference to the strategy assigned to this team."
         }
       },
       "required": [
@@ -170,7 +193,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "TeamRosterSlot",
       "type": "object",
-      "description": "Represents a specific hero assigned to a slot within a player's team, including team-specific attributes like level and assigned role.",
+      "description": "Represents a specific hero assigned to a slot within a player's team.",
       "properties": {
         "id": {
           "type": "string",
@@ -178,23 +201,23 @@
         },
         "playerTeamId": {
           "type": "string",
-          "description": "Reference to the PlayerTeam this roster slot belongs to. (Relationship: PlayerTeam 1:N TeamRosterSlot)"
+          "description": "Reference to the PlayerTeam this roster slot belongs to."
         },
         "heroId": {
           "type": "string",
-          "description": "Reference to the Hero assigned to this slot. (Relationship: Hero 1:1 TeamRosterSlot)"
+          "description": "Reference to the Hero assigned to this slot."
         },
         "assignedRole": {
           "type": "string",
-          "description": "The specific lane or position role assigned to this hero within the team's strategy (e.g., 'Top Lane', 'Mid Lane', 'Jungler')."
+          "description": "The specific lane or position role assigned to this hero."
         },
         "level": {
           "type": "number",
-          "description": "The current level of the hero specifically for this player's team context."
+          "description": "The current level of the hero."
         },
         "experience": {
           "type": "number",
-          "description": "The experience points accumulated by this hero specifically for this player's team context."
+          "description": "The experience points accumulated by this hero."
         }
       },
       "required": [
@@ -210,7 +233,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Strategy",
       "type": "object",
-      "description": "Defines a pre-configured strategy or tactical approach for a player's team in automated matches.",
+      "description": "Defines a pre-configured strategy or tactical approach for a player's team.",
       "properties": {
         "id": {
           "type": "string",
@@ -218,19 +241,19 @@
         },
         "name": {
           "type": "string",
-          "description": "A descriptive name for the strategy (e.g., 'Early Game Aggression', 'Late Game Scaling')."
+          "description": "A descriptive name for the strategy."
         },
         "description": {
           "type": "string",
-          "description": "Detailed description of the strategy's focus and tactical goals."
+          "description": "Detailed description of the strategy."
         },
         "tacticsType": {
           "type": "string",
-          "description": "General type of tactics employed by this strategy (e.g., 'Push', 'Farm', 'Roam', 'Objective Focused')."
+          "description": "General type of tactics employed by this strategy."
         },
         "focusPoints": {
           "type": "array",
-          "description": "Key areas or phases of the game this strategy emphasizes (e.g., 'Early Game', 'Mid Lane Control', 'Team Fights').",
+          "description": "Key areas or phases of the game this strategy emphasizes.",
           "items": {
             "type": "string"
           }
@@ -242,214 +265,6 @@
         "description",
         "tacticsType",
         "focusPoints"
-      ]
-    },
-    "Match": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Match",
-      "type": "object",
-      "description": "Records the outcome and key details of a simulated MOBA match between two player-managed teams.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Match entity."
-        },
-        "matchDate": {
-          "type": "string",
-          "description": "Timestamp when the match was simulated.",
-          "format": "date-time"
-        },
-        "team1PlayerTeamId": {
-          "type": "string",
-          "description": "Reference to the PlayerTeam that participated as Team 1. (Relationship: PlayerTeam 1:N Match)"
-        },
-        "team2PlayerTeamId": {
-          "type": "string",
-          "description": "Reference to the PlayerTeam that participated as Team 2. (Relationship: PlayerTeam 1:N Match)"
-        },
-        "winningPlayerTeamId": {
-          "type": "string",
-          "description": "Reference to the PlayerTeam that won the match. (Relationship: PlayerTeam 1:N Match)"
-        },
-        "durationSeconds": {
-          "type": "number",
-          "description": "The simulated duration of the match in seconds."
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the match (e.g., 'Completed', 'Abandoned')."
-        },
-        "summary": {
-          "type": "string",
-          "description": "A short summary or narrative of the match outcome."
-        },
-        "matchStatisticIds": {
-          "type": "array",
-          "description": "References to detailed statistics records for this match. (Relationship: Match 1:N MatchStatistic)",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": [
-        "id",
-        "matchDate",
-        "team1PlayerTeamId",
-        "team2PlayerTeamId",
-        "winningPlayerTeamId",
-        "durationSeconds",
-        "status",
-        "matchStatisticIds"
-      ]
-    },
-    "MatchStatistic": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "MatchStatistic",
-      "type": "object",
-      "description": "Detailed statistics for a specific hero within a specific team during a match.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the MatchStatistic entity."
-        },
-        "matchId": {
-          "type": "string",
-          "description": "Reference to the Match this statistic belongs to. (Relationship: Match 1:N MatchStatistic)"
-        },
-        "playerTeamId": {
-          "type": "string",
-          "description": "Reference to the PlayerTeam this hero played for in the match. (Relationship: PlayerTeam 1:N MatchStatistic)"
-        },
-        "heroId": {
-          "type": "string",
-          "description": "Reference to the Hero this statistic pertains to. (Relationship: Hero 1:N MatchStatistic)"
-        },
-        "kills": {
-          "type": "number",
-          "description": "Number of enemy heroes killed by this hero."
-        },
-        "deaths": {
-          "type": "number",
-          "description": "Number of times this hero was defeated."
-        },
-        "assists": {
-          "type": "number",
-          "description": "Number of assists contributed by this hero."
-        },
-        "goldEarned": {
-          "type": "number",
-          "description": "Total gold earned by this hero during the match."
-        },
-        "damageDealt": {
-          "type": "number",
-          "description": "Total damage dealt by this hero to enemy heroes and structures."
-        },
-        "damageTaken": {
-          "type": "number",
-          "description": "Total damage taken by this hero from enemies."
-        },
-        "healingDone": {
-          "type": "number",
-          "description": "Total healing provided by this hero to allies."
-        },
-        "creepScore": {
-          "type": "number",
-          "description": "Number of enemy minions (creeps) killed by this hero."
-        },
-        "towerDamage": {
-          "type": "number",
-          "description": "Total damage dealt by this hero to enemy towers."
-        },
-        "dragonsKilled": {
-          "type": "number",
-          "description": "Number of Dragons killed or contributed to by this hero's team."
-        },
-        "baronsKilled": {
-          "type": "number",
-          "description": "Number of Barons killed or contributed to by this hero's team."
-        },
-        "heraldsKilled": {
-          "type": "number",
-          "description": "Number of Rift Heralds killed or contributed to by this hero's team."
-        },
-        "towersDestroyed": {
-          "type": "number",
-          "description": "Number of enemy towers destroyed or contributed to by this hero's team."
-        }
-      },
-      "required": [
-        "id",
-        "matchId",
-        "playerTeamId",
-        "heroId",
-        "kills",
-        "deaths",
-        "assists",
-        "goldEarned",
-        "damageDealt",
-        "damageTaken",
-        "healingDone",
-        "creepScore",
-        "towerDamage",
-        "dragonsKilled",
-        "baronsKilled",
-        "heraldsKilled",
-        "towersDestroyed"
-      ]
-    },
-    "LeagueRanking": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "LeagueRanking",
-      "type": "object",
-      "description": "Stores a player's competitive ranking and statistics within a specific league season.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the LeagueRanking entity."
-        },
-        "userProfileId": {
-          "type": "string",
-          "description": "Reference to the UserProfile this ranking belongs to. (Relationship: UserProfile 1:1 LeagueRanking)"
-        },
-        "currentRank": {
-          "type": "number",
-          "description": "The player's current position in the league rankings."
-        },
-        "eloRating": {
-          "type": "number",
-          "description": "The player's Elo rating, reflecting their skill level."
-        },
-        "wins": {
-          "type": "number",
-          "description": "Total number of matches won in the current season."
-        },
-        "losses": {
-          "type": "number",
-          "description": "Total number of matches lost in the current season."
-        },
-        "ties": {
-          "type": "number",
-          "description": "Total number of tied matches in the current season."
-        },
-        "seasonIdentifier": {
-          "type": "string",
-          "description": "A string identifying the specific season for this ranking (e.g., '2023-Season-Spring')."
-        },
-        "lastUpdated": {
-          "type": "string",
-          "description": "Timestamp when the ranking was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "userProfileId",
-        "currentRank",
-        "eloRating",
-        "wins",
-        "losses",
-        "seasonIdentifier",
-        "lastUpdated"
       ]
     }
   },
@@ -468,172 +283,15 @@
           "schema": {
             "$ref": "#/backend/entities/UserProfile"
           },
-          "description": "Stores individual player profiles. Access is strictly private, determined by matching 'userId' in the path with 'request.auth.uid'.",
+          "description": "Stores individual player profiles.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique ID of the user (Firebase Authentication UID)."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/playerTeams/{playerTeamId}",
-        "definition": {
-          "entityName": "PlayerTeam",
-          "schema": {
-            "$ref": "#/backend/entities/PlayerTeam"
-          },
-          "description": "Represents a team owned by a specific player. Access is private to the player. Documents must contain a 'userProfileId' field matching the 'userId' path segment for authorization independence.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique ID of the user (Firebase Authentication UID)."
-            },
-            {
-              "name": "playerTeamId",
-              "description": "The unique ID of the player's team."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/playerTeams/{playerTeamId}/teamRosterSlots/{rosterSlotId}",
-        "definition": {
-          "entityName": "TeamRosterSlot",
-          "schema": {
-            "$ref": "#/backend/entities/TeamRosterSlot"
-          },
-          "description": "Details a specific hero in a player's team roster. Access is private to the player. Documents MUST contain denormalized 'userProfileId' (matching the parent UserProfile) and 'playerTeamId' (matching the parent PlayerTeam) matching path segments for authorization independence.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique ID of the user (Firebase Authentication UID)."
-            },
-            {
-              "name": "playerTeamId",
-              "description": "The unique ID of the player's team."
-            },
-            {
-              "name": "rosterSlotId",
-              "description": "The unique ID of the team roster slot."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/playerTeams/{playerTeamId}/strategies/{strategyId}",
-        "definition": {
-          "entityName": "Strategy",
-          "schema": {
-            "$ref": "#/backend/entities/Strategy"
-          },
-          "description": "Defines a strategic lineup for a player's team. Access is private to the player. Documents MUST contain denormalized 'userProfileId' (matching the parent UserProfile) and 'playerTeamId' (matching the parent PlayerTeam) matching path segments for authorization independence.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique ID of the user (Firebase Authentication UID)."
-            },
-            {
-              "name": "playerTeamId",
-              "description": "The unique ID of the player's team."
-            },
-            {
-              "name": "strategyId",
-              "description": "The unique ID of the strategy."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/leagueRankings/{leagueRankingId}",
-        "definition": {
-          "entityName": "LeagueRanking",
-          "schema": {
-            "$ref": "#/backend/entities/LeagueRanking"
-          },
-          "description": "Stores a player's league ranking data. Access is private to the player. Documents must contain a 'userProfileId' field matching the 'userId' path segment for authorization independence.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique ID of the user (Firebase Authentication UID)."
-            },
-            {
-              "name": "leagueRankingId",
-              "description": "The unique ID for the player's league ranking."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/heroes/{heroId}",
-        "definition": {
-          "entityName": "Hero",
-          "schema": {
-            "$ref": "#/backend/entities/Hero"
-          },
-          "description": "Contains static, publicly readable data for all available heroes. Write access is restricted to administrators.",
-          "params": [
-            {
-              "name": "heroId",
-              "description": "The unique ID of the hero."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/matches/{matchId}",
-        "definition": {
-          "entityName": "Match",
-          "schema": {
-            "$ref": "#/backend/entities/Match"
-          },
-          "description": "Records the outcome of simulated matches. Access is restricted to participating players. Documents MUST include denormalized 'team1OwnerId' and 'team2OwnerId' fields (the UIDs of the players owning the respective teams) for authorization independence and QAP support.",
-          "params": [
-            {
-              "name": "matchId",
-              "description": "The unique ID of the match."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/matches/{matchId}/matchStatistics/{matchStatisticId}",
-        "definition": {
-          "entityName": "MatchStatistic",
-          "schema": {
-            "$ref": "#/backend/entities/MatchStatistic"
-          },
-          "description": "Detailed statistics for heroes within a match. Access is restricted to participating players, inherited from the parent match. Documents MUST include denormalized 'team1OwnerId' and 'team2OwnerId' fields (copied from the parent Match) for authorization independence and QAP support.",
-          "params": [
-            {
-              "name": "matchId",
-              "description": "The unique ID of the match."
-            },
-            {
-              "name": "matchStatisticId",
-              "description": "The unique ID for a specific match statistic record."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/roles_admin/{userId}",
-        "definition": {
-          "entityName": "AdminRole",
-          "schema": {
-            "$ref": "#/backend/entities/UserProfile"
-          },
-          "description": "A collection used for Database Access Control (DBAC) to define administrators. A document's existence at `/roles_admin/{uid}` grants administrative privileges to that 'uid'.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique ID of the user (Firebase Authentication UID) who has administrative privileges."
+              "description": "The unique ID of the user."
             }
           ]
         }
       }
-    ],
-    "reasoning": "The Firestore structure for Moba Tactics Online prioritizes security, scalability, and debuggability by strictly adhering to the core design principles and strategy mandates. \n\n**Authorization Independence (CRITICAL):** This is achieved primarily through pervasive denormalization where authorization context is copied into subcollection documents. For user-specific nested data like `PlayerTeam`, `TeamRosterSlot`, `Strategy`, and `LeagueRanking`, the `userProfileId` is denormalized, and implicitly confirmed by the path segment `userId`. This means security rules for these collections can directly check `resource.data.userProfileId == request.auth.uid` (or rely on the path `userId == request.auth.uid`), eliminating expensive and non-atomic `get()` calls to parent documents. \n\nFor `Match` and `MatchStatistic` entities, which involve two different players, `team1OwnerId` and `team2OwnerId` (representing the `uid`s of the players owning the participating teams) are denormalized directly into each document. This allows security rules to evaluate access based on fields within the `resource.data` itself, e.g., `request.auth.uid == resource.data.team1OwnerId || request.auth.uid == resource.data.team2OwnerId`, without relying on hierarchical reads.\n\n**QAPs (Rules are not Filters):** The structure facilitates secure `list` operations (Query Against Permitted Subset) by using appropriate structural segregation and denormalization:\n1.  **Private Data:** Collections like `/users/{userId}/playerTeams` naturally support QAPs. A query like `/users/{request.auth.uid}/playerTeams` implicitly filters for the authenticated user's teams. Rules simply confirm that `request.auth.uid` matches the `userId` in the path.\n2.  **Global Data:** `/heroes` is read-only for all, allowing direct unfiltered `list` queries without security concerns.\n3.  **Collaborative Data:** For `/matches` and `/matches/{matchId}/matchStatistics`, the denormalized `team1OwnerId` and `team2OwnerId` fields are crucial. Clients can issue queries like `/matches?team1OwnerId={request.auth.uid}` or `/matches?team2OwnerId={request.auth.uid}`. Security rules will then verify that any document returned by such a query (or any `get` operation) belongs to the requesting user based on these denormalized fields. This enables efficient and secure listing of a player's relevant matches and their statistics without exposing other players' match data.\n\n**DBAC:** The `/roles_admin/{userId}` collection implements Database Access Control (DBAC). Admin roles are determined by the *existence* of a document with the authenticated user's UID in this collection, removing the need for custom claims and simplifying rule logic. \n\n**Structural Segregation:** Data with different security postures is kept in separate collections. For example, player-specific data is nested under `/users/{userId}`, while global hero data is in `/heroes`. This prevents complex conditional logic within security rules.\n\n**Access Modeling & Consistency:** Path-based ownership (`/users/{userId}/...`) is consistently used for private user data. The naming conventions for path parameters (e.g., `{userId}`, `{playerTeamId}`) are descriptive and consistent. All authorization-critical fields (e.g., `userProfileId`, `team1OwnerId`) are explicitly named and consistently applied where needed."
+    ]
   }
 }
