@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -40,6 +41,10 @@
         "leagueRank": {
           "type": "number",
           "description": "The player's current rank in the competitive league system (lower numbers typically indicate higher ranks)."
+        },
+        "selectedLeagueId": {
+          "type": "string",
+          "description": "The ID of the league the player has joined (e.g., A1, B2)."
         },
         "teamIds": {
           "type": "array",

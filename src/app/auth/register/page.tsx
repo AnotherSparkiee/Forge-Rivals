@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -43,27 +44,21 @@ export default function RegisterPage() {
         inGameCurrency: 500,
         experiencePoints: 0,
         leagueRank: 1000,
-        teamIds: []
+        teamIds: [],
+        selectedLeagueId: null // User will select this on the next screen
       };
 
-      setDoc(userProfileRef, profileData)
-        .catch(async (error) => {
-           errorEmitter.emit('permission-error', new FirestorePermissionError({
-             path: userProfileRef.path,
-             operation: 'create',
-             requestResourceData: profileData
-           }));
-        });
+      await setDoc(userProfileRef, profileData);
 
       toast({
-        title: "Account Created",
-        description: "Welcome to the league, Commander!",
+        title: "Аккаунт создан",
+        description: "Добро пожаловать в лигу, Командир! Теперь выберите время игры.",
       });
-      router.push('/');
+      router.push('/setup');
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Registration Failed",
+        title: "Ошибка регистрации",
         description: error.message,
       });
     } finally {
@@ -74,12 +69,12 @@ export default function RegisterPage() {
   return (
     <Card className="glass-card">
       <CardHeader>
-        <CardTitle className="font-headline text-center uppercase tracking-widest text-accent">Initialize New Profile</CardTitle>
+        <CardTitle className="font-headline text-center uppercase tracking-widest text-accent">Инициализация Профиля</CardTitle>
       </CardHeader>
       <form onSubmit={handleRegister}>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="username">Tactical Callsign</Label>
+            <Label htmlFor="username">Тактический позывной</Label>
             <Input 
               id="username" 
               placeholder="CommanderX" 
@@ -90,7 +85,7 @@ export default function RegisterPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Neural Link (Email)</Label>
+            <Label htmlFor="email">Нейролинк (Email)</Label>
             <Input 
               id="email" 
               type="email" 
@@ -102,7 +97,7 @@ export default function RegisterPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Access Key (Password)</Label>
+            <Label htmlFor="password">Ключ доступа (Пароль)</Label>
             <Input 
               id="password" 
               type="password" 
@@ -115,10 +110,10 @@ export default function RegisterPage() {
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
           <Button type="submit" className="w-full hero-gradient font-bold" disabled={isLoading}>
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'CREATE PROFILE'}
+            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'СОЗДАТЬ ПРОФИЛЬ'}
           </Button>
           <p className="text-xs text-center text-muted-foreground">
-            Already established? <Link href="/auth/login" className="text-primary hover:underline">Sync existing profile</Link>
+            Уже есть профиль? <Link href="/auth/login" className="text-primary hover:underline">Синхронизировать</Link>
           </p>
         </CardFooter>
       </form>
