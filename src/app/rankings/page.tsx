@@ -1,10 +1,10 @@
-
 'use client';
 
 import { useGameState } from '../lib/store';
 import { Trophy, Medal, Star, ChevronLeft, ArrowUpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
 import { getMockGroupTeams } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
