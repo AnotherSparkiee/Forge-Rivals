@@ -82,6 +82,7 @@ export default function MatchesPage() {
       day: "Day",
       vs: "VS",
       matchTime: "Deployment Window",
+      startTime: "Start Time",
       noData: "No records found for this sector.",
       tabs: {
         next_opponent: { label: "Next Opponent", desc: "Detailed brief on your next rival", icon: UserSearch },
@@ -100,6 +101,7 @@ export default function MatchesPage() {
       day: "День",
       vs: "ПРОТИВ",
       matchTime: "Окно развертывания",
+      startTime: "Начало",
       noData: "Записей в данном секторе не обнаружено.",
       tabs: {
         next_opponent: { label: "Следующий соперник", desc: "Досье на вашего ближайшего врага", icon: UserSearch },
@@ -149,7 +151,7 @@ export default function MatchesPage() {
           <span className="text-[8px] uppercase font-bold text-muted-foreground">{t.day}</span>
           <span className="text-sm font-headline font-bold">{day}</span>
           {!isPlayed && userLeague && (
-            <span className="text-[7px] text-accent font-bold mt-1">{userLeague.startTime.split(' ')[0]}</span>
+            <span className="text-[7px] text-accent font-bold mt-1 bg-accent/10 px-1 rounded">{userLeague.startTime.split(' ')[0]}</span>
           )}
         </div>
         <div className="flex-1 flex items-center justify-between gap-2 min-w-0">
@@ -265,7 +267,7 @@ export default function MatchesPage() {
                 <div className="flex items-center gap-2 px-1">
                   <div className="h-px flex-1 bg-gradient-to-r from-transparent to-white/10"></div>
                   <span className="text-[10px] uppercase font-bold tracking-widest text-accent">DAY {dIdx + 1}</span>
-                  {userLeague && <span className="text-[9px] text-muted-foreground font-mono">{userLeague.startTime.split(' ')[0]}</span>}
+                  {userLeague && <span className="text-[9px] text-muted-foreground font-mono bg-white/5 px-2 rounded-full">{userLeague.startTime.split(' ')[0]}</span>}
                   <div className="h-px flex-1 bg-gradient-to-l from-transparent to-white/10"></div>
                 </div>
                 <div className="space-y-2">
