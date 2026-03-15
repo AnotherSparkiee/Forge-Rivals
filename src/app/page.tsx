@@ -82,9 +82,9 @@ function HubContent() {
 
   if (isUserLoading || isProfileLoading || !isLoaded || !user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center space-y-4 bg-background text-foreground">
+      <div className="h-screen flex flex-col items-center justify-center space-y-4 bg-background text-foreground">
         <Loader2 className="w-12 h-12 text-primary animate-spin" />
-        <p className="text-muted-foreground animate-pulse font-headline uppercase tracking-widest text-center px-4">Установка нейролинка с хабом...</p>
+        <p className="text-muted-foreground animate-pulse font-headline uppercase tracking-widest text-center px-4">Синхронизация систем...</p>
       </div>
     );
   }
@@ -92,56 +92,58 @@ function HubContent() {
   const league = LEAGUES.find(l => l.id === profile?.selectedLeagueId);
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-6 pb-12 min-h-screen bg-background text-foreground flex flex-col">
+    <div className="max-w-md mx-auto h-screen overflow-hidden flex flex-col bg-background text-foreground">
       {/* Шапка */}
-      <header className="flex justify-between items-center mb-6 shrink-0">
+      <header className="flex justify-between items-center p-4 shrink-0">
         <div className="flex flex-col">
-          <h1 className="text-xl font-headline font-bold uppercase tracking-tighter text-primary">HUD: {profile?.username}</h1>
+          <h1 className="text-lg font-headline font-bold uppercase tracking-tighter text-primary">HUD: {profile?.username}</h1>
           <div className="flex items-center gap-2">
             <Globe className="w-3 h-3 text-accent" />
             <p className="text-[10px] uppercase text-muted-foreground tracking-widest">{profile?.country} | {league?.id}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 bg-secondary/40 px-3 py-1.5 rounded-full border border-white/10">
-          <Coins className="w-4 h-4 text-yellow-500" />
-          <span className="font-bold text-sm tabular-nums">{credits}</span>
+        <div className="flex items-center gap-2 bg-secondary/40 px-3 py-1 rounded-full border border-white/10">
+          <Coins className="w-3.5 h-3.5 text-yellow-500" />
+          <span className="font-bold text-xs tabular-nums">{credits}</span>
         </div>
       </header>
 
       {/* Сетка меню 4x5 */}
-      <div className="grid grid-cols-4 gap-2 mb-8 flex-1">
-        {GRID_ITEMS.map((item, index) => {
-          const Icon = item.icon;
-          const isLink = item.active;
-          const Content = (
-            <>
-              <Icon className={cn("w-6 h-6 mb-1.5 shrink-0", item.color)} />
-              <span className="text-[8px] font-headline font-bold text-center tracking-tighter uppercase leading-tight px-1 overflow-hidden">
-                {item.label}
-              </span>
-              {item.active && (
-                <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
-              )}
-            </>
-          );
+      <div className="flex-1 px-4 pb-4">
+        <div className="grid grid-cols-4 gap-1.5 h-full">
+          {GRID_ITEMS.map((item, index) => {
+            const Icon = item.icon;
+            const isLink = item.active;
+            const Content = (
+              <>
+                <Icon className={cn("w-5 h-5 mb-1 shrink-0", item.color)} />
+                <span className="text-[7px] font-headline font-bold text-center tracking-tighter uppercase leading-tight px-0.5 overflow-hidden">
+                  {item.label}
+                </span>
+                {item.active && (
+                  <div className="absolute top-1 right-1 w-1 h-1 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary))]" />
+                )}
+              </>
+            );
 
-          const baseClass = cn(
-            "relative flex flex-col items-center justify-center aspect-square rounded-lg border transition-colors duration-200",
-            item.active 
-              ? "bg-card/60 border-white/10 hover:bg-primary/10 hover:border-primary/50 cursor-pointer shadow-sm" 
-              : "bg-black/20 border-white/5 opacity-40 cursor-not-allowed grayscale"
-          );
+            const baseClass = cn(
+              "relative flex flex-col items-center justify-center rounded-lg border transition-colors duration-200",
+              item.active 
+                ? "bg-card/60 border-white/10 hover:bg-primary/10 hover:border-primary/50 cursor-pointer shadow-sm" 
+                : "bg-black/20 border-white/5 opacity-40 cursor-not-allowed grayscale"
+            );
 
-          return isLink ? (
-            <Link key={index} href={item.href} className={baseClass}>
-              {Content}
-            </Link>
-          ) : (
-            <div key={index} className={baseClass}>
-              {Content}
-            </div>
-          );
-        })}
+            return isLink ? (
+              <Link key={index} href={item.href} className={baseClass}>
+                {Content}
+              </Link>
+            ) : (
+              <div key={index} className={baseClass}>
+                {Content}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Модальное окно приветствия */}
@@ -180,7 +182,7 @@ function HubContent() {
 export default function Home() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     }>
