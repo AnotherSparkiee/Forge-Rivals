@@ -58,10 +58,11 @@ export default function RankingsPage() {
   // Generate group rankings once data is loaded
   const myLeagueRankings = useMemo(() => {
     if (!isLoaded) return [];
-    return getMockGroupTeams(rank, profile?.displayName, leagueLevel, divisionSubId, groupId);
+    // includePlayer is true because this is the user's actual league
+    return getMockGroupTeams(rank, profile?.displayName || "My Team", leagueLevel, divisionSubId, groupId, true);
   }, [isLoaded, rank, profile?.displayName, leagueLevel, divisionSubId, groupId]);
 
-  const isPlayerFirst = myLeagueRankings[0]?.isPlayer;
+  const isPlayerFirst = myLeagueRankings.find(t => t.isPlayer)?.points === Math.max(...myLeagueRankings.map(t => t.points));
 
   // Clock effect
   useEffect(() => {
@@ -211,7 +212,7 @@ export default function RankingsPage() {
         const isTop3 = i < 3;
         return (
           <div 
-            key={entry.name} 
+            key={entry.id || entry.name} 
             className={cn(
               "flex items-center gap-3 p-3 rounded-xl border transition-all",
               entry.isPlayer ? "bg-primary/20 border-primary/50 shadow-lg" : "bg-secondary/20 border-white/5",
@@ -288,9 +289,7 @@ export default function RankingsPage() {
   );
 
   const renderPyramidDivisions = () => {
-    // Number of divisions at level L is 2^(L-1)
     const numDivisions = Math.pow(2, viewingLevel - 1);
-    // Limit display for very deep levels to avoid UI freeze, but levels 1-4 are small
     const displayCount = Math.min(numDivisions, 64);
 
     return (
@@ -336,10 +335,13 @@ export default function RankingsPage() {
   };
 
   const renderPyramidTable = () => {
+    // Determine if the user is looking at their own division
     const isViewingOwn = leagueLevel === viewingLevel && divisionSubId === viewingDiv;
+    
+    // If viewing own, use real rankings. Otherwise, generate pure bots (includePlayer: false)
     const tableRankings = isViewingOwn 
       ? myLeagueRankings 
-      : getMockGroupTeams(1000, "Unknown Team", viewingLevel, viewingDiv, 1);
+      : getMockGroupTeams(1000, "Unknown Team", viewingLevel, viewingDiv, 1, false);
 
     return (
       <div className="space-y-4 animate-in fade-in duration-300">
@@ -502,4 +504,3 @@ export default function RankingsPage() {
     </div>
   );
 }
-

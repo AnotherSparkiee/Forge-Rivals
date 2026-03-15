@@ -25,21 +25,23 @@ export const LEAGUES: LeagueOption[] = [
 ];
 
 /**
- * Deterministically generates bot teams for a specific group in the pyramid.
- * Bot names follow the format: 🤖bot[unique_id]
+ * Deterministically generates group teams for a specific group in the pyramid.
+ * If includePlayer is true, it generates 7 bots + 1 player.
+ * If includePlayer is false, it generates 8 bots.
  */
 export function getMockGroupTeams(
   playerRank: number, 
   playerName: string = "Player Team",
   level: number = 9,
   division: number = 1,
-  group: number = 1
+  group: number = 1,
+  includePlayer: boolean = true
 ) {
-  const bots = [];
+  const teams = [];
+  const botLimit = includePlayer ? 7 : 8;
   
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < botLimit; i++) {
     // Generate a unique ID based on pyramid coordinates (level, division, group, slot)
-    // Formula ensures bots in different parts of the pyramid have distinct IDs
     const botIdValue = (level * 10000) + (division * 100) + (group * 10) + i;
     
     // Bots in higher levels (closer to level 1) have slightly better stats
@@ -47,7 +49,7 @@ export function getMockGroupTeams(
     const wins = Math.max(0, Math.floor(((botIdValue) % 15) + levelModifier));
     const losses = Math.max(0, 15 - wins);
     
-    bots.push({
+    teams.push({
       id: `bot_${botIdValue}`,
       name: `🤖bot${botIdValue}`,
       wins: wins,
@@ -57,18 +59,19 @@ export function getMockGroupTeams(
     });
   }
 
-  const playerTeam = { 
-    id: "player_team",
-    name: playerName, 
-    wins: Math.max(0, Math.floor(playerRank / 100)), 
-    losses: 5, 
-    points: Math.max(0, Math.floor(playerRank / 10)), 
-    isPlayer: true 
-  };
+  if (includePlayer) {
+    teams.push({ 
+      id: "player_team",
+      name: playerName, 
+      wins: Math.max(0, Math.floor(playerRank / 100)), 
+      losses: 5, 
+      points: Math.max(0, Math.floor(playerRank / 10)), 
+      isPlayer: true 
+    });
+  }
 
-  const allTeams = [...bots, playerTeam];
   // Sort teams by points descending to determine table positions
-  return allTeams.sort((a, b) => b.points - a.points);
+  return teams.sort((a, b) => b.points - a.points);
 }
 
 /**
