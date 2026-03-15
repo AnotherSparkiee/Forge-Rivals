@@ -18,11 +18,12 @@ export const GROUPS_PER_DIVISION = 8;
 export const TEAMS_PER_GROUP = 8;
 export const SEASON_DURATION_DAYS = 14;
 
+// All leagues synchronized to start at 23:00 MSK
 export const LEAGUES: LeagueOption[] = [
-  { id: 'ALPHA', startTime: '23:00 - 03:00', description: 'Night shift operations. Matches start at 23:00 MSK.' },
-  { id: 'BETA', startTime: '23:00 - 03:00', description: 'Night shift operations. Matches start at 23:00 MSK.' },
-  { id: 'GAMMA', startTime: '23:00 - 03:00', description: 'Night shift operations. Matches start at 23:00 MSK.' },
-  { id: 'DELTA', startTime: '23:00 - 03:00', description: 'Night shift operations. Matches start at 23:00 MSK.' },
+  { id: 'ALPHA', startTime: '23:00', description: 'Standard night operations. Matches start at 23:00 MSK daily.' },
+  { id: 'BETA', startTime: '23:00', description: 'Standard night operations. Matches start at 23:00 MSK daily.' },
+  { id: 'GAMMA', startTime: '23:00', description: 'Standard night operations. Matches start at 23:00 MSK daily.' },
+  { id: 'DELTA', startTime: '23:00', description: 'Standard night operations. Matches start at 23:00 MSK daily.' },
 ];
 
 /**
@@ -87,6 +88,7 @@ export function getSchedule(teams: any[]) {
 
 /**
  * Deterministically generates group teams and their standings based on current day.
+ * Compact Unique ID logic (Level 1 = short, Level 8 = longer but fits table)
  */
 export function getMockGroupTeams(
   playerRank: number, 
@@ -102,13 +104,11 @@ export function getMockGroupTeams(
   const botLimit = includePlayer ? 7 : 8;
   
   for (let i = 0; i < botLimit; i++) {
-    // Hierarchical ID generation
-    let botUniqueId;
-    if (level <= 3) {
-      botUniqueId = (level * 100) + (division % 10) * 10 + i;
-    } else {
-      botUniqueId = (level * 10000) + (division % 10) * 10 + i;
-    }
+    // Compact hierarchical ID generation
+    // Level 1: 100+
+    // Level 8: 80000+
+    const levelBase = Math.pow(10, Math.min(level, 4));
+    const botUniqueId = (level * levelBase) + (division * 10) + i;
     
     teams.push({
       id: `bot_${botUniqueId}`,

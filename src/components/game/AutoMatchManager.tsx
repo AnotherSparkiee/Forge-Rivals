@@ -1,11 +1,10 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { getMoscowTime, isMatchDue } from '@/app/lib/time-utils';
+import { isMatchDue } from '@/app/lib/time-utils';
 import { getMockGroupTeams, getSchedule } from '@/app/lib/leagues-data';
 import { INITIAL_HEROES } from '@/app/lib/moba-data';
 import { simulateMobaMatch, SimulateMobaMatchOutput } from '@/ai/flows/simulate-moba-match';
@@ -34,7 +33,7 @@ export function AutoMatchManager() {
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
-    // Единый триггер в 23:00 для всех дивизионов
+    // Single global trigger at 23:00 MSK for all divisions
     if (isLoaded && seasonDay > 0 && !isSimulating && !isUserLoading) {
       if (isMatchDue('23:00', lastLeagueMatchDate)) {
         triggerAutoMatch();

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect } from 'react';
@@ -9,7 +8,7 @@ import {
   Swords, Users, Trophy, TrendingUp, 
   ShoppingCart, Newspaper, Shield, Star, 
   ChevronRight, Wallet, Loader2, CalendarDays,
-  Zap, Dumbbell
+  Zap
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
