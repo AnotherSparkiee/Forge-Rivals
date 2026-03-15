@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -25,10 +26,12 @@ interface GameState {
   seasonStartDate: string | null; // Format: YYYY-MM-DD (This is Day 1)
 }
 
-const getTomorrowDateString = () => {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return tomorrow.toISOString().split('T')[0];
+const getTodayDateString = () => {
+  const msk = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
+  const year = msk.getFullYear();
+  const month = String(msk.getMonth() + 1).padStart(2, '0');
+  const day = String(msk.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 const DEFAULT_STATE: GameState = {
@@ -47,8 +50,8 @@ const DEFAULT_STATE: GameState = {
   divisionSubId: 1,
   groupId: 1,
   lastLeagueMatchDate: null,
-  seasonDay: 0,
-  seasonStartDate: getTomorrowDateString()
+  seasonDay: 1,
+  seasonStartDate: getTodayDateString()
 };
 
 export function useGameState() {
@@ -64,18 +67,21 @@ export function useGameState() {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
-        // If no start date, set it to tomorrow
-        const startDateStr = parsed.seasonStartDate || getTomorrowDateString();
+        // Use Moscow Time for current date calculation
+        const mskNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
+        mskNow.setHours(0, 0, 0, 0);
+
+        const startDateStr = parsed.seasonStartDate || getTodayDateString();
         const start = new Date(startDateStr);
         start.setHours(0, 0, 0, 0);
 
-        let currentDay = 0;
-        if (today >= start) {
-          const diffTime = today.getTime() - start.getTime();
+        let currentDay = 1;
+        if (mskNow >= start) {
+          const diffTime = mskNow.getTime() - start.getTime();
           const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
           currentDay = ((diffDays - 1) % 14) + 1;
         } else {
-          currentDay = 0; // Still pre-season
+          currentDay = 0; // Pre-season (shouldn't happen with startToday logic)
         }
 
         const isNewSeason = parsed.seasonDay && currentDay > 0 && currentDay < parsed.seasonDay;
@@ -140,12 +146,12 @@ export function useGameState() {
         divisionSubId: Math.max(1, Math.ceil(s.divisionSubId / 2)),
         groupId: 1,
         lastLeagueMatchDate: null,
-        seasonStartDate: getTomorrowDateString(),
+        seasonStartDate: getTodayDateString(),
         wins: 0,
         draws: 0,
         losses: 0,
         points: 0,
-        seasonDay: 0
+        seasonDay: 1
       }));
       return true;
     }
@@ -177,7 +183,11 @@ export function useGameState() {
       matchLosses = 1;
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const mskNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
+    const year = mskNow.getFullYear();
+    const month = String(mskNow.getMonth() + 1).padStart(2, '0');
+    const day = String(mskNow.getDate()).padStart(2, '0');
+    const today = `${year}-${month}-${day}`;
     
     setState(s => ({
       ...s,

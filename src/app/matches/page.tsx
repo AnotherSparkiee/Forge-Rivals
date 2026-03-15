@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -49,8 +50,8 @@ export default function MatchesPage() {
 
   const groupTeams = useMemo(() => {
     if (!isLoaded) return [];
-    // If season not started yet, use Day 1 for preview
-    const calculationDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
+    // Calculate for current or next day
+    const calculationDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
     return getMockGroupTeams(
       rank, 
       profile?.displayName || "My Team", 
@@ -83,6 +84,7 @@ export default function MatchesPage() {
       preSeason: "Pre-season: Preparation phase",
       startsTomorrow: "Matches begin tomorrow",
       nextMatchAt: "Next match starts at:",
+      startsToday: "Next match starts TODAY at:",
       atTime: "at",
       tabs: {
         next_opponent: { label: "Next Opponent", desc: "Detailed brief on your next rival", icon: UserSearch },
@@ -106,6 +108,7 @@ export default function MatchesPage() {
       preSeason: "Предсезонье: Фаза подготовки",
       startsTomorrow: "Матчи начнутся завтра",
       nextMatchAt: "Матч начнется в:",
+      startsToday: "Матч начнется СЕГОДНЯ в:",
       atTime: "в",
       tabs: {
         next_opponent: { label: "Следующий соперник", desc: "Досье на вашего ближайшего врага", icon: UserSearch },
@@ -130,7 +133,7 @@ export default function MatchesPage() {
   const renderMatchRow = (match: any, dayIdx: number) => {
     const day = dayIdx + 1;
     const isPlayed = seasonDay > 0 && (day < seasonDay || (day === seasonDay && isTodayPlayed));
-    const startHour = userLeague ? userLeague.startTime.split(' ')[0] : '00:00';
+    const startHour = userLeague ? userLeague.startTime.split(' ')[0] : '23:00';
 
     let hScore = 0;
     let aScore = 0;
@@ -186,23 +189,23 @@ export default function MatchesPage() {
   const renderContent = () => {
     switch (activeTab) {
       case 'next_opponent': {
-        const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
+        const targetDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
         if (targetDay > 14) return <p className="text-center py-10 text-muted-foreground uppercase text-xs">Season Finished</p>;
         
-        const todayMatches = schedule[targetDay - 1];
-        const myMatch = todayMatches?.find((m: any) => m.home.isPlayer || m.away.isPlayer);
+        const targetMatches = schedule[targetDay - 1];
+        const myMatch = targetMatches?.find((m: any) => m.home.isPlayer || m.away.isPlayer);
         
         if (!myMatch) {
           return (
             <div className="text-center py-10 space-y-4">
                <Shield className="w-12 h-12 mx-auto text-muted-foreground opacity-20" />
-               <p className="text-muted-foreground uppercase text-[10px] tracking-widest">{seasonDay === 0 ? t.startsTomorrow : t.noData}</p>
+               <p className="text-muted-foreground uppercase text-[10px] tracking-widest">{t.noData}</p>
             </div>
           );
         }
         
         const opponent = myMatch.home.isPlayer ? myMatch.away : myMatch.home;
-        const startHour = userLeague ? userLeague.startTime.split(' ')[0] : '--:--';
+        const startHour = userLeague ? userLeague.startTime.split(' ')[0] : '23:00';
         
         return (
           <div className="space-y-6 animate-in fade-in duration-500">
@@ -210,11 +213,7 @@ export default function MatchesPage() {
               <CardHeader className="text-center pb-2">
                 <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">Strategic Intelligence</CardTitle>
                 <Badge variant="outline" className="mx-auto text-[8px] uppercase border-primary/50 text-primary flex items-center gap-1">
-                  {seasonDay === 0 ? (
-                    <><Clock className="w-2.5 h-2.5" /> {t.startsTomorrow} {t.atTime} {startHour}</>
-                  ) : (
-                    <><Clock className="w-2.5 h-2.5" /> {t.day} {targetDay} {t.atTime} {startHour}</>
-                  )}
+                  <Clock className="w-2.5 h-2.5" /> {isTodayPlayed ? t.startsTomorrow : t.startsToday} {t.atTime} {startHour}
                 </Badge>
               </CardHeader>
               <CardContent className="flex flex-col items-center space-y-4">
@@ -233,7 +232,7 @@ export default function MatchesPage() {
                     </p>
                     <p className="text-xl font-headline font-bold tracking-tight">{userLeague.startTime}</p>
                     <p className="text-[9px] text-muted-foreground uppercase mt-1 italic">
-                      {t.nextMatchAt} {startHour} (MSK)
+                      {isTodayPlayed ? t.startsTomorrow : t.startsToday} {startHour} (MSK)
                     </p>
                   </div>
                 )}
@@ -255,7 +254,7 @@ export default function MatchesPage() {
       }
 
       case 'my_future': {
-        const startIdx = seasonDay === 0 ? 0 : (isTodayPlayed ? seasonDay : seasonDay - 1);
+        const startIdx = isTodayPlayed ? seasonDay : seasonDay - 1;
         const futureMatches = schedule.slice(startIdx).map((dayMatches: any, i) => {
           const m = dayMatches.find((match: any) => match.home.isPlayer || match.away.isPlayer);
           return { match: m, dayIdx: startIdx + i };
@@ -270,7 +269,6 @@ export default function MatchesPage() {
       }
 
       case 'my_played': {
-        if (seasonDay === 0) return <p className="text-center text-muted-foreground py-10 uppercase text-xs">{t.preSeason}</p>;
         const endIdx = isTodayPlayed ? seasonDay : seasonDay - 1;
         const playedMatches = schedule.slice(0, endIdx).map((dayMatches: any, i) => {
           const m = dayMatches.find((match: any) => match.home.isPlayer || match.away.isPlayer);
@@ -310,7 +308,6 @@ export default function MatchesPage() {
       }
 
       case 'league_played': {
-        if (seasonDay === 0) return <p className="text-center text-muted-foreground py-10 uppercase text-xs">{t.preSeason}</p>;
         const endIdx = isTodayPlayed ? seasonDay : seasonDay - 1;
         const allPlayed = schedule.slice(0, endIdx).reverse();
         if (allPlayed.length === 0) return <p className="text-center text-muted-foreground py-10 uppercase text-xs">{t.noData}</p>;
@@ -364,7 +361,7 @@ export default function MatchesPage() {
             <CardContent className="p-3 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="text-[10px] uppercase border-primary/20 text-primary">
-                  {seasonDay === 0 ? t.preSeason : `Season Day ${seasonDay}`}
+                  {`Season Day ${seasonDay}`}
                 </Badge>
                 {userLeague && (
                   <Badge variant="outline" className="text-[10px] uppercase border-accent/20 text-accent flex items-center gap-1">
@@ -427,7 +424,7 @@ export default function MatchesPage() {
           <CardContent className="p-3 flex justify-between items-center">
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-[10px] uppercase border-primary/20 text-primary">
-                {seasonDay === 0 ? t.preSeason : `Season Day ${seasonDay}`}
+                {`Season Day ${seasonDay}`}
               </Badge>
               {userLeague && (
                 <Badge variant="outline" className="text-[10px] uppercase border-accent/20 text-accent flex items-center gap-1">

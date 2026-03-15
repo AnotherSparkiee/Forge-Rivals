@@ -19,10 +19,10 @@ export const TEAMS_PER_GROUP = 8;
 export const SEASON_DURATION_DAYS = 14;
 
 export const LEAGUES: LeagueOption[] = [
-  { id: 'ALPHA', startTime: '08:00 - 12:00', description: 'Early morning operations for early birds.' },
-  { id: 'BETA', startTime: '12:00 - 16:00', description: 'Mid-day tactical window.' },
-  { id: 'GAMMA', startTime: '16:00 - 20:00', description: 'Prime time evening matches.' },
-  { id: 'DELTA', startTime: '20:00 - 00:00', description: 'Late night competitive sessions.' },
+  { id: 'ALPHA', startTime: '23:00 - 03:00', description: 'Night shift operations. Matches start at 23:00 MSK.' },
+  { id: 'BETA', startTime: '23:00 - 03:00', description: 'Night shift operations. Matches start at 23:00 MSK.' },
+  { id: 'GAMMA', startTime: '23:00 - 03:00', description: 'Night shift operations. Matches start at 23:00 MSK.' },
+  { id: 'DELTA', startTime: '23:00 - 03:00', description: 'Night shift operations. Matches start at 23:00 MSK.' },
 ];
 
 /**
@@ -110,7 +110,7 @@ export function getMockGroupTeams(
     if (level <= 3) {
       botUniqueId = (level * 100) + (division % 10) * 10 + i;
     } else {
-      botUniqueId = (level * 10000) + (division % 100) * 10 + i;
+      botUniqueId = (level * 10000) + (division % 10) * 10 + i;
     }
     
     teams.push({
