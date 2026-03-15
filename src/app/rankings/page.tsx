@@ -152,7 +152,7 @@ export default function RankingsPage() {
       title: "ТУРНИРНЫЕ ТАБЛИЦЫ",
       subtitle: "Иерархия Пирамиды",
       menuTitle: "Турнирные Терминалы",
-      promote: "Повысить",
+      promote: "Повышить",
       promoteSuccess: "Повышение!",
       promoteDesc: "Вы перешли в дивизион уровнем выше!",
       canPromote: "1 Место: Доступно повышение!",
@@ -290,7 +290,6 @@ export default function RankingsPage() {
 
   const renderPyramidDivisions = () => {
     const numDivisions = Math.pow(2, viewingLevel - 1);
-    const displayCount = Math.min(numDivisions, 64);
 
     return (
       <div className="space-y-4 animate-in fade-in duration-300">
@@ -302,8 +301,8 @@ export default function RankingsPage() {
         >
           <ArrowLeft className="w-3 h-3" /> {t.backToLevels}
         </Button>
-        <div className="grid grid-cols-2 gap-2">
-          {Array.from({ length: displayCount }).map((_, i) => {
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[60vh] overflow-y-auto pr-2 scrollbar-hide">
+          {Array.from({ length: numDivisions }).map((_, i) => {
             const divId = i + 1;
             const isCurrent = leagueLevel === viewingLevel && divisionSubId === divId;
             return (
@@ -311,7 +310,7 @@ export default function RankingsPage() {
                 key={divId}
                 variant="outline"
                 className={cn(
-                  "h-12 glass-card justify-between font-bold text-xs border-white/5",
+                  "h-10 glass-card font-bold text-[10px] border-white/5 p-1",
                   isCurrent && "border-primary/50 bg-primary/10"
                 )}
                 onClick={() => {
@@ -319,16 +318,11 @@ export default function RankingsPage() {
                   setPyramidMode('table');
                 }}
               >
-                {t.div_label} {viewingLevel}.{divId}
-                {isCurrent && <Badge variant="default" className="scale-75 origin-right">ME</Badge>}
+                {viewingLevel}.{divId}
+                {isCurrent && <Badge variant="default" className="scale-[0.6] ml-0.5">ME</Badge>}
               </Button>
             );
           })}
-          {numDivisions > 64 && (
-            <div className="col-span-2 text-center p-4 italic text-[10px] text-muted-foreground">
-              + {numDivisions - 64} more divisions in this tier
-            </div>
-          )}
         </div>
       </div>
     );
@@ -504,3 +498,4 @@ export default function RankingsPage() {
     </div>
   );
 }
+
