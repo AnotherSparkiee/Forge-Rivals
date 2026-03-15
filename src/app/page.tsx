@@ -7,7 +7,7 @@ import { useGameState } from './lib/store';
 import { 
   Swords, Users, Trophy, TrendingUp, 
   ShoppingCart, Newspaper, Shield, Star, 
-  ChevronRight, Wallet, Loader2
+  ChevronRight, Wallet, Loader2, CalendarDays
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -47,7 +47,8 @@ export default function Home() {
       menu: [
         { label: 'Battle Simulation', desc: 'Deploy team for automated matches' },
         { label: 'Team Roster', desc: 'Manage your active hero lineup' },
-        { label: 'Tournament Tables', desc: 'Check your standing in the league' },
+        { label: 'Tournament Tables', desc: 'Pyramid hierarchy and standings' },
+        { label: 'Matches', desc: 'Schedule, history and next opponents' },
         { label: 'Marketplace', desc: 'Purchase new heroes and boosts' },
         { label: 'Team Stats', desc: 'Detailed performance analytics' },
         { label: 'Clubhouse', desc: 'Join associations and tournaments' },
@@ -67,7 +68,8 @@ export default function Home() {
       menu: [
         { label: 'Боевая Симуляция', desc: 'Развертывание команды для матча' },
         { label: 'Ростер Команды', desc: 'Управление активным составом' },
-        { label: 'Турнирные таблицы', desc: 'Ваше положение в лиге и турнирах' },
+        { label: 'Турнирные таблицы', desc: 'Иерархия пирамиды и положение' },
+        { label: 'Матчи', desc: 'Расписание, история и будущие игры' },
         { label: 'Магазин', desc: 'Покупка героев и бонусов' },
         { label: 'Статистика', desc: 'Аналитика эффективности' },
         { label: 'Клуб', desc: 'Ассоциации и турниры' },
@@ -88,10 +90,11 @@ export default function Home() {
     { label: t.menu[0].label, href: '/match', icon: Swords, desc: t.menu[0].desc, active: true },
     { label: t.menu[1].label, href: '/roster', icon: Users, desc: t.menu[1].desc, active: true },
     { label: t.menu[2].label, href: '/rankings', icon: Trophy, desc: t.menu[2].desc, active: true },
-    { label: t.menu[3].label, href: '#', icon: ShoppingCart, desc: t.menu[3].desc, active: false },
-    { label: t.menu[4].label, href: '#', icon: TrendingUp, desc: t.menu[4].desc, active: false },
-    { label: t.menu[5].label, href: '#', icon: Shield, desc: t.menu[5].desc, active: false },
-    { label: t.menu[6].label, href: '#', icon: Newspaper, desc: t.menu[6].desc, active: false },
+    { label: t.menu[3].label, href: '/matches', icon: CalendarDays, desc: t.menu[3].desc, active: true },
+    { label: t.menu[4].label, href: '#', icon: ShoppingCart, desc: t.menu[4].desc, active: false },
+    { label: t.menu[5].label, href: '#', icon: TrendingUp, desc: t.menu[5].desc, active: false },
+    { label: t.menu[6].label, href: '#', icon: Shield, desc: t.menu[6].desc, active: false },
+    { label: t.menu[7].label, href: '#', icon: Newspaper, desc: t.menu[7].desc, active: false },
   ];
 
   return (
