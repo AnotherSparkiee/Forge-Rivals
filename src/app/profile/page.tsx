@@ -3,12 +3,21 @@
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { User, Settings, ShieldCheck, History, LogOut, ChevronRight, Mail, ChevronLeft, Languages, Check } from 'lucide-react';
+import { User, Settings, ShieldCheck, History, LogOut, ChevronRight, Mail, ChevronLeft, Languages, Check, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ProfilePage() {
   const { ownedHeroes, rank, language, setLanguage, isLoaded } = useGameState();
+  const auth = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   if (!isLoaded) return null;
 
@@ -24,7 +33,10 @@ export default function ProfilePage() {
       logout: "LOG OUT",
       langTitle: "System Language",
       langEn: "English",
-      langRu: "Russian"
+      langRu: "Russian",
+      logoutSuccess: "Logged Out",
+      logoutDesc: "Successfully signed out.",
+      logoutError: "Logout Error"
     },
     ru: {
       title: "ЛЕГЕНДАРНЫЙ МЕНЕДЖЕР",
@@ -37,11 +49,33 @@ export default function ProfilePage() {
       logout: "ВЫЙТИ ИЗ СИСТЕМЫ",
       langTitle: "Язык системы",
       langEn: "English",
-      langRu: "Русский"
+      langRu: "Русский",
+      logoutSuccess: "Сеанс завершен",
+      logoutDesc: "Вы успешно вышли из системы.",
+      logoutError: "Ошибка выхода"
     }
   };
 
   const t = translations[language as keyof typeof translations] || translations.ru;
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await signOut(auth);
+      toast({
+        title: t.logoutSuccess,
+        description: t.logoutDesc,
+      });
+      router.push('/auth/login');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: t.logoutError,
+        description: error.message,
+      });
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-12">
@@ -126,8 +160,14 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <Button variant="destructive" className="w-full mb-8 flex items-center gap-2">
-        <LogOut className="w-4 h-4" /> {t.logout}
+      <Button 
+        variant="destructive" 
+        className="w-full mb-8 flex items-center gap-2"
+        onClick={handleLogout}
+        disabled={isLoggingOut}
+      >
+        {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+        {t.logout}
       </Button>
     </div>
   );
