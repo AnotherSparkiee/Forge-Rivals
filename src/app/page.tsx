@@ -7,7 +7,6 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { useGameState } from './lib/store';
 import { BottomNav } from '@/components/game/BottomNav';
-import { Card, CardContent } from '@/components/ui/card';
 import { 
   Swords, Users, UserPlus, TrendingUp, 
   Briefcase, Binoculars, Trophy, Calendar, 
@@ -132,20 +131,6 @@ function HubContent() {
           </Link>
         ))}
       </div>
-
-      {/* Информационная панель */}
-      <Card className="glass-card overflow-hidden mb-6 border-primary/20">
-        <div className="hero-gradient h-1 opacity-50" />
-        <CardContent className="p-4 space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-headline">Оперативный статус</span>
-            <span className="text-[10px] text-accent font-bold uppercase">В норме</span>
-          </div>
-          <div className="text-[11px] leading-relaxed text-muted-foreground italic">
-            "Лига {league?.name} ожидает начала операций в {league?.startTime}. Проверьте готовность ростера."
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Модальное окно приветствия */}
       <Dialog open={showWelcome} onOpenChange={setShowWelcome}>
