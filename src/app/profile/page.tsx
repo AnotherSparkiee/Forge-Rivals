@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -7,7 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { 
   User, Settings, ShieldCheck, History, LogOut, 
   ChevronRight, Mail, ChevronLeft, Check, Loader2,
-  Trophy, Star, Wallet, Gem, Flag, Zap
+  Trophy, Star, Wallet, Gem, Flag, Zap, ArrowUpCircle
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -18,10 +19,9 @@ import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { doc } from 'firebase/firestore';
 import { COUNTRIES } from '@/app/lib/countries-data';
-import { LEAGUES } from '@/app/lib/leagues-data';
 
 export default function ProfilePage() {
-  const { ownedHeroes, rank, language, setLanguage, isLoaded: isStoreLoaded, credits } = useGameState();
+  const { ownedHeroes, rank, language, setLanguage, isLoaded: isStoreLoaded, credits, leagueLevel, divisionSubId, groupId } = useGameState();
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const db = useFirestore();
@@ -69,7 +69,9 @@ export default function ProfilePage() {
       langRu: "Russian",
       logoutSuccess: "Logged Out",
       logoutDesc: "Successfully signed out.",
-      logoutError: "Logout Error"
+      logoutError: "Logout Error",
+      division: "Division",
+      group: "Group"
     },
     ru: {
       title: "ЛЕГЕНДАРНЫЙ МЕНЕДЖЕР",
@@ -81,7 +83,7 @@ export default function ProfilePage() {
       balance: "Финансовый баланс",
       currency: "Баланс €",
       crystals: "Кристаллы",
-      league: "Название Лиги",
+      league: "Текущая Лига",
       country: "Страна",
       settings: "Настройки и Безопасность",
       account: "Настройки аккаунта",
@@ -93,7 +95,9 @@ export default function ProfilePage() {
       langRu: "Русский",
       logoutSuccess: "Сеанс завершен",
       logoutDesc: "Вы успешно вышли из системы.",
-      logoutError: "Ошибка выхода"
+      logoutError: "Ошибка выхода",
+      division: "Дивизион",
+      group: "Группа"
     }
   };
 
@@ -101,11 +105,10 @@ export default function ProfilePage() {
 
   // Find country flag
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
-  const userLeague = LEAGUES.find(l => l.id === profile?.selectedLeagueId);
 
   // Simulation of XP progress
   const currentExp = profile?.experiencePoints || 0;
-  const level = Math.floor(currentExp / 1000) + 1;
+  const xpLevel = Math.floor(currentExp / 1000) + 1;
   const expInLevel = currentExp % 1000;
   const progress = (expInLevel / 1000) * 100;
 
@@ -160,7 +163,7 @@ export default function ProfilePage() {
             <div className="p-4 bg-primary/5 border-b border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center font-headline font-bold text-primary text-xl">
-                  {level}
+                  {xpLevel}
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase font-bold">{t.level}</p>
@@ -187,7 +190,12 @@ export default function ProfilePage() {
               <div className="p-4 flex flex-col items-center gap-1 text-center">
                 <Trophy className="w-4 h-4 text-yellow-500" />
                 <p className="text-xs text-muted-foreground uppercase">{t.league}</p>
-                <p className="text-xs font-bold text-accent">{userLeague?.name || profile?.selectedLeagueId || 'None'}</p>
+                <p className="text-xs font-bold text-accent">
+                  {t.division} {leagueLevel}.{divisionSubId}
+                </p>
+                <p className="text-[10px] uppercase font-bold text-muted-foreground">
+                  {t.group} {groupId}
+                </p>
               </div>
             </div>
           </CardContent>

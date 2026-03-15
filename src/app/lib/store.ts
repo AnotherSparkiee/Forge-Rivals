@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -11,6 +12,10 @@ interface GameState {
   rank: number;
   matchHistory: any[];
   language: 'en' | 'ru';
+  // League Pyramid State
+  leagueLevel: number; // 1-9 (1 is top)
+  divisionSubId: number; // 1 to 2^(level-1)
+  groupId: number; // 1-8
 }
 
 const DEFAULT_STATE: GameState = {
@@ -20,7 +25,10 @@ const DEFAULT_STATE: GameState = {
   strategy: 'Balanced Play',
   rank: 1000,
   matchHistory: [],
-  language: 'ru'
+  language: 'ru',
+  leagueLevel: 9, // Start at bottom
+  divisionSubId: 1,
+  groupId: 1
 };
 
 export function useGameState() {
@@ -32,12 +40,13 @@ export function useGameState() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Безопасное слияние: берем дефолты и накладываем сохраненные данные.
-        // Это защищает от ошибок, если в сохраненном стейте нет новых полей (как language).
         setState(prev => ({ 
           ...prev, 
           ...parsed,
-          language: parsed.language || prev.language 
+          language: parsed.language || prev.language,
+          leagueLevel: parsed.leagueLevel || prev.leagueLevel,
+          divisionSubId: parsed.divisionSubId || prev.divisionSubId,
+          groupId: parsed.groupId || prev.groupId
         }));
       } catch (e) {
         console.error("Failed to load game state", e);
@@ -80,6 +89,20 @@ export function useGameState() {
     setState(s => ({ ...s, language: lang }));
   };
 
+  const promoteLeague = () => {
+    if (state.leagueLevel > 1) {
+      setState(s => ({
+        ...s,
+        leagueLevel: s.leagueLevel - 1,
+        // When promoting, we usually just go to the first division of that level for simplicity in MVP
+        divisionSubId: Math.max(1, Math.ceil(s.divisionSubId / 2)),
+        groupId: 1
+      }));
+      return true;
+    }
+    return false;
+  };
+
   const recordMatch = (winner: string, result: any) => {
     const isWin = winner === 'My Team' || winner === 'Моя Команда';
     setState(s => ({
@@ -98,6 +121,7 @@ export function useGameState() {
     setTeam,
     setStrategy,
     setLanguage,
-    recordMatch
+    recordMatch,
+    promoteLeague
   };
 }

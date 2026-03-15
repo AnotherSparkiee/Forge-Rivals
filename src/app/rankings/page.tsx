@@ -1,24 +1,58 @@
+
 'use client';
 
 import { useGameState } from '../lib/store';
-import { Trophy, Medal, Star, ChevronLeft } from 'lucide-react';
+import { Trophy, Medal, Star, ChevronLeft, ArrowUpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { getMockGroupTeams } from '../lib/leagues-data';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 
 export default function RankingsPage() {
-  const { rank, isLoaded } = useGameState();
+  const { rank, leagueLevel, divisionSubId, groupId, isLoaded, language, promoteLeague } = useGameState();
+  const { toast } = useToast();
 
-  const mockRankings = [
-    { name: "LegendaryPro", rank: 2500, winRate: "78%" },
-    { name: "MobaKing42", rank: 2450, winRate: "72%" },
-    { name: "TacticalGenius", rank: 2300, winRate: "75%" },
-    { name: "VoidWalker", rank: 2100, winRate: "68%" },
-    { name: "ShadowStriker", rank: 1950, winRate: "65%" },
-    { name: "You", rank: rank, winRate: "54%", isPlayer: true },
-    { name: "NoviceManager", rank: 900, winRate: "42%" },
-    { name: "TrainingBot1", rank: 850, winRate: "38%" },
-  ].sort((a, b) => b.rank - a.rank);
+  const labels = {
+    en: {
+      title: "LEADERBOARDS",
+      subtitle: "Pyramid Hierarchy",
+      winRate: "Win Rate",
+      points: "Points",
+      stats: "Stats",
+      promote: "Promote",
+      promoteSuccess: "Promotion Success!",
+      promoteDesc: "You have moved to a higher division!",
+      standing: "Current Group Standings",
+      canPromote: "Rank 1: Eligible for Promotion!"
+    },
+    ru: {
+      title: "ТАБЛИЦА ЛИДЕРОВ",
+      subtitle: "Иерархия Пирамиды",
+      winRate: "Победы",
+      points: "Очки",
+      stats: "Статистика",
+      promote: "Повысить",
+      promoteSuccess: "Повышение!",
+      promoteDesc: "Вы перешли в дивизион уровнем выше!",
+      standing: "Текущая Таблица Группы",
+      canPromote: "1 Место: Доступно повышение!"
+    }
+  };
+
+  const t = labels[language as keyof typeof labels] || labels.ru;
+  const mockRankings = getMockGroupTeams(rank);
+  const isPlayerFirst = mockRankings[0]?.isPlayer;
+
+  const handlePromotion = () => {
+    if (promoteLeague()) {
+      toast({
+        title: t.promoteSuccess,
+        description: t.promoteDesc,
+      });
+    }
+  };
 
   if (!isLoaded) return null;
 
@@ -30,45 +64,72 @@ export default function RankingsPage() {
             <ChevronLeft className="w-6 h-6" />
           </Button>
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-headline font-bold flex items-center gap-2">
-            <Trophy className="text-yellow-500" />
-            LEADERBOARDS
+            <Trophy className="text-yellow-500 w-5 h-5" />
+            {t.title}
           </h1>
-          <p className="text-muted-foreground text-sm">Top managers in the Diamond League.</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">
+            {t.subtitle} | Div {leagueLevel}.{divisionSubId} | Group {groupId}
+          </p>
         </div>
       </header>
 
-      <div className="space-y-3 mb-8">
+      {isPlayerFirst && leagueLevel > 1 && (
+        <div className="mb-6 animate-in zoom-in duration-300">
+          <Card className="bg-primary/20 border-primary/50 border-2">
+            <CardContent className="p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-primary flex items-center gap-2">
+                  <ArrowUpCircle className="w-4 h-4" /> {t.canPromote}
+                </p>
+              </div>
+              <Button size="sm" onClick={handlePromotion} className="hero-gradient font-bold h-8 text-[10px]">
+                {t.promote}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <div className="space-y-2 mb-8">
+        <div className="flex items-center px-4 text-[10px] uppercase font-bold text-muted-foreground mb-1">
+          <div className="w-8">#</div>
+          <div className="flex-1">Team</div>
+          <div className="w-16 text-center">W-L</div>
+          <div className="w-16 text-right">Points</div>
+        </div>
+        
         {mockRankings.map((entry, i) => {
           const isTop3 = i < 3;
           return (
             <div 
               key={entry.name} 
               className={cn(
-                "flex items-center gap-4 p-4 rounded-xl border transition-all",
-                entry.isPlayer ? "bg-primary/20 border-primary/50 shadow-lg shadow-primary/10" : "bg-secondary/20 border-white/5",
-                isTop3 && !entry.isPlayer ? "border-yellow-500/30" : ""
+                "flex items-center gap-3 p-3 rounded-xl border transition-all",
+                entry.isPlayer ? "bg-primary/20 border-primary/50 shadow-lg" : "bg-secondary/20 border-white/5",
+                isTop3 && !entry.isPlayer ? "border-yellow-500/10" : ""
               )}
             >
-              <div className="w-8 text-center font-headline font-bold text-lg italic">
+              <div className="w-8 text-center font-headline font-bold text-sm italic">
                 {isTop3 ? (
                   <Medal className={cn(
-                    "w-6 h-6 mx-auto",
+                    "w-5 h-5 mx-auto",
                     i === 0 ? "text-yellow-500" : i === 1 ? "text-gray-400" : "text-amber-600"
                   )} />
                 ) : i + 1}
               </div>
-              <div className="flex-1">
-                <p className={cn("font-bold text-sm uppercase flex items-center gap-2", entry.isPlayer && "text-primary")}>
+              <div className="flex-1 min-w-0">
+                <p className={cn("font-bold text-xs uppercase flex items-center gap-2 truncate", entry.isPlayer && "text-primary")}>
                   {entry.name}
                   {entry.isPlayer && <Star className="w-3 h-3 fill-current" />}
                 </p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Win Rate: {entry.winRate}</p>
               </div>
-              <div className="text-right">
-                <p className="text-xl font-headline font-bold text-accent">{entry.rank}</p>
-                <p className="text-[8px] text-muted-foreground uppercase">Points</p>
+              <div className="w-16 text-center text-[10px] font-mono opacity-70">
+                {entry.wins}-{entry.losses || 0}
+              </div>
+              <div className="w-16 text-right">
+                <p className="text-sm font-headline font-bold text-accent">{entry.points}</p>
               </div>
             </div>
           );
