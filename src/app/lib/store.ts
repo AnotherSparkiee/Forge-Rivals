@@ -16,6 +16,8 @@ interface GameState {
   divisionSubId: number; // 1 to 2^(level-1)
   groupId: number; // 1-8
   lastLeagueMatchDate: string | null; // Format: YYYY-MM-DD
+  seasonDay: number; // 1-14
+  seasonStartDate: string | null; // Format: YYYY-MM-DD
 }
 
 const DEFAULT_STATE: GameState = {
@@ -26,10 +28,12 @@ const DEFAULT_STATE: GameState = {
   rank: 1000,
   matchHistory: [],
   language: 'ru',
-  leagueLevel: 8, // New users start at Challenger Tier (Level 8)
+  leagueLevel: 8,
   divisionSubId: 1,
   groupId: 1,
-  lastLeagueMatchDate: null
+  lastLeagueMatchDate: null,
+  seasonDay: 1,
+  seasonStartDate: new Date().toISOString().split('T')[0]
 };
 
 export function useGameState() {
@@ -41,14 +45,21 @@ export function useGameState() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        
+        // Calculate current season day based on start date
+        const today = new Date();
+        const start = parsed.seasonStartDate ? new Date(parsed.seasonStartDate) : today;
+        const diffTime = Math.abs(today.getTime() - start.getTime());
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        
+        // Season wraps every 14 days
+        const currentDay = ((diffDays - 1) % 14) + 1;
+
         setState(prev => ({ 
           ...prev, 
           ...parsed,
+          seasonDay: currentDay,
           language: parsed.language || prev.language,
-          leagueLevel: parsed.leagueLevel || prev.leagueLevel,
-          divisionSubId: parsed.divisionSubId || prev.divisionSubId,
-          groupId: parsed.groupId || prev.groupId,
-          lastLeagueMatchDate: parsed.lastLeagueMatchDate || prev.lastLeagueMatchDate
         }));
       } catch (e) {
         console.error("Failed to load game state", e);
@@ -98,7 +109,8 @@ export function useGameState() {
         leagueLevel: s.leagueLevel - 1,
         divisionSubId: Math.max(1, Math.ceil(s.divisionSubId / 2)),
         groupId: 1,
-        lastLeagueMatchDate: null // Reset match for new league day
+        lastLeagueMatchDate: null,
+        seasonStartDate: new Date().toISOString().split('T')[0] // Reset season on promotion
       }));
       return true;
     }
@@ -106,13 +118,27 @@ export function useGameState() {
   };
 
   const recordMatch = (winner: string, result: any, isAutomated = false) => {
-    const isWin = winner === 'My Team' || winner === 'Моя Команда' || winner === (state.team[0]?.name || '');
+    const scoreA = result.scoreA || 0;
+    const scoreB = result.scoreB || 0;
+    
+    // Points system Bo2: 2-0 = 3pts, 1-1 = 1pt, 0-2 = 0pts
+    let creditsEarned = 50;
+    let rankChange = -15;
+
+    if (scoreA === 2) {
+      creditsEarned = 200;
+      rankChange = 25;
+    } else if (scoreA === 1) {
+      creditsEarned = 100;
+      rankChange = 5;
+    }
+
     const today = new Date().toISOString().split('T')[0];
     
     setState(s => ({
       ...s,
-      credits: s.credits + (isWin ? 200 : 50),
-      rank: s.rank + (isWin ? 25 : -15),
+      credits: s.credits + creditsEarned,
+      rank: s.rank + rankChange,
       matchHistory: [result, ...s.matchHistory].slice(0, 10),
       lastLeagueMatchDate: isAutomated ? today : s.lastLeagueMatchDate
     }));

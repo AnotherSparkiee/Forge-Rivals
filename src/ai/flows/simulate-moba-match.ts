@@ -50,6 +50,7 @@ const SimulateMobaMatchInputSchema = z.object({
     .describe(
       'Whether to include random in-game events that can influence the match outcome.'
     ),
+  isBo2: z.boolean().default(true).describe('Whether this is a Best of 2 series (can result in 2:0, 1:1, 0:2).'),
 });
 export type SimulateMobaMatchInput = z.infer<typeof SimulateMobaMatchInputSchema>;
 
@@ -84,12 +85,13 @@ const HeroMatchPerformanceSchema = z
   .describe('Detailed performance statistics for a single hero in the match.');
 
 const SimulateMobaMatchOutputSchema = z.object({
-  winner: z.string().describe('The name of the winning team.'),
-  loser: z.string().describe('The name of the losing team.'),
+  winner: z.string().describe('The name of the winning team (or "Draw" in Bo2).'),
+  scoreA: z.number().describe('Maps won by Team A.'),
+  scoreB: z.number().describe('Maps won by Team B.'),
   matchSummary: z
     .string()
     .describe(
-      'A narrative summary of the match, highlighting key moments and reasons for victory/defeat.'
+      'A narrative summary of the match, highlighting key moments and reasons for victory/defeat/draw.'
     ),
   teamStats: z
     .object({
@@ -115,7 +117,7 @@ const prompt = ai.definePrompt({
   name: 'simulateMobaMatchPrompt',
   input: {schema: SimulateMobaMatchInputSchema},
   output: {schema: SimulateMobaMatchOutputSchema},
-  prompt: `You are an expert MOBA (Multiplayer Online Battle Arena) match simulator. Your task is to simulate a single MOBA match between two teams based on their roster, hero stats, strategic focus, and overall team strategy.
+  prompt: `You are an expert MOBA (Multiplayer Online Battle Arena) match simulator. Your task is to simulate a MOBA match series (Best of 2) between two teams based on their roster, hero stats, strategic focus, and overall team strategy.
 
 Consider the following input for Team A:
 Team Name: {{{teamA.name}}}
@@ -139,15 +141,14 @@ Team Heroes:
   Abilities Focus: {{{abilitiesFocus}}}
 {{/each}}
 
-{{#if includeRandomEvents}}
-During the simulation, incorporate minor random in-game events that can subtly influence the match, such as a hero getting caught out of position, a crucial ability being mistimed, or an unexpected monster camp steal. These events should be integrated naturally into the match summary without being overly disruptive.
-{{else}}
-Do not include any random in-game events. Focus purely on the clash of strategies and hero power levels.
+{{#if isBo2}}
+This is a Best of 2 series. You MUST return a score of 2-0, 1-1, or 0-2.
+- 2-0: Team A wins both maps.
+- 1-1: Draw, each team wins one map.
+- 0-2: Team B wins both maps.
 {{/if}}
 
-Simulate the match from start to finish, describing key phases like the laning stage, mid-game skirmishes, objective contests (e.g., towers, dragons, barons), and the final team fight.
-Determine the winning team based on a holistic consideration of hero matchups, team compositions, strategic execution, hero performance, and any incorporated random events.
-
+Simulate the match from start to finish. If 1-1, describe how both teams managed to secure one map each.
 Provide a detailed narrative match summary and precise statistics for both teams and individual heroes in the exact JSON format specified in the output schema.`,
 });
 
