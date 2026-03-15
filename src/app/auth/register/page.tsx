@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -13,8 +12,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -35,30 +32,29 @@ export default function RegisterPage() {
       const user = userCredential.user;
 
       // Create UserProfile in Firestore
-      const userProfileRef = doc(db, 'user_profiles', user.uid);
+      const userProfileRef = doc(db, 'users', user.uid);
       const profileData = {
         id: user.uid,
-        username: username,
-        email: email,
-        createdAt: serverTimestamp(),
+        displayName: username,
         inGameCurrency: 500,
         experiencePoints: 0,
-        leagueRank: 1000,
-        teamIds: [],
-        selectedLeagueId: null // User will select this on the next screen
+        lastLoginDate: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        ownedHeroIds: ['h1', 'h2', 'h3', 'h4', 'h5'],
+        leagueRankingId: 'none'
       };
 
       await setDoc(userProfileRef, profileData);
 
       toast({
-        title: "Аккаунт создан",
-        description: "Добро пожаловать в лигу, Командир! Теперь выберите время игры.",
+        title: "Profile Initialized",
+        description: "Welcome to the league, Commander. Now, choose your operational sector.",
       });
       router.push('/setup');
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Ошибка регистрации",
+        title: "Registration Failed",
         description: error.message,
       });
     } finally {
@@ -69,12 +65,12 @@ export default function RegisterPage() {
   return (
     <Card className="glass-card">
       <CardHeader>
-        <CardTitle className="font-headline text-center uppercase tracking-widest text-accent">Инициализация Профиля</CardTitle>
+        <CardTitle className="font-headline text-center uppercase tracking-widest text-accent">Initiate Profile</CardTitle>
       </CardHeader>
       <form onSubmit={handleRegister}>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="username">Тактический позывной</Label>
+            <Label htmlFor="username">Tactical Callsign</Label>
             <Input 
               id="username" 
               placeholder="CommanderX" 
@@ -85,7 +81,7 @@ export default function RegisterPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Нейролинк (Email)</Label>
+            <Label htmlFor="email">Neural Link (Email)</Label>
             <Input 
               id="email" 
               type="email" 
@@ -97,7 +93,7 @@ export default function RegisterPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Ключ доступа (Пароль)</Label>
+            <Label htmlFor="password">Access Key (Password)</Label>
             <Input 
               id="password" 
               type="password" 
@@ -110,10 +106,10 @@ export default function RegisterPage() {
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
           <Button type="submit" className="w-full hero-gradient font-bold" disabled={isLoading}>
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'СОЗДАТЬ ПРОФИЛЬ'}
+            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'CREATE PROFILE'}
           </Button>
           <p className="text-xs text-center text-muted-foreground">
-            Уже есть профиль? <Link href="/auth/login" className="text-primary hover:underline">Синхронизировать</Link>
+            Already registered? <Link href="/auth/login" className="text-primary hover:underline">Synchronize Link</Link>
           </p>
         </CardFooter>
       </form>

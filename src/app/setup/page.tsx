@@ -1,18 +1,16 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LEAGUES } from '@/app/lib/leagues-data';
 import { COUNTRIES } from '@/app/lib/countries-data';
-import { Loader2, Clock, CheckCircle2, Globe } from 'lucide-react';
+import { Loader2, Clock, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { useMemoFirebase } from '@/firebase';
 
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
@@ -25,7 +23,7 @@ export default function SetupPage() {
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'user_profiles', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   useEffect(() => {
@@ -37,9 +35,6 @@ export default function SetupPage() {
   useEffect(() => {
     if (profile?.selectedLeagueId && profile?.country) {
       router.push('/');
-    } else if (profile?.selectedLeagueId && !profile?.country) {
-      setStep('country');
-      setSelectedLeagueId(profile.selectedLeagueId);
     }
   }, [profile, router]);
 
@@ -54,7 +49,7 @@ export default function SetupPage() {
 
     setIsUpdating(true);
     try {
-      const profileRef = doc(db, 'user_profiles', user.uid);
+      const profileRef = doc(db, 'users', user.uid);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       
       await updateDoc(profileRef, {
@@ -63,16 +58,15 @@ export default function SetupPage() {
       });
       
       toast({
-        title: "Подготовка завершена!",
-        description: `Вы зачислены в ${selectedLeagueId}. Страна представительства: ${selectedCountry?.name}.`,
+        title: "Setup Complete",
+        description: `Operational status confirmed for ${selectedCountry?.name}. Welcome to ${selectedLeagueId}.`,
       });
-      // Добавляем параметр welcome, чтобы показать попап на главной
-      router.push('/?welcome=true');
+      router.push('/');
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Ошибка",
-        description: "Не удалось сохранить настройки профиля.",
+        title: "Error",
+        description: "Failed to save profile configuration.",
       });
     } finally {
       setIsUpdating(false);
@@ -91,12 +85,12 @@ export default function SetupPage() {
     <div className="max-w-4xl mx-auto px-4 py-12">
       <header className="text-center mb-12">
         <h1 className="text-4xl font-headline font-bold text-primary mb-4 tracking-tight uppercase">
-          {step === 'league' ? 'Выберите вашу пирамиду' : 'Выберите страну представительства'}
+          {step === 'league' ? 'Select Operational League' : 'Confirm Jurisdiction'}
         </h1>
-        <p className="text-muted-foreground text-lg">
+        <p className="text-muted-foreground text-lg italic">
           {step === 'league' 
-            ? 'Каждая лига сражается в свое фиксированное время. Выберите ту, которая подходит вашему графику.' 
-            : 'Ваш флаг будет отображаться рядом с позывным в таблице лидеров.'}
+            ? 'Each league operates at specific time windows. Choose one that aligns with your schedule.' 
+            : 'Your flag will represent your organization in the global rankings.'}
         </p>
       </header>
 
@@ -116,10 +110,10 @@ export default function SetupPage() {
                   <CardTitle className="font-headline text-xl">{league.id}</CardTitle>
                   <Clock className={cn("w-4 h-4", selectedLeagueId === league.id ? "text-primary" : "text-muted-foreground")} />
                 </div>
-                <CardDescription className="text-accent font-bold">{league.startTime}</CardDescription>
+                <CardDescription className="text-accent font-bold uppercase tracking-tighter">{league.startTime}</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-xs text-muted-foreground leading-relaxed">{league.description}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed italic">{league.description}</p>
                 {selectedLeagueId === league.id && (
                   <div className="mt-4 flex justify-center">
                     <CheckCircle2 className="text-primary w-6 h-6 animate-in zoom-in" />
@@ -152,14 +146,14 @@ export default function SetupPage() {
         </div>
       )}
 
-      <div className="flex justify-center sticky bottom-8 gap-4">
+      <div className="flex justify-center gap-4">
         {step === 'country' && (
           <Button 
             variant="outline" 
             onClick={() => setStep('league')}
             className="w-full max-w-[150px] h-14"
           >
-            НАЗАД
+            BACK
           </Button>
         )}
         <Button 
@@ -168,7 +162,7 @@ export default function SetupPage() {
           onClick={step === 'league' ? handleNextStep : handleCompleteSetup}
           className="w-full max-w-sm hero-gradient text-lg font-headline font-bold h-14"
         >
-          {isUpdating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (step === 'league' ? 'ДАЛЕЕ' : 'ПОДТВЕРДИТЬ ВЫБОР')}
+          {isUpdating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (step === 'league' ? 'NEXT' : 'FINALIZE SETUP')}
         </Button>
       </div>
     </div>

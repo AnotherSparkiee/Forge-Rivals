@@ -37,7 +37,7 @@
 }
 
 .glass-card {
-  @apply bg-card/80 backdrop-blur-md border border-white/5;
+  @apply bg-card/80 backdrop-blur-md border border-white/5 shadow-xl;
 }
 
 .hero-gradient {

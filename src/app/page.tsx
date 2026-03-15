@@ -4,9 +4,9 @@ import { useGameState } from './lib/store';
 import { 
   Swords, Users, Trophy, TrendingUp, 
   ShoppingCart, Newspaper, Shield, Star, 
-  ChevronRight, Wallet, Target
+  ChevronRight, Wallet
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
@@ -35,8 +35,8 @@ export default function Home() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-12">
       <header className="mb-8">
-        <h1 className="text-3xl font-headline font-bold tracking-tighter text-primary">COMMAND CENTER</h1>
-        <p className="text-muted-foreground text-sm uppercase tracking-widest">Manager Hub Alpha-1</p>
+        <h1 className="text-3xl font-headline font-bold tracking-tighter text-primary uppercase">Command Center</h1>
+        <p className="text-muted-foreground text-sm uppercase tracking-widest">Tactical Operations Hub</p>
       </header>
 
       {/* Quick Stats Grid */}
@@ -57,9 +57,9 @@ export default function Home() {
         <Button className="w-full h-20 hero-gradient border-none shadow-xl hover:opacity-90 transition-all flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <Swords className="w-6 h-6" />
-            <span className="text-xl font-headline font-bold italic">ENTER BATTLE</span>
+            <span className="text-xl font-headline font-bold italic uppercase">Enter Battle</span>
           </div>
-          <span className="text-[10px] opacity-80 uppercase tracking-widest">Current Strategy: {strategy}</span>
+          <span className="text-[10px] opacity-80 uppercase tracking-widest">Active Strategy: {strategy}</span>
         </Button>
       </Link>
 
@@ -87,7 +87,7 @@ export default function Home() {
                   {item.active ? (
                     <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   ) : (
-                    <Badge variant="outline" className="text-[8px] uppercase">Coming Soon</Badge>
+                    <Badge variant="outline" className="text-[8px] uppercase">Locked</Badge>
                   )}
                 </CardContent>
               </Card>
