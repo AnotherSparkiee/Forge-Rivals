@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
 import { BottomNav } from "@/components/game/BottomNav";
 import { TopBar } from "@/components/game/TopBar";
+import { AutoMatchManager } from "@/components/game/AutoMatchManager";
 
 export const metadata: Metadata = {
   title: 'Moba Tactics Online',
@@ -25,6 +26,7 @@ export default function RootLayout({
       <body className="font-body antialiased min-h-screen bg-background text-foreground pt-14 pb-20">
         <FirebaseClientProvider>
           <TopBar />
+          <AutoMatchManager />
           {children}
           <BottomNav />
           <Toaster />

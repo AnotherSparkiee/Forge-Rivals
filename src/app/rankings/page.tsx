@@ -12,15 +12,12 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
-import { getMockGroupTeams, getSchedule, SEASON_DURATION_DAYS } from '../lib/leagues-data';
+import { getMockGroupTeams, SEASON_DURATION_DAYS } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { getMoscowTime, formatMoscowTime, isMatchDue } from '../lib/time-utils';
-import { LEAGUES } from '../lib/leagues-data';
-import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
-import { INITIAL_HEROES } from '../lib/moba-data';
+import { getMoscowTime, formatMoscowTime } from '../lib/time-utils';
 
 type RankingTab = 
   | 'menu'
@@ -37,14 +34,13 @@ type RankingTab =
 type PyramidViewMode = 'levels' | 'divisions' | 'table';
 
 export default function RankingsPage() {
-  const { rank, leagueLevel, divisionSubId, groupId, isLoaded, language, promoteLeague, lastLeagueMatchDate, recordMatch, team, strategy, seasonDay } = useGameState();
+  const { rank, leagueLevel, divisionSubId, groupId, isLoaded, language, promoteLeague, lastLeagueMatchDate, seasonDay } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
   const [serverTime, setServerTime] = useState<string>('');
-  const [isAutoSimulating, setIsAutoSimulating] = useState(false);
 
   // Pyramid drill-down state
   const [pyramidMode, setPyramidMode] = useState<PyramidViewMode>('levels');
@@ -69,55 +65,6 @@ export default function RankingsPage() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
-
-  // Automated Match Check
-  useEffect(() => {
-    if (isLoaded && profile?.selectedLeagueId && !isAutoSimulating) {
-      const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
-      if (league && isMatchDue(league.startTime, lastLeagueMatchDate)) {
-        triggerAutoMatch();
-      }
-    }
-  }, [isLoaded, profile, lastLeagueMatchDate]);
-
-  const triggerAutoMatch = async () => {
-    setIsAutoSimulating(true);
-    try {
-      // Find today's opponent in the schedule
-      const schedule = getSchedule(myLeagueRankings, seasonDay);
-      const todayMatch = schedule?.find(m => m.home.isPlayer || m.away.isPlayer);
-      
-      if (!todayMatch) throw new Error("Match not found");
-
-      const opponent = todayMatch.home.isPlayer ? todayMatch.away : todayMatch.home;
-
-      const result = await simulateMobaMatch({
-        teamA: {
-          name: profile?.displayName || "My Team",
-          strategy: strategy,
-          heroes: team
-        },
-        teamB: {
-          name: opponent.name,
-          strategy: "Standard Tactics",
-          heroes: INITIAL_HEROES.map(h => ({ ...h, baseStats: { ...h.baseStats, attack: h.baseStats.attack + 2 } }))
-        },
-        includeRandomEvents: true,
-        isBo2: true
-      });
-      
-      recordMatch(result.winner, result, true);
-      
-      toast({
-        title: language === 'ru' ? "Матч лиги завершен!" : "League Match Completed!",
-        description: `${profile?.displayName || "My Team"} ${result.scoreA}:${result.scoreB} ${opponent.name}`,
-      });
-    } catch (e) {
-      console.error("Auto simulation failed", e);
-    } finally {
-      setIsAutoSimulating(false);
-    }
-  };
 
   const labels = {
     en: {
