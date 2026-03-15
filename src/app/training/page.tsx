@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -20,11 +21,11 @@ export default function TrainingPage() {
       subtitle: "Management of organizational sectors",
       locked: "Restricted",
       facilities: [
-        { id: 'arena', label: 'Arena', desc: 'Stadium management and matchday logistics', icon: Castle, active: false },
-        { id: 'hq', label: 'Headquarters', desc: 'Strategic operations and staff administration', icon: Building2, active: false },
-        { id: 'bootcamp', label: 'Bootcamp', desc: 'Intensive team training and synergy drills', icon: Zap, active: false },
-        { id: 'academy', label: 'Youth School', desc: 'Scouting and development of future talents', icon: GraduationCap, active: false },
-        { id: 'medical', label: 'Medical Center', desc: 'Hero recovery and health monitoring protocols', icon: HeartPulse, active: false },
+        { id: 'arena', label: 'Arena', desc: 'Stadium management and matchday logistics', icon: Castle, active: true, href: '/training/arena' },
+        { id: 'hq', label: 'Headquarters', desc: 'Strategic operations and staff administration', icon: Building2, active: false, href: '#' },
+        { id: 'bootcamp', label: 'Bootcamp', desc: 'Intensive team training and synergy drills', icon: Zap, active: false, href: '#' },
+        { id: 'academy', label: 'Youth School', desc: 'Scouting and development of future talents', icon: GraduationCap, active: false, href: '#' },
+        { id: 'medical', label: 'Medical Center', desc: 'Hero recovery and health monitoring protocols', icon: HeartPulse, active: false, href: '#' },
       ]
     },
     ru: {
@@ -32,11 +33,11 @@ export default function TrainingPage() {
       subtitle: "Управление секторами организации",
       locked: "Закрыто",
       facilities: [
-        { id: 'arena', label: 'Арена', desc: 'Управление стадионом и логистика матчей', icon: Castle, active: false },
-        { id: 'hq', label: 'Главный офис', desc: 'Стратегические операции и штаб управления', icon: Building2, active: false },
-        { id: 'bootcamp', label: 'Буткемп', desc: 'Интенсивные тренировки и отработка синергии', icon: Zap, active: false },
-        { id: 'academy', label: 'Юношеская школа', desc: 'Поиск и развитие будущих талантов', icon: GraduationCap, active: false },
-        { id: 'medical', label: 'Медицинский центр', desc: 'Восстановление героев и мониторинг здоровья', icon: HeartPulse, active: false },
+        { id: 'arena', label: 'Арена', desc: 'Управление стадионом и логистика матчей', icon: Castle, active: true, href: '/training/arena' },
+        { id: 'hq', label: 'Главный офис', desc: 'Стратегические операции и штаб управления', icon: Building2, active: false, href: '#' },
+        { id: 'bootcamp', label: 'Буткемп', desc: 'Интенсивные тренировки и отработка синергии', icon: Zap, active: false, href: '#' },
+        { id: 'academy', label: 'Юношеская школа', desc: 'Поиск и развитие будущих талантов', icon: GraduationCap, active: false, href: '#' },
+        { id: 'medical', label: 'Медицинский центр', desc: 'Восстановление героев и мониторинг здоровья', icon: HeartPulse, active: false, href: '#' },
       ]
     }
   };
@@ -61,40 +62,48 @@ export default function TrainingPage() {
 
       <div className="space-y-4">
         {t.facilities.map((facility) => (
-          <Card 
+          <Link 
             key={facility.id} 
+            href={facility.active ? facility.href : '#'}
             className={cn(
-              "glass-card border-white/5 transition-all",
-              facility.active ? "hover:bg-white/5 cursor-pointer" : "opacity-60 cursor-not-allowed"
+              "block transition-all",
+              !facility.active && "cursor-not-allowed"
             )}
           >
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-secondary/50 border border-white/5">
-                  <facility.icon className={cn("w-6 h-6", facility.active ? "text-primary" : "text-muted-foreground")} />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold uppercase tracking-wide flex items-center gap-2">
-                    {facility.label}
-                    {!facility.active && <ShieldAlert className="w-3 h-3 text-destructive" />}
-                  </h3>
-                  <p className="text-[10px] text-muted-foreground leading-tight max-w-[200px]">
-                    {facility.desc}
-                  </p>
-                </div>
-              </div>
-              
-              {facility.active ? (
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              ) : (
-                <div className="flex flex-col items-center gap-1">
-                   <span className="text-[8px] uppercase font-bold text-destructive/70 tracking-tighter">
-                     {t.locked}
-                   </span>
-                </div>
+            <Card 
+              className={cn(
+                "glass-card border-white/5 transition-all",
+                facility.active ? "hover:bg-white/5 cursor-pointer" : "opacity-60"
               )}
-            </CardContent>
-          </Card>
+            >
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/5">
+                    <facility.icon className={cn("w-6 h-6", facility.active ? "text-primary" : "text-muted-foreground")} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wide flex items-center gap-2">
+                      {facility.label}
+                      {!facility.active && <ShieldAlert className="w-3 h-3 text-destructive" />}
+                    </h3>
+                    <p className="text-[10px] text-muted-foreground leading-tight max-w-[200px]">
+                      {facility.desc}
+                    </p>
+                  </div>
+                </div>
+                
+                {facility.active ? (
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <div className="flex flex-col items-center gap-1">
+                     <span className="text-[8px] uppercase font-bold text-destructive/70 tracking-tighter">
+                       {t.locked}
+                     </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 

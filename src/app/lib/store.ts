@@ -4,6 +4,16 @@
 import { useState, useEffect } from 'react';
 import { Hero, INITIAL_HEROES } from './moba-data';
 
+interface ArenaState {
+  capacity: number;
+  pressCenterLevel: number;
+  cafeLevel: number;
+  shopLevel: number;
+  screensLevel: number;
+  roofLevel: number;
+  lightingLevel: number;
+}
+
 interface GameState {
   credits: number;
   ownedHeroes: Hero[];
@@ -24,6 +34,8 @@ interface GameState {
   lastLeagueMatchDate: string | null; // Format: YYYY-MM-DD
   seasonDay: number; // 0 = Pre-season, 1-14 = Active season
   seasonStartDate: string | null; // Format: YYYY-MM-DD (This is Day 1)
+  // Arena State
+  arena: ArenaState;
 }
 
 const getTodayDateString = () => {
@@ -32,6 +44,16 @@ const getTodayDateString = () => {
   const month = String(msk.getMonth() + 1).padStart(2, '0');
   const day = String(msk.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+const DEFAULT_ARENA: ArenaState = {
+  capacity: 5000,
+  pressCenterLevel: 0,
+  cafeLevel: 0,
+  shopLevel: 0,
+  screensLevel: 0,
+  roofLevel: 0,
+  lightingLevel: 0,
 };
 
 const DEFAULT_STATE: GameState = {
@@ -51,7 +73,8 @@ const DEFAULT_STATE: GameState = {
   groupId: 1,
   lastLeagueMatchDate: null,
   seasonDay: 1,
-  seasonStartDate: getTodayDateString()
+  seasonStartDate: getTodayDateString(),
+  arena: DEFAULT_ARENA,
 };
 
 export function useGameState() {
@@ -96,6 +119,7 @@ export function useGameState() {
           draws: isNewSeason ? 0 : (parsed.draws || 0),
           losses: isNewSeason ? 0 : (parsed.losses || 0),
           points: isNewSeason ? 0 : (parsed.points || 0),
+          arena: parsed.arena || DEFAULT_ARENA,
         }));
       } catch (e) {
         console.error("Failed to load game state", e);
@@ -147,6 +171,30 @@ export function useGameState() {
           team: updatedTeam
         };
       });
+      return true;
+    }
+    return false;
+  };
+
+  const upgradeArenaCapacity = (cost: number) => {
+    if (state.credits >= cost) {
+      setState(s => ({
+        ...s,
+        credits: s.credits - cost,
+        arena: { ...s.arena, capacity: s.arena.capacity + 500 }
+      }));
+      return true;
+    }
+    return false;
+  };
+
+  const upgradeArenaFacility = (facility: keyof Omit<ArenaState, 'capacity'>, cost: number) => {
+    if (state.credits >= cost) {
+      setState(s => ({
+        ...s,
+        credits: s.credits - cost,
+        arena: { ...s.arena, [facility]: s.arena[facility] + 1 }
+      }));
       return true;
     }
     return false;
@@ -234,6 +282,8 @@ export function useGameState() {
     addCredits,
     buyHero,
     upgradeHero,
+    upgradeArenaCapacity,
+    upgradeArenaFacility,
     setTeam,
     setStrategy,
     setLanguage,
