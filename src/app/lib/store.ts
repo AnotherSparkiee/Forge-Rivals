@@ -13,23 +13,35 @@ interface GameState {
   language: 'en' | 'ru';
 }
 
-export function useGameState() {
-  const [state, setState] = useState<GameState>({
-    credits: 500,
-    ownedHeroes: INITIAL_HEROES,
-    team: INITIAL_HEROES,
-    strategy: 'Balanced Play',
-    rank: 1000,
-    matchHistory: [],
-    language: 'ru'
-  });
+const DEFAULT_STATE: GameState = {
+  credits: 500,
+  ownedHeroes: INITIAL_HEROES,
+  team: INITIAL_HEROES,
+  strategy: 'Balanced Play',
+  rank: 1000,
+  matchHistory: [],
+  language: 'ru'
+};
 
+export function useGameState() {
+  const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('moba_tactics_state');
     if (saved) {
-      setState(JSON.parse(saved));
+      try {
+        const parsed = JSON.parse(saved);
+        // Безопасное слияние: берем дефолты и накладываем сохраненные данные.
+        // Это защищает от ошибок, если в сохраненном стейте нет новых полей (как language).
+        setState(prev => ({ 
+          ...prev, 
+          ...parsed,
+          language: parsed.language || prev.language 
+        }));
+      } catch (e) {
+        console.error("Failed to load game state", e);
+      }
     }
     setIsLoaded(true);
   }, []);

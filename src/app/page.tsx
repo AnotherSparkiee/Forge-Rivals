@@ -16,7 +16,7 @@ export default function Home() {
 
   if (!isLoaded) return null;
 
-  const t = {
+  const translations = {
     en: {
       title: "Command Center",
       subtitle: "Tactical Operations Hub",
@@ -57,7 +57,10 @@ export default function Home() {
         { label: 'Новости', desc: 'События мира MOBA' },
       ]
     }
-  }[language];
+  };
+
+  // Фолбек на русский, если язык не определен
+  const t = translations[language as keyof typeof translations] || translations.ru;
 
   const quickStats = [
     { label: t.credits, value: credits, icon: Wallet, color: 'text-yellow-400' },

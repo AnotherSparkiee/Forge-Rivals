@@ -12,7 +12,7 @@ export default function ProfilePage() {
 
   if (!isLoaded) return null;
 
-  const t = {
+  const translations = {
     en: {
       title: "LEGENDARY MANAGER",
       heroes: "Heroes Owned",
@@ -39,7 +39,9 @@ export default function ProfilePage() {
       langEn: "English",
       langRu: "Русский"
     }
-  }[language];
+  };
+
+  const t = translations[language as keyof typeof translations] || translations.ru;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-12">

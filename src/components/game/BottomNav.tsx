@@ -10,10 +10,12 @@ export function BottomNav() {
   const pathname = usePathname();
   const { language } = useGameState();
 
-  const labels = {
+  const translations = {
     en: { hub: 'Hub', roster: 'Roster', battle: 'Battle', rank: 'Rank', profile: 'Profile' },
     ru: { hub: 'Главная', roster: 'Герои', battle: 'Битва', rank: 'Рейтинг', profile: 'Профиль' }
-  }[language];
+  };
+
+  const labels = translations[language as keyof typeof translations] || translations.ru;
 
   const navItems = [
     { href: '/', icon: LayoutDashboard, label: labels.hub },
