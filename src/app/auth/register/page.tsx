@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -37,7 +36,7 @@ export default function RegisterPage() {
       alreadyRegistered: "Already registered?",
       loginLink: "Synchronize Link",
       successTitle: "Profile Initialized",
-      successDesc: "Welcome to the league, Commander. You have been assigned to the Elite Division.",
+      successDesc: "Welcome to the league, Commander. You have been assigned to the Challenger Tier (Level 8).",
       errorTitle: "Registration Failed"
     },
     ru: {
@@ -49,7 +48,7 @@ export default function RegisterPage() {
       alreadyRegistered: "Уже зарегистрированы?",
       loginLink: "Установить связь",
       successTitle: "Профиль инициализирован",
-      successDesc: "Добро пожаловать в лигу, Командир. Вы зачислены в Элитный Дивизион (Уровень 1).",
+      successDesc: "Добро пожаловать в лигу, Командир. Вы зачислены в Претендентский Дивизион (Уровень 8).",
       errorTitle: "Ошибка регистрации"
     }
   };
@@ -66,7 +65,7 @@ export default function RegisterPage() {
 
       const userProfileRef = doc(db, 'users', user.uid);
       
-      // Assigning to the highest possible pyramid slot (Level 1)
+      // Assigning to Level 8
       const profileData = {
         id: user.uid,
         displayName: username,
@@ -76,8 +75,8 @@ export default function RegisterPage() {
         createdAt: new Date().toISOString(),
         ownedHeroIds: ['h1', 'h2', 'h3', 'h4', 'h5'],
         leagueRankingId: 'none',
-        // New user takes a place of a bot in the highest division (Level 1)
-        leagueLevel: 1,
+        // New user starts at Level 8
+        leagueLevel: 8,
         divisionSubId: 1,
         groupId: 1,
         country: 'RU' // Default country, will be updated in setup

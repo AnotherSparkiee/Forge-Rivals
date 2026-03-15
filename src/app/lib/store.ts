@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -27,7 +26,7 @@ const DEFAULT_STATE: GameState = {
   rank: 1000,
   matchHistory: [],
   language: 'ru',
-  leagueLevel: 1, // New logic: priority of the highest division (Level 1)
+  leagueLevel: 8, // New users start at Challenger Tier (Level 8)
   divisionSubId: 1,
   groupId: 1,
   lastLeagueMatchDate: null
