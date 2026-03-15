@@ -11,7 +11,7 @@ import {
   BarChart3, Medal, Heart, Star, 
   MessageSquare, UserCheck, User, Shield, 
   ShoppingCart, Newspaper, Settings, Search,
-  Coins, Loader2, Globe, Sparkles
+  Loader2, Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils';
 
 const GRID_ITEMS = [
   { label: 'ОБЗОР МАТЧА', icon: Swords, href: '/match', color: 'text-red-400', active: true },
-  { label: 'СОСТАВ', icon: Users, icon2: Users, href: '/roster', color: 'text-blue-400', active: true },
+  { label: 'СОСТАВ', icon: Users, href: '/roster', color: 'text-blue-400', active: true },
   { label: 'ТРАНСФЕРЫ', icon: UserPlus, href: '#', color: 'text-yellow-400' },
   { label: 'РАЗВИТИЕ', icon: TrendingUp, href: '#', color: 'text-green-400' },
   { label: 'ПЕРСОНАЛ', icon: Briefcase, href: '#', color: 'text-purple-400' },
@@ -52,7 +52,7 @@ const GRID_ITEMS = [
 function HubContent() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
-  const { credits, isLoaded } = useGameState();
+  const { isLoaded } = useGameState();
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -93,23 +93,8 @@ function HubContent() {
 
   return (
     <div className="fixed inset-0 h-dvh w-full overflow-hidden flex flex-col bg-background text-foreground select-none">
-      {/* Шапка */}
-      <header className="flex justify-between items-center p-4 shrink-0 bg-background/50 backdrop-blur-sm z-10 border-b border-white/5">
-        <div className="flex flex-col">
-          <h1 className="text-lg font-headline font-bold uppercase tracking-tighter text-primary">HUD: {profile?.username}</h1>
-          <div className="flex items-center gap-2">
-            <Globe className="w-3 h-3 text-accent" />
-            <p className="text-[10px] uppercase text-muted-foreground tracking-widest">{profile?.country} | {league?.id}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 bg-secondary/40 px-3 py-1 rounded-full border border-white/10">
-          <Coins className="w-3.5 h-3.5 text-yellow-500" />
-          <span className="font-bold text-xs tabular-nums">{credits}</span>
-        </div>
-      </header>
-
-      {/* Сетка меню 4x5 */}
-      <main className="flex-1 p-2 overflow-hidden">
+      {/* Сетка меню 4x5 на весь экран */}
+      <main className="flex-1 p-2 overflow-hidden h-full">
         <div className="grid grid-cols-4 grid-rows-5 gap-1.5 h-full w-full">
           {GRID_ITEMS.map((item, index) => {
             const Icon = item.icon;
