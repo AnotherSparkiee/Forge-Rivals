@@ -17,10 +17,6 @@ import { Badge } from '@/components/ui/badge';
 import { Trophy, Skull, Crosshair, Swords, TrendingUp, Wallet, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-/**
- * AutoMatchManager handles the background simulation of league matches.
- * It checks the Moscow server time and triggers a simulation if a match is due.
- */
 export function AutoMatchManager() {
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, 
@@ -38,13 +34,14 @@ export function AutoMatchManager() {
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
-    if (isLoaded && profile?.selectedLeagueId && !isSimulating && !isUserLoading) {
+    // Only simulate if season has started (day >= 1)
+    if (isLoaded && profile?.selectedLeagueId && seasonDay > 0 && !isSimulating && !isUserLoading) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
       if (league && isMatchDue(league.startTime, lastLeagueMatchDate)) {
         triggerAutoMatch(league.id);
       }
     }
-  }, [isLoaded, profile, lastLeagueMatchDate, isUserLoading]);
+  }, [isLoaded, profile, lastLeagueMatchDate, isUserLoading, seasonDay]);
 
   const triggerAutoMatch = async (leagueId: string) => {
     setIsSimulating(true);
@@ -52,8 +49,8 @@ export function AutoMatchManager() {
       const groupTeams = getMockGroupTeams(
         rank, profile?.displayName || "My Team", leagueLevel, divisionSubId, groupId, true, seasonDay
       );
-      const schedule = getSchedule(groupTeams, seasonDay);
-      const todayMatch = schedule?.find((m: any) => m.home.isPlayer || m.away.isPlayer);
+      const schedule = getSchedule(groupTeams);
+      const todayMatch = schedule[seasonDay - 1]?.find((m: any) => m.home.isPlayer || m.away.isPlayer);
       
       if (!todayMatch) throw new Error("Match not found in schedule");
 

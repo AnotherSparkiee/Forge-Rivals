@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -38,7 +37,6 @@ export default function MatchesPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
-  // Find user league info
   const userLeague = useMemo(() => {
     if (!profile?.selectedLeagueId) return null;
     return LEAGUES.find(l => l.id === profile.selectedLeagueId);
@@ -49,13 +47,9 @@ export default function MatchesPage() {
     return lastLeagueMatchDate === todayStr;
   }, [lastLeagueMatchDate]);
 
-  // Generate group data synchronized with the global season
   const groupTeams = useMemo(() => {
     if (!isLoaded) return [];
-    
-    // Calculation day should be seasonDay + 1 if today is finished to include today's results in standings
-    const calculationDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
-
+    const calculationDay = isTodayPlayed ? seasonDay + 1 : (seasonDay || 1);
     return getMockGroupTeams(
       rank, 
       profile?.displayName || "My Team", 
@@ -85,6 +79,8 @@ export default function MatchesPage() {
       matchTime: "Deployment Window",
       startTime: "Start Time",
       noData: "No records found for this sector.",
+      preSeason: "Pre-season: Preparation phase",
+      startsTomorrow: "Matches begin tomorrow",
       tabs: {
         next_opponent: { label: "Next Opponent", desc: "Detailed brief on your next rival", icon: UserSearch },
         my_future: { label: "My Future", desc: "Upcoming matches for your team", icon: CalendarClock },
@@ -104,6 +100,8 @@ export default function MatchesPage() {
       matchTime: "Окно развертывания",
       startTime: "Начало",
       noData: "Записей в данном секторе не обнаружено.",
+      preSeason: "Предсезонье: Фаза подготовки",
+      startsTomorrow: "Матчи начнутся завтра",
       tabs: {
         next_opponent: { label: "Следующий соперник", desc: "Досье на вашего ближайшего врага", icon: UserSearch },
         my_future: { label: "Свои будущие", desc: "Предстоящие игры вашей команды", icon: CalendarClock },
@@ -126,14 +124,13 @@ export default function MatchesPage() {
 
   const renderMatchRow = (match: any, dayIdx: number) => {
     const day = dayIdx + 1;
-    const isPlayed = day < seasonDay || (day === seasonDay && isTodayPlayed);
+    const isPlayed = seasonDay > 0 && (day < seasonDay || (day === seasonDay && isTodayPlayed));
 
     let hScore = 0;
     let aScore = 0;
 
     if (isPlayed) {
       if (day === seasonDay && isTodayPlayed && (match.home.isPlayer || match.away.isPlayer)) {
-        // Use real last match result for the player from store
         const lastResult = matchHistory[0];
         if (lastResult) {
             hScore = match.home.isPlayer ? lastResult.scoreA : lastResult.scoreB;
@@ -181,9 +178,19 @@ export default function MatchesPage() {
   const renderContent = () => {
     switch (activeTab) {
       case 'next_opponent': {
-        const todayMatches = schedule[seasonDay - 1];
+        const targetDay = seasonDay === 0 ? 1 : seasonDay;
+        const todayMatches = schedule[targetDay - 1];
         const myMatch = todayMatches?.find((m: any) => m.home.isPlayer || m.away.isPlayer);
-        if (!myMatch || isTodayPlayed) return <p className="text-center text-muted-foreground py-10 uppercase text-xs">{t.noData}</p>;
+        
+        if (!myMatch || (seasonDay > 0 && isTodayPlayed)) {
+          return (
+            <div className="text-center py-10 space-y-4">
+               <Shield className="w-12 h-12 mx-auto text-muted-foreground opacity-20" />
+               <p className="text-muted-foreground uppercase text-[10px] tracking-widest">{seasonDay === 0 ? t.startsTomorrow : t.noData}</p>
+            </div>
+          );
+        }
+        
         const opponent = myMatch.home.isPlayer ? myMatch.away : myMatch.home;
         
         return (
@@ -191,6 +198,9 @@ export default function MatchesPage() {
             <Card className="glass-card border-primary/20 bg-primary/5">
               <CardHeader className="text-center pb-2">
                 <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">Strategic Intelligence</CardTitle>
+                <Badge variant="outline" className="mx-auto text-[8px] uppercase border-primary/50 text-primary">
+                  {seasonDay === 0 ? t.startsTomorrow : `${t.day} ${seasonDay}`}
+                </Badge>
               </CardHeader>
               <CardContent className="flex flex-col items-center space-y-4">
                 <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 border-accent shadow-[0_0_15px_rgba(var(--accent),0.2)]">
@@ -198,7 +208,7 @@ export default function MatchesPage() {
                 </div>
                 <div className="text-center">
                   <h3 className="text-2xl font-headline font-bold text-primary italic uppercase">{opponent.name}</h3>
-                  <Badge variant="secondary" className="mt-2">LEVEL {leagueLevel} | GROUP {groupId}</Badge>
+                  <Badge variant="secondary" className="mt-2 text-[10px]">LEVEL {leagueLevel} | GROUP {groupId}</Badge>
                 </div>
                 
                 {userLeague && (
@@ -222,16 +232,12 @@ export default function MatchesPage() {
                 </div>
               </CardContent>
             </Card>
-            <div className="flex items-center gap-3 p-4 bg-secondary/30 rounded-xl border border-white/5 italic text-xs text-muted-foreground leading-relaxed">
-              <Shield className="w-5 h-5 text-primary flex-shrink-0" />
-              "Opponent tends to focus on late-game carry transitions. Strategic recommendation: High pressure in early lanes."
-            </div>
           </div>
         );
       }
 
       case 'my_future': {
-        const startIdx = isTodayPlayed ? seasonDay : seasonDay - 1;
+        const startIdx = seasonDay === 0 ? 0 : (isTodayPlayed ? seasonDay : seasonDay - 1);
         const futureMatches = schedule.slice(startIdx).map((dayMatches: any, i) => {
           const m = dayMatches.find((match: any) => match.home.isPlayer || match.away.isPlayer);
           return { match: m, dayIdx: startIdx + i };
@@ -246,6 +252,7 @@ export default function MatchesPage() {
       }
 
       case 'my_played': {
+        if (seasonDay === 0) return <p className="text-center text-muted-foreground py-10 uppercase text-xs">{t.preSeason}</p>;
         const endIdx = isTodayPlayed ? seasonDay : seasonDay - 1;
         const playedMatches = schedule.slice(0, endIdx).map((dayMatches: any, i) => {
           const m = dayMatches.find((match: any) => match.home.isPlayer || match.away.isPlayer);
@@ -268,7 +275,11 @@ export default function MatchesPage() {
                 <div className="flex items-center gap-2 px-1">
                   <div className="h-px flex-1 bg-gradient-to-r from-transparent to-white/10"></div>
                   <span className="text-[10px] uppercase font-bold tracking-widest text-accent">DAY {dIdx + 1}</span>
-                  {userLeague && <span className="text-[9px] text-muted-foreground font-mono bg-white/5 px-2 rounded-full">{userLeague.startTime.split(' ')[0]}</span>}
+                  {userLeague && (
+                    <span className="text-[9px] text-muted-foreground font-mono bg-white/5 px-2 rounded-full flex items-center gap-1">
+                      <Clock className="w-2.5 h-2.5" /> {userLeague.startTime.split(' ')[0]}
+                    </span>
+                  )}
                   <div className="h-px flex-1 bg-gradient-to-l from-transparent to-white/10"></div>
                 </div>
                 <div className="space-y-2">
@@ -281,6 +292,7 @@ export default function MatchesPage() {
       }
 
       case 'league_played': {
+        if (seasonDay === 0) return <p className="text-center text-muted-foreground py-10 uppercase text-xs">{t.preSeason}</p>;
         const endIdx = isTodayPlayed ? seasonDay : seasonDay - 1;
         const allPlayed = schedule.slice(0, endIdx).reverse();
         if (allPlayed.length === 0) return <p className="text-center text-muted-foreground py-10 uppercase text-xs">{t.noData}</p>;
@@ -333,7 +345,9 @@ export default function MatchesPage() {
           <Card className="bg-secondary/20 border-white/5">
             <CardContent className="p-3 flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-[10px] uppercase border-primary/20 text-primary">Season Day {seasonDay}</Badge>
+                <Badge variant="outline" className="text-[10px] uppercase border-primary/20 text-primary">
+                  {seasonDay === 0 ? t.preSeason : `Season Day ${seasonDay}`}
+                </Badge>
                 {userLeague && (
                   <Badge variant="outline" className="text-[10px] uppercase border-accent/20 text-accent flex items-center gap-1">
                     <Clock className="w-3 h-3" /> {userLeague.startTime.split(' ')[0]}
@@ -394,7 +408,9 @@ export default function MatchesPage() {
         <Card className="bg-secondary/20 border-white/5">
           <CardContent className="p-3 flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-[10px] uppercase border-primary/20 text-primary">Season Day {seasonDay}</Badge>
+              <Badge variant="outline" className="text-[10px] uppercase border-primary/20 text-primary">
+                {seasonDay === 0 ? t.preSeason : `Season Day ${seasonDay}`}
+              </Badge>
               {userLeague && (
                 <Badge variant="outline" className="text-[10px] uppercase border-accent/20 text-accent flex items-center gap-1">
                   <Clock className="w-3 h-3" /> {userLeague.startTime.split(' ')[0]}

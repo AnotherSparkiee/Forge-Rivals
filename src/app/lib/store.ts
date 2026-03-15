@@ -21,9 +21,15 @@ interface GameState {
   divisionSubId: number; // 1 to 2^(level-1)
   groupId: number; // 1-8
   lastLeagueMatchDate: string | null; // Format: YYYY-MM-DD
-  seasonDay: number; // 1-14
-  seasonStartDate: string | null; // Format: YYYY-MM-DD
+  seasonDay: number; // 0 = Pre-season, 1-14 = Active season
+  seasonStartDate: string | null; // Format: YYYY-MM-DD (This is Day 1)
 }
+
+const getTomorrowDateString = () => {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return tomorrow.toISOString().split('T')[0];
+};
 
 const DEFAULT_STATE: GameState = {
   credits: 500,
@@ -41,8 +47,8 @@ const DEFAULT_STATE: GameState = {
   divisionSubId: 1,
   groupId: 1,
   lastLeagueMatchDate: null,
-  seasonDay: 1,
-  seasonStartDate: new Date().toISOString().split('T')[0]
+  seasonDay: 0,
+  seasonStartDate: getTomorrowDateString()
 };
 
 export function useGameState() {
@@ -55,21 +61,29 @@ export function useGameState() {
       try {
         const parsed = JSON.parse(saved);
         
-        // Calculate current season day based on start date
         const today = new Date();
-        const start = parsed.seasonStartDate ? new Date(parsed.seasonStartDate) : today;
-        const diffTime = Math.abs(today.getTime() - start.getTime());
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        today.setHours(0, 0, 0, 0);
         
-        // Season wraps every 14 days
-        const currentDay = ((diffDays - 1) % 14) + 1;
+        // If no start date, set it to tomorrow
+        const startDateStr = parsed.seasonStartDate || getTomorrowDateString();
+        const start = new Date(startDateStr);
+        start.setHours(0, 0, 0, 0);
 
-        // If a new season started, reset player stats
-        const isNewSeason = parsed.seasonDay && currentDay < parsed.seasonDay;
+        let currentDay = 0;
+        if (today >= start) {
+          const diffTime = today.getTime() - start.getTime();
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+          currentDay = ((diffDays - 1) % 14) + 1;
+        } else {
+          currentDay = 0; // Still pre-season
+        }
+
+        const isNewSeason = parsed.seasonDay && currentDay > 0 && currentDay < parsed.seasonDay;
 
         setState(prev => ({ 
           ...prev, 
           ...parsed,
+          seasonStartDate: startDateStr,
           seasonDay: currentDay,
           language: parsed.language || prev.language,
           wins: isNewSeason ? 0 : (parsed.wins || 0),
@@ -126,11 +140,12 @@ export function useGameState() {
         divisionSubId: Math.max(1, Math.ceil(s.divisionSubId / 2)),
         groupId: 1,
         lastLeagueMatchDate: null,
-        seasonStartDate: new Date().toISOString().split('T')[0],
+        seasonStartDate: getTomorrowDateString(),
         wins: 0,
         draws: 0,
         losses: 0,
-        points: 0
+        points: 0,
+        seasonDay: 0
       }));
       return true;
     }
@@ -141,7 +156,6 @@ export function useGameState() {
     const scoreA = result.scoreA || 0;
     const scoreB = result.scoreB || 0;
     
-    // Points system Bo2: 2-0 = 3pts, 1-1 = 1pt, 0-2 = 0pts
     let creditsEarned = 50;
     let rankChange = -15;
     let matchWins = 0;
