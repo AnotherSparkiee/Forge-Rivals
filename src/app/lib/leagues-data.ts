@@ -104,8 +104,8 @@ export function getMockGroupTeams(
   
   for (let i = 0; i < botLimit; i++) {
     // Compact Hierarchical ID generation:
-    // Level 1-3: Small IDs (3-4 digits)
-    // Level 4-9: Medium IDs (5-6 digits)
+    // Level 1-3: Small IDs (3 digits)
+    // Level 4-9: Medium IDs (5 digits)
     let botUniqueId;
     if (level <= 3) {
       botUniqueId = (level * 100) + (division % 10) * 10 + i;

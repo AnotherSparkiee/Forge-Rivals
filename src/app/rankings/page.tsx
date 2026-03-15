@@ -69,7 +69,8 @@ export default function RankingsPage() {
   // Generate group rankings once data is loaded, synchronized with global seasonDay
   const myLeagueRankings = useMemo(() => {
     if (!isLoaded) return [];
-    const calculationDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
+    // If season not started, Day 1 for table logic
+    const calculationDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
     return getMockGroupTeams(
       rank, 
       profile?.displayName || "My Team", 
@@ -113,6 +114,8 @@ export default function RankingsPage() {
       level_label: "Level",
       season_label: "Season Day",
       bo2_format: "Best of 2 (2:0, 1:1, 0:2)",
+      preSeason: "Pre-season",
+      startsTomorrow: "Matches start tomorrow",
       tiers: ["Elite Tier", "Professional Tier", "Challenger Tier"],
       tabs: {
         my_league: { label: "My League", desc: "Current group rankings", icon: Trophy },
@@ -146,6 +149,8 @@ export default function RankingsPage() {
       level_label: "Уровень",
       season_label: "День сезона",
       bo2_format: "Формат Bo2 (2:0, 1:1, 0:2)",
+      preSeason: "Предсезонье",
+      startsTomorrow: "Матчи начнутся завтра",
       tiers: ["Элитный уровень", "Профессиональный уровень", "Претендентский уровень"],
       tabs: {
         my_league: { label: "Своя лига", desc: "Рейтинг вашей группы", icon: Trophy },
@@ -204,6 +209,7 @@ export default function RankingsPage() {
                 {entry.isPlayer ? (profile?.displayName || entry.name) : entry.name}
                 {entry.isPlayer && <Star className="w-2.5 h-2.5 fill-current" />}
               </p>
+              <p className="text-[8px] text-muted-foreground font-mono">ID: {entry.id.replace('bot_', '')}</p>
             </div>
             <div className="w-16 text-center text-[9px] font-mono opacity-70">
               {entry.wins}-{entry.draws || 0}-{entry.losses || 0}
@@ -301,7 +307,7 @@ export default function RankingsPage() {
   };
 
   const renderPyramidTable = (level: number, div: number) => {
-    const calculationDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
+    const calculationDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
     const isPlayerInThisDiv = level === leagueLevel && div === divisionSubId;
 
     const data = getMockGroupTeams(
@@ -423,16 +429,31 @@ export default function RankingsPage() {
             <CardContent className="p-4 flex justify-between items-center">
               <div className="flex flex-col">
                 <span className="text-xs uppercase font-bold text-accent">{t.bo2_format}</span>
-                {userLeague && <span className="text-[10px] font-mono text-muted-foreground">{userLeague.startTime}</span>}
+                {userLeague && (
+                  <span className="text-[11px] font-mono font-bold text-primary flex items-center gap-1 mt-1">
+                    <Clock className="w-3.5 h-3.5" /> {userLeague.startTime}
+                  </span>
+                )}
               </div>
               <Badge variant="outline" className={cn(
                 "text-[10px] border-primary/20 text-primary",
+                seasonDay === 0 && "border-accent/50 text-accent",
                 isTodayPlayed && "border-green-500/50 text-green-400"
               )}>
-                {isTodayPlayed ? t.completed : t.waiting}
+                {seasonDay === 0 ? t.preSeason : (isTodayPlayed ? t.completed : t.waiting)}
               </Badge>
             </CardContent>
           </Card>
+
+          {seasonDay === 0 && (
+            <Card className="bg-accent/10 border-accent/20 border">
+              <CardContent className="p-4 text-center">
+                <p className="text-sm font-bold text-accent uppercase tracking-tight">{t.startsTomorrow}</p>
+                {userLeague && <p className="text-[10px] text-muted-foreground mt-1">{userLeague.startTime}</p>}
+              </CardContent>
+            </Card>
+          )}
+
           {isPlayerFirst && leagueLevel > 1 && (
             <Card className="bg-primary/20 border-primary/50 border-2">
               <CardContent className="p-4 flex items-center justify-between">

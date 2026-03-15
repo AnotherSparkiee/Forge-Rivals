@@ -49,7 +49,8 @@ export default function MatchesPage() {
 
   const groupTeams = useMemo(() => {
     if (!isLoaded) return [];
-    const calculationDay = isTodayPlayed ? seasonDay + 1 : (seasonDay || 1);
+    // If season not started yet, use Day 1 for preview
+    const calculationDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
     return getMockGroupTeams(
       rank, 
       profile?.displayName || "My Team", 
@@ -81,6 +82,7 @@ export default function MatchesPage() {
       noData: "No records found for this sector.",
       preSeason: "Pre-season: Preparation phase",
       startsTomorrow: "Matches begin tomorrow",
+      nextMatchAt: "Next match starts at:",
       tabs: {
         next_opponent: { label: "Next Opponent", desc: "Detailed brief on your next rival", icon: UserSearch },
         my_future: { label: "My Future", desc: "Upcoming matches for your team", icon: CalendarClock },
@@ -102,6 +104,7 @@ export default function MatchesPage() {
       noData: "Записей в данном секторе не обнаружено.",
       preSeason: "Предсезонье: Фаза подготовки",
       startsTomorrow: "Матчи начнутся завтра",
+      nextMatchAt: "Матч начнется в:",
       tabs: {
         next_opponent: { label: "Следующий соперник", desc: "Досье на вашего ближайшего врага", icon: UserSearch },
         my_future: { label: "Свои будущие", desc: "Предстоящие игры вашей команды", icon: CalendarClock },
@@ -153,7 +156,7 @@ export default function MatchesPage() {
           <div className={cn("flex-1 text-right text-[10px] font-bold uppercase", match.home.isPlayer && "text-primary")}>
             {match.home.name}
           </div>
-          <div className="flex flex-col items-center px-1 min-w-[50px]">
+          <div className="flex flex-col items-center px-1 min-w-[55px]">
             {isPlayed ? (
               <div className="flex items-center gap-1">
                 <span className="text-base font-headline font-bold">{hScore}</span>
@@ -163,7 +166,7 @@ export default function MatchesPage() {
             ) : (
               <div className="flex flex-col items-center gap-0.5">
                 <Badge variant="outline" className="text-[7px] px-1 py-0 uppercase border-accent/20 text-accent leading-none">{t.vs}</Badge>
-                {userLeague && <span className="text-[7px] text-muted-foreground font-mono leading-none">{userLeague.startTime.split(' ')[0]}</span>}
+                {userLeague && <span className="text-[8px] text-primary font-mono font-bold leading-none">{userLeague.startTime.split(' ')[0]}</span>}
               </div>
             )}
           </div>
@@ -214,11 +217,12 @@ export default function MatchesPage() {
                 </div>
                 
                 {userLeague && (
-                  <div className="w-full bg-accent/10 p-3 rounded-lg border border-accent/20 text-center">
+                  <div className="w-full bg-accent/10 p-4 rounded-xl border border-accent/20 text-center shadow-[0_0_20px_rgba(var(--accent),0.1)]">
                     <p className="text-[10px] uppercase text-accent font-bold mb-1 flex items-center justify-center gap-1">
                       <Clock className="w-3 h-3" /> {t.matchTime}
                     </p>
-                    <p className="text-sm font-headline font-bold">{userLeague.startTime}</p>
+                    <p className="text-lg font-headline font-bold tracking-tight">{userLeague.startTime}</p>
+                    <p className="text-[9px] text-muted-foreground uppercase mt-1 italic">{t.nextMatchAt} {userLeague.startTime.split(' ')[0]}</p>
                   </div>
                 )}
 
@@ -278,7 +282,7 @@ export default function MatchesPage() {
                   <div className="h-px flex-1 bg-gradient-to-r from-transparent to-white/10"></div>
                   <span className="text-[10px] uppercase font-bold tracking-widest text-accent">DAY {dIdx + 1}</span>
                   {userLeague && (
-                    <span className="text-[9px] text-muted-foreground font-mono bg-white/5 px-2 rounded-full flex items-center gap-1">
+                    <span className="text-[9px] text-primary font-mono font-bold bg-primary/5 px-2 py-0.5 rounded-full flex items-center gap-1 border border-primary/10">
                       <Clock className="w-2.5 h-2.5" /> {userLeague.startTime.split(' ')[0]}
                     </span>
                   )}
