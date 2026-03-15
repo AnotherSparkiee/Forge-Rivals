@@ -1,3 +1,34 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "hero-tank",
+      "description": "A heavy armored warrior",
+      "imageUrl": "https://picsum.photos/seed/tank1/400/600",
+      "imageHint": "armored knight"
+    },
+    {
+      "id": "hero-carry",
+      "description": "A swift archer with glowing arrows",
+      "imageUrl": "https://picsum.photos/seed/carry1/400/600",
+      "imageHint": "fantasy archer"
+    },
+    {
+      "id": "hero-mage",
+      "description": "A wizard channeling arcane energy",
+      "imageUrl": "https://picsum.photos/seed/mage1/400/600",
+      "imageHint": "wizard spell"
+    },
+    {
+      "id": "hero-jungler",
+      "description": "A shadowy assassin in the forest",
+      "imageUrl": "https://picsum.photos/seed/jungle1/400/600",
+      "imageHint": "assassin forest"
+    },
+    {
+      "id": "hero-support",
+      "description": "A celestial priestess with a staff",
+      "imageUrl": "https://picsum.photos/seed/support1/400/600",
+      "imageHint": "priestess light"
+    }
+  ]
 }
