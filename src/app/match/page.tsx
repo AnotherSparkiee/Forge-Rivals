@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -39,7 +38,8 @@ export default function MatchPage() {
           heroes: team
         },
         teamB: opponentTeam,
-        includeRandomEvents: true
+        includeRandomEvents: true,
+        isBo2: true
       });
 
       setMatchResult(result);
@@ -51,7 +51,7 @@ export default function MatchPage() {
     }
   };
 
-  const isWin = matchResult && matchResult.scoreA === 1 && matchResult.scoreB === 0;
+  const isWin = matchResult && matchResult.scoreA === 2 && matchResult.scoreB === 0;
   const isDraw = matchResult && matchResult.scoreA === 1 && matchResult.scoreB === 1;
 
   return (
@@ -92,7 +92,7 @@ export default function MatchPage() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-muted-foreground">Match Type</span>
-                  <span className="text-xs font-bold text-primary">Competitive League</span>
+                  <span className="text-xs font-bold text-primary">Competitive League (Bo2)</span>
                 </div>
               </div>
             </CardContent>
@@ -132,6 +132,11 @@ export default function MatchPage() {
             <h2 className="text-3xl font-headline font-bold mb-1">
               {isWin ? "VICTORY" : isDraw ? "DRAW" : "DEFEAT"}
             </h2>
+            <div className="flex items-center justify-center gap-4 text-2xl font-headline font-bold my-2">
+              <span>{matchResult.scoreA}</span>
+              <span className="opacity-30">:</span>
+              <span>{matchResult.scoreB}</span>
+            </div>
             <p className="text-sm opacity-80 uppercase tracking-widest">
               {isWin ? "+200 Credits | +25 Rank" : isDraw ? "+100 Credits | +5 Rank" : "+50 Credits | -15 Rank"}
             </p>

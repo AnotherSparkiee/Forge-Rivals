@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A MOBA match simulation AI agent.
@@ -47,7 +46,7 @@ const SimulateMobaMatchInputSchema = z.object({
     .describe(
       'Whether to include random in-game events that can influence the match outcome.'
     ),
-  isBo2: z.boolean().default(true).describe('Whether this is a Best of 2 series (can result in 1:0, 1:1, 0:1).'),
+  isBo2: z.boolean().default(true).describe('Whether this is a Best of 2 series (result MUST be 2:0, 1:1, or 0:2).'),
 });
 export type SimulateMobaMatchInput = z.infer<typeof SimulateMobaMatchInputSchema>;
 
@@ -83,8 +82,8 @@ const HeroMatchPerformanceSchema = z
 
 const SimulateMobaMatchOutputSchema = z.object({
   winner: z.string().describe('The name of the winning team (or "Draw").'),
-  scoreA: z.number().describe('Score for Team A (strictly 1 or 0).'),
-  scoreB: z.number().describe('Score for Team B (strictly 1 or 0).'),
+  scoreA: z.number().describe('Score for Team A (strictly 2, 1, or 0).'),
+  scoreB: z.number().describe('Score for Team B (strictly 2, 1, or 0).'),
   matchSummary: z
     .string()
     .describe(
@@ -114,7 +113,7 @@ const prompt = ai.definePrompt({
   name: 'simulateMobaMatchPrompt',
   input: {schema: SimulateMobaMatchInputSchema},
   output: {schema: SimulateMobaMatchOutputSchema},
-  prompt: `You are an expert MOBA match simulator. Your task is to simulate a match between two teams.
+  prompt: `You are an expert MOBA match simulator. Your task is to simulate a match between two teams in a Best of 2 (Bo2) format.
 
 Consider the following input for Team A:
 Team Name: {{{teamA.name}}}
@@ -134,12 +133,12 @@ Team Heroes:
   Role: {{{role}}}
 {{/each}}
 
-You MUST return a score of strictly 1-0, 1-1, or 0-1.
-- 1-0: Team A wins.
-- 1-1: Draw, teams are equal in performance.
-- 0-1: Team B wins.
+You MUST return a score of strictly 2-0, 1-1, or 0-2.
+- 2-0: Team A wins both maps.
+- 1-1: Draw, each team wins one map.
+- 0-2: Team B wins both maps.
 
-Provide a detailed narrative match summary and precise statistics for both teams and individual heroes.`,
+Provide a detailed narrative match summary and precise statistics for both teams and individual heroes based on the Bo2 outcome.`,
 });
 
 const simulateMobaMatchFlow = ai.defineFlow(

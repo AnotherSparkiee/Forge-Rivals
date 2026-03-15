@@ -1,4 +1,3 @@
-
 export interface LeagueGroup {
   id: string;
   name: string;
@@ -28,7 +27,7 @@ export const LEAGUES: LeagueOption[] = [
 
 /**
  * Deterministic match result based on team IDs and day.
- * Returns score strictly as [1, 0] (Win), [1, 1] (Draw), or [0, 1] (Loss)
+ * Returns score strictly as [2, 0] (Win), [1, 1] (Draw), or [0, 2] (Loss)
  */
 export function getMatchResult(homeId: string, awayId: string, day: number): [number, number] {
   // Simple deterministic seed based on IDs and day
@@ -39,9 +38,9 @@ export function getMatchResult(homeId: string, awayId: string, day: number): [nu
   const seed = (hId * 3) + (aId * 7) + (day * 13);
   const val = seed % 10;
   
-  if (val < 4) return [1, 0]; // Home Win (40%)
+  if (val < 4) return [2, 0]; // Home Win (40%)
   if (val < 7) return [1, 1]; // Draw (30%)
-  return [0, 1]; // Away Win (30%)
+  return [0, 2]; // Away Win (30%)
 }
 
 /**
@@ -155,7 +154,7 @@ export function getMockGroupTeams(
 }
 
 export function applyResult(home: any, away: any, hScore: number, aScore: number) {
-  if (hScore === 1 && aScore === 0) {
+  if (hScore === 2 && aScore === 0) {
     home.wins++;
     home.points += 3;
     away.losses++;
@@ -164,7 +163,7 @@ export function applyResult(home: any, away: any, hScore: number, aScore: number
     home.points += 1;
     away.draws++;
     away.points += 1;
-  } else if (aScore === 1 && hScore === 0) {
+  } else if (aScore === 2 && hScore === 0) {
     away.wins++;
     away.points += 3;
     home.losses++;

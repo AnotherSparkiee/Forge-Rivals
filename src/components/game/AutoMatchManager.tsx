@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -123,7 +122,7 @@ export function AutoMatchManager() {
 
   if (!currentResult) return null;
 
-  const isWin = currentResult.scoreA === 1 && currentResult.scoreB === 0;
+  const isWin = currentResult.scoreA === 2 && currentResult.scoreB === 0;
   const isDraw = currentResult.scoreA === 1 && currentResult.scoreB === 1;
 
   return (

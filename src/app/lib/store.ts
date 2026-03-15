@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -239,8 +238,8 @@ export function useGameState() {
     let matchLosses = 0;
     let matchPoints = 0;
 
-    // Score format strictly: 1:0 (Win), 1:1 (Draw), 0:1 (Loss)
-    if (scoreA === 1 && scoreB === 0) {
+    // Score format strictly Bo2: 2:0 (Win), 1:1 (Draw), 0:2 (Loss)
+    if (scoreA === 2 && scoreB === 0) {
       creditsEarned = 200;
       rankChange = 25;
       matchWins = 1;
