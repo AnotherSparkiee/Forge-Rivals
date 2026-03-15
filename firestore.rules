@@ -1,0 +1,125 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * MOBA Tactics Online - Security Rules Strategy
+     * 
+     * Core Philosophy:
+     * This ruleset implements a strict User-Ownership model. All player-specific data is 
+     * nested under a hierarchical /user_profiles/{userId} path, ensuring that users can 
+     * only access and modify their own profiles, heroes, teams, and strategies.
+     * 
+     * Data Structure:
+     * - /user_profiles/{userId}: The root of a player's data tree.
+     * - /user_profiles/{userId}/player_heroes/{id}: Individual hero instances owned by the player.
+     * - /user_profiles/{userId}/teams/{id}: Player-managed team compositions.
+     * - /user_profiles/{userId}/strategies/{id}: Strategic presets for simulations.
+     * - /heroes/{id}: Global, public, read-only definitions of base game heroes.
+     * 
+     * Key Security Decisions:
+     * 1. Authorization Independence: Every user document contains a denormalized 'userId' 
+     *    field. This allows rules to verify ownership directly on the document being 
+     *    accessed, improving performance and reliability.
+     * 2. Path-Based Listing: List operations are secured by verifying that the requested 
+     *    path belongs to the authenticated user's ID.
+     * 3. Administrative Control: Writes to global game data (/heroes) are restricted to 
+     *    accounts verified against a dedicated admin roles collection.
+     * 4. Relational Integrity: On creation, the rules enforce that the internal 'userId' 
+     *    or 'id' field matches the path parameter to prevent data hijacking.
+     */
+
+    // --- Global Helper Functions ---
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for UserProfile documents. Users can only manage their own profile.
+     * @path /user_profiles/{userId}
+     * @allow (get) If the requester is the owner of the profile.
+     * @deny (create) If the authenticated user's UID does not match the document ID.
+     * @principle Ownership-based access with path-to-data integrity validation.
+     */
+    match /user_profiles/{userId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+
+      /**
+       * @description Rules for PlayerHero instances. Nested under the user profile.
+       * @path /user_profiles/{userId}/player_heroes/{playerHeroId}
+       * @allow (list) If the path userId matches the authenticated user.
+       * @deny (update) If the user attempts to change the 'userId' field of the document.
+       * @principle Hierarchical ownership with immutable relational fields.
+       */
+      match /player_heroes/{playerHeroId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+        allow delete: if isExistingOwner(userId);
+      }
+
+      /**
+       * @description Rules for player-created Teams.
+       * @path /user_profiles/{userId}/teams/{teamId}
+       * @allow (create) If userId field in data matches the owner's UID in the path.
+       * @deny (get) If a user attempts to read another player's team document.
+       * @principle Enforces private data silos per user.
+       */
+      match /teams/{teamId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+        allow delete: if isExistingOwner(userId);
+      }
+
+      /**
+       * @description Rules for player-defined Strategies.
+       * @path /user_profiles/{userId}/strategies/{strategyId}
+       * @allow (update) If the owner modifies their own strategy.
+       * @deny (list) If a user tries to query the strategies subcollection of another user.
+       * @principle Authorization based on hierarchical path consistency.
+       */
+      match /strategies/{strategyId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+        allow delete: if isExistingOwner(userId);
+      }
+    }
+
+    /**
+     * @description Rules for base Hero definitions. Publicly readable game data.
+     * @path /heroes/{heroId}
+     * @allow (get, list) For any user, including unauthenticated guests.
+     * @deny (create, update, delete) For any non-administrative user.
+     * @principle Public read access for global content with admin-only writes.
+     */
+    match /heroes/{heroId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Explicitly deny access to any other unexpected collections
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

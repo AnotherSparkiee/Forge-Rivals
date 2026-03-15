@@ -1,0 +1,422 @@
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a player's account profile, containing their general information, in-game currency, progression, and references to their managed teams.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserProfile entity."
+        },
+        "username": {
+          "type": "string",
+          "description": "The player's chosen in-game username, which must be unique across all users."
+        },
+        "email": {
+          "type": "string",
+          "description": "The player's email address, primarily used for communication and account recovery (not for authentication system data).",
+          "format": "email"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user profile was created.",
+          "format": "date-time"
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "description": "Timestamp indicating the last time the user logged into the application.",
+          "format": "date-time"
+        },
+        "inGameCurrency": {
+          "type": "number",
+          "description": "The total amount of in-game currency owned by the player, used for acquiring heroes and items."
+        },
+        "experiencePoints": {
+          "type": "number",
+          "description": "The total experience points accumulated by the player, contributing to their overall progression and league ranking."
+        },
+        "leagueRank": {
+          "type": "number",
+          "description": "The player's current rank in the competitive league system (lower numbers typically indicate higher ranks)."
+        },
+        "teamIds": {
+          "type": "array",
+          "description": "References to the Teams managed by this user. (Relationship: UserProfile 1:N Team)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "email",
+        "createdAt",
+        "inGameCurrency",
+        "experiencePoints",
+        "leagueRank",
+        "teamIds"
+      ]
+    },
+    "Hero": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Hero",
+      "type": "object",
+      "description": "Defines the base characteristics and properties of a MOBA hero available in the game, independent of player ownership.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Hero entity (base hero definition)."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the hero (e.g., 'Blade Master')."
+        },
+        "role": {
+          "type": "string",
+          "description": "The primary role of the hero in a MOBA setting (e.g., 'Carry', 'Tank', 'Support', 'Jungler', 'Midlaner')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A brief lore or overview description of the hero's background and playstyle."
+        },
+        "baseHealth": {
+          "type": "number",
+          "description": "The hero's base health points before any modifications or upgrades."
+        },
+        "baseAttack": {
+          "type": "number",
+          "description": "The hero's base attack damage before any modifications or upgrades."
+        },
+        "baseDefense": {
+          "type": "number",
+          "description": "The hero's base defense value before any modifications or upgrades."
+        },
+        "abilityNames": {
+          "type": "array",
+          "description": "An array of the names of the hero's core abilities.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rarity": {
+          "type": "string",
+          "description": "The rarity level of the hero (e.g., 'Common', 'Rare', 'Epic', 'Legendary')."
+        },
+        "acquisitionCost": {
+          "type": "number",
+          "description": "The amount of in-game currency required to acquire this base hero."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "A URL pointing to the hero's image or avatar.",
+          "format": "uri"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "role",
+        "description",
+        "baseHealth",
+        "baseAttack",
+        "baseDefense",
+        "abilityNames",
+        "rarity",
+        "acquisitionCost",
+        "imageUrl"
+      ]
+    },
+    "PlayerHero": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PlayerHero",
+      "type": "object",
+      "description": "Represents a specific instance of a Hero owned by a player, including its unique upgrades, level, and assigned role within a team.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the PlayerHero entity (a player's specific instance of a hero)."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who owns this hero instance. (Relationship: UserProfile 1:N PlayerHero)"
+        },
+        "heroId": {
+          "type": "string",
+          "description": "Reference to the base Hero definition that this instance is based on. (Relationship: Hero 1:N PlayerHero)"
+        },
+        "customName": {
+          "type": "string",
+          "description": "An optional custom name given to this hero instance by the player."
+        },
+        "level": {
+          "type": "number",
+          "description": "The current level of this specific player-owned hero, affecting its stats and abilities."
+        },
+        "experience": {
+          "type": "number",
+          "description": "The current experience points of this hero instance towards its next level."
+        },
+        "assignedRole": {
+          "type": "string",
+          "description": "The specific role assigned to this hero by the player within a team (e.g., 'Offlane Carry', 'Roaming Support')."
+        },
+        "currentHealthModifier": {
+          "type": "number",
+          "description": "An additional value applied to the hero's base health due to upgrades, items, or other player modifications."
+        },
+        "currentAttackModifier": {
+          "type": "number",
+          "description": "An additional value applied to the hero's base attack due to upgrades, items, or other player modifications."
+        },
+        "currentDefenseModifier": {
+          "type": "number",
+          "description": "An additional value applied to the hero's base defense due to upgrades, items, or other player modifications."
+        },
+        "equippedItemIds": {
+          "type": "array",
+          "description": "References to the PlayerItems equipped by this hero instance. (Relationship: PlayerHero N:N PlayerItem)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when this player-owned hero instance was acquired.",
+          "format": "date-time"
+        },
+        "lastModifiedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when this player-owned hero instance was last modified or upgraded.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "heroId",
+        "level",
+        "experience",
+        "assignedRole",
+        "currentHealthModifier",
+        "currentAttackModifier",
+        "currentDefenseModifier",
+        "equippedItemIds",
+        "createdAt",
+        "lastModifiedAt"
+      ]
+    },
+    "Team": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Team",
+      "type": "object",
+      "description": "Represents a player's team, comprising a selection of their owned heroes and an active strategy, used for match simulations.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Team entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who owns and manages this team. (Relationship: UserProfile 1:N Team)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the player's team."
+        },
+        "playerHeroIds": {
+          "type": "array",
+          "description": "References to the PlayerHeroes that are currently part of this team. (Relationship: Team N:N PlayerHero)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "activeStrategyId": {
+          "type": "string",
+          "description": "Optional reference to the Strategy currently selected for this team, influencing match simulations. (Relationship: Team 1:1 Strategy)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the team was created.",
+          "format": "date-time"
+        },
+        "lastModifiedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the team's composition or active strategy was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "name",
+        "playerHeroIds",
+        "createdAt",
+        "lastModifiedAt"
+      ]
+    },
+    "Strategy": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Strategy",
+      "type": "object",
+      "description": "Defines a strategic plan configured by a player, including hero ability focus and lane assignments, to be applied to a team during match simulations.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Strategy entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who created and owns this strategy. (Relationship: UserProfile 1:N Strategy)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the strategy (e.g., 'Aggressive Early Push', 'Late Game Scaling')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed explanation of the strategic approach, goals, and intended hero interactions."
+        },
+        "preferredHeroRoles": {
+          "type": "array",
+          "description": "An array of preferred hero roles for this strategy, guiding optimal team composition.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "abilityFocusSettings": {
+          "type": "string",
+          "description": "A string containing serialized JSON defining specific ability usage priorities or focuses for heroes when this strategy is active during simulation. This could include target prioritization, ability timings, or energy management preferences."
+        },
+        "laneAssignments": {
+          "type": "string",
+          "description": "A string containing serialized JSON defining hero lane assignments (e.g., 'Top', 'Mid', 'Bot', 'Jungle') when this strategy is active."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the strategy was created.",
+          "format": "date-time"
+        },
+        "lastModifiedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the strategy definition was last modified.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "name",
+        "description",
+        "preferredHeroRoles",
+        "createdAt",
+        "lastModifiedAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/user_profiles/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores individual player profiles, accessible only by the owning user. The document's 'id' field MUST match the '{userId}' parameter in the path, ensuring clear ownership and enabling authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user, corresponding to Firebase Authentication's UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/heroes/{heroId}",
+        "definition": {
+          "entityName": "Hero",
+          "schema": {
+            "$ref": "#/backend/entities/Hero"
+          },
+          "description": "Contains global, read-only definitions of all available heroes in the game. Accessible by all users for reading; writeable only by administrators, adhering to structural segregation for security.",
+          "params": [
+            {
+              "name": "heroId",
+              "description": "The unique ID of the base hero definition."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/user_profiles/{userId}/player_heroes/{playerHeroId}",
+        "definition": {
+          "entityName": "PlayerHero",
+          "schema": {
+            "$ref": "#/backend/entities/PlayerHero"
+          },
+          "description": "Stores player-owned hero instances with their specific levels, upgrades, and modifications. These documents include the 'userId' field, denormalizing ownership for explicit authorization within rules and supporting atomic writes. Accessible only by the owning user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user who owns this specific hero instance, corresponding to Firebase Authentication's UID."
+            },
+            {
+              "name": "playerHeroId",
+              "description": "The unique ID for this player's specific instance of a hero."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/user_profiles/{userId}/teams/{teamId}",
+        "definition": {
+          "entityName": "Team",
+          "schema": {
+            "$ref": "#/backend/entities/Team"
+          },
+          "description": "Manages a player's customized teams, including selected heroes and active strategies. These documents include the 'userId' field, denormalizing ownership for explicit authorization within rules and supporting atomic writes. Accessible only by the owning user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user who owns this team, corresponding to Firebase Authentication's UID."
+            },
+            {
+              "name": "teamId",
+              "description": "The unique ID for this specific team."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/user_profiles/{userId}/strategies/{strategyId}",
+        "definition": {
+          "entityName": "Strategy",
+          "schema": {
+            "$ref": "#/backend/entities/Strategy"
+          },
+          "description": "Contains player-defined strategic plans for their teams. These documents include the 'userId' field, denormalizing ownership for explicit authorization within rules and supporting atomic writes. Accessible only by the owning user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user who created and owns this strategy, corresponding to Firebase Authentication's UID."
+            },
+            {
+              "name": "strategyId",
+              "description": "The unique ID for this specific strategy."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure for Moba Tactics Online prioritizes secure, scalable, and debuggable authorization by strictly adhering to the core design principles.\n\n**Authorization Independence (CRITICAL) & Denormalization:**\nEach user-specific document (`UserProfile`, `PlayerHero`, `Team`, `Strategy`) explicitly includes a `userId` field (e.g., `PlayerHero.userId`, `Team.userId`). This denormalizes the ownership context directly into the document. While these documents are also placed in hierarchical paths like `/user_profiles/{userId}/...`, the presence of `resource.data.userId` allows for robust, atomic security rules without needing to perform `get()` operations on parent documents. This prevents rule breaks during batched writes or transactions where parent documents might not yet exist or be updated.\n\n**QAPs (Secure List Operations):**\n1.  **Private User Data:** Player-specific collections (`/user_profiles/{userId}/player_heroes`, `/user_profiles/{userId}/teams`, `/user_profiles/{userId}/strategies`) are structured hierarchically under `/user_profiles/{userId}`. This path-based ownership ensures that `list` operations implicitly filter by the authenticated user's ID (`request.auth.uid`), guaranteeing that a user can only query their own data. For example, a `list` on `/user_profiles/{request.auth.uid}/player_heroes` will only return the current user's heroes.\n2.  **Global Game Data:** The `/heroes` collection stores base hero definitions, which are read-only for all players. This collection's homogeneous security posture (read-all, admin-write) simplifies security rules significantly, as there are no mixed access requirements.\n\n**Structural Segregation & Access Modeling:**\n*   **Private Data & Hierarchical Ownership:** User-owned entities (`UserProfile`, `PlayerHero`, `Team`, `Strategy`) are organized under a top-level `/user_profiles/{userId}` collection. This establishes a clear 1:N relationship, where `UserProfile` is the 'parent' of `PlayerHero`, `Team`, and `Strategy` in terms of ownership, simplifying security rules to `request.auth.uid == userId` for all subcollections.\n*   **Global, Public Read Data:** Base `Hero` entities are stored in a dedicated root collection `/heroes`, providing universal read access to all players for game content while allowing administrative control for writes.\n*   **DBAC (Database Access Control):** For potential future administrative roles (e.g., for managing `/heroes` content), a separate collection like `/roles_admin/{uid}` would be used. The mere existence of a document at this path would grant the `uid` admin privileges, adhering to the 'Existence over Content' principle.\n\n**Data Clarity and Predictability:**\n*   Consistent naming conventions are used (e.g., `userId` for owner references, descriptive wildcards like `{userId}`, `{playerHeroId}`).\n*   Schemas are predictable, avoiding dynamic keys. All relationships are managed through explicit IDs within documents or via hierarchical paths."
+  }
+}
