@@ -34,7 +34,7 @@ export default function RankingsPage() {
 
   const labels = {
     en: {
-      title: "LEADERBOARDS",
+      title: "TOURNAMENT TABLES",
       subtitle: "Pyramid Hierarchy",
       menuTitle: "Tournament Terminals",
       promote: "Promote",
@@ -55,7 +55,7 @@ export default function RankingsPage() {
       }
     },
     ru: {
-      title: "ТАБЛИЦА ЛИДЕРОВ",
+      title: "ТУРНИРНЫЕ ТАБЛИЦЫ",
       subtitle: "Иерархия Пирамиды",
       menuTitle: "Турнирные Терминалы",
       promote: "Повысить",
@@ -162,7 +162,7 @@ export default function RankingsPage() {
             </Button>
           </Link>
           <div className="flex-1">
-            <h1 className="text-2xl font-headline font-bold flex items-center gap-2">
+            <h1 className="text-2xl font-headline font-bold flex items-center gap-2 uppercase tracking-tighter">
               <Trophy className="text-yellow-500 w-5 h-5" />
               {t.title}
             </h1>

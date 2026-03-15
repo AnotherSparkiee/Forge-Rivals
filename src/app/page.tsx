@@ -47,7 +47,7 @@ export default function Home() {
       menu: [
         { label: 'Battle Simulation', desc: 'Deploy team for automated matches' },
         { label: 'Team Roster', desc: 'Manage your active hero lineup' },
-        { label: 'Leaderboards', desc: 'Check your standing in the league' },
+        { label: 'Tournament Tables', desc: 'Check your standing in the league' },
         { label: 'Marketplace', desc: 'Purchase new heroes and boosts' },
         { label: 'Team Stats', desc: 'Detailed performance analytics' },
         { label: 'Clubhouse', desc: 'Join associations and tournaments' },
@@ -67,7 +67,7 @@ export default function Home() {
       menu: [
         { label: 'Боевая Симуляция', desc: 'Развертывание команды для матча' },
         { label: 'Ростер Команды', desc: 'Управление активным составом' },
-        { label: 'Таблица Лидеров', desc: 'Ваше положение в лиге' },
+        { label: 'Турнирные таблицы', desc: 'Ваше положение в лиге и турнирах' },
         { label: 'Магазин', desc: 'Покупка героев и бонусов' },
         { label: 'Статистика', desc: 'Аналитика эффективности' },
         { label: 'Клуб', desc: 'Ассоциации и турниры' },

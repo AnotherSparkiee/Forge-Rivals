@@ -18,8 +18,8 @@ export function BottomNav() {
   }
 
   const translations = {
-    en: { hub: 'Hub', roster: 'Roster', battle: 'Battle', rank: 'Rank', profile: 'Profile' },
-    ru: { hub: 'Главная', roster: 'Герои', battle: 'Битва', rank: 'Рейтинг', profile: 'Профиль' }
+    en: { hub: 'Hub', roster: 'Roster', battle: 'Battle', rank: 'Tourneys', profile: 'Profile' },
+    ru: { hub: 'Главная', roster: 'Герои', battle: 'Битва', rank: 'Турниры', profile: 'Профиль' }
   };
 
   const labels = translations[language as keyof typeof translations] || translations.ru;
