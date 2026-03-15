@@ -102,13 +102,16 @@ export function getMockGroupTeams(
   const teams = [];
   const botLimit = includePlayer ? 7 : 8;
   
-  // Digit length based on level hierarchy:
-  // Level 1: Magnitude 1,000 -> IDs like 1001
-  // Level 2: Magnitude 10,000 -> IDs like 20001
-  // Level 8: Magnitude 100,000,000 -> IDs like 800,000,001
-  const magnitude = Math.pow(10, level + 2);
+  /**
+   * Compact Hierarchical ID generation:
+   * Level 1: IDs 1, 2, 3...
+   * Level 2: IDs 21, 22...
+   * Level 8: IDs 80,000,001...
+   */
+  const magnitude = Math.pow(10, level - 1);
   
   for (let i = 0; i < botLimit; i++) {
+    // Unique ID formula: (Level prefix) + (Division offset) + (Sequence)
     const botUniqueId = (level * magnitude) + (division * 10) + i;
     teams.push({
       id: `bot_${botUniqueId}`,
