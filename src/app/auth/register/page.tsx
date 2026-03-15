@@ -29,8 +29,8 @@ export default function RegisterPage() {
   const translations = {
     en: {
       title: "Initiate Profile",
-      callsign: "Tactical Callsign",
-      emailLabel: "Neural Link (Email)",
+      callsign: "Team Name",
+      emailLabel: "Email Address",
       passLabel: "Access Key (Password)",
       submitBtn: "CREATE PROFILE",
       alreadyRegistered: "Already registered?",
@@ -41,8 +41,8 @@ export default function RegisterPage() {
     },
     ru: {
       title: "Инициация профиля",
-      callsign: "Позывной",
-      emailLabel: "Нейролинк (Email)",
+      callsign: "Название команды",
+      emailLabel: "Почта (Email)",
       passLabel: "Ключ доступа (Пароль)",
       submitBtn: "СОЗДАТЬ ПРОФИЛЬ",
       alreadyRegistered: "Уже зарегистрированы?",
@@ -126,7 +126,7 @@ export default function RegisterPage() {
               <Label htmlFor="username">{t.callsign}</Label>
               <Input 
                 id="username" 
-                placeholder="CommanderX" 
+                placeholder="Team Alpha" 
                 value={username} 
                 onChange={(e) => setUsername(e.target.value)} 
                 required 

@@ -3,14 +3,14 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth, useMemoFirebase } from '@/firebase';
+import { useAuth } from '@/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Languages, Check } from 'lucide-react';
+import { Loader2, Check } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 
@@ -26,7 +26,7 @@ export default function LoginPage() {
   const translations = {
     en: {
       title: "Sync Credentials",
-      emailLabel: "Neural Link (Email)",
+      emailLabel: "Email Address",
       passLabel: "Access Key (Password)",
       submitBtn: "ESTABLISH LINK",
       newManager: "New manager?",
@@ -37,7 +37,7 @@ export default function LoginPage() {
     },
     ru: {
       title: "Синхронизация данных",
-      emailLabel: "Нейролинк (Email)",
+      emailLabel: "Почта (Email)",
       passLabel: "Ключ доступа (Пароль)",
       submitBtn: "УСТАНОВИТЬ СВЯЗЬ",
       newManager: "Новый менеджер?",
