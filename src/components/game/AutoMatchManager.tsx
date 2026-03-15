@@ -33,9 +33,8 @@ export function AutoMatchManager() {
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
-    // Standard trigger at 23:00 for the current season day
+    // Единый триггер в 23:00 для всех дивизионов
     if (isLoaded && seasonDay > 0 && !isSimulating && !isUserLoading) {
-      // All matches start at 23:00
       if (isMatchDue('23:00', lastLeagueMatchDate)) {
         triggerAutoMatch();
       }

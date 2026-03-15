@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -16,7 +15,7 @@ import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '../lib/leagues-data';
-import { getMoscowDateString, getMoscowTime } from '../lib/time-utils';
+import { getMoscowDateString } from '../lib/time-utils';
 
 type MatchTab = 
   | 'menu'
@@ -37,11 +36,6 @@ export default function MatchesPage() {
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
-
-  const userLeague = useMemo(() => {
-    if (!profile?.selectedLeagueId) return null;
-    return LEAGUES.find(l => l.id === profile.selectedLeagueId);
-  }, [profile?.selectedLeagueId]);
 
   const isTodayPlayed = useMemo(() => {
     const todayStr = getMoscowDateString();
@@ -87,8 +81,9 @@ export default function MatchesPage() {
       matchTime: "Deployment Window",
       startTime: "Start Time",
       noData: "No records found for this sector.",
-      startsToday: "Starts TODAY at:",
       atTime: "at",
+      today: "TODAY",
+      tomorrow: "TOMORROW",
       tabs: {
         next_opponent: { label: "Next Opponent", desc: "Detailed brief on your next rival", icon: UserSearch },
         my_future: { label: "My Future", desc: "Upcoming matches for your team", icon: CalendarClock },
@@ -108,8 +103,9 @@ export default function MatchesPage() {
       matchTime: "Окно развертывания",
       startTime: "Начало",
       noData: "Записей в данном секторе не обнаружено.",
-      startsToday: "Начнется СЕГОДНЯ в:",
       atTime: "в",
+      today: "СЕГОДНЯ",
+      tomorrow: "ЗАВТРА",
       tabs: {
         next_opponent: { label: "Следующий соперник", desc: "Досье на ближайшего врага", icon: UserSearch },
         my_future: { label: "Свои будущие", desc: "Предстоящие игры команды", icon: CalendarClock },
@@ -133,7 +129,7 @@ export default function MatchesPage() {
   const renderMatchRow = (match: any, dayIdx: number) => {
     const day = dayIdx + 1;
     const isPlayed = seasonDay > 0 && (day < seasonDay || (day === seasonDay && isTodayPlayed));
-    const startHour = userLeague ? userLeague.startTime.split(' ')[0] : '23:00';
+    const startHour = "23:00";
     const matchDate = getDateForDay(day);
 
     let hScore = 0;
@@ -199,8 +195,9 @@ export default function MatchesPage() {
         if (!myMatch) return <p className="text-center py-10 text-muted-foreground">{t.noData}</p>;
         
         const opponent = myMatch.home.isPlayer ? myMatch.away : myMatch.home;
-        const startHour = userLeague ? userLeague.startTime.split(' ')[0] : '23:00';
+        const startHour = "23:00";
         const matchDate = getDateForDay(targetDay);
+        const isTargetToday = targetDay === seasonDay;
         
         return (
           <div className="space-y-6 animate-in fade-in duration-500">
@@ -208,7 +205,7 @@ export default function MatchesPage() {
               <CardHeader className="text-center pb-2">
                 <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">Intelligence Report</CardTitle>
                 <Badge variant="outline" className="mx-auto text-[10px] uppercase border-primary/50 text-primary flex items-center gap-1.5 py-1">
-                  <Clock className="w-3 h-3" /> {matchDate} {t.atTime} {startHour}
+                  <Clock className="w-3 h-3" /> {isTargetToday ? t.today : t.tomorrow} {t.atTime} {startHour}
                 </Badge>
               </CardHeader>
               <CardContent className="flex flex-col items-center space-y-4">
@@ -216,7 +213,7 @@ export default function MatchesPage() {
                   <Shield className="w-10 h-10 text-accent" />
                 </div>
                 <div className="text-center">
-                  <h3 className="text-2xl font-headline font-bold text-primary italic uppercase truncate max-w-[250px]">{opponent.name}</h3>
+                  <h3 className="text-xl font-headline font-bold text-primary italic uppercase truncate max-w-[250px]">{opponent.name}</h3>
                   <Badge variant="secondary" className="mt-2 text-[10px]">DIV {leagueLevel}.{divisionSubId} | GRP {groupId}</Badge>
                 </div>
                 
@@ -226,7 +223,7 @@ export default function MatchesPage() {
                   </p>
                   <p className="text-xl font-headline font-bold tracking-tight">{matchDate} @ {startHour}</p>
                   <p className="text-[9px] text-muted-foreground uppercase mt-1 italic font-bold">
-                    {language === 'ru' ? 'Матч начнется в 23:00 (МСК)' : 'Match starts at 23:00 (MSK)'}
+                    {language === 'ru' ? 'Синхронизация по МСК: 23:00' : 'MSK Sync: 23:00'}
                   </p>
                 </div>
 
@@ -280,7 +277,9 @@ export default function MatchesPage() {
             {schedule.map((dayMatches: any, dIdx: number) => (
               <div key={dIdx} className="space-y-3">
                 <div className="flex items-center gap-2 px-1">
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-accent font-mono">{getDateForDay(dIdx + 1)}</span>
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-accent font-mono flex items-center gap-2">
+                    <Clock className="w-3 h-3" /> {getDateForDay(dIdx + 1)} @ 23:00
+                  </span>
                   <div className="h-px flex-1 bg-white/5"></div>
                   <Badge variant="outline" className="text-[8px] border-primary/20 text-primary">DAY {dIdx + 1}</Badge>
                 </div>
@@ -303,7 +302,7 @@ export default function MatchesPage() {
               return (
                 <div key={actualDayIdx} className="space-y-3">
                   <div className="flex items-center gap-2 px-1">
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-accent font-mono">{getDateForDay(actualDayIdx + 1)}</span>
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-accent font-mono">{getDateForDay(actualDayIdx + 1)} @ 23:00</span>
                     <div className="h-px flex-1 bg-white/5"></div>
                     <Badge variant="outline" className="text-[8px] border-primary/20 text-primary">DAY {actualDayIdx + 1}</Badge>
                   </div>
@@ -336,7 +335,7 @@ export default function MatchesPage() {
               {t.title}
             </h1>
             <p className="text-muted-foreground text-[10px] uppercase tracking-widest">
-              Season Schedule | Div {leagueLevel}.{divisionSubId}
+              Daily @ 23:00 MSK | Div {leagueLevel}.{divisionSubId}
             </p>
           </div>
         </header>
