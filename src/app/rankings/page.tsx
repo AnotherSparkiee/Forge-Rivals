@@ -118,6 +118,8 @@ export default function RankingsPage() {
       waiting: "Next match scheduled",
       completed: "Match for today completed",
       processing: "Simulating match...",
+      div_label: "Division",
+      tiers: ["Elite Tier", "Professional Tier", "Challenger Tier"],
       tabs: {
         my_league: { label: "My League", desc: "Current group rankings", icon: Trophy },
         champions_cup: { label: "Champions Cup", desc: "Top tier elite tournament", icon: Award },
@@ -144,6 +146,8 @@ export default function RankingsPage() {
       waiting: "Ожидание начала матча",
       completed: "Матч на сегодня сыгран",
       processing: "Идет симуляция...",
+      div_label: "Дивизион",
+      tiers: ["Элитный уровень", "Профессиональный уровень", "Претендентский уровень"],
       tabs: {
         my_league: { label: "Своя лига", desc: "Рейтинг вашей группы", icon: Trophy },
         champions_cup: { label: "Кубок чемпионов", desc: "Элитный турнир высшей лиги", icon: Award },
@@ -217,6 +221,45 @@ export default function RankingsPage() {
               <p className="text-sm font-headline font-bold text-accent">{entry.points}</p>
             </div>
           </div>
+        );
+      })}
+    </div>
+  );
+
+  const renderPyramidView = () => (
+    <div className="grid grid-cols-1 gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300">
+      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((lvl) => {
+        const isCurrent = leagueLevel === lvl;
+        const tier = lvl === 1 ? t.tiers[0] : lvl <= 3 ? t.tiers[1] : t.tiers[2];
+        return (
+          <Card 
+            key={lvl} 
+            className={cn(
+              "glass-card hover:bg-white/5 transition-colors border-white/5 cursor-pointer",
+              isCurrent && "border-primary/50 bg-primary/5 shadow-[0_0_15px_rgba(var(--primary),0.1)]"
+            )}
+          >
+            <CardContent className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className={cn(
+                  "p-2 rounded-lg",
+                  isCurrent ? "bg-primary/20" : "bg-secondary/50"
+                )}>
+                  <LayoutDashboard className={cn("w-5 h-5", isCurrent ? "text-primary" : "text-muted-foreground")} />
+                </div>
+                <div>
+                  <h3 className={cn("text-sm font-bold uppercase", isCurrent && "text-primary")}>
+                    {t.div_label} {lvl}
+                  </h3>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{tier}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {isCurrent && <Badge variant="default" className="text-[8px] bg-primary/80">CURRENT</Badge>}
+                <ChevronRight className="w-4 h-4 text-muted-foreground opacity-30" />
+              </div>
+            </CardContent>
+          </Card>
         );
       })}
     </div>
@@ -327,7 +370,9 @@ export default function RankingsPage() {
         </>
       )}
 
-      {activeTab !== 'my_league' && (
+      {activeTab === 'my_pyramid' && renderPyramidView()}
+
+      {activeTab !== 'my_league' && activeTab !== 'my_pyramid' && (
         <div className="flex flex-col items-center justify-center py-12 text-center space-y-4 animate-in zoom-in duration-300">
           <div className="w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center">
             <Shield className="w-8 h-8 text-primary opacity-50" />
