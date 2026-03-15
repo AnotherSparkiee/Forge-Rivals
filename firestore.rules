@@ -3,123 +3,178 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * MOBA Tactics Online - Security Rules Strategy
-     * 
-     * Core Philosophy:
-     * This ruleset implements a strict User-Ownership model. All player-specific data is 
-     * nested under a hierarchical /user_profiles/{userId} path, ensuring that users can 
-     * only access and modify their own profiles, heroes, teams, and strategies.
-     * 
-     * Data Structure:
-     * - /user_profiles/{userId}: The root of a player's data tree.
-     * - /user_profiles/{userId}/player_heroes/{id}: Individual hero instances owned by the player.
-     * - /user_profiles/{userId}/teams/{id}: Player-managed team compositions.
-     * - /user_profiles/{userId}/strategies/{id}: Strategic presets for simulations.
-     * - /heroes/{id}: Global, public, read-only definitions of base game heroes.
-     * 
-     * Key Security Decisions:
-     * 1. Authorization Independence: Every user document contains a denormalized 'userId' 
-     *    field. This allows rules to verify ownership directly on the document being 
-     *    accessed, improving performance and reliability.
-     * 2. Path-Based Listing: List operations are secured by verifying that the requested 
-     *    path belongs to the authenticated user's ID.
-     * 3. Administrative Control: Writes to global game data (/heroes) are restricted to 
-     *    accounts verified against a dedicated admin roles collection.
-     * 4. Relational Integrity: On creation, the rules enforce that the internal 'userId' 
-     *    or 'id' field matches the path parameter to prevent data hijacking.
+     * Moba Tactics Online Security Rules
+     *
+     * CORE PHILOSOPHY:
+     * This ruleset implements a strict user-ownership model for player data and a shared-participant model for 
+     * match-related data. It prioritizes Authorization Independence by relying on denormalized user IDs 
+     * within documents to allow for fast, atomic security checks without expensive cross-document lookups.
+     *
+     * DATA STRUCTURE:
+     * - /users/{userId}: Private player profiles and their nested game entities (teams, rosters, strategies).
+     * - /heroes: Public, read-only game data available to all players.
+     * - /matches: Shared records accessible only to the two players involved in a specific match.
+     * - /roles_admin: Database Access Control (DBAC) collection for administrative privileges.
+     *
+     * KEY SECURITY DECISIONS:
+     * - Ownership is enforced primarily through the path (for user-specific data) and verified against 
+     *   internal document fields to ensure relational integrity.
+     * - Admin access is determined by the presence of a document in the /roles_admin collection.
+     * - Shared data (Matches) uses denormalized owner IDs (team1OwnerId, team2OwnerId) to grant access 
+     *   to participants while keeping the data hidden from the rest of the player base.
+     * - Prototyping Mode: Schema validation is omitted to allow for rapid iteration, focusing 
+     *   strictly on "who" can access "what".
+     *
+     * DENORMALIZATION FOR AUTHORIZATION:
+     * - Documents in subcollections (e.g., TeamRosterSlot) contain 'userProfileId' to allow rules 
+     *   to verify ownership without reading the parent 'UserProfile' document.
+     * - 'Match' and 'MatchStatistic' documents contain both 'team1OwnerId' and 'team2OwnerId' 
+     *   to facilitate secure filtering and individual document access for both participants.
      */
 
-    // --- Global Helper Functions ---
+    // --- Helper Functions ---
 
+    /** @description Checks if the request is from an authenticated user. */
     function isSignedIn() {
       return request.auth != null;
     }
 
+    /** @description Checks if the authenticated user's UID matches the provided userId. */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    /** @description Checks if the user is an owner and the document exists (for updates/deletes). */
     function isExistingOwner(userId) {
-      return resource != null && isOwner(userId);
+      return isOwner(userId) && resource != null;
     }
 
+    /** @description Checks if the user has administrative privileges via the DBAC collection. */
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /** @description Checks if the user is one of the two participants in a match based on denormalized fields. */
+    function isMatchParticipant(data) {
+      return isSignedIn() && (request.auth.uid == data.team1OwnerId || request.auth.uid == data.team2OwnerId);
     }
 
     // --- Collection Rules ---
 
     /**
-     * @description Rules for UserProfile documents. Users can only manage their own profile.
-     * @path /user_profiles/{userId}
-     * @allow (get) If the requester is the owner of the profile.
-     * @deny (create) If the authenticated user's UID does not match the document ID.
-     * @principle Ownership-based access with path-to-data integrity validation.
+     * @description Player profiles containing currency and level data. Only the owner can access.
+     * @path /users/{userId}
+     * @allow (get) If auth.uid == userId.
+     * @deny (list) If auth.uid != userId.
+     * @principle Restricts access to a user's own data tree and validates relational integrity on create.
      */
-    match /user_profiles/{userId} {
+    match /users/{userId} {
       allow get, list: if isOwner(userId);
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
 
       /**
-       * @description Rules for PlayerHero instances. Nested under the user profile.
-       * @path /user_profiles/{userId}/player_heroes/{playerHeroId}
-       * @allow (list) If the path userId matches the authenticated user.
-       * @deny (update) If the user attempts to change the 'userId' field of the document.
-       * @principle Hierarchical ownership with immutable relational fields.
+       * @description Teams managed by the player. Access is private.
+       * @path /users/{userId}/playerTeams/{playerTeamId}
+       * @allow (create) If auth.uid == userId and userProfileId in data matches path.
+       * @deny (update) If userProfileId is being changed.
+       * @principle Enforces document ownership and relational immutability.
        */
-      match /player_heroes/{playerHeroId} {
+      match /playerTeams/{playerTeamId} {
         allow get, list: if isOwner(userId);
-        allow create: if isOwner(userId) && request.resource.data.userId == userId;
-        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+        allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
+        allow update: if isExistingOwner(userId) && request.resource.data.userProfileId == resource.data.userProfileId;
         allow delete: if isExistingOwner(userId);
+
+        /**
+         * @description Individual slots in a team roster.
+         * @path /users/{userId}/playerTeams/{playerTeamId}/teamRosterSlots/{rosterSlotId}
+         * @allow (create) If userProfileId and playerTeamId match the path parameters.
+         * @principle Ensures nested data remains consistent with its parent path.
+         */
+        match /teamRosterSlots/{rosterSlotId} {
+          allow get, list: if isOwner(userId);
+          allow create: if isOwner(userId) && request.resource.data.userProfileId == userId && request.resource.data.playerTeamId == playerTeamId;
+          allow update: if isExistingOwner(userId) && request.resource.data.userProfileId == resource.data.userProfileId && request.resource.data.playerTeamId == resource.data.playerTeamId;
+          allow delete: if isExistingOwner(userId);
+        }
+
+        /**
+         * @description Tactical strategies assigned to a team.
+         * @path /users/{userId}/playerTeams/{playerTeamId}/strategies/{strategyId}
+         * @allow (get) If user owns the parent team.
+         * @principle Scoped access based on hierarchy and ownership.
+         */
+        match /strategies/{strategyId} {
+          allow get, list: if isOwner(userId);
+          allow create: if isOwner(userId) && request.resource.data.userProfileId == userId && request.resource.data.playerTeamId == playerTeamId;
+          allow update: if isExistingOwner(userId) && request.resource.data.userProfileId == resource.data.userProfileId && request.resource.data.playerTeamId == resource.data.playerTeamId;
+          allow delete: if isExistingOwner(userId);
+        }
       }
 
       /**
-       * @description Rules for player-created Teams.
-       * @path /user_profiles/{userId}/teams/{teamId}
-       * @allow (create) If userId field in data matches the owner's UID in the path.
-       * @deny (get) If a user attempts to read another player's team document.
-       * @principle Enforces private data silos per user.
+       * @description League ranking and Elo for the player.
+       * @path /users/{userId}/leagueRankings/{leagueRankingId}
+       * @allow (update) If user owns the profile.
+       * @principle Private ownership of competitive statistics.
        */
-      match /teams/{teamId} {
+      match /leagueRankings/{leagueRankingId} {
         allow get, list: if isOwner(userId);
-        allow create: if isOwner(userId) && request.resource.data.userId == userId;
-        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-        allow delete: if isExistingOwner(userId);
-      }
-
-      /**
-       * @description Rules for player-defined Strategies.
-       * @path /user_profiles/{userId}/strategies/{strategyId}
-       * @allow (update) If the owner modifies their own strategy.
-       * @deny (list) If a user tries to query the strategies subcollection of another user.
-       * @principle Authorization based on hierarchical path consistency.
-       */
-      match /strategies/{strategyId} {
-        allow get, list: if isOwner(userId);
-        allow create: if isOwner(userId) && request.resource.data.userId == userId;
-        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+        allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
+        allow update: if isExistingOwner(userId) && request.resource.data.userProfileId == resource.data.userProfileId;
         allow delete: if isExistingOwner(userId);
       }
     }
 
     /**
-     * @description Rules for base Hero definitions. Publicly readable game data.
+     * @description Static game metadata for heroes. Publicly readable, admin writable.
      * @path /heroes/{heroId}
-     * @allow (get, list) For any user, including unauthenticated guests.
-     * @deny (create, update, delete) For any non-administrative user.
-     * @principle Public read access for global content with admin-only writes.
+     * @allow (get, list) For any user.
+     * @deny (write) For non-admin users.
+     * @principle Public Read with Admin-Only Writes.
      */
     match /heroes/{heroId} {
       allow get, list: if true;
       allow create, update, delete: if isAdmin();
     }
-    
-    // Explicitly deny access to any other unexpected collections
-    match /{path=**} {
-      allow read, write: if false;
+
+    /**
+     * @description Records of matches. Accessible only by the two participating players.
+     * @path /matches/{matchId}
+     * @allow (get) If auth.uid is either team1OwnerId or team2OwnerId.
+     * @deny (create) If auth.uid is not one of the participants.
+     * @principle Shared access based on denormalized participant IDs.
+     */
+    match /matches/{matchId} {
+      allow get, list: if isMatchParticipant(resource.data);
+      allow create: if isMatchParticipant(request.resource.data);
+      allow update: if resource != null && isMatchParticipant(resource.data) && isMatchParticipant(request.resource.data);
+      allow delete: if resource != null && isMatchParticipant(resource.data);
+
+      /**
+       * @description Hero-specific statistics for a match.
+       * @path /matches/{matchId}/matchStatistics/{matchStatisticId}
+       * @allow (list) If auth.uid is a participant in the match.
+       * @principle Inherited shared access using denormalized fields.
+       */
+      match /matchStatistics/{matchStatisticId} {
+        allow get, list: if isMatchParticipant(resource.data);
+        allow create: if isMatchParticipant(request.resource.data);
+        allow update: if resource != null && isMatchParticipant(resource.data) && isMatchParticipant(request.resource.data);
+        allow delete: if resource != null && isMatchParticipant(resource.data);
+      }
+    }
+
+    /**
+     * @description Database Access Control (DBAC) for admin roles.
+     * @path /roles_admin/{userId}
+     * @allow (get, list, create, update, delete) False. Handled via console/functions.
+     * @principle Restricts access to the role definition collection itself.
+     */
+    match /roles_admin/{userId} {
+      allow get, list, create, update, delete: if false;
     }
   }
 }
