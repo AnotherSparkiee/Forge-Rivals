@@ -34,12 +34,13 @@ export function getMatchResult(homeId: string, awayId: string, day: number): [nu
   const hId = parseInt(homeId.replace(/\D/g, '') || '1');
   const aId = parseInt(awayId.replace(/\D/g, '') || '2');
   
+  // Create a unique seed for this specific match encounter
   const seed = (hId * 3) + (aId * 7) + (day * 13);
   const val = seed % 10;
   
-  if (val < 4) return [2, 0]; // Home Win
-  if (val < 7) return [1, 1]; // Draw
-  return [0, 2]; // Away Win
+  if (val < 4) return [2, 0]; // Home Win (40%)
+  if (val < 7) return [1, 1]; // Draw (30%)
+  return [0, 2]; // Away Win (30%)
 }
 
 /**
@@ -63,23 +64,30 @@ export function getSchedule(teams: any[]) {
     }
     fullSchedule.push(roundMatches);
     // Rotate all except first element
-    teamsCopy.splice(1, 0, teamsCopy.pop());
+    const last = teamsCopy.pop();
+    if (last) teamsCopy.splice(1, 0, last);
   }
 
   // Round 1: Days 1-7
   // Round 2: Days 8-14 (reverse home/away)
   const seasonSchedule = [];
   for (let d = 1; d <= SEASON_DURATION_DAYS; d++) {
-    const matchDay = ((d - 1) % rounds) + 1;
+    const matchDayIdx = (d - 1) % rounds;
     const isSecondRound = d > rounds;
-    const dayMatches = fullSchedule[matchDay - 1];
-    seasonSchedule.push(isSecondRound ? dayMatches.map(m => ({ home: m.away, away: m.home })) : dayMatches);
+    const dayMatches = fullSchedule[matchDayIdx];
+    
+    if (isSecondRound) {
+      seasonSchedule.push(dayMatches.map(m => ({ home: m.away, away: m.home })));
+    } else {
+      seasonSchedule.push(dayMatches);
+    }
   }
   return seasonSchedule;
 }
 
 /**
  * Deterministically generates group teams and their standings based on current day.
+ * Works globally for any level/division/group in the pyramid.
  */
 export function getMockGroupTeams(
   playerRank: number, 
@@ -87,15 +95,16 @@ export function getMockGroupTeams(
   level: number = 8,
   division: number = 1,
   group: number = 1,
-  includePlayer: boolean = true,
+  includePlayer: boolean = false,
   currentDay: number = 1,
   playerStats?: { wins: number, draws: number, losses: number, points: number }
 ) {
   const teams = [];
   const botLimit = includePlayer ? 7 : 8;
   
+  // Generate bots with unique IDs based on pyramid coordinates
   for (let i = 0; i < botLimit; i++) {
-    const botIdValue = (level * 10000) + (division * 100) + (group * 10) + i;
+    const botIdValue = (level * 100000) + (division * 1000) + (group * 100) + i;
     teams.push({
       id: `bot_${botIdValue}`,
       name: `🤖bot${botIdValue}`,
@@ -107,6 +116,7 @@ export function getMockGroupTeams(
     });
   }
 
+  // Inject player if viewing their own group
   if (includePlayer) {
     teams.push({ 
       id: "player_team",
@@ -121,16 +131,18 @@ export function getMockGroupTeams(
 
   const seasonSchedule = getSchedule(teams);
   
-  // Simulation up to currentDay - 1 (completed matches)
+  // Simulation for all teams up to currentDay - 1 (matches completed in the global league)
   for (let d = 1; d < currentDay; d++) {
     const matches = seasonSchedule[d - 1];
+    if (!matches) continue;
+
     matches.forEach((m: any) => {
       const home = teams.find(t => t.id === m.home.id);
       const away = teams.find(t => t.id === m.away.id);
       
       if (!home || !away) return;
 
-      // If one of the teams is a player and we have injected stats, we don't recalculate
+      // Skip player match calculation if we have real injected stats for them
       if (playerStats && (home.isPlayer || away.isPlayer)) {
         return;
       }
@@ -153,7 +165,7 @@ export function applyResult(home: any, away: any, hScore: number, aScore: number
     home.points += 1;
     away.draws++;
     away.points += 1;
-  } else {
+  } else if (aScore === 2) {
     away.wins++;
     away.points += 3;
     home.losses++;

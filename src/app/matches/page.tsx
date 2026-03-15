@@ -44,10 +44,11 @@ export default function MatchesPage() {
   }, [profile?.selectedLeagueId]);
 
   const isTodayPlayed = useMemo(() => {
-    return lastLeagueMatchDate === new Date().toISOString().split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0];
+    return lastLeagueMatchDate === todayStr;
   }, [lastLeagueMatchDate]);
 
-  // Generate group data
+  // Generate group data synchronized with the global season
   const groupTeams = useMemo(() => {
     if (!isLoaded) return [];
     

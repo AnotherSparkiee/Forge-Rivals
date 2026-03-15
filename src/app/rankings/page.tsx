@@ -55,13 +55,18 @@ export default function RankingsPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
-  // Generate group rankings once data is loaded
+  // Check if today's match is played globally for synchronization
+  const isTodayPlayed = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return lastLeagueMatchDate === todayStr;
+  }, [lastLeagueMatchDate]);
+
+  // Generate group rankings once data is loaded, synchronized with global seasonDay
   const myLeagueRankings = useMemo(() => {
     if (!isLoaded) return [];
     
     // If today's match is played, calculationDay should be seasonDay + 1 
     // to include the results of all group matches for the current day.
-    const isTodayPlayed = lastLeagueMatchDate === new Date().toISOString().split('T')[0];
     const calculationDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
 
     return getMockGroupTeams(
@@ -74,7 +79,7 @@ export default function RankingsPage() {
       calculationDay,
       { wins, draws, losses, points }
     );
-  }, [isLoaded, rank, profile?.displayName, leagueLevel, divisionSubId, groupId, seasonDay, wins, draws, losses, points, lastLeagueMatchDate]);
+  }, [isLoaded, rank, profile?.displayName, leagueLevel, divisionSubId, groupId, seasonDay, wins, draws, losses, points, isTodayPlayed]);
 
   const isPlayerFirst = myLeagueRankings.find(t => t.isPlayer)?.points === Math.max(...myLeagueRankings.map(t => t.points));
 
@@ -295,7 +300,7 @@ export default function RankingsPage() {
   };
 
   const renderPyramidTable = (level: number, div: number) => {
-    const isTodayPlayed = lastLeagueMatchDate === new Date().toISOString().split('T')[0];
+    // Synchronization for any selected division in the pyramid
     const calculationDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
     
     // For other divisions in the pyramid, we don't include the player unless it's their division
@@ -306,7 +311,7 @@ export default function RankingsPage() {
       profile?.displayName || "My Team", 
       level, 
       div, 
-      1, 
+      1, // Assuming group 1 for pyramid drill-down mock
       isPlayerInThisDiv, 
       calculationDay,
       isPlayerInThisDiv ? { wins, draws, losses, points } : undefined
@@ -420,7 +425,7 @@ export default function RankingsPage() {
             <CardContent className="p-4 flex justify-between items-center">
               <span className="text-xs uppercase font-bold text-accent">{t.bo2_format}</span>
               <Badge variant="outline" className="text-[10px] border-primary/20 text-primary">
-                {lastLeagueMatchDate === new Date().toISOString().split('T')[0] ? t.completed : t.waiting}
+                {isTodayPlayed ? t.completed : t.waiting}
               </Badge>
             </CardContent>
           </Card>
