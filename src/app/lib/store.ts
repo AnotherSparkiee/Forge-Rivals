@@ -57,7 +57,7 @@ const DEFAULT_ARENA: ArenaState = {
 };
 
 const DEFAULT_STATE: GameState = {
-  credits: 50000, // Increased for better prototyping of arena upgrades
+  credits: 99000000, // Установлено 99 млн для тестирования
   ownedHeroes: INITIAL_HEROES,
   team: INITIAL_HEROES,
   strategy: 'Balanced Play',
@@ -120,6 +120,8 @@ export function useGameState() {
           losses: isNewSeason ? 0 : (parsed.losses || 0),
           points: isNewSeason ? 0 : (parsed.points || 0),
           arena: parsed.arena || DEFAULT_ARENA,
+          // Опционально: форсируем обновление баланса если нужно для текущего сеанса
+          // credits: parsed.credits < 99000000 ? 99000000 : parsed.credits
         }));
       } catch (e) {
         console.error("Failed to load game state", e);
