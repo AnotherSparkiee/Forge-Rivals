@@ -34,7 +34,11 @@ type RankingTab =
 type PyramidViewMode = 'levels' | 'divisions' | 'table';
 
 export default function RankingsPage() {
-  const { rank, leagueLevel, divisionSubId, groupId, isLoaded, language, promoteLeague, lastLeagueMatchDate, seasonDay } = useGameState();
+  const { 
+    rank, leagueLevel, divisionSubId, groupId, isLoaded, language, 
+    promoteLeague, lastLeagueMatchDate, seasonDay,
+    wins, draws, losses, points
+  } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
@@ -53,8 +57,22 @@ export default function RankingsPage() {
   // Generate group rankings once data is loaded
   const myLeagueRankings = useMemo(() => {
     if (!isLoaded) return [];
-    return getMockGroupTeams(rank, profile?.displayName || "My Team", leagueLevel, divisionSubId, groupId, true, seasonDay);
-  }, [isLoaded, rank, profile?.displayName, leagueLevel, divisionSubId, groupId, seasonDay]);
+    
+    // Check if the current day's match has been played to include it in the mock calculation
+    const isTodayPlayed = lastLeagueMatchDate === new Date().toISOString().split('T')[0];
+    const calculationDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
+
+    return getMockGroupTeams(
+      rank, 
+      profile?.displayName || "My Team", 
+      leagueLevel, 
+      divisionSubId, 
+      groupId, 
+      true, 
+      calculationDay,
+      { wins, draws, losses, points }
+    );
+  }, [isLoaded, rank, profile?.displayName, leagueLevel, divisionSubId, groupId, seasonDay, wins, draws, losses, points, lastLeagueMatchDate]);
 
   const isPlayerFirst = myLeagueRankings.find(t => t.isPlayer)?.points === Math.max(...myLeagueRankings.map(t => t.points));
 

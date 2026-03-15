@@ -11,6 +11,11 @@ interface GameState {
   rank: number;
   matchHistory: any[];
   language: 'en' | 'ru';
+  // Season Statistics
+  wins: number;
+  draws: number;
+  losses: number;
+  points: number;
   // League Pyramid State
   leagueLevel: number; // 1-9 (1 is top)
   divisionSubId: number; // 1 to 2^(level-1)
@@ -28,6 +33,10 @@ const DEFAULT_STATE: GameState = {
   rank: 1000,
   matchHistory: [],
   language: 'ru',
+  wins: 0,
+  draws: 0,
+  losses: 0,
+  points: 0,
   leagueLevel: 8,
   divisionSubId: 1,
   groupId: 1,
@@ -55,11 +64,18 @@ export function useGameState() {
         // Season wraps every 14 days
         const currentDay = ((diffDays - 1) % 14) + 1;
 
+        // If a new season started, reset player stats
+        const isNewSeason = parsed.seasonDay && currentDay < parsed.seasonDay;
+
         setState(prev => ({ 
           ...prev, 
           ...parsed,
           seasonDay: currentDay,
           language: parsed.language || prev.language,
+          wins: isNewSeason ? 0 : (parsed.wins || 0),
+          draws: isNewSeason ? 0 : (parsed.draws || 0),
+          losses: isNewSeason ? 0 : (parsed.losses || 0),
+          points: isNewSeason ? 0 : (parsed.points || 0),
         }));
       } catch (e) {
         console.error("Failed to load game state", e);
@@ -110,7 +126,11 @@ export function useGameState() {
         divisionSubId: Math.max(1, Math.ceil(s.divisionSubId / 2)),
         groupId: 1,
         lastLeagueMatchDate: null,
-        seasonStartDate: new Date().toISOString().split('T')[0] // Reset season on promotion
+        seasonStartDate: new Date().toISOString().split('T')[0],
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        points: 0
       }));
       return true;
     }
@@ -124,13 +144,23 @@ export function useGameState() {
     // Points system Bo2: 2-0 = 3pts, 1-1 = 1pt, 0-2 = 0pts
     let creditsEarned = 50;
     let rankChange = -15;
+    let matchWins = 0;
+    let matchDraws = 0;
+    let matchLosses = 0;
+    let matchPoints = 0;
 
     if (scoreA === 2) {
       creditsEarned = 200;
       rankChange = 25;
+      matchWins = 1;
+      matchPoints = 3;
     } else if (scoreA === 1) {
       creditsEarned = 100;
       rankChange = 5;
+      matchDraws = 1;
+      matchPoints = 1;
+    } else {
+      matchLosses = 1;
     }
 
     const today = new Date().toISOString().split('T')[0];
@@ -139,6 +169,10 @@ export function useGameState() {
       ...s,
       credits: s.credits + creditsEarned,
       rank: s.rank + rankChange,
+      wins: s.wins + matchWins,
+      draws: s.draws + matchDraws,
+      losses: s.losses + matchLosses,
+      points: s.points + matchPoints,
       matchHistory: [result, ...s.matchHistory].slice(0, 10),
       lastLeagueMatchDate: isAutomated ? today : s.lastLeagueMatchDate
     }));

@@ -25,7 +25,10 @@ type MatchTab =
   | 'league_played';
 
 export default function MatchesPage() {
-  const { isLoaded, language, leagueLevel, divisionSubId, groupId, seasonDay } = useGameState();
+  const { 
+    isLoaded, language, leagueLevel, divisionSubId, groupId, seasonDay, rank, 
+    wins, draws, losses, points, lastLeagueMatchDate 
+  } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
@@ -42,8 +45,22 @@ export default function MatchesPage() {
   // Generate group data
   const groupTeams = useMemo(() => {
     if (!isLoaded) return [];
-    return getMockGroupTeams(0, profile?.displayName || "My Team", leagueLevel, divisionSubId, groupId, true, seasonDay);
-  }, [isLoaded, profile?.displayName, leagueLevel, divisionSubId, groupId, seasonDay]);
+    
+    // Check if current day is already played
+    const isTodayPlayed = lastLeagueMatchDate === new Date().toISOString().split('T')[0];
+    const calculationDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
+
+    return getMockGroupTeams(
+      rank, 
+      profile?.displayName || "My Team", 
+      leagueLevel, 
+      divisionSubId, 
+      groupId, 
+      true, 
+      calculationDay,
+      { wins, draws, losses, points }
+    );
+  }, [isLoaded, profile?.displayName, leagueLevel, divisionSubId, groupId, seasonDay, rank, wins, draws, losses, points, lastLeagueMatchDate]);
 
   const schedule = useMemo(() => {
     if (groupTeams.length === 0) return [];
@@ -99,10 +116,34 @@ export default function MatchesPage() {
     );
   }
 
+  const getDayResult = (homeId: string, awayId: string, day: number): [number, number] => {
+    const hId = parseInt(homeId.replace('bot_', '').replace('player_team', '99999'));
+    const aId = parseInt(awayId.replace('bot_', '').replace('player_team', '99999'));
+    const seed = hId + aId + day;
+    const val = seed % 10;
+    if (val < 4) return [2, 0];
+    if (val < 7) return [1, 1];
+    return [0, 2];
+  };
+
   const renderMatchRow = (match: any, dayIdx: number) => {
     const day = dayIdx + 1;
-    const [hScore, aScore] = getMatchResult(match.home.id, match.away.id, day);
-    const isPlayed = day < seasonDay;
+    const isTodayPlayed = lastLeagueMatchDate === new Date().toISOString().split('T')[0];
+    const isPlayed = day < seasonDay || (day === seasonDay && isTodayPlayed);
+
+    let hScore = 0;
+    let aScore = 0;
+
+    if (isPlayed) {
+      if (day === seasonDay && isTodayPlayed && (match.home.isPlayer || match.away.isPlayer)) {
+        // Use real last match result for the player if played today
+        const lastResult = useGameState.getState?.().matchHistory[0]; // Accessing store directly or via props
+        // Note: For prototype simplicity, we'll use deterministic for rows unless it's a very specific UI need
+        [hScore, aScore] = getDayResult(match.home.id, match.away.id, day);
+      } else {
+        [hScore, aScore] = getDayResult(match.home.id, match.away.id, day);
+      }
+    }
 
     return (
       <div key={`${day}-${match.home.id}`} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-4">
@@ -137,6 +178,8 @@ export default function MatchesPage() {
   };
 
   const renderContent = () => {
+    const isTodayPlayed = lastLeagueMatchDate === new Date().toISOString().split('T')[0];
+    
     switch (activeTab) {
       case 'next_opponent': {
         const todayMatches = schedule[seasonDay - 1];
@@ -189,11 +232,13 @@ export default function MatchesPage() {
       }
 
       case 'my_future': {
-        const futureMatches = schedule.slice(seasonDay - 1).map((dayMatches: any, i) => {
+        const startIdx = isTodayPlayed ? seasonDay : seasonDay - 1;
+        const futureMatches = schedule.slice(startIdx).map((dayMatches: any, i) => {
           const m = dayMatches.find((match: any) => match.home.isPlayer || match.away.isPlayer);
-          return { match: m, dayIdx: seasonDay - 1 + i };
+          return { match: m, dayIdx: startIdx + i };
         }).filter(item => !!item.match);
 
+        if (futureMatches.length === 0) return <p className="text-center text-muted-foreground py-10 uppercase text-xs">{t.noData}</p>;
         return (
           <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-500">
             {futureMatches.map(item => renderMatchRow(item.match, item.dayIdx))}
@@ -202,7 +247,8 @@ export default function MatchesPage() {
       }
 
       case 'my_played': {
-        const playedMatches = schedule.slice(0, seasonDay - 1).map((dayMatches: any, i) => {
+        const endIdx = isTodayPlayed ? seasonDay : seasonDay - 1;
+        const playedMatches = schedule.slice(0, endIdx).map((dayMatches: any, i) => {
           const m = dayMatches.find((match: any) => match.home.isPlayer || match.away.isPlayer);
           return { match: m, dayIdx: i };
         }).filter(item => !!item.match).reverse();
@@ -236,13 +282,14 @@ export default function MatchesPage() {
       }
 
       case 'league_played': {
-        const allPlayed = schedule.slice(0, seasonDay - 1).reverse();
+        const endIdx = isTodayPlayed ? seasonDay : seasonDay - 1;
+        const allPlayed = schedule.slice(0, endIdx).reverse();
         if (allPlayed.length === 0) return <p className="text-center text-muted-foreground py-10 uppercase text-xs">{t.noData}</p>;
         
         return (
           <div className="space-y-8 animate-in fade-in duration-500">
             {allPlayed.map((dayMatches: any, dIdx: number) => {
-              const actualDayIdx = seasonDay - 2 - dIdx;
+              const actualDayIdx = endIdx - 1 - dIdx;
               return (
                 <div key={actualDayIdx} className="space-y-3">
                   <div className="flex items-center gap-2 px-1">
@@ -261,16 +308,6 @@ export default function MatchesPage() {
 
       default: return null;
     }
-  };
-
-  const getMatchResult = (homeId: string, awayId: string, day: number): [number, number] => {
-    const hId = parseInt(homeId.replace('bot_', '').replace('player_team', '99999'));
-    const aId = parseInt(awayId.replace('bot_', '').replace('player_team', '99999'));
-    const seed = hId + aId + day;
-    const val = seed % 10;
-    if (val < 4) return [2, 0];
-    if (val < 7) return [1, 1];
-    return [0, 2];
   };
 
   if (activeTab === 'menu') {

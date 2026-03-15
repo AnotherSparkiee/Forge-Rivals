@@ -46,6 +46,7 @@ export function getMatchResult(homeId: string, awayId: string, day: number): [nu
  */
 export function getSchedule(teams: any[], day?: number) {
   const n = teams.length;
+  if (n === 0) return [];
   const rounds = n - 1;
   const half = n / 2;
 
@@ -98,7 +99,8 @@ export function getMockGroupTeams(
   division: number = 1,
   group: number = 1,
   includePlayer: boolean = true,
-  currentDay: number = 1
+  currentDay: number = 1,
+  playerStats?: { wins: number, draws: number, losses: number, points: number }
 ) {
   const teams = [];
   const botLimit = includePlayer ? 7 : 8;
@@ -120,21 +122,32 @@ export function getMockGroupTeams(
     teams.push({ 
       id: "player_team",
       name: playerName, 
-      wins: 0,
-      draws: 0,
-      losses: 0,
-      points: 0,
+      wins: playerStats ? playerStats.wins : 0,
+      draws: playerStats ? playerStats.draws : 0,
+      losses: playerStats ? playerStats.losses : 0,
+      points: playerStats ? playerStats.points : 0,
       isPlayer: true 
     });
   }
 
-  // Calculate standings up to (currentDay - 1)
+  // Calculate standings up to (currentDay - 1) for bots
+  // If playerStats are provided, we don't recalculate player stats from deterministic results
   const seasonSchedule = getSchedule(teams);
   for (let day = 1; day < currentDay; day++) {
     const matches = seasonSchedule[day - 1];
     matches.forEach((m: any) => {
+      // If we have player stats, skip re-simulating the player's past matches to avoid double counting
+      if (playerStats && (m.home.isPlayer || m.away.isPlayer)) {
+        // We only simulate bot vs bot matches if we already have injected player stats
+        if (!m.home.isPlayer && !m.away.isPlayer) {
+          const [hScore, aScore] = getMatchResult(m.home.id, m.away.id, day);
+          this.applyResult(m.home, m.away, hScore, aScore);
+        }
+        return;
+      }
+
+      // Default simulation for all teams
       const [hScore, aScore] = getMatchResult(m.home.id, m.away.id, day);
-      
       if (hScore === 2) {
         m.home.wins++;
         m.home.points += 3;
@@ -153,4 +166,21 @@ export function getMockGroupTeams(
   }
 
   return teams.sort((a, b) => b.points - a.points || (b.wins - a.wins));
+}
+
+export function applyResult(home: any, away: any, hScore: number, aScore: number) {
+  if (hScore === 2) {
+    home.wins++;
+    home.points += 3;
+    away.losses++;
+  } else if (hScore === 1) {
+    home.draws++;
+    home.points += 1;
+    away.draws++;
+    away.points += 1;
+  } else {
+    away.wins++;
+    away.points += 3;
+    home.losses++;
+  }
 }
