@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Hero, INITIAL_HEROES } from './moba-data';
+import { getMoscowTime, getMoscowDateString } from './time-utils';
 
 interface ArenaState {
   capacity: number;
@@ -12,6 +13,7 @@ interface ArenaState {
   screensLevel: number;
   roofLevel: number;
   lightingLevel: number;
+  constructionFinishes: Record<string, string | null>; // facilityId -> ISO string timestamp
 }
 
 interface GameState {
@@ -39,7 +41,7 @@ interface GameState {
 }
 
 const getTodayDateString = () => {
-  const msk = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
+  const msk = getMoscowTime();
   const year = msk.getFullYear();
   const month = String(msk.getMonth() + 1).padStart(2, '0');
   const day = String(msk.getDate()).padStart(2, '0');
@@ -54,6 +56,7 @@ const DEFAULT_ARENA: ArenaState = {
   screensLevel: 0,
   roofLevel: 0,
   lightingLevel: 0,
+  constructionFinishes: {},
 };
 
 const TEST_CREDITS = 99000000;
@@ -89,23 +92,40 @@ export function useGameState() {
       try {
         const parsed = JSON.parse(saved);
         
-        const mskNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
-        mskNow.setHours(0, 0, 0, 0);
+        const mskNow = getMoscowTime();
+        const mskNowTime = mskNow.getTime();
 
         const startDateStr = parsed.seasonStartDate || getTodayDateString();
         const start = new Date(startDateStr);
         start.setHours(0, 0, 0, 0);
 
         let currentDay = 1;
-        if (mskNow >= start) {
+        if (mskNow.getTime() >= start.getTime()) {
           const diffTime = mskNow.getTime() - start.getTime();
           const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
           currentDay = ((diffDays - 1) % 14) + 1;
-        } else {
-          currentDay = 1; 
         }
 
         const isNewSeason = parsed.seasonDay && currentDay > 0 && currentDay < parsed.seasonDay;
+
+        // Check for finished constructions
+        const updatedArena = parsed.arena || DEFAULT_ARENA;
+        const constructionFinishes = updatedArena.constructionFinishes || {};
+        const newArenaLevels = { ...updatedArena };
+        const newConstructionFinishes = { ...constructionFinishes };
+        let hasChanges = false;
+
+        Object.entries(constructionFinishes).forEach(([facility, finishTime]) => {
+          if (finishTime && mskNowTime >= new Date(finishTime as string).getTime()) {
+            (newArenaLevels as any)[facility] = ((newArenaLevels as any)[facility] || 0) + 1;
+            newConstructionFinishes[facility] = null;
+            hasChanges = true;
+          }
+        });
+
+        if (hasChanges) {
+          newArenaLevels.constructionFinishes = newConstructionFinishes;
+        }
 
         setState(prev => {
           const newState = { 
@@ -118,10 +138,9 @@ export function useGameState() {
             draws: isNewSeason ? 0 : (parsed.draws || 0),
             losses: isNewSeason ? 0 : (parsed.losses || 0),
             points: isNewSeason ? 0 : (parsed.points || 0),
-            arena: parsed.arena || DEFAULT_ARENA,
+            arena: hasChanges ? newArenaLevels : updatedArena,
           };
           
-          // Принудительно устанавливаем 99 млн если баланс меньше (для теста)
           if (newState.credits < TEST_CREDITS) {
             newState.credits = TEST_CREDITS;
           }
@@ -145,39 +164,25 @@ export function useGameState() {
     setState(s => ({ ...s, credits: s.credits + amount }));
   };
 
-  const buyHero = (hero: Hero) => {
-    if (state.credits >= hero.price && !state.ownedHeroes.find(h => h.id === hero.id)) {
+  const startArenaConstruction = (facility: keyof Omit<ArenaState, 'capacity' | 'constructionFinishes'>, cost: number) => {
+    if (state.credits >= cost && !state.arena.constructionFinishes[facility]) {
+      const currentLevel = (state.arena as any)[facility];
+      const hours = 4 * (currentLevel + 1);
+      
+      const finishTime = getMoscowTime();
+      finishTime.setHours(finishTime.getHours() + hours);
+
       setState(s => ({
         ...s,
-        credits: s.credits - hero.price,
-        ownedHeroes: [...s.ownedHeroes, hero]
+        credits: s.credits - cost,
+        arena: {
+          ...s.arena,
+          constructionFinishes: {
+            ...s.arena.constructionFinishes,
+            [facility]: finishTime.toISOString()
+          }
+        }
       }));
-      return true;
-    }
-    return false;
-  };
-
-  const upgradeHero = (heroId: string, stat: keyof Hero['baseStats'], amount: number, cost: number) => {
-    if (state.credits >= cost) {
-      setState(s => {
-        const updatedOwned = s.ownedHeroes.map(h => 
-          h.id === heroId 
-            ? { ...h, baseStats: { ...h.baseStats, [stat]: h.baseStats[stat] + amount } }
-            : h
-        );
-        const updatedTeam = s.team.map(h => 
-          h.id === heroId 
-            ? { ...h, baseStats: { ...h.baseStats, [stat]: h.baseStats[stat] + amount } }
-            : h
-        );
-
-        return {
-          ...s,
-          credits: s.credits - cost,
-          ownedHeroes: updatedOwned,
-          team: updatedTeam
-        };
-      });
       return true;
     }
     return false;
@@ -195,48 +200,29 @@ export function useGameState() {
     return false;
   };
 
-  const upgradeArenaFacility = (facility: keyof Omit<ArenaState, 'capacity'>, cost: number) => {
-    if (state.credits >= cost) {
-      setState(s => ({
-        ...s,
-        credits: s.credits - cost,
-        arena: { ...s.arena, [facility]: s.arena[facility] + 1 }
-      }));
-      return true;
+  // Helper to force check constructions (can be called manually or by a timer)
+  const checkConstructions = () => {
+    const mskNow = getMoscowTime().getTime();
+    let hasChanges = false;
+    const newArena = { ...state.arena };
+    const newFinishes = { ...newArena.constructionFinishes };
+
+    Object.entries(newFinishes).forEach(([facility, finishTime]) => {
+      if (finishTime && mskNow >= new Date(finishTime as string).getTime()) {
+        (newArena as any)[facility] = ((newArena as any)[facility] || 0) + 1;
+        newFinishes[facility] = null;
+        hasChanges = true;
+      }
+    });
+
+    if (hasChanges) {
+      newArena.constructionFinishes = newFinishes;
+      setState(s => ({ ...s, arena: newArena }));
     }
-    return false;
-  };
-
-  const setTeam = (newTeam: Hero[]) => {
-    setState(s => ({ ...s, team: newTeam }));
-  };
-
-  const setStrategy = (strategy: string) => {
-    setState(s => ({ ...s, strategy }));
   };
 
   const setLanguage = (lang: 'en' | 'ru') => {
     setState(s => ({ ...s, language: lang }));
-  };
-
-  const promoteLeague = () => {
-    if (state.leagueLevel > 1) {
-      setState(s => ({
-        ...s,
-        leagueLevel: s.leagueLevel - 1,
-        divisionSubId: Math.max(1, Math.ceil(s.divisionSubId / 2)),
-        groupId: 1,
-        lastLeagueMatchDate: null,
-        seasonStartDate: getTodayDateString(),
-        wins: 0,
-        draws: 0,
-        losses: 0,
-        points: 0,
-        seasonDay: 1
-      }));
-      return true;
-    }
-    return false;
   };
 
   const recordMatch = (winner: string, result: any, isAutomated = false) => {
@@ -264,11 +250,7 @@ export function useGameState() {
       matchLosses = 1;
     }
 
-    const mskNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
-    const year = mskNow.getFullYear();
-    const month = String(mskNow.getMonth() + 1).padStart(2, '0');
-    const day = String(mskNow.getDate()).padStart(2, '0');
-    const today = `${year}-${month}-${day}`;
+    const today = getTodayDateString();
     
     setState(s => ({
       ...s,
@@ -287,14 +269,10 @@ export function useGameState() {
     ...state,
     isLoaded,
     addCredits,
-    buyHero,
-    upgradeHero,
+    startArenaConstruction,
     upgradeArenaCapacity,
-    upgradeArenaFacility,
-    setTeam,
-    setStrategy,
+    checkConstructions,
     setLanguage,
-    recordMatch,
-    promoteLeague
+    recordMatch
   };
 }

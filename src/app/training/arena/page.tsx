@@ -1,28 +1,40 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from '@/components/ui/dialog';
 import { 
-  ChevronLeft, Users, MessageSquare, Coffee, ShoppingBag, 
-  Monitor, Home, Lightbulb, ArrowUpCircle, Wallet, Clock
+  ChevronLeft, MessageSquare, Coffee, ShoppingBag, 
+  Monitor, Home, Lightbulb, ArrowUpCircle, Wallet, Clock,
+  Hammer, Users
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export default function ArenaPage() {
   const { 
-    arena, credits, upgradeArenaCapacity, upgradeArenaFacility, language, isLoaded 
+    arena, credits, upgradeArenaCapacity, startArenaConstruction, checkConstructions, language, isLoaded 
   } = useGameState();
   const { toast } = useToast();
   
   const [selectedFacility, setSelectedFacility] = useState<string | null>(null);
+
+  // Periodically check if any construction finished
+  useEffect(() => {
+    if (isLoaded) {
+      const timer = setInterval(() => {
+        checkConstructions();
+      }, 10000); // Check every 10 seconds
+      return () => clearInterval(timer);
+    }
+  }, [isLoaded]);
 
   if (!isLoaded) return null;
 
@@ -40,6 +52,8 @@ export default function ArenaPage() {
       facilities: "Facility Development",
       success: "Construction Started",
       error: "Insufficient Credits",
+      inProgress: "Construction in Progress",
+      finishAt: "Ready at",
       items: {
         capacity: { label: "Stadium Expansion", desc: "Adds 500 additional seats to increase matchday ticket revenue." },
         pressCenterLevel: { label: "Press Center", desc: "Increases media coverage and attracts more elite fans, boosting overall match income." },
@@ -63,6 +77,8 @@ export default function ArenaPage() {
       facilities: "Развитие инфраструктуры",
       success: "Строительство начато",
       error: "Недостаточно кредитов",
+      inProgress: "Идет строительство",
+      finishAt: "Готовность в",
       items: {
         capacity: { label: "Расширение стадиона", desc: "Добавляет 500 дополнительных мест, что увеличивает выручку от продажи билетов." },
         pressCenterLevel: { label: "Пресс-центр", desc: "Улучшает освещение в СМИ и привлекает больше фанатов, повышая общий доход." },
@@ -92,8 +108,8 @@ export default function ArenaPage() {
     const currentLevel = (arena as any)[selectedFacility];
     const cost = 15000 * (currentLevel + 1);
     
-    if (upgradeArenaFacility(selectedFacility as any, cost)) {
-      toast({ title: t.success, description: `${t.items[selectedFacility as keyof typeof t.items].label} level increased.` });
+    if (startArenaConstruction(selectedFacility as any, cost)) {
+      toast({ title: t.success, description: `${t.items[selectedFacility as keyof typeof t.items].label}: ${t.success}` });
       setSelectedFacility(null);
     } else {
       toast({ title: t.error, variant: "destructive" });
@@ -108,6 +124,16 @@ export default function ArenaPage() {
     { id: 'roofLevel', icon: Home, color: 'text-slate-400' },
     { id: 'lightingLevel', icon: Lightbulb, color: 'text-yellow-400' },
   ];
+
+  const formatFinishTime = (iso: string) => {
+    const date = new Date(iso);
+    return date.toLocaleString('ru-RU', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-20">
@@ -163,29 +189,49 @@ export default function ArenaPage() {
         {facilityList.map((item) => {
           const level = (arena as any)[item.id];
           const data = t.items[item.id as keyof typeof t.items];
+          const finishTime = arena.constructionFinishes[item.id];
+          const isConstructing = !!finishTime;
 
           return (
-            <Card key={item.id} className="glass-card border-white/5 overflow-hidden group hover:border-primary/30 transition-all">
+            <Card key={item.id} className={cn(
+              "glass-card border-white/5 overflow-hidden group transition-all",
+              isConstructing ? "bg-orange-500/5 border-orange-500/20" : "hover:border-primary/30"
+            )}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className={`p-2.5 rounded-xl bg-secondary/50 border border-white/5 ${item.color} group-hover:scale-110 transition-transform`}>
-                    <item.icon className="w-5 h-5" />
+                  <div className={cn(
+                    "p-2.5 rounded-xl bg-secondary/50 border border-white/5 transition-transform",
+                    isConstructing ? "text-orange-400 animate-pulse" : item.color,
+                    !isConstructing && "group-hover:scale-110"
+                  )}>
+                    {isConstructing ? <Hammer className="w-5 h-5" /> : <item.icon className="w-5 h-5" />}
                   </div>
                   <div>
                     <h3 className="text-sm font-bold uppercase tracking-tight">{data.label}</h3>
                     <div className="flex items-center gap-2 mt-0.5">
                       <Badge variant="secondary" className="text-[9px] h-4 py-0 uppercase bg-primary/10 text-primary">LVL {level}</Badge>
+                      {isConstructing && (
+                        <span className="text-[8px] text-orange-400 font-bold uppercase animate-pulse">{t.inProgress}</span>
+                      )}
                     </div>
                   </div>
                 </div>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  className="h-9 px-3 border-white/10 hover:bg-primary/10 hover:border-primary/30"
-                  onClick={() => setSelectedFacility(item.id)}
-                >
-                  <span className="text-[9px] uppercase font-bold text-primary">{t.upgrade}</span>
-                </Button>
+                
+                {isConstructing ? (
+                  <div className="text-right">
+                    <p className="text-[7px] uppercase text-muted-foreground font-bold">{t.finishAt}</p>
+                    <p className="text-[9px] font-mono font-bold text-orange-400">{formatFinishTime(finishTime)}</p>
+                  </div>
+                ) : (
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="h-9 px-3 border-white/10 hover:bg-primary/10 hover:border-primary/30"
+                    onClick={() => setSelectedFacility(item.id)}
+                  >
+                    <span className="text-[9px] uppercase font-bold text-primary">{t.upgrade}</span>
+                  </Button>
+                )}
               </CardContent>
             </Card>
           );
