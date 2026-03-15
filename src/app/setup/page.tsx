@@ -66,7 +66,8 @@ export default function SetupPage() {
         title: "Подготовка завершена!",
         description: `Вы зачислены в ${selectedLeagueId}. Страна представительства: ${selectedCountry?.name}.`,
       });
-      router.push('/');
+      // Добавляем параметр welcome, чтобы показать попап на главной
+      router.push('/?welcome=true');
     } catch (error: any) {
       toast({
         variant: "destructive",

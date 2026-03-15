@@ -1,23 +1,35 @@
+
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { useGameState } from './lib/store';
 import { BottomNav } from '@/components/game/BottomNav';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Coins, Trophy, Swords, Shield, Zap, Loader2, Clock, Globe, Award } from 'lucide-react';
+import { Coins, Trophy, Swords, Shield, Zap, Loader2, Clock, Globe, Award, Sparkles } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { LEAGUES } from './lib/leagues-data';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { credits, rank, team, isLoaded } = useGameState();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  const [showWelcome, setShowWelcome] = useState(false);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'user_profiles', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -33,6 +45,15 @@ export default function Home() {
       router.push('/setup');
     }
   }, [profile, isProfileLoading, router]);
+
+  useEffect(() => {
+    // Если в URL есть welcome=true, показываем попап
+    if (searchParams.get('welcome') === 'true') {
+      setShowWelcome(true);
+      // Очищаем URL от параметра, чтобы при обновлении попап не вылезал снова
+      router.replace('/');
+    }
+  }, [searchParams, router]);
 
   if (isUserLoading || isProfileLoading || !isLoaded || !user) {
     return (
@@ -123,25 +144,38 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="space-y-4">
-        <h2 className="text-sm font-headline font-bold flex items-center gap-2 uppercase tracking-widest text-accent">
-          <Award className="w-4 h-4 text-primary" />
-          Сводка разведки
-        </h2>
-        <Card className="glass-card border-primary/20">
-          <CardContent className="p-4 text-xs text-muted-foreground italic leading-relaxed space-y-2">
-            <p className="text-primary font-bold not-italic uppercase tracking-wider">
-              Внимание, Командир {profile?.username || user?.email?.split('@')[0]}!
-            </p>
-            <p>
-              "Поздравляем вас с началом карьеры нового командующего! Нейролинк с региональным узлом {profile?.country} успешно установлен. Все системы управления ростером в норме."
-            </p>
-            <p>
-              "Ваша команда зачислена в {league?.name} и ожидает первых тактических приказов. Время начала боевых операций: {league?.startTime}. Удачи на полях сражений!"
-            </p>
-          </CardContent>
-        </Card>
-      </section>
+      {/* Модальное окно приветствия */}
+      <Dialog open={showWelcome} onOpenChange={setShowWelcome}>
+        <DialogContent className="glass-card border-primary/50 max-w-[90vw] rounded-2xl">
+          <DialogHeader className="flex flex-col items-center gap-4 py-4">
+            <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center animate-bounce">
+              <Sparkles className="w-8 h-8 text-primary" />
+            </div>
+            <DialogTitle className="text-2xl font-headline font-bold text-center uppercase tracking-tighter">
+              Инициализация завершена
+            </DialogTitle>
+            <DialogDescription className="text-center text-sm leading-relaxed space-y-4">
+              <span className="block text-primary font-bold uppercase text-lg mb-2">
+                Приветствуем, Командир {profile?.username || user?.email?.split('@')[0]}!
+              </span>
+              <span className="block italic">
+                "Поздравляем вас с началом карьеры нового командующего! Нейролинк с региональным узлом {profile?.country} успешно установлен. Все системы управления ростером в норме."
+              </span>
+              <span className="block">
+                Ваша команда зачислена в <strong className="text-accent">{league?.name}</strong>. Время начала боевых операций: <strong className="text-accent">{league?.startTime}</strong>.
+              </span>
+              <span className="block font-bold text-primary uppercase pt-2">
+                Удачи на полях сражений!
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setShowWelcome(false)} className="w-full hero-gradient font-headline font-bold">
+              ПРИНЯТЬ КОМАНДОВАНИЕ
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <BottomNav />
     </div>
