@@ -56,8 +56,10 @@ const DEFAULT_ARENA: ArenaState = {
   lightingLevel: 0,
 };
 
+const TEST_CREDITS = 99000000;
+
 const DEFAULT_STATE: GameState = {
-  credits: 99000000, // Установлено 99 млн для тестирования
+  credits: TEST_CREDITS,
   ownedHeroes: INITIAL_HEROES,
   team: INITIAL_HEROES,
   strategy: 'Balanced Play',
@@ -87,10 +89,6 @@ export function useGameState() {
       try {
         const parsed = JSON.parse(saved);
         
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        // Use Moscow Time for current date calculation
         const mskNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
         mskNow.setHours(0, 0, 0, 0);
 
@@ -109,20 +107,27 @@ export function useGameState() {
 
         const isNewSeason = parsed.seasonDay && currentDay > 0 && currentDay < parsed.seasonDay;
 
-        setState(prev => ({ 
-          ...prev, 
-          ...parsed,
-          seasonStartDate: startDateStr,
-          seasonDay: currentDay,
-          language: parsed.language || prev.language,
-          wins: isNewSeason ? 0 : (parsed.wins || 0),
-          draws: isNewSeason ? 0 : (parsed.draws || 0),
-          losses: isNewSeason ? 0 : (parsed.losses || 0),
-          points: isNewSeason ? 0 : (parsed.points || 0),
-          arena: parsed.arena || DEFAULT_ARENA,
-          // Опционально: форсируем обновление баланса если нужно для текущего сеанса
-          // credits: parsed.credits < 99000000 ? 99000000 : parsed.credits
-        }));
+        setState(prev => {
+          const newState = { 
+            ...prev, 
+            ...parsed,
+            seasonStartDate: startDateStr,
+            seasonDay: currentDay,
+            language: parsed.language || prev.language,
+            wins: isNewSeason ? 0 : (parsed.wins || 0),
+            draws: isNewSeason ? 0 : (parsed.draws || 0),
+            losses: isNewSeason ? 0 : (parsed.losses || 0),
+            points: isNewSeason ? 0 : (parsed.points || 0),
+            arena: parsed.arena || DEFAULT_ARENA,
+          };
+          
+          // Принудительно устанавливаем 99 млн если баланс меньше (для теста)
+          if (newState.credits < TEST_CREDITS) {
+            newState.credits = TEST_CREDITS;
+          }
+          
+          return newState;
+        });
       } catch (e) {
         console.error("Failed to load game state", e);
       }
