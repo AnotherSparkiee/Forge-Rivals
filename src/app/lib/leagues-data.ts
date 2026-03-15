@@ -102,13 +102,17 @@ export function getMockGroupTeams(
   const teams = [];
   const botLimit = includePlayer ? 7 : 8;
   
-  // Generate bots with globally unique IDs and coordinates in the name
-  // Formula: (Level * 1M) + (Division * 1K) + (Group * 10) + Index
+  // Digit length based on level hierarchy:
+  // Level 1: Magnitude 1,000 -> IDs like 1001
+  // Level 2: Magnitude 10,000 -> IDs like 20001
+  // Level 8: Magnitude 100,000,000 -> IDs like 800,000,001
+  const magnitude = Math.pow(10, level + 2);
+  
   for (let i = 0; i < botLimit; i++) {
-    const botUniqueId = (level * 1000000) + (division * 1000) + (group * 10) + i;
+    const botUniqueId = (level * magnitude) + (division * 10) + i;
     teams.push({
       id: `bot_${botUniqueId}`,
-      name: `🤖bot L${level}-D${division}-G${group} #${i + 1}`,
+      name: `🤖bot #${botUniqueId}`,
       wins: 0,
       draws: 0,
       losses: 0,
