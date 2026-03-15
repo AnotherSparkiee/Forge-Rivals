@@ -28,7 +28,7 @@ export const LEAGUES: LeagueOption[] = [
 
 /**
  * Deterministic match result based on team IDs and day.
- * Returns score [homeScore, awayScore] (Bo2)
+ * Returns score strictly as [1, 0] (Win), [1, 1] (Draw), or [0, 1] (Loss)
  */
 export function getMatchResult(homeId: string, awayId: string, day: number): [number, number] {
   // Simple deterministic seed based on IDs and day
@@ -39,9 +39,9 @@ export function getMatchResult(homeId: string, awayId: string, day: number): [nu
   const seed = (hId * 3) + (aId * 7) + (day * 13);
   const val = seed % 10;
   
-  if (val < 4) return [2, 0]; // Home Win (40%)
+  if (val < 4) return [1, 0]; // Home Win (40%)
   if (val < 7) return [1, 1]; // Draw (30%)
-  return [0, 2]; // Away Win (30%)
+  return [0, 1]; // Away Win (30%)
 }
 
 /**
@@ -88,7 +88,6 @@ export function getSchedule(teams: any[]) {
 
 /**
  * Deterministically generates group teams and their standings based on current day.
- * Compact Unique ID logic (Level 1 = short, Level 8 = longer but fits table)
  */
 export function getMockGroupTeams(
   playerRank: number, 
@@ -104,9 +103,6 @@ export function getMockGroupTeams(
   const botLimit = includePlayer ? 7 : 8;
   
   for (let i = 0; i < botLimit; i++) {
-    // Compact hierarchical ID generation
-    // Level 1: 100+
-    // Level 8: 80000+
     const levelBase = Math.pow(10, Math.min(level, 4));
     const botUniqueId = (level * levelBase) + (division * 10) + i;
     
@@ -159,16 +155,16 @@ export function getMockGroupTeams(
 }
 
 export function applyResult(home: any, away: any, hScore: number, aScore: number) {
-  if (hScore === 2) {
+  if (hScore === 1 && aScore === 0) {
     home.wins++;
     home.points += 3;
     away.losses++;
-  } else if (hScore === 1) {
+  } else if (hScore === 1 && aScore === 1) {
     home.draws++;
     home.points += 1;
     away.draws++;
     away.points += 1;
-  } else if (aScore === 2) {
+  } else if (aScore === 1 && hScore === 0) {
     away.wins++;
     away.points += 3;
     home.losses++;

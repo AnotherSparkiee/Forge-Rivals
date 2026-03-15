@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -50,6 +51,9 @@ export default function MatchPage() {
     }
   };
 
+  const isWin = matchResult && matchResult.scoreA === 1 && matchResult.scoreB === 0;
+  const isDraw = matchResult && matchResult.scoreA === 1 && matchResult.scoreB === 1;
+
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-12">
       <header className="mb-6 flex items-center gap-4">
@@ -99,7 +103,7 @@ export default function MatchPage() {
             disabled={team.length === 0}
             className="w-full h-16 hero-gradient font-headline font-bold text-lg border-none shadow-lg hover:opacity-90 transition-all"
           >
-            <Play className="mr-2 w-6 h-6 fill-current" />
+            <Swords className="mr-2 w-6 h-6" />
             START SIMULATION
           </Button>
         </div>
@@ -122,14 +126,14 @@ export default function MatchPage() {
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className={cn(
             "rounded-xl p-6 text-center mb-6 border",
-            matchResult.winner === "My Team" ? "bg-primary/10 border-primary/50" : "bg-destructive/10 border-destructive/50"
+            isWin ? "bg-primary/10 border-primary/50" : isDraw ? "bg-accent/10 border-accent/20" : "bg-destructive/10 border-destructive/50"
           )}>
-            <Trophy className={cn("w-16 h-16 mx-auto mb-3", matchResult.winner === "My Team" ? "text-primary" : "text-muted-foreground")} />
+            <Trophy className={cn("w-16 h-16 mx-auto mb-3", isWin ? "text-primary" : isDraw ? "text-accent" : "text-muted-foreground")} />
             <h2 className="text-3xl font-headline font-bold mb-1">
-              {matchResult.winner === "My Team" ? "VICTORY" : "DEFEAT"}
+              {isWin ? "VICTORY" : isDraw ? "DRAW" : "DEFEAT"}
             </h2>
             <p className="text-sm opacity-80 uppercase tracking-widest">
-              {matchResult.winner === "My Team" ? "+200 Credits | +25 Rank" : "+50 Credits | -15 Rank"}
+              {isWin ? "+200 Credits | +25 Rank" : isDraw ? "+100 Credits | +5 Rank" : "+50 Credits | -15 Rank"}
             </p>
           </div>
 
@@ -157,24 +161,6 @@ export default function MatchPage() {
                 <span className="text-[10px] text-muted-foreground uppercase">Towers</span>
               </CardContent>
             </Card>
-          </div>
-
-          <h3 className="text-sm font-headline uppercase text-accent mb-4">Hero Performance</h3>
-          <div className="space-y-3 mb-8">
-            {matchResult.heroPerformance.filter(p => p.teamName === "My Team").map((perf, i) => (
-              <div key={i} className="flex items-center gap-3 bg-secondary/20 p-2 rounded-lg border border-white/5">
-                <div className="w-10 h-10 rounded-full bg-muted overflow-hidden flex-shrink-0">
-                  <img src={`https://picsum.photos/seed/${perf.heroName}/100/100`} alt="" className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs font-bold uppercase">{perf.heroName}</p>
-                  <p className="text-[10px] text-muted-foreground">K/D/A: {perf.kills}/{perf.deaths}/{perf.assists}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-muted-foreground font-mono">{perf.damageDealt.toLocaleString()} DMG</p>
-                </div>
-              </div>
-            ))}
           </div>
 
           <Button onClick={() => setMatchResult(null)} variant="outline" className="w-full mb-8">

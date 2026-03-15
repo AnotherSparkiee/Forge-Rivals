@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Hero, INITIAL_HEROES } from './moba-data';
-import { getMoscowTime, getMoscowDateString } from './time-utils';
+import { getMoscowTime } from './time-utils';
 
 interface ArenaState {
   capacity: number;
@@ -200,7 +200,6 @@ export function useGameState() {
     return false;
   };
 
-  // Helper to force check constructions (can be called manually or by a timer)
   const checkConstructions = () => {
     const mskNow = getMoscowTime().getTime();
     let hasChanges = false;
@@ -225,6 +224,10 @@ export function useGameState() {
     setState(s => ({ ...s, language: lang }));
   };
 
+  const setTeam = (newTeam: any[]) => {
+    setState(s => ({ ...s, team: newTeam }));
+  };
+
   const recordMatch = (winner: string, result: any, isAutomated = false) => {
     const scoreA = result.scoreA || 0;
     const scoreB = result.scoreB || 0;
@@ -236,12 +239,13 @@ export function useGameState() {
     let matchLosses = 0;
     let matchPoints = 0;
 
-    if (scoreA === 2) {
+    // Score format strictly: 1:0 (Win), 1:1 (Draw), 0:1 (Loss)
+    if (scoreA === 1 && scoreB === 0) {
       creditsEarned = 200;
       rankChange = 25;
       matchWins = 1;
       matchPoints = 3;
-    } else if (scoreA === 1) {
+    } else if (scoreA === 1 && scoreB === 1) {
       creditsEarned = 100;
       rankChange = 5;
       matchDraws = 1;
@@ -269,6 +273,7 @@ export function useGameState() {
     ...state,
     isLoaded,
     addCredits,
+    setTeam,
     startArenaConstruction,
     upgradeArenaCapacity,
     checkConstructions,

@@ -1,10 +1,7 @@
+
 'use server';
 /**
  * @fileOverview A MOBA match simulation AI agent.
- *
- * - simulateMobaMatch - A function that handles the MOBA match simulation process.
- * - SimulateMobaMatchInput - The input type for the simulateMobaMatch function.
- * - SimulateMobaMatchOutput - The return type for the simulateMobaMatch function.
  */
 
 import {ai} from '@/ai/genkit';
@@ -50,7 +47,7 @@ const SimulateMobaMatchInputSchema = z.object({
     .describe(
       'Whether to include random in-game events that can influence the match outcome.'
     ),
-  isBo2: z.boolean().default(true).describe('Whether this is a Best of 2 series (can result in 2:0, 1:1, 0:2).'),
+  isBo2: z.boolean().default(true).describe('Whether this is a Best of 2 series (can result in 1:0, 1:1, 0:1).'),
 });
 export type SimulateMobaMatchInput = z.infer<typeof SimulateMobaMatchInputSchema>;
 
@@ -85,9 +82,9 @@ const HeroMatchPerformanceSchema = z
   .describe('Detailed performance statistics for a single hero in the match.');
 
 const SimulateMobaMatchOutputSchema = z.object({
-  winner: z.string().describe('The name of the winning team (or "Draw" in Bo2).'),
-  scoreA: z.number().describe('Maps won by Team A.'),
-  scoreB: z.number().describe('Maps won by Team B.'),
+  winner: z.string().describe('The name of the winning team (or "Draw").'),
+  scoreA: z.number().describe('Score for Team A (strictly 1 or 0).'),
+  scoreB: z.number().describe('Score for Team B (strictly 1 or 0).'),
   matchSummary: z
     .string()
     .describe(
@@ -117,7 +114,7 @@ const prompt = ai.definePrompt({
   name: 'simulateMobaMatchPrompt',
   input: {schema: SimulateMobaMatchInputSchema},
   output: {schema: SimulateMobaMatchOutputSchema},
-  prompt: `You are an expert MOBA (Multiplayer Online Battle Arena) match simulator. Your task is to simulate a MOBA match series (Best of 2) between two teams based on their roster, hero stats, strategic focus, and overall team strategy.
+  prompt: `You are an expert MOBA match simulator. Your task is to simulate a match between two teams.
 
 Consider the following input for Team A:
 Team Name: {{{teamA.name}}}
@@ -126,8 +123,6 @@ Team Heroes:
 {{#each teamA.heroes}}
 - Hero Name: {{{name}}}
   Role: {{{role}}}
-  Base Stats: Attack={{baseStats.attack}}, Defense={{baseStats.defense}}, Health={{baseStats.health}}, Ability Power={{baseStats.abilityPower}}, Speed={{baseStats.speed}}
-  Abilities Focus: {{{abilitiesFocus}}}
 {{/each}}
 
 Consider the following input for Team B:
@@ -137,19 +132,14 @@ Team Heroes:
 {{#each teamB.heroes}}
 - Hero Name: {{{name}}}
   Role: {{{role}}}
-  Base Stats: Attack={{baseStats.attack}}, Defense={{baseStats.defense}}, Health={{baseStats.health}}, Ability Power={{baseStats.abilityPower}}, Speed={{baseStats.speed}}
-  Abilities Focus: {{{abilitiesFocus}}}
 {{/each}}
 
-{{#if isBo2}}
-This is a Best of 2 series. You MUST return a score of 2-0, 1-1, or 0-2.
-- 2-0: Team A wins both maps.
-- 1-1: Draw, each team wins one map.
-- 0-2: Team B wins both maps.
-{{/if}}
+You MUST return a score of strictly 1-0, 1-1, or 0-1.
+- 1-0: Team A wins.
+- 1-1: Draw, teams are equal in performance.
+- 0-1: Team B wins.
 
-Simulate the match from start to finish. If 1-1, describe how both teams managed to secure one map each.
-Provide a detailed narrative match summary and precise statistics for both teams and individual heroes in the exact JSON format specified in the output schema.`,
+Provide a detailed narrative match summary and precise statistics for both teams and individual heroes.`,
 });
 
 const simulateMobaMatchFlow = ai.defineFlow(
