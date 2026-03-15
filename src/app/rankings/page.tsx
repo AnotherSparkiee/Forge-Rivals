@@ -1,9 +1,10 @@
 'use client';
 
 import { useGameState } from '../lib/store';
-import { BottomNav } from '@/components/game/BottomNav';
-import { Trophy, Medal, Star } from 'lucide-react';
+import { Trophy, Medal, Star, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 export default function RankingsPage() {
   const { rank, isLoaded } = useGameState();
@@ -22,13 +23,20 @@ export default function RankingsPage() {
   if (!isLoaded) return null;
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-headline font-bold flex items-center gap-2">
-          <Trophy className="text-yellow-500" />
-          LEADERBOARDS
-        </h1>
-        <p className="text-muted-foreground text-sm">Top managers in the Diamond League.</p>
+    <div className="max-w-md mx-auto px-4 pt-8 pb-12">
+      <header className="mb-6 flex items-center gap-4">
+        <Link href="/">
+          <Button variant="ghost" size="icon" className="rounded-full">
+            <ChevronLeft className="w-6 h-6" />
+          </Button>
+        </Link>
+        <div>
+          <h1 className="text-2xl font-headline font-bold flex items-center gap-2">
+            <Trophy className="text-yellow-500" />
+            LEADERBOARDS
+          </h1>
+          <p className="text-muted-foreground text-sm">Top managers in the Diamond League.</p>
+        </div>
       </header>
 
       <div className="space-y-3 mb-8">
@@ -66,8 +74,6 @@ export default function RankingsPage() {
           );
         })}
       </div>
-
-      <BottomNav />
     </div>
   );
 }

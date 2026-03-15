@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
@@ -6,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { useGameState } from './lib/store';
-import { BottomNav } from '@/components/game/BottomNav';
 import { 
   Swords, Users, UserPlus, TrendingUp, 
   Briefcase, Binoculars, Trophy, Calendar, 
@@ -94,7 +92,7 @@ function HubContent() {
   const league = LEAGUES.find(l => l.id === profile?.selectedLeagueId);
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-6 pb-24 min-h-screen bg-background text-foreground">
+    <div className="max-w-md mx-auto px-4 pt-6 pb-12 min-h-screen bg-background text-foreground">
       {/* Шапка */}
       <header className="flex justify-between items-center mb-6">
         <div className="flex flex-col">
@@ -161,8 +159,6 @@ function HubContent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <BottomNav />
     </div>
   );
 }

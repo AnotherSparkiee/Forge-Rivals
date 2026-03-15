@@ -1,14 +1,14 @@
 'use client';
 
 import { useGameState } from '../lib/store';
-import { BottomNav } from '@/components/game/BottomNav';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Sword, Shield, Activity, Sparkles, Plus, Check } from 'lucide-react';
+import { Sword, Shield, Activity, Sparkles, Plus, Check, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
+import Link from 'next/link';
 
 export default function RosterPage() {
   const { ownedHeroes, team, setTeam, isLoaded } = useGameState();
@@ -34,10 +34,17 @@ export default function RosterPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-headline font-bold">TEAM ROSTER</h1>
-        <p className="text-muted-foreground text-sm">Select up to 5 heroes for your active lineup.</p>
+    <div className="max-w-md mx-auto px-4 pt-8 pb-12">
+      <header className="mb-6 flex items-center gap-4">
+        <Link href="/">
+          <Button variant="ghost" size="icon" className="rounded-full">
+            <ChevronLeft className="w-6 h-6" />
+          </Button>
+        </Link>
+        <div>
+          <h1 className="text-2xl font-headline font-bold">TEAM ROSTER</h1>
+          <p className="text-muted-foreground text-sm">Select up to 5 heroes for your active lineup.</p>
+        </div>
       </header>
 
       <div className="flex items-center justify-between mb-4 bg-secondary/30 p-3 rounded-lg border border-white/5">
@@ -101,8 +108,6 @@ export default function RosterPage() {
           );
         })}
       </div>
-
-      <BottomNav />
     </div>
   );
 }

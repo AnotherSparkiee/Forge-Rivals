@@ -2,14 +2,14 @@
 
 import { useState } from 'react';
 import { useGameState } from '../lib/store';
-import { BottomNav } from '@/components/game/BottomNav';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Swords, Loader2, Trophy, Skull, Crosshair, Play } from 'lucide-react';
+import { Swords, Loader2, Trophy, Skull, Crosshair, Play, ChevronLeft } from 'lucide-react';
 import { simulateMobaMatch, SimulateMobaMatchOutput } from '@/ai/flows/simulate-moba-match';
 import { INITIAL_HEROES } from '../lib/moba-data';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 export default function MatchPage() {
   const { team, strategy, recordMatch, isLoaded } = useGameState();
@@ -22,7 +22,6 @@ export default function MatchPage() {
     setIsSimulating(true);
     setMatchResult(null);
     try {
-      // Mocking an opponent team for simulation
       const opponentTeam = {
         name: "Shadow Realm Challengers",
         strategy: "All-in Aggression",
@@ -52,10 +51,17 @@ export default function MatchPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-headline font-bold">WAR ROOM</h1>
-        <p className="text-muted-foreground text-sm">Deploy your team for simulation.</p>
+    <div className="max-w-md mx-auto px-4 pt-8 pb-12">
+      <header className="mb-6 flex items-center gap-4">
+        <Link href="/">
+          <Button variant="ghost" size="icon" className="rounded-full">
+            <ChevronLeft className="w-6 h-6" />
+          </Button>
+        </Link>
+        <div>
+          <h1 className="text-2xl font-headline font-bold">WAR ROOM</h1>
+          <p className="text-muted-foreground text-sm">Deploy your team for simulation.</p>
+        </div>
       </header>
 
       {!matchResult && !isSimulating && (
@@ -176,8 +182,6 @@ export default function MatchPage() {
           </Button>
         </div>
       )}
-
-      <BottomNav />
     </div>
   );
 }

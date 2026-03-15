@@ -1,10 +1,10 @@
 'use client';
 
 import { useGameState } from '../lib/store';
-import { BottomNav } from '@/components/game/BottomNav';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { User, Settings, ShieldCheck, History, LogOut, ChevronRight, Mail } from 'lucide-react';
+import { User, Settings, ShieldCheck, History, LogOut, ChevronRight, Mail, ChevronLeft } from 'lucide-react';
+import Link from 'next/link';
 
 export default function ProfilePage() {
   const { credits, rank, ownedHeroes, matchHistory, isLoaded } = useGameState();
@@ -12,8 +12,13 @@ export default function ProfilePage() {
   if (!isLoaded) return null;
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8">
-      <header className="flex flex-col items-center mb-8">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-12">
+      <header className="flex flex-col items-center mb-8 relative">
+        <Link href="/" className="absolute left-0 top-0">
+          <Button variant="ghost" size="icon" className="rounded-full">
+            <ChevronLeft className="w-6 h-6" />
+          </Button>
+        </Link>
         <div className="w-24 h-24 rounded-full border-4 border-primary/20 p-1 mb-4 bg-secondary">
           <div className="w-full h-full rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
             <User className="w-12 h-12 text-primary-foreground" />
@@ -70,8 +75,6 @@ export default function ProfilePage() {
       <Button variant="destructive" className="w-full mb-8 flex items-center gap-2">
         <LogOut className="w-4 h-4" /> LOG OUT
       </Button>
-
-      <BottomNav />
     </div>
   );
 }
