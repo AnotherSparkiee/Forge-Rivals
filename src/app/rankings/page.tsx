@@ -13,12 +13,12 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
-import { getMockGroupTeams, SEASON_DURATION_DAYS } from '../lib/leagues-data';
+import { getMockGroupTeams, SEASON_DURATION_DAYS, LEAGUES } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { getMoscowTime, formatMoscowTime } from '../lib/time-utils';
+import { getMoscowTime, formatMoscowTime, getMoscowDateString } from '../lib/time-utils';
 
 type RankingTab = 
   | 'menu'
@@ -55,9 +55,15 @@ export default function RankingsPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
+  // Find user league info
+  const userLeague = useMemo(() => {
+    if (!profile?.selectedLeagueId) return null;
+    return LEAGUES.find(l => l.id === profile.selectedLeagueId);
+  }, [profile?.selectedLeagueId]);
+
   // Check if today's match is played globally for synchronization
   const isTodayPlayed = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getMoscowDateString();
     return lastLeagueMatchDate === todayStr;
   }, [lastLeagueMatchDate]);
 
@@ -423,8 +429,14 @@ export default function RankingsPage() {
         <div className="space-y-6">
           <Card className="bg-secondary/20 border-white/5">
             <CardContent className="p-4 flex justify-between items-center">
-              <span className="text-xs uppercase font-bold text-accent">{t.bo2_format}</span>
-              <Badge variant="outline" className="text-[10px] border-primary/20 text-primary">
+              <div className="flex flex-col">
+                <span className="text-xs uppercase font-bold text-accent">{t.bo2_format}</span>
+                {userLeague && <span className="text-[10px] font-mono text-muted-foreground">{userLeague.startTime}</span>}
+              </div>
+              <Badge variant="outline" className={cn(
+                "text-[10px] border-primary/20 text-primary",
+                isTodayPlayed && "border-green-500/50 text-green-400"
+              )}>
                 {isTodayPlayed ? t.completed : t.waiting}
               </Badge>
             </CardContent>

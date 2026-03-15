@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '../lib/leagues-data';
+import { getMoscowDateString } from '../lib/time-utils';
 
 type MatchTab = 
   | 'menu'
@@ -44,7 +45,7 @@ export default function MatchesPage() {
   }, [profile?.selectedLeagueId]);
 
   const isTodayPlayed = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getMoscowDateString();
     return lastLeagueMatchDate === todayStr;
   }, [lastLeagueMatchDate]);
 
@@ -150,9 +151,6 @@ export default function MatchesPage() {
         <div className="flex flex-col items-center w-12 flex-shrink-0">
           <span className="text-[8px] uppercase font-bold text-muted-foreground">{t.day}</span>
           <span className="text-sm font-headline font-bold">{day}</span>
-          {!isPlayed && userLeague && (
-            <span className="text-[7px] text-accent font-bold mt-1 bg-accent/10 px-1 rounded">{userLeague.startTime.split(' ')[0]}</span>
-          )}
         </div>
         <div className="flex-1 flex items-center justify-between gap-2 min-w-0">
           <div className={cn("flex-1 text-right text-xs font-bold uppercase truncate", match.home.isPlayer && "text-primary")}>
@@ -166,7 +164,10 @@ export default function MatchesPage() {
                 <span className="text-lg font-headline font-bold">{aScore}</span>
               </div>
             ) : (
-              <Badge variant="outline" className="text-[8px] uppercase border-accent/20 text-accent">{t.vs}</Badge>
+              <div className="flex flex-col items-center gap-1">
+                <Badge variant="outline" className="text-[8px] uppercase border-accent/20 text-accent">{t.vs}</Badge>
+                {userLeague && <span className="text-[7px] text-muted-foreground font-mono">{userLeague.startTime.split(' ')[0]}</span>}
+              </div>
             )}
           </div>
           <div className={cn("flex-1 text-left text-xs font-bold uppercase truncate", match.away.isPlayer && "text-primary")}>
@@ -327,6 +328,22 @@ export default function MatchesPage() {
             </p>
           </div>
         </header>
+
+        <div className="mb-6">
+          <Card className="bg-secondary/20 border-white/5">
+            <CardContent className="p-3 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-[10px] uppercase border-primary/20 text-primary">Season Day {seasonDay}</Badge>
+                {userLeague && (
+                  <Badge variant="outline" className="text-[10px] uppercase border-accent/20 text-accent flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> {userLeague.startTime.split(' ')[0]}
+                  </Badge>
+                )}
+              </div>
+              <span className="text-[8px] uppercase font-bold text-muted-foreground">Div {leagueLevel}.{divisionSubId}</span>
+            </CardContent>
+          </Card>
+        </div>
 
         <div className="space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-accent px-1">{t.menuTitle}</h2>

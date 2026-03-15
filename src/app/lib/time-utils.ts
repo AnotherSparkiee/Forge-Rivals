@@ -9,6 +9,14 @@ export function getMoscowTime(): Date {
   return new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
 }
 
+export function getMoscowDateString(): string {
+  const msk = getMoscowTime();
+  const year = msk.getFullYear();
+  const month = String(msk.getMonth() + 1).padStart(2, '0');
+  const day = String(msk.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function formatMoscowTime(date: Date): string {
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -25,7 +33,7 @@ export function formatMoscowTime(date: Date): string {
  */
 export function isMatchDue(startTimeStr: string, lastMatchDateStr: string | null): boolean {
   const mskNow = getMoscowTime();
-  const todayStr = `${mskNow.getFullYear()}-${mskNow.getMonth() + 1}-${mskNow.getDate()}`;
+  const todayStr = getMoscowDateString();
   
   // If already played today, not due
   if (lastMatchDateStr === todayStr) return false;
