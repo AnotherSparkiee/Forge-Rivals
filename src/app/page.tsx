@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -7,7 +8,8 @@ import { useGameState } from './lib/store';
 import { 
   Swords, Users, Trophy, TrendingUp, 
   ShoppingCart, Newspaper, Shield, Star, 
-  ChevronRight, Wallet, Loader2, CalendarDays
+  ChevronRight, Wallet, Loader2, CalendarDays,
+  Zap, Dumbbell
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,6 +43,8 @@ export default function Home() {
       rank: "Rank",
       teamSize: "Team Size",
       battleBtn: "Enter Battle",
+      rosterBtn: "Team Roster",
+      trainingBtn: "Training Base",
       activeStrat: "Active Strategy",
       navTitle: "Navigation Terminals",
       locked: "Locked",
@@ -53,6 +57,7 @@ export default function Home() {
         { label: 'Team Stats', desc: 'Detailed performance analytics' },
         { label: 'Clubhouse', desc: 'Join associations and tournaments' },
         { label: 'News Feed', desc: 'Latest updates from the MOBA world' },
+        { label: 'Training Base', desc: 'Improve hero characteristics' },
       ]
     },
     ru: {
@@ -62,6 +67,8 @@ export default function Home() {
       rank: "Ранг",
       teamSize: "Состав",
       battleBtn: "В БОЙ",
+      rosterBtn: "РОСТЕР КОМАНДЫ",
+      trainingBtn: "ТРЕНИРОВОЧНАЯ БАЗА",
       activeStrat: "Активная стратегия",
       navTitle: "Тактические Терминалы",
       locked: "Закрыто",
@@ -74,6 +81,7 @@ export default function Home() {
         { label: 'Статистика', desc: 'Аналитика эффективности' },
         { label: 'Клуб', desc: 'Ассоциации и турниры' },
         { label: 'Новости', desc: 'События мира MOBA' },
+        { label: 'Тренировочная база', desc: 'Повышение характеристик героев' },
       ]
     }
   };
@@ -87,8 +95,6 @@ export default function Home() {
   ];
 
   const menuItems = [
-    { label: t.menu[0].label, href: '/match', icon: Swords, desc: t.menu[0].desc, active: true },
-    { label: t.menu[1].label, href: '/roster', icon: Users, desc: t.menu[1].desc, active: true },
     { label: t.menu[2].label, href: '/rankings', icon: Trophy, desc: t.menu[2].desc, active: true },
     { label: t.menu[3].label, href: '/matches', icon: CalendarDays, desc: t.menu[3].desc, active: true },
     { label: t.menu[4].label, href: '#', icon: ShoppingCart, desc: t.menu[4].desc, active: false },
@@ -116,15 +122,31 @@ export default function Home() {
         ))}
       </div>
 
-      <Link href="/match" className="block mb-8">
-        <Button className="w-full h-20 hero-gradient border-none shadow-xl hover:opacity-90 transition-all flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <Swords className="w-6 h-6" />
-            <span className="text-xl font-headline font-bold italic uppercase">{t.battleBtn}</span>
-          </div>
-          <span className="text-[10px] opacity-80 uppercase tracking-widest">{t.activeStrat}: {strategy}</span>
-        </Button>
-      </Link>
+      <div className="space-y-4 mb-12">
+        <Link href="/match" className="block">
+          <Button className="w-full h-20 hero-gradient border-none shadow-xl hover:opacity-90 transition-all flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <Swords className="w-6 h-6" />
+              <span className="text-xl font-headline font-bold italic uppercase">{t.battleBtn}</span>
+            </div>
+            <span className="text-[10px] opacity-80 uppercase tracking-widest">{t.activeStrat}: {strategy}</span>
+          </Button>
+        </Link>
+
+        <Link href="/roster" className="block">
+          <Button variant="outline" className="w-full h-16 glass-card border-primary/20 hover:bg-primary/5 transition-all flex items-center justify-start gap-4 px-6">
+            <Users className="w-6 h-6 text-primary" />
+            <span className="text-lg font-headline font-bold uppercase tracking-tighter">{t.rosterBtn}</span>
+          </Button>
+        </Link>
+
+        <Link href="/training" className="block">
+          <Button variant="outline" className="w-full h-16 glass-card border-accent/20 hover:bg-accent/5 transition-all flex items-center justify-start gap-4 px-6">
+            <Zap className="w-6 h-6 text-accent" />
+            <span className="text-lg font-headline font-bold uppercase tracking-tighter">{t.trainingBtn}</span>
+          </Button>
+        </Link>
+      </div>
 
       <div className="space-y-4">
         <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-accent px-1">{t.navTitle}</h2>

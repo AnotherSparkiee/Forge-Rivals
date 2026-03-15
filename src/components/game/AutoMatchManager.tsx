@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -5,7 +6,7 @@ import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { getMoscowTime, isMatchDue } from '@/app/lib/time-utils';
-import { LEAGUES, getMockGroupTeams, getSchedule } from '@/app/lib/leagues-data';
+import { getMockGroupTeams, getSchedule } from '@/app/lib/leagues-data';
 import { INITIAL_HEROES } from '@/app/lib/moba-data';
 import { simulateMobaMatch, SimulateMobaMatchOutput } from '@/ai/flows/simulate-moba-match';
 import { useToast } from '@/hooks/use-toast';

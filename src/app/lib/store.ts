@@ -81,7 +81,7 @@ export function useGameState() {
           const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
           currentDay = ((diffDays - 1) % 14) + 1;
         } else {
-          currentDay = 0; // Pre-season (shouldn't happen with startToday logic)
+          currentDay = 1; 
         }
 
         const isNewSeason = parsed.seasonDay && currentDay > 0 && currentDay < parsed.seasonDay;
@@ -121,6 +121,32 @@ export function useGameState() {
         credits: s.credits - hero.price,
         ownedHeroes: [...s.ownedHeroes, hero]
       }));
+      return true;
+    }
+    return false;
+  };
+
+  const upgradeHero = (heroId: string, stat: keyof Hero['baseStats'], amount: number, cost: number) => {
+    if (state.credits >= cost) {
+      setState(s => {
+        const updatedOwned = s.ownedHeroes.map(h => 
+          h.id === heroId 
+            ? { ...h, baseStats: { ...h.baseStats, [stat]: h.baseStats[stat] + amount } }
+            : h
+        );
+        const updatedTeam = s.team.map(h => 
+          h.id === heroId 
+            ? { ...h, baseStats: { ...h.baseStats, [stat]: h.baseStats[stat] + amount } }
+            : h
+        );
+
+        return {
+          ...s,
+          credits: s.credits - cost,
+          ownedHeroes: updatedOwned,
+          team: updatedTeam
+        };
+      });
       return true;
     }
     return false;
@@ -207,6 +233,7 @@ export function useGameState() {
     isLoaded,
     addCredits,
     buyHero,
+    upgradeHero,
     setTeam,
     setStrategy,
     setLanguage,
