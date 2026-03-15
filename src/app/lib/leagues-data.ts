@@ -102,17 +102,17 @@ export function getMockGroupTeams(
   const teams = [];
   const botLimit = includePlayer ? 7 : 8;
   
-  /**
-   * Compact Hierarchical ID generation:
-   * Level 1: IDs 1, 2, 3...
-   * Level 2: IDs 21, 22...
-   * Level 8: IDs 80,000,001...
-   */
-  const magnitude = Math.pow(10, level - 1);
-  
   for (let i = 0; i < botLimit; i++) {
-    // Unique ID formula: (Level prefix) + (Division offset) + (Sequence)
-    const botUniqueId = (level * magnitude) + (division * 10) + i;
+    // Compact Hierarchical ID generation:
+    // Level 1-3: Small IDs (3-4 digits)
+    // Level 4-9: Medium IDs (5-6 digits)
+    let botUniqueId;
+    if (level <= 3) {
+      botUniqueId = (level * 100) + (division % 10) * 10 + i;
+    } else {
+      botUniqueId = (level * 10000) + (division % 100) * 10 + i;
+    }
+    
     teams.push({
       id: `bot_${botUniqueId}`,
       name: `🤖bot #${botUniqueId}`,
