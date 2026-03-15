@@ -5,7 +5,7 @@ import { useGameState } from '../lib/store';
 import { 
   Trophy, Medal, Star, ChevronLeft, ArrowUpCircle, 
   Users, Target, Shield, Zap, Swords, ChevronRight,
-  LayoutDashboard, TrendingUp, Award
+  LayoutDashboard, TrendingUp, Award, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,8 @@ import Link from 'next/link';
 import { getMockGroupTeams } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
 
 type RankingTab = 
   | 'menu'
@@ -29,8 +31,13 @@ type RankingTab =
 
 export default function RankingsPage() {
   const { rank, leagueLevel, divisionSubId, groupId, isLoaded, language, promoteLeague } = useGameState();
+  const { user, isUserLoading } = useUser();
+  const db = useFirestore();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
+
+  const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   const labels = {
     en: {
@@ -90,7 +97,13 @@ export default function RankingsPage() {
     }
   };
 
-  if (!isLoaded) return null;
+  if (!isLoaded || isUserLoading || isProfileLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const renderRankingTable = () => (
     <div className="space-y-2 animate-in fade-in duration-300">
@@ -121,7 +134,7 @@ export default function RankingsPage() {
             </div>
             <div className="flex-1 min-w-0">
               <p className={cn("font-bold text-xs uppercase flex items-center gap-2 truncate", entry.isPlayer && "text-primary")}>
-                {entry.name}
+                {entry.isPlayer ? (profile?.displayName || entry.name) : entry.name}
                 {entry.isPlayer && <Star className="w-3 h-3 fill-current" />}
               </p>
             </div>
