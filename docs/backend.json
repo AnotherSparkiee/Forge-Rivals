@@ -46,6 +46,10 @@
           "type": "string",
           "description": "The ID of the league the player has joined (e.g., A1, B2)."
         },
+        "country": {
+          "type": "string",
+          "description": "The country represented by the player."
+        },
         "teamIds": {
           "type": "array",
           "description": "References to the Teams managed by this user. (Relationship: UserProfile 1:N Team)",
@@ -421,7 +425,6 @@
           ]
         }
       }
-    ],
-    "reasoning": "The Firestore data structure for Moba Tactics Online prioritizes secure, scalable, and debuggable authorization by strictly adhering to the core design principles.\n\n**Authorization Independence (CRITICAL) & Denormalization:**\nEach user-specific document (`UserProfile`, `PlayerHero`, `Team`, `Strategy`) explicitly includes a `userId` field (e.g., `PlayerHero.userId`, `Team.userId`). This denormalizes the ownership context directly into the document. While these documents are also placed in hierarchical paths like `/user_profiles/{userId}/...`, the presence of `resource.data.userId` allows for robust, atomic security rules without needing to perform `get()` operations on parent documents. This prevents rule breaks during batched writes or transactions where parent documents might not yet exist or be updated.\n\n**QAPs (Secure List Operations):**\n1.  **Private User Data:** Player-specific collections (`/user_profiles/{userId}/player_heroes`, `/user_profiles/{userId}/teams`, `/user_profiles/{userId}/strategies`) are structured hierarchically under `/user_profiles/{userId}`. This path-based ownership ensures that `list` operations implicitly filter by the authenticated user's ID (`request.auth.uid`), guaranteeing that a user can only query their own data. For example, a `list` on `/user_profiles/{request.auth.uid}/player_heroes` will only return the current user's heroes.\n2.  **Global Game Data:** The `/heroes` collection stores base hero definitions, which are read-only for all players. This collection's homogeneous security posture (read-all, admin-write) simplifies security rules significantly, as there are no mixed access requirements.\n\n**Structural Segregation & Access Modeling:**\n*   **Private Data & Hierarchical Ownership:** User-owned entities (`UserProfile`, `PlayerHero`, `Team`, `Strategy`) are organized under a top-level `/user_profiles/{userId}` collection. This establishes a clear 1:N relationship, where `UserProfile` is the 'parent' of `PlayerHero`, `Team`, and `Strategy` in terms of ownership, simplifying security rules to `request.auth.uid == userId` for all subcollections.\n*   **Global, Public Read Data:** Base `Hero` entities are stored in a dedicated root collection `/heroes`, providing universal read access to all players for game content while allowing administrative control for writes.\n*   **DBAC (Database Access Control):** For potential future administrative roles (e.g., for managing `/heroes` content), a separate collection like `/roles_admin/{uid}` would be used. The mere existence of a document at this path would grant the `uid` admin privileges, adhering to the 'Existence over Content' principle.\n\n**Data Clarity and Predictability:**\n*   Consistent naming conventions are used (e.g., `userId` for owner references, descriptive wildcards like `{userId}`, `{playerHeroId}`).\n*   Schemas are predictable, avoiding dynamic keys. All relationships are managed through explicit IDs within documents or via hierarchical paths."
+    ]
   }
 }

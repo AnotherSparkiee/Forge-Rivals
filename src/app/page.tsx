@@ -8,7 +8,7 @@ import { doc } from 'firebase/firestore';
 import { useGameState } from './lib/store';
 import { BottomNav } from '@/components/game/BottomNav';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Coins, Trophy, Swords, Shield, Zap, Loader2, Clock } from 'lucide-react';
+import { Coins, Trophy, Swords, Shield, Zap, Loader2, Clock, Globe } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -30,7 +30,7 @@ export default function Home() {
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
-    if (profile && !profile.selectedLeagueId && !isProfileLoading) {
+    if (profile && (!profile.selectedLeagueId || !profile.country) && !isProfileLoading) {
       router.push('/setup');
     }
   }, [profile, isProfileLoading, router]);
@@ -51,7 +51,10 @@ export default function Home() {
       <header className="flex justify-between items-end mb-8">
         <div>
           <h1 className="text-3xl font-headline font-bold text-foreground tracking-tighter uppercase">Командный Центр</h1>
-          <p className="text-muted-foreground text-xs uppercase tracking-tighter italic">Тактический HUD: Активен</p>
+          <div className="flex items-center gap-2 mt-1">
+            <Globe className="w-3 h-3 text-accent" />
+            <p className="text-muted-foreground text-[10px] uppercase tracking-tighter italic">Тактический HUD: {profile?.country || 'Глобальный'}</p>
+          </div>
         </div>
         <div className="flex items-center gap-2 bg-secondary/50 px-3 py-1 rounded-full border border-white/5">
           <Coins className="w-4 h-4 text-yellow-500" />
@@ -78,7 +81,7 @@ export default function Home() {
                 <Clock className="w-4 h-4 text-primary" />
                 <span className="text-xs font-medium">Время игры: {league?.startTime}</span>
               </div>
-              <span className="text-[10px] text-muted-foreground uppercase">Прогресс до Diamond</span>
+              <span className="text-[10px] text-muted-foreground uppercase">Лига: {profile?.country}</span>
             </div>
             <Progress value={65} className="h-2" />
           </CardContent>
@@ -125,7 +128,7 @@ export default function Home() {
         <h2 className="text-sm font-headline font-bold uppercase tracking-widest text-accent">Сводка разведки</h2>
         <Card className="glass-card">
           <CardContent className="p-4 text-xs text-muted-foreground italic leading-relaxed">
-            "Добро пожаловать, Командир {profile?.username || user?.email?.split('@')[0]}. Нейролинк стабилен. Ваша команда ожидает приказов для участия в Лиге {league?.id}."
+            "Добро пожаловать, Командир {profile?.username || user?.email?.split('@')[0]}. Нейролинк стабилен. Представляемый регион: {profile?.country}. Ваша команда ожидает приказов для участия в Лиге {league?.id}."
           </CardContent>
         </Card>
       </section>
