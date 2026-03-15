@@ -1,12 +1,13 @@
-
 /**
  * Utility to handle Moscow Time (MSK) formatting and calculations.
  */
 
 export function getMoscowTime(): Date {
-  // Moscow is UTC+3
+  // Moscow is UTC+3. We calculate it by taking the UTC time and adding 3 hours.
   const now = new Date();
-  return new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const mskOffset = 3 * 3600000;
+  return new Date(utc + mskOffset);
 }
 
 export function getMoscowDateString(): string {
@@ -29,7 +30,7 @@ export function formatMoscowTime(date: Date): string {
 
 /**
  * Checks if a match should be triggered based on league start time
- * Example startTime: "08:00 - 12:00" -> match starts at 08:00
+ * Example startTime: "23:00" -> match starts at 23:00 MSK
  */
 export function isMatchDue(startTimeStr: string, lastMatchDateStr: string | null): boolean {
   const mskNow = getMoscowTime();
@@ -41,5 +42,6 @@ export function isMatchDue(startTimeStr: string, lastMatchDateStr: string | null
   const matchHour = parseInt(startTimeStr.split(':')[0], 10);
   const currentHour = mskNow.getHours();
 
+  // Trigger if we are at or past the match hour
   return currentHour >= matchHour;
 }

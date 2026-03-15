@@ -13,7 +13,7 @@ import {
   Dialog, DialogContent, DialogFooter 
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Trophy, Skull, Crosshair, Swords, Clock } from 'lucide-react';
+import { Trophy, Skull, Crosshair, Swords, Clock, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function AutoMatchManager() {
@@ -43,6 +43,12 @@ export function AutoMatchManager() {
 
   const triggerAutoMatch = async () => {
     setIsSimulating(true);
+    
+    toast({
+      title: language === 'ru' ? "Синхронизация матча..." : "Match Syncing...",
+      description: language === 'ru' ? "Начало оперативного развертывания (23:00 MSK)" : "Deployment window open (23:00 MSK)",
+    });
+
     try {
       const groupTeams = getMockGroupTeams(
         rank, profile?.displayName || "My Team", leagueLevel, divisionSubId, groupId, true, seasonDay
@@ -83,6 +89,11 @@ export function AutoMatchManager() {
       });
     } catch (e) {
       console.error("Auto simulation failed", e);
+      toast({
+        variant: "destructive",
+        title: language === 'ru' ? "Ошибка симуляции" : "Simulation Error",
+        description: language === 'ru' ? "Сбой канала связи с сервером." : "Command link failure.",
+      });
     } finally {
       setIsSimulating(false);
     }
@@ -94,6 +105,19 @@ export function AutoMatchManager() {
     date.setDate(date.getDate() + (day - 1));
     return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
   };
+
+  if (isSimulating) {
+    return (
+      <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in zoom-in">
+        <Badge variant="outline" className="bg-background/90 backdrop-blur border-primary text-primary px-4 py-2 flex items-center gap-2 shadow-2xl">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          <span className="text-[10px] font-bold uppercase tracking-widest">
+            {language === 'ru' ? 'Идет симуляция матча 23:00' : 'Simulating 23:00 Match'}
+          </span>
+        </Badge>
+      </div>
+    );
+  }
 
   if (!currentResult) return null;
 
