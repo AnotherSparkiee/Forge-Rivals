@@ -107,9 +107,18 @@ export function useGameState() {
 
         const isNewSeason = parsed.seasonDay && currentDay > 0 && currentDay < parsed.seasonDay;
 
-        // Check for finished constructions
-        const updatedArena = parsed.arena || DEFAULT_ARENA;
-        const constructionFinishes = updatedArena.constructionFinishes || {};
+        // Safely merge arena state with defaults to ensure constructionFinishes exists
+        const rawArena = parsed.arena || {};
+        const updatedArena: ArenaState = {
+          ...DEFAULT_ARENA,
+          ...rawArena,
+          constructionFinishes: {
+            ...(DEFAULT_ARENA.constructionFinishes),
+            ...(rawArena.constructionFinishes || {})
+          }
+        };
+
+        const constructionFinishes = updatedArena.constructionFinishes;
         const newArenaLevels = { ...updatedArena };
         const newConstructionFinishes = { ...constructionFinishes };
         let hasChanges = false;
@@ -203,7 +212,7 @@ export function useGameState() {
     const mskNow = getMoscowTime().getTime();
     let hasChanges = false;
     const newArena = { ...state.arena };
-    const newFinishes = { ...newArena.constructionFinishes };
+    const newFinishes = { ...(newArena.constructionFinishes || {}) };
 
     Object.entries(newFinishes).forEach(([facility, finishTime]) => {
       if (finishTime && mskNow >= new Date(finishTime as string).getTime()) {

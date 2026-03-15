@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -187,9 +186,9 @@ export default function ArenaPage() {
 
       <div className="space-y-3">
         {facilityList.map((item) => {
-          const level = (arena as any)[item.id];
+          const level = (arena as any)[item.id] || 0;
           const data = t.items[item.id as keyof typeof t.items];
-          const finishTime = arena.constructionFinishes[item.id];
+          const finishTime = arena.constructionFinishes?.[item.id];
           const isConstructing = !!finishTime;
 
           return (
@@ -217,7 +216,7 @@ export default function ArenaPage() {
                   </div>
                 </div>
                 
-                {isConstructing ? (
+                {isConstructing && finishTime ? (
                   <div className="text-right">
                     <p className="text-[7px] uppercase text-muted-foreground font-bold">{t.finishAt}</p>
                     <p className="text-[9px] font-mono font-bold text-orange-400">{formatFinishTime(finishTime)}</p>
@@ -264,20 +263,20 @@ export default function ArenaPage() {
                 <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
                    <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.cost}</p>
                    <p className="text-sm font-headline font-bold text-accent">
-                     € {(15000 * ((arena as any)[selectedFacility] + 1)).toLocaleString()}
+                     € {(15000 * (((arena as any)[selectedFacility] || 0) + 1)).toLocaleString()}
                    </p>
                 </div>
                 <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
                    <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.duration}</p>
                    <p className="text-sm font-headline font-bold text-primary flex items-center justify-center gap-1">
-                     <Clock className="w-3 h-3" /> {4 * ((arena as any)[selectedFacility] + 1)} {t.hours}
+                     <Clock className="w-3 h-3" /> {4 * (((arena as any)[selectedFacility] || 0) + 1)} {t.hours}
                    </p>
                 </div>
               </div>
 
               <div className="pt-2">
                 <p className="text-[9px] text-center text-muted-foreground uppercase font-bold tracking-widest">
-                  {t.level}: {(arena as any)[selectedFacility]} <span className="text-primary">→ {(arena as any)[selectedFacility] + 1}</span>
+                  {t.level}: {(arena as any)[selectedFacility] || 0} <span className="text-primary">→ {((arena as any)[selectedFacility] || 0) + 1}</span>
                 </p>
               </div>
             </div>
