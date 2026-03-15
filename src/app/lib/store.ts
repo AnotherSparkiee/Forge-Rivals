@@ -57,7 +57,7 @@ const DEFAULT_ARENA: ArenaState = {
 };
 
 const DEFAULT_STATE: GameState = {
-  credits: 500,
+  credits: 50000, // Increased for better prototyping of arena upgrades
   ownedHeroes: INITIAL_HEROES,
   team: INITIAL_HEROES,
   strategy: 'Balanced Play',

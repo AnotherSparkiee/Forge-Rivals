@@ -1,12 +1,16 @@
 
 'use client';
 
+import { useState } from 'react';
 import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
+} from '@/components/ui/dialog';
+import { 
   ChevronLeft, Users, MessageSquare, Coffee, ShoppingBag, 
-  Monitor, Home, Lightbulb, ArrowUpCircle, Wallet
+  Monitor, Home, Lightbulb, ArrowUpCircle, Wallet, Clock
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
@@ -17,6 +21,8 @@ export default function ArenaPage() {
     arena, credits, upgradeArenaCapacity, upgradeArenaFacility, language, isLoaded 
   } = useGameState();
   const { toast } = useToast();
+  
+  const [selectedFacility, setSelectedFacility] = useState<string | null>(null);
 
   if (!isLoaded) return null;
 
@@ -28,17 +34,20 @@ export default function ArenaPage() {
       upgrade: "Upgrade",
       level: "Level",
       cost: "Cost",
+      duration: "Duration",
+      hours: "hours",
+      confirm: "Confirm Build",
       facilities: "Facility Development",
-      success: "Upgrade Successful",
+      success: "Construction Started",
       error: "Insufficient Credits",
       items: {
-        capacity: { label: "Stadium Expansion", desc: "+500 Seats per upgrade" },
-        pressCenterLevel: { label: "Press Center", desc: "Attracts more media and fans" },
-        cafeLevel: { label: "Food Court", desc: "Increases matchday revenue" },
-        shopLevel: { label: "Fan Shop", desc: "Higher merchandise sales" },
-        screensLevel: { label: "Digital Screens", desc: "Better fan engagement" },
-        roofLevel: { label: "Stadium Roof", desc: "Protects from bad weather" },
-        lightingLevel: { label: "Lighting System", desc: "Enables HD broadcasts" }
+        capacity: { label: "Stadium Expansion", desc: "Adds 500 additional seats to increase matchday ticket revenue." },
+        pressCenterLevel: { label: "Press Center", desc: "Increases media coverage and attracts more elite fans, boosting overall match income." },
+        cafeLevel: { label: "Food Court", desc: "Provides high-quality catering services, significantly increasing matchday catering revenue." },
+        shopLevel: { label: "Fan Shop", desc: "Boosts merchandise sales and team popularity among the local community." },
+        screensLevel: { label: "Digital Screens", desc: "Improves fan engagement and attracts higher-paying sponsors for digital advertising." },
+        roofLevel: { label: "Stadium Roof", desc: "Ensures maximum comfort and attendance stability during bad weather conditions." },
+        lightingLevel: { label: "Lighting System", desc: "Enables high-definition broadcasts and prime-time evening match slots." }
       }
     },
     ru: {
@@ -48,17 +57,20 @@ export default function ArenaPage() {
       upgrade: "Улучшить",
       level: "Уровень",
       cost: "Стоимость",
+      duration: "Длительность",
+      hours: "ч",
+      confirm: "Начать постройку",
       facilities: "Развитие инфраструктуры",
-      success: "Улучшение завершено",
+      success: "Строительство начато",
       error: "Недостаточно кредитов",
       items: {
-        capacity: { label: "Расширение стадиона", desc: "+500 мест за улучшение" },
-        pressCenterLevel: { label: "Пресс-центр", desc: "Привлекает СМИ и фанатов" },
-        cafeLevel: { label: "Кафе и фуд-корт", desc: "Доход в дни матчей" },
-        shopLevel: { label: "Магазин атрибутики", desc: "Продажи мерчандайзинга" },
-        screensLevel: { label: "Экраны и табло", desc: "Вовлеченность зрителей" },
-        roofLevel: { label: "Крыша стадиона", desc: "Защита от непогоды" },
-        lightingLevel: { label: "Система освещения", desc: "HD-трансляции игр" }
+        capacity: { label: "Расширение стадиона", desc: "Добавляет 500 дополнительных мест, что увеличивает выручку от продажи билетов." },
+        pressCenterLevel: { label: "Пресс-центр", desc: "Улучшает освещение в СМИ и привлекает больше фанатов, повышая общий доход." },
+        cafeLevel: { label: "Кафе и фуд-корт", desc: "Обеспечивает качественное питание, значительно увеличивая доход от кейтеринга в дни матчей." },
+        shopLevel: { label: "Магазин атрибутики", desc: "Увеличивает продажи мерчандайзинга и популярность команды среди местного населения." },
+        screensLevel: { label: "Экраны и табло", desc: "Улучшает вовлеченность зрителей и привлекает более дорогих спонсоров для цифровой рекламы." },
+        roofLevel: { label: "Крыша стадиона", desc: "Обеспечивает максимальный комфорт и стабильную посещаемость в любых погодных условиях." },
+        lightingLevel: { label: "Система освещения", desc: "Позволяет проводить качественные HD-трансляции и матчи в прайм-тайм." }
       }
     }
   };
@@ -66,7 +78,7 @@ export default function ArenaPage() {
   const t = labels[language as keyof typeof labels] || labels.ru;
 
   const handleUpgradeCapacity = () => {
-    const cost = 1000;
+    const cost = 15000;
     if (upgradeArenaCapacity(cost)) {
       toast({ title: t.success, description: `+500 seats added.` });
     } else {
@@ -74,11 +86,15 @@ export default function ArenaPage() {
     }
   };
 
-  const handleUpgradeFacility = (facility: any) => {
-    const currentLevel = (arena as any)[facility];
-    const cost = 500 * (currentLevel + 1);
-    if (upgradeArenaFacility(facility, cost)) {
-      toast({ title: t.success, description: `${t.items[facility as keyof typeof t.items].label} level increased.` });
+  const executeUpgrade = () => {
+    if (!selectedFacility) return;
+    
+    const currentLevel = (arena as any)[selectedFacility];
+    const cost = 15000 * (currentLevel + 1);
+    
+    if (upgradeArenaFacility(selectedFacility as any, cost)) {
+      toast({ title: t.success, description: `${t.items[selectedFacility as keyof typeof t.items].label} level increased.` });
+      setSelectedFacility(null);
     } else {
       toast({ title: t.error, variant: "destructive" });
     }
@@ -126,12 +142,12 @@ export default function ArenaPage() {
           </div>
           <Button 
             onClick={handleUpgradeCapacity}
-            className="w-full hero-gradient font-bold h-12 flex items-center justify-between px-6"
+            className="w-full hero-gradient font-bold h-12 flex items-center justify-between px-6 shadow-lg shadow-primary/20"
           >
             <span className="flex items-center gap-2">
               <ArrowUpCircle className="w-4 h-4" /> {t.upgrade}
             </span>
-            <span className="font-mono text-xs">€ 1,000</span>
+            <span className="font-mono text-xs">€ 15,000</span>
           </Button>
           <p className="text-[10px] text-center mt-3 text-muted-foreground italic">
             {t.items.capacity.desc}
@@ -146,21 +162,19 @@ export default function ArenaPage() {
       <div className="space-y-3">
         {facilityList.map((item) => {
           const level = (arena as any)[item.id];
-          const cost = 500 * (level + 1);
           const data = t.items[item.id as keyof typeof t.items];
 
           return (
-            <Card key={item.id} className="glass-card border-white/5 overflow-hidden">
+            <Card key={item.id} className="glass-card border-white/5 overflow-hidden group hover:border-primary/30 transition-all">
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className={`p-2.5 rounded-xl bg-secondary/50 border border-white/5 ${item.color}`}>
+                  <div className={`p-2.5 rounded-xl bg-secondary/50 border border-white/5 ${item.color} group-hover:scale-110 transition-transform`}>
                     <item.icon className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold uppercase">{data.label}</h3>
+                    <h3 className="text-sm font-bold uppercase tracking-tight">{data.label}</h3>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <Badge variant="secondary" className="text-[9px] h-4 py-0 uppercase">LVL {level}</Badge>
-                      <p className="text-[9px] text-muted-foreground italic">{data.desc}</p>
+                      <Badge variant="secondary" className="text-[9px] h-4 py-0 uppercase bg-primary/10 text-primary">LVL {level}</Badge>
                     </div>
                   </div>
                 </div>
@@ -168,18 +182,68 @@ export default function ArenaPage() {
                   size="sm" 
                   variant="outline" 
                   className="h-9 px-3 border-white/10 hover:bg-primary/10 hover:border-primary/30"
-                  onClick={() => handleUpgradeFacility(item.id)}
+                  onClick={() => setSelectedFacility(item.id)}
                 >
-                  <div className="flex flex-col items-center leading-none">
-                    <span className="text-[9px] uppercase font-bold text-primary mb-0.5">{t.upgrade}</span>
-                    <span className="text-[8px] font-mono opacity-70">€{cost}</span>
-                  </div>
+                  <span className="text-[9px] uppercase font-bold text-primary">{t.upgrade}</span>
                 </Button>
               </CardContent>
             </Card>
           );
         })}
       </div>
+
+      {/* Upgrade Modal */}
+      <Dialog open={!!selectedFacility} onOpenChange={() => setSelectedFacility(null)}>
+        {selectedFacility && (
+          <DialogContent className="max-w-xs bg-card border-white/5 p-0 overflow-hidden">
+            <div className="h-24 hero-gradient flex items-center justify-center relative">
+              {(() => {
+                const item = facilityList.find(f => f.id === selectedFacility);
+                const Icon = item?.icon || Home;
+                return <Icon className="w-12 h-12 text-primary-foreground drop-shadow-lg" />;
+              })()}
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <DialogHeader>
+                <DialogTitle className="text-center font-headline font-bold text-xl uppercase tracking-tighter">
+                  {t.items[selectedFacility as keyof typeof t.items].label}
+                </DialogTitle>
+                <DialogDescription className="text-center text-xs leading-relaxed italic mt-2">
+                  {t.items[selectedFacility as keyof typeof t.items].desc}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/5">
+                <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
+                   <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.cost}</p>
+                   <p className="text-sm font-headline font-bold text-accent">
+                     € {(15000 * ((arena as any)[selectedFacility] + 1)).toLocaleString()}
+                   </p>
+                </div>
+                <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
+                   <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.duration}</p>
+                   <p className="text-sm font-headline font-bold text-primary flex items-center justify-center gap-1">
+                     <Clock className="w-3 h-3" /> {4 * ((arena as any)[selectedFacility] + 1)} {t.hours}
+                   </p>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <p className="text-[9px] text-center text-muted-foreground uppercase font-bold tracking-widest">
+                  {t.level}: {(arena as any)[selectedFacility]} <span className="text-primary">→ {(arena as any)[selectedFacility] + 1}</span>
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter className="p-4 bg-secondary/20 sm:justify-center">
+              <Button onClick={executeUpgrade} className="w-full hero-gradient font-bold h-12">
+                {t.confirm}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }
