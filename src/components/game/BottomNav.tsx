@@ -4,16 +4,23 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Users, Swords, Trophy, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useGameState } from '@/app/lib/store';
 
 export function BottomNav() {
   const pathname = usePathname();
+  const { language } = useGameState();
+
+  const labels = {
+    en: { hub: 'Hub', roster: 'Roster', battle: 'Battle', rank: 'Rank', profile: 'Profile' },
+    ru: { hub: 'Главная', roster: 'Герои', battle: 'Битва', rank: 'Рейтинг', profile: 'Профиль' }
+  }[language];
 
   const navItems = [
-    { href: '/', icon: LayoutDashboard, label: 'Hub' },
-    { href: '/roster', icon: Users, label: 'Roster' },
-    { href: '/match', icon: Swords, label: 'Battle' },
-    { href: '/rankings', icon: Trophy, label: 'Rank' },
-    { href: '/profile', icon: User, label: 'Profile' },
+    { href: '/', icon: LayoutDashboard, label: labels.hub },
+    { href: '/roster', icon: Users, label: labels.roster },
+    { href: '/match', icon: Swords, label: labels.battle },
+    { href: '/rankings', icon: Trophy, label: labels.rank },
+    { href: '/profile', icon: User, label: labels.profile },
   ];
 
   return (

@@ -10,6 +10,7 @@ interface GameState {
   strategy: string;
   rank: number;
   matchHistory: any[];
+  language: 'en' | 'ru';
 }
 
 export function useGameState() {
@@ -19,7 +20,8 @@ export function useGameState() {
     team: INITIAL_HEROES,
     strategy: 'Balanced Play',
     rank: 1000,
-    matchHistory: []
+    matchHistory: [],
+    language: 'ru'
   });
 
   const [isLoaded, setIsLoaded] = useState(false);
@@ -62,8 +64,12 @@ export function useGameState() {
     setState(s => ({ ...s, strategy }));
   };
 
+  const setLanguage = (lang: 'en' | 'ru') => {
+    setState(s => ({ ...s, language: lang }));
+  };
+
   const recordMatch = (winner: string, result: any) => {
-    const isWin = winner === 'My Team';
+    const isWin = winner === 'My Team' || winner === 'Моя Команда';
     setState(s => ({
       ...s,
       credits: s.credits + (isWin ? 200 : 50),
@@ -79,6 +85,7 @@ export function useGameState() {
     buyHero,
     setTeam,
     setStrategy,
+    setLanguage,
     recordMatch
   };
 }

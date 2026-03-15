@@ -12,31 +12,74 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 
 export default function Home() {
-  const { credits, rank, team, strategy, isLoaded } = useGameState();
+  const { credits, rank, team, strategy, language, isLoaded } = useGameState();
 
   if (!isLoaded) return null;
 
+  const t = {
+    en: {
+      title: "Command Center",
+      subtitle: "Tactical Operations Hub",
+      credits: "Credits",
+      rank: "Rank",
+      teamSize: "Team Size",
+      battleBtn: "Enter Battle",
+      activeStrat: "Active Strategy",
+      navTitle: "Navigation Terminals",
+      locked: "Locked",
+      menu: [
+        { label: 'Battle Simulation', desc: 'Deploy team for automated matches' },
+        { label: 'Team Roster', desc: 'Manage your active hero lineup' },
+        { label: 'Leaderboards', desc: 'Check your standing in the league' },
+        { label: 'Marketplace', desc: 'Purchase new heroes and boosts' },
+        { label: 'Team Stats', desc: 'Detailed performance analytics' },
+        { label: 'Clubhouse', desc: 'Join associations and tournaments' },
+        { label: 'News Feed', desc: 'Latest updates from the MOBA world' },
+      ]
+    },
+    ru: {
+      title: "Командный Центр",
+      subtitle: "Хаб Тактических Операций",
+      credits: "Кредиты",
+      rank: "Ранг",
+      teamSize: "Состав",
+      battleBtn: "В БОЙ",
+      activeStrat: "Активная стратегия",
+      navTitle: "Тактические Терминалы",
+      locked: "Закрыто",
+      menu: [
+        { label: 'Боевая Симуляция', desc: 'Развертывание команды для матча' },
+        { label: 'Ростер Команды', desc: 'Управление активным составом' },
+        { label: 'Таблица Лидеров', desc: 'Ваше положение в лиге' },
+        { label: 'Магазин', desc: 'Покупка героев и бонусов' },
+        { label: 'Статистика', desc: 'Аналитика эффективности' },
+        { label: 'Клуб', desc: 'Ассоциации и турниры' },
+        { label: 'Новости', desc: 'События мира MOBA' },
+      ]
+    }
+  }[language];
+
   const quickStats = [
-    { label: 'Credits', value: credits, icon: Wallet, color: 'text-yellow-400' },
-    { label: 'Rank', value: rank, icon: Star, color: 'text-primary' },
-    { label: 'Team Size', value: `${team.length}/5`, icon: Users, color: 'text-accent' },
+    { label: t.credits, value: credits, icon: Wallet, color: 'text-yellow-400' },
+    { label: t.rank, value: rank, icon: Star, color: 'text-primary' },
+    { label: t.teamSize, value: `${team.length}/5`, icon: Users, color: 'text-accent' },
   ];
 
   const menuItems = [
-    { label: 'Battle Simulation', href: '/match', icon: Swords, desc: 'Deploy team for automated matches', active: true },
-    { label: 'Team Roster', href: '/roster', icon: Users, desc: 'Manage your active hero lineup', active: true },
-    { label: 'Leaderboards', href: '/rankings', icon: Trophy, desc: 'Check your standing in the league', active: true },
-    { label: 'Marketplace', href: '#', icon: ShoppingCart, desc: 'Purchase new heroes and boosts', active: false },
-    { label: 'Team Stats', href: '#', icon: TrendingUp, desc: 'Detailed performance analytics', active: false },
-    { label: 'Clubhouse', href: '#', icon: Shield, desc: 'Join associations and tournaments', active: false },
-    { label: 'News Feed', href: '#', icon: Newspaper, desc: 'Latest updates from the MOBA world', active: false },
+    { label: t.menu[0].label, href: '/match', icon: Swords, desc: t.menu[0].desc, active: true },
+    { label: t.menu[1].label, href: '/roster', icon: Users, desc: t.menu[1].desc, active: true },
+    { label: t.menu[2].label, href: '/rankings', icon: Trophy, desc: t.menu[2].desc, active: true },
+    { label: t.menu[3].label, href: '#', icon: ShoppingCart, desc: t.menu[3].desc, active: false },
+    { label: t.menu[4].label, href: '#', icon: TrendingUp, desc: t.menu[4].desc, active: false },
+    { label: t.menu[5].label, href: '#', icon: Shield, desc: t.menu[5].desc, active: false },
+    { label: t.menu[6].label, href: '#', icon: Newspaper, desc: t.menu[6].desc, active: false },
   ];
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-12">
       <header className="mb-8">
-        <h1 className="text-3xl font-headline font-bold tracking-tighter text-primary uppercase">Command Center</h1>
-        <p className="text-muted-foreground text-sm uppercase tracking-widest">Tactical Operations Hub</p>
+        <h1 className="text-3xl font-headline font-bold tracking-tighter text-primary uppercase">{t.title}</h1>
+        <p className="text-muted-foreground text-sm uppercase tracking-widest">{t.subtitle}</p>
       </header>
 
       {/* Quick Stats Grid */}
@@ -57,15 +100,15 @@ export default function Home() {
         <Button className="w-full h-20 hero-gradient border-none shadow-xl hover:opacity-90 transition-all flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <Swords className="w-6 h-6" />
-            <span className="text-xl font-headline font-bold italic uppercase">Enter Battle</span>
+            <span className="text-xl font-headline font-bold italic uppercase">{t.battleBtn}</span>
           </div>
-          <span className="text-[10px] opacity-80 uppercase tracking-widest">Active Strategy: {strategy}</span>
+          <span className="text-[10px] opacity-80 uppercase tracking-widest">{t.activeStrat}: {strategy}</span>
         </Button>
       </Link>
 
       {/* Hub Navigation */}
       <div className="space-y-4">
-        <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-accent px-1">Navigation Terminals</h2>
+        <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-accent px-1">{t.navTitle}</h2>
         <div className="space-y-2">
           {menuItems.map((item) => (
             <Link 
@@ -87,7 +130,7 @@ export default function Home() {
                   {item.active ? (
                     <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   ) : (
-                    <Badge variant="outline" className="text-[8px] uppercase">Locked</Badge>
+                    <Badge variant="outline" className="text-[8px] uppercase">{t.locked}</Badge>
                   )}
                 </CardContent>
               </Card>
