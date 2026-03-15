@@ -1,10 +1,13 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useUser } from '@/firebase';
 import { useGameState } from './lib/store';
 import { 
   Swords, Users, Trophy, TrendingUp, 
   ShoppingCart, Newspaper, Shield, Star, 
-  ChevronRight, Wallet
+  ChevronRight, Wallet, Loader2
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,9 +15,23 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 
 export default function Home() {
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
   const { credits, rank, team, strategy, language, isLoaded } = useGameState();
 
-  if (!isLoaded) return null;
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
+
+  if (isUserLoading || !isLoaded || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const translations = {
     en: {
@@ -59,7 +76,6 @@ export default function Home() {
     }
   };
 
-  // Фолбек на русский, если язык не определен
   const t = translations[language as keyof typeof translations] || translations.ru;
 
   const quickStats = [
@@ -85,7 +101,6 @@ export default function Home() {
         <p className="text-muted-foreground text-sm uppercase tracking-widest">{t.subtitle}</p>
       </header>
 
-      {/* Quick Stats Grid */}
       <div className="grid grid-cols-3 gap-3 mb-8">
         {quickStats.map((stat) => (
           <Card key={stat.label} className="glass-card">
@@ -98,7 +113,6 @@ export default function Home() {
         ))}
       </div>
 
-      {/* Primary Action */}
       <Link href="/match" className="block mb-8">
         <Button className="w-full h-20 hero-gradient border-none shadow-xl hover:opacity-90 transition-all flex flex-col gap-1">
           <div className="flex items-center gap-2">
@@ -109,7 +123,6 @@ export default function Home() {
         </Button>
       </Link>
 
-      {/* Hub Navigation */}
       <div className="space-y-4">
         <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-accent px-1">{t.navTitle}</h2>
         <div className="space-y-2">

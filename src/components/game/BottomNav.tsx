@@ -5,10 +5,17 @@ import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Users, Swords, Trophy, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGameState } from '@/app/lib/store';
+import { useUser } from '@/firebase';
 
 export function BottomNav() {
   const pathname = usePathname();
   const { language } = useGameState();
+  const { user, isUserLoading } = useUser();
+
+  // Hide nav if user is not logged in or we are on auth pages
+  if (isUserLoading || !user || pathname?.startsWith('/auth')) {
+    return null;
+  }
 
   const translations = {
     en: { hub: 'Hub', roster: 'Roster', battle: 'Battle', rank: 'Rank', profile: 'Profile' },
