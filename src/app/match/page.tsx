@@ -5,11 +5,11 @@ import { useGameState } from '../lib/store';
 import { BottomNav } from '@/components/game/BottomNav';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Swords, Loader2, Trophy, Skull, Crosshair, ChevronRight, Play } from 'lucide-react';
+import { Swords, Loader2, Trophy, Skull, Crosshair, Play } from 'lucide-react';
 import { simulateMobaMatch, SimulateMobaMatchOutput } from '@/ai/flows/simulate-moba-match';
 import { INITIAL_HEROES } from '../lib/moba-data';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 export default function MatchPage() {
   const { team, strategy, recordMatch, isLoaded } = useGameState();
