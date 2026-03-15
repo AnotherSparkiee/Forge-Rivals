@@ -42,8 +42,6 @@ export default function Home() {
       rank: "Rank",
       teamSize: "Team Size",
       battleBtn: "Enter Battle",
-      rosterBtn: "Team Roster",
-      trainingBtn: "Training Base",
       activeStrat: "Active Strategy",
       navTitle: "Navigation Terminals",
       locked: "Locked",
@@ -66,8 +64,6 @@ export default function Home() {
       rank: "Ранг",
       teamSize: "Состав",
       battleBtn: "В БОЙ",
-      rosterBtn: "РОСТЕР КОМАНДЫ",
-      trainingBtn: "ТРЕНИРОВОЧНАЯ БАЗА",
       activeStrat: "Активная стратегия",
       navTitle: "Тактические Терминалы",
       locked: "Закрыто",
@@ -94,6 +90,8 @@ export default function Home() {
   ];
 
   const menuItems = [
+    { label: t.menu[1].label, href: '/roster', icon: Users, desc: t.menu[1].desc, active: true },
+    { label: t.menu[8].label, href: '/training', icon: Zap, desc: t.menu[8].desc, active: true },
     { label: t.menu[2].label, href: '/rankings', icon: Trophy, desc: t.menu[2].desc, active: true },
     { label: t.menu[3].label, href: '/matches', icon: CalendarDays, desc: t.menu[3].desc, active: true },
     { label: t.menu[4].label, href: '#', icon: ShoppingCart, desc: t.menu[4].desc, active: false },
@@ -129,20 +127,6 @@ export default function Home() {
               <span className="text-xl font-headline font-bold italic uppercase">{t.battleBtn}</span>
             </div>
             <span className="text-[10px] opacity-80 uppercase tracking-widest">{t.activeStrat}: {strategy}</span>
-          </Button>
-        </Link>
-
-        <Link href="/roster" className="block">
-          <Button variant="outline" className="w-full h-16 glass-card border-primary/20 hover:bg-primary/5 transition-all flex items-center justify-start gap-4 px-6">
-            <Users className="w-6 h-6 text-primary" />
-            <span className="text-lg font-headline font-bold uppercase tracking-tighter">{t.rosterBtn}</span>
-          </Button>
-        </Link>
-
-        <Link href="/training" className="block">
-          <Button variant="outline" className="w-full h-16 glass-card border-accent/20 hover:bg-accent/5 transition-all flex items-center justify-start gap-4 px-6">
-            <Zap className="w-6 h-6 text-accent" />
-            <span className="text-lg font-headline font-bold uppercase tracking-tighter">{t.trainingBtn}</span>
           </Button>
         </Link>
       </div>
