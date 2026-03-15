@@ -87,7 +87,6 @@ export function getSchedule(teams: any[]) {
 
 /**
  * Deterministically generates group teams and their standings based on current day.
- * Works globally for any level/division/group in the pyramid.
  */
 export function getMockGroupTeams(
   playerRank: number, 
@@ -103,9 +102,7 @@ export function getMockGroupTeams(
   const botLimit = includePlayer ? 7 : 8;
   
   for (let i = 0; i < botLimit; i++) {
-    // Compact Hierarchical ID generation:
-    // Level 1-3: Small IDs (3 digits)
-    // Level 4-9: Medium IDs (5 digits)
+    // Hierarchical ID generation
     let botUniqueId;
     if (level <= 3) {
       botUniqueId = (level * 100) + (division % 10) * 10 + i;
@@ -124,7 +121,6 @@ export function getMockGroupTeams(
     });
   }
 
-  // Inject player if viewing their own group
   if (includePlayer) {
     teams.push({ 
       id: "player_team",
@@ -139,7 +135,7 @@ export function getMockGroupTeams(
 
   const seasonSchedule = getSchedule(teams);
   
-  // Simulation for all teams up to currentDay - 1 (matches completed in the global league)
+  // Simulation for all teams up to currentDay - 1
   for (let d = 1; d < currentDay; d++) {
     const matches = seasonSchedule[d - 1];
     if (!matches) continue;
@@ -150,7 +146,6 @@ export function getMockGroupTeams(
       
       if (!home || !away) return;
 
-      // Skip player match calculation if we have real injected stats for them
       if (playerStats && (home.isPlayer || away.isPlayer)) {
         return;
       }

@@ -6,21 +6,20 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { getMoscowTime, isMatchDue } from '@/app/lib/time-utils';
 import { LEAGUES, getMockGroupTeams, getSchedule } from '@/app/lib/leagues-data';
-import { simulateMobaMatch, SimulateMobaMatchOutput } from '@/ai/flows/simulate-moba-match';
 import { INITIAL_HEROES } from '@/app/lib/moba-data';
+import { simulateMobaMatch, SimulateMobaMatchOutput } from '@/ai/flows/simulate-moba-match';
 import { useToast } from '@/hooks/use-toast';
 import { 
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
+  Dialog, DialogContent, DialogFooter 
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Trophy, Skull, Crosshair, Swords, TrendingUp, Wallet, Star } from 'lucide-react';
+import { Trophy, Skull, Crosshair, Swords, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function AutoMatchManager() {
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, 
-    seasonDay, lastLeagueMatchDate, recordMatch, team, strategy, rank 
+    seasonDay, lastLeagueMatchDate, recordMatch, team, strategy, rank, seasonStartDate
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
@@ -34,16 +33,16 @@ export function AutoMatchManager() {
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
-    // Only simulate if season has started (day >= 1)
-    if (isLoaded && profile?.selectedLeagueId && seasonDay > 0 && !isSimulating && !isUserLoading) {
-      const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
-      if (league && isMatchDue(league.startTime, lastLeagueMatchDate)) {
-        triggerAutoMatch(league.id);
+    // Standard trigger at 23:00 for the current season day
+    if (isLoaded && seasonDay > 0 && !isSimulating && !isUserLoading) {
+      // All matches start at 23:00
+      if (isMatchDue('23:00', lastLeagueMatchDate)) {
+        triggerAutoMatch();
       }
     }
   }, [isLoaded, profile, lastLeagueMatchDate, isUserLoading, seasonDay]);
 
-  const triggerAutoMatch = async (leagueId: string) => {
+  const triggerAutoMatch = async () => {
     setIsSimulating(true);
     try {
       const groupTeams = getMockGroupTeams(
@@ -52,7 +51,7 @@ export function AutoMatchManager() {
       const schedule = getSchedule(groupTeams);
       const todayMatch = schedule[seasonDay - 1]?.find((m: any) => m.home.isPlayer || m.away.isPlayer);
       
-      if (!todayMatch) throw new Error("Match not found in schedule");
+      if (!todayMatch) throw new Error("No match scheduled for today");
 
       const opponent = todayMatch.home.isPlayer ? todayMatch.away : todayMatch.home;
 
@@ -90,6 +89,13 @@ export function AutoMatchManager() {
     }
   };
 
+  const getDateForDay = (day: number) => {
+    if (!seasonStartDate) return "";
+    const date = new Date(seasonStartDate);
+    date.setDate(date.getDate() + (day - 1));
+    return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+  };
+
   if (!currentResult) return null;
 
   const isWin = currentResult.scoreA > currentResult.scoreB;
@@ -111,8 +117,8 @@ export function AutoMatchManager() {
             <span className="opacity-30">:</span>
             <span>{currentResult.scoreB}</span>
           </div>
-          <p className="text-[10px] opacity-80 uppercase tracking-widest mt-2 font-bold">
-            {isWin ? "+200 Credits | +25 Rank" : isDraw ? "+100 Credits | +5 Rank" : "+50 Credits | -15 Rank"}
+          <p className="text-[10px] opacity-80 uppercase tracking-widest mt-2 font-bold font-mono">
+            {getDateForDay(seasonDay)} @ 23:00 MSK
           </p>
         </div>
 
@@ -121,9 +127,7 @@ export function AutoMatchManager() {
              <h3 className="text-[10px] uppercase font-bold text-accent tracking-widest flex items-center gap-2">
                <Swords className="w-3 h-3" /> {language === 'ru' ? 'ОБЗОР МАТЧА' : 'MATCH SUMMARY'}
              </h3>
-             <p className="text-sm leading-relaxed text-muted-foreground italic">
-               "{currentResult.matchSummary}"
-             </p>
+             <p className="text-sm leading-relaxed text-muted-foreground italic">"{currentResult.matchSummary}"</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -138,28 +142,10 @@ export function AutoMatchManager() {
                 <p className="text-[8px] uppercase text-muted-foreground">Towers</p>
              </div>
           </div>
-
-          <div className="space-y-3">
-            <h3 className="text-[10px] uppercase font-bold text-accent tracking-widest">{language === 'ru' ? 'ЭФФЕКТИВНОСТЬ ГЕРОЕВ' : 'HERO PERFORMANCE'}</h3>
-            {currentResult.heroPerformance.filter(p => p.teamName === (profile?.displayName || "My Team")).map((perf, i) => (
-              <div key={i} className="flex items-center gap-3 bg-secondary/10 p-2 rounded-lg border border-white/5">
-                <div className="w-8 h-8 rounded-full bg-muted overflow-hidden">
-                   <img src={`https://picsum.photos/seed/${perf.heroName}/100/100`} alt="" className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-[10px] font-bold uppercase">{perf.heroName}</p>
-                  <p className="text-[8px] text-muted-foreground font-mono">KDA: {perf.kills}/{perf.deaths}/{perf.assists}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[9px] font-bold text-primary">{perf.damageDealt.toLocaleString()} DMG</p>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
 
         <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5 sm:justify-center">
-          <Button onClick={() => setShowResultDialog(false)} className="w-full font-bold uppercase text-[10px] tracking-widest">
+          <Button onClick={() => setShowResultDialog(false)} className="w-full font-bold uppercase text-[10px] tracking-widest h-12">
             {language === 'ru' ? 'ЗАКРЫТЬ ТЕРМИНАЛ' : 'CLOSE TERMINAL'}
           </Button>
         </DialogFooter>
