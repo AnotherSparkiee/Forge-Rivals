@@ -15,6 +15,7 @@ export interface LeagueOption {
 
 export const MAX_LEVELS = 9;
 export const GROUPS_PER_DIVISION = 8;
+export const TEAMS_PER_GROUP = 8;
 
 export const LEAGUES: LeagueOption[] = [
   { id: 'ALPHA', startTime: '08:00 - 12:00', description: 'Early morning operations for early birds.' },
@@ -31,32 +32,27 @@ export function getDivisionName(level: number, subId: number): string {
 }
 
 /**
- * Returns the full identifier for a player's current location in the pyramid
+ * Mock function to get group members (exactly 8 teams including player)
  */
-export function getLeagueIdentifier(level: number, subId: number, groupNum: number): string {
-  return `D${level}.${subId}-G${groupNum}`;
-}
-
-/**
- * Mock function to get group members (for rankings)
- */
-export function getMockGroupTeams(playerRank: number, isPlayerIn: boolean = true) {
-  const teams = [
-    { name: "Alpha Strikers", wins: 12, losses: 2, points: 36 },
-    { name: "Void Reapers", wins: 10, losses: 4, points: 30 },
-    { name: "Cyber Knights", wins: 9, losses: 5, points: 27 },
-    { name: "Neon Phantoms", wins: 8, losses: 6, points: 24 },
-    { name: "Shadow Walkers", wins: 7, losses: 7, points: 21 },
-    { name: "Iron Guardians", wins: 5, losses: 9, points: 15 },
-    { name: "Frost Giants", wins: 3, losses: 11, points: 9 },
-    { name: "Star Voyagers", wins: 1, losses: 13, points: 3 },
+export function getMockGroupTeams(playerRank: number, playerName: string = "Player Team") {
+  const baseTeams = [
+    { name: "Alpha Strikers", wins: 12, losses: 2, points: 36, isPlayer: false },
+    { name: "Void Reapers", wins: 10, losses: 4, points: 30, isPlayer: false },
+    { name: "Cyber Knights", wins: 9, losses: 5, points: 27, isPlayer: false },
+    { name: "Neon Phantoms", wins: 8, losses: 6, points: 24, isPlayer: false },
+    { name: "Shadow Walkers", wins: 7, losses: 7, points: 21, isPlayer: false },
+    { name: "Iron Guardians", wins: 5, losses: 9, points: 15, isPlayer: false },
+    { name: "Frost Giants", wins: 3, losses: 11, points: 9, isPlayer: false },
   ];
 
-  if (isPlayerIn) {
-    // Insert player based on rank
-    const playerTeam = { name: "Ваша Команда", wins: Math.max(0, Math.floor(playerRank / 100)), losses: 5, points: Math.max(0, Math.floor(playerRank / 10)), isPlayer: true };
-    teams.push(playerTeam);
-  }
+  const playerTeam = { 
+    name: playerName, 
+    wins: Math.max(0, Math.floor(playerRank / 100)), 
+    losses: 5, 
+    points: Math.max(0, Math.floor(playerRank / 10)), 
+    isPlayer: true 
+  };
 
-  return teams.sort((a, b) => b.points - a.points);
+  const allTeams = [...baseTeams, playerTeam];
+  return allTeams.sort((a, b) => b.points - a.points).slice(0, 8);
 }

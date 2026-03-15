@@ -1,11 +1,12 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGameState } from '../lib/store';
 import { 
   Trophy, Medal, Star, ChevronLeft, ArrowUpCircle, 
   Users, Target, Shield, Zap, Swords, ChevronRight,
-  LayoutDashboard, TrendingUp, Award, Loader2
+  LayoutDashboard, TrendingUp, Award, Loader2, Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,10 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { getMoscowTime, formatMoscowTime, isMatchDue } from '../lib/time-utils';
+import { LEAGUES } from '../lib/leagues-data';
+import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
+import { INITIAL_HEROES } from '../lib/moba-data';
 
 type RankingTab = 
   | 'menu'
@@ -30,14 +35,62 @@ type RankingTab =
   | 'kda_leaders';
 
 export default function RankingsPage() {
-  const { rank, leagueLevel, divisionSubId, groupId, isLoaded, language, promoteLeague } = useGameState();
+  const { rank, leagueLevel, divisionSubId, groupId, isLoaded, language, promoteLeague, lastLeagueMatchDate, recordMatch, team, strategy } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
+  const [serverTime, setServerTime] = useState<string>('');
+  const [isAutoSimulating, setIsAutoSimulating] = useState(false);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
+
+  // Clock effect
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setServerTime(formatMoscowTime(getMoscowTime()));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Automated Match Check
+  useEffect(() => {
+    if (isLoaded && profile?.selectedLeagueId && !isAutoSimulating) {
+      const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
+      if (league && isMatchDue(league.startTime, lastLeagueMatchDate)) {
+        triggerAutoMatch();
+      }
+    }
+  }, [isLoaded, profile, lastLeagueMatchDate]);
+
+  const triggerAutoMatch = async () => {
+    setIsAutoSimulating(true);
+    try {
+      const result = await simulateMobaMatch({
+        teamA: {
+          name: profile?.displayName || "My Team",
+          strategy: strategy,
+          heroes: team
+        },
+        teamB: {
+          name: "Opponent Team",
+          strategy: "Standard Tactics",
+          heroes: INITIAL_HEROES.map(h => ({ ...h, baseStats: { ...h.baseStats, attack: h.baseStats.attack + 2 } }))
+        },
+        includeRandomEvents: true
+      });
+      recordMatch(result.winner, result, true);
+      toast({
+        title: language === 'ru' ? "Матч лиги завершен!" : "League Match Completed!",
+        description: result.winner === (profile?.displayName || "My Team") ? "Victory!" : "Defeat.",
+      });
+    } catch (e) {
+      console.error("Auto simulation failed", e);
+    } finally {
+      setIsAutoSimulating(false);
+    }
+  };
 
   const labels = {
     en: {
@@ -49,6 +102,11 @@ export default function RankingsPage() {
       promoteDesc: "You have moved to a higher division!",
       canPromote: "Rank 1: Eligible for Promotion!",
       backToMenu: "Back to Menu",
+      serverClock: "Server Clock (MSK)",
+      matchStatus: "League Match Status",
+      waiting: "Next match scheduled",
+      completed: "Match for today completed",
+      processing: "Simulating match...",
       tabs: {
         my_league: { label: "My League", desc: "Current group rankings", icon: Trophy },
         champions_cup: { label: "Champions Cup", desc: "Top tier elite tournament", icon: Award },
@@ -70,6 +128,11 @@ export default function RankingsPage() {
       promoteDesc: "Вы перешли в дивизион уровнем выше!",
       canPromote: "1 Место: Доступно повышение!",
       backToMenu: "В меню",
+      serverClock: "Часы Сервера (МСК)",
+      matchStatus: "Статус матча лиги",
+      waiting: "Ожидание начала матча",
+      completed: "Матч на сегодня сыгран",
+      processing: "Идет симуляция...",
       tabs: {
         my_league: { label: "Своя лига", desc: "Рейтинг вашей группы", icon: Trophy },
         champions_cup: { label: "Кубок чемпионов", desc: "Элитный турнир высшей лиги", icon: Award },
@@ -85,7 +148,7 @@ export default function RankingsPage() {
   };
 
   const t = labels[language as keyof typeof labels] || labels.ru;
-  const mockRankings = getMockGroupTeams(rank);
+  const mockRankings = getMockGroupTeams(rank, profile?.displayName);
   const isPlayerFirst = mockRankings[0]?.isPlayer;
 
   const handlePromotion = () => {
@@ -150,21 +213,6 @@ export default function RankingsPage() {
     </div>
   );
 
-  const renderPlaceholder = (title: string) => (
-    <div className="flex flex-col items-center justify-center py-12 text-center space-y-4 animate-in zoom-in duration-300">
-      <div className="w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center">
-        <Shield className="w-8 h-8 text-primary opacity-50" />
-      </div>
-      <div>
-        <h3 className="text-lg font-headline font-bold uppercase tracking-widest text-accent">
-          {title}
-        </h3>
-        <p className="text-xs text-muted-foreground uppercase tracking-widest mt-1">Ожидание формирования турнирной сетки</p>
-      </div>
-      <Badge variant="outline" className="text-[10px] border-primary/20 text-primary">СЕЗОН 2024: ФАЗА 1</Badge>
-    </div>
-  );
-
   if (activeTab === 'menu') {
     return (
       <div className="max-w-md mx-auto px-4 pt-8 pb-20">
@@ -184,6 +232,24 @@ export default function RankingsPage() {
             </p>
           </div>
         </header>
+
+        <Card className="glass-card mb-6 border-primary/20 bg-primary/5">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Clock className="w-5 h-5 text-primary" />
+              <div>
+                <p className="text-[10px] uppercase text-muted-foreground font-bold">{t.serverClock}</p>
+                <p className="text-lg font-mono font-bold">{serverTime || '...'}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] uppercase text-muted-foreground font-bold">{t.matchStatus}</p>
+              <Badge variant="outline" className="text-[9px] border-primary/20 text-primary">
+                {isAutoSimulating ? t.processing : (lastLeagueMatchDate === new Date().toISOString().split('T')[0] ? t.completed : t.waiting)}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-accent px-1">{t.menuTitle}</h2>
@@ -252,7 +318,20 @@ export default function RankingsPage() {
         </>
       )}
 
-      {activeTab !== 'my_league' && renderPlaceholder(t.tabs[activeTab as keyof typeof t.tabs].label)}
+      {activeTab !== 'my_league' && (
+        <div className="flex flex-col items-center justify-center py-12 text-center space-y-4 animate-in zoom-in duration-300">
+          <div className="w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center">
+            <Shield className="w-8 h-8 text-primary opacity-50" />
+          </div>
+          <div>
+            <h3 className="text-lg font-headline font-bold uppercase tracking-widest text-accent">
+              {t.tabs[activeTab as keyof typeof t.tabs].label}
+            </h3>
+            <p className="text-xs text-muted-foreground uppercase tracking-widest mt-1">Ожидание формирования турнирной сетки</p>
+          </div>
+          <Badge variant="outline" className="text-[10px] border-primary/20 text-primary">СЕЗОН 2024: ФАЗА 1</Badge>
+        </div>
+      )}
       
       <Button 
         variant="outline" 

@@ -16,6 +16,7 @@ interface GameState {
   leagueLevel: number; // 1-9 (1 is top)
   divisionSubId: number; // 1 to 2^(level-1)
   groupId: number; // 1-8
+  lastLeagueMatchDate: string | null; // Format: YYYY-MM-DD
 }
 
 const DEFAULT_STATE: GameState = {
@@ -28,7 +29,8 @@ const DEFAULT_STATE: GameState = {
   language: 'ru',
   leagueLevel: 9, // Start at bottom
   divisionSubId: 1,
-  groupId: 1
+  groupId: 1,
+  lastLeagueMatchDate: null
 };
 
 export function useGameState() {
@@ -46,7 +48,8 @@ export function useGameState() {
           language: parsed.language || prev.language,
           leagueLevel: parsed.leagueLevel || prev.leagueLevel,
           divisionSubId: parsed.divisionSubId || prev.divisionSubId,
-          groupId: parsed.groupId || prev.groupId
+          groupId: parsed.groupId || prev.groupId,
+          lastLeagueMatchDate: parsed.lastLeagueMatchDate || prev.lastLeagueMatchDate
         }));
       } catch (e) {
         console.error("Failed to load game state", e);
@@ -94,22 +97,25 @@ export function useGameState() {
       setState(s => ({
         ...s,
         leagueLevel: s.leagueLevel - 1,
-        // When promoting, we usually just go to the first division of that level for simplicity in MVP
         divisionSubId: Math.max(1, Math.ceil(s.divisionSubId / 2)),
-        groupId: 1
+        groupId: 1,
+        lastLeagueMatchDate: null // Reset match for new league day
       }));
       return true;
     }
     return false;
   };
 
-  const recordMatch = (winner: string, result: any) => {
-    const isWin = winner === 'My Team' || winner === 'Моя Команда';
+  const recordMatch = (winner: string, result: any, isAutomated = false) => {
+    const isWin = winner === 'My Team' || winner === 'Моя Команда' || winner === (state.team[0]?.name || '');
+    const today = new Date().toISOString().split('T')[0];
+    
     setState(s => ({
       ...s,
       credits: s.credits + (isWin ? 200 : 50),
       rank: s.rank + (isWin ? 25 : -15),
-      matchHistory: [result, ...s.matchHistory].slice(0, 10)
+      matchHistory: [result, ...s.matchHistory].slice(0, 10),
+      lastLeagueMatchDate: isAutomated ? today : s.lastLeagueMatchDate
     }));
   };
 
