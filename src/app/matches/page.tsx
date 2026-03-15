@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -14,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { getMockGroupTeams, getSchedule, LEAGUES } from '../lib/leagues-data';
+import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '../lib/leagues-data';
 
 type MatchTab = 
   | 'menu'
@@ -27,7 +28,7 @@ type MatchTab =
 export default function MatchesPage() {
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, seasonDay, rank, 
-    wins, draws, losses, points, lastLeagueMatchDate 
+    wins, draws, losses, points, lastLeagueMatchDate, matchHistory 
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
@@ -42,12 +43,15 @@ export default function MatchesPage() {
     return LEAGUES.find(l => l.id === profile.selectedLeagueId);
   }, [profile?.selectedLeagueId]);
 
+  const isTodayPlayed = useMemo(() => {
+    return lastLeagueMatchDate === new Date().toISOString().split('T')[0];
+  }, [lastLeagueMatchDate]);
+
   // Generate group data
   const groupTeams = useMemo(() => {
     if (!isLoaded) return [];
     
-    // Check if current day is already played
-    const isTodayPlayed = lastLeagueMatchDate === new Date().toISOString().split('T')[0];
+    // Calculation day should be seasonDay + 1 if today is finished to include today's results in standings
     const calculationDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
 
     return getMockGroupTeams(
@@ -60,7 +64,7 @@ export default function MatchesPage() {
       calculationDay,
       { wins, draws, losses, points }
     );
-  }, [isLoaded, profile?.displayName, leagueLevel, divisionSubId, groupId, seasonDay, rank, wins, draws, losses, points, lastLeagueMatchDate]);
+  }, [isLoaded, profile?.displayName, leagueLevel, divisionSubId, groupId, seasonDay, rank, wins, draws, losses, points, isTodayPlayed]);
 
   const schedule = useMemo(() => {
     if (groupTeams.length === 0) return [];
@@ -116,19 +120,8 @@ export default function MatchesPage() {
     );
   }
 
-  const getDayResult = (homeId: string, awayId: string, day: number): [number, number] => {
-    const hId = parseInt(homeId.replace('bot_', '').replace('player_team', '99999'));
-    const aId = parseInt(awayId.replace('bot_', '').replace('player_team', '99999'));
-    const seed = hId + aId + day;
-    const val = seed % 10;
-    if (val < 4) return [2, 0];
-    if (val < 7) return [1, 1];
-    return [0, 2];
-  };
-
   const renderMatchRow = (match: any, dayIdx: number) => {
     const day = dayIdx + 1;
-    const isTodayPlayed = lastLeagueMatchDate === new Date().toISOString().split('T')[0];
     const isPlayed = day < seasonDay || (day === seasonDay && isTodayPlayed);
 
     let hScore = 0;
@@ -136,12 +129,16 @@ export default function MatchesPage() {
 
     if (isPlayed) {
       if (day === seasonDay && isTodayPlayed && (match.home.isPlayer || match.away.isPlayer)) {
-        // Use real last match result for the player if played today
-        const lastResult = useGameState.getState?.().matchHistory[0]; // Accessing store directly or via props
-        // Note: For prototype simplicity, we'll use deterministic for rows unless it's a very specific UI need
-        [hScore, aScore] = getDayResult(match.home.id, match.away.id, day);
+        // Use real last match result for the player from store
+        const lastResult = matchHistory[0];
+        if (lastResult) {
+            hScore = match.home.isPlayer ? lastResult.scoreA : lastResult.scoreB;
+            aScore = match.away.isPlayer ? lastResult.scoreA : lastResult.scoreB;
+        } else {
+            [hScore, aScore] = getMatchResult(match.home.id, match.away.id, day);
+        }
       } else {
-        [hScore, aScore] = getDayResult(match.home.id, match.away.id, day);
+        [hScore, aScore] = getMatchResult(match.home.id, match.away.id, day);
       }
     }
 
@@ -154,7 +151,7 @@ export default function MatchesPage() {
             <span className="text-[7px] text-accent font-bold mt-1">{userLeague.startTime.split(' ')[0]}</span>
           )}
         </div>
-        <div className="flex-1 flex items-center justify-between gap-2">
+        <div className="flex-1 flex items-center justify-between gap-2 min-w-0">
           <div className={cn("flex-1 text-right text-xs font-bold uppercase truncate", match.home.isPlayer && "text-primary")}>
             {match.home.name}
           </div>
@@ -178,13 +175,11 @@ export default function MatchesPage() {
   };
 
   const renderContent = () => {
-    const isTodayPlayed = lastLeagueMatchDate === new Date().toISOString().split('T')[0];
-    
     switch (activeTab) {
       case 'next_opponent': {
         const todayMatches = schedule[seasonDay - 1];
         const myMatch = todayMatches?.find((m: any) => m.home.isPlayer || m.away.isPlayer);
-        if (!myMatch) return <p className="text-center text-muted-foreground py-10 uppercase text-xs">{t.noData}</p>;
+        if (!myMatch || isTodayPlayed) return <p className="text-center text-muted-foreground py-10 uppercase text-xs">{t.noData}</p>;
         const opponent = myMatch.home.isPlayer ? myMatch.away : myMatch.home;
         
         return (
@@ -273,7 +268,7 @@ export default function MatchesPage() {
                   <div className="h-px flex-1 bg-gradient-to-l from-transparent to-white/10"></div>
                 </div>
                 <div className="space-y-2">
-                  {dayMatches.map((m: any, mIdx: number) => renderMatchRow(m, dIdx))}
+                  {dayMatches.map((m: any) => renderMatchRow(m, dIdx))}
                 </div>
               </div>
             ))}
@@ -297,7 +292,7 @@ export default function MatchesPage() {
                     <div className="h-px flex-1 bg-white/5"></div>
                   </div>
                   <div className="space-y-2">
-                    {dayMatches.map((m: any, mIdx: number) => renderMatchRow(m, actualDayIdx))}
+                    {dayMatches.map((m: any) => renderMatchRow(m, actualDayIdx))}
                   </div>
                 </div>
               );

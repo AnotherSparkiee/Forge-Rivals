@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -58,7 +59,8 @@ export default function RankingsPage() {
   const myLeagueRankings = useMemo(() => {
     if (!isLoaded) return [];
     
-    // Check if the current day's match has been played to include it in the mock calculation
+    // If today's match is played, calculationDay should be seasonDay + 1 
+    // to include the results of all group matches for the current day.
     const isTodayPlayed = lastLeagueMatchDate === new Date().toISOString().split('T')[0];
     const calculationDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
 
@@ -164,14 +166,6 @@ export default function RankingsPage() {
     }
   };
 
-  if (!isLoaded || isUserLoading || isProfileLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   const renderRankingTable = (rankingsData: any[]) => (
     <div className="space-y-2 animate-in fade-in duration-300">
       <div className="flex items-center px-4 text-[10px] uppercase font-bold text-muted-foreground mb-1">
@@ -184,7 +178,7 @@ export default function RankingsPage() {
         const isTop3 = i < 3;
         return (
           <div 
-            key={entry.id || entry.name} 
+            key={entry.id} 
             className={cn(
               "flex items-center gap-3 p-3 rounded-xl border transition-all",
               entry.isPlayer ? "bg-primary/20 border-primary/50 shadow-lg" : "bg-secondary/20 border-white/5",
@@ -217,84 +211,208 @@ export default function RankingsPage() {
     </div>
   );
 
-  return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-20">
-      <header className="mb-6 flex items-center gap-4">
-        {activeTab === 'menu' ? (
+  const renderPyramidLevels = () => (
+    <div className="space-y-3 animate-in fade-in duration-300">
+      {Array.from({ length: 9 }).map((_, i) => {
+        const level = i + 1;
+        const tierIdx = Math.floor(i / 3);
+        const tierName = t.tiers[tierIdx];
+        const isCurrentLevel = level === leagueLevel;
+
+        return (
+          <Card 
+            key={level} 
+            className={cn(
+              "glass-card hover:bg-white/5 transition-all cursor-pointer border-white/5",
+              isCurrentLevel && "border-primary/50 ring-1 ring-primary/20"
+            )}
+            onClick={() => {
+              setViewingLevel(level);
+              setPyramidMode('divisions');
+            }}
+          >
+            <CardContent className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className={cn(
+                  "w-10 h-10 rounded-lg flex items-center justify-center font-headline font-bold text-lg",
+                  isCurrentLevel ? "bg-primary text-primary-foreground" : "bg-secondary/50 text-muted-foreground"
+                )}>
+                  {level}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold uppercase">{t.level_label} {level}</h3>
+                  <p className="text-[10px] text-accent uppercase tracking-widest font-bold">{tierName}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {isCurrentLevel && <Badge variant="outline" className="text-[8px] border-primary/50 text-primary">CURRENT</Badge>}
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+
+  const renderPyramidDivisions = (level: number) => {
+    const divisionCount = Math.pow(2, level - 1);
+    
+    return (
+      <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+        <div className="flex items-center justify-between px-1">
+          <Button variant="ghost" size="sm" onClick={() => setPyramidMode('levels')} className="text-[10px] uppercase font-bold gap-1 p-0">
+            <ArrowLeft className="w-3 h-3" /> {t.backToLevels}
+          </Button>
+          <span className="text-[10px] font-bold text-accent uppercase">{t.level_label} {level} | {divisionCount} DIVS</span>
+        </div>
+        
+        <div className="grid grid-cols-4 gap-2">
+          {Array.from({ length: divisionCount }).map((_, i) => {
+            const divId = i + 1;
+            const isCurrentDiv = level === leagueLevel && divId === divisionSubId;
+            
+            return (
+              <Button 
+                key={divId}
+                variant="outline"
+                className={cn(
+                  "h-12 bg-secondary/20 border-white/5 text-[10px] font-bold font-headline transition-all",
+                  isCurrentDiv && "border-primary/50 bg-primary/10 text-primary"
+                )}
+                onClick={() => {
+                  setViewingDiv(divId);
+                  setPyramidMode('table');
+                }}
+              >
+                {level}.{divId}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderPyramidTable = (level: number, div: number) => {
+    const isTodayPlayed = lastLeagueMatchDate === new Date().toISOString().split('T')[0];
+    const calculationDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
+    
+    // For other divisions in the pyramid, we don't include the player unless it's their division
+    const isPlayerInThisDiv = level === leagueLevel && div === divisionSubId;
+
+    const data = getMockGroupTeams(
+      1000, 
+      profile?.displayName || "My Team", 
+      level, 
+      div, 
+      1, 
+      isPlayerInThisDiv, 
+      calculationDay,
+      isPlayerInThisDiv ? { wins, draws, losses, points } : undefined
+    );
+
+    return (
+      <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+        <div className="flex items-center justify-between px-1">
+          <Button variant="ghost" size="sm" onClick={() => setPyramidMode('divisions')} className="text-[10px] uppercase font-bold gap-1 p-0">
+            <ArrowLeft className="w-3 h-3" /> {t.backToDivisions}
+          </Button>
+          <span className="text-[10px] font-bold text-accent uppercase">{t.div_label} {level}.{div}</span>
+        </div>
+        {renderRankingTable(data)}
+      </div>
+    );
+  };
+
+  if (activeTab === 'menu') {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 pb-20">
+        <header className="mb-6 flex items-center gap-4">
           <Link href="/">
             <Button variant="ghost" size="icon" className="rounded-full">
               <ChevronLeft className="w-6 h-6" />
             </Button>
           </Link>
-        ) : (
-          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}>
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
-        )}
+          <div className="flex-1">
+            <h1 className="text-2xl font-headline font-bold flex items-center gap-2 uppercase tracking-tighter">
+              <Trophy className="text-yellow-500 w-5 h-5" />
+              {t.title}
+            </h1>
+            <p className="text-muted-foreground text-[10px] uppercase tracking-widest">
+              {t.subtitle} | {t.div_label} {leagueLevel}.{divisionSubId}
+            </p>
+          </div>
+        </header>
+
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <Card className="glass-card border-primary/20 bg-primary/5">
+            <CardContent className="p-4 flex items-center gap-3">
+              <Calendar className="w-5 h-5 text-primary" />
+              <div>
+                <p className="text-[10px] uppercase text-muted-foreground font-bold">{t.season_label}</p>
+                <p className="text-lg font-headline font-bold">{seasonDay} / {SEASON_DURATION_DAYS}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="glass-card border-accent/20 bg-accent/5">
+            <CardContent className="p-4 flex items-center gap-3">
+              <Clock className="w-5 h-5 text-accent" />
+              <div>
+                <p className="text-[10px] uppercase text-muted-foreground font-bold">MSK</p>
+                <p className="text-xs font-mono font-bold">{serverTime.split(' ')[1] || '00:00:00'}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-4">
+          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-accent px-1">{t.menuTitle}</h2>
+          <div className="space-y-2">
+            {(Object.entries(t.tabs) as [RankingTab, any][]).map(([tabId, tabData]) => (
+              <Card 
+                key={tabId} 
+                className="glass-card hover:bg-white/5 transition-colors border-white/5 cursor-pointer"
+                onClick={() => {
+                  setActiveTab(tabId);
+                  if (tabId === 'my_pyramid') setPyramidMode('levels');
+                }}
+              >
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 rounded-lg bg-secondary/50">
+                      <tabData.icon className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold uppercase">{tabData.label}</h3>
+                      <p className="text-[10px] text-muted-foreground">{tabData.desc}</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-md mx-auto px-4 pt-8 pb-20">
+      <header className="mb-6 flex items-center gap-4">
+        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}>
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
         <div className="flex-1">
-          <h1 className="text-2xl font-headline font-bold flex items-center gap-2 uppercase tracking-tighter">
-            <Trophy className="text-yellow-500 w-5 h-5" />
-            {activeTab === 'menu' ? t.title : t.tabs[activeTab as keyof typeof t.tabs].label}
+          <h1 className="text-xl font-headline font-bold uppercase">
+            {t.tabs[activeTab as keyof typeof t.tabs].label}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">
             {t.subtitle} | {t.div_label} {leagueLevel}.{divisionSubId}
           </p>
         </div>
       </header>
-
-      {activeTab === 'menu' && (
-        <>
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <Card className="glass-card border-primary/20 bg-primary/5">
-              <CardContent className="p-4 flex items-center gap-3">
-                <Calendar className="w-5 h-5 text-primary" />
-                <div>
-                  <p className="text-[10px] uppercase text-muted-foreground font-bold">{t.season_label}</p>
-                  <p className="text-lg font-headline font-bold">{seasonDay} / {SEASON_DURATION_DAYS}</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="glass-card border-accent/20 bg-accent/5">
-              <CardContent className="p-4 flex items-center gap-3">
-                <Clock className="w-5 h-5 text-accent" />
-                <div>
-                  <p className="text-[10px] uppercase text-muted-foreground font-bold">MSK</p>
-                  <p className="text-xs font-mono font-bold">{serverTime.split(' ')[1] || '00:00:00'}</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-4">
-            <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-accent px-1">{t.menuTitle}</h2>
-            <div className="space-y-2">
-              {(Object.entries(t.tabs) as [RankingTab, any][]).map(([tabId, tabData]) => (
-                <Card 
-                  key={tabId} 
-                  className="glass-card hover:bg-white/5 transition-colors border-white/5 cursor-pointer"
-                  onClick={() => {
-                    setActiveTab(tabId);
-                    if (tabId === 'my_pyramid') setPyramidMode('levels');
-                  }}
-                >
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="p-2 rounded-lg bg-secondary/50">
-                        <tabData.icon className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold uppercase">{tabData.label}</h3>
-                        <p className="text-[10px] text-muted-foreground">{tabData.desc}</p>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
 
       {activeTab === 'my_league' && (
         <div className="space-y-6">
@@ -320,11 +438,18 @@ export default function RankingsPage() {
         </div>
       )}
 
-      {/* Other tabs keep existing placeholders or logic */}
-      {activeTab !== 'menu' && activeTab !== 'my_league' && (
+      {activeTab === 'my_pyramid' && (
+        <div className="pb-8">
+          {pyramidMode === 'levels' && renderPyramidLevels()}
+          {pyramidMode === 'divisions' && renderPyramidDivisions(viewingLevel)}
+          {pyramidMode === 'table' && renderPyramidTable(viewingLevel, viewingDiv)}
+        </div>
+      )}
+
+      {activeTab !== 'menu' && activeTab !== 'my_league' && activeTab !== 'my_pyramid' && (
          <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
            <Shield className="w-12 h-12 text-primary opacity-50" />
-           <p className="text-xs text-muted-foreground uppercase tracking-widest">Data Synchronization Active</p>
+           <p className="text-xs text-muted-foreground uppercase tracking-widest">Sector Access Restricted</p>
          </div>
       )}
     </div>

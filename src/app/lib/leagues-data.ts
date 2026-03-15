@@ -30,10 +30,11 @@ export const LEAGUES: LeagueOption[] = [
  * Returns score [homeScore, awayScore] (Bo2)
  */
 export function getMatchResult(homeId: string, awayId: string, day: number): [number, number] {
-  const hId = parseInt(homeId.replace('bot_', '').replace('player_team', '99999'));
-  const aId = parseInt(awayId.replace('bot_', '').replace('player_team', '99999'));
+  // Simple deterministic seed based on IDs and day
+  const hId = parseInt(homeId.replace(/\D/g, '') || '1');
+  const aId = parseInt(awayId.replace(/\D/g, '') || '2');
   
-  const seed = hId + aId + day;
+  const seed = (hId * 3) + (aId * 7) + (day * 13);
   const val = seed % 10;
   
   if (val < 4) return [2, 0]; // Home Win
@@ -44,7 +45,7 @@ export function getMatchResult(homeId: string, awayId: string, day: number): [nu
 /**
  * Generates a round-robin schedule for 8 teams using Circle Method.
  */
-export function getSchedule(teams: any[], day?: number) {
+export function getSchedule(teams: any[]) {
   const n = teams.length;
   if (n === 0) return [];
   const rounds = n - 1;
@@ -67,18 +68,6 @@ export function getSchedule(teams: any[], day?: number) {
 
   // Round 1: Days 1-7
   // Round 2: Days 8-14 (reverse home/away)
-  if (day !== undefined) {
-    const matchDay = ((day - 1) % rounds) + 1;
-    const isSecondRound = day > rounds;
-    const dayMatches = fullSchedule[matchDay - 1];
-    
-    if (isSecondRound) {
-      return dayMatches.map(m => ({ home: m.away, away: m.home }));
-    }
-    return dayMatches;
-  }
-
-  // Return all 14 days
   const seasonSchedule = [];
   for (let d = 1; d <= SEASON_DURATION_DAYS; d++) {
     const matchDay = ((d - 1) % rounds) + 1;
@@ -130,38 +119,24 @@ export function getMockGroupTeams(
     });
   }
 
-  // Calculate standings up to (currentDay - 1) for bots
-  // If playerStats are provided, we don't recalculate player stats from deterministic results
   const seasonSchedule = getSchedule(teams);
-  for (let day = 1; day < currentDay; day++) {
-    const matches = seasonSchedule[day - 1];
+  
+  // Simulation up to currentDay - 1 (completed matches)
+  for (let d = 1; d < currentDay; d++) {
+    const matches = seasonSchedule[d - 1];
     matches.forEach((m: any) => {
-      // If we have player stats, skip re-simulating the player's past matches to avoid double counting
-      if (playerStats && (m.home.isPlayer || m.away.isPlayer)) {
-        // We only simulate bot vs bot matches if we already have injected player stats
-        if (!m.home.isPlayer && !m.away.isPlayer) {
-          const [hScore, aScore] = getMatchResult(m.home.id, m.away.id, day);
-          this.applyResult(m.home, m.away, hScore, aScore);
-        }
+      const home = teams.find(t => t.id === m.home.id);
+      const away = teams.find(t => t.id === m.away.id);
+      
+      if (!home || !away) return;
+
+      // If one of the teams is a player and we have injected stats, we don't recalculate
+      if (playerStats && (home.isPlayer || away.isPlayer)) {
         return;
       }
 
-      // Default simulation for all teams
-      const [hScore, aScore] = getMatchResult(m.home.id, m.away.id, day);
-      if (hScore === 2) {
-        m.home.wins++;
-        m.home.points += 3;
-        m.away.losses++;
-      } else if (hScore === 1) {
-        m.home.draws++;
-        m.home.points += 1;
-        m.away.draws++;
-        m.away.points += 1;
-      } else {
-        m.away.wins++;
-        m.away.points += 3;
-        m.home.losses++;
-      }
+      const [hScore, aScore] = getMatchResult(home.id, away.id, d);
+      applyResult(home, away, hScore, aScore);
     });
   }
 
