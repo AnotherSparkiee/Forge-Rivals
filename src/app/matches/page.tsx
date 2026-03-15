@@ -144,30 +144,30 @@ export default function MatchesPage() {
     }
 
     return (
-      <div key={`${day}-${match.home.id}`} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-4">
-        <div className="flex flex-col items-center w-12 flex-shrink-0">
+      <div key={`${day}-${match.home.id}`} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-2">
+        <div className="flex flex-col items-center w-10 flex-shrink-0">
           <span className="text-[8px] uppercase font-bold text-muted-foreground">{t.day}</span>
           <span className="text-sm font-headline font-bold">{day}</span>
         </div>
-        <div className="flex-1 flex items-center justify-between gap-2 min-w-0">
-          <div className={cn("flex-1 text-right text-xs font-bold uppercase truncate", match.home.isPlayer && "text-primary")}>
+        <div className="flex-1 flex items-center justify-between gap-1 min-w-0">
+          <div className={cn("flex-1 text-right text-[10px] font-bold uppercase", match.home.isPlayer && "text-primary")}>
             {match.home.name}
           </div>
-          <div className="flex flex-col items-center px-2 min-w-[60px]">
+          <div className="flex flex-col items-center px-1 min-w-[50px]">
             {isPlayed ? (
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-headline font-bold">{hScore}</span>
+              <div className="flex items-center gap-1">
+                <span className="text-base font-headline font-bold">{hScore}</span>
                 <span className="text-muted-foreground text-[10px]">:</span>
-                <span className="text-lg font-headline font-bold">{aScore}</span>
+                <span className="text-base font-headline font-bold">{aScore}</span>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-1">
-                <Badge variant="outline" className="text-[8px] uppercase border-accent/20 text-accent">{t.vs}</Badge>
-                {userLeague && <span className="text-[7px] text-muted-foreground font-mono">{userLeague.startTime.split(' ')[0]}</span>}
+              <div className="flex flex-col items-center gap-0.5">
+                <Badge variant="outline" className="text-[7px] px-1 py-0 uppercase border-accent/20 text-accent leading-none">{t.vs}</Badge>
+                {userLeague && <span className="text-[7px] text-muted-foreground font-mono leading-none">{userLeague.startTime.split(' ')[0]}</span>}
               </div>
             )}
           </div>
-          <div className={cn("flex-1 text-left text-xs font-bold uppercase truncate", match.away.isPlayer && "text-primary")}>
+          <div className={cn("flex-1 text-left text-[10px] font-bold uppercase", match.away.isPlayer && "text-primary")}>
             {match.away.name}
           </div>
         </div>
@@ -178,11 +178,13 @@ export default function MatchesPage() {
   const renderContent = () => {
     switch (activeTab) {
       case 'next_opponent': {
-        const targetDay = seasonDay === 0 ? 1 : seasonDay;
+        const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
+        if (targetDay > 14) return <p className="text-center py-10 text-muted-foreground uppercase text-xs">Season Finished</p>;
+        
         const todayMatches = schedule[targetDay - 1];
         const myMatch = todayMatches?.find((m: any) => m.home.isPlayer || m.away.isPlayer);
         
-        if (!myMatch || (seasonDay > 0 && isTodayPlayed)) {
+        if (!myMatch) {
           return (
             <div className="text-center py-10 space-y-4">
                <Shield className="w-12 h-12 mx-auto text-muted-foreground opacity-20" />
@@ -199,7 +201,7 @@ export default function MatchesPage() {
               <CardHeader className="text-center pb-2">
                 <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">Strategic Intelligence</CardTitle>
                 <Badge variant="outline" className="mx-auto text-[8px] uppercase border-primary/50 text-primary">
-                  {seasonDay === 0 ? t.startsTomorrow : `${t.day} ${seasonDay}`}
+                  {seasonDay === 0 ? t.startsTomorrow : `${t.day} ${targetDay}`}
                 </Badge>
               </CardHeader>
               <CardContent className="flex flex-col items-center space-y-4">

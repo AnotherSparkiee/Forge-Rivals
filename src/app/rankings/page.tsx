@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -70,11 +69,7 @@ export default function RankingsPage() {
   // Generate group rankings once data is loaded, synchronized with global seasonDay
   const myLeagueRankings = useMemo(() => {
     if (!isLoaded) return [];
-    
-    // If today's match is played, calculationDay should be seasonDay + 1 
-    // to include the results of all group matches for the current day.
     const calculationDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
-
     return getMockGroupTeams(
       rank, 
       profile?.displayName || "My Team", 
@@ -182,8 +177,8 @@ export default function RankingsPage() {
       <div className="flex items-center px-4 text-[10px] uppercase font-bold text-muted-foreground mb-1">
         <div className="w-8">#</div>
         <div className="flex-1">Team</div>
-        <div className="w-24 text-center">W-D-L</div>
-        <div className="w-16 text-right">Points</div>
+        <div className="w-16 text-center">W-D-L</div>
+        <div className="w-12 text-right">Pts</div>
       </div>
       {rankingsData.map((entry, i) => {
         const isTop3 = i < 3;
@@ -196,24 +191,24 @@ export default function RankingsPage() {
               isTop3 && !entry.isPlayer ? "border-yellow-500/10" : ""
             )}
           >
-            <div className="w-8 text-center font-headline font-bold text-sm italic">
+            <div className="w-6 text-center font-headline font-bold text-sm italic">
               {isTop3 ? (
                 <Medal className={cn(
-                  "w-5 h-5 mx-auto",
+                  "w-4 h-4 mx-auto",
                   i === 0 ? "text-yellow-500" : i === 1 ? "text-gray-400" : "text-amber-600"
                 )} />
               ) : i + 1}
             </div>
             <div className="flex-1 min-w-0">
-              <p className={cn("font-bold text-xs uppercase flex items-center gap-2 truncate", entry.isPlayer && "text-primary")}>
+              <p className={cn("font-bold text-[10px] uppercase flex items-center gap-2", entry.isPlayer && "text-primary")}>
                 {entry.isPlayer ? (profile?.displayName || entry.name) : entry.name}
-                {entry.isPlayer && <Star className="w-3 h-3 fill-current" />}
+                {entry.isPlayer && <Star className="w-2.5 h-2.5 fill-current" />}
               </p>
             </div>
-            <div className="w-24 text-center text-[10px] font-mono opacity-70">
+            <div className="w-16 text-center text-[9px] font-mono opacity-70">
               {entry.wins}-{entry.draws || 0}-{entry.losses || 0}
             </div>
-            <div className="w-16 text-right">
+            <div className="w-10 text-right">
               <p className="text-sm font-headline font-bold text-accent">{entry.points}</p>
             </div>
           </div>
@@ -306,10 +301,7 @@ export default function RankingsPage() {
   };
 
   const renderPyramidTable = (level: number, div: number) => {
-    // Synchronization for any selected division in the pyramid
     const calculationDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
-    
-    // For other divisions in the pyramid, we don't include the player unless it's their division
     const isPlayerInThisDiv = level === leagueLevel && div === divisionSubId;
 
     const data = getMockGroupTeams(
@@ -317,7 +309,7 @@ export default function RankingsPage() {
       profile?.displayName || "My Team", 
       level, 
       div, 
-      1, // Assuming group 1 for pyramid drill-down mock
+      1, 
       isPlayerInThisDiv, 
       calculationDay,
       isPlayerInThisDiv ? { wins, draws, losses, points } : undefined

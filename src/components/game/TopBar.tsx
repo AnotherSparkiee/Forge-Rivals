@@ -55,7 +55,7 @@ export function TopBar() {
             </span>
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-primary uppercase truncate leading-tight tracking-tighter">
+            <p className="text-[10px] font-bold text-primary uppercase leading-tight tracking-tighter">
               {profile?.displayName || 'Syncing...'}
             </p>
             <p className="text-[8px] text-muted-foreground uppercase tracking-widest leading-tight flex items-center gap-1 opacity-70">
