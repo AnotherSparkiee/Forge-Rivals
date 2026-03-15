@@ -9,11 +9,11 @@ import { useGameState } from './lib/store';
 import { BottomNav } from '@/components/game/BottomNav';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  Swords, Users, ShoppingCart, Trophy, 
-  ListTodo, Briefcase, Mail, Shield, 
-  Zap, Brain, BarChart3, Settings, 
-  Newspaper, Dumbbell, Heart, Calendar, 
-  Gift, Headphones, PlayCircle, User,
+  Swords, Users, UserPlus, TrendingUp, 
+  Briefcase, Binoculars, Trophy, Calendar, 
+  BarChart3, Medal, Heart, Star, 
+  MessageSquare, UserCheck, User, Shield, 
+  ShoppingCart, Newspaper, Settings, Search,
   Coins, Loader2, Globe, Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -30,26 +30,26 @@ import {
 import { cn } from '@/lib/utils';
 
 const GRID_ITEMS = [
-  { label: 'БИТВА', icon: Swords, href: '/match', color: 'text-red-400', active: true },
-  { label: 'РОСТЕР', icon: Users, href: '/roster', color: 'text-blue-400', active: true },
-  { label: 'РЫНОК', icon: ShoppingCart, href: '#', color: 'text-yellow-400' },
-  { label: 'РЕЙТИНГ', icon: Trophy, href: '/rankings', color: 'text-orange-400', active: true },
-  { label: 'ЗАДАНИЯ', icon: ListTodo, href: '#', color: 'text-green-400' },
-  { label: 'СКЛАД', icon: Briefcase, href: '#', color: 'text-purple-400' },
-  { label: 'ПОЧТА', icon: Mail, href: '#', color: 'text-sky-400' },
-  { label: 'КЛАН', icon: Shield, href: '#', color: 'text-indigo-400' },
-  { label: 'НАВЫКИ', icon: Zap, href: '#', color: 'text-yellow-300' },
-  { label: 'ТАКТИКА', icon: Brain, href: '#', color: 'text-pink-400' },
-  { label: 'АНАЛИЗ', icon: BarChart3, href: '#', color: 'text-emerald-400' },
-  { label: 'ПРОФИЛЬ', icon: User, href: '/profile', color: 'text-white', active: true },
-  { label: 'НОВОСТИ', icon: Newspaper, href: '#', color: 'text-cyan-400' },
-  { label: 'ЗАЛ', icon: Dumbbell, href: '#', color: 'text-rose-400' },
-  { label: 'ДРУЗЬЯ', icon: Heart, href: '#', color: 'text-red-500' },
-  { label: 'ИВЕНТЫ', icon: Calendar, href: '#', color: 'text-violet-400' },
-  { label: 'БОНУСЫ', icon: Gift, href: '#', color: 'text-amber-400' },
-  { label: 'ПОМОЩЬ', icon: Headphones, href: '#', color: 'text-teal-400' },
-  { label: 'ЗАПИСИ', icon: PlayCircle, href: '#', color: 'text-lime-400' },
-  { label: 'ОПЦИИ', icon: Settings, href: '/profile', color: 'text-slate-400', active: true },
+  { label: 'ОБЗОР МАТЧА', icon: Swords, href: '/match', color: 'text-red-400', active: true },
+  { label: 'СОСТАВ', icon: Users, href: '/roster', color: 'text-blue-400', active: true },
+  { label: 'ТРАНСФЕРЫ', icon: UserPlus, href: '#', color: 'text-yellow-400' },
+  { label: 'РАЗВИТИЕ', icon: TrendingUp, href: '#', color: 'text-green-400' },
+  { label: 'ПЕРСОНАЛ', icon: Briefcase, href: '#', color: 'text-purple-400' },
+  { label: 'ТАЛАНТЫ', icon: Binoculars, href: '#', color: 'text-sky-400' },
+  { label: 'ТАБЛИЦЫ', icon: Trophy, href: '/rankings', color: 'text-orange-400', active: true },
+  { label: 'РАСПИСАНИЕ', icon: Calendar, href: '#', color: 'text-indigo-400' },
+  { label: 'ФИНАНСЫ', icon: BarChart3, href: '#', color: 'text-emerald-400' },
+  { label: 'ТУРНИРЫ', icon: Medal, href: '#', color: 'text-yellow-300' },
+  { label: 'ФАН БАЗА', icon: Heart, href: '#', color: 'text-pink-400' },
+  { label: 'ТОП СЕЗОНА', icon: Star, href: '#', color: 'text-amber-400' },
+  { label: 'ЧАТЫ', icon: MessageSquare, href: '#', color: 'text-cyan-400' },
+  { label: 'ДРУЗЬЯ', icon: UserCheck, href: '#', color: 'text-rose-400' },
+  { label: 'О СЕБЕ', icon: User, href: '/profile', color: 'text-white', active: true },
+  { label: 'АССОЦИАЦИИ', icon: Shield, href: '#', color: 'text-violet-400' },
+  { label: 'МАГАЗИН', icon: ShoppingCart, href: '#', color: 'text-lime-400' },
+  { label: 'НОВОСТИ', icon: Newspaper, href: '#', color: 'text-teal-400' },
+  { label: 'СИСТЕМА', icon: Settings, href: '/profile', color: 'text-slate-400', active: true },
+  { label: 'ПОИСК', icon: Search, href: '#', color: 'text-blue-300' },
 ];
 
 function HubContent() {
@@ -123,7 +123,7 @@ function HubContent() {
             )}
           >
             <item.icon className={cn("w-6 h-6 mb-1.5 transition-transform duration-300 group-hover:scale-110", item.color)} />
-            <span className="text-[8px] font-headline font-bold text-center tracking-tighter uppercase leading-none px-1">
+            <span className="text-[7px] font-headline font-bold text-center tracking-tighter uppercase leading-none px-1 h-4 flex items-center">
               {item.label}
             </span>
             {item.active && (
