@@ -173,7 +173,10 @@ export function useGameState() {
   };
 
   const startArenaConstruction = (facility: keyof Omit<ArenaState, 'capacity' | 'constructionFinishes'>, cost: number) => {
-    if (state.credits >= cost && !state.arena.constructionFinishes[facility]) {
+    // Check if ANY construction is currently in progress
+    const isAnyBuilding = Object.values(state.arena.constructionFinishes).some(v => v !== null && v !== undefined);
+    
+    if (state.credits >= cost && !isAnyBuilding) {
       const currentLevel = (state.arena as any)[facility];
       const hours = 4 * (currentLevel + 1);
       

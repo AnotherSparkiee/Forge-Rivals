@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -35,6 +35,12 @@ export default function ArenaPage() {
     }
   }, [isLoaded]);
 
+  // Check if any construction is globally in progress
+  const isAnyConstructing = useMemo(() => {
+    if (!arena || !arena.constructionFinishes) return false;
+    return Object.values(arena.constructionFinishes).some(v => v !== null && v !== undefined);
+  }, [arena]);
+
   if (!isLoaded) return null;
 
   const labels = {
@@ -51,8 +57,10 @@ export default function ArenaPage() {
       facilities: "Facility Development",
       success: "Construction Started",
       error: "Insufficient Credits",
+      busyError: "Only one construction project allowed at a time.",
       inProgress: "Construction in Progress",
       finishAt: "Ready at",
+      crewBusy: "Construction Crew Busy",
       items: {
         capacity: { label: "Stadium Expansion", desc: "Adds 500 additional seats to increase matchday ticket revenue." },
         pressCenterLevel: { label: "Press Center", desc: "Increases media coverage and attracts more elite fans, boosting overall match income." },
@@ -76,8 +84,10 @@ export default function ArenaPage() {
       facilities: "Развитие инфраструктуры",
       success: "Строительство начато",
       error: "Недостаточно кредитов",
+      busyError: "Одновременно можно возводить только одно строительство.",
       inProgress: "Идет строительство",
       finishAt: "Готовность в",
+      crewBusy: "Бригада занята",
       items: {
         capacity: { label: "Расширение стадиона", desc: "Добавляет 500 дополнительных мест, что увеличивает выручку от продажи билетов." },
         pressCenterLevel: { label: "Пресс-центр", desc: "Улучшает освещение в СМИ и привлекает больше фанатов, повышая общий доход." },
@@ -104,6 +114,11 @@ export default function ArenaPage() {
   const executeUpgrade = () => {
     if (!selectedFacility) return;
     
+    if (isAnyConstructing) {
+      toast({ title: t.busyError, variant: "destructive" });
+      return;
+    }
+
     const currentLevel = (arena as any)[selectedFacility];
     const cost = 15000 * (currentLevel + 1);
     
@@ -180,9 +195,16 @@ export default function ArenaPage() {
         </CardContent>
       </Card>
 
-      <h2 className="text-xs font-headline font-bold text-accent uppercase tracking-[0.2em] mb-4 px-1">
-        {t.facilities}
-      </h2>
+      <div className="flex items-center justify-between mb-4 px-1">
+        <h2 className="text-xs font-headline font-bold text-accent uppercase tracking-[0.2em]">
+          {t.facilities}
+        </h2>
+        {isAnyConstructing && (
+          <Badge variant="secondary" className="text-[8px] bg-orange-500/10 text-orange-400 animate-pulse border-orange-500/20">
+            {t.crewBusy}
+          </Badge>
+        )}
+      </div>
 
       <div className="space-y-3">
         {facilityList.map((item) => {
@@ -194,14 +216,15 @@ export default function ArenaPage() {
           return (
             <Card key={item.id} className={cn(
               "glass-card border-white/5 overflow-hidden group transition-all",
-              isConstructing ? "bg-orange-500/5 border-orange-500/20" : "hover:border-primary/30"
+              isConstructing ? "bg-orange-500/5 border-orange-500/20" : "hover:border-primary/30",
+              !isConstructing && isAnyConstructing && "opacity-60"
             )}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className={cn(
                     "p-2.5 rounded-xl bg-secondary/50 border border-white/5 transition-transform",
                     isConstructing ? "text-orange-400 animate-pulse" : item.color,
-                    !isConstructing && "group-hover:scale-110"
+                    !isConstructing && !isAnyConstructing && "group-hover:scale-110"
                   )}>
                     {isConstructing ? <Hammer className="w-5 h-5" /> : <item.icon className="w-5 h-5" />}
                   </div>
@@ -225,6 +248,7 @@ export default function ArenaPage() {
                   <Button 
                     size="sm" 
                     variant="outline" 
+                    disabled={isAnyConstructing}
                     className="h-9 px-3 border-white/10 hover:bg-primary/10 hover:border-primary/30"
                     onClick={() => setSelectedFacility(item.id)}
                   >
@@ -282,8 +306,12 @@ export default function ArenaPage() {
             </div>
 
             <DialogFooter className="p-4 bg-secondary/20 sm:justify-center">
-              <Button onClick={executeUpgrade} className="w-full hero-gradient font-bold h-12">
-                {t.confirm}
+              <Button 
+                onClick={executeUpgrade} 
+                disabled={isAnyConstructing}
+                className="w-full hero-gradient font-bold h-12"
+              >
+                {isAnyConstructing ? t.crewBusy : t.confirm}
               </Button>
             </DialogFooter>
           </DialogContent>
