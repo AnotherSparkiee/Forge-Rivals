@@ -92,9 +92,9 @@ function HubContent() {
   const league = LEAGUES.find(l => l.id === profile?.selectedLeagueId);
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-6 pb-12 min-h-screen bg-background text-foreground">
+    <div className="max-w-md mx-auto px-4 pt-6 pb-12 min-h-screen bg-background text-foreground flex flex-col">
       {/* Шапка */}
-      <header className="flex justify-between items-center mb-6">
+      <header className="flex justify-between items-center mb-6 shrink-0">
         <div className="flex flex-col">
           <h1 className="text-xl font-headline font-bold uppercase tracking-tighter text-primary">HUD: {profile?.username}</h1>
           <div className="flex items-center gap-2">
@@ -108,28 +108,40 @@ function HubContent() {
         </div>
       </header>
 
-      {/* Сетка меню 4x5 - ОПТИМИЗИРОВАНА: нет движения иконок */}
-      <div className="grid grid-cols-4 gap-3 mb-8">
-        {GRID_ITEMS.map((item, index) => (
-          <Link 
-            key={index} 
-            href={item.active ? item.href : '#'} 
-            className={cn(
-              "relative flex flex-col items-center justify-center aspect-square rounded-xl border border-white/5 bg-card/40 transition-colors duration-200",
-              item.active 
-                ? "hover:bg-primary/10 hover:border-primary/50 cursor-pointer" 
-                : "opacity-30 cursor-not-allowed grayscale"
-            )}
-          >
-            <item.icon className={cn("w-6 h-6 mb-1.5", item.color)} />
-            <span className="text-[7px] font-headline font-bold text-center tracking-tighter uppercase leading-none px-1 h-4 flex items-center">
-              {item.label}
-            </span>
-            {item.active && (
-              <div className="absolute top-1 right-1 w-1 h-1 rounded-full bg-primary" />
-            )}
-          </Link>
-        ))}
+      {/* Сетка меню 4x5 */}
+      <div className="grid grid-cols-4 gap-2 mb-8 flex-1">
+        {GRID_ITEMS.map((item, index) => {
+          const Icon = item.icon;
+          const isLink = item.active;
+          const Content = (
+            <>
+              <Icon className={cn("w-6 h-6 mb-1.5 shrink-0", item.color)} />
+              <span className="text-[8px] font-headline font-bold text-center tracking-tighter uppercase leading-tight px-1 overflow-hidden">
+                {item.label}
+              </span>
+              {item.active && (
+                <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
+              )}
+            </>
+          );
+
+          const baseClass = cn(
+            "relative flex flex-col items-center justify-center aspect-square rounded-lg border transition-colors duration-200",
+            item.active 
+              ? "bg-card/60 border-white/10 hover:bg-primary/10 hover:border-primary/50 cursor-pointer shadow-sm" 
+              : "bg-black/20 border-white/5 opacity-40 cursor-not-allowed grayscale"
+          );
+
+          return isLink ? (
+            <Link key={index} href={item.href} className={baseClass}>
+              {Content}
+            </Link>
+          ) : (
+            <div key={index} className={baseClass}>
+              {Content}
+            </div>
+          );
+        })}
       </div>
 
       {/* Модальное окно приветствия */}
