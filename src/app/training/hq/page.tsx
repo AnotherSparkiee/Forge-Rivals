@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { getMoscowTime } from '@/app/lib/time-utils';
 
 export default function HQPage() {
   const { 
@@ -104,7 +105,6 @@ export default function HQPage() {
   const handleFacilityUpgrade = () => {
     if (!selectedFacility) return;
     const currentLevel = (hq as any)[selectedFacility];
-    // Updated: 25,000 per level for HQ
     const cost = 25000 * (currentLevel + 1);
     if (startHQConstruction(selectedFacility as any, cost)) {
       toast({ title: t.inProgress });
@@ -204,7 +204,6 @@ export default function HQPage() {
         })}
       </div>
 
-      {/* Facility Dialog */}
       <Dialog open={!!selectedFacility} onOpenChange={() => setSelectedFacility(null)}>
         {selectedFacility && (
           <DialogContent className="max-w-xs bg-card border-white/5 p-6">
@@ -225,8 +224,7 @@ export default function HQPage() {
               <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
                  <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.duration}</p>
                  <p className="text-sm font-bold text-primary flex items-center justify-center gap-1">
-                   {/* Updated: 8 hours per level for HQ */}
-                   <Clock className="w-3 h-3" /> {8 * (((hq as any)[selectedFacility] || 0) + 1)} {t.hours}
+                   <Clock className="w-3 h-3" /> {4 * (((hq as any)[selectedFacility] || 0) + 1)} {t.hours}
                  </p>
               </div>
             </div>

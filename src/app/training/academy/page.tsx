@@ -102,7 +102,6 @@ export default function AcademyPage() {
   const handleFacilityUpgrade = () => {
     if (!selectedFacility) return;
     const currentLevel = (academy as any)[selectedFacility];
-    // Academy pricing: 35k base
     const cost = 35000 * (currentLevel + 1);
     if (startAcademyConstruction(selectedFacility as any, cost)) {
       toast({ title: t.inProgress });
@@ -221,7 +220,7 @@ export default function AcademyPage() {
               <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
                  <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.duration}</p>
                  <p className="text-sm font-bold text-primary flex items-center justify-center gap-1">
-                   <Clock className="w-3 h-3" /> {10 * (((academy as any)[selectedFacility] || 0) + 1)} {t.hours}
+                   <Clock className="w-3 h-3" /> {4 * (((academy as any)[selectedFacility] || 0) + 1)} {t.hours}
                  </p>
               </div>
             </div>

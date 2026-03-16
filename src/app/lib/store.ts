@@ -283,7 +283,7 @@ export function useGameState() {
     setState(s => {
       if (s.credits >= cost && !isHQBusy(s)) {
         const currentLevel = (s.hq as any)[facility];
-        const hours = 8 * (currentLevel + 1);
+        const hours = 4 * (currentLevel + 1);
         const startTime = new Date();
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
@@ -307,7 +307,7 @@ export function useGameState() {
     setState(s => {
       if (s.credits >= cost && !isBootcampBusy(s)) {
         const currentLevel = (s.bootcamp as any)[facility];
-        const hours = 8 * (currentLevel + 1);
+        const hours = 4 * (currentLevel + 1);
         const startTime = new Date();
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
@@ -331,7 +331,7 @@ export function useGameState() {
     setState(s => {
       if (s.credits >= cost && !isAcademyBusy(s)) {
         const currentLevel = (s.academy as any)[facility];
-        const hours = 10 * (currentLevel + 1);
+        const hours = 4 * (currentLevel + 1);
         const startTime = new Date();
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
@@ -355,7 +355,7 @@ export function useGameState() {
     setState(s => {
       if (s.credits >= cost && !isMedicalBusy(s)) {
         const currentLevel = (s.medical as any)[facility];
-        const hours = 12 * (currentLevel + 1);
+        const hours = 4 * (currentLevel + 1);
         const startTime = new Date();
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
