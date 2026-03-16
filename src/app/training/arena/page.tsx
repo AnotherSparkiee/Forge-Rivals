@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/badge';
 import { cn } from '@/lib/utils';
 import { getMoscowTime } from '@/app/lib/time-utils';
 
@@ -121,10 +121,10 @@ export default function ArenaPage() {
     const start = arena.constructionStarts?.[id];
     const finish = arena.constructionFinishes?.[id];
     
-    if (!finish) return 0;
+    if (!finish || !start) return 0;
     
+    const startTime = new Date(start).getTime();
     const finishTime = new Date(finish).getTime();
-    const startTime = start ? new Date(start).getTime() : finishTime - (1000 * 60 * 60 * 4);
     
     const total = finishTime - startTime;
     const elapsed = now - startTime;
@@ -182,15 +182,16 @@ export default function ArenaPage() {
     <div className="max-w-md mx-auto px-4 pt-8 pb-20">
       <header className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/training"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+          <Link href="/training">
+            <Button variant="ghost" size="icon" className="rounded-full">
+              <ChevronLeft className="w-6 h-6" />
+            </Button>
+          </Link>
           <div>
             <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1>
             <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
           </div>
         </div>
-        <Badge variant="outline" className="flex items-center gap-1.5 py-1 border-primary/20 text-primary">
-          <Wallet className="w-3 h-3" /> {credits.toLocaleString()}
-        </Badge>
       </header>
 
       {/* Capacity Card */}
