@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 
 export default function HQPage() {
   const { 
-    hq, arena, credits, startHQConstruction, checkConstructions, language, isLoaded 
+    hq, credits, startHQConstruction, checkConstructions, language, isLoaded 
   } = useGameState();
   const { toast } = useToast();
   
@@ -37,11 +37,9 @@ export default function HQPage() {
   }, [isLoaded, checkConstructions]);
 
   const isAnyConstructing = useMemo(() => {
-    if (!hq || !arena) return false;
-    const hqBuilding = Object.values(hq.constructionFinishes).some(v => v !== null && v !== undefined);
-    const arenaBuilding = Object.values(arena.constructionFinishes).some(v => v !== null && v !== undefined);
-    return hqBuilding || arenaBuilding;
-  }, [hq, arena]);
+    if (!hq) return false;
+    return Object.values(hq.constructionFinishes).some(v => v !== null && v !== undefined);
+  }, [hq]);
 
   const labels = {
     en: {
@@ -78,7 +76,7 @@ export default function HQPage() {
       inProgress: "Идет реновация офиса",
       improving: "Улучшается...",
       finishAt: "Завершение в",
-      crewBusy: "Бригада занята",
+      crewBusy: "Бригада офиса занята",
       facilities: "Улучшение отделов",
       items: {
         hrLevel: { label: "Отдел кадров", desc: "Снижает стоимость найма и улучшает навыки персонала." },

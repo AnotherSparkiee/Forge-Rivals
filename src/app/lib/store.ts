@@ -169,16 +169,18 @@ export function useGameState() {
     setState(s => ({ ...s, credits: s.credits + amount }));
   }, []);
 
-  const isAnyBuildingGlobally = useCallback((s: GameState) => {
-    const arenaBuildings = Object.values(s.arena.constructionFinishes).some(v => v !== null && v !== undefined);
-    const hqBuildings = Object.values(s.hq.constructionFinishes).some(v => v !== null && v !== undefined);
-    return arenaBuildings || hqBuildings;
+  const isArenaBusy = useCallback((s: GameState) => {
+    return Object.values(s.arena.constructionFinishes).some(v => v !== null && v !== undefined);
+  }, []);
+
+  const isHQBusy = useCallback((s: GameState) => {
+    return Object.values(s.hq.constructionFinishes).some(v => v !== null && v !== undefined);
   }, []);
 
   const startArenaConstruction = useCallback((facility: keyof Omit<ArenaState, 'capacity' | 'constructionFinishes' | 'constructionStarts' | 'pendingCapacitySeats'>, cost: number) => {
     let result = false;
     setState(s => {
-      if (s.credits >= cost && !isAnyBuildingGlobally(s)) {
+      if (s.credits >= cost && !isArenaBusy(s)) {
         const currentLevel = (s.arena as any)[facility];
         const hours = 4 * (currentLevel + 1);
         const startTime = new Date();
@@ -197,12 +199,12 @@ export function useGameState() {
       return s;
     });
     return result;
-  }, [isAnyBuildingGlobally]);
+  }, [isArenaBusy]);
 
   const startHQConstruction = useCallback((facility: keyof Omit<HQState, 'constructionFinishes' | 'constructionStarts'>, cost: number) => {
     let result = false;
     setState(s => {
-      if (s.credits >= cost && !isAnyBuildingGlobally(s)) {
+      if (s.credits >= cost && !isHQBusy(s)) {
         const currentLevel = (s.hq as any)[facility];
         const hours = 4 * (currentLevel + 1);
         const startTime = new Date();
@@ -221,12 +223,12 @@ export function useGameState() {
       return s;
     });
     return result;
-  }, [isAnyBuildingGlobally]);
+  }, [isHQBusy]);
 
   const startCapacityExpansion = useCallback((seats: number, cost: number, hours: number) => {
     let result = false;
     setState(s => {
-      if (s.credits >= cost && !isAnyBuildingGlobally(s)) {
+      if (s.credits >= cost && !isArenaBusy(s)) {
         const startTime = new Date();
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
@@ -244,7 +246,7 @@ export function useGameState() {
       return s;
     });
     return result;
-  }, [isAnyBuildingGlobally]);
+  }, [isArenaBusy]);
 
   const checkConstructions = useCallback(() => {
     setState(s => {

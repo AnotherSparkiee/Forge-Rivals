@@ -34,7 +34,6 @@ export default function ArenaPage() {
 
   useEffect(() => {
     if (isLoaded) {
-      // Avoid immediate setState that could trigger loops if deps are unstable
       const timer = setInterval(() => {
         checkConstructions();
         setNow(Date.now());
@@ -71,7 +70,7 @@ export default function ArenaPage() {
       inProgress: "Construction in Progress",
       improving: "Improving...",
       finishAt: "Ready at",
-      crewBusy: "Construction Crew Busy",
+      crewBusy: "Arena Crew Busy",
       facilities: "Facility Upgrades",
       items: {
         capacity: { label: "Stadium Capacity", desc: "Current stadium seating capacity." },
@@ -101,7 +100,7 @@ export default function ArenaPage() {
       inProgress: "Идет строительство",
       improving: "Улучшается...",
       finishAt: "Готовность в",
-      crewBusy: "Бригада занята",
+      crewBusy: "Бригада Арены занята",
       facilities: "Улучшение объектов",
       items: {
         capacity: { label: "Вместимость стадиона", desc: "Текущая вместимость зрительских мест." },
