@@ -206,7 +206,8 @@ export function useGameState() {
     setState(s => {
       if (s.credits >= cost && !isHQBusy(s)) {
         const currentLevel = (s.hq as any)[facility];
-        const hours = 4 * (currentLevel + 1);
+        // Updated: 8 hours per level for HQ
+        const hours = 8 * (currentLevel + 1);
         const startTime = new Date();
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
