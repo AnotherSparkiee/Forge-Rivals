@@ -102,7 +102,7 @@ export default function BootcampPage() {
   const handleFacilityUpgrade = () => {
     if (!selectedFacility) return;
     const currentLevel = (bootcamp as any)[selectedFacility];
-    const cost = 20000 * (currentLevel + 1);
+    const cost = 40000 * (currentLevel + 1);
     if (startBootcampConstruction(selectedFacility as any, cost)) {
       toast({ title: t.inProgress });
       setSelectedFacility(null);
@@ -215,12 +215,12 @@ export default function BootcampPage() {
             <div className="grid grid-cols-2 gap-3 mt-6">
               <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
                  <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.cost}</p>
-                 <p className="text-sm font-bold text-accent">€ {(20000 * (((bootcamp as any)[selectedFacility] || 0) + 1)).toLocaleString()}</p>
+                 <p className="text-sm font-bold text-accent">€ {(40000 * (((bootcamp as any)[selectedFacility] || 0) + 1)).toLocaleString()}</p>
               </div>
               <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
                  <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.duration}</p>
                  <p className="text-sm font-bold text-primary flex items-center justify-center gap-1">
-                   <Clock className="w-3 h-3" /> {10 * (((bootcamp as any)[selectedFacility] || 0) + 1)} {t.hours}
+                   <Clock className="w-3 h-3" /> {8 * (((bootcamp as any)[selectedFacility] || 0) + 1)} {t.hours}
                  </p>
               </div>
             </div>

@@ -255,7 +255,7 @@ export function useGameState() {
     setState(s => {
       if (s.credits >= cost && !isBootcampBusy(s)) {
         const currentLevel = (s.bootcamp as any)[facility];
-        const hours = 10 * (currentLevel + 1);
+        const hours = 8 * (currentLevel + 1);
         const startTime = new Date();
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
