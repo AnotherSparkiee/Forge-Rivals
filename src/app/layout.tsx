@@ -5,6 +5,8 @@ import { FirebaseClientProvider } from "@/firebase/client-provider";
 import { BottomNav } from "@/components/game/BottomNav";
 import { TopBar } from "@/components/game/TopBar";
 import { AutoMatchManager } from "@/components/game/AutoMatchManager";
+import { Suspense } from 'react';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export const metadata: Metadata = {
   title: 'Moba Tactics Online',
@@ -27,7 +29,9 @@ export default function RootLayout({
         <FirebaseClientProvider>
           <TopBar />
           <AutoMatchManager />
-          {children}
+          <Suspense fallback={<LoadingScreen />}>
+            {children}
+          </Suspense>
           <BottomNav />
           <Toaster />
         </FirebaseClientProvider>
