@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -70,6 +69,7 @@ export default function ArenaPage() {
       level: "Level",
       upgrade: "Upgrade",
       inProgress: "Construction in Progress",
+      improving: "Improving...",
       finishAt: "Ready at",
       crewBusy: "Construction Crew Busy",
       facilities: "Facility Upgrades",
@@ -99,6 +99,7 @@ export default function ArenaPage() {
       level: "Уровень",
       upgrade: "Улучшить",
       inProgress: "Идет строительство",
+      improving: "Улучшается...",
       finishAt: "Готовность в",
       crewBusy: "Бригада занята",
       facilities: "Улучшение объектов",
@@ -169,7 +170,6 @@ export default function ArenaPage() {
   ];
 
   const formatFinishTime = (iso: string) => {
-    // Show finish time in MSK for user convenience
     const date = new Date(iso);
     return date.toLocaleString('ru-RU', { 
       day: '2-digit', month: '2-digit', 
@@ -223,7 +223,7 @@ export default function ArenaPage() {
           {isCapacityConstructing && (
             <div className="space-y-1.5">
               <div className="flex justify-between text-[8px] uppercase font-bold text-orange-400">
-                <span>Syncing Data...</span>
+                <span>{t.improving}</span>
                 <span>{Math.floor(calculateProgress('capacity'))}%</span>
               </div>
               <Progress value={calculateProgress('capacity')} className="h-1 bg-orange-500/20" />
@@ -271,7 +271,7 @@ export default function ArenaPage() {
                 {isConstructing && (
                   <div className="mt-3 space-y-1">
                     <div className="flex justify-between text-[7px] uppercase font-bold text-orange-400">
-                      <span>Syncing Data...</span>
+                      <span>{t.improving}</span>
                       <span>{Math.floor(progress)}%</span>
                     </div>
                     <Progress value={progress} className="h-1 bg-orange-500/20" />
