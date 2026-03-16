@@ -17,6 +17,16 @@ interface ArenaState {
   constructionStarts: Record<string, string | null>; // facilityId or 'capacity' -> ISO string (UTC)
 }
 
+interface HQState {
+  hrLevel: number;
+  financeLevel: number;
+  scoutsLevel: number;
+  pressOfficeLevel: number;
+  adminLevel: number;
+  constructionFinishes: Record<string, string | null>;
+  constructionStarts: Record<string, string | null>;
+}
+
 interface GameState {
   credits: number;
   ownedHeroes: Hero[];
@@ -37,8 +47,9 @@ interface GameState {
   lastLeagueMatchDate: string | null; // Format: YYYY-MM-DD
   seasonDay: number; // 0 = Pre-season, 1-14 = Active season
   seasonStartDate: string | null; // Format: YYYY-MM-DD (This is Day 1)
-  // Arena State
+  // Infrastructure State
   arena: ArenaState;
+  hq: HQState;
 }
 
 const getTodayDateString = () => {
@@ -58,6 +69,16 @@ const DEFAULT_ARENA: ArenaState = {
   roofLevel: 0,
   lightingLevel: 0,
   pendingCapacitySeats: null,
+  constructionFinishes: {},
+  constructionStarts: {},
+};
+
+const DEFAULT_HQ: HQState = {
+  hrLevel: 0,
+  financeLevel: 0,
+  scoutsLevel: 0,
+  pressOfficeLevel: 0,
+  adminLevel: 0,
   constructionFinishes: {},
   constructionStarts: {},
 };
@@ -83,6 +104,7 @@ const DEFAULT_STATE: GameState = {
   seasonDay: 1,
   seasonStartDate: getTodayDateString(),
   arena: DEFAULT_ARENA,
+  hq: DEFAULT_HQ,
 };
 
 export function useGameState() {
@@ -95,8 +117,6 @@ export function useGameState() {
       try {
         const parsed = JSON.parse(saved);
         
-        const nowTime = Date.now();
-
         const startDateStr = parsed.seasonStartDate || getTodayDateString();
         const start = new Date(startDateStr);
         start.setHours(0, 0, 0, 0);
@@ -111,44 +131,6 @@ export function useGameState() {
 
         const isNewSeason = parsed.seasonDay && currentDay > 0 && currentDay < parsed.seasonDay;
 
-        const rawArena = parsed.arena || {};
-        const updatedArena: ArenaState = {
-          ...DEFAULT_ARENA,
-          ...rawArena,
-          constructionFinishes: {
-            ...DEFAULT_ARENA.constructionFinishes,
-            ...(rawArena.constructionFinishes || {})
-          },
-          constructionStarts: {
-            ...DEFAULT_ARENA.constructionStarts,
-            ...(rawArena.constructionStarts || {})
-          }
-        };
-
-        const newArena = { ...updatedArena };
-        const newFinishes = { ...(newArena.constructionFinishes || {}) };
-        const newStarts = { ...(newArena.constructionStarts || {}) };
-        let hasChanges = false;
-
-        Object.entries(newFinishes).forEach(([id, finishTime]) => {
-          if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
-            if (id === 'capacity') {
-              newArena.capacity += (newArena.pendingCapacitySeats || 0);
-              newArena.pendingCapacitySeats = null;
-            } else {
-              (newArena as any)[id] = ((newArena as any)[id] || 0) + 1;
-            }
-            newFinishes[id] = null;
-            newStarts[id] = null;
-            hasChanges = true;
-          }
-        });
-
-        if (hasChanges) {
-          newArena.constructionFinishes = newFinishes;
-          newArena.constructionStarts = newStarts;
-        }
-
         setState(prev => {
           const newState = { 
             ...prev, 
@@ -160,7 +142,8 @@ export function useGameState() {
             draws: isNewSeason ? 0 : (parsed.draws || 0),
             losses: isNewSeason ? 0 : (parsed.losses || 0),
             points: isNewSeason ? 0 : (parsed.points || 0),
-            arena: hasChanges ? newArena : updatedArena,
+            arena: { ...DEFAULT_ARENA, ...(parsed.arena || {}) },
+            hq: { ...DEFAULT_HQ, ...(parsed.hq || {}) },
           };
           
           if (newState.credits < TEST_CREDITS) {
@@ -186,11 +169,16 @@ export function useGameState() {
     setState(s => ({ ...s, credits: s.credits + amount }));
   }, []);
 
+  const isAnyBuildingGlobally = useCallback((s: GameState) => {
+    const arenaBuildings = Object.values(s.arena.constructionFinishes).some(v => v !== null && v !== undefined);
+    const hqBuildings = Object.values(s.hq.constructionFinishes).some(v => v !== null && v !== undefined);
+    return arenaBuildings || hqBuildings;
+  }, []);
+
   const startArenaConstruction = useCallback((facility: keyof Omit<ArenaState, 'capacity' | 'constructionFinishes' | 'constructionStarts' | 'pendingCapacitySeats'>, cost: number) => {
     let result = false;
     setState(s => {
-      const isAnyBuilding = Object.values(s.arena.constructionFinishes).some(v => v !== null && v !== undefined);
-      if (s.credits >= cost && !isAnyBuilding) {
+      if (s.credits >= cost && !isAnyBuildingGlobally(s)) {
         const currentLevel = (s.arena as any)[facility];
         const hours = 4 * (currentLevel + 1);
         const startTime = new Date();
@@ -209,13 +197,36 @@ export function useGameState() {
       return s;
     });
     return result;
-  }, []);
+  }, [isAnyBuildingGlobally]);
+
+  const startHQConstruction = useCallback((facility: keyof Omit<HQState, 'constructionFinishes' | 'constructionStarts'>, cost: number) => {
+    let result = false;
+    setState(s => {
+      if (s.credits >= cost && !isAnyBuildingGlobally(s)) {
+        const currentLevel = (s.hq as any)[facility];
+        const hours = 4 * (currentLevel + 1);
+        const startTime = new Date();
+        const finishTime = new Date(startTime.getTime() + hours * 3600000);
+        result = true;
+        return {
+          ...s,
+          credits: s.credits - cost,
+          hq: {
+            ...s.hq,
+            constructionStarts: { ...s.hq.constructionStarts, [facility]: startTime.toISOString() },
+            constructionFinishes: { ...s.hq.constructionFinishes, [facility]: finishTime.toISOString() }
+          }
+        };
+      }
+      return s;
+    });
+    return result;
+  }, [isAnyBuildingGlobally]);
 
   const startCapacityExpansion = useCallback((seats: number, cost: number, hours: number) => {
     let result = false;
     setState(s => {
-      const isAnyBuilding = Object.values(s.arena.constructionFinishes).some(v => v !== null && v !== undefined);
-      if (s.credits >= cost && !isAnyBuilding) {
+      if (s.credits >= cost && !isAnyBuildingGlobally(s)) {
         const startTime = new Date();
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
@@ -233,17 +244,18 @@ export function useGameState() {
       return s;
     });
     return result;
-  }, []);
+  }, [isAnyBuildingGlobally]);
 
   const checkConstructions = useCallback(() => {
     setState(s => {
       const nowTime = Date.now();
       let hasChanges = false;
+      
       const newArena = { ...s.arena };
-      const newFinishes = { ...(newArena.constructionFinishes || {}) };
-      const newStarts = { ...(newArena.constructionStarts || {}) };
+      const arenaFinishes = { ...(newArena.constructionFinishes || {}) };
+      const arenaStarts = { ...(newArena.constructionStarts || {}) };
 
-      Object.entries(newFinishes).forEach(([id, finishTime]) => {
+      Object.entries(arenaFinishes).forEach(([id, finishTime]) => {
         if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
           if (id === 'capacity') {
             newArena.capacity += (newArena.pendingCapacitySeats || 0);
@@ -251,16 +263,31 @@ export function useGameState() {
           } else {
             (newArena as any)[id] = ((newArena as any)[id] || 0) + 1;
           }
-          newFinishes[id] = null;
-          newStarts[id] = null;
+          arenaFinishes[id] = null;
+          arenaStarts[id] = null;
+          hasChanges = true;
+        }
+      });
+
+      const newHq = { ...s.hq };
+      const hqFinishes = { ...(newHq.constructionFinishes || {}) };
+      const hqStarts = { ...(newHq.constructionStarts || {}) };
+
+      Object.entries(hqFinishes).forEach(([id, finishTime]) => {
+        if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
+          (newHq as any)[id] = ((newHq as any)[id] || 0) + 1;
+          hqFinishes[id] = null;
+          hqStarts[id] = null;
           hasChanges = true;
         }
       });
 
       if (hasChanges) {
-        newArena.constructionFinishes = newFinishes;
-        newArena.constructionStarts = newStarts;
-        return { ...s, arena: newArena };
+        newArena.constructionFinishes = arenaFinishes;
+        newArena.constructionStarts = arenaStarts;
+        newHq.constructionFinishes = hqFinishes;
+        newHq.constructionStarts = hqStarts;
+        return { ...s, arena: newArena, hq: newHq };
       }
       return s;
     });
@@ -323,6 +350,7 @@ export function useGameState() {
     addCredits,
     setTeam,
     startArenaConstruction,
+    startHQConstruction,
     startCapacityExpansion,
     checkConstructions,
     setLanguage,

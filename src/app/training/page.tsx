@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -22,7 +21,7 @@ export default function TrainingPage() {
       locked: "Restricted",
       facilities: [
         { id: 'arena', label: 'Arena', desc: 'Stadium management and matchday logistics', icon: Castle, active: true, href: '/training/arena' },
-        { id: 'hq', label: 'Headquarters', desc: 'Strategic operations and staff administration', icon: Building2, active: false, href: '#' },
+        { id: 'hq', label: 'Headquarters', desc: 'Strategic operations and staff administration', icon: Building2, active: true, href: '/training/hq' },
         { id: 'bootcamp', label: 'Bootcamp', desc: 'Intensive team training and synergy drills', icon: Zap, active: false, href: '#' },
         { id: 'academy', label: 'Youth School', desc: 'Scouting and development of future talents', icon: GraduationCap, active: false, href: '#' },
         { id: 'medical', label: 'Medical Center', desc: 'Hero recovery and health monitoring protocols', icon: HeartPulse, active: false, href: '#' },
@@ -34,7 +33,7 @@ export default function TrainingPage() {
       locked: "Закрыто",
       facilities: [
         { id: 'arena', label: 'Арена', desc: 'Управление стадионом и логистика матчей', icon: Castle, active: true, href: '/training/arena' },
-        { id: 'hq', label: 'Главный офис', desc: 'Стратегические операции и штаб управления', icon: Building2, active: false, href: '#' },
+        { id: 'hq', label: 'Главный офис', desc: 'Стратегические операции и штаб управления', icon: Building2, active: true, href: '/training/hq' },
         { id: 'bootcamp', label: 'Буткемп', desc: 'Интенсивные тренировки и отработка синергии', icon: Zap, active: false, href: '#' },
         { id: 'academy', label: 'Юношеская школа', desc: 'Поиск и развитие будущих талантов', icon: GraduationCap, active: false, href: '#' },
         { id: 'medical', label: 'Медицинский центр', desc: 'Восстановление героев и мониторинг здоровья', icon: HeartPulse, active: false, href: '#' },
