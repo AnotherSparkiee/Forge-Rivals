@@ -31,14 +31,14 @@ export default function ArenaPage() {
   const [showCapacityDialog, setShowCapacityDialog] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
   const [expansionSeats, setExpansionSeats] = useState([500]);
-  const [now, setNow] = useState(0);
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
     if (isLoaded) {
-      setNow(getMoscowTime().getTime());
+      setNow(Date.now());
       const timer = setInterval(() => {
         checkConstructions();
-        setNow(getMoscowTime().getTime());
+        setNow(Date.now());
       }, 1000); 
       return () => clearInterval(timer);
     }
@@ -123,19 +123,12 @@ export default function ArenaPage() {
     if (!finish) return 0;
     
     const finishTime = new Date(finish).getTime();
-    
-    // Fallback if startTime is missing for some reason
-    let startTime = start ? new Date(start).getTime() : 0;
-    if (startTime === 0 || isNaN(startTime)) {
-        // If we don't have a start time, we assume the total duration was some fixed amount based on levels
-        // but for progress bar to work we need a start. Let's assume it started 10 minutes ago as a safe fallback
-        startTime = finishTime - (1000 * 60 * 60 * 4); 
-    }
+    const startTime = start ? new Date(start).getTime() : finishTime - (1000 * 60 * 60 * 4);
     
     const total = finishTime - startTime;
     const elapsed = now - startTime;
     
-    if (total <= 0) return 0;
+    if (total <= 0) return 100;
     const prog = (elapsed / total) * 100;
     
     return Math.min(Math.max(prog, 0), 100);
@@ -176,8 +169,13 @@ export default function ArenaPage() {
   ];
 
   const formatFinishTime = (iso: string) => {
+    // Show finish time in MSK for user convenience
     const date = new Date(iso);
-    return date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleString('ru-RU', { 
+      day: '2-digit', month: '2-digit', 
+      hour: '2-digit', minute: '2-digit',
+      timeZone: 'Europe/Moscow' 
+    });
   };
 
   return (
@@ -225,7 +223,7 @@ export default function ArenaPage() {
           {isCapacityConstructing && (
             <div className="space-y-1.5">
               <div className="flex justify-between text-[8px] uppercase font-bold text-orange-400">
-                <span>Progress</span>
+                <span>Syncing Data...</span>
                 <span>{Math.floor(calculateProgress('capacity'))}%</span>
               </div>
               <Progress value={calculateProgress('capacity')} className="h-1 bg-orange-500/20" />

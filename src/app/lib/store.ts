@@ -14,8 +14,8 @@ interface ArenaState {
   roofLevel: number;
   lightingLevel: number;
   pendingCapacitySeats: number | null;
-  constructionFinishes: Record<string, string | null>; // facilityId or 'capacity' -> ISO string timestamp
-  constructionStarts: Record<string, string | null>; // facilityId or 'capacity' -> ISO string timestamp
+  constructionFinishes: Record<string, string | null>; // facilityId or 'capacity' -> ISO string (UTC)
+  constructionStarts: Record<string, string | null>; // facilityId or 'capacity' -> ISO string (UTC)
 }
 
 interface GameState {
@@ -96,14 +96,14 @@ export function useGameState() {
       try {
         const parsed = JSON.parse(saved);
         
-        const mskNow = getMoscowTime();
-        const mskNowTime = mskNow.getTime();
+        const nowTime = Date.now();
 
         const startDateStr = parsed.seasonStartDate || getTodayDateString();
         const start = new Date(startDateStr);
         start.setHours(0, 0, 0, 0);
 
         let currentDay = 1;
+        const mskNow = getMoscowTime();
         if (mskNow.getTime() >= start.getTime()) {
           const diffTime = mskNow.getTime() - start.getTime();
           const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
@@ -112,7 +112,6 @@ export function useGameState() {
 
         const isNewSeason = parsed.seasonDay && currentDay > 0 && currentDay < parsed.seasonDay;
 
-        // Safely merge arena state to handle new properties like constructionStarts
         const rawArena = parsed.arena || {};
         const updatedArena: ArenaState = {
           ...DEFAULT_ARENA,
@@ -127,21 +126,13 @@ export function useGameState() {
           }
         };
 
-        // For legacy builds that have a finish time but no start time, infer the start time
-        Object.keys(updatedArena.constructionFinishes).forEach(id => {
-          if (updatedArena.constructionFinishes[id] && !updatedArena.constructionStarts[id]) {
-            // Assume the build just started if we don't know (safest fallback for progress bar)
-            updatedArena.constructionStarts[id] = new Date(mskNowTime - 60000).toISOString(); 
-          }
-        });
-
         const newArena = { ...updatedArena };
         const newFinishes = { ...(newArena.constructionFinishes || {}) };
         const newStarts = { ...(newArena.constructionStarts || {}) };
         let hasChanges = false;
 
         Object.entries(newFinishes).forEach(([id, finishTime]) => {
-          if (finishTime && mskNowTime >= new Date(finishTime as string).getTime()) {
+          if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
             if (id === 'capacity') {
               newArena.capacity += (newArena.pendingCapacitySeats || 0);
               newArena.pendingCapacitySeats = null;
@@ -203,7 +194,7 @@ export function useGameState() {
       const currentLevel = (state.arena as any)[facility];
       const hours = 4 * (currentLevel + 1);
       
-      const startTime = getMoscowTime();
+      const startTime = new Date();
       const finishTime = new Date(startTime.getTime() + hours * 3600000);
 
       setState(s => ({
@@ -230,7 +221,7 @@ export function useGameState() {
     const isAnyBuilding = Object.values(state.arena.constructionFinishes).some(v => v !== null && v !== undefined);
     
     if (state.credits >= cost && !isAnyBuilding) {
-      const startTime = getMoscowTime();
+      const startTime = new Date();
       const finishTime = new Date(startTime.getTime() + hours * 3600000);
 
       setState(s => ({
@@ -255,14 +246,14 @@ export function useGameState() {
   };
 
   const checkConstructions = () => {
-    const mskNow = getMoscowTime().getTime();
+    const nowTime = Date.now();
     let hasChanges = false;
     const newArena = { ...state.arena };
     const newFinishes = { ...(newArena.constructionFinishes || {}) };
     const newStarts = { ...(newArena.constructionStarts || {}) };
 
     Object.entries(newFinishes).forEach(([id, finishTime]) => {
-      if (finishTime && mskNow >= new Date(finishTime as string).getTime()) {
+      if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
         if (id === 'capacity') {
           newArena.capacity += (newArena.pendingCapacitySeats || 0);
           newArena.pendingCapacitySeats = null;
