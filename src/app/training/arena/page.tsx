@@ -8,6 +8,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
+import { Progress } from '@/components/ui/progress';
 import { 
   ChevronLeft, MessageSquare, Coffee, ShoppingBag, 
   Monitor, Home, Lightbulb, ArrowUpCircle, Wallet, Clock,
@@ -17,6 +18,7 @@ import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { getMoscowTime } from '@/app/lib/time-utils';
 
 export default function ArenaPage() {
   const { 
@@ -28,12 +30,14 @@ export default function ArenaPage() {
   const [showCapacityDialog, setShowCapacityDialog] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
   const [expansionSeats, setExpansionSeats] = useState([500]);
+  const [now, setNow] = useState(getMoscowTime().getTime());
 
   useEffect(() => {
     if (isLoaded) {
       const timer = setInterval(() => {
         checkConstructions();
-      }, 10000);
+        setNow(getMoscowTime().getTime());
+      }, 1000); // Update every second for smooth progress bar
       return () => clearInterval(timer);
     }
   }, [isLoaded]);
@@ -66,6 +70,7 @@ export default function ArenaPage() {
       inProgress: "Construction in Progress",
       finishAt: "Ready at",
       crewBusy: "Construction Crew Busy",
+      facilities: "Facility Upgrades",
       items: {
         capacity: { label: "Stadium Capacity", desc: "Current stadium seating capacity." },
         pressCenterLevel: { label: "Press Center", desc: "Increases media coverage and attracts more elite fans." },
@@ -94,6 +99,7 @@ export default function ArenaPage() {
       inProgress: "Идет строительство",
       finishAt: "Готовность в",
       crewBusy: "Бригада занята",
+      facilities: "Улучшение объектов",
       items: {
         capacity: { label: "Вместимость стадиона", desc: "Текущая вместимость зрительских мест." },
         pressCenterLevel: { label: "Пресс-центр", desc: "Улучшает освещение в СМИ и привлекает больше фанатов." },
@@ -107,6 +113,19 @@ export default function ArenaPage() {
   };
 
   const t = labels[language as keyof typeof labels] || labels.ru;
+
+  const calculateProgress = (id: string) => {
+    const start = arena.constructionStarts[id];
+    const finish = arena.constructionFinishes[id];
+    if (!start || !finish) return 0;
+    
+    const startTime = new Date(start).getTime();
+    const finishTime = new Date(finish).getTime();
+    const total = finishTime - startTime;
+    const elapsed = now - startTime;
+    
+    return Math.min(Math.max((elapsed / total) * 100, 0), 100);
+  };
 
   const handleFacilityUpgrade = () => {
     if (!selectedFacility) return;
@@ -164,10 +183,10 @@ export default function ArenaPage() {
 
       {/* Capacity Card */}
       <Card className={cn(
-        "glass-card mb-6 border-primary/20 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-all",
+        "glass-card mb-6 border-primary/20 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-all overflow-hidden",
         isCapacityConstructing && "border-orange-500/30 bg-orange-500/5"
       )} onClick={() => setShowCapacityDialog(true)}>
-        <CardContent className="p-6">
+        <CardContent className="p-6 relative">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <div className={cn("p-3 rounded-2xl bg-primary/20", isCapacityConstructing && "animate-pulse text-orange-400")}>
@@ -185,10 +204,19 @@ export default function ArenaPage() {
               </div>
             )}
           </div>
-          <div className="flex items-center justify-between text-[10px] uppercase font-bold text-muted-foreground">
+          <div className="flex items-center justify-between text-[10px] uppercase font-bold text-muted-foreground mb-4">
             <span>{t.currentStatus}: {arena.capacity.toLocaleString()}</span>
             <span className="text-accent">{t.maintenance}: 30,000€</span>
           </div>
+          {isCapacityConstructing && (
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-[8px] uppercase font-bold text-orange-400">
+                <span>Progress</span>
+                <span>{Math.floor(calculateProgress('capacity'))}%</span>
+              </div>
+              <Progress value={calculateProgress('capacity')} className="h-1 bg-orange-500/20" />
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -199,30 +227,43 @@ export default function ArenaPage() {
           const level = (arena as any)[item.id] || 0;
           const finishTime = arena.constructionFinishes?.[item.id];
           const isConstructing = !!finishTime;
+          const progress = isConstructing ? calculateProgress(item.id) : 0;
+          
           return (
             <Card key={item.id} className={cn(
               "glass-card border-white/5 overflow-hidden",
               isConstructing && "bg-orange-500/5 border-orange-500/20"
             )}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={cn("p-2.5 rounded-xl bg-secondary/50", isConstructing ? "text-orange-400 animate-pulse" : item.color)}>
-                    {isConstructing ? <Hammer className="w-5 h-5" /> : <item.icon className="w-5 h-5" />}
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-0">
+                  <div className="flex items-center gap-4">
+                    <div className={cn("p-2.5 rounded-xl bg-secondary/50", isConstructing ? "text-orange-400 animate-pulse" : item.color)}>
+                      {isConstructing ? <Hammer className="w-5 h-5" /> : <item.icon className="w-5 h-5" />}
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold uppercase">{t.items[item.id as keyof typeof t.items].label}</h3>
+                      <Badge variant="secondary" className="text-[9px] h-4 py-0 uppercase mt-1">LVL {level}</Badge>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-bold uppercase">{t.items[item.id as keyof typeof t.items].label}</h3>
-                    <Badge variant="secondary" className="text-[9px] h-4 py-0 uppercase mt-1">LVL {level}</Badge>
-                  </div>
+                  {isConstructing ? (
+                    <div className="text-right">
+                      <p className="text-[7px] uppercase text-muted-foreground font-bold">{t.finishAt}</p>
+                      <p className="text-[9px] font-mono font-bold text-orange-400">{formatFinishTime(finishTime)}</p>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="outline" className="h-9 px-3" onClick={() => setSelectedFacility(item.id)}>
+                      <span className="text-[9px] uppercase font-bold text-primary">{t.upgrade}</span>
+                    </Button>
+                  )}
                 </div>
-                {isConstructing ? (
-                  <div className="text-right">
-                    <p className="text-[7px] uppercase text-muted-foreground font-bold">{t.finishAt}</p>
-                    <p className="text-[9px] font-mono font-bold text-orange-400">{formatFinishTime(finishTime)}</p>
+                {isConstructing && (
+                  <div className="mt-3 space-y-1">
+                    <div className="flex justify-between text-[7px] uppercase font-bold text-orange-400">
+                      <span>Syncing Data...</span>
+                      <span>{Math.floor(progress)}%</span>
+                    </div>
+                    <Progress value={progress} className="h-1 bg-orange-500/20" />
                   </div>
-                ) : (
-                  <Button size="sm" variant="outline" className="h-9 px-3" onClick={() => setSelectedFacility(item.id)}>
-                    <span className="text-[9px] uppercase font-bold text-primary">{t.upgrade}</span>
-                  </Button>
                 )}
               </CardContent>
             </Card>

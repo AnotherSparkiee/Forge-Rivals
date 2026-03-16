@@ -14,6 +14,7 @@ interface ArenaState {
   lightingLevel: number;
   pendingCapacitySeats: number | null;
   constructionFinishes: Record<string, string | null>; // facilityId or 'capacity' -> ISO string timestamp
+  constructionStarts: Record<string, string | null>; // facilityId or 'capacity' -> ISO string timestamp
 }
 
 interface GameState {
@@ -58,6 +59,7 @@ const DEFAULT_ARENA: ArenaState = {
   lightingLevel: 0,
   pendingCapacitySeats: null,
   constructionFinishes: {},
+  constructionStarts: {},
 };
 
 const TEST_CREDITS = 99000000;
@@ -117,11 +119,16 @@ export function useGameState() {
           constructionFinishes: {
             ...(DEFAULT_ARENA.constructionFinishes),
             ...(rawArena.constructionFinishes || {})
+          },
+          constructionStarts: {
+            ...(DEFAULT_ARENA.constructionStarts),
+            ...(rawArena.constructionStarts || {})
           }
         };
 
         const newArena = { ...updatedArena };
         const newFinishes = { ...(newArena.constructionFinishes || {}) };
+        const newStarts = { ...(newArena.constructionStarts || {}) };
         let hasChanges = false;
 
         Object.entries(newFinishes).forEach(([id, finishTime]) => {
@@ -133,12 +140,14 @@ export function useGameState() {
               (newArena as any)[id] = ((newArena as any)[id] || 0) + 1;
             }
             newFinishes[id] = null;
+            newStarts[id] = null;
             hasChanges = true;
           }
         });
 
         if (hasChanges) {
           newArena.constructionFinishes = newFinishes;
+          newArena.constructionStarts = newStarts;
         }
 
         setState(prev => {
@@ -178,21 +187,25 @@ export function useGameState() {
     setState(s => ({ ...s, credits: s.credits + amount }));
   };
 
-  const startArenaConstruction = (facility: keyof Omit<ArenaState, 'capacity' | 'constructionFinishes' | 'pendingCapacitySeats'>, cost: number) => {
+  const startArenaConstruction = (facility: keyof Omit<ArenaState, 'capacity' | 'constructionFinishes' | 'constructionStarts' | 'pendingCapacitySeats'>, cost: number) => {
     const isAnyBuilding = Object.values(state.arena.constructionFinishes).some(v => v !== null && v !== undefined);
     
     if (state.credits >= cost && !isAnyBuilding) {
       const currentLevel = (state.arena as any)[facility];
       const hours = 4 * (currentLevel + 1);
       
-      const finishTime = getMoscowTime();
-      finishTime.setHours(finishTime.getHours() + hours);
+      const startTime = getMoscowTime();
+      const finishTime = new Date(startTime.getTime() + hours * 3600000);
 
       setState(s => ({
         ...s,
         credits: s.credits - cost,
         arena: {
           ...s.arena,
+          constructionStarts: {
+            ...s.arena.constructionStarts,
+            [facility]: startTime.toISOString()
+          },
           constructionFinishes: {
             ...s.arena.constructionFinishes,
             [facility]: finishTime.toISOString()
@@ -208,8 +221,8 @@ export function useGameState() {
     const isAnyBuilding = Object.values(state.arena.constructionFinishes).some(v => v !== null && v !== undefined);
     
     if (state.credits >= cost && !isAnyBuilding) {
-      const finishTime = getMoscowTime();
-      finishTime.setHours(finishTime.getHours() + hours);
+      const startTime = getMoscowTime();
+      const finishTime = new Date(startTime.getTime() + hours * 3600000);
 
       setState(s => ({
         ...s,
@@ -217,6 +230,10 @@ export function useGameState() {
         arena: {
           ...s.arena,
           pendingCapacitySeats: seats,
+          constructionStarts: {
+            ...s.arena.constructionStarts,
+            capacity: startTime.toISOString()
+          },
           constructionFinishes: {
             ...s.arena.constructionFinishes,
             capacity: finishTime.toISOString()
@@ -233,6 +250,7 @@ export function useGameState() {
     let hasChanges = false;
     const newArena = { ...state.arena };
     const newFinishes = { ...(newArena.constructionFinishes || {}) };
+    const newStarts = { ...(newArena.constructionStarts || {}) };
 
     Object.entries(newFinishes).forEach(([id, finishTime]) => {
       if (finishTime && mskNow >= new Date(finishTime as string).getTime()) {
@@ -243,12 +261,14 @@ export function useGameState() {
           (newArena as any)[id] = ((newArena as any)[id] || 0) + 1;
         }
         newFinishes[id] = null;
+        newStarts[id] = null;
         hasChanges = true;
       }
     });
 
     if (hasChanges) {
       newArena.constructionFinishes = newFinishes;
+      newArena.constructionStarts = newStarts;
       setState(s => ({ ...s, arena: newArena }));
     }
   };
