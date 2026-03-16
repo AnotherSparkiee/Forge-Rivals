@@ -45,6 +45,16 @@ interface AcademyState {
   constructionStarts: Record<string, string | null>;
 }
 
+interface MedicalState {
+  physiotherapyLevel: number;
+  massageLevel: number;
+  psychiatristLevel: number;
+  labLevel: number;
+  psychologistLevel: number;
+  constructionFinishes: Record<string, string | null>;
+  constructionStarts: Record<string, string | null>;
+}
+
 interface GameState {
   credits: number;
   ownedHeroes: Hero[];
@@ -70,6 +80,7 @@ interface GameState {
   hq: HQState;
   bootcamp: BootcampState;
   academy: AcademyState;
+  medical: MedicalState;
 }
 
 const getTodayDateString = () => {
@@ -121,6 +132,16 @@ const DEFAULT_ACADEMY: AcademyState = {
   constructionStarts: {},
 };
 
+const DEFAULT_MEDICAL: MedicalState = {
+  physiotherapyLevel: 0,
+  massageLevel: 0,
+  psychiatristLevel: 0,
+  labLevel: 0,
+  psychologistLevel: 0,
+  constructionFinishes: {},
+  constructionStarts: {},
+};
+
 const TEST_CREDITS = 99000000;
 
 const DEFAULT_STATE: GameState = {
@@ -145,6 +166,7 @@ const DEFAULT_STATE: GameState = {
   hq: DEFAULT_HQ,
   bootcamp: DEFAULT_BOOTCAMP,
   academy: DEFAULT_ACADEMY,
+  medical: DEFAULT_MEDICAL,
 };
 
 export function useGameState() {
@@ -186,6 +208,7 @@ export function useGameState() {
             hq: { ...DEFAULT_HQ, ...(parsed.hq || {}) },
             bootcamp: { ...DEFAULT_BOOTCAMP, ...(parsed.bootcamp || {}) },
             academy: { ...DEFAULT_ACADEMY, ...(parsed.academy || {}) },
+            medical: { ...DEFAULT_MEDICAL, ...(parsed.medical || {}) },
           };
           
           if (newState.credits < TEST_CREDITS) {
@@ -225,6 +248,10 @@ export function useGameState() {
 
   const isAcademyBusy = useCallback((s: GameState) => {
     return Object.values(s.academy.constructionFinishes).some(v => v !== null && v !== undefined);
+  }, []);
+
+  const isMedicalBusy = useCallback((s: GameState) => {
+    return Object.values(s.medical.constructionFinishes).some(v => v !== null && v !== undefined);
   }, []);
 
   const startArenaConstruction = useCallback((facility: keyof Omit<ArenaState, 'capacity' | 'constructionFinishes' | 'constructionStarts' | 'pendingCapacitySeats'>, cost: number) => {
@@ -323,6 +350,30 @@ export function useGameState() {
     return result;
   }, [isAcademyBusy]);
 
+  const startMedicalConstruction = useCallback((facility: keyof Omit<MedicalState, 'constructionFinishes' | 'constructionStarts'>, cost: number) => {
+    let result = false;
+    setState(s => {
+      if (s.credits >= cost && !isMedicalBusy(s)) {
+        const currentLevel = (s.medical as any)[facility];
+        const hours = 12 * (currentLevel + 1);
+        const startTime = new Date();
+        const finishTime = new Date(startTime.getTime() + hours * 3600000);
+        result = true;
+        return {
+          ...s,
+          credits: s.credits - cost,
+          medical: {
+            ...s.medical,
+            constructionStarts: { ...s.medical.constructionStarts, [facility]: startTime.toISOString() },
+            constructionFinishes: { ...s.medical.constructionFinishes, [facility]: finishTime.toISOString() }
+          }
+        };
+      }
+      return s;
+    });
+    return result;
+  }, [isMedicalBusy]);
+
   const startCapacityExpansion = useCallback((seats: number, cost: number, hours: number) => {
     let result = false;
     setState(s => {
@@ -408,6 +459,19 @@ export function useGameState() {
         }
       });
 
+      const newMedical = { ...s.medical };
+      const medFinishes = { ...(newMedical.constructionFinishes || {}) };
+      const medStarts = { ...(newMedical.constructionStarts || {}) };
+
+      Object.entries(medFinishes).forEach(([id, finishTime]) => {
+        if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
+          (newMedical as any)[id] = ((newMedical as any)[id] || 0) + 1;
+          medFinishes[id] = null;
+          medStarts[id] = null;
+          hasChanges = true;
+        }
+      });
+
       if (hasChanges) {
         newArena.constructionFinishes = arenaFinishes;
         newArena.constructionStarts = arenaStarts;
@@ -417,7 +481,9 @@ export function useGameState() {
         newBootcamp.constructionStarts = bcStarts;
         newAcademy.constructionFinishes = acFinishes;
         newAcademy.constructionStarts = acStarts;
-        return { ...s, arena: newArena, hq: newHq, bootcamp: newBootcamp, academy: newAcademy };
+        newMedical.constructionFinishes = medFinishes;
+        newMedical.constructionStarts = medStarts;
+        return { ...s, arena: newArena, hq: newHq, bootcamp: newBootcamp, academy: newAcademy, medical: newMedical };
       }
       return s;
     });
@@ -483,6 +549,7 @@ export function useGameState() {
     startHQConstruction,
     startBootcampConstruction,
     startAcademyConstruction,
+    startMedicalConstruction,
     startCapacityExpansion,
     checkConstructions,
     setLanguage,
