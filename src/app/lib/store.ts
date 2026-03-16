@@ -27,6 +27,15 @@ interface HQState {
   constructionStarts: Record<string, string | null>;
 }
 
+interface BootcampState {
+  bootcampLevel: number;
+  tacticsHallLevel: number;
+  poolLevel: number;
+  researchLevel: number;
+  constructionFinishes: Record<string, string | null>;
+  constructionStarts: Record<string, string | null>;
+}
+
 interface GameState {
   credits: number;
   ownedHeroes: Hero[];
@@ -50,6 +59,7 @@ interface GameState {
   // Infrastructure State
   arena: ArenaState;
   hq: HQState;
+  bootcamp: BootcampState;
 }
 
 const getTodayDateString = () => {
@@ -83,6 +93,15 @@ const DEFAULT_HQ: HQState = {
   constructionStarts: {},
 };
 
+const DEFAULT_BOOTCAMP: BootcampState = {
+  bootcampLevel: 0,
+  tacticsHallLevel: 0,
+  poolLevel: 0,
+  researchLevel: 0,
+  constructionFinishes: {},
+  constructionStarts: {},
+};
+
 const TEST_CREDITS = 99000000;
 
 const DEFAULT_STATE: GameState = {
@@ -105,6 +124,7 @@ const DEFAULT_STATE: GameState = {
   seasonStartDate: getTodayDateString(),
   arena: DEFAULT_ARENA,
   hq: DEFAULT_HQ,
+  bootcamp: DEFAULT_BOOTCAMP,
 };
 
 export function useGameState() {
@@ -144,6 +164,7 @@ export function useGameState() {
             points: isNewSeason ? 0 : (parsed.points || 0),
             arena: { ...DEFAULT_ARENA, ...(parsed.arena || {}) },
             hq: { ...DEFAULT_HQ, ...(parsed.hq || {}) },
+            bootcamp: { ...DEFAULT_BOOTCAMP, ...(parsed.bootcamp || {}) },
           };
           
           if (newState.credits < TEST_CREDITS) {
@@ -177,6 +198,10 @@ export function useGameState() {
     return Object.values(s.hq.constructionFinishes).some(v => v !== null && v !== undefined);
   }, []);
 
+  const isBootcampBusy = useCallback((s: GameState) => {
+    return Object.values(s.bootcamp.constructionFinishes).some(v => v !== null && v !== undefined);
+  }, []);
+
   const startArenaConstruction = useCallback((facility: keyof Omit<ArenaState, 'capacity' | 'constructionFinishes' | 'constructionStarts' | 'pendingCapacitySeats'>, cost: number) => {
     let result = false;
     setState(s => {
@@ -206,7 +231,6 @@ export function useGameState() {
     setState(s => {
       if (s.credits >= cost && !isHQBusy(s)) {
         const currentLevel = (s.hq as any)[facility];
-        // Updated: 8 hours per level for HQ
         const hours = 8 * (currentLevel + 1);
         const startTime = new Date();
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
@@ -225,6 +249,30 @@ export function useGameState() {
     });
     return result;
   }, [isHQBusy]);
+
+  const startBootcampConstruction = useCallback((facility: keyof Omit<BootcampState, 'constructionFinishes' | 'constructionStarts'>, cost: number) => {
+    let result = false;
+    setState(s => {
+      if (s.credits >= cost && !isBootcampBusy(s)) {
+        const currentLevel = (s.bootcamp as any)[facility];
+        const hours = 10 * (currentLevel + 1);
+        const startTime = new Date();
+        const finishTime = new Date(startTime.getTime() + hours * 3600000);
+        result = true;
+        return {
+          ...s,
+          credits: s.credits - cost,
+          bootcamp: {
+            ...s.bootcamp,
+            constructionStarts: { ...s.bootcamp.constructionStarts, [facility]: startTime.toISOString() },
+            constructionFinishes: { ...s.bootcamp.constructionFinishes, [facility]: finishTime.toISOString() }
+          }
+        };
+      }
+      return s;
+    });
+    return result;
+  }, [isBootcampBusy]);
 
   const startCapacityExpansion = useCallback((seats: number, cost: number, hours: number) => {
     let result = false;
@@ -285,12 +333,27 @@ export function useGameState() {
         }
       });
 
+      const newBootcamp = { ...s.bootcamp };
+      const bcFinishes = { ...(newBootcamp.constructionFinishes || {}) };
+      const bcStarts = { ...(newBootcamp.constructionStarts || {}) };
+
+      Object.entries(bcFinishes).forEach(([id, finishTime]) => {
+        if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
+          (newBootcamp as any)[id] = ((newBootcamp as any)[id] || 0) + 1;
+          bcFinishes[id] = null;
+          bcStarts[id] = null;
+          hasChanges = true;
+        }
+      });
+
       if (hasChanges) {
         newArena.constructionFinishes = arenaFinishes;
         newArena.constructionStarts = arenaStarts;
         newHq.constructionFinishes = hqFinishes;
         newHq.constructionStarts = hqStarts;
-        return { ...s, arena: newArena, hq: newHq };
+        newBootcamp.constructionFinishes = bcFinishes;
+        newBootcamp.constructionStarts = bcStarts;
+        return { ...s, arena: newArena, hq: newHq, bootcamp: newBootcamp };
       }
       return s;
     });
@@ -354,6 +417,7 @@ export function useGameState() {
     setTeam,
     startArenaConstruction,
     startHQConstruction,
+    startBootcampConstruction,
     startCapacityExpansion,
     checkConstructions,
     setLanguage,
