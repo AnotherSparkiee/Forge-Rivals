@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
-import { Badge } from '@/badge';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { getMoscowTime } from '@/app/lib/time-utils';
 
@@ -41,7 +41,7 @@ export default function ArenaPage() {
       }, 1000); 
       return () => clearInterval(timer);
     }
-  }, [isLoaded]);
+  }, [isLoaded, checkConstructions]);
 
   const isAnyConstructing = useMemo(() => {
     if (!arena || !arena.constructionFinishes) return false;
@@ -127,7 +127,7 @@ export default function ArenaPage() {
     const finishTime = new Date(finish).getTime();
     
     const total = finishTime - startTime;
-    const elapsed = now - startTime;
+    const elapsed = Date.now() - startTime;
     
     if (total <= 0) return 100;
     const prog = (elapsed / total) * 100;
