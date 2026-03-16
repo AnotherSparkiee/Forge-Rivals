@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -111,20 +112,28 @@ export function useGameState() {
 
         const isNewSeason = parsed.seasonDay && currentDay > 0 && currentDay < parsed.seasonDay;
 
-        // Safely merge arena state
+        // Safely merge arena state to handle new properties like constructionStarts
         const rawArena = parsed.arena || {};
         const updatedArena: ArenaState = {
           ...DEFAULT_ARENA,
           ...rawArena,
           constructionFinishes: {
-            ...(DEFAULT_ARENA.constructionFinishes),
+            ...DEFAULT_ARENA.constructionFinishes,
             ...(rawArena.constructionFinishes || {})
           },
           constructionStarts: {
-            ...(DEFAULT_ARENA.constructionStarts),
+            ...DEFAULT_ARENA.constructionStarts,
             ...(rawArena.constructionStarts || {})
           }
         };
+
+        // For legacy builds that have a finish time but no start time, infer the start time
+        Object.keys(updatedArena.constructionFinishes).forEach(id => {
+          if (updatedArena.constructionFinishes[id] && !updatedArena.constructionStarts[id]) {
+            // Assume the build just started if we don't know (safest fallback for progress bar)
+            updatedArena.constructionStarts[id] = new Date(mskNowTime - 60000).toISOString(); 
+          }
+        });
 
         const newArena = { ...updatedArena };
         const newFinishes = { ...(newArena.constructionFinishes || {}) };
@@ -292,6 +301,7 @@ export function useGameState() {
     let matchLosses = 0;
     let matchPoints = 0;
 
+    // Based on Bo2 format: 2:0, 1:1, or 0:2
     if (scoreA === 2 && scoreB === 0) {
       creditsEarned = 200;
       rankChange = 25;

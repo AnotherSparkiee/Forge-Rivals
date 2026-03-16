@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -30,14 +31,15 @@ export default function ArenaPage() {
   const [showCapacityDialog, setShowCapacityDialog] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
   const [expansionSeats, setExpansionSeats] = useState([500]);
-  const [now, setNow] = useState(getMoscowTime().getTime());
+  const [now, setNow] = useState(0);
 
   useEffect(() => {
     if (isLoaded) {
+      setNow(getMoscowTime().getTime());
       const timer = setInterval(() => {
         checkConstructions();
         setNow(getMoscowTime().getTime());
-      }, 1000); // Update every second for smooth progress bar
+      }, 1000); 
       return () => clearInterval(timer);
     }
   }, [isLoaded]);
@@ -115,16 +117,28 @@ export default function ArenaPage() {
   const t = labels[language as keyof typeof labels] || labels.ru;
 
   const calculateProgress = (id: string) => {
-    const start = arena.constructionStarts[id];
-    const finish = arena.constructionFinishes[id];
-    if (!start || !finish) return 0;
+    const start = arena.constructionStarts?.[id];
+    const finish = arena.constructionFinishes?.[id];
     
-    const startTime = new Date(start).getTime();
+    if (!finish) return 0;
+    
     const finishTime = new Date(finish).getTime();
+    
+    // Fallback if startTime is missing for some reason
+    let startTime = start ? new Date(start).getTime() : 0;
+    if (startTime === 0 || isNaN(startTime)) {
+        // If we don't have a start time, we assume the total duration was some fixed amount based on levels
+        // but for progress bar to work we need a start. Let's assume it started 10 minutes ago as a safe fallback
+        startTime = finishTime - (1000 * 60 * 60 * 4); 
+    }
+    
     const total = finishTime - startTime;
     const elapsed = now - startTime;
     
-    return Math.min(Math.max((elapsed / total) * 100, 0), 100);
+    if (total <= 0) return 0;
+    const prog = (elapsed / total) * 100;
+    
+    return Math.min(Math.max(prog, 0), 100);
   };
 
   const handleFacilityUpgrade = () => {
