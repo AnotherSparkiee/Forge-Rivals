@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Hero, INITIAL_HEROES } from './moba-data';
 import { getMoscowTime } from './time-utils';
 
@@ -183,144 +182,140 @@ export function useGameState() {
     }
   }, [state, isLoaded]);
 
-  const addCredits = (amount: number) => {
+  const addCredits = useCallback((amount: number) => {
     setState(s => ({ ...s, credits: s.credits + amount }));
-  };
+  }, []);
 
-  const startArenaConstruction = (facility: keyof Omit<ArenaState, 'capacity' | 'constructionFinishes' | 'constructionStarts' | 'pendingCapacitySeats'>, cost: number) => {
-    const isAnyBuilding = Object.values(state.arena.constructionFinishes).some(v => v !== null && v !== undefined);
-    
-    if (state.credits >= cost && !isAnyBuilding) {
-      const currentLevel = (state.arena as any)[facility];
-      const hours = 4 * (currentLevel + 1);
-      
-      const startTime = new Date();
-      const finishTime = new Date(startTime.getTime() + hours * 3600000);
-
-      setState(s => ({
-        ...s,
-        credits: s.credits - cost,
-        arena: {
-          ...s.arena,
-          constructionStarts: {
-            ...s.arena.constructionStarts,
-            [facility]: startTime.toISOString()
-          },
-          constructionFinishes: {
-            ...s.arena.constructionFinishes,
-            [facility]: finishTime.toISOString()
+  const startArenaConstruction = useCallback((facility: keyof Omit<ArenaState, 'capacity' | 'constructionFinishes' | 'constructionStarts' | 'pendingCapacitySeats'>, cost: number) => {
+    let result = false;
+    setState(s => {
+      const isAnyBuilding = Object.values(s.arena.constructionFinishes).some(v => v !== null && v !== undefined);
+      if (s.credits >= cost && !isAnyBuilding) {
+        const currentLevel = (s.arena as any)[facility];
+        const hours = 4 * (currentLevel + 1);
+        const startTime = new Date();
+        const finishTime = new Date(startTime.getTime() + hours * 3600000);
+        result = true;
+        return {
+          ...s,
+          credits: s.credits - cost,
+          arena: {
+            ...s.arena,
+            constructionStarts: { ...s.arena.constructionStarts, [facility]: startTime.toISOString() },
+            constructionFinishes: { ...s.arena.constructionFinishes, [facility]: finishTime.toISOString() }
           }
-        }
-      }));
-      return true;
-    }
-    return false;
-  };
-
-  const startCapacityExpansion = (seats: number, cost: number, hours: number) => {
-    const isAnyBuilding = Object.values(state.arena.constructionFinishes).some(v => v !== null && v !== undefined);
-    
-    if (state.credits >= cost && !isAnyBuilding) {
-      const startTime = new Date();
-      const finishTime = new Date(startTime.getTime() + hours * 3600000);
-
-      setState(s => ({
-        ...s,
-        credits: s.credits - cost,
-        arena: {
-          ...s.arena,
-          pendingCapacitySeats: seats,
-          constructionStarts: {
-            ...s.arena.constructionStarts,
-            capacity: startTime.toISOString()
-          },
-          constructionFinishes: {
-            ...s.arena.constructionFinishes,
-            capacity: finishTime.toISOString()
-          }
-        }
-      }));
-      return true;
-    }
-    return false;
-  };
-
-  const checkConstructions = () => {
-    const nowTime = Date.now();
-    let hasChanges = false;
-    const newArena = { ...state.arena };
-    const newFinishes = { ...(newArena.constructionFinishes || {}) };
-    const newStarts = { ...(newArena.constructionStarts || {}) };
-
-    Object.entries(newFinishes).forEach(([id, finishTime]) => {
-      if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
-        if (id === 'capacity') {
-          newArena.capacity += (newArena.pendingCapacitySeats || 0);
-          newArena.pendingCapacitySeats = null;
-        } else {
-          (newArena as any)[id] = ((newArena as any)[id] || 0) + 1;
-        }
-        newFinishes[id] = null;
-        newStarts[id] = null;
-        hasChanges = true;
+        };
       }
+      return s;
     });
+    return result;
+  }, []);
 
-    if (hasChanges) {
-      newArena.constructionFinishes = newFinishes;
-      newArena.constructionStarts = newStarts;
-      setState(s => ({ ...s, arena: newArena }));
-    }
-  };
+  const startCapacityExpansion = useCallback((seats: number, cost: number, hours: number) => {
+    let result = false;
+    setState(s => {
+      const isAnyBuilding = Object.values(s.arena.constructionFinishes).some(v => v !== null && v !== undefined);
+      if (s.credits >= cost && !isAnyBuilding) {
+        const startTime = new Date();
+        const finishTime = new Date(startTime.getTime() + hours * 3600000);
+        result = true;
+        return {
+          ...s,
+          credits: s.credits - cost,
+          arena: {
+            ...s.arena,
+            pendingCapacitySeats: seats,
+            constructionStarts: { ...s.arena.constructionStarts, capacity: startTime.toISOString() },
+            constructionFinishes: { ...s.arena.constructionFinishes, capacity: finishTime.toISOString() }
+          }
+        };
+      }
+      return s;
+    });
+    return result;
+  }, []);
 
-  const setLanguage = (lang: 'en' | 'ru') => {
+  const checkConstructions = useCallback(() => {
+    setState(s => {
+      const nowTime = Date.now();
+      let hasChanges = false;
+      const newArena = { ...s.arena };
+      const newFinishes = { ...(newArena.constructionFinishes || {}) };
+      const newStarts = { ...(newArena.constructionStarts || {}) };
+
+      Object.entries(newFinishes).forEach(([id, finishTime]) => {
+        if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
+          if (id === 'capacity') {
+            newArena.capacity += (newArena.pendingCapacitySeats || 0);
+            newArena.pendingCapacitySeats = null;
+          } else {
+            (newArena as any)[id] = ((newArena as any)[id] || 0) + 1;
+          }
+          newFinishes[id] = null;
+          newStarts[id] = null;
+          hasChanges = true;
+        }
+      });
+
+      if (hasChanges) {
+        newArena.constructionFinishes = newFinishes;
+        newArena.constructionStarts = newStarts;
+        return { ...s, arena: newArena };
+      }
+      return s;
+    });
+  }, []);
+
+  const setLanguage = useCallback((lang: 'en' | 'ru') => {
     setState(s => ({ ...s, language: lang }));
-  };
+  }, []);
 
-  const setTeam = (newTeam: any[]) => {
+  const setTeam = useCallback((newTeam: any[]) => {
     setState(s => ({ ...s, team: newTeam }));
-  };
+  }, []);
 
-  const recordMatch = (winner: string, result: any, isAutomated = false) => {
-    const scoreA = result.scoreA || 0;
-    const scoreB = result.scoreB || 0;
-    
-    let creditsEarned = 50;
-    let rankChange = -15;
-    let matchWins = 0;
-    let matchDraws = 0;
-    let matchLosses = 0;
-    let matchPoints = 0;
+  const recordMatch = useCallback((winner: string, result: any, isAutomated = false) => {
+    setState(s => {
+      const scoreA = result.scoreA || 0;
+      const scoreB = result.scoreB || 0;
+      
+      let creditsEarned = 50;
+      let rankChange = -15;
+      let matchWins = 0;
+      let matchDraws = 0;
+      let matchLosses = 0;
+      let matchPoints = 0;
 
-    // Based on Bo2 format: 2:0, 1:1, or 0:2
-    if (scoreA === 2 && scoreB === 0) {
-      creditsEarned = 200;
-      rankChange = 25;
-      matchWins = 1;
-      matchPoints = 3;
-    } else if (scoreA === 1 && scoreB === 1) {
-      creditsEarned = 100;
-      rankChange = 5;
-      matchDraws = 1;
-      matchPoints = 1;
-    } else {
-      matchLosses = 1;
-    }
+      // Based on Bo2 format: 2:0, 1:1, or 0:2
+      if (scoreA === 2 && scoreB === 0) {
+        creditsEarned = 200;
+        rankChange = 25;
+        matchWins = 1;
+        matchPoints = 3;
+      } else if (scoreA === 1 && scoreB === 1) {
+        creditsEarned = 100;
+        rankChange = 5;
+        matchDraws = 1;
+        matchPoints = 1;
+      } else {
+        matchLosses = 1;
+      }
 
-    const today = getTodayDateString();
-    
-    setState(s => ({
-      ...s,
-      credits: s.credits + creditsEarned,
-      rank: s.rank + rankChange,
-      wins: s.wins + matchWins,
-      draws: s.draws + matchDraws,
-      losses: s.losses + matchLosses,
-      points: s.points + matchPoints,
-      matchHistory: [result, ...s.matchHistory].slice(0, 10),
-      lastLeagueMatchDate: isAutomated ? today : s.lastLeagueMatchDate
-    }));
-  };
+      const today = getTodayDateString();
+      
+      return {
+        ...s,
+        credits: s.credits + creditsEarned,
+        rank: s.rank + rankChange,
+        wins: s.wins + matchWins,
+        draws: s.draws + matchDraws,
+        losses: s.losses + matchLosses,
+        points: s.points + matchPoints,
+        matchHistory: [result, ...s.matchHistory].slice(0, 10),
+        lastLeagueMatchDate: isAutomated ? today : s.lastLeagueMatchDate
+      };
+    });
+  }, []);
 
   return {
     ...state,

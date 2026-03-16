@@ -11,7 +11,7 @@ import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
 import { 
   ChevronLeft, MessageSquare, Coffee, ShoppingBag, 
-  Monitor, Home, Lightbulb, ArrowUpCircle, Wallet, Clock,
+  Monitor, Home, Lightbulb, Wallet, Clock,
   Hammer, Users, MinusCircle, PlusCircle
 } from 'lucide-react';
 import Link from 'next/link';
@@ -34,7 +34,7 @@ export default function ArenaPage() {
 
   useEffect(() => {
     if (isLoaded) {
-      setNow(Date.now());
+      // Avoid immediate setState that could trigger loops if deps are unstable
       const timer = setInterval(() => {
         checkConstructions();
         setNow(Date.now());
