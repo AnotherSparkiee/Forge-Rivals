@@ -31,7 +31,7 @@ export default function RegisterPage() {
       title: "Initiate Profile",
       navLogin: "Login",
       navRegister: "Register",
-      callsign: "Team Name (Unique)",
+      callsign: "Team Name",
       emailLabel: "Email Address",
       passLabel: "Access Key (Password)",
       submitBtn: "CREATE PROFILE",
@@ -46,7 +46,7 @@ export default function RegisterPage() {
       title: "Инициация профиля",
       navLogin: "Вход",
       navRegister: "Регистрация",
-      callsign: "Название команды (Уникальное)",
+      callsign: "Название команды",
       emailLabel: "Почта (Email)",
       passLabel: "Ключ доступа (Пароль)",
       submitBtn: "СОЗДАТЬ ПРОФИЛЬ",
@@ -117,7 +117,6 @@ export default function RegisterPage() {
 
   return (
     <div className="space-y-4">
-      {/* Auth Toggle Navigation */}
       <div className="flex justify-center gap-2 mb-4 bg-secondary/20 p-1 rounded-lg border border-white/5">
         <Button 
           variant="ghost" 
