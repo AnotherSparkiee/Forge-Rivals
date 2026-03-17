@@ -2,6 +2,7 @@ import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
+import { GameStateProvider } from "@/app/lib/store";
 import { BottomNav } from "@/components/game/BottomNav";
 import { TopBar } from "@/components/game/TopBar";
 import { AutoMatchManager } from "@/components/game/AutoMatchManager";
@@ -27,13 +28,15 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased min-h-screen bg-background text-foreground pt-14 pb-20">
         <FirebaseClientProvider>
-          <TopBar />
-          <AutoMatchManager />
-          <Suspense fallback={<LoadingScreen />}>
-            {children}
-          </Suspense>
-          <BottomNav />
-          <Toaster />
+          <GameStateProvider>
+            <TopBar />
+            <AutoMatchManager />
+            <Suspense fallback={<LoadingScreen />}>
+              {children}
+            </Suspense>
+            <BottomNav />
+            <Toaster />
+          </GameStateProvider>
         </FirebaseClientProvider>
       </body>
     </html>

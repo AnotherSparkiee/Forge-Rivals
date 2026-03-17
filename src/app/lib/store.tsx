@@ -143,12 +143,10 @@ const DEFAULT_MEDICAL: MedicalState = {
   constructionStarts: {},
 };
 
-const TEST_CREDITS = 99000000;
-
 const DEFAULT_STATE: GameState = {
-  credits: TEST_CREDITS,
+  credits: 500000,
   ownedHeroes: INITIAL_HEROES,
-  team: INITIAL_HEROES,
+  team: INITIAL_HEROES.slice(0, 5),
   lineup: {
     carry: INITIAL_HEROES[0]?.id || null,
     mid: INITIAL_HEROES[1]?.id || null,
@@ -201,12 +199,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Use a user-specific storage key to prevent cross-account contamination
   const getStorageKey = useCallback(() => {
     return user ? `moba_tactics_state_${user.uid}` : null;
   }, [user]);
 
-  // Initial load when user changes
   useEffect(() => {
     const key = getStorageKey();
     if (!key) {
@@ -258,7 +254,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setIsLoaded(true);
   }, [getStorageKey]);
 
-  // Persist state to scoped localStorage
   useEffect(() => {
     const key = getStorageKey();
     if (isLoaded && key) {
