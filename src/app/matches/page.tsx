@@ -69,6 +69,7 @@ export default function MatchesPage() {
 
   const groupTeams = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return [];
+    // Even if seasonDay is 0, we use Day 1 as calculation baseline for future matches
     const calculationDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
     return getMockGroupTeams(
       rank, 
@@ -149,19 +150,6 @@ export default function MatchesPage() {
   };
 
   const t = labels[language as keyof typeof labels] || labels.ru;
-
-  if (seasonDay === 0 && activeTab !== 'menu') {
-    return (
-      <div className="max-w-md mx-auto px-4 pt-8 pb-20 text-center">
-        <Button variant="ghost" onClick={() => setActiveTab('menu')} className="mb-4"><ChevronLeft className="mr-2 h-4 w-4" /> Back</Button>
-        <div className="py-20 space-y-4">
-          <Clock className="w-12 h-12 mx-auto text-muted-foreground animate-pulse" />
-          <h2 className="text-xl font-headline font-bold">Season Starts Tomorrow</h2>
-          <p className="text-sm text-muted-foreground">The tactical link is establishing. First matches will be deployed on Day 1.</p>
-        </div>
-      </div>
-    );
-  }
 
   const renderMatchRow = (match: any, dayIdx: number) => {
     const day = dayIdx + 1;

@@ -111,10 +111,10 @@ export function getMockGroupTeams(
     teams.push({
       id: p.id,
       name: isMe ? (playerName || p.displayName || "My Team") : (p.displayName || "Unknown Commander"),
-      wins: p.wins || 0,
-      draws: p.draws || 0,
-      losses: p.losses || 0,
-      points: p.points || 0,
+      wins: isMe ? (playerStats?.wins ?? p.wins ?? 0) : (p.wins || 0),
+      draws: isMe ? (playerStats?.draws ?? p.draws ?? 0) : (p.draws || 0),
+      losses: isMe ? (playerStats?.losses ?? p.losses ?? 0) : (p.losses || 0),
+      points: isMe ? (playerStats?.points ?? p.points ?? 0) : (p.points || 0),
       isPlayer: true,
       isMe: isMe
     });
@@ -135,6 +135,10 @@ export function getMockGroupTeams(
       isMe: false
     });
   }
+
+  // CRITICAL: Always sort teams by ID before simulating and generating schedule
+  // This ensures the bracket (who plays whom on which day) is stable throughout the season.
+  teams.sort((a, b) => a.id.localeCompare(b.id));
 
   // 3. Simulate bot vs bot matches for previous days
   const seasonSchedule = getSchedule(teams);
@@ -157,7 +161,8 @@ export function getMockGroupTeams(
     });
   }
 
-  return teams.sort((a, b) => b.points - a.points || (b.wins - a.wins));
+  // Return the stable list. Sorting for display (standings) should be done in the UI.
+  return teams;
 }
 
 export function applyResult(home: any, away: any, hScore: number, aScore: number) {

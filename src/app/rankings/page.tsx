@@ -81,7 +81,7 @@ export default function RankingsPage() {
     if (!isLoaded || !profile || !groupPlayers) return [];
     // If Day 0, show initial bot standings
     const calculationDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
-    return getMockGroupTeams(
+    const teams = getMockGroupTeams(
       rank, 
       profile.displayName || "My Team", 
       leagueLevel, 
@@ -94,6 +94,8 @@ export default function RankingsPage() {
       groupPlayers,
       user?.uid
     );
+    // Sort for display by points and wins
+    return [...teams].sort((a, b) => b.points - a.points || (b.wins - a.wins));
   }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, wins, draws, losses, points, isTodayPlayed, rank, user?.uid]);
 
   useEffect(() => {
