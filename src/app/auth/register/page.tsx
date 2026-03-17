@@ -31,7 +31,7 @@ export default function RegisterPage() {
       title: "Initiate Profile",
       navLogin: "Login",
       navRegister: "Register",
-      callsign: "Callsign (Unique Username)",
+      callsign: "Team Name (Unique)",
       emailLabel: "Email Address",
       passLabel: "Access Key (Password)",
       submitBtn: "CREATE PROFILE",
@@ -40,13 +40,13 @@ export default function RegisterPage() {
       successTitle: "Profile Initialized",
       successDesc: "Welcome to the league, Commander. Prepare for deployment and league assignment.",
       errorTitle: "Registration Failed",
-      usernameTaken: "This callsign is already assigned to another commander."
+      usernameTaken: "This team name is already assigned to another commander."
     },
     ru: {
       title: "Инициация профиля",
       navLogin: "Вход",
       navRegister: "Регистрация",
-      callsign: "Позывной (Уникальное имя)",
+      callsign: "Название команды (Уникальное)",
       emailLabel: "Почта (Email)",
       passLabel: "Ключ доступа (Пароль)",
       submitBtn: "СОЗДАТЬ ПРОФИЛЬ",
@@ -55,7 +55,7 @@ export default function RegisterPage() {
       successTitle: "Профиль инициализирован",
       successDesc: "Добро пожаловать в лигу, Командир. Приготовьтесь к развертыванию и зачислению в дивизион.",
       errorTitle: "Ошибка регистрации",
-      usernameTaken: "Этот позывной уже занят другим командиром."
+      usernameTaken: "Это название команды уже занято другим командиром."
     }
   };
 
@@ -147,7 +147,7 @@ export default function RegisterPage() {
               <Label htmlFor="username">{t.callsign}</Label>
               <Input 
                 id="username" 
-                placeholder="CommanderX" 
+                placeholder="Team X" 
                 value={username} 
                 onChange={(e) => setUsername(e.target.value)} 
                 required 

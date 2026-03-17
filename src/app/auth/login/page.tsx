@@ -30,7 +30,7 @@ export default function LoginPage() {
       title: "Sync Credentials",
       navLogin: "Login",
       navRegister: "Register",
-      emailLabel: "Email or Callsign",
+      emailLabel: "Email or Team Name",
       passLabel: "Access Key (Password)",
       submitBtn: "ESTABLISH LINK",
       newManager: "New manager?",
@@ -38,13 +38,13 @@ export default function LoginPage() {
       successTitle: "Access Granted",
       successDesc: "Welcome back to the Command Center.",
       errorTitle: "Access Denied",
-      userNotFound: "Callsign not found. Please check spelling or use email."
+      userNotFound: "Team name not found. Please check spelling or use email."
     },
     ru: {
       title: "Синхронизация данных",
       navLogin: "Вход",
       navRegister: "Регистрация",
-      emailLabel: "Почта или Позывной",
+      emailLabel: "Почта или Название команды",
       passLabel: "Ключ доступа (Пароль)",
       submitBtn: "УСТАНОВИТЬ СВЯЗЬ",
       newManager: "Новый менеджер?",
@@ -52,7 +52,7 @@ export default function LoginPage() {
       successTitle: "Доступ разрешен",
       successDesc: "Добро пожаловать в Командный Центр.",
       errorTitle: "Доступ запрещен",
-      userNotFound: "Позывной не найден. Проверьте написание или используйте почту."
+      userNotFound: "Команда не найдена. Проверьте написание или используйте почту."
     }
   };
 
@@ -134,7 +134,7 @@ export default function LoginPage() {
               <Label htmlFor="identifier">{t.emailLabel}</Label>
               <Input 
                 id="identifier" 
-                placeholder="Manager or email@example.com" 
+                placeholder="Team Name or email@example.com" 
                 value={identifier} 
                 onChange={(e) => setIdentifier(e.target.value)} 
                 required 
