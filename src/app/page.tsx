@@ -1,25 +1,50 @@
+
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { useGameState } from './lib/store';
 import { 
   Swords, Users, Trophy, TrendingUp, 
   ShoppingCart, Newspaper, Shield, Star, 
-  ChevronRight, Wallet, CalendarDays,
-  Zap
+  ChevronRight, CalendarDays, Zap, Clock,
+  UserSearch, ShieldAlert
 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { doc, collection, query, where } from 'firebase/firestore';
+import { getMockGroupTeams, getSchedule, LEAGUES } from './lib/leagues-data';
+import { getMoscowDateString } from './lib/time-utils';
+import { cn } from '@/lib/utils';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
-  const { credits, rank, team, strategy, language, isLoaded } = useGameState();
+  const db = useFirestore();
+  const { 
+    rank, leagueLevel, divisionSubId, groupId, 
+    strategy, language, isLoaded, lastLeagueMatchDate, seasonDay, team
+  } = useGameState();
+
+  // Fetch profile and group for match info
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
+
+  const groupQuery = useMemoFirebase(() => {
+    if (!profile?.selectedLeagueId) return null;
+    return query(
+      collection(db, 'players_v2'),
+      where('selectedLeagueId', '==', profile.selectedLeagueId),
+      where('leagueLevel', '==', profile.leagueLevel),
+      where('groupId', '==', profile.groupId)
+    );
+  }, [db, profile?.selectedLeagueId, profile?.leagueLevel, profile?.groupId]);
+
+  const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -27,21 +52,66 @@ export default function Home() {
     }
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || !isLoaded || !user) {
+  const isTodayPlayed = useMemo(() => {
+    const todayStr = getMoscowDateString();
+    return lastLeagueMatchDate === todayStr;
+  }, [lastLeagueMatchDate]);
+
+  const nextMatchInfo = useMemo(() => {
+    if (!isLoaded || !profile || !groupPlayers) return null;
+    
+    const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
+    if (targetDay > 14) return null;
+
+    const groupTeams = getMockGroupTeams(
+      rank, 
+      profile.displayName || "My Team", 
+      leagueLevel, 
+      divisionSubId, 
+      groupId, 
+      true, 
+      targetDay,
+      undefined,
+      profile.selectedLeagueId || "ALPHA",
+      groupPlayers,
+      user?.uid
+    );
+    
+    const schedule = getSchedule(groupTeams);
+    const dayMatches = schedule[targetDay - 1];
+    const myMatch = dayMatches?.find((m: any) => m.home.id === user?.uid || m.away.id === user?.uid);
+    
+    if (!myMatch) return null;
+
+    const opponent = myMatch.home.id === user?.uid ? myMatch.away : myMatch.home;
+    const league = LEAGUES.find(l => l.id === profile.selectedLeagueId) || LEAGUES[0];
+
+    return {
+      opponent,
+      day: targetDay,
+      time: league.startTime,
+      isToday: targetDay === seasonDay
+    };
+  }, [isLoaded, profile, groupPlayers, seasonDay, isTodayPlayed, rank, leagueLevel, divisionSubId, groupId, user?.uid]);
+
+  if (isUserLoading || !isLoaded || !user || isProfileLoading || isGroupLoading) {
     return <LoadingScreen />;
   }
 
   const translations = {
     en: {
-      title: "Command Center",
-      subtitle: "Tactical Operations Hub",
-      credits: "Credits",
-      rank: "Rank",
-      teamSize: "Team Size",
-      battleBtn: "Match Review",
+      nextMatch: "Next Engagement",
+      vs: "VS",
+      intelBrief: "Tactical Brief",
+      today: "TODAY",
+      tomorrow: "TOMORROW",
+      atTime: "at",
       activeStrat: "Active Strategy",
+      battleBtn: "MATCH TERMINAL",
       navTitle: "Navigation Terminals",
       locked: "Locked",
+      preSeason: "Season Preparation",
+      preSeasonDesc: "Calculating league brackets. First matches start tomorrow.",
       menu: [
         { label: 'Battle Simulation', desc: 'Deploy team for automated matches' },
         { label: 'Team Roster', desc: 'Manage your active hero lineup' },
@@ -55,15 +125,18 @@ export default function Home() {
       ]
     },
     ru: {
-      title: "Командный Центр",
-      subtitle: "Хаб Тактических Операций",
-      credits: "Кредиты",
-      rank: "Ранг",
-      teamSize: "Состав",
-      battleBtn: "ОБЗОР МАТЧА",
+      nextMatch: "Следующий матч",
+      vs: "ПРОТИВ",
+      intelBrief: "Тактическое досье",
+      today: "СЕГОДНЯ",
+      tomorrow: "ЗАВТРА",
+      atTime: "в",
       activeStrat: "Активная стратегия",
+      battleBtn: "ТЕРМИНАЛ МАТЧА",
       navTitle: "Тактические Терминалы",
       locked: "Закрыто",
+      preSeason: "Подготовка к сезону",
+      preSeasonDesc: "Формирование дивизионов. Первые игры начнутся завтра.",
       menu: [
         { label: 'Боевая Симуляция', desc: 'Развертывание команды для матча' },
         { label: 'Ростер Команды', desc: 'Управление активным составом' },
@@ -80,12 +153,6 @@ export default function Home() {
 
   const t = translations[language as keyof typeof translations] || translations.ru;
 
-  const quickStats = [
-    { label: t.credits, value: credits, icon: Wallet, color: 'text-yellow-400' },
-    { label: t.rank, value: rank, icon: Star, color: 'text-primary' },
-    { label: t.teamSize, value: `${team.length}/5`, icon: Users, color: 'text-accent' },
-  ];
-
   const menuItems = [
     { label: t.menu[1].label, href: '/roster', icon: Users, desc: t.menu[1].desc, active: true },
     { label: t.menu[8].label, href: '/training', icon: Zap, desc: t.menu[8].desc, active: true },
@@ -99,22 +166,70 @@ export default function Home() {
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-12">
-      <header className="mb-8">
-        <h1 className="text-3xl font-headline font-bold tracking-tighter text-primary uppercase">{t.title}</h1>
-        <p className="text-muted-foreground text-sm uppercase tracking-widest">{t.subtitle}</p>
+      <header className="mb-6">
+        <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
+          <UserSearch className="w-6 h-6 text-accent" />
+          {t.nextMatch}
+        </h1>
       </header>
 
-      <div className="grid grid-cols-3 gap-3 mb-8">
-        {quickStats.map((stat) => (
-          <Card key={stat.label} className="glass-card">
-            <CardContent className="p-3 flex flex-col items-center">
-              <stat.icon className={`w-4 h-4 mb-1 ${stat.color}`} />
-              <span className="text-lg font-bold font-headline">{stat.value}</span>
-              <span className="text-[8px] uppercase text-muted-foreground">{stat.label}</span>
+      {/* NEXT MATCH WIDGET */}
+      <section className="mb-8">
+        {nextMatchInfo ? (
+          <Card className="glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden">
+            <CardContent className="p-0">
+              <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                <Badge variant="outline" className="text-[10px] uppercase border-primary/50 text-primary flex items-center gap-1.5 py-1">
+                  <Clock className="w-3 h-3" /> {nextMatchInfo.isToday ? t.today : t.tomorrow} {t.atTime} {nextMatchInfo.time}
+                </Badge>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">Day {nextMatchInfo.day}</span>
+              </div>
+              <div className="p-6 flex flex-col items-center text-center">
+                <div className="relative mb-4">
+                  <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 border-accent shadow-[0_0_20px_rgba(var(--accent),0.2)]">
+                    <Shield className="w-10 h-10 text-accent" />
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1.5 border border-white/10">
+                    <Swords className="w-4 h-4 text-primary" />
+                  </div>
+                </div>
+                <h3 className="text-xl font-headline font-bold text-primary italic uppercase truncate w-full px-4">
+                  {nextMatchInfo.opponent.name}
+                </h3>
+                <div className="flex items-center gap-2 mt-2">
+                  <Badge variant="secondary" className="text-[8px] uppercase tracking-tighter">
+                    {nextMatchInfo.opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'}
+                  </Badge>
+                  <div className="text-[10px] font-bold text-accent">
+                    DIV {leagueLevel}.{divisionSubId}
+                  </div>
+                </div>
+              </div>
+              <div className="bg-primary/5 p-3 flex items-center justify-center gap-4 border-t border-white/5">
+                <div className="text-center">
+                  <p className="text-[8px] uppercase text-muted-foreground font-bold">W-D-L</p>
+                  <p className="text-xs font-bold">{nextMatchInfo.opponent.wins}-{nextMatchInfo.opponent.draws}-{nextMatchInfo.opponent.losses}</p>
+                </div>
+                <div className="h-6 w-px bg-white/5"></div>
+                <div className="text-center">
+                  <p className="text-[8px] uppercase text-muted-foreground font-bold">Points</p>
+                  <p className="text-xs font-bold text-accent">{nextMatchInfo.opponent.points}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+        ) : (
+          <Card className="glass-card border-accent/20 bg-accent/5">
+            <CardContent className="p-8 flex flex-col items-center text-center space-y-4">
+              <Clock className="w-12 h-12 text-accent animate-pulse" />
+              <div>
+                <h3 className="text-lg font-headline font-bold uppercase">{t.preSeason}</h3>
+                <p className="text-xs text-muted-foreground mt-1">{t.preSeasonDesc}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </section>
 
       <div className="space-y-4 mb-12">
         <Link href="/match" className="block">
