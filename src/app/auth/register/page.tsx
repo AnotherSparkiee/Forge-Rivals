@@ -1,17 +1,18 @@
+
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useFirestore } from '@/firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { doc, setDoc, collection, query, where, getDocs, limit, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Chrome } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 
@@ -20,6 +21,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const auth = useAuth();
   const db = useFirestore();
   const router = useRouter();
@@ -35,6 +37,8 @@ export default function RegisterPage() {
       emailLabel: "Email Address",
       passLabel: "Access Key (Password)",
       submitBtn: "CREATE PROFILE",
+      googleBtn: "SIGN UP WITH GOOGLE",
+      orLabel: "OR",
       alreadyRegistered: "Already registered?",
       loginLink: "Synchronize Link",
       successTitle: "Profile Initialized",
@@ -50,6 +54,8 @@ export default function RegisterPage() {
       emailLabel: "Почта (Email)",
       passLabel: "Ключ доступа (Пароль)",
       submitBtn: "СОЗДАТЬ ПРОФИЛЬ",
+      googleBtn: "РЕГИСТРАЦИЯ ЧЕРЕЗ GOOGLE",
+      orLabel: "ИЛИ",
       alreadyRegistered: "Уже зарегистрированы?",
       loginLink: "Установить связь",
       successTitle: "Профиль инициализирован",
@@ -110,6 +116,51 @@ export default function RegisterPage() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsGoogleLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      const userProfileRef = doc(db, 'players_v2', user.uid);
+      const userSnap = await getDoc(userProfileRef);
+
+      if (!userSnap.exists()) {
+        const profileData = {
+          id: user.uid,
+          displayName: user.displayName || `Manager_${user.uid.slice(0, 5)}`,
+          email: user.email,
+          inGameCurrency: 500,
+          experiencePoints: 0,
+          lastLoginDate: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          ownedHeroIds: ['h1', 'h2', 'h3', 'h4', 'h5', 'h_sub1', 'h_sub2'],
+          leagueRankingId: 'none',
+          leagueLevel: 0,
+          divisionSubId: 0,
+          groupId: 0,
+          country: 'RU'
+        };
+        await setDoc(userProfileRef, profileData);
+      }
+
+      toast({
+        title: t.successTitle,
+        description: t.successDesc,
+      });
+      router.push(userSnap.exists() ? '/' : '/setup');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: t.errorTitle,
+        description: error.message,
+      });
+    } finally {
+      setIsGoogleLoading(false);
     }
   };
 
@@ -178,10 +229,28 @@ export default function RegisterPage() {
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full hero-gradient font-bold" disabled={isLoading}>
+            <Button type="submit" className="w-full hero-gradient font-bold" disabled={isLoading || isGoogleLoading}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : t.submitBtn}
             </Button>
-            <p className="text-xs text-center text-muted-foreground">
+
+            <div className="flex items-center gap-4 w-full">
+              <div className="h-px bg-white/10 flex-1"></div>
+              <span className="text-[10px] text-muted-foreground font-bold uppercase">{t.orLabel}</span>
+              <div className="h-px bg-white/10 flex-1"></div>
+            </div>
+
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="w-full font-bold border-white/10 hover:bg-white/5" 
+              onClick={handleGoogleLogin}
+              disabled={isLoading || isGoogleLoading}
+            >
+              {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Chrome className="mr-2 h-4 w-4" />}
+              {t.googleBtn}
+            </Button>
+
+            <p className="text-xs text-center text-muted-foreground mt-2">
               {t.alreadyRegistered} <Link href="/auth/login" className="text-primary hover:underline">{t.loginLink}</Link>
             </p>
           </CardFooter>

@@ -244,7 +244,7 @@
         "id": {
           "type": "string",
           "description": "Unique identifier for the Strategy entity."
-"        },
+        },
         "name": {
           "type": "string",
           "description": "A descriptive name for the strategy."
@@ -277,13 +277,14 @@
   "auth": {
     "providers": [
       "password",
-      "anonymous"
+      "anonymous",
+      "google.com"
     ]
   },
   "firestore": {
     "structure": [
       {
-        "path": "/users/{userId}",
+        "path": "/players_v2/{userId}",
         "definition": {
           "entityName": "UserProfile",
           "schema": {
