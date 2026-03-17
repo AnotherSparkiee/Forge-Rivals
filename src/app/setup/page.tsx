@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -48,9 +49,10 @@ export default function SetupPage() {
   };
 
   const calculateInheritedStats = (leagueId: string, level: number, group: number, day: number) => {
-    if (day === 0) return { wins: 0, draws: 0, losses: 0, points: 0 };
+    if (day <= 0) return { wins: 0, draws: 0, losses: 0, points: 0 };
     const groupTeams = getMockGroupTeams(1000, "Template", level, 1, group, false, day, undefined, leagueId);
-    const replacedBot = groupTeams[groupTeams.length - 1];
+    // Safety check if groupTeams is empty, though it shouldn't be
+    const replacedBot = groupTeams.length > 0 ? groupTeams[groupTeams.length - 1] : { wins: 0, draws: 0, losses: 0, points: 0 };
     return {
       wins: replacedBot.wins || 0,
       draws: replacedBot.draws || 0,
@@ -72,6 +74,7 @@ export default function SetupPage() {
       let targetLevel = 1;
       let targetGroup = Math.floor(playerCount / TEAMS_PER_GROUP) + 1;
       
+      // Simple overflow logic for early development
       if (targetGroup > 64) { 
         targetLevel = 2;
         targetGroup = 1;
@@ -82,18 +85,22 @@ export default function SetupPage() {
       const profileRef = doc(db, 'players_v2', user.uid);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       
-      await updateDoc(profileRef, {
+      // Using a plain object and ensuring no field is undefined
+      const updateData = {
+        id: user.uid, // Explicitly include ID to satisfy rule if needed
         selectedLeagueId: selectedLeagueId,
-        country: selectedCountry?.name,
+        country: selectedCountry?.name || 'International', // Fallback to avoid undefined
         leagueLevel: targetLevel,
         groupId: targetGroup,
         divisionSubId: 1,
-        wins: inheritedStats.wins,
-        draws: inheritedStats.draws,
-        losses: inheritedStats.losses,
-        points: inheritedStats.points,
+        wins: Number(inheritedStats.wins),
+        draws: Number(inheritedStats.draws),
+        losses: Number(inheritedStats.losses),
+        points: Number(inheritedStats.points),
         setupDate: new Date().toISOString()
-      });
+      };
+      
+      await updateDoc(profileRef, updateData);
       
       toast({
         title: "Setup Complete",
@@ -101,11 +108,11 @@ export default function SetupPage() {
       });
       router.push('/');
     } catch (error: any) {
-      console.error(error);
+      console.error("Setup Error:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to save profile configuration.",
+        description: "Failed to save profile configuration. Please try again.",
       });
     } finally {
       setIsUpdating(false);

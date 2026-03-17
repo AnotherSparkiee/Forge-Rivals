@@ -17,29 +17,28 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
-    function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-    }
-
     // --- Collection Rules ---
 
-    // Updated to use players_v2
     match /players_v2/{userId} {
+      // Разрешаем чтение профиля владельцу
       allow get: if isOwner(userId);
-      // Allow list for everyone to enable nickname-to-email lookup during login
+      
+      // Разрешаем листинг для поиска по названию команды и распределения по лигам
       allow list: if true; 
+      
+      // Создание: пользователь должен быть владельцем и ID должен совпадать
       allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      
+      // Обновление: только владелец может менять свой профиль
+      allow update: if isOwner(userId);
+      
+      // Удаление: только владелец
+      allow delete: if isOwner(userId);
     }
 
     match /heroes/{heroId} {
       allow get, list: if true;
-      allow create, update, delete: if isAdmin();
+      allow create, update, delete: if false; // Только через админку (в будущем)
     }
 
     match /roles_admin/{userId} {
