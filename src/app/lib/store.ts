@@ -165,7 +165,7 @@ const DEFAULT_STATE: GameState = {
   draws: 0,
   losses: 0,
   points: 0,
-  leagueLevel: 8,
+  leagueLevel: 1,
   divisionSubId: 1,
   groupId: 1,
   lastLeagueMatchDate: null,

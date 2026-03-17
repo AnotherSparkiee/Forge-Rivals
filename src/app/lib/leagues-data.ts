@@ -42,8 +42,8 @@ export const LEAGUES: LeagueOption[] = [
  * Returns score strictly as [2, 0] (Win), [1, 1] (Draw), or [0, 2] (Loss)
  */
 export function getMatchResult(homeId: string, awayId: string, day: number): [number, number] {
-  const hId = parseInt(homeId.replace(/\D/g, '') || '1');
-  const aId = parseInt(awayId.replace(/\D/g, '') || '2');
+  const hId = homeId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const aId = awayId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const seed = (hId * 3) + (aId * 7) + (day * 13);
   const val = seed % 10;
   
@@ -91,23 +91,26 @@ export function getSchedule(teams: any[]) {
 export function getMockGroupTeams(
   playerRank: number, 
   playerName: string = "Player Team",
-  level: number = 8,
+  level: number = 1,
   division: number = 1,
   group: number = 1,
   includePlayer: boolean = false,
   currentDay: number = 1,
-  playerStats?: { wins: number, draws: number, losses: number, points: number }
+  playerStats?: { wins: number, draws: number, losses: number, points: number },
+  leagueId: string = "ALPHA"
 ) {
   const teams = [];
   const botLimit = includePlayer ? 7 : 8;
   
+  // Use a hash of leagueId to make bot IDs unique per league
+  const leagueHash = leagueId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
   for (let i = 0; i < botLimit; i++) {
-    const levelBase = Math.pow(10, Math.min(level, 4));
-    const botUniqueId = (level * levelBase) + (division * 10) + i;
+    const botUniqueId = `${leagueId}_L${level}_G${group}_B${i}`;
     
     teams.push({
-      id: `bot_${botUniqueId}`,
-      name: `🤖bot #${botUniqueId}`,
+      id: botUniqueId,
+      name: `🤖 ${leagueId} Bot #${level}-${group}-${i}`,
       wins: 0,
       draws: 0,
       losses: 0,
@@ -140,6 +143,7 @@ export function getMockGroupTeams(
       
       if (!home || !away) return;
 
+      // If we are providing playerStats, we don't recalculate player matches
       if (playerStats && (home.isPlayer || away.isPlayer)) {
         return;
       }

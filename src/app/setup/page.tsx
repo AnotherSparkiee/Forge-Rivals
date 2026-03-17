@@ -6,17 +6,19 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LEAGUES, TEAMS_PER_GROUP } from '@/app/lib/leagues-data';
+import { LEAGUES, TEAMS_PER_GROUP, getMockGroupTeams } from '@/app/lib/leagues-data';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { Loader2, Clock, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useGameState } from '@/app/lib/store';
 
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+  const { seasonDay } = useGameState();
   
   const [step, setStep] = useState<'league' | 'country'>('league');
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
@@ -44,30 +46,44 @@ export default function SetupPage() {
     }
   };
 
+  /**
+   * Calculates the stats a player will "inherit" from the bot they replace.
+   */
+  const calculateInheritedStats = (leagueId: string, level: number, group: number, day: number) => {
+    // Generate a group of 8 bots to see how the "8th bot" performed up to today
+    const groupTeams = getMockGroupTeams(1000, "Template", level, 1, group, false, day, undefined, leagueId);
+    // Since we are replacing a bot, we take the stats of one of them (e.g., the last one in the generated list)
+    const replacedBot = groupTeams[groupTeams.length - 1];
+    return {
+      wins: replacedBot.wins || 0,
+      draws: replacedBot.draws || 0,
+      losses: replacedBot.losses || 0,
+      points: replacedBot.points || 0
+    };
+  };
+
   const handleCompleteSetup = async () => {
     if (!user || !selectedLeagueId || !selectedCountryCode) return;
 
     setIsUpdating(true);
     try {
-      // Logic to assign player to a division/group by priority (replace bot)
-      // For MVP, we search for how many players are in the selected league
       const usersCol = collection(db, 'users');
       const leagueQuery = query(usersCol, where('selectedLeagueId', '==', selectedLeagueId));
       const leagueSnap = await getDocs(leagueQuery);
       
       const playerCount = leagueSnap.size;
       
-      // Each group has 8 teams. If a group has space, we put the player there.
-      // We start from Level 1 (highest)
+      // Each group has 8 teams. Player replaces a bot.
       let targetLevel = 1;
       let targetGroup = Math.floor(playerCount / (TEAMS_PER_GROUP - 1)) + 1;
       
-      // If group number exceeds limit per level, we drop to next level
-      // (Simplified logic for priority assignment)
       if (targetGroup > 64) { 
         targetLevel = 2;
         targetGroup = 1;
       }
+
+      // Inherit results of the bot that was in this position
+      const inheritedStats = calculateInheritedStats(selectedLeagueId, targetLevel, targetGroup, seasonDay);
 
       const profileRef = doc(db, 'users', user.uid);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
@@ -77,12 +93,16 @@ export default function SetupPage() {
         country: selectedCountry?.name,
         leagueLevel: targetLevel,
         groupId: targetGroup,
-        divisionSubId: 1 // Default sub-div
+        divisionSubId: 1,
+        wins: inheritedStats.wins,
+        draws: inheritedStats.draws,
+        losses: inheritedStats.losses,
+        points: inheritedStats.points
       });
       
       toast({
         title: "Setup Complete",
-        description: `Welcome to ${selectedLeagueId}. You have been assigned to Division ${targetLevel}, Group ${targetGroup}.`,
+        description: `Welcome to ${selectedLeagueId}. You have inherited the position in Division ${targetLevel}, Group ${targetGroup}.`,
       });
       router.push('/');
     } catch (error: any) {
@@ -112,7 +132,7 @@ export default function SetupPage() {
         </h1>
         <p className="text-muted-foreground text-lg italic">
           {step === 'league' 
-            ? 'Choose your tactical time window. New managers are prioritized for high-tier placement.' 
+            ? 'Choose your tactical time window. New managers take over existing slots in the hierarchy.' 
             : 'Your flag will represent your organization in the global rankings.'}
         </p>
       </header>
