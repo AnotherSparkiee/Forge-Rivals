@@ -126,20 +126,21 @@ export default function LoginPage() {
           lastLoginDate: new Date().toISOString(),
           createdAt: new Date().toISOString(),
           ownedHeroIds: ['h1', 'h2', 'h3', 'h4', 'h5', 'h_sub1', 'h_sub2'],
-          leagueRankingId: 'none',
           leagueLevel: 0,
           divisionSubId: 0,
           groupId: 0,
-          country: 'RU'
+          // selectedLeagueId and country are missing intentionally to trigger /setup
         };
         await setDoc(userProfileRef, profileData);
+        router.push('/setup');
+      } else {
+        router.push('/');
       }
 
       toast({
         title: t.successTitle,
         description: t.successDesc,
       });
-      router.push('/');
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -217,11 +218,11 @@ export default function LoginPage() {
             <Button 
               type="button" 
               variant="outline" 
-              className="w-full font-bold border-white/10 hover:bg-white/5" 
+              className="w-full font-bold border-white/10 hover:bg-white/5 h-11" 
               onClick={handleGoogleLogin}
               disabled={isLoading || isGoogleLoading}
             >
-              {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Chrome className="mr-2 h-4 w-4" />}
+              {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Chrome className="mr-2 h-4 w-4 text-red-400" />}
               {t.googleBtn}
             </Button>
 
