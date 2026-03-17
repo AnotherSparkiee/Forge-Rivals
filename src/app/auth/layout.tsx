@@ -27,36 +27,42 @@ export default function AuthLayout({
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)] relative overflow-hidden">
-      {/* Extreme Top Right Language Switcher - Moved higher and increased z-index */}
-      <div className="absolute top-1 right-1 z-[100]">
+      {/* Extreme Top Right Language Switcher - Fixed position to avoid clipping and flicker */}
+      <div className="fixed top-2 right-2 z-[9999]">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button 
-              variant="ghost" 
+              variant="outline" 
               size="sm" 
-              className="w-10 h-10 p-0 rounded-full text-xl bg-secondary/40 hover:bg-secondary/60 border border-white/10 backdrop-blur-md shadow-lg"
+              className="w-10 h-10 p-0 rounded-full text-xl bg-card/80 backdrop-blur-xl border-white/10 shadow-2xl hover:bg-card transition-all active:scale-95"
             >
               {language === 'en' ? '🇺🇸' : '🇷🇺'}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="bg-card/95 backdrop-blur-xl border-white/10 z-[101]">
+          <DropdownMenuContent align="end" className="bg-card/95 backdrop-blur-2xl border-white/10 z-[10000] min-w-[140px] p-1 shadow-2xl">
             <DropdownMenuItem 
               onClick={() => setLanguage('en')}
-              className={cn("flex items-center justify-between gap-4 cursor-pointer py-3 px-4", language === 'en' && "text-primary")}
+              className={cn(
+                "flex items-center justify-between gap-4 cursor-pointer py-3 px-4 rounded-lg transition-colors",
+                language === 'en' ? "bg-primary/10 text-primary" : "hover:bg-white/5"
+              )}
             >
               <div className="flex items-center gap-3">
                 <span className="text-xl">🇺🇸</span>
-                <span className="font-bold text-sm uppercase tracking-wider">English</span>
+                <span className="font-bold text-xs uppercase tracking-wider">English</span>
               </div>
               {language === 'en' && <Check className="w-4 h-4" />}
             </DropdownMenuItem>
             <DropdownMenuItem 
               onClick={() => setLanguage('ru')}
-              className={cn("flex items-center justify-between gap-4 cursor-pointer py-3 px-4", language === 'ru' && "text-primary")}
+              className={cn(
+                "flex items-center justify-between gap-4 cursor-pointer py-3 px-4 rounded-lg transition-colors",
+                language === 'ru' ? "bg-primary/10 text-primary" : "hover:bg-white/5"
+              )}
             >
               <div className="flex items-center gap-3">
                 <span className="text-xl">🇷🇺</span>
-                <span className="font-bold text-sm uppercase tracking-wider">Русский</span>
+                <span className="font-bold text-xs uppercase tracking-wider">Русский</span>
               </div>
               {language === 'ru' && <Check className="w-4 h-4" />}
             </DropdownMenuItem>
