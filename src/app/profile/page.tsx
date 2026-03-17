@@ -7,17 +7,27 @@ import { Progress } from '@/components/ui/progress';
 import { 
   User, Settings, ShieldCheck, History, LogOut, 
   ChevronRight, Mail, ChevronLeft, Check, Loader2,
-  Trophy, Star, Wallet, Gem, Flag, Zap
+  Trophy, Star, Wallet, Gem, Flag, Zap, Trash2, AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { signOut } from 'firebase/auth';
+import { signOut, deleteUser } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { doc } from 'firebase/firestore';
+import { doc, deleteDoc } from 'firebase/firestore';
 import { COUNTRIES } from '@/app/lib/countries-data';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function ProfilePage() {
   const { ownedHeroes, rank, language, setLanguage, isLoaded: isStoreLoaded, credits, leagueLevel, divisionSubId, groupId } = useGameState();
@@ -27,6 +37,8 @@ export default function ProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -62,6 +74,7 @@ export default function ProfilePage() {
       account: "Account Preferences",
       security: "Security & 2FA",
       purchase: "Purchase History",
+      deleteAccount: "Delete Account",
       logout: "LOG OUT",
       langTitle: "System Language",
       langEn: "English",
@@ -70,7 +83,14 @@ export default function ProfilePage() {
       logoutDesc: "Successfully signed out.",
       logoutError: "Logout Error",
       division: "Division",
-      group: "Group"
+      group: "Group",
+      deleteTitle: "ARE YOU SURE?",
+      deleteDesc: "This action is irreversible. All your heroes, credits, and league progress will be permanently erased. A bot will take your place in the league.",
+      deleteConfirm: "YES, DELETE MY PROFILE",
+      deleteCancel: "CANCEL",
+      deleteSuccess: "Profile Purged",
+      deleteError: "Deletion Failed",
+      reloginRequired: "Security check required. Please log out and log back in before deleting your account."
     },
     ru: {
       title: "ЛЕГЕНДАРНЫЙ МЕНЕДЖЕР",
@@ -88,6 +108,7 @@ export default function ProfilePage() {
       account: "Настройки аккаунта",
       security: "Безопасность и 2FA",
       purchase: "История покупок",
+      deleteAccount: "Удалить аккаунт",
       logout: "ВЫЙТИ ИЗ СИСТЕМЫ",
       langTitle: "Язык системы",
       langEn: "English",
@@ -96,7 +117,14 @@ export default function ProfilePage() {
       logoutDesc: "Вы успешно вышли из системы.",
       logoutError: "Ошибка выхода",
       division: "Дивизион",
-      group: "Группа"
+      group: "Группа",
+      deleteTitle: "ВЫ УВЕРЕНЫ?",
+      deleteDesc: "Это действие необратимо. Все ваши герои, кредиты и прогресс в лиге будут стерты навсегда. Ваше место в лиге займет бот.",
+      deleteConfirm: "ДА, УДАЛИТЬ ПРОФИЛЬ",
+      deleteCancel: "ОТМЕНА",
+      deleteSuccess: "Профиль удален",
+      deleteError: "Ошибка удаления",
+      reloginRequired: "Требуется проверка безопасности. Пожалуйста, выйдите и войдите снова перед удалением аккаунта."
     }
   };
 
@@ -124,6 +152,41 @@ export default function ProfilePage() {
         description: error.message,
       });
       setIsLoggingOut(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    setIsDeleting(true);
+    try {
+      // 1. Delete Firestore Document
+      await deleteDoc(doc(db, 'players_v2', user.uid));
+      
+      // 2. Delete Auth User
+      await deleteUser(user);
+      
+      toast({
+        title: t.deleteSuccess,
+        description: "Operation completed successfully.",
+      });
+      router.push('/auth/register');
+    } catch (error: any) {
+      console.error("Delete account error:", error);
+      if (error.code === 'auth/requires-recent-login') {
+        toast({
+          variant: "destructive",
+          title: t.deleteError,
+          description: t.reloginRequired,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: t.deleteError,
+          description: error.message,
+        });
+      }
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -286,6 +349,16 @@ export default function ProfilePage() {
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </div>
+          <div 
+            className="flex items-center justify-between p-4 hover:bg-red-500/10 transition-colors cursor-pointer group"
+            onClick={() => setShowDeleteConfirm(true)}
+          >
+            <div className="flex items-center gap-3">
+              <Trash2 className="w-5 h-5 text-red-500 group-hover:animate-pulse" />
+              <span className="text-sm text-red-500 font-bold">{t.deleteAccount}</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-red-500/50" />
+          </div>
         </div>
       </div>
 
@@ -293,11 +366,41 @@ export default function ProfilePage() {
         variant="destructive" 
         className="w-full mb-8 flex items-center gap-2 font-bold h-12 hero-gradient border-none shadow-lg hover:opacity-90 transition-all"
         onClick={handleLogout}
-        disabled={isLoggingOut}
+        disabled={isLoggingOut || isDeleting}
       >
         {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
         {t.logout}
       </Button>
+
+      {/* Account Deletion Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent className="bg-card border-white/10">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-headline text-red-500 flex items-center gap-2 uppercase tracking-tighter">
+              <AlertTriangle className="w-5 h-5" /> {t.deleteTitle}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground text-xs leading-relaxed">
+              {t.deleteDesc}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4 gap-2">
+            <AlertDialogCancel className="bg-secondary/50 border-white/5 font-bold uppercase text-[10px]">
+              {t.deleteCancel}
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={(e) => {
+                e.preventDefault();
+                handleDeleteAccount();
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold uppercase text-[10px] gap-2"
+              disabled={isDeleting}
+            >
+              {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              {t.deleteConfirm}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
