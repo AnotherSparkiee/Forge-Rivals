@@ -36,7 +36,7 @@ export default function RegisterPage() {
       alreadyRegistered: "Already registered?",
       loginLink: "Synchronize Link",
       successTitle: "Profile Initialized",
-      successDesc: "Welcome to the league, Commander. You have been assigned to the Challenger Tier (Level 8).",
+      successDesc: "Welcome to the league, Commander. Prepare for deployment and league assignment.",
       errorTitle: "Registration Failed"
     },
     ru: {
@@ -48,7 +48,7 @@ export default function RegisterPage() {
       alreadyRegistered: "Уже зарегистрированы?",
       loginLink: "Установить связь",
       successTitle: "Профиль инициализирован",
-      successDesc: "Добро пожаловать в лигу, Командир. Вы зачислены в Претендентский Дивизион (Уровень 8).",
+      successDesc: "Добро пожаловать в лигу, Командир. Приготовьтесь к развертыванию и зачислению в дивизион.",
       errorTitle: "Ошибка регистрации"
     }
   };
@@ -65,7 +65,6 @@ export default function RegisterPage() {
 
       const userProfileRef = doc(db, 'users', user.uid);
       
-      // Assigning to Level 8
       const profileData = {
         id: user.uid,
         displayName: username,
@@ -73,13 +72,13 @@ export default function RegisterPage() {
         experiencePoints: 0,
         lastLoginDate: new Date().toISOString(),
         createdAt: new Date().toISOString(),
-        ownedHeroIds: ['h1', 'h2', 'h3', 'h4', 'h5'],
+        ownedHeroIds: ['h1', 'h2', 'h3', 'h4', 'h5', 'h_sub1', 'h_sub2'],
         leagueRankingId: 'none',
-        // New user starts at Level 8
-        leagueLevel: 8,
-        divisionSubId: 1,
-        groupId: 1,
-        country: 'RU' // Default country, will be updated in setup
+        // Levels will be set during setup/page.tsx
+        leagueLevel: 0,
+        divisionSubId: 0,
+        groupId: 0,
+        country: 'RU' 
       };
 
       await setDoc(userProfileRef, profileData);
