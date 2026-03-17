@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { Hero, INITIAL_HEROES } from './moba-data';
 import { getMoscowTime } from './time-utils';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2';
 
@@ -212,7 +212,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const key = getStorageKey();
     if (!user) {
-      // Reset state and mark as loaded so login page can show correctly
       setState(DEFAULT_STATE);
       setIsLoaded(true);
       return;
@@ -527,13 +526,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
       if (isAutomated && user) {
         const profileRef = doc(db, 'players_v2', user.uid);
-        updateDoc(profileRef, {
+        // Use setDoc with merge:true for safer updates during match sync
+        setDoc(profileRef, {
           wins: newState.wins,
           draws: newState.draws,
           losses: newState.losses,
           points: newState.points,
           lastLeagueMatchDate: newState.lastLeagueMatchDate
-        }).catch(e => console.error("Firestore match sync failed", e));
+        }, { merge: true }).catch(e => console.error("Firestore match sync failed", e));
       }
 
       return newState;

@@ -26,11 +26,9 @@ service cloud.firestore {
       // Разрешаем листинг для поиска по названию команды и распределения по лигам
       allow list: if true; 
       
-      // Создание: пользователь должен быть владельцем и ID должен совпадать
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      
-      // Обновление: только владелец может менять свой профиль
-      allow update: if isOwner(userId);
+      // Создание и обновление: пользователь должен быть владельцем
+      // Упрощаем правила для предотвращения ошибок при создании/обновлении через setDoc
+      allow create, update: if isOwner(userId);
       
       // Удаление: только владелец
       allow delete: if isOwner(userId);
@@ -38,7 +36,7 @@ service cloud.firestore {
 
     match /heroes/{heroId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // Только через админку (в будущем)
+      allow create, update, delete: if false;
     }
 
     match /roles_admin/{userId} {

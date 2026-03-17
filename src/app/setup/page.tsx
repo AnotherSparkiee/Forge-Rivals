@@ -1,10 +1,9 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LEAGUES, TEAMS_PER_GROUP, getMockGroupTeams } from '@/app/lib/leagues-data';
@@ -26,7 +25,6 @@ export default function SetupPage() {
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // New collection players_v2
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
@@ -51,7 +49,6 @@ export default function SetupPage() {
   const calculateInheritedStats = (leagueId: string, level: number, group: number, day: number) => {
     if (day <= 0) return { wins: 0, draws: 0, losses: 0, points: 0 };
     const groupTeams = getMockGroupTeams(1000, "Template", level, 1, group, false, day, undefined, leagueId);
-    // Safety check if groupTeams is empty, though it shouldn't be
     const replacedBot = groupTeams.length > 0 ? groupTeams[groupTeams.length - 1] : { wins: 0, draws: 0, losses: 0, points: 0 };
     return {
       wins: replacedBot.wins || 0,
@@ -74,7 +71,6 @@ export default function SetupPage() {
       let targetLevel = 1;
       let targetGroup = Math.floor(playerCount / TEAMS_PER_GROUP) + 1;
       
-      // Simple overflow logic for early development
       if (targetGroup > 64) { 
         targetLevel = 2;
         targetGroup = 1;
@@ -85,11 +81,10 @@ export default function SetupPage() {
       const profileRef = doc(db, 'players_v2', user.uid);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       
-      // Using a plain object and ensuring no field is undefined
       const updateData = {
-        id: user.uid, // Explicitly include ID to satisfy rule if needed
+        id: user.uid,
         selectedLeagueId: selectedLeagueId,
-        country: selectedCountry?.name || 'International', // Fallback to avoid undefined
+        country: selectedCountry?.name || 'International',
         leagueLevel: targetLevel,
         groupId: targetGroup,
         divisionSubId: 1,
@@ -100,7 +95,8 @@ export default function SetupPage() {
         setupDate: new Date().toISOString()
       };
       
-      await updateDoc(profileRef, updateData);
+      // Use setDoc with merge:true instead of updateDoc to ensure it works even if doc is missing
+      await setDoc(profileRef, updateData, { merge: true });
       
       toast({
         title: "Setup Complete",
