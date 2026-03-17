@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Hero, INITIAL_HEROES } from './moba-data';
 import { getMoscowTime } from './time-utils';
 
+export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2';
+
 interface ArenaState {
   capacity: number;
   pressCenterLevel: number;
@@ -13,8 +15,8 @@ interface ArenaState {
   roofLevel: number;
   lightingLevel: number;
   pendingCapacitySeats: number | null;
-  constructionFinishes: Record<string, string | null>; // facilityId or 'capacity' -> ISO string (UTC)
-  constructionStarts: Record<string, string | null>; // facilityId or 'capacity' -> ISO string (UTC)
+  constructionFinishes: Record<string, string | null>;
+  constructionStarts: Record<string, string | null>;
 }
 
 interface HQState {
@@ -58,24 +60,22 @@ interface MedicalState {
 interface GameState {
   credits: number;
   ownedHeroes: Hero[];
-  team: Hero[];
+  team: Hero[]; // All selected heroes (max 7)
+  lineup: Record<LineupSlot, string | null>; // heroId by role
   strategy: string;
   rank: number;
   matchHistory: any[];
   language: 'en' | 'ru';
-  // Season Statistics
   wins: number;
   draws: number;
   losses: number;
   points: number;
-  // League Pyramid State
-  leagueLevel: number; // 1-9 (1 is top)
-  divisionSubId: number; // 1 to 2^(level-1)
-  groupId: number; // 1-8
-  lastLeagueMatchDate: string | null; // Format: YYYY-MM-DD
-  seasonDay: number; // 0 = Pre-season, 1-14 = Active season
-  seasonStartDate: string | null; // Format: YYYY-MM-DD (This is Day 1)
-  // Infrastructure State
+  leagueLevel: number;
+  divisionSubId: number;
+  groupId: number;
+  lastLeagueMatchDate: string | null;
+  seasonDay: number;
+  seasonStartDate: string | null;
   arena: ArenaState;
   hq: HQState;
   bootcamp: BootcampState;
@@ -148,6 +148,15 @@ const DEFAULT_STATE: GameState = {
   credits: TEST_CREDITS,
   ownedHeroes: INITIAL_HEROES,
   team: INITIAL_HEROES,
+  lineup: {
+    carry: INITIAL_HEROES[0]?.id || null,
+    mid: INITIAL_HEROES[1]?.id || null,
+    offlane: INITIAL_HEROES[2]?.id || null,
+    support: INITIAL_HEROES[3]?.id || null,
+    full_support: INITIAL_HEROES[4]?.id || null,
+    sub1: null,
+    sub2: null,
+  },
   strategy: 'Balanced Play',
   rank: 1000,
   matchHistory: [],
@@ -178,7 +187,6 @@ export function useGameState() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        
         const startDateStr = parsed.seasonStartDate || getTodayDateString();
         const start = new Date(startDateStr);
         start.setHours(0, 0, 0, 0);
@@ -204,17 +212,14 @@ export function useGameState() {
             draws: isNewSeason ? 0 : (parsed.draws || 0),
             losses: isNewSeason ? 0 : (parsed.losses || 0),
             points: isNewSeason ? 0 : (parsed.points || 0),
+            lineup: parsed.lineup || prev.lineup,
             arena: { ...DEFAULT_ARENA, ...(parsed.arena || {}) },
             hq: { ...DEFAULT_HQ, ...(parsed.hq || {}) },
             bootcamp: { ...DEFAULT_BOOTCAMP, ...(parsed.bootcamp || {}) },
             academy: { ...DEFAULT_ACADEMY, ...(parsed.academy || {}) },
             medical: { ...DEFAULT_MEDICAL, ...(parsed.medical || {}) },
           };
-          
-          if (newState.credits < TEST_CREDITS) {
-            newState.credits = TEST_CREDITS;
-          }
-          
+          if (newState.credits < TEST_CREDITS) newState.credits = TEST_CREDITS;
           return newState;
         });
       } catch (e) {
@@ -401,88 +406,35 @@ export function useGameState() {
     setState(s => {
       const nowTime = Date.now();
       let hasChanges = false;
-      
-      const newArena = { ...s.arena };
-      const arenaFinishes = { ...(newArena.constructionFinishes || {}) };
-      const arenaStarts = { ...(newArena.constructionStarts || {}) };
-
-      Object.entries(arenaFinishes).forEach(([id, finishTime]) => {
-        if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
-          if (id === 'capacity') {
-            newArena.capacity += (newArena.pendingCapacitySeats || 0);
-            newArena.pendingCapacitySeats = null;
-          } else {
-            (newArena as any)[id] = ((newArena as any)[id] || 0) + 1;
+      const processSector = (sector: any) => {
+        const finishes = { ...(sector.constructionFinishes || {}) };
+        const starts = { ...(sector.constructionStarts || {}) };
+        const updatedSector = { ...sector };
+        Object.entries(finishes).forEach(([id, finishTime]) => {
+          if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
+            if (id === 'capacity') {
+              updatedSector.capacity += (updatedSector.pendingCapacitySeats || 0);
+              updatedSector.pendingCapacitySeats = null;
+            } else {
+              updatedSector[id] = (updatedSector[id] || 0) + 1;
+            }
+            finishes[id] = null;
+            starts[id] = null;
+            hasChanges = true;
           }
-          arenaFinishes[id] = null;
-          arenaStarts[id] = null;
-          hasChanges = true;
-        }
-      });
+        });
+        updatedSector.constructionFinishes = finishes;
+        updatedSector.constructionStarts = starts;
+        return updatedSector;
+      };
 
-      const newHq = { ...s.hq };
-      const hqFinishes = { ...(newHq.constructionFinishes || {}) };
-      const hqStarts = { ...(newHq.constructionStarts || {}) };
-
-      Object.entries(hqFinishes).forEach(([id, finishTime]) => {
-        if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
-          (newHq as any)[id] = ((newHq as any)[id] || 0) + 1;
-          hqFinishes[id] = null;
-          hqStarts[id] = null;
-          hasChanges = true;
-        }
-      });
-
-      const newBootcamp = { ...s.bootcamp };
-      const bcFinishes = { ...(newBootcamp.constructionFinishes || {}) };
-      const bcStarts = { ...(newBootcamp.constructionStarts || {}) };
-
-      Object.entries(bcFinishes).forEach(([id, finishTime]) => {
-        if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
-          (newBootcamp as any)[id] = ((newBootcamp as any)[id] || 0) + 1;
-          bcFinishes[id] = null;
-          bcStarts[id] = null;
-          hasChanges = true;
-        }
-      });
-
-      const newAcademy = { ...s.academy };
-      const acFinishes = { ...(newAcademy.constructionFinishes || {}) };
-      const acStarts = { ...(newAcademy.constructionStarts || {}) };
-
-      Object.entries(acFinishes).forEach(([id, finishTime]) => {
-        if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
-          (newAcademy as any)[id] = ((newAcademy as any)[id] || 0) + 1;
-          acFinishes[id] = null;
-          acStarts[id] = null;
-          hasChanges = true;
-        }
-      });
-
-      const newMedical = { ...s.medical };
-      const medFinishes = { ...(newMedical.constructionFinishes || {}) };
-      const medStarts = { ...(newMedical.constructionStarts || {}) };
-
-      Object.entries(medFinishes).forEach(([id, finishTime]) => {
-        if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
-          (newMedical as any)[id] = ((newMedical as any)[id] || 0) + 1;
-          medFinishes[id] = null;
-          medStarts[id] = null;
-          hasChanges = true;
-        }
-      });
+      const newArena = processSector(s.arena);
+      const newHq = processSector(s.hq);
+      const newBootcamp = processSector(s.bootcamp);
+      const newAcademy = processSector(s.academy);
+      const newMedical = processSector(s.medical);
 
       if (hasChanges) {
-        newArena.constructionFinishes = arenaFinishes;
-        newArena.constructionStarts = arenaStarts;
-        newHq.constructionFinishes = hqFinishes;
-        newHq.constructionStarts = hqStarts;
-        newBootcamp.constructionFinishes = bcFinishes;
-        newBootcamp.constructionStarts = bcStarts;
-        newAcademy.constructionFinishes = acFinishes;
-        newAcademy.constructionStarts = acStarts;
-        newMedical.constructionFinishes = medFinishes;
-        newMedical.constructionStarts = medStarts;
         return { ...s, arena: newArena, hq: newHq, bootcamp: newBootcamp, academy: newAcademy, medical: newMedical };
       }
       return s;
@@ -493,39 +445,43 @@ export function useGameState() {
     setState(s => ({ ...s, language: lang }));
   }, []);
 
-  const setTeam = useCallback((newTeam: any[]) => {
-    setState(s => ({ ...s, team: newTeam }));
+  const assignToRole = useCallback((slot: LineupSlot, heroId: string | null) => {
+    setState(s => {
+      const newLineup = { ...s.lineup };
+      // Remove hero from other slots if assigned elsewhere
+      if (heroId) {
+        Object.keys(newLineup).forEach(k => {
+          if (newLineup[k as LineupSlot] === heroId) {
+            newLineup[k as LineupSlot] = null;
+          }
+        });
+      }
+      newLineup[slot] = heroId;
+      
+      // Sync team array for existing logic (max 7 unique heroes)
+      const uniqueHeroIds = Array.from(new Set(Object.values(newLineup).filter(id => id !== null)));
+      const newTeam = s.ownedHeroes.filter(h => uniqueHeroIds.includes(h.id));
+      
+      return { ...s, lineup: newLineup, team: newTeam };
+    });
   }, []);
 
   const recordMatch = useCallback((winner: string, result: any, isAutomated = false) => {
     setState(s => {
       const scoreA = result.scoreA || 0;
       const scoreB = result.scoreB || 0;
-      
       let creditsEarned = 50;
       let rankChange = -15;
-      let matchWins = 0;
-      let matchDraws = 0;
-      let matchLosses = 0;
-      let matchPoints = 0;
+      let matchWins = 0, matchDraws = 0, matchLosses = 0, matchPoints = 0;
 
-      // Based on Bo2 format: 2:0, 1:1, or 0:2
       if (scoreA === 2 && scoreB === 0) {
-        creditsEarned = 200;
-        rankChange = 25;
-        matchWins = 1;
-        matchPoints = 3;
+        creditsEarned = 200; rankChange = 25; matchWins = 1; matchPoints = 3;
       } else if (scoreA === 1 && scoreB === 1) {
-        creditsEarned = 100;
-        rankChange = 5;
-        matchDraws = 1;
-        matchPoints = 1;
+        creditsEarned = 100; rankChange = 5; matchDraws = 1; matchPoints = 1;
       } else {
         matchLosses = 1;
       }
 
-      const today = getTodayDateString();
-      
       return {
         ...s,
         credits: s.credits + creditsEarned,
@@ -535,7 +491,7 @@ export function useGameState() {
         losses: s.losses + matchLosses,
         points: s.points + matchPoints,
         matchHistory: [result, ...s.matchHistory].slice(0, 10),
-        lastLeagueMatchDate: isAutomated ? today : s.lastLeagueMatchDate
+        lastLeagueMatchDate: isAutomated ? getTodayDateString() : s.lastLeagueMatchDate
       };
     });
   }, []);
@@ -544,7 +500,7 @@ export function useGameState() {
     ...state,
     isLoaded,
     addCredits,
-    setTeam,
+    assignToRole,
     startArenaConstruction,
     startHQConstruction,
     startBootcampConstruction,
