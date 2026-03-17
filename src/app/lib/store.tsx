@@ -3,7 +3,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Hero, INITIAL_HEROES } from './moba-data';
 import { getMoscowTime } from './time-utils';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2';
 
@@ -198,6 +199,7 @@ const GameStateContext = createContext<GameStateContextType | undefined>(undefin
 
 export function GameStateProvider({ children }: { children: ReactNode }) {
   const { user } = useUser();
+  const db = useFirestore();
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -205,56 +207,81 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return user ? `moba_tactics_state_${user.uid}` : null;
   }, [user]);
 
+  // Load state and sync with Firestore if necessary
   useEffect(() => {
     const key = getStorageKey();
-    if (!key) {
+    if (!key || !user) {
       setState(DEFAULT_STATE);
       setIsLoaded(true);
       return;
     }
 
     const saved = localStorage.getItem(key);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        const startDateStr = parsed.seasonStartDate || getTodayDateString();
-        const start = new Date(startDateStr);
-        start.setHours(0, 0, 0, 0);
-
-        let currentDay = 1;
-        const mskNow = getMoscowTime();
-        if (mskNow.getTime() >= start.getTime()) {
-          const diffTime = mskNow.getTime() - start.getTime();
-          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-          currentDay = ((diffDays - 1) % 14) + 1;
+    const initialize = async () => {
+      let baseState = DEFAULT_STATE;
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          baseState = { ...DEFAULT_STATE, ...parsed };
+        } catch (e) {
+          console.error("Failed to parse local storage state", e);
         }
-
-        const isNewSeason = parsed.seasonDay && currentDay > 0 && currentDay < parsed.seasonDay;
-
-        setState({ 
-          ...DEFAULT_STATE, 
-          ...parsed,
-          seasonStartDate: startDateStr,
-          seasonDay: currentDay,
-          wins: isNewSeason ? 0 : (parsed.wins || 0),
-          draws: isNewSeason ? 0 : (parsed.draws || 0),
-          losses: isNewSeason ? 0 : (parsed.losses || 0),
-          points: isNewSeason ? 0 : (parsed.points || 0),
-          arena: { ...DEFAULT_ARENA, ...(parsed.arena || {}) },
-          hq: { ...DEFAULT_HQ, ...(parsed.hq || {}) },
-          bootcamp: { ...DEFAULT_BOOTCAMP, ...(parsed.bootcamp || {}) },
-          academy: { ...DEFAULT_ACADEMY, ...(parsed.academy || {}) },
-          medical: { ...DEFAULT_MEDICAL, ...(parsed.medical || {}) },
-        });
-      } catch (e) {
-        console.error("Failed to load game state", e);
-        setState(DEFAULT_STATE);
       }
-    } else {
-      setState(DEFAULT_STATE);
-    }
-    setIsLoaded(true);
-  }, [getStorageKey]);
+
+      // Sync league stats from Firestore (Source of Truth for competition)
+      try {
+        const profileRef = doc(db, 'users', user.uid);
+        const profileSnap = await getDoc(profileRef);
+        if (profileSnap.exists()) {
+          const profileData = profileSnap.data();
+          baseState = {
+            ...baseState,
+            wins: profileData.wins ?? baseState.wins,
+            draws: profileData.draws ?? baseState.draws,
+            losses: profileData.losses ?? baseState.losses,
+            points: profileData.points ?? baseState.points,
+            leagueLevel: profileData.leagueLevel ?? baseState.leagueLevel,
+            groupId: profileData.groupId ?? baseState.groupId,
+            divisionSubId: profileData.divisionSubId ?? baseState.divisionSubId,
+          };
+        }
+      } catch (e) {
+        console.error("Failed to sync with Firestore", e);
+      }
+
+      const startDateStr = baseState.seasonStartDate || getTodayDateString();
+      const start = new Date(startDateStr);
+      start.setHours(0, 0, 0, 0);
+
+      let currentDay = 1;
+      const mskNow = getMoscowTime();
+      if (mskNow.getTime() >= start.getTime()) {
+        const diffTime = mskNow.getTime() - start.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        currentDay = ((diffDays - 1) % 14) + 1;
+      }
+
+      const isNewSeason = baseState.seasonDay && currentDay > 0 && currentDay < baseState.seasonDay;
+
+      setState({ 
+        ...baseState,
+        seasonStartDate: startDateStr,
+        seasonDay: currentDay,
+        wins: isNewSeason ? 0 : baseState.wins,
+        draws: isNewSeason ? 0 : baseState.draws,
+        losses: isNewSeason ? 0 : baseState.losses,
+        points: isNewSeason ? 0 : baseState.points,
+        arena: { ...DEFAULT_ARENA, ...(baseState.arena || {}) },
+        hq: { ...DEFAULT_HQ, ...(baseState.hq || {}) },
+        bootcamp: { ...DEFAULT_BOOTCAMP, ...(baseState.bootcamp || {}) },
+        academy: { ...DEFAULT_ACADEMY, ...(baseState.academy || {}) },
+        medical: { ...DEFAULT_MEDICAL, ...(baseState.medical || {}) },
+      });
+      setIsLoaded(true);
+    };
+
+    initialize();
+  }, [getStorageKey, user, db]);
 
   useEffect(() => {
     const key = getStorageKey();
@@ -475,22 +502,22 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const recordMatch = useCallback((winner: string, result: any, isAutomated = false) => {
+    const scoreA = result.scoreA || 0;
+    const scoreB = result.scoreB || 0;
+    let creditsEarned = 50;
+    let rankChange = -15;
+    let matchWins = 0, matchDraws = 0, matchLosses = 0, matchPoints = 0;
+
+    if (scoreA === 2 && scoreB === 0) {
+      creditsEarned = 200; rankChange = 25; matchWins = 1; matchPoints = 3;
+    } else if (scoreA === 1 && scoreB === 1) {
+      creditsEarned = 100; rankChange = 5; matchDraws = 1; matchPoints = 1;
+    } else {
+      matchLosses = 1;
+    }
+
     setState(s => {
-      const scoreA = result.scoreA || 0;
-      const scoreB = result.scoreB || 0;
-      let creditsEarned = 50;
-      let rankChange = -15;
-      let matchWins = 0, matchDraws = 0, matchLosses = 0, matchPoints = 0;
-
-      if (scoreA === 2 && scoreB === 0) {
-        creditsEarned = 200; rankChange = 25; matchWins = 1; matchPoints = 3;
-      } else if (scoreA === 1 && scoreB === 1) {
-        creditsEarned = 100; rankChange = 5; matchDraws = 1; matchPoints = 1;
-      } else {
-        matchLosses = 1;
-      }
-
-      return {
+      const newState = {
         ...s,
         credits: s.credits + creditsEarned,
         rank: s.rank + rankChange,
@@ -501,8 +528,22 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         matchHistory: [result, ...s.matchHistory].slice(0, 10),
         lastLeagueMatchDate: isAutomated ? getTodayDateString() : s.lastLeagueMatchDate
       };
+
+      // Sync competition stats to Firestore for group visibility
+      if (isAutomated && user) {
+        const profileRef = doc(db, 'users', user.uid);
+        updateDoc(profileRef, {
+          wins: newState.wins,
+          draws: newState.draws,
+          losses: newState.losses,
+          points: newState.points,
+          lastLeagueMatchDate: newState.lastLeagueMatchDate
+        }).catch(e => console.error("Firestore match sync failed", e));
+      }
+
+      return newState;
     });
-  }, []);
+  }, [user, db]);
 
   return (
     <GameStateContext.Provider value={{

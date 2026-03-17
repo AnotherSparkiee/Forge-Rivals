@@ -97,7 +97,9 @@ export default function SetupPage() {
         wins: inheritedStats.wins,
         draws: inheritedStats.draws,
         losses: inheritedStats.losses,
-        points: inheritedStats.points
+        points: inheritedStats.points,
+        // Ensure setup date matches season start to avoid instant day skips
+        setupDate: new Date().toISOString()
       });
       
       toast({
@@ -106,6 +108,7 @@ export default function SetupPage() {
       });
       router.push('/');
     } catch (error: any) {
+      console.error(error);
       toast({
         variant: "destructive",
         title: "Error",
