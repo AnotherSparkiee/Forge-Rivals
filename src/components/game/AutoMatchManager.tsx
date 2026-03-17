@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useGameState } from '@/app/lib/store';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { doc, collection, query, where } from 'firebase/firestore';
 import { isMatchDue } from '@/app/lib/time-utils';
 import { getMockGroupTeams, getSchedule, LEAGUES } from '@/app/lib/leagues-data';
 import { INITIAL_HEROES } from '@/app/lib/moba-data';
@@ -33,8 +33,21 @@ export function AutoMatchManager() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
+  // Fetch all players in the same group to ensure the simulated opponent can be a real player
+  const groupQuery = useMemoFirebase(() => {
+    if (!profile?.selectedLeagueId) return null;
+    return query(
+      collection(db, 'users'),
+      where('selectedLeagueId', '==', profile.selectedLeagueId),
+      where('leagueLevel', '==', profile.leagueLevel),
+      where('groupId', '==', profile.groupId)
+    );
+  }, [db, profile?.selectedLeagueId, profile?.leagueLevel, profile?.groupId]);
+
+  const { data: groupPlayers } = useCollection(groupQuery);
+
   useEffect(() => {
-    if (isLoaded && seasonDay > 0 && !isSimulating && !isUserLoading && profile?.selectedLeagueId) {
+    if (isLoaded && seasonDay > 0 && !isSimulating && !isUserLoading && profile?.selectedLeagueId && groupPlayers) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
       const matchTime = league?.startTime || '23:00';
       
@@ -42,9 +55,11 @@ export function AutoMatchManager() {
         triggerAutoMatch(matchTime);
       }
     }
-  }, [isLoaded, profile, lastLeagueMatchDate, isUserLoading, seasonDay]);
+  }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay]);
 
   const triggerAutoMatch = async (matchTime: string) => {
+    if (!groupPlayers) return;
+    
     setIsSimulating(true);
     
     toast({
@@ -62,14 +77,16 @@ export function AutoMatchManager() {
         true, 
         seasonDay,
         undefined,
-        profile?.selectedLeagueId || "ALPHA"
+        profile?.selectedLeagueId || "ALPHA",
+        groupPlayers,
+        user?.uid
       );
       const schedule = getSchedule(groupTeams);
-      const todayMatch = schedule[seasonDay - 1]?.find((m: any) => m.home.isPlayer || m.away.isPlayer);
+      const todayMatch = schedule[seasonDay - 1]?.find((m: any) => m.home.id === user?.uid || m.away.id === user?.uid);
       
       if (!todayMatch) throw new Error("No match scheduled for today");
 
-      const opponent = todayMatch.home.isPlayer ? todayMatch.away : todayMatch.home;
+      const opponent = todayMatch.home.id === user?.uid ? todayMatch.away : todayMatch.home;
 
       const result = await simulateMobaMatch({
         teamA: {
@@ -79,8 +96,8 @@ export function AutoMatchManager() {
         },
         teamB: {
           name: opponent.name,
-          strategy: "Standard Tactics",
-          heroes: INITIAL_HEROES.map(h => ({ ...h, baseStats: { ...h.baseStats, attack: h.baseStats.attack + 2 } }))
+          strategy: opponent.isPlayer ? "Manager Strategy" : "Standard Tactics",
+          heroes: INITIAL_HEROES.map(h => ({ ...h, baseStats: { ...h.baseStats, attack: h.baseStats.attack + (opponent.isPlayer ? 5 : 2) } }))
         },
         includeRandomEvents: true,
         isBo2: true

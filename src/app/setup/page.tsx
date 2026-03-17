@@ -52,7 +52,7 @@ export default function SetupPage() {
   const calculateInheritedStats = (leagueId: string, level: number, group: number, day: number) => {
     // Generate a group of 8 bots to see how the "8th bot" performed up to today
     const groupTeams = getMockGroupTeams(1000, "Template", level, 1, group, false, day, undefined, leagueId);
-    // Since we are replacing a bot, we take the stats of one of them (e.g., the last one in the generated list)
+    // Since we are replacing a bot, we take the stats of one of them
     const replacedBot = groupTeams[groupTeams.length - 1];
     return {
       wins: replacedBot.wins || 0,
@@ -73,9 +73,9 @@ export default function SetupPage() {
       
       const playerCount = leagueSnap.size;
       
-      // Each group has 8 teams. Player replaces a bot.
+      // Each group has 8 teams. Fill groups up to 8 players.
       let targetLevel = 1;
-      let targetGroup = Math.floor(playerCount / (TEAMS_PER_GROUP - 1)) + 1;
+      let targetGroup = Math.floor(playerCount / TEAMS_PER_GROUP) + 1;
       
       if (targetGroup > 64) { 
         targetLevel = 2;
@@ -102,7 +102,7 @@ export default function SetupPage() {
       
       toast({
         title: "Setup Complete",
-        description: `Welcome to ${selectedLeagueId}. You have inherited the position in Division ${targetLevel}, Group ${targetGroup}.`,
+        description: `Welcome to ${selectedLeagueId}. Group established in Division ${targetLevel}, Group ${targetGroup}.`,
       });
       router.push('/');
     } catch (error: any) {

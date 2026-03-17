@@ -97,17 +97,34 @@ export function getMockGroupTeams(
   includePlayer: boolean = false,
   currentDay: number = 1,
   playerStats?: { wins: number, draws: number, losses: number, points: number },
-  leagueId: string = "ALPHA"
+  leagueId: string = "ALPHA",
+  realPlayers: any[] = [],
+  currentPlayerId?: string
 ) {
-  const teams = [];
-  const botLimit = includePlayer ? 7 : 8;
+  const teams: any[] = [];
   
-  // Use a hash of leagueId to make bot IDs unique per league
-  const leagueHash = leagueId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  // 1. Add all real players from Firestore
+  // We sort them by ID to ensure all users in the group get the same schedule order
+  const sortedRealPlayers = [...realPlayers].sort((a, b) => a.id.localeCompare(b.id));
+  
+  sortedRealPlayers.forEach(p => {
+    const isMe = p.id === currentPlayerId;
+    teams.push({
+      id: p.id,
+      name: p.displayName || "Unknown Commander",
+      wins: p.wins || 0,
+      draws: p.draws || 0,
+      losses: p.losses || 0,
+      points: p.points || 0,
+      isPlayer: true,
+      isMe: isMe
+    });
+  });
 
-  for (let i = 0; i < botLimit; i++) {
+  // 2. Fill remaining slots with bots
+  const botsNeeded = TEAMS_PER_GROUP - teams.length;
+  for (let i = 0; i < botsNeeded; i++) {
     const botUniqueId = `${leagueId}_L${level}_G${group}_B${i}`;
-    
     teams.push({
       id: botUniqueId,
       name: `🤖 ${leagueId} Bot #${level}-${group}-${i}`,
@@ -115,22 +132,12 @@ export function getMockGroupTeams(
       draws: 0,
       losses: 0,
       points: 0,
-      isPlayer: false
+      isPlayer: false,
+      isMe: false
     });
   }
 
-  if (includePlayer) {
-    teams.push({ 
-      id: "player_team",
-      name: playerName, 
-      wins: playerStats ? playerStats.wins : 0,
-      draws: playerStats ? playerStats.draws : 0,
-      losses: playerStats ? playerStats.losses : 0,
-      points: playerStats ? playerStats.points : 0,
-      isPlayer: true 
-    });
-  }
-
+  // 3. Simulate bot vs bot matches for previous days
   const seasonSchedule = getSchedule(teams);
   
   for (let d = 1; d < currentDay; d++) {
@@ -143,13 +150,12 @@ export function getMockGroupTeams(
       
       if (!home || !away) return;
 
-      // If we are providing playerStats, we don't recalculate player matches
-      if (playerStats && (home.isPlayer || away.isPlayer)) {
-        return;
+      // Only simulate if BOTH are bots. 
+      // Real players already have their stats stored in Firestore from AutoMatchManager
+      if (!home.isPlayer && !away.isPlayer) {
+        const [hScore, aScore] = getMatchResult(home.id, away.id, d);
+        applyResult(home, away, hScore, aScore);
       }
-
-      const [hScore, aScore] = getMatchResult(home.id, away.id, d);
-      applyResult(home, away, hScore, aScore);
     });
   }
 

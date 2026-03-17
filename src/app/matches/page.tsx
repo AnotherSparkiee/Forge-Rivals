@@ -12,8 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { doc, collection, query, where } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '../lib/leagues-data';
 import { getMoscowDateString } from '../lib/time-utils';
 
@@ -37,6 +37,19 @@ export default function MatchesPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
+  // Fetch all players in the same group to ensure everyone sees each other
+  const groupQuery = useMemoFirebase(() => {
+    if (!profile?.selectedLeagueId) return null;
+    return query(
+      collection(db, 'users'),
+      where('selectedLeagueId', '==', profile.selectedLeagueId),
+      where('leagueLevel', '==', profile.leagueLevel),
+      where('groupId', '==', profile.groupId)
+    );
+  }, [db, profile?.selectedLeagueId, profile?.leagueLevel, profile?.groupId]);
+
+  const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
+
   const league = useMemo(() => {
     return LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0];
   }, [profile?.selectedLeagueId]);
@@ -47,20 +60,22 @@ export default function MatchesPage() {
   }, [lastLeagueMatchDate]);
 
   const groupTeams = useMemo(() => {
-    if (!isLoaded) return [];
+    if (!isLoaded || !profile || !groupPlayers) return [];
     const calculationDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
     return getMockGroupTeams(
       rank, 
-      profile?.displayName || "My Team", 
+      profile.displayName || "My Team", 
       leagueLevel, 
       divisionSubId, 
       groupId, 
       true, 
       calculationDay,
       { wins, draws, losses, points },
-      profile?.selectedLeagueId || "ALPHA"
+      profile.selectedLeagueId || "ALPHA",
+      groupPlayers,
+      user?.uid
     );
-  }, [isLoaded, profile?.displayName, profile?.selectedLeagueId, leagueLevel, divisionSubId, groupId, seasonDay, rank, wins, draws, losses, points, isTodayPlayed]);
+  }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, rank, wins, draws, losses, points, isTodayPlayed, user?.uid]);
 
   const schedule = useMemo(() => {
     if (groupTeams.length === 0) return [];
@@ -123,7 +138,7 @@ export default function MatchesPage() {
 
   const t = labels[language as keyof typeof labels] || labels.ru;
 
-  if (!isLoaded || isUserLoading || isProfileLoading) {
+  if (!isLoaded || isUserLoading || isProfileLoading || isGroupLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -141,27 +156,29 @@ export default function MatchesPage() {
     let aScore = 0;
 
     if (isPlayed) {
-      if (day === seasonDay && isTodayPlayed && (match.home.isPlayer || match.away.isPlayer)) {
+      if (day === seasonDay && isTodayPlayed && (match.home.isMe || match.away.isMe)) {
         const lastResult = matchHistory[0];
         if (lastResult) {
-            hScore = match.home.isPlayer ? lastResult.scoreA : lastResult.scoreB;
-            aScore = match.away.isPlayer ? lastResult.scoreA : lastResult.scoreB;
+            hScore = match.home.isMe ? lastResult.scoreA : lastResult.scoreB;
+            aScore = match.away.isMe ? lastResult.scoreA : lastResult.scoreB;
         } else {
             [hScore, aScore] = getMatchResult(match.home.id, match.away.id, day);
         }
       } else {
+        // If it's another real player's match we can't easily see their live score 
+        // without more complex DB structure, so we show deterministic result for now
         [hScore, aScore] = getMatchResult(match.home.id, match.away.id, day);
       }
     }
 
     return (
-      <div key={`${day}-${match.home.id}`} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
+      <div key={`${day}-${match.home.id}-${match.away.id}`} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
         <div className="flex flex-col items-center w-12 flex-shrink-0 border-r border-white/5 pr-2">
           <span className="text-[10px] font-mono font-bold text-accent">{matchDate}</span>
           <span className="text-[8px] uppercase font-bold text-muted-foreground">{t.day} {day}</span>
         </div>
         <div className="flex-1 flex items-center justify-between gap-1 min-w-0">
-          <div className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", match.home.isPlayer && "text-primary")}>
+          <div className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", match.home.isMe && "text-primary")}>
             {match.home.name}
           </div>
           <div className="flex flex-col items-center px-2 min-w-[70px]">
@@ -180,7 +197,7 @@ export default function MatchesPage() {
               </div>
             )}
           </div>
-          <div className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", match.away.isPlayer && "text-primary")}>
+          <div className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", match.away.isMe && "text-primary")}>
             {match.away.name}
           </div>
         </div>
@@ -195,11 +212,11 @@ export default function MatchesPage() {
         if (targetDay > 14) return <p className="text-center py-10 text-muted-foreground uppercase text-xs">Season Finished</p>;
         
         const targetMatches = schedule[targetDay - 1];
-        const myMatch = targetMatches?.find((m: any) => m.home.isPlayer || m.away.isPlayer);
+        const myMatch = targetMatches?.find((m: any) => m.home.isMe || m.away.isMe);
         
         if (!myMatch) return <p className="text-center py-10 text-muted-foreground">{t.noData}</p>;
         
-        const opponent = myMatch.home.isPlayer ? myMatch.away : myMatch.home;
+        const opponent = myMatch.home.isMe ? myMatch.away : myMatch.home;
         const startHour = league.startTime;
         const matchDate = getDateForDay(targetDay);
         const isTargetToday = targetDay === seasonDay;
@@ -215,11 +232,13 @@ export default function MatchesPage() {
               </CardHeader>
               <CardContent className="flex flex-col items-center space-y-4">
                 <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 border-accent shadow-[0_0_15px_rgba(var(--accent),0.2)]">
-                  <Shield className="w-10 h-10 text-accent" />
+                  {opponent.isPlayer ? <CalendarClock className="w-10 h-10 text-accent" /> : <Shield className="w-10 h-10 text-accent" />}
                 </div>
                 <div className="text-center">
                   <h3 className="text-xl font-headline font-bold text-primary italic uppercase truncate max-w-[250px]">{opponent.name}</h3>
-                  <Badge variant="secondary" className="mt-2 text-[10px]">DIV {leagueLevel}.{divisionSubId} | GRP {groupId}</Badge>
+                  <Badge variant="secondary" className="mt-2 text-[10px]">
+                    {opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'} | DIV {leagueLevel}.{divisionSubId}
+                  </Badge>
                 </div>
                 
                 <div className="w-full bg-accent/10 p-4 rounded-xl border border-accent/20 text-center shadow-[0_0_20px_rgba(var(--accent),0.1)]">
@@ -251,7 +270,7 @@ export default function MatchesPage() {
       case 'my_future': {
         const startIdx = isTodayPlayed ? seasonDay : seasonDay - 1;
         const futureMatches = schedule.slice(startIdx).map((dayMatches: any, i) => {
-          const m = dayMatches.find((match: any) => match.home.isPlayer || match.away.isPlayer);
+          const m = dayMatches.find((match: any) => match.home.isMe || match.away.isMe);
           return { match: m, dayIdx: startIdx + i };
         }).filter(item => !!item.match);
 
@@ -265,7 +284,7 @@ export default function MatchesPage() {
       case 'my_played': {
         const endIdx = isTodayPlayed ? seasonDay : seasonDay - 1;
         const playedMatches = schedule.slice(0, endIdx).map((dayMatches: any, i) => {
-          const m = dayMatches.find((match: any) => match.home.isPlayer || match.away.isPlayer);
+          const m = dayMatches.find((match: any) => match.home.isMe || match.away.isMe);
           return { match: m, dayIdx: i };
         }).filter(item => !!item.match).reverse();
 

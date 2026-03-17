@@ -15,8 +15,8 @@ import Link from 'next/link';
 import { getMockGroupTeams, SEASON_DURATION_DAYS, LEAGUES } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { doc, collection, query, where } from 'firebase/firestore';
 import { getMoscowTime, formatMoscowTime, getMoscowDateString } from '../lib/time-utils';
 
 type RankingTab = 
@@ -30,8 +30,6 @@ type RankingTab =
   | 'pyramids_list' 
   | 'pyramids_rating' 
   | 'kda_leaders';
-
-type PyramidViewMode = 'levels' | 'divisions' | 'table';
 
 export default function RankingsPage() {
   const { 
@@ -49,6 +47,19 @@ export default function RankingsPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
+  // Fetch all players in the same group to ensure everyone sees each other in the table
+  const groupQuery = useMemoFirebase(() => {
+    if (!profile?.selectedLeagueId) return null;
+    return query(
+      collection(db, 'users'),
+      where('selectedLeagueId', '==', profile.selectedLeagueId),
+      where('leagueLevel', '==', profile.leagueLevel),
+      where('groupId', '==', profile.groupId)
+    );
+  }, [db, profile?.selectedLeagueId, profile?.leagueLevel, profile?.groupId]);
+
+  const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
+
   const league = useMemo(() => {
     return LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0];
   }, [profile?.selectedLeagueId]);
@@ -59,20 +70,22 @@ export default function RankingsPage() {
   }, [lastLeagueMatchDate]);
 
   const myLeagueRankings = useMemo(() => {
-    if (!isLoaded) return [];
+    if (!isLoaded || !profile || !groupPlayers) return [];
     const calculationDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
     return getMockGroupTeams(
       rank, 
-      profile?.displayName || "My Team", 
+      profile.displayName || "My Team", 
       leagueLevel, 
       divisionSubId, 
       groupId, 
       true, 
       calculationDay,
       { wins, draws, losses, points },
-      profile?.selectedLeagueId || "ALPHA"
+      profile.selectedLeagueId || "ALPHA",
+      groupPlayers,
+      user?.uid
     );
-  }, [isLoaded, rank, profile?.displayName, profile?.selectedLeagueId, leagueLevel, divisionSubId, groupId, seasonDay, wins, draws, losses, points, isTodayPlayed]);
+  }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, wins, draws, losses, points, isTodayPlayed, rank, user?.uid]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -145,9 +158,14 @@ export default function RankingsPage() {
       {rankingsData.map((entry, i) => {
         const isTop3 = i < 3;
         return (
-          <div key={entry.id} className={cn("flex items-center gap-3 p-3 rounded-xl border", entry.isPlayer ? "bg-primary/20 border-primary/50" : "bg-secondary/20 border-white/5")}>
+          <div key={entry.id} className={cn("flex items-center gap-3 p-3 rounded-xl border", entry.isMe ? "bg-primary/20 border-primary/50" : "bg-secondary/20 border-white/5")}>
             <div className="w-6 text-center font-bold text-sm">{isTop3 ? <Medal className={cn("w-4 h-4 mx-auto", i === 0 ? "text-yellow-500" : i === 1 ? "text-gray-400" : "text-amber-600")} /> : i + 1}</div>
-            <div className="flex-1 truncate"><p className={cn("font-bold text-[10px] uppercase", entry.isPlayer && "text-primary")}>{entry.isPlayer ? (profile?.displayName || entry.name) : entry.name}</p></div>
+            <div className="flex-1 truncate">
+              <p className={cn("font-bold text-[10px] uppercase flex items-center gap-1.5", entry.isMe && "text-primary")}>
+                {entry.name}
+                {entry.isPlayer && !entry.isMe && <Badge variant="outline" className="text-[6px] h-3 px-1 border-accent/30 text-accent">USER</Badge>}
+              </p>
+            </div>
             <div className="w-16 text-center text-[9px] font-mono opacity-70">{entry.wins}-{entry.draws}-{entry.losses}</div>
             <div className="w-10 text-right"><p className="text-sm font-headline font-bold text-accent">{entry.points}</p></div>
           </div>
@@ -167,34 +185,40 @@ export default function RankingsPage() {
           </div>
         </header>
 
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <Card className="glass-card bg-primary/5">
-            <CardContent className="p-4 flex items-center gap-3">
-              <Calendar className="w-5 h-5 text-primary" />
-              <div><p className="text-[10px] uppercase text-muted-foreground font-bold">{t.season_label}</p><p className="text-lg font-headline font-bold">{seasonDay} / 14</p></div>
-            </CardContent>
-          </Card>
-          <Card className="glass-card bg-accent/5">
-            <CardContent className="p-4 flex items-center gap-3">
-              <Clock className="w-5 h-5 text-accent" />
-              <div><p className="text-[10px] uppercase text-muted-foreground font-bold">MSK TIME</p><p className="text-xs font-mono font-bold">{serverTime.split(' ')[1] || '00:00:00'}</p></div>
-            </CardContent>
-          </Card>
-        </div>
+        {(isProfileLoading || isGroupLoading) ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <Card className="glass-card bg-primary/5">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <Calendar className="w-5 h-5 text-primary" />
+                  <div><p className="text-[10px] uppercase text-muted-foreground font-bold">{t.season_label}</p><p className="text-lg font-headline font-bold">{seasonDay} / 14</p></div>
+                </CardContent>
+              </Card>
+              <Card className="glass-card bg-accent/5">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <Clock className="w-5 h-5 text-accent" />
+                  <div><p className="text-[10px] uppercase text-muted-foreground font-bold">MSK TIME</p><p className="text-xs font-mono font-bold">{serverTime.split(' ')[1] || '00:00:00'}</p></div>
+                </CardContent>
+              </Card>
+            </div>
 
-        <div className="space-y-2">
-          {(Object.entries(t.tabs) as [RankingTab, any][]).map(([tabId, tabData]) => (
-            <Card key={tabId} className="glass-card hover:bg-white/5 cursor-pointer" onClick={() => setActiveTab(tabId)}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-2 rounded-lg bg-secondary/50"><tabData.icon className="w-5 h-5 text-primary" /></div>
-                  <div><h3 className="text-sm font-bold uppercase">{tabData.label}</h3><p className="text-[10px] text-muted-foreground">{tabData.desc}</p></div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+            <div className="space-y-2">
+              {(Object.entries(t.tabs) as [RankingTab, any][]).map(([tabId, tabData]) => (
+                <Card key={tabId} className="glass-card hover:bg-white/5 cursor-pointer" onClick={() => setActiveTab(tabId)}>
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-2 rounded-lg bg-secondary/50"><tabData.icon className="w-5 h-5 text-primary" /></div>
+                      <div><h3 className="text-sm font-bold uppercase">{tabData.label}</h3><p className="text-[10px] text-muted-foreground">{tabData.desc}</p></div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     );
   }
