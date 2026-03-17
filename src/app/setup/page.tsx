@@ -83,6 +83,7 @@ export default function SetupPage() {
       
       const updateData = {
         id: user.uid,
+        displayName: profile?.displayName || `Manager_${user.uid.slice(0, 5)}`,
         selectedLeagueId: selectedLeagueId,
         country: selectedCountry?.name || 'International',
         leagueLevel: targetLevel,
@@ -95,7 +96,6 @@ export default function SetupPage() {
         setupDate: new Date().toISOString()
       };
       
-      // Use setDoc with merge:true instead of updateDoc to ensure it works even if doc is missing
       await setDoc(profileRef, updateData, { merge: true });
       
       toast({

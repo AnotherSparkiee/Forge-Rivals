@@ -104,14 +104,13 @@ export function getMockGroupTeams(
   const teams: any[] = [];
   
   // 1. Add all real players from Firestore
-  // We sort them by ID to ensure all users in the group get the same schedule order
   const sortedRealPlayers = [...realPlayers].sort((a, b) => a.id.localeCompare(b.id));
   
   sortedRealPlayers.forEach(p => {
     const isMe = p.id === currentPlayerId;
     teams.push({
       id: p.id,
-      name: p.displayName || "Unknown Commander",
+      name: isMe ? (playerName || p.displayName || "My Team") : (p.displayName || "Unknown Commander"),
       wins: p.wins || 0,
       draws: p.draws || 0,
       losses: p.losses || 0,
@@ -151,7 +150,6 @@ export function getMockGroupTeams(
       if (!home || !away) return;
 
       // Only simulate if BOTH are bots. 
-      // Real players already have their stats stored in Firestore from AutoMatchManager
       if (!home.isPlayer && !away.isPlayer) {
         const [hScore, aScore] = getMatchResult(home.id, away.id, d);
         applyResult(home, away, hScore, aScore);
