@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -12,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Check } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 
@@ -25,11 +24,13 @@ export default function RegisterPage() {
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const { language, setLanguage, isLoaded } = useGameState();
+  const { language, isLoaded } = useGameState();
 
   const translations = {
     en: {
       title: "Initiate Profile",
+      navLogin: "Login",
+      navRegister: "Register",
       callsign: "Callsign (Unique Username)",
       emailLabel: "Email Address",
       passLabel: "Access Key (Password)",
@@ -43,6 +44,8 @@ export default function RegisterPage() {
     },
     ru: {
       title: "Инициация профиля",
+      navLogin: "Вход",
+      navRegister: "Регистрация",
       callsign: "Позывной (Уникальное имя)",
       emailLabel: "Почта (Email)",
       passLabel: "Ключ доступа (Пароль)",
@@ -63,7 +66,6 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // 1. Check for unique username
       const usersRef = collection(db, 'players_v2');
       const q = query(usersRef, where('displayName', '==', username), limit(1));
       const querySnapshot = await getDocs(q);
@@ -72,17 +74,15 @@ export default function RegisterPage() {
         throw new Error(t.usernameTaken);
       }
 
-      // 2. Create Auth User
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // 3. Create Firestore Profile
       const userProfileRef = doc(db, 'players_v2', user.uid);
       
       const profileData = {
         id: user.uid,
         displayName: username,
-        email: email, // Store email for nickname login lookup
+        email: email,
         inGameCurrency: 500,
         experiencePoints: 0,
         lastLoginDate: new Date().toISOString(),
@@ -117,22 +117,23 @@ export default function RegisterPage() {
 
   return (
     <div className="space-y-4">
+      {/* Auth Toggle Navigation */}
       <div className="flex justify-center gap-2 mb-4 bg-secondary/20 p-1 rounded-lg border border-white/5">
         <Button 
           variant="ghost" 
           size="sm"
-          className={cn("flex-1 text-[10px] gap-1 h-7", language === 'en' && "bg-white/10 text-primary")}
-          onClick={() => setLanguage('en')}
+          className={cn("flex-1 text-xs font-bold h-8 uppercase tracking-widest text-muted-foreground")}
+          onClick={() => router.push('/auth/login')}
         >
-          EN {language === 'en' && <Check className="w-3 h-3" />}
+          {t.navLogin}
         </Button>
         <Button 
           variant="ghost" 
           size="sm"
-          className={cn("flex-1 text-[10px] gap-1 h-7", language === 'ru' && "bg-white/10 text-primary")}
-          onClick={() => setLanguage('ru')}
+          className={cn("flex-1 text-xs font-bold h-8 uppercase tracking-widest", "bg-white/10 text-primary")}
+          onClick={() => router.push('/auth/register')}
         >
-          RU {language === 'ru' && <Check className="w-3 h-3" />}
+          {t.navRegister}
         </Button>
       </div>
 

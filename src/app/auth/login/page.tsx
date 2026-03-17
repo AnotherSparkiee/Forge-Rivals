@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -12,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Check } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 
@@ -24,11 +23,13 @@ export default function LoginPage() {
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const { language, setLanguage, isLoaded } = useGameState();
+  const { language, isLoaded } = useGameState();
 
   const translations = {
     en: {
       title: "Sync Credentials",
+      navLogin: "Login",
+      navRegister: "Register",
       emailLabel: "Email or Callsign",
       passLabel: "Access Key (Password)",
       submitBtn: "ESTABLISH LINK",
@@ -41,6 +42,8 @@ export default function LoginPage() {
     },
     ru: {
       title: "Синхронизация данных",
+      navLogin: "Вход",
+      navRegister: "Регистрация",
       emailLabel: "Почта или Позывной",
       passLabel: "Ключ доступа (Пароль)",
       submitBtn: "УСТАНОВИТЬ СВЯЗЬ",
@@ -62,7 +65,6 @@ export default function LoginPage() {
     let emailToUse = identifier;
 
     try {
-      // 1. Check if identifier is an email. If not, resolve it via nickname lookup.
       if (!identifier.includes('@')) {
         const usersRef = collection(db, 'players_v2');
         const q = query(usersRef, where('displayName', '==', identifier), limit(1));
@@ -80,7 +82,6 @@ export default function LoginPage() {
         }
       }
 
-      // 2. Perform actual sign in
       await signInWithEmailAndPassword(auth, emailToUse, password);
       
       toast({
@@ -103,22 +104,23 @@ export default function LoginPage() {
 
   return (
     <div className="space-y-4">
+      {/* Auth Toggle Navigation */}
       <div className="flex justify-center gap-2 mb-4 bg-secondary/20 p-1 rounded-lg border border-white/5">
         <Button 
           variant="ghost" 
           size="sm"
-          className={cn("flex-1 text-[10px] gap-1 h-7", language === 'en' && "bg-white/10 text-primary")}
-          onClick={() => setLanguage('en')}
+          className={cn("flex-1 text-xs font-bold h-8 uppercase tracking-widest", "bg-white/10 text-primary")}
+          onClick={() => router.push('/auth/login')}
         >
-          EN {language === 'en' && <Check className="w-3 h-3" />}
+          {t.navLogin}
         </Button>
         <Button 
           variant="ghost" 
           size="sm"
-          className={cn("flex-1 text-[10px] gap-1 h-7", language === 'ru' && "bg-white/10 text-primary")}
-          onClick={() => setLanguage('ru')}
+          className={cn("flex-1 text-xs font-bold h-8 uppercase tracking-widest text-muted-foreground")}
+          onClick={() => router.push('/auth/register')}
         >
-          RU {language === 'ru' && <Check className="w-3 h-3" />}
+          {t.navRegister}
         </Button>
       </div>
 
