@@ -31,7 +31,7 @@ export default function SquadPage() {
     heroSelection: language === 'ru' ? "Выбор героя" : "Hero Selection",
     heroSelectionDesc: language === 'ru' ? "Выберите героя для этой позиции." : "Select a hero for this position.",
     overall: language === 'ru' ? "ОБЩ" : "OVR",
-    teamOverall: language === 'ru' ? "РЕЙТИНГ КОМАНДЫ" : "TEAM RATING",
+    teamOverall: language === 'ru' ? "ОБЩ" : "OVR",
     roles: {
       carry: { label: language === 'ru' ? "Керри" : "Carry", icon: Sword, color: "text-red-400" },
       mid: { label: language === 'ru' ? "Мидер" : "Midlaner", icon: Sparkles, color: "text-blue-400" },
@@ -164,12 +164,14 @@ export default function SquadPage() {
           </div>
         </div>
         
-        {/* Team OVR Widget */}
-        <div className="bg-primary/10 border border-primary/20 rounded-xl px-3 py-2 flex flex-col items-center justify-center min-w-[70px] shadow-[0_0_15px_rgba(var(--primary),0.1)]">
-          <p className="text-[7px] font-black text-primary tracking-tighter uppercase leading-none mb-1">{t.teamOverall}</p>
-          <div className="flex items-center gap-1">
-            <Trophy className="w-3 h-3 text-accent" />
-            <span className="text-xl font-headline font-bold text-accent italic">{teamOvr}</span>
+        {/* Team OVR Widget - Updated to Shield with Text Inside */}
+        <div className="flex flex-col items-center justify-center min-w-[60px]">
+          <p className="text-[10px] font-black text-primary tracking-widest uppercase leading-none mb-1">{t.teamOverall}</p>
+          <div className="relative flex items-center justify-center group">
+            <Shield className="w-12 h-12 text-primary fill-primary/10 transition-transform group-hover:scale-110" strokeWidth={2} />
+            <span className="absolute inset-0 flex items-center justify-center text-xl font-headline font-bold text-accent italic pt-0.5 drop-shadow-lg">
+              {teamOvr}
+            </span>
           </div>
         </div>
       </header>
