@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useGameState, LineupSlot } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +9,7 @@ import {
   Sword, Shield, Activity, Sparkles, Plus, 
   Check, ChevronLeft, User, UserPlus, X,
   ShieldCheck, Zap, Crosshair, HeartPulse,
-  TrendingUp, Star, Users
+  TrendingUp, Star, Users, Trophy
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -22,8 +22,6 @@ export default function SquadPage() {
   const { ownedHeroes, lineup, assignToRole, isLoaded, language } = useGameState();
   const [selectingSlot, setSelectingSlot] = useState<LineupSlot | null>(null);
 
-  if (!isLoaded) return null;
-
   const t = {
     title: language === 'ru' ? "АКТИВНЫЙ СОСТАВ" : "ACTIVE LINEUP",
     subtitle: language === 'ru' ? "Управляйте основой и заменами вашего клуба." : "Manage your club's core and substitutes.",
@@ -33,6 +31,7 @@ export default function SquadPage() {
     heroSelection: language === 'ru' ? "Выбор героя" : "Hero Selection",
     heroSelectionDesc: language === 'ru' ? "Выберите героя для этой позиции." : "Select a hero for this position.",
     overall: language === 'ru' ? "ОБЩ" : "OVR",
+    teamOverall: language === 'ru' ? "РЕЙТИНГ КОМАНДЫ" : "TEAM RATING",
     roles: {
       carry: { label: language === 'ru' ? "Керри" : "Carry", icon: Sword, color: "text-red-400" },
       mid: { label: language === 'ru' ? "Мидер" : "Midlaner", icon: Sparkles, color: "text-blue-400" },
@@ -41,15 +40,40 @@ export default function SquadPage() {
       full_support: { label: language === 'ru' ? "Полная поддержка" : "Full Support", icon: HeartPulse, color: "text-green-400" },
       sub1: { label: language === 'ru' ? "Запасной 1" : "Sub 1", icon: UserPlus, color: "text-muted-foreground" },
       sub2: { label: language === 'ru' ? "Запасной 2" : "Sub 2", icon: UserPlus, color: "text-muted-foreground" },
+    },
+    heroRoles: {
+      'Carry': { icon: Sword, color: "text-red-400" },
+      'Midlaner': { icon: Sparkles, color: "text-blue-400" },
+      'Tank': { icon: Shield, color: "text-orange-400" },
+      'Jungler': { icon: Crosshair, color: "text-purple-400" },
+      'Support': { icon: Zap, color: "text-yellow-400" },
     }
   };
 
   const getHeroById = (id: string | null) => ownedHeroes.find(h => h.id === id);
 
+  // Calculate Team Overall (Average of top 5 active slots)
+  const teamOvr = useMemo(() => {
+    const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
+    const activeHeroes = activeSlots.map(slot => getHeroById(lineup[slot])).filter(Boolean) as Hero[];
+    if (activeHeroes.length === 0) return 0;
+    const sum = activeHeroes.reduce((acc, h) => acc + h.overallRating, 0);
+    return Math.round(sum / 5);
+  }, [lineup, ownedHeroes]);
+
   const renderSlot = (slotKey: LineupSlot) => {
     const heroId = lineup[slotKey];
     const hero = getHeroById(heroId);
-    const roleInfo = t.roles[slotKey];
+    const isSub = slotKey === 'sub1' || slotKey === 'sub2';
+    
+    // For subs, if hero is assigned, show their native role icon. Otherwise show default sub icon.
+    let roleInfo = t.roles[slotKey];
+    if (isSub && hero) {
+      const heroRoleData = t.heroRoles[hero.role as keyof typeof t.heroRoles];
+      if (heroRoleData) {
+        roleInfo = { ...roleInfo, icon: heroRoleData.icon, color: heroRoleData.color };
+      }
+    }
 
     return (
       <Card 
@@ -123,17 +147,30 @@ export default function SquadPage() {
   const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
   const subSlots: LineupSlot[] = ['sub1', 'sub2'];
 
+  if (!isLoaded) return null;
+
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
-      <header className="mb-6 flex items-center gap-4">
-        <Link href="/roster">
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
+      <header className="mb-6 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Link href="/roster">
+            <Button variant="ghost" size="icon" className="rounded-full">
+              <ChevronLeft className="w-6 h-6" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1>
+            <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
+          </div>
+        </div>
+        
+        {/* Team OVR Widget */}
+        <div className="bg-primary/10 border border-primary/20 rounded-xl px-3 py-2 flex flex-col items-center justify-center min-w-[70px] shadow-[0_0_15px_rgba(var(--primary),0.1)]">
+          <p className="text-[7px] font-black text-primary tracking-tighter uppercase leading-none mb-1">{t.teamOverall}</p>
+          <div className="flex items-center gap-1">
+            <Trophy className="w-3 h-3 text-accent" />
+            <span className="text-xl font-headline font-bold text-accent italic">{teamOvr}</span>
+          </div>
         </div>
       </header>
 
