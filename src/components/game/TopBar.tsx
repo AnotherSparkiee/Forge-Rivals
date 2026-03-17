@@ -8,6 +8,7 @@ import { getMoscowTime, formatMoscowTime } from '@/app/lib/time-utils';
 import { Globe, Clock } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { COUNTRIES } from '@/app/lib/countries-data';
+import { LEAGUES } from '@/app/lib/leagues-data';
 
 /**
  * TopBar component displays essential game state information:
@@ -43,6 +44,7 @@ export function TopBar() {
 
   // Find country data for the flag
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
+  const league = profile?.selectedLeagueId ? LEAGUES.find(l => l.id === profile.selectedLeagueId) : null;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-white/10 h-14 flex items-center">
@@ -55,11 +57,11 @@ export function TopBar() {
             </span>
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-primary uppercase leading-tight tracking-tighter">
+            <p className="text-[10px] font-bold text-primary uppercase leading-tight tracking-tighter truncate">
               {profile?.displayName || 'Syncing...'}
             </p>
             <p className="text-[8px] text-muted-foreground uppercase tracking-widest leading-tight flex items-center gap-1 opacity-70">
-              <Globe className="w-2 h-2" /> {profile?.country || 'Sector'}
+              <Globe className="w-2 h-2" /> {league ? `${league.id} @ ${league.startTime}` : profile?.country || 'Sector'}
             </p>
           </div>
         </div>

@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LEAGUES } from '@/app/lib/leagues-data';
+import { LEAGUES, TEAMS_PER_GROUP } from '@/app/lib/leagues-data';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { Loader2, Clock, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -49,17 +49,40 @@ export default function SetupPage() {
 
     setIsUpdating(true);
     try {
+      // Logic to assign player to a division/group by priority (replace bot)
+      // For MVP, we search for how many players are in the selected league
+      const usersCol = collection(db, 'users');
+      const leagueQuery = query(usersCol, where('selectedLeagueId', '==', selectedLeagueId));
+      const leagueSnap = await getDocs(leagueQuery);
+      
+      const playerCount = leagueSnap.size;
+      
+      // Each group has 8 teams. If a group has space, we put the player there.
+      // We start from Level 1 (highest)
+      let targetLevel = 1;
+      let targetGroup = Math.floor(playerCount / (TEAMS_PER_GROUP - 1)) + 1;
+      
+      // If group number exceeds limit per level, we drop to next level
+      // (Simplified logic for priority assignment)
+      if (targetGroup > 64) { 
+        targetLevel = 2;
+        targetGroup = 1;
+      }
+
       const profileRef = doc(db, 'users', user.uid);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       
       await updateDoc(profileRef, {
         selectedLeagueId: selectedLeagueId,
-        country: selectedCountry?.name
+        country: selectedCountry?.name,
+        leagueLevel: targetLevel,
+        groupId: targetGroup,
+        divisionSubId: 1 // Default sub-div
       });
       
       toast({
         title: "Setup Complete",
-        description: `Operational status confirmed for ${selectedCountry?.name}. Welcome to ${selectedLeagueId}.`,
+        description: `Welcome to ${selectedLeagueId}. You have been assigned to Division ${targetLevel}, Group ${targetGroup}.`,
       });
       router.push('/');
     } catch (error: any) {
@@ -82,41 +105,43 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-12">
+    <div className="max-w-5xl mx-auto px-4 py-12">
       <header className="text-center mb-12">
         <h1 className="text-4xl font-headline font-bold text-primary mb-4 tracking-tight uppercase">
           {step === 'league' ? 'Select Operational League' : 'Confirm Jurisdiction'}
         </h1>
         <p className="text-muted-foreground text-lg italic">
           {step === 'league' 
-            ? 'Each league operates at specific time windows. Choose one that aligns with your schedule.' 
+            ? 'Choose your tactical time window. New managers are prioritized for high-tier placement.' 
             : 'Your flag will represent your organization in the global rankings.'}
         </p>
       </header>
 
       {step === 'league' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
           {LEAGUES.map((league) => (
             <Card 
               key={league.id} 
               className={cn(
-                "glass-card cursor-pointer transition-all hover:scale-105",
+                "glass-card cursor-pointer transition-all hover:scale-[1.02]",
                 selectedLeagueId === league.id ? "ring-2 ring-primary border-primary bg-primary/5" : "hover:border-white/20"
               )}
               onClick={() => setSelectedLeagueId(league.id)}
             >
-              <CardHeader className="pb-2">
+              <CardHeader className="pb-2 p-4">
                 <div className="flex justify-between items-start">
-                  <CardTitle className="font-headline text-xl">{league.id}</CardTitle>
+                  <CardTitle className="font-headline text-lg">{league.id}</CardTitle>
                   <Clock className={cn("w-4 h-4", selectedLeagueId === league.id ? "text-primary" : "text-muted-foreground")} />
                 </div>
-                <CardDescription className="text-accent font-bold uppercase tracking-tighter">{league.startTime}</CardDescription>
+                <CardDescription className="text-accent font-bold uppercase text-[10px] tracking-tighter">
+                  {league.startTime} MSK Sync
+                </CardDescription>
               </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground leading-relaxed italic">{league.description}</p>
+              <CardContent className="px-4 pb-4">
+                <p className="text-[10px] text-muted-foreground leading-relaxed italic">{league.description}</p>
                 {selectedLeagueId === league.id && (
-                  <div className="mt-4 flex justify-center">
-                    <CheckCircle2 className="text-primary w-6 h-6 animate-in zoom-in" />
+                  <div className="mt-2 flex justify-center">
+                    <CheckCircle2 className="text-primary w-5 h-5 animate-in zoom-in" />
                   </div>
                 )}
               </CardContent>

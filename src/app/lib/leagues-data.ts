@@ -17,12 +17,24 @@ export const GROUPS_PER_DIVISION = 8;
 export const TEAMS_PER_GROUP = 8;
 export const SEASON_DURATION_DAYS = 14;
 
-// All leagues synchronized to start at 23:00 MSK
+// 16 Leagues from 08:00 to 23:00 MSK
 export const LEAGUES: LeagueOption[] = [
-  { id: 'ALPHA', startTime: '23:00', description: 'Standard night operations. Matches start at 23:00 MSK daily.' },
-  { id: 'BETA', startTime: '23:00', description: 'Standard night operations. Matches start at 23:00 MSK daily.' },
-  { id: 'GAMMA', startTime: '23:00', description: 'Standard night operations. Matches start at 23:00 MSK daily.' },
-  { id: 'DELTA', startTime: '23:00', description: 'Standard night operations. Matches start at 23:00 MSK daily.' },
+  { id: 'ALPHA', startTime: '08:00', description: 'Early morning shift. Matches start at 08:00 MSK.' },
+  { id: 'BETA', startTime: '09:00', description: 'Morning operations. Matches start at 09:00 MSK.' },
+  { id: 'GAMMA', startTime: '10:00', description: 'Morning operations. Matches start at 10:00 MSK.' },
+  { id: 'DELTA', startTime: '11:00', description: 'Pre-noon shift. Matches start at 11:00 MSK.' },
+  { id: 'EPSILON', startTime: '12:00', description: 'Midday operations. Matches start at 12:00 MSK.' },
+  { id: 'ZETA', startTime: '13:00', description: 'Afternoon operations. Matches start at 13:00 MSK.' },
+  { id: 'ETA', startTime: '14:00', description: 'Afternoon operations. Matches start at 14:00 MSK.' },
+  { id: 'THETA', startTime: '15:00', description: 'Late afternoon shift. Matches start at 15:00 MSK.' },
+  { id: 'IOTA', startTime: '16:00', description: 'Late afternoon shift. Matches start at 16:00 MSK.' },
+  { id: 'KAPPA', startTime: '17:00', description: 'Early evening operations. Matches start at 17:00 MSK.' },
+  { id: 'LAMBDA', startTime: '18:00', description: 'Evening operations. Matches start at 18:00 MSK.' },
+  { id: 'MU', startTime: '19:00', description: 'Evening operations. Matches start at 19:00 MSK.' },
+  { id: 'NU', startTime: '20:00', description: 'Prime time shift. Matches start at 20:00 MSK.' },
+  { id: 'XI', startTime: '21:00', description: 'Late night operations. Matches start at 21:00 MSK.' },
+  { id: 'OMICRON', startTime: '22:00', description: 'Late night operations. Matches start at 22:00 MSK.' },
+  { id: 'PI', startTime: '23:00', description: 'Midnight operations. Matches start at 23:00 MSK.' },
 ];
 
 /**
@@ -30,22 +42,16 @@ export const LEAGUES: LeagueOption[] = [
  * Returns score strictly as [2, 0] (Win), [1, 1] (Draw), or [0, 2] (Loss)
  */
 export function getMatchResult(homeId: string, awayId: string, day: number): [number, number] {
-  // Simple deterministic seed based on IDs and day
   const hId = parseInt(homeId.replace(/\D/g, '') || '1');
   const aId = parseInt(awayId.replace(/\D/g, '') || '2');
-  
-  // Create a unique seed for this specific match encounter
   const seed = (hId * 3) + (aId * 7) + (day * 13);
   const val = seed % 10;
   
-  if (val < 4) return [2, 0]; // Home Win (40%)
-  if (val < 7) return [1, 1]; // Draw (30%)
-  return [0, 2]; // Away Win (30%)
+  if (val < 4) return [2, 0]; 
+  if (val < 7) return [1, 1]; 
+  return [0, 2]; 
 }
 
-/**
- * Generates a round-robin schedule for 8 teams using Circle Method.
- */
 export function getSchedule(teams: any[]) {
   const n = teams.length;
   if (n === 0) return [];
@@ -63,13 +69,10 @@ export function getSchedule(teams: any[]) {
       roundMatches.push({ home, away });
     }
     fullSchedule.push(roundMatches);
-    // Rotate all except first element
     const last = teamsCopy.pop();
     if (last) teamsCopy.splice(1, 0, last);
   }
 
-  // Round 1: Days 1-7
-  // Round 2: Days 8-14 (reverse home/away)
   const seasonSchedule = [];
   for (let d = 1; d <= SEASON_DURATION_DAYS; d++) {
     const matchDayIdx = (d - 1) % rounds;
@@ -85,9 +88,6 @@ export function getSchedule(teams: any[]) {
   return seasonSchedule;
 }
 
-/**
- * Deterministically generates group teams and their standings based on current day.
- */
 export function getMockGroupTeams(
   playerRank: number, 
   playerName: string = "Player Team",
@@ -130,7 +130,6 @@ export function getMockGroupTeams(
 
   const seasonSchedule = getSchedule(teams);
   
-  // Simulation for all teams up to currentDay - 1
   for (let d = 1; d < currentDay; d++) {
     const matches = seasonSchedule[d - 1];
     if (!matches) continue;

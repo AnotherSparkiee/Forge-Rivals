@@ -5,7 +5,7 @@ import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { isMatchDue } from '@/app/lib/time-utils';
-import { getMockGroupTeams, getSchedule } from '@/app/lib/leagues-data';
+import { getMockGroupTeams, getSchedule, LEAGUES } from '@/app/lib/leagues-data';
 import { INITIAL_HEROES } from '@/app/lib/moba-data';
 import { simulateMobaMatch, SimulateMobaMatchOutput } from '@/ai/flows/simulate-moba-match';
 import { useToast } from '@/hooks/use-toast';
@@ -34,20 +34,22 @@ export function AutoMatchManager() {
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
-    // Single global trigger at 23:00 MSK for all divisions
-    if (isLoaded && seasonDay > 0 && !isSimulating && !isUserLoading) {
-      if (isMatchDue('23:00', lastLeagueMatchDate)) {
-        triggerAutoMatch();
+    if (isLoaded && seasonDay > 0 && !isSimulating && !isUserLoading && profile?.selectedLeagueId) {
+      const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
+      const matchTime = league?.startTime || '23:00';
+      
+      if (isMatchDue(matchTime, lastLeagueMatchDate)) {
+        triggerAutoMatch(matchTime);
       }
     }
   }, [isLoaded, profile, lastLeagueMatchDate, isUserLoading, seasonDay]);
 
-  const triggerAutoMatch = async () => {
+  const triggerAutoMatch = async (matchTime: string) => {
     setIsSimulating(true);
     
     toast({
       title: language === 'ru' ? "Синхронизация матча..." : "Match Syncing...",
-      description: language === 'ru' ? "Начало оперативного развертывания (23:00 MSK)" : "Deployment window open (23:00 MSK)",
+      description: language === 'ru' ? `Начало развертывания (${matchTime} MSK)` : `Deployment window open (${matchTime} MSK)`,
     });
 
     try {
@@ -113,7 +115,7 @@ export function AutoMatchManager() {
         <Badge variant="outline" className="bg-background/90 backdrop-blur border-primary text-primary px-4 py-2 flex items-center gap-2 shadow-2xl">
           <Loader2 className="w-3 h-3 animate-spin" />
           <span className="text-[10px] font-bold uppercase tracking-widest">
-            {language === 'ru' ? 'Идет симуляция матча 23:00' : 'Simulating 23:00 Match'}
+            {language === 'ru' ? 'Идет симуляция матча' : 'Simulating League Match'}
           </span>
         </Badge>
       </div>
@@ -142,7 +144,7 @@ export function AutoMatchManager() {
             <span>{currentResult.scoreB}</span>
           </div>
           <p className="text-[10px] opacity-80 uppercase tracking-widest mt-2 font-bold font-mono">
-            {getDateForDay(seasonDay)} @ 23:00 MSK
+            {getDateForDay(seasonDay)} @ {profile?.selectedLeagueId ? LEAGUES.find(l => l.id === profile.selectedLeagueId)?.startTime : '23:00'} MSK
           </p>
         </div>
 
