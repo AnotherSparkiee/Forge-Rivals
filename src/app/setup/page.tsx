@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 import { doc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,15 +18,12 @@ export default function SetupPage() {
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const { seasonDay } = useGameState();
+  const { seasonDay, isLoaded, selectedLeagueId: currentLeague, country: currentCountry } = useGameState();
   
   const [step, setStep] = useState<'league' | 'country'>('league');
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
-
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
-  const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -35,10 +32,11 @@ export default function SetupPage() {
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
-    if (profile?.selectedLeagueId && profile?.country) {
+    // If setup is already complete in the reactive store, redirect home
+    if (isLoaded && currentLeague && currentCountry) {
       router.push('/');
     }
-  }, [profile, router]);
+  }, [isLoaded, currentLeague, currentCountry, router]);
 
   const handleNextStep = () => {
     if (selectedLeagueId) {
@@ -83,7 +81,6 @@ export default function SetupPage() {
       
       const updateData = {
         id: user.uid,
-        displayName: profile?.displayName || `Manager_${user.uid.slice(0, 5)}`,
         selectedLeagueId: selectedLeagueId,
         country: selectedCountry?.name || 'International',
         leagueLevel: targetLevel,
@@ -93,7 +90,8 @@ export default function SetupPage() {
         draws: Number(inheritedStats.draws),
         losses: Number(inheritedStats.losses),
         points: Number(inheritedStats.points),
-        setupDate: new Date().toISOString()
+        setupDate: new Date().toISOString(),
+        seasonStartDate: new Date().toISOString().split('T')[0] // Set start date to today upon setup
       };
       
       await setDoc(profileRef, updateData, { merge: true });
@@ -115,12 +113,8 @@ export default function SetupPage() {
     }
   };
 
-  if (isUserLoading || isProfileLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+  if (isUserLoading || !isLoaded) {
+    return <LoadingScreen />;
   }
 
   return (

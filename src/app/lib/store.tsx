@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { Hero, INITIAL_HEROES } from './moba-data';
 import { getMoscowTime } from './time-utils';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2';
 
@@ -75,6 +75,8 @@ interface GameState {
   leagueLevel: number;
   divisionSubId: number;
   groupId: number;
+  selectedLeagueId: string | null;
+  country: string | null;
   lastLeagueMatchDate: string | null;
   seasonDay: number;
   seasonStartDate: string | null;
@@ -146,7 +148,7 @@ const DEFAULT_MEDICAL: MedicalState = {
   constructionStarts: {},
 };
 
-const START_CREDITS = 99000000; // Debug Credits
+const START_CREDITS = 500;
 
 const DEFAULT_STATE: GameState = {
   credits: START_CREDITS,
@@ -169,9 +171,11 @@ const DEFAULT_STATE: GameState = {
   draws: 0,
   losses: 0,
   points: 0,
-  leagueLevel: 1,
-  divisionSubId: 1,
-  groupId: 1,
+  leagueLevel: 0,
+  divisionSubId: 0,
+  groupId: 0,
+  selectedLeagueId: null,
+  country: null,
   lastLeagueMatchDate: null,
   seasonDay: 0,
   seasonStartDate: getTomorrowDateString(),
@@ -210,73 +214,70 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   useEffect(() => {
-    const key = getStorageKey();
     if (!user) {
       setState(DEFAULT_STATE);
       setIsLoaded(true);
       return;
     }
 
+    const key = getStorageKey();
     const saved = localStorage.getItem(key!);
-    const initialize = async () => {
-      let baseState = DEFAULT_STATE;
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          baseState = { ...DEFAULT_STATE, ...parsed };
-        } catch (e) {
-          console.error("Failed to parse local storage state", e);
-        }
-      }
-
+    let initialLocalState = DEFAULT_STATE;
+    
+    if (saved) {
       try {
-        const profileRef = doc(db, 'players_v2', user.uid);
-        const profileSnap = await getDoc(profileRef);
-        if (profileSnap.exists()) {
-          const profileData = profileSnap.data();
-          baseState = {
-            ...baseState,
-            wins: profileData.wins ?? baseState.wins,
-            draws: profileData.draws ?? baseState.draws,
-            losses: profileData.losses ?? baseState.losses,
-            points: profileData.points ?? baseState.points,
-            leagueLevel: profileData.leagueLevel ?? baseState.leagueLevel,
-            groupId: profileData.groupId ?? baseState.groupId,
-            divisionSubId: profileData.divisionSubId ?? baseState.divisionSubId,
-          };
-        }
+        const parsed = JSON.parse(saved);
+        initialLocalState = { ...DEFAULT_STATE, ...parsed };
       } catch (e) {
-        console.error("Failed to sync with Firestore", e);
+        console.error("Failed to parse local storage state", e);
       }
+    }
 
-      const startDateStr = baseState.seasonStartDate || getTomorrowDateString();
-      const start = new Date(startDateStr);
-      start.setHours(0, 0, 0, 0);
+    // Subscribe to Firestore Profile changes
+    const profileRef = doc(db, 'players_v2', user.uid);
+    const unsubscribe = onSnapshot(profileRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const profileData = docSnap.data();
+        
+        setState(s => {
+          // Calculate season day based on start date
+          const startDateStr = profileData.seasonStartDate || s.seasonStartDate || getTomorrowDateString();
+          const start = new Date(startDateStr);
+          start.setHours(0, 0, 0, 0);
 
-      let currentDay = 0;
-      const mskNow = getMoscowTime();
-      
-      if (mskNow.getTime() >= start.getTime()) {
-        const diffTime = mskNow.getTime() - start.getTime();
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-        currentDay = ((diffDays - 1) % 14) + 1;
+          let currentDay = 0;
+          const mskNow = getMoscowTime();
+          
+          if (mskNow.getTime() >= start.getTime()) {
+            const diffTime = mskNow.getTime() - start.getTime();
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            currentDay = ((diffDays - 1) % 14) + 1;
+          }
+
+          return {
+            ...s,
+            wins: profileData.wins ?? s.wins,
+            draws: profileData.draws ?? s.draws,
+            losses: profileData.losses ?? s.losses,
+            points: profileData.points ?? s.points,
+            leagueLevel: profileData.leagueLevel ?? s.leagueLevel,
+            groupId: profileData.groupId ?? s.groupId,
+            divisionSubId: profileData.divisionSubId ?? s.divisionSubId,
+            selectedLeagueId: profileData.selectedLeagueId ?? s.selectedLeagueId,
+            country: profileData.country ?? s.country,
+            seasonStartDate: startDateStr,
+            seasonDay: currentDay,
+          };
+        });
       }
-
-      setState({ 
-        ...baseState,
-        seasonStartDate: startDateStr,
-        seasonDay: currentDay,
-        arena: { ...DEFAULT_ARENA, ...(baseState.arena || {}) },
-        hq: { ...DEFAULT_HQ, ...(baseState.hq || {}) },
-        bootcamp: { ...DEFAULT_BOOTCAMP, ...(baseState.bootcamp || {}) },
-        academy: { ...DEFAULT_ACADEMY, ...(baseState.academy || {}) },
-        medical: { ...DEFAULT_MEDICAL, ...(baseState.medical || {}) },
-      });
       setIsLoaded(true);
-    };
+    }, (error) => {
+      console.error("Firestore sync error:", error);
+      setIsLoaded(true); // Still set loaded to allow fallbacks
+    });
 
-    initialize();
-  }, [getStorageKey, user, db]);
+    return () => unsubscribe();
+  }, [user, db, getStorageKey]);
 
   useEffect(() => {
     const key = getStorageKey();
@@ -526,7 +527,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
       if (isAutomated && user) {
         const profileRef = doc(db, 'players_v2', user.uid);
-        // Use setDoc with merge:true for safer updates during match sync
         setDoc(profileRef, {
           wins: newState.wins,
           draws: newState.draws,
