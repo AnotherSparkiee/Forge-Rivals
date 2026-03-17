@@ -85,11 +85,14 @@ interface GameState {
   medical: MedicalState;
 }
 
-const getTodayDateString = () => {
+// Calculate Tomorrow's Date for League Start
+const getTomorrowDateString = () => {
   const msk = getMoscowTime();
-  const year = msk.getFullYear();
-  const month = String(msk.getMonth() + 1).padStart(2, '0');
-  const day = String(msk.getDate()).padStart(2, '0');
+  const tomorrow = new Date(msk);
+  tomorrow.setDate(msk.getDate() + 1);
+  const year = tomorrow.getFullYear();
+  const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+  const day = String(tomorrow.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
@@ -144,10 +147,10 @@ const DEFAULT_MEDICAL: MedicalState = {
   constructionStarts: {},
 };
 
-const TEST_CREDITS = 99000000;
+const START_CREDITS = 500;
 
 const DEFAULT_STATE: GameState = {
-  credits: TEST_CREDITS,
+  credits: START_CREDITS,
   ownedHeroes: INITIAL_HEROES,
   team: INITIAL_HEROES.slice(0, 5),
   lineup: {
@@ -171,8 +174,8 @@ const DEFAULT_STATE: GameState = {
   divisionSubId: 1,
   groupId: 1,
   lastLeagueMatchDate: null,
-  seasonDay: 1,
-  seasonStartDate: getTodayDateString(),
+  seasonDay: 0, // Starts at 0 until tomorrow
+  seasonStartDate: getTomorrowDateString(),
   arena: DEFAULT_ARENA,
   hq: DEFAULT_HQ,
   bootcamp: DEFAULT_BOOTCAMP,
@@ -203,11 +206,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const [isLoaded, setIsLoaded] = useState(false);
 
+  // v2 storage key to effectively "reset" local data for everyone
   const getStorageKey = useCallback(() => {
-    return user ? `moba_tactics_state_${user.uid}` : null;
+    return user ? `moba_tactics_v2_${user.uid}` : null;
   }, [user]);
 
-  // Load state and sync with Firestore if necessary
   useEffect(() => {
     const key = getStorageKey();
     if (!key || !user) {
@@ -228,9 +231,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Sync league stats from Firestore (Source of Truth for competition)
+      // Sync league stats from 'players_v2' collection (Reset point)
       try {
-        const profileRef = doc(db, 'users', user.uid);
+        const profileRef = doc(db, 'players_v2', user.uid);
         const profileSnap = await getDoc(profileRef);
         if (profileSnap.exists()) {
           const profileData = profileSnap.data();
@@ -249,28 +252,26 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         console.error("Failed to sync with Firestore", e);
       }
 
-      const startDateStr = baseState.seasonStartDate || getTodayDateString();
+      const startDateStr = baseState.seasonStartDate || getTomorrowDateString();
       const start = new Date(startDateStr);
       start.setHours(0, 0, 0, 0);
 
-      let currentDay = 1;
+      let currentDay = 0;
       const mskNow = getMoscowTime();
+      
       if (mskNow.getTime() >= start.getTime()) {
         const diffTime = mskNow.getTime() - start.getTime();
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
         currentDay = ((diffDays - 1) % 14) + 1;
+      } else {
+        // It's before the start date (Day 0)
+        currentDay = 0;
       }
-
-      const isNewSeason = baseState.seasonDay && currentDay > 0 && currentDay < baseState.seasonDay;
 
       setState({ 
         ...baseState,
         seasonStartDate: startDateStr,
         seasonDay: currentDay,
-        wins: isNewSeason ? 0 : baseState.wins,
-        draws: isNewSeason ? 0 : baseState.draws,
-        losses: isNewSeason ? 0 : baseState.losses,
-        points: isNewSeason ? 0 : baseState.points,
         arena: { ...DEFAULT_ARENA, ...(baseState.arena || {}) },
         hq: { ...DEFAULT_HQ, ...(baseState.hq || {}) },
         bootcamp: { ...DEFAULT_BOOTCAMP, ...(baseState.bootcamp || {}) },
@@ -526,12 +527,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         losses: s.losses + matchLosses,
         points: s.points + matchPoints,
         matchHistory: [result, ...s.matchHistory].slice(0, 10),
-        lastLeagueMatchDate: isAutomated ? getTodayDateString() : s.lastLeagueMatchDate
+        lastLeagueMatchDate: isAutomated ? getMoscowTime().toISOString().split('T')[0] : s.lastLeagueMatchDate
       };
 
-      // Sync competition stats to Firestore for group visibility
+      // Sync competition stats to 'players_v2' collection
       if (isAutomated && user) {
-        const profileRef = doc(db, 'users', user.uid);
+        const profileRef = doc(db, 'players_v2', user.uid);
         updateDoc(profileRef, {
           wins: newState.wins,
           draws: newState.draws,

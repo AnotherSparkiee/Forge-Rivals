@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -8,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { 
   User, Settings, ShieldCheck, History, LogOut, 
   ChevronRight, Mail, ChevronLeft, Check, Loader2,
-  Trophy, Star, Wallet, Gem, Flag, Zap, ArrowUpCircle
+  Trophy, Star, Wallet, Gem, Flag, Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -29,7 +28,7 @@ export default function ProfilePage() {
   const { toast } = useToast();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   useEffect(() => {
@@ -103,10 +102,7 @@ export default function ProfilePage() {
 
   const t = translations[language as keyof typeof translations] || translations.ru;
 
-  // Find country flag
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
-
-  // Simulation of XP progress
   const currentExp = profile?.experiencePoints || 0;
   const xpLevel = Math.floor(currentExp / 1000) + 1;
   const expInLevel = currentExp % 1000;
@@ -152,7 +148,6 @@ export default function ProfilePage() {
         </p>
       </header>
 
-      {/* Roster & Level Section */}
       <div className="space-y-4 mb-8">
         <h2 className="text-xs font-headline font-bold text-accent uppercase tracking-[0.2em] px-1 flex items-center gap-2">
           <Zap className="w-3 h-3" /> {t.rosterInfo}
@@ -202,7 +197,6 @@ export default function ProfilePage() {
         </Card>
       </div>
 
-      {/* Stats & Balance */}
       <div className="grid grid-cols-2 gap-3 mb-8">
         <Card className="glass-card text-center bg-gradient-to-b from-primary/10 to-transparent border-primary/20">
           <CardContent className="p-4 flex flex-col items-center gap-1">
@@ -220,7 +214,6 @@ export default function ProfilePage() {
         </Card>
       </div>
 
-      {/* Currency Section */}
       <div className="space-y-4 mb-8">
         <h2 className="text-xs font-headline font-bold text-accent uppercase tracking-[0.2em] px-1 flex items-center gap-2">
           <Wallet className="w-3 h-3" /> {t.balance}
@@ -247,7 +240,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Language Section */}
       <div className="space-y-4 mb-8">
         <h2 className="text-xs font-headline font-bold text-accent uppercase tracking-[0.2em] px-1">{t.langTitle}</h2>
         <div className="bg-secondary/20 rounded-xl border border-white/5 p-1 flex gap-1">
@@ -270,7 +262,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Settings List */}
       <div className="space-y-4 mb-8">
         <h2 className="text-xs font-headline font-bold text-accent uppercase tracking-[0.2em] px-1">{t.settings}</h2>
         <div className="bg-secondary/20 rounded-xl border border-white/5 divide-y divide-white/5">

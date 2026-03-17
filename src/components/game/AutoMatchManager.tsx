@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { isMatchDue } from '@/app/lib/time-utils';
+import { isMatchDue, getMoscowDateString } from '@/app/lib/time-utils';
 import { getMockGroupTeams, getSchedule, LEAGUES } from '@/app/lib/leagues-data';
 import { INITIAL_HEROES } from '@/app/lib/moba-data';
 import { simulateMobaMatch, SimulateMobaMatchOutput } from '@/ai/flows/simulate-moba-match';
@@ -30,14 +30,13 @@ export function AutoMatchManager() {
   const [showResultDialog, setShowResultDialog] = useState(false);
   const [currentResult, setCurrentResult] = useState<SimulateMobaMatchOutput | null>(null);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  // Fetch all players in the same group to ensure the simulated opponent can be a real player
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
-      collection(db, 'users'),
+      collection(db, 'players_v2'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -47,6 +46,7 @@ export function AutoMatchManager() {
   const { data: groupPlayers } = useCollection(groupQuery);
 
   useEffect(() => {
+    // Only simulate if season is active (Day > 0)
     if (isLoaded && seasonDay > 0 && !isSimulating && !isUserLoading && profile?.selectedLeagueId && groupPlayers) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
       const matchTime = league?.startTime || '23:00';

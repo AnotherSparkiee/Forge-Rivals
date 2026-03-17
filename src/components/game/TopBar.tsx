@@ -10,12 +10,6 @@ import { usePathname } from 'next/navigation';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { LEAGUES } from '@/app/lib/leagues-data';
 
-/**
- * TopBar component displays essential game state information:
- * - Current Team Name & Country (from Profile)
- * - Server Time (Moscow Time)
- * - Credit Balance (from Game State Store)
- */
 export function TopBar() {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
@@ -23,11 +17,9 @@ export function TopBar() {
   const db = useFirestore();
   const [serverTime, setServerTime] = useState('');
 
-  // Stable reference for user profile document
-  const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  // Update server clock every second
   useEffect(() => {
     const updateTime = () => {
       setServerTime(formatMoscowTime(getMoscowTime()));
@@ -37,19 +29,16 @@ export function TopBar() {
     return () => clearInterval(timer);
   }, []);
 
-  // Hide the bar on auth, registration, and setup pages
   if (isUserLoading || !user || pathname?.startsWith('/auth') || pathname === '/setup') {
     return null;
   }
 
-  // Find country data for the flag
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
   const league = profile?.selectedLeagueId ? LEAGUES.find(l => l.id === profile.selectedLeagueId) : null;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-white/10 h-14 flex items-center">
       <div className="w-full max-w-lg mx-auto px-4 grid grid-cols-3 items-center">
-        {/* Section 1: Team Name and Operational Sector (Country) */}
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-8 h-8 rounded-lg bg-secondary/50 flex items-center justify-center flex-shrink-0 border border-white/5">
             <span className="text-lg" role="img" aria-label="country-flag">
@@ -66,7 +55,6 @@ export function TopBar() {
           </div>
         </div>
 
-        {/* Section 2: Moscow Server Time (Centered) */}
         <div className="flex flex-col items-center justify-center text-center">
            <div className="flex items-center gap-1 text-[7px] text-muted-foreground uppercase font-bold tracking-[0.2em] opacity-60 mb-0.5">
              <Clock className="w-2 h-2" /> Время сервера
@@ -76,7 +64,6 @@ export function TopBar() {
            </p>
         </div>
 
-        {/* Section 3: Financial Assets (Credits) */}
         <div className="flex items-center justify-end gap-2">
           <div className="flex items-center gap-1.5 bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20 shadow-[0_0_10px_rgba(var(--primary),0.05)]">
             <div className="w-4 h-4 rounded-full bg-yellow-500/20 flex items-center justify-center">

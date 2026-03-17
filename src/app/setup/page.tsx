@@ -25,7 +25,8 @@ export default function SetupPage() {
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
+  // New collection players_v2
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   useEffect(() => {
@@ -46,13 +47,9 @@ export default function SetupPage() {
     }
   };
 
-  /**
-   * Calculates the stats a player will "inherit" from the bot they replace.
-   */
   const calculateInheritedStats = (leagueId: string, level: number, group: number, day: number) => {
-    // Generate a group of 8 bots to see how the "8th bot" performed up to today
+    if (day === 0) return { wins: 0, draws: 0, losses: 0, points: 0 };
     const groupTeams = getMockGroupTeams(1000, "Template", level, 1, group, false, day, undefined, leagueId);
-    // Since we are replacing a bot, we take the stats of one of them
     const replacedBot = groupTeams[groupTeams.length - 1];
     return {
       wins: replacedBot.wins || 0,
@@ -67,13 +64,11 @@ export default function SetupPage() {
 
     setIsUpdating(true);
     try {
-      const usersCol = collection(db, 'users');
+      const usersCol = collection(db, 'players_v2');
       const leagueQuery = query(usersCol, where('selectedLeagueId', '==', selectedLeagueId));
       const leagueSnap = await getDocs(leagueQuery);
       
       const playerCount = leagueSnap.size;
-      
-      // Each group has 8 teams. Fill groups up to 8 players.
       let targetLevel = 1;
       let targetGroup = Math.floor(playerCount / TEAMS_PER_GROUP) + 1;
       
@@ -82,10 +77,9 @@ export default function SetupPage() {
         targetGroup = 1;
       }
 
-      // Inherit results of the bot that was in this position
       const inheritedStats = calculateInheritedStats(selectedLeagueId, targetLevel, targetGroup, seasonDay);
 
-      const profileRef = doc(db, 'users', user.uid);
+      const profileRef = doc(db, 'players_v2', user.uid);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       
       await updateDoc(profileRef, {
@@ -98,13 +92,12 @@ export default function SetupPage() {
         draws: inheritedStats.draws,
         losses: inheritedStats.losses,
         points: inheritedStats.points,
-        // Ensure setup date matches season start to avoid instant day skips
         setupDate: new Date().toISOString()
       });
       
       toast({
         title: "Setup Complete",
-        description: `Welcome to ${selectedLeagueId}. Group established in Division ${targetLevel}, Group ${targetGroup}.`,
+        description: `Welcome to ${selectedLeagueId}. Team initialized in Division ${targetLevel}, Group ${targetGroup}.`,
       });
       router.push('/');
     } catch (error: any) {

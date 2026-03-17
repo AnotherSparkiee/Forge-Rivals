@@ -34,14 +34,13 @@ export default function MatchesPage() {
   const db = useFirestore();
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
-  // Fetch all players in the same group to ensure everyone sees each other
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
-      collection(db, 'users'),
+      collection(db, 'players_v2'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -61,7 +60,7 @@ export default function MatchesPage() {
 
   const groupTeams = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return [];
-    const calculationDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
+    const calculationDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
     return getMockGroupTeams(
       rank, 
       profile.displayName || "My Team", 
@@ -146,6 +145,19 @@ export default function MatchesPage() {
     );
   }
 
+  if (seasonDay === 0 && activeTab !== 'menu') {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 pb-20 text-center">
+        <Button variant="ghost" onClick={() => setActiveTab('menu')} className="mb-4"><ChevronLeft className="mr-2 h-4 w-4" /> Back</Button>
+        <div className="py-20 space-y-4">
+          <Clock className="w-12 h-12 mx-auto text-muted-foreground animate-pulse" />
+          <h2 className="text-xl font-headline font-bold">Season Starts Tomorrow</h2>
+          <p className="text-sm text-muted-foreground">The tactical link is establishing. First matches will be deployed on Day 1.</p>
+        </div>
+      </div>
+    );
+  }
+
   const renderMatchRow = (match: any, dayIdx: number) => {
     const day = dayIdx + 1;
     const isPlayed = seasonDay > 0 && (day < seasonDay || (day === seasonDay && isTodayPlayed));
@@ -165,8 +177,6 @@ export default function MatchesPage() {
             [hScore, aScore] = getMatchResult(match.home.id, match.away.id, day);
         }
       } else {
-        // If it's another real player's match we can't easily see their live score 
-        // without more complex DB structure, so we show deterministic result for now
         [hScore, aScore] = getMatchResult(match.home.id, match.away.id, day);
       }
     }
@@ -208,15 +218,15 @@ export default function MatchesPage() {
   const renderContent = () => {
     switch (activeTab) {
       case 'next_opponent': {
-        const targetDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
+        const targetDay = isTodayPlayed ? seasonDay + 1 : (seasonDay === 0 ? 1 : seasonDay);
         if (targetDay > 14) return <p className="text-center py-10 text-muted-foreground uppercase text-xs">Season Finished</p>;
         
         const targetMatches = schedule[targetDay - 1];
-        const myMatch = targetMatches?.find((m: any) => m.home.isMe || m.away.isMe);
+        const myMatch = targetMatches?.find((m: any) => m.home.id === user?.uid || m.away.id === user?.uid);
         
         if (!myMatch) return <p className="text-center py-10 text-muted-foreground">{t.noData}</p>;
         
-        const opponent = myMatch.home.isMe ? myMatch.away : myMatch.home;
+        const opponent = myMatch.home.id === user?.uid ? myMatch.away : myMatch.home;
         const startHour = league.startTime;
         const matchDate = getDateForDay(targetDay);
         const isTargetToday = targetDay === seasonDay;
@@ -268,9 +278,9 @@ export default function MatchesPage() {
       }
 
       case 'my_future': {
-        const startIdx = isTodayPlayed ? seasonDay : seasonDay - 1;
+        const startIdx = isTodayPlayed ? seasonDay : (seasonDay === 0 ? 0 : seasonDay - 1);
         const futureMatches = schedule.slice(startIdx).map((dayMatches: any, i) => {
-          const m = dayMatches.find((match: any) => match.home.isMe || match.away.isMe);
+          const m = dayMatches.find((match: any) => match.home.id === user?.uid || match.away.id === user?.uid);
           return { match: m, dayIdx: startIdx + i };
         }).filter(item => !!item.match);
 
@@ -282,9 +292,10 @@ export default function MatchesPage() {
       }
 
       case 'my_played': {
-        const endIdx = isTodayPlayed ? seasonDay : seasonDay - 1;
+        const endIdx = isTodayPlayed ? seasonDay : (seasonDay === 0 ? 0 : seasonDay - 1);
+        if (endIdx === 0) return <p className="text-center py-10 text-muted-foreground">No matches played yet.</p>;
         const playedMatches = schedule.slice(0, endIdx).map((dayMatches: any, i) => {
-          const m = dayMatches.find((match: any) => match.home.isMe || match.away.isMe);
+          const m = dayMatches.find((match: any) => match.home.id === user?.uid || match.away.id === user?.uid);
           return { match: m, dayIdx: i };
         }).filter(item => !!item.match).reverse();
 
@@ -317,7 +328,8 @@ export default function MatchesPage() {
       }
 
       case 'league_played': {
-        const endIdx = isTodayPlayed ? seasonDay : seasonDay - 1;
+        const endIdx = isTodayPlayed ? seasonDay : (seasonDay === 0 ? 0 : seasonDay - 1);
+        if (endIdx === 0) return <p className="text-center py-10 text-muted-foreground">No matches played in league yet.</p>;
         const allPlayed = schedule.slice(0, endIdx).reverse();
         return (
           <div className="space-y-8 animate-in fade-in duration-500">

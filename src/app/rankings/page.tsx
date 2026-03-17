@@ -34,7 +34,7 @@ type RankingTab =
 export default function RankingsPage() {
   const { 
     rank, leagueLevel, divisionSubId, groupId, isLoaded, language, 
-    promoteLeague, lastLeagueMatchDate, seasonDay, seasonStartDate,
+    lastLeagueMatchDate, seasonDay, seasonStartDate,
     wins, draws, losses, points
   } = useGameState();
   const { user, isUserLoading } = useUser();
@@ -44,14 +44,13 @@ export default function RankingsPage() {
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
   const [serverTime, setServerTime] = useState<string>('');
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
-  // Fetch all players in the same group to ensure everyone sees each other in the table
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
-      collection(db, 'users'),
+      collection(db, 'players_v2'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -71,6 +70,7 @@ export default function RankingsPage() {
 
   const myLeagueRankings = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return [];
+    // If Day 0, show initial bot standings
     const calculationDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
     return getMockGroupTeams(
       rank, 
@@ -104,6 +104,7 @@ export default function RankingsPage() {
       matchStatus: "League Status",
       waiting: "Waiting for " + league.startTime,
       completed: "Match completed",
+      upcoming: "Season starts tomorrow",
       div_label: "Division",
       level_label: "Level",
       season_label: "Season Day",
@@ -128,6 +129,7 @@ export default function RankingsPage() {
       matchStatus: "Статус лиги",
       waiting: "Ожидание " + league.startTime,
       completed: "Матч завершен",
+      upcoming: "Сезон начнется завтра",
       div_label: "Дивизион",
       level_label: "Уровень",
       season_label: "День сезона",
@@ -244,7 +246,7 @@ export default function RankingsPage() {
                 </span>
               </div>
               <Badge variant="outline" className={cn("text-[10px] border-primary/20 text-primary", isTodayPlayed && "border-green-500 text-green-400")}>
-                {isTodayPlayed ? t.completed : t.waiting}
+                {seasonDay === 0 ? t.upcoming : (isTodayPlayed ? t.completed : t.waiting)}
               </Badge>
             </CardContent>
           </Card>

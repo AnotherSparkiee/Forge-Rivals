@@ -63,7 +63,8 @@ export default function RegisterPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      const userProfileRef = doc(db, 'users', user.uid);
+      // New collection players_v2 for league reset
+      const userProfileRef = doc(db, 'players_v2', user.uid);
       
       const profileData = {
         id: user.uid,
@@ -74,7 +75,6 @@ export default function RegisterPage() {
         createdAt: new Date().toISOString(),
         ownedHeroIds: ['h1', 'h2', 'h3', 'h4', 'h5', 'h_sub1', 'h_sub2'],
         leagueRankingId: 'none',
-        // Levels will be set during setup/page.tsx
         leagueLevel: 0,
         divisionSubId: 0,
         groupId: 0,

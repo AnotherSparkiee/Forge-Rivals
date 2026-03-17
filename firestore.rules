@@ -3,7 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * Moba Tactics Online Security Rules
+     * Moba Tactics Online Security Rules - V2
      */
 
     // --- Helper Functions ---
@@ -24,66 +24,20 @@ service cloud.firestore {
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
-    function isMatchParticipant(data) {
-      return isSignedIn() && (request.auth.uid == data.team1OwnerId || request.auth.uid == data.team2OwnerId);
-    }
-
     // --- Collection Rules ---
 
-    match /users/{userId} {
+    // Updated to use players_v2
+    match /players_v2/{userId} {
       allow get: if isOwner(userId);
-      // Allow list for all signed in users to enable league assignment logic (counting players)
       allow list: if isSignedIn();
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
-
-      match /playerTeams/{playerTeamId} {
-        allow get, list: if isOwner(userId);
-        allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
-        allow update: if isExistingOwner(userId) && request.resource.data.userProfileId == resource.data.userProfileId;
-        allow delete: if isExistingOwner(userId);
-
-        match /teamRosterSlots/{rosterSlotId} {
-          allow get, list: if isOwner(userId);
-          allow create: if isOwner(userId) && request.resource.data.userProfileId == userId && request.resource.data.playerTeamId == playerTeamId;
-          allow update: if isExistingOwner(userId) && request.resource.data.userProfileId == resource.data.userProfileId && request.resource.data.playerTeamId == resource.data.playerTeamId;
-          allow delete: if isExistingOwner(userId);
-        }
-
-        match /strategies/{strategyId} {
-          allow get, list: if isOwner(userId);
-          allow create: if isOwner(userId) && request.resource.data.userProfileId == userId && request.resource.data.playerTeamId == playerTeamId;
-          allow update: if isExistingOwner(userId) && request.resource.data.userProfileId == resource.data.userProfileId && request.resource.data.playerTeamId == resource.data.playerTeamId;
-          allow delete: if isExistingOwner(userId);
-        }
-      }
-
-      match /leagueRankings/{leagueRankingId} {
-        allow get, list: if isOwner(userId);
-        allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
-        allow update: if isExistingOwner(userId) && request.resource.data.userProfileId == resource.data.userProfileId;
-        allow delete: if isExistingOwner(userId);
-      }
     }
 
     match /heroes/{heroId} {
       allow get, list: if true;
       allow create, update, delete: if isAdmin();
-    }
-
-    match /matches/{matchId} {
-      allow get, list: if isMatchParticipant(resource.data);
-      allow create: if isMatchParticipant(request.resource.data);
-      allow update: if resource != null && isMatchParticipant(resource.data) && isMatchParticipant(request.resource.data);
-      allow delete: if resource != null && isMatchParticipant(resource.data);
-
-      match /matchStatistics/{matchStatisticId} {
-        allow get, list: if isMatchParticipant(resource.data);
-        allow create: if isMatchParticipant(request.resource.data);
-        allow update: if resource != null && isMatchParticipant(resource.data) && isMatchParticipant(request.resource.data);
-        allow delete: if resource != null && isMatchParticipant(resource.data);
-      }
     }
 
     match /roles_admin/{userId} {
