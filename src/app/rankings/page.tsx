@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -47,12 +46,12 @@ export default function RankingsPage() {
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
   const [serverTime, setServerTime] = useState<string>('');
 
-  const [pyramidMode, setPyramidMode] = useState<PyramidViewMode>('levels');
-  const [viewingLevel, setViewingLevel] = useState<number>(1);
-  const [viewingDiv, setViewingDiv] = useState<number>(1);
-
   const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
+
+  const league = useMemo(() => {
+    return LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0];
+  }, [profile?.selectedLeagueId]);
 
   const isTodayPlayed = useMemo(() => {
     const todayStr = getMoscowDateString();
@@ -70,11 +69,10 @@ export default function RankingsPage() {
       groupId, 
       true, 
       calculationDay,
-      { wins, draws, losses, points }
+      { wins, draws, losses, points },
+      profile?.selectedLeagueId || "ALPHA"
     );
-  }, [isLoaded, rank, profile?.displayName, leagueLevel, divisionSubId, groupId, seasonDay, wins, draws, losses, points, isTodayPlayed]);
-
-  const isPlayerFirst = myLeagueRankings.find(t => t.isPlayer)?.points === Math.max(...myLeagueRankings.map(t => t.points));
+  }, [isLoaded, rank, profile?.displayName, profile?.selectedLeagueId, leagueLevel, divisionSubId, groupId, seasonDay, wins, draws, losses, points, isTodayPlayed]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -91,13 +89,13 @@ export default function RankingsPage() {
       promote: "Promote",
       serverClock: "Server Clock (MSK)",
       matchStatus: "League Status",
-      waiting: "Waiting for 23:00",
+      waiting: "Waiting for " + league.startTime,
       completed: "Match completed",
       div_label: "Division",
       level_label: "Level",
       season_label: "Season Day",
-      bo2_format: "Bo2 Format (23:00 daily)",
-      startsToday: "Starts TODAY 23:00",
+      bo2_format: `Bo2 Format (${league.startTime} daily)`,
+      startsToday: `Starts TODAY ${league.startTime}`,
       tiers: ["Elite Tier", "Professional Tier", "Challenger Tier"],
       tabs: {
         my_league: { label: "My League", desc: "Current group rankings", icon: Trophy },
@@ -115,13 +113,13 @@ export default function RankingsPage() {
       promote: "Повышить",
       serverClock: "Часы Сервера (МСК)",
       matchStatus: "Статус лиги",
-      waiting: "Ожидание 23:00",
+      waiting: "Ожидание " + league.startTime,
       completed: "Матч завершен",
       div_label: "Дивизион",
       level_label: "Уровень",
       season_label: "День сезона",
-      bo2_format: "Формат Bo2 (Ежедневно 23:00)",
-      startsToday: "Старт СЕГОДНЯ в 23:00",
+      bo2_format: `Формат Bo2 (Ежедневно ${league.startTime})`,
+      startsToday: `Старт СЕГОДНЯ в ${league.startTime}`,
       tiers: ["Элитный уровень", "Профессиональный уровень", "Претендентский уровень"],
       tabs: {
         my_league: { label: "Своя лига", desc: "Рейтинг вашей группы", icon: Trophy },
@@ -218,7 +216,7 @@ export default function RankingsPage() {
               <div className="flex flex-col">
                 <span className="text-xs uppercase font-bold text-accent">{t.bo2_format}</span>
                 <span className="text-[11px] font-mono font-bold text-primary flex items-center gap-1 mt-1">
-                  <Clock className="w-3.5 h-3.5" /> Start: 23:00 (MSK)
+                  <Clock className="w-3.5 h-3.5" /> Start: {league.startTime} (MSK)
                 </span>
               </div>
               <Badge variant="outline" className={cn("text-[10px] border-primary/20 text-primary", isTodayPlayed && "border-green-500 text-green-400")}>

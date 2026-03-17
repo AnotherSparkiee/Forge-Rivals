@@ -54,7 +54,15 @@ export function AutoMatchManager() {
 
     try {
       const groupTeams = getMockGroupTeams(
-        rank, profile?.displayName || "My Team", leagueLevel, divisionSubId, groupId, true, seasonDay
+        rank, 
+        profile?.displayName || "My Team", 
+        leagueLevel, 
+        divisionSubId, 
+        groupId, 
+        true, 
+        seasonDay,
+        undefined,
+        profile?.selectedLeagueId || "ALPHA"
       );
       const schedule = getSchedule(groupTeams);
       const todayMatch = schedule[seasonDay - 1]?.find((m: any) => m.home.isPlayer || m.away.isPlayer);

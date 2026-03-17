@@ -37,6 +37,10 @@ export default function MatchesPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
+  const league = useMemo(() => {
+    return LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0];
+  }, [profile?.selectedLeagueId]);
+
   const isTodayPlayed = useMemo(() => {
     const todayStr = getMoscowDateString();
     return lastLeagueMatchDate === todayStr;
@@ -53,9 +57,10 @@ export default function MatchesPage() {
       groupId, 
       true, 
       calculationDay,
-      { wins, draws, losses, points }
+      { wins, draws, losses, points },
+      profile?.selectedLeagueId || "ALPHA"
     );
-  }, [isLoaded, profile?.displayName, leagueLevel, divisionSubId, groupId, seasonDay, rank, wins, draws, losses, points, isTodayPlayed]);
+  }, [isLoaded, profile?.displayName, profile?.selectedLeagueId, leagueLevel, divisionSubId, groupId, seasonDay, rank, wins, draws, losses, points, isTodayPlayed]);
 
   const schedule = useMemo(() => {
     if (groupTeams.length === 0) return [];
@@ -129,7 +134,7 @@ export default function MatchesPage() {
   const renderMatchRow = (match: any, dayIdx: number) => {
     const day = dayIdx + 1;
     const isPlayed = seasonDay > 0 && (day < seasonDay || (day === seasonDay && isTodayPlayed));
-    const startHour = "23:00";
+    const startHour = league.startTime;
     const matchDate = getDateForDay(day);
 
     let hScore = 0;
@@ -195,7 +200,7 @@ export default function MatchesPage() {
         if (!myMatch) return <p className="text-center py-10 text-muted-foreground">{t.noData}</p>;
         
         const opponent = myMatch.home.isPlayer ? myMatch.away : myMatch.home;
-        const startHour = "23:00";
+        const startHour = league.startTime;
         const matchDate = getDateForDay(targetDay);
         const isTargetToday = targetDay === seasonDay;
         
@@ -223,7 +228,7 @@ export default function MatchesPage() {
                   </p>
                   <p className="text-xl font-headline font-bold tracking-tight">{matchDate} @ {startHour}</p>
                   <p className="text-[9px] text-muted-foreground uppercase mt-1 italic font-bold">
-                    {language === 'ru' ? 'Синхронизация по МСК: 23:00' : 'MSK Sync: 23:00'}
+                    {language === 'ru' ? `Синхронизация по МСК: ${startHour}` : `MSK Sync: ${startHour}`}
                   </p>
                 </div>
 
@@ -278,7 +283,7 @@ export default function MatchesPage() {
               <div key={dIdx} className="space-y-3">
                 <div className="flex items-center gap-2 px-1">
                   <span className="text-[10px] uppercase font-bold tracking-widest text-accent font-mono flex items-center gap-2">
-                    <Clock className="w-3 h-3" /> {getDateForDay(dIdx + 1)} @ 23:00
+                    <Clock className="w-3 h-3" /> {getDateForDay(dIdx + 1)} @ {league.startTime}
                   </span>
                   <div className="h-px flex-1 bg-white/5"></div>
                   <Badge variant="outline" className="text-[8px] border-primary/20 text-primary">DAY {dIdx + 1}</Badge>
@@ -302,7 +307,7 @@ export default function MatchesPage() {
               return (
                 <div key={actualDayIdx} className="space-y-3">
                   <div className="flex items-center gap-2 px-1">
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-accent font-mono">{getDateForDay(actualDayIdx + 1)} @ 23:00</span>
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-accent font-mono">{getDateForDay(actualDayIdx + 1)} @ {league.startTime}</span>
                     <div className="h-px flex-1 bg-white/5"></div>
                     <Badge variant="outline" className="text-[8px] border-primary/20 text-primary">DAY {actualDayIdx + 1}</Badge>
                   </div>
@@ -335,7 +340,7 @@ export default function MatchesPage() {
               {t.title}
             </h1>
             <p className="text-muted-foreground text-[10px] uppercase tracking-widest">
-              Daily @ 23:00 MSK | Div {leagueLevel}.{divisionSubId}
+              Daily @ {league.startTime} MSK | Div {leagueLevel}.{divisionSubId}
             </p>
           </div>
         </header>
