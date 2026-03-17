@@ -15,6 +15,11 @@
           "type": "string",
           "description": "The player's chosen display name."
         },
+        "email": {
+          "type": "string",
+          "description": "The player's email address.",
+          "format": "email"
+        },
         "inGameCurrency": {
           "type": "number",
           "description": "The amount of in-game currency the player possesses."
@@ -68,6 +73,7 @@
       "required": [
         "id",
         "displayName",
+        "email",
         "inGameCurrency",
         "experiencePoints",
         "lastLoginDate",
@@ -238,7 +244,7 @@
         "id": {
           "type": "string",
           "description": "Unique identifier for the Strategy entity."
-        },
+"        },
         "name": {
           "type": "string",
           "description": "A descriptive name for the strategy."

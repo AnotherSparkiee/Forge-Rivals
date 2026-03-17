@@ -1,10 +1,12 @@
+
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,10 +17,11 @@ import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const auth = useAuth();
+  const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const { language, setLanguage, isLoaded } = useGameState();
@@ -26,25 +29,27 @@ export default function LoginPage() {
   const translations = {
     en: {
       title: "Sync Credentials",
-      emailLabel: "Email Address",
+      emailLabel: "Email or Callsign",
       passLabel: "Access Key (Password)",
       submitBtn: "ESTABLISH LINK",
       newManager: "New manager?",
       registerLink: "Initialize new profile",
       successTitle: "Access Granted",
       successDesc: "Welcome back to the Command Center.",
-      errorTitle: "Access Denied"
+      errorTitle: "Access Denied",
+      userNotFound: "Callsign not found. Please check spelling or use email."
     },
     ru: {
       title: "Синхронизация данных",
-      emailLabel: "Почта (Email)",
+      emailLabel: "Почта или Позывной",
       passLabel: "Ключ доступа (Пароль)",
       submitBtn: "УСТАНОВИТЬ СВЯЗЬ",
       newManager: "Новый менеджер?",
       registerLink: "Создать новый профиль",
       successTitle: "Доступ разрешен",
       successDesc: "Добро пожаловать в Командный Центр.",
-      errorTitle: "Доступ запрещен"
+      errorTitle: "Доступ запрещен",
+      userNotFound: "Позывной не найден. Проверьте написание или используйте почту."
     }
   };
 
@@ -54,8 +59,30 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
 
+    let emailToUse = identifier;
+
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      // 1. Check if identifier is an email. If not, resolve it via nickname lookup.
+      if (!identifier.includes('@')) {
+        const usersRef = collection(db, 'players_v2');
+        const q = query(usersRef, where('displayName', '==', identifier), limit(1));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+          throw new Error(t.userNotFound);
+        }
+        
+        const userData = querySnapshot.docs[0].data();
+        emailToUse = userData.email;
+        
+        if (!emailToUse) {
+          throw new Error("Profile exists but email sync is missing. Use email to login.");
+        }
+      }
+
+      // 2. Perform actual sign in
+      await signInWithEmailAndPassword(auth, emailToUse, password);
+      
       toast({
         title: t.successTitle,
         description: t.successDesc,
@@ -102,13 +129,12 @@ export default function LoginPage() {
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">{t.emailLabel}</Label>
+              <Label htmlFor="identifier">{t.emailLabel}</Label>
               <Input 
-                id="email" 
-                type="email" 
-                placeholder="name@example.com" 
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)} 
+                id="identifier" 
+                placeholder="Manager or email@example.com" 
+                value={identifier} 
+                onChange={(e) => setIdentifier(e.target.value)} 
                 required 
                 className="bg-secondary/50"
               />

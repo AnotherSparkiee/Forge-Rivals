@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -5,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,7 +30,7 @@ export default function RegisterPage() {
   const translations = {
     en: {
       title: "Initiate Profile",
-      callsign: "Team Name",
+      callsign: "Callsign (Unique Username)",
       emailLabel: "Email Address",
       passLabel: "Access Key (Password)",
       submitBtn: "CREATE PROFILE",
@@ -37,11 +38,12 @@ export default function RegisterPage() {
       loginLink: "Synchronize Link",
       successTitle: "Profile Initialized",
       successDesc: "Welcome to the league, Commander. Prepare for deployment and league assignment.",
-      errorTitle: "Registration Failed"
+      errorTitle: "Registration Failed",
+      usernameTaken: "This callsign is already assigned to another commander."
     },
     ru: {
       title: "Инициация профиля",
-      callsign: "Название команды",
+      callsign: "Позывной (Уникальное имя)",
       emailLabel: "Почта (Email)",
       passLabel: "Ключ доступа (Пароль)",
       submitBtn: "СОЗДАТЬ ПРОФИЛЬ",
@@ -49,7 +51,8 @@ export default function RegisterPage() {
       loginLink: "Установить связь",
       successTitle: "Профиль инициализирован",
       successDesc: "Добро пожаловать в лигу, Командир. Приготовьтесь к развертыванию и зачислению в дивизион.",
-      errorTitle: "Ошибка регистрации"
+      errorTitle: "Ошибка регистрации",
+      usernameTaken: "Этот позывной уже занят другим командиром."
     }
   };
 
@@ -60,15 +63,26 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
+      // 1. Check for unique username
+      const usersRef = collection(db, 'players_v2');
+      const q = query(usersRef, where('displayName', '==', username), limit(1));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        throw new Error(t.usernameTaken);
+      }
+
+      // 2. Create Auth User
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // New collection players_v2 for league reset
+      // 3. Create Firestore Profile
       const userProfileRef = doc(db, 'players_v2', user.uid);
       
       const profileData = {
         id: user.uid,
         displayName: username,
+        email: email, // Store email for nickname login lookup
         inGameCurrency: 500,
         experiencePoints: 0,
         lastLoginDate: new Date().toISOString(),
@@ -132,7 +146,7 @@ export default function RegisterPage() {
               <Label htmlFor="username">{t.callsign}</Label>
               <Input 
                 id="username" 
-                placeholder="Team Alpha" 
+                placeholder="CommanderX" 
                 value={username} 
                 onChange={(e) => setUsername(e.target.value)} 
                 required 

@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -29,7 +30,8 @@ service cloud.firestore {
     // Updated to use players_v2
     match /players_v2/{userId} {
       allow get: if isOwner(userId);
-      allow list: if isSignedIn();
+      // Allow list for everyone to enable nickname-to-email lookup during login
+      allow list: if true; 
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
