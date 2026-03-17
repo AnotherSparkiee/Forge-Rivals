@@ -9,7 +9,7 @@ import {
   Swords, Users, Trophy, TrendingUp, 
   ShoppingCart, Newspaper, Shield, Star, 
   ChevronRight, CalendarDays, Zap, Clock,
-  UserSearch, ShieldAlert
+  UserSearch, ShieldAlert, AlertCircle
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -112,6 +112,10 @@ export default function Home() {
       locked: "Locked",
       preSeason: "Season Preparation",
       preSeasonDesc: "Calculating league brackets. First matches start tomorrow.",
+      seasonEnded: "Season Finished",
+      seasonEndedDesc: "The championship cycle is over. Final results are being calculated.",
+      noOpponent: "No Active Opponents",
+      noOpponentDesc: "The tactical link is clear. No scheduled engagements in this sector.",
       menu: [
         { label: 'Battle Simulation', desc: 'Deploy team for automated matches' },
         { label: 'Team Roster', desc: 'Manage your active hero lineup' },
@@ -137,6 +141,10 @@ export default function Home() {
       locked: "Закрыто",
       preSeason: "Подготовка к сезону",
       preSeasonDesc: "Формирование дивизионов. Первые игры начнутся завтра.",
+      seasonEnded: "Сезон завершен",
+      seasonEndedDesc: "Цикл чемпионата окончен. Идет подведение итоговых результатов.",
+      noOpponent: "Нет активных соперников",
+      noOpponentDesc: "Тактический канал чист. Запланированных встреч в данном секторе нет.",
       menu: [
         { label: 'Боевая Симуляция', desc: 'Развертывание команды для матча' },
         { label: 'Ростер Команды', desc: 'Управление активным составом' },
@@ -221,11 +229,31 @@ export default function Home() {
         ) : (
           <Card className="glass-card border-accent/20 bg-accent/5">
             <CardContent className="p-8 flex flex-col items-center text-center space-y-4">
-              <Clock className="w-12 h-12 text-accent animate-pulse" />
-              <div>
-                <h3 className="text-lg font-headline font-bold uppercase">{t.preSeason}</h3>
-                <p className="text-xs text-muted-foreground mt-1">{t.preSeasonDesc}</p>
-              </div>
+              {seasonDay === 0 ? (
+                <>
+                  <Clock className="w-12 h-12 text-accent animate-pulse" />
+                  <div>
+                    <h3 className="text-lg font-headline font-bold uppercase">{t.preSeason}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{t.preSeasonDesc}</p>
+                  </div>
+                </>
+              ) : seasonDay > 14 ? (
+                <>
+                  <Trophy className="w-12 h-12 text-yellow-500 animate-bounce" />
+                  <div>
+                    <h3 className="text-lg font-headline font-bold uppercase">{t.seasonEnded}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{t.seasonEndedDesc}</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <ShieldAlert className="w-12 h-12 text-muted-foreground" />
+                  <div>
+                    <h3 className="text-lg font-headline font-bold uppercase">{t.noOpponent}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{t.noOpponentDesc}</p>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         )}
