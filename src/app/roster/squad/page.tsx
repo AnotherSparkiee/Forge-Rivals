@@ -8,7 +8,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { 
   Sword, Shield, Activity, Sparkles, Plus, 
   Check, ChevronLeft, User, UserPlus, X,
-  ShieldCheck, Zap, Crosshair, HeartPulse
+  ShieldCheck, Zap, Crosshair, HeartPulse,
+  TrendingUp, Star
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -31,6 +32,7 @@ export default function SquadPage() {
     emptySlot: language === 'ru' ? "Назначить" : "Assign",
     heroSelection: language === 'ru' ? "Выбор героя" : "Hero Selection",
     heroSelectionDesc: language === 'ru' ? "Выберите героя для этой позиции." : "Select a hero for this position.",
+    overall: language === 'ru' ? "ОБЩ" : "OVR",
     roles: {
       carry: { label: language === 'ru' ? "Керри" : "Carry", icon: Sword, color: "text-red-400" },
       mid: { label: language === 'ru' ? "Мидер" : "Midlaner", icon: Sparkles, color: "text-blue-400" },
@@ -54,43 +56,53 @@ export default function SquadPage() {
         key={slotKey}
         className={cn(
           "glass-card border-white/5 overflow-hidden transition-all",
-          hero ? "bg-primary/5 border-primary/20" : "hover:border-white/20"
+          hero ? "bg-primary/5 border-primary/20 shadow-[0_0_15px_rgba(var(--primary),0.05)]" : "hover:border-white/20"
         )}
       >
         <CardContent className="p-3 flex items-center gap-4">
           {/* Position Icon/Avatar */}
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <div className={cn(
-              "w-12 h-12 rounded-full border flex items-center justify-center bg-secondary/50",
+              "w-14 h-14 rounded-full border flex items-center justify-center bg-secondary/50",
               hero ? "border-primary/50" : "border-dashed border-muted"
             )}>
               {hero ? (
                 <img src={hero.image} alt={hero.name} className="w-full h-full object-cover rounded-full" />
               ) : (
-                <roleInfo.icon className={cn("w-5 h-5", roleInfo.color)} />
+                <roleInfo.icon className={cn("w-6 h-6", roleInfo.color)} />
               )}
             </div>
             {hero && (
-              <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1 border border-white/10 shadow-lg">
+              <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1.5 border border-white/10 shadow-lg">
                 <roleInfo.icon className={cn("w-3 h-3", roleInfo.color)} />
               </div>
             )}
           </div>
 
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">{roleInfo.label}</p>
-            <h3 className={cn("text-sm font-bold truncate", !hero && "text-muted-foreground italic")}>
+            <div className="flex items-center gap-2 mb-0.5">
+              <p className="text-[9px] uppercase font-black text-muted-foreground tracking-widest">{roleInfo.label}</p>
+              {hero && (
+                <div className="flex items-center gap-1 bg-accent/20 px-1.5 rounded text-accent font-mono font-bold text-[10px]">
+                  {t.overall} {hero.overallRating}
+                </div>
+              )}
+            </div>
+            <h3 className={cn("text-sm font-bold leading-tight break-words", !hero && "text-muted-foreground italic")}>
               {hero ? hero.name : t.emptySlot}
             </h3>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {hero && (
               <Button 
                 variant="ghost" 
                 size="icon" 
                 className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                onClick={() => assignToRole(slotKey, null)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  assignToRole(slotKey, null);
+                }}
               >
                 <X className="w-4 h-4" />
               </Button>
@@ -98,10 +110,10 @@ export default function SquadPage() {
             <Button 
               variant={hero ? "secondary" : "default"} 
               size="sm" 
-              className="h-8 text-[10px] uppercase font-bold"
+              className="h-9 text-[10px] uppercase font-bold px-3"
               onClick={() => setSelectingSlot(slotKey)}
             >
-              {hero ? (language === 'ru' ? "Заменить" : "Swap") : t.emptySlot}
+              {hero ? (language === 'ru' ? "СМЕНИТЬ" : "SWAP") : t.emptySlot}
             </Button>
           </div>
         </CardContent>
@@ -150,9 +162,11 @@ export default function SquadPage() {
 
       {/* Hero Selection Dialog */}
       <Dialog open={!!selectingSlot} onOpenChange={() => setSelectingSlot(null)}>
-        <DialogContent className="max-w-md h-[80vh] flex flex-col p-0 bg-background border-white/5">
+        <DialogContent className="max-w-md h-[85vh] flex flex-col p-0 bg-background border-white/5">
           <DialogHeader className="p-6 pb-2 border-b border-white/5">
-            <DialogTitle className="text-xl font-headline font-bold uppercase">{t.heroSelection}</DialogTitle>
+            <DialogTitle className="text-xl font-headline font-bold uppercase flex items-center gap-2">
+              <Users className="w-5 h-5 text-primary" /> {t.heroSelection}
+            </DialogTitle>
             <DialogDescription className="text-xs">{t.heroSelectionDesc}</DialogDescription>
           </DialogHeader>
           
@@ -166,7 +180,7 @@ export default function SquadPage() {
                 <Card 
                   key={hero.id}
                   className={cn(
-                    "glass-card transition-all cursor-pointer",
+                    "glass-card transition-all cursor-pointer overflow-hidden",
                     isCurrentSlot ? "border-primary bg-primary/10" : "hover:border-white/20",
                     isAssigned && !isCurrentSlot && "opacity-50 grayscale"
                   )}
@@ -177,27 +191,40 @@ export default function SquadPage() {
                     }
                   }}
                 >
-                  <CardContent className="p-3 flex gap-4">
-                    <div className="w-14 h-20 rounded bg-muted flex-shrink-0 overflow-hidden">
+                  <CardContent className="p-0 flex h-32">
+                    <div className="w-24 h-full bg-muted flex-shrink-0 relative">
                       <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
+                      <div className="absolute top-2 right-2 bg-background/90 rounded px-1.5 py-0.5 border border-white/10">
+                        <span className="text-[10px] font-mono font-black text-accent">{hero.overallRating}</span>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0 py-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <h4 className="font-bold text-sm truncate">{hero.name}</h4>
-                        <Badge variant="secondary" className="text-[8px] h-4">{hero.role}</Badge>
+                    <div className="flex-1 min-w-0 p-3 flex flex-col">
+                      <div className="flex items-center justify-between mb-1 gap-2">
+                        <h4 className="font-bold text-sm leading-tight break-words flex-1">{hero.name}</h4>
+                        <Badge variant="secondary" className="text-[7px] h-4 uppercase shrink-0">{hero.role}</Badge>
                       </div>
-                      <div className="grid grid-cols-2 gap-x-2 gap-y-1">
-                        <div className="flex items-center gap-1 text-[8px] text-muted-foreground">
-                          <Sword className="w-2.5 h-2.5 text-red-400" /> {hero.baseStats.attack}
+                      
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-1">
+                        <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground font-bold">
+                          <Sword className="w-3 h-3 text-red-400" /> {hero.baseStats.attack}
                         </div>
-                        <div className="flex items-center gap-1 text-[8px] text-muted-foreground">
-                          <Activity className="w-2.5 h-2.5 text-green-400" /> {hero.baseStats.health}
+                        <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground font-bold">
+                          <Activity className="w-3 h-3 text-green-400" /> {hero.baseStats.health}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground font-bold">
+                          <Shield className="w-3 h-3 text-orange-400" /> {hero.baseStats.defense}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground font-bold">
+                          <Zap className="w-3 h-3 text-blue-400" /> {hero.baseStats.abilityPower}
                         </div>
                       </div>
+
                       {isAssigned && (
-                        <p className="text-[8px] text-primary mt-2 font-bold uppercase">
-                          {isCurrentSlot ? (language === 'ru' ? "Выбран" : "Selected") : (language === 'ru' ? `На позиции: ${t.roles[currentSlot as LineupSlot].label}` : `At role: ${t.roles[currentSlot as LineupSlot].label}`)}
-                        </p>
+                        <div className="mt-auto pt-2 flex items-center gap-1">
+                          <Badge variant="outline" className="text-[8px] uppercase border-primary/30 text-primary py-0 h-4">
+                            {isCurrentSlot ? (language === 'ru' ? "ВЫБРАН" : "SELECTED") : (language === 'ru' ? `ПОЗИЦИЯ: ${t.roles[currentSlot as LineupSlot].label}` : `ROLE: ${t.roles[currentSlot as LineupSlot].label}`)}
+                          </Badge>
+                        </div>
                       )}
                     </div>
                   </CardContent>
