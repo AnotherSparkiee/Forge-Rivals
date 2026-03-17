@@ -2,39 +2,58 @@
 
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Sword, Shield, Activity, Sparkles, Plus, Check, ChevronLeft } from 'lucide-react';
+import { 
+  Users, Link as LinkIcon, Swords, Dumbbell, 
+  Clock, Scroll, BarChart3, HeartPulse, 
+  ChevronLeft, ChevronRight 
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Hero } from '../lib/moba-data';
-import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
 
 export default function RosterPage() {
-  const { ownedHeroes, team, setTeam, isLoaded } = useGameState();
-  const { toast } = useToast();
+  const { language, isLoaded } = useGameState();
 
   if (!isLoaded) return null;
 
-  const toggleTeamMember = (hero: Hero) => {
-    const isAlreadyIn = team.find(h => h.id === hero.id);
-    if (isAlreadyIn) {
-      if (team.length <= 1) {
-        toast({ title: "Minimun 1 hero required", variant: "destructive" });
-        return;
-      }
-      setTeam(team.filter(h => h.id !== hero.id));
-    } else {
-      if (team.length >= 5) {
-        toast({ title: "Maximum 5 heroes allowed", variant: "destructive" });
-        return;
-      }
-      setTeam([...team, hero]);
+  const translations = {
+    en: {
+      title: "ROSTER TERMINAL",
+      subtitle: "Personnel Management Hub",
+      locked: "Locked",
+      menu: [
+        { label: 'Squad', desc: 'Manage your active hero lineup', icon: Users, href: '/roster/squad', active: true },
+        { label: 'Team Synergy', desc: 'Cohesion and chemical bonds', icon: LinkIcon, active: false },
+        { label: 'Tactics', desc: 'Strategic positioning and roles', icon: Swords, active: false },
+        { label: 'Training', desc: 'Long-term development programs', icon: Dumbbell, active: false },
+        { label: 'Daily Training', desc: '24-hour intensive cycle', icon: Clock, active: false },
+        { label: 'Contracts', desc: 'Financial agreements and tenure', icon: Scroll, active: false },
+        { label: 'Player Stats', desc: 'Individual performance metrics', icon: BarChart3, active: false },
+        { label: 'Recover Fatigue', desc: 'Instant stamina restoration', icon: HeartPulse, active: false },
+      ]
+    },
+    ru: {
+      title: "ТЕРМИНАЛ РОСТЕРА",
+      subtitle: "Хаб управления персоналом",
+      locked: "Закрыто",
+      menu: [
+        { label: 'Состав', desc: 'Управление активным составом', icon: Users, href: '/roster/squad', active: true },
+        { label: 'Сыгранность состава', desc: 'Командное взаимодействие', icon: LinkIcon, active: false },
+        { label: 'Тактика', desc: 'Стратегические роли и позиции', icon: Swords, active: false },
+        { label: 'Тренировки', desc: 'Долгосрочные программы развития', icon: Dumbbell, active: false },
+        { label: 'Тренировка за сутки', desc: '24-часовой цикл подготовки', icon: Clock, active: false },
+        { label: 'Контракты', desc: 'Финансовые соглашения и сроки', icon: Scroll, active: false },
+        { label: 'Статистика игроков', desc: 'Индивидуальные метрики игроков', icon: BarChart3, active: false },
+        { label: 'Снять усталость', desc: 'Мгновенное восстановление выносливости', icon: HeartPulse, active: false },
+      ]
     }
   };
 
+  const t = translations[language as keyof typeof translations] || translations.ru;
+
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-12">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-20">
       <header className="mb-6 flex items-center gap-4">
         <Link href="/">
           <Button variant="ghost" size="icon" className="rounded-full">
@@ -42,71 +61,43 @@ export default function RosterPage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-headline font-bold">TEAM ROSTER</h1>
-          <p className="text-muted-foreground text-sm">Select up to 5 heroes for your active lineup.</p>
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
         </div>
       </header>
 
-      <div className="flex items-center justify-between mb-4 bg-secondary/30 p-3 rounded-lg border border-white/5">
-        <span className="text-sm font-medium">Active Lineup</span>
-        <span className="text-primary font-bold">{team.length} / 5</span>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 mb-8">
-        {ownedHeroes.map((hero) => {
-          const isActive = !!team.find(h => h.id === hero.id);
-          return (
+      <div className="space-y-2">
+        {t.menu.map((item) => (
+          <Link 
+            key={item.label} 
+            href={item.active ? item.href! : '#'} 
+            className={cn("block", !item.active && "cursor-not-allowed")}
+          >
             <Card 
-              key={hero.id} 
               className={cn(
-                "glass-card transition-all cursor-pointer",
-                isActive ? "border-primary/50 bg-primary/5" : "hover:border-white/20"
+                "glass-card border-white/5 transition-all",
+                item.active ? "hover:bg-white/5 cursor-pointer" : "opacity-60"
               )}
-              onClick={() => toggleTeamMember(hero)}
             >
-              <CardContent className="p-3 flex gap-4">
-                <div className="w-20 h-28 rounded-md overflow-hidden bg-muted flex-shrink-0">
-                  <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 rounded-lg bg-secondary/50">
+                    <item.icon className="w-5 h-5 text-primary" />
+                  </div>
                   <div>
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <h3 className="font-bold text-base truncate">{hero.name}</h3>
-                      <Badge variant={isActive ? "default" : "secondary"} className="text-[10px] h-5">
-                        {hero.role}
-                      </Badge>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                        <Sword className="w-3 h-3 text-red-400" /> ATK: {hero.baseStats.attack}
-                      </div>
-                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                        <Shield className="w-3 h-3 text-blue-400" /> DEF: {hero.baseStats.defense}
-                      </div>
-                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                        <Activity className="w-3 h-3 text-green-400" /> HP: {hero.baseStats.health}
-                      </div>
-                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                        <Sparkles className="w-3 h-3 text-accent" /> AP: {hero.baseStats.abilityPower}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center mt-2">
-                    <p className="text-[10px] text-muted-foreground italic truncate max-w-[120px]">
-                      Focus: {hero.abilitiesFocus}
-                    </p>
-                    <div className={cn(
-                      "w-6 h-6 rounded-full flex items-center justify-center border",
-                      isActive ? "bg-primary border-primary text-primary-foreground" : "border-muted text-muted-foreground"
-                    )}>
-                      {isActive ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                    </div>
+                    <h3 className="text-sm font-bold uppercase">{item.label}</h3>
+                    <p className="text-[10px] text-muted-foreground">{item.desc}</p>
                   </div>
                 </div>
+                {item.active ? (
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <Badge variant="outline" className="text-[8px] uppercase">{t.locked}</Badge>
+                )}
               </CardContent>
             </Card>
-          );
-        })}
+          </Link>
+        ))}
       </div>
     </div>
   );
