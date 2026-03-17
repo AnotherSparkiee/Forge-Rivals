@@ -143,8 +143,10 @@ const DEFAULT_MEDICAL: MedicalState = {
   constructionStarts: {},
 };
 
+const TEST_CREDITS = 99000000;
+
 const DEFAULT_STATE: GameState = {
-  credits: 500000,
+  credits: TEST_CREDITS,
   ownedHeroes: INITIAL_HEROES,
   team: INITIAL_HEROES.slice(0, 5),
   lineup: {
