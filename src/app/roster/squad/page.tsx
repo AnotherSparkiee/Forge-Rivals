@@ -9,7 +9,7 @@ import {
   Sword, Shield, Activity, Sparkles, Plus, 
   Check, ChevronLeft, User, UserPlus, X,
   ShieldCheck, Zap, Crosshair, HeartPulse,
-  TrendingUp, Star
+  TrendingUp, Star, Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -60,7 +60,6 @@ export default function SquadPage() {
         )}
       >
         <CardContent className="p-3 flex items-center gap-4">
-          {/* Position Icon/Avatar */}
           <div className="relative flex-shrink-0">
             <div className={cn(
               "w-14 h-14 rounded-full border flex items-center justify-center bg-secondary/50",
@@ -139,7 +138,6 @@ export default function SquadPage() {
       </header>
 
       <div className="space-y-6">
-        {/* Core Lineup */}
         <section className="space-y-3">
           <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-accent px-1 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4" /> {t.activeLabel}
@@ -149,7 +147,6 @@ export default function SquadPage() {
           </div>
         </section>
 
-        {/* Substitutes */}
         <section className="space-y-3">
           <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2">
             <UserPlus className="w-4 h-4" /> {t.subsLabel}
@@ -160,7 +157,6 @@ export default function SquadPage() {
         </section>
       </div>
 
-      {/* Hero Selection Dialog */}
       <Dialog open={!!selectingSlot} onOpenChange={() => setSelectingSlot(null)}>
         <DialogContent className="max-w-md h-[85vh] flex flex-col p-0 bg-background border-white/5">
           <DialogHeader className="p-6 pb-2 border-b border-white/5">
