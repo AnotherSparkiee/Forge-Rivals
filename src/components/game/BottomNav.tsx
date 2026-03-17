@@ -12,8 +12,8 @@ export function BottomNav() {
   const { language } = useGameState();
   const { user, isUserLoading } = useUser();
 
-  // Hide nav if user is not logged in or we are on auth pages
-  if (isUserLoading || !user || pathname?.startsWith('/auth')) {
+  // Hide nav if user is not logged in, on auth pages, or still in setup
+  if (isUserLoading || !user || pathname?.startsWith('/auth') || pathname === '/setup') {
     return null;
   }
 
