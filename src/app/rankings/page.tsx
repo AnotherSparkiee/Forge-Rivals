@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   Trophy, Medal, Star, ChevronLeft, ArrowUpCircle, 
@@ -18,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
 import { getMoscowTime, formatMoscowTime, getMoscowDateString } from '../lib/time-utils';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 type RankingTab = 
   | 'menu'
@@ -32,17 +34,24 @@ type RankingTab =
   | 'kda_leaders';
 
 export default function RankingsPage() {
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
   const { 
     rank, leagueLevel, divisionSubId, groupId, isLoaded, language, 
     lastLeagueMatchDate, seasonDay, seasonStartDate,
     wins, draws, losses, points
   } = useGameState();
-  const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
   const [serverTime, setServerTime] = useState<string>('');
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -93,6 +102,10 @@ export default function RankingsPage() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  if (isUserLoading || !isLoaded || !user) {
+    return <LoadingScreen />;
+  }
 
   const labels = {
     en: {
@@ -163,10 +176,10 @@ export default function RankingsPage() {
           <div key={entry.id} className={cn("flex items-center gap-3 p-3 rounded-xl border", entry.isMe ? "bg-primary/20 border-primary/50" : "bg-secondary/20 border-white/5")}>
             <div className="w-6 text-center font-bold text-sm">{isTop3 ? <Medal className={cn("w-4 h-4 mx-auto", i === 0 ? "text-yellow-500" : i === 1 ? "text-gray-400" : "text-amber-600")} /> : i + 1}</div>
             <div className="flex-1 truncate">
-              <div className={cn("font-bold text-[10px] uppercase flex items-center gap-1.5", entry.isMe && "text-primary")}>
+              <span className={cn("font-bold text-[10px] uppercase flex items-center gap-1.5", entry.isMe && "text-primary")}>
                 {entry.name}
                 {entry.isPlayer && !entry.isMe && <Badge variant="outline" className="text-[6px] h-3 px-1 border-accent/30 text-accent">USER</Badge>}
-              </div>
+              </span>
             </div>
             <div className="w-16 text-center text-[9px] font-mono opacity-70">{entry.wins}-{entry.draws}-{entry.losses}</div>
             <div className="w-10 text-right"><p className="text-sm font-headline font-bold text-accent">{entry.points}</p></div>

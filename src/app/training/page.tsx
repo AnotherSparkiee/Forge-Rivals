@@ -1,5 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useUser } from '@/firebase';
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,9 +13,22 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function TrainingPage() {
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
   const { language, isLoaded } = useGameState();
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
+
+  if (isUserLoading || !isLoaded || !user) {
+    return <LoadingScreen />;
+  }
 
   const labels = {
     en: {
@@ -42,8 +58,6 @@ export default function TrainingPage() {
   };
 
   const t = labels[language as keyof typeof labels] || labels.ru;
-
-  if (!isLoaded) return null;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-20">

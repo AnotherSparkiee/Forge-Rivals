@@ -7,13 +7,14 @@ import { useGameState } from './lib/store';
 import { 
   Swords, Users, Trophy, TrendingUp, 
   ShoppingCart, Newspaper, Shield, Star, 
-  ChevronRight, Wallet, Loader2, CalendarDays,
+  ChevronRight, Wallet, CalendarDays,
   Zap
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -27,11 +28,7 @@ export default function Home() {
   }, [user, isUserLoading, router]);
 
   if (isUserLoading || !isLoaded || !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   const translations = {

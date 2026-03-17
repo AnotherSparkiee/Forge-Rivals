@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, CalendarDays, UserSearch, CalendarClock, 
@@ -16,6 +17,7 @@ import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@
 import { doc, collection, query, where } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '../lib/leagues-data';
 import { getMoscowDateString } from '../lib/time-utils';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 type MatchTab = 
   | 'menu'
@@ -26,13 +28,20 @@ type MatchTab =
   | 'league_played';
 
 export default function MatchesPage() {
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, seasonDay, rank, 
     wins, draws, losses, points, lastLeagueMatchDate, matchHistory, seasonStartDate
   } = useGameState();
-  const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -88,6 +97,10 @@ export default function MatchesPage() {
     return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
   };
 
+  if (isUserLoading || !isLoaded || !user || isProfileLoading || isGroupLoading) {
+    return <LoadingScreen />;
+  }
+
   const labels = {
     en: {
       title: "OPERATIONAL MATCHES",
@@ -136,14 +149,6 @@ export default function MatchesPage() {
   };
 
   const t = labels[language as keyof typeof labels] || labels.ru;
-
-  if (!isLoaded || isUserLoading || isProfileLoading || isGroupLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
 
   if (seasonDay === 0 && activeTab !== 'menu') {
     return (

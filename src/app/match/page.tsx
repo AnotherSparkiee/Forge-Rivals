@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useUser } from '@/firebase';
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,14 +12,25 @@ import { INITIAL_HEROES } from '../lib/moba-data';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function MatchPage() {
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
   const { team, strategy, recordMatch, matchHistory, language, isLoaded } = useGameState();
   const [isSimulating, setIsSimulating] = useState(false);
   const [matchResult, setMatchResult] = useState<SimulateMobaMatchOutput | null>(null);
   const [showSetup, setShowSetup] = useState(false);
 
-  if (!isLoaded) return null;
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
+
+  if (isUserLoading || !isLoaded || !user) {
+    return <LoadingScreen />;
+  }
 
   const runSimulation = async () => {
     setIsSimulating(true);
@@ -225,8 +238,7 @@ export default function MatchPage() {
                 <span className="text-xl font-bold">{currentResult.teamStats.teamA.towersDestroyed}</span>
                 <span className="text-[8px] text-muted-foreground uppercase font-bold">Towers</span>
               </CardContent>
-            </Card>
-          </div>
+            </div>
 
           <Link href="/">
             <Button variant="outline" className="w-full text-xs font-bold uppercase border-white/5 h-12">

@@ -1,5 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useUser } from '@/firebase';
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,11 +14,22 @@ import {
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function RosterPage() {
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
   const { language, isLoaded } = useGameState();
 
-  if (!isLoaded) return null;
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
+
+  if (isUserLoading || !isLoaded || !user) {
+    return <LoadingScreen />;
+  }
 
   const translations = {
     en: {
