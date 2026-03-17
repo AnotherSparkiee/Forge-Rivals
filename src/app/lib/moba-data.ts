@@ -73,6 +73,28 @@ export const INITIAL_HEROES: Hero[] = [
     image: 'https://picsum.photos/seed/support1/400/600',
     description: 'Keeps the team alive and empowered.',
     price: 0
+  },
+  {
+    id: 'h_sub1',
+    name: 'Crimson Blade',
+    role: 'Carry',
+    baseStats: { attack: 78, defense: 35, health: 850, abilityPower: 15, speed: 330 },
+    overallRating: 33,
+    abilitiesFocus: 'Burst Damage',
+    image: 'https://picsum.photos/seed/sub1/400/600',
+    description: 'A versatile substitute with high damage potential.',
+    price: 0
+  },
+  {
+    id: 'h_sub2',
+    name: 'Earthen Guard',
+    role: 'Tank',
+    baseStats: { attack: 45, defense: 85, health: 1400, abilityPower: 5, speed: 290 },
+    overallRating: 31,
+    abilitiesFocus: 'Sustain',
+    image: 'https://picsum.photos/seed/sub2/400/600',
+    description: 'Provides reliable backup defense when needed.',
+    price: 0
   }
 ];
 
