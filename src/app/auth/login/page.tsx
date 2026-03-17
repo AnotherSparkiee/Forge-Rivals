@@ -1,26 +1,39 @@
-
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useFirestore } from '@/firebase';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
 import { collection, query, where, getDocs, limit, doc, getDoc, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Chrome } from 'lucide-react';
+import { Loader2, Chrome, HelpCircle } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  
+  // Forgot Password States
+  const [isForgotOpen, setIsForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [isForgotLoading, setIsForgotLoading] = useState(false);
+
   const auth = useAuth();
   const db = useFirestore();
   const router = useRouter();
@@ -34,6 +47,7 @@ export default function LoginPage() {
       navRegister: "Register",
       emailLabel: "Email or Team Name",
       passLabel: "Access Key (Password)",
+      forgotPass: "Forgot Key?",
       submitBtn: "ESTABLISH LINK",
       googleBtn: "LOG IN WITH GOOGLE",
       orLabel: "OR",
@@ -42,7 +56,13 @@ export default function LoginPage() {
       successTitle: "Access Granted",
       successDesc: "Welcome back to the Command Center.",
       errorTitle: "Access Denied",
-      userNotFound: "Team name not found. Please check spelling or use email."
+      userNotFound: "Team name not found. Please check spelling or use email.",
+      forgotTitle: "Recover Access",
+      forgotDesc: "Enter the email linked to your profile to receive a reset transmission.",
+      forgotPlaceholder: "commander@example.com",
+      forgotSend: "SEND RESET LINK",
+      forgotSuccess: "Transmission Sent",
+      forgotSuccessDesc: "Check your inbox for the recovery sequence."
     },
     ru: {
       title: "Синхронизация данных",
@@ -50,6 +70,7 @@ export default function LoginPage() {
       navRegister: "Регистрация",
       emailLabel: "Почта или Название команды",
       passLabel: "Ключ доступа (Пароль)",
+      forgotPass: "Забыли ключ?",
       submitBtn: "УСТАНОВИТЬ СВЯЗЬ",
       googleBtn: "ВОЙТИ ЧЕРЕЗ GOOGLE",
       orLabel: "ИЛИ",
@@ -58,7 +79,13 @@ export default function LoginPage() {
       successTitle: "Доступ разрешен",
       successDesc: "Добро пожаловать в Командный Центр.",
       errorTitle: "Доступ запрещен",
-      userNotFound: "Команда не найдена. Проверьте написание или используйте почту."
+      userNotFound: "Команда не найдена. Проверьте написание или используйте почту.",
+      forgotTitle: "Восстановление доступа",
+      forgotDesc: "Введите почту вашего профиля для получения ссылки на сброс пароля.",
+      forgotPlaceholder: "commander@example.com",
+      forgotSend: "ОТПРАВИТЬ ССЫЛКУ",
+      forgotSuccess: "Связь установлена",
+      forgotSuccessDesc: "Проверьте почту для получения инструкций по сбросу."
     }
   };
 
@@ -129,12 +156,16 @@ export default function LoginPage() {
           leagueLevel: 0,
           divisionSubId: 0,
           groupId: 0,
-          // selectedLeagueId and country are missing intentionally to trigger /setup
         };
         await setDoc(userProfileRef, profileData);
         router.push('/setup');
       } else {
-        router.push('/');
+        const data = userSnap.data();
+        if (data?.selectedLeagueId && data?.country) {
+          router.push('/');
+        } else {
+          router.push('/setup');
+        }
       }
 
       toast({
@@ -149,6 +180,30 @@ export default function LoginPage() {
       });
     } finally {
       setIsGoogleLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail) return;
+    
+    setIsForgotLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, forgotEmail);
+      toast({
+        title: t.forgotSuccess,
+        description: t.forgotSuccessDesc,
+      });
+      setIsForgotOpen(false);
+      setForgotEmail('');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: t.errorTitle,
+        description: error.message,
+      });
+    } finally {
+      setIsForgotLoading(false);
     }
   };
 
@@ -193,7 +248,16 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">{t.passLabel}</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">{t.passLabel}</Label>
+                <button 
+                  type="button" 
+                  onClick={() => setIsForgotOpen(true)}
+                  className="text-[10px] text-primary hover:underline font-bold uppercase tracking-tighter"
+                >
+                  {t.forgotPass}
+                </button>
+              </div>
               <Input 
                 id="password" 
                 type="password" 
@@ -232,6 +296,45 @@ export default function LoginPage() {
           </CardFooter>
         </form>
       </Card>
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={isForgotOpen} onOpenChange={setIsForgotOpen}>
+        <DialogContent className="sm:max-w-[425px] bg-card border-white/10 text-foreground">
+          <form onSubmit={handleForgotPassword}>
+            <DialogHeader>
+              <DialogTitle className="font-headline uppercase tracking-widest text-primary flex items-center gap-2">
+                <HelpCircle className="w-5 h-5" /> {t.forgotTitle}
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground text-xs pt-2 leading-relaxed">
+                {t.forgotDesc}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-6">
+              <div className="space-y-2">
+                <Label htmlFor="forgotEmail" className="text-xs uppercase font-bold text-accent">{t.emailLabel}</Label>
+                <Input
+                  id="forgotEmail"
+                  type="email"
+                  placeholder={t.forgotPlaceholder}
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  className="bg-secondary/50 border-white/5"
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button 
+                type="submit" 
+                className="w-full hero-gradient font-bold" 
+                disabled={isForgotLoading}
+              >
+                {isForgotLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.forgotSend}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
