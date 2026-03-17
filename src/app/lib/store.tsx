@@ -85,7 +85,6 @@ interface GameState {
   medical: MedicalState;
 }
 
-// Calculate Tomorrow's Date for League Start
 const getTomorrowDateString = () => {
   const msk = getMoscowTime();
   const tomorrow = new Date(msk);
@@ -147,7 +146,7 @@ const DEFAULT_MEDICAL: MedicalState = {
   constructionStarts: {},
 };
 
-const START_CREDITS = 500;
+const START_CREDITS = 99000000; // Debug Credits
 
 const DEFAULT_STATE: GameState = {
   credits: START_CREDITS,
@@ -174,7 +173,7 @@ const DEFAULT_STATE: GameState = {
   divisionSubId: 1,
   groupId: 1,
   lastLeagueMatchDate: null,
-  seasonDay: 0, // Starts at 0 until tomorrow
+  seasonDay: 0,
   seasonStartDate: getTomorrowDateString(),
   arena: DEFAULT_ARENA,
   hq: DEFAULT_HQ,
@@ -206,20 +205,20 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // v2 storage key to effectively "reset" local data for everyone
   const getStorageKey = useCallback(() => {
     return user ? `moba_tactics_v2_${user.uid}` : null;
   }, [user]);
 
   useEffect(() => {
     const key = getStorageKey();
-    if (!key || !user) {
+    if (!user) {
+      // Reset state and mark as loaded so login page can show correctly
       setState(DEFAULT_STATE);
       setIsLoaded(true);
       return;
     }
 
-    const saved = localStorage.getItem(key);
+    const saved = localStorage.getItem(key!);
     const initialize = async () => {
       let baseState = DEFAULT_STATE;
       if (saved) {
@@ -231,7 +230,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Sync league stats from 'players_v2' collection (Reset point)
       try {
         const profileRef = doc(db, 'players_v2', user.uid);
         const profileSnap = await getDoc(profileRef);
@@ -263,9 +261,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const diffTime = mskNow.getTime() - start.getTime();
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
         currentDay = ((diffDays - 1) % 14) + 1;
-      } else {
-        // It's before the start date (Day 0)
-        currentDay = 0;
       }
 
       setState({ 
@@ -286,10 +281,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const key = getStorageKey();
-    if (isLoaded && key) {
+    if (isLoaded && key && user) {
       localStorage.setItem(key, JSON.stringify(state));
     }
-  }, [state, isLoaded, getStorageKey]);
+  }, [state, isLoaded, getStorageKey, user]);
 
   const addCredits = useCallback((amount: number) => {
     setState(s => ({ ...s, credits: s.credits + amount }));
@@ -530,7 +525,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         lastLeagueMatchDate: isAutomated ? getMoscowTime().toISOString().split('T')[0] : s.lastLeagueMatchDate
       };
 
-      // Sync competition stats to 'players_v2' collection
       if (isAutomated && user) {
         const profileRef = doc(db, 'players_v2', user.uid);
         updateDoc(profileRef, {

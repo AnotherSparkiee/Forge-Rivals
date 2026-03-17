@@ -6,6 +6,7 @@ import { GameStateProvider } from "@/app/lib/store";
 import { BottomNav } from "@/components/game/BottomNav";
 import { TopBar } from "@/components/game/TopBar";
 import { AutoMatchManager } from "@/components/game/AutoMatchManager";
+import { AuthGuard } from "@/components/game/AuthGuard";
 import { Suspense } from 'react';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
@@ -29,13 +30,15 @@ export default function RootLayout({
       <body className="font-body antialiased min-h-screen bg-background text-foreground pt-14 pb-20">
         <FirebaseClientProvider>
           <GameStateProvider>
-            <TopBar />
-            <AutoMatchManager />
-            <Suspense fallback={<LoadingScreen />}>
-              {children}
-            </Suspense>
-            <BottomNav />
-            <Toaster />
+            <AuthGuard>
+              <TopBar />
+              <AutoMatchManager />
+              <Suspense fallback={<LoadingScreen />}>
+                {children}
+              </Suspense>
+              <BottomNav />
+              <Toaster />
+            </AuthGuard>
           </GameStateProvider>
         </FirebaseClientProvider>
       </body>
