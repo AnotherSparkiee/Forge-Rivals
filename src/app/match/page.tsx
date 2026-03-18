@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -7,9 +6,7 @@ import { useUser } from '@/firebase';
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Swords, Loader2, Trophy, Skull, Crosshair, ChevronLeft, CalendarClock } from 'lucide-react';
-import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
-import { INITIAL_HEROES } from '../lib/moba-data';
+import { Swords, Trophy, Skull, Crosshair, ChevronLeft, CalendarClock, ShieldAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -18,10 +15,7 @@ import { LoadingScreen } from '@/components/game/LoadingScreen';
 export default function MatchPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
-  const { team, strategy, recordMatch, matchHistory, language, isLoaded, lastSeenMatchDay, markMatchAsSeen, seasonDay } = useGameState();
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [localSimulationResult, setLocalSimulationResult] = useState<any | null>(null);
-  const [showSetup, setShowSetup] = useState(false);
+  const { language, isLoaded, lastSeenMatchDay, markMatchAsSeen, matchHistory } = useGameState();
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -36,114 +30,51 @@ export default function MatchPage() {
       .sort((a, b) => a.day - b.day)[0];
   }, [matchHistory, lastSeenMatchDay]);
 
-  const currentResult = oldestUnseenMatch || localSimulationResult || (matchHistory.length > 0 ? matchHistory[0] : null);
+  // Show oldest unseen, or if none, show the very latest from history
+  const currentResult = oldestUnseenMatch || (matchHistory.length > 0 ? matchHistory[0] : null);
 
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
 
-  const runSimulation = async () => {
-    setIsSimulating(true);
-    setLocalSimulationResult(null);
-    try {
-      const opponentTeam = {
-        name: "Shadow Realm Challengers",
-        strategy: "All-in Aggression",
-        heroes: INITIAL_HEROES.map(h => ({
-          ...h,
-          baseStats: { ...h.baseStats, attack: h.baseStats.attack + 5 }
-        }))
-      };
-
-      const result = await simulateMobaMatch({
-        teamA: {
-          name: "My Team",
-          strategy: strategy,
-          heroes: team
-        },
-        teamB: opponentTeam,
-        includeRandomEvents: true,
-        isBo2: true
-      });
-
-      setLocalSimulationResult(result);
-      // For manual simulation, we use a placeholder day or current day
-      recordMatch(result.winner, result, 999);
-      setShowSetup(false);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsSimulating(false);
-    }
-  };
-
   const handleAcknowledgeMatch = () => {
     if (oldestUnseenMatch) {
       markMatchAsSeen(oldestUnseenMatch.day);
-    } else {
-      setShowSetup(true);
     }
   };
 
   const labels = {
     en: {
-      title: "WAR ROOM",
-      subtitle: "Tactical match analysis",
-      setupTitle: "New Deployment",
-      setupDesc: "Configure and start a training simulation",
-      startBtn: "START SIMULATION",
+      title: "MATCH REVIEW",
+      subtitle: "Tactical match analytics",
       lastReport: oldestUnseenMatch ? "PENDING TRANSMISSION" : "LATEST MATCH REPORT",
-      noHistory: "No match reports available. Start your first simulation.",
-      newMatch: "NEW SIMULATION",
+      noHistory: "No match reports found.",
+      noHistoryDesc: "Synchronize with league server to receive tactical data.",
       summary: "Match Summary",
       victory: "VICTORY",
       draw: "DRAW",
       defeat: "DEFEAT",
       return: "RETURN TO HUB",
       nextReport: "VIEW NEXT REPORT",
-      viewNew: "NEW DEPLOYMENT",
-      missedGames: `You missed ${matchHistory.filter(m => m.day > lastSeenMatchDay).length} match reports.`
+      viewAll: "ALL REPORTS VIEWED"
     },
     ru: {
-      title: "КОМАНДНЫЙ ЦЕНТР",
-      subtitle: "Тактический анализ матчей",
-      setupTitle: "Новое развертывание",
-      setupDesc: "Настройте и запустите тренировочный бой",
-      startBtn: "НАЧАТЬ СИМУЛЯЦИЮ",
+      title: "ОБЗОР МАТЧЕЙ",
+      subtitle: "Тактическая аналитика игр",
       lastReport: oldestUnseenMatch ? "ОЖИДАЮЩАЯ ПЕРЕДАЧА" : "ОТЧЕТ ПОСЛЕДНЕГО МАТЧА",
-      noHistory: "История матчей пуста. Запустите свою первую симуляцию.",
-      newMatch: "НОВОЕ РАЗВЕРТЫВАНИЕ",
+      noHistory: "Отчеты не найдены.",
+      noHistoryDesc: "Дождитесь синхронизации с сервером лиги для получения данных.",
       summary: "Обзор матча",
       victory: "ПОБЕДА",
       draw: "НИЧЬЯ",
       defeat: "ПОРАЖЕНИЕ",
       return: "В ГЛАВНЫЙ ХАБ",
       nextReport: "СЛЕДУЮЩИЙ ОТЧЕТ",
-      viewNew: "НОВОЕ ЗАДАНИЕ",
-      missedGames: `Вы пропустили ${matchHistory.filter(m => m.day > lastSeenMatchDay).length} отчетов о матчах.`
+      viewAll: "ВСЕ ОТЧЕТЫ ПРОСМОТРЕНЫ"
     }
   };
 
   const t = labels[language as keyof typeof labels] || labels.ru;
-
-  if (isSimulating) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-6">
-        <div className="relative">
-          <Loader2 className="w-20 h-20 text-primary animate-spin" />
-          <Swords className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-accent animate-pulse" />
-        </div>
-        <div className="text-center space-y-2">
-          <h2 className="text-xl font-headline font-bold animate-pulse text-accent uppercase tracking-widest">
-            {language === 'ru' ? 'РАСЧЕТ ИСХОДА...' : 'CALCULATING OUTCOME...'}
-          </h2>
-          <p className="text-sm text-muted-foreground italic max-w-xs mx-auto">
-            {language === 'ru' ? '"Анализ траекторий и синергии героев"' : '"Analyzing jungle pathing and teamfight synergies"'}
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-12">
@@ -159,56 +90,26 @@ export default function MatchPage() {
         </div>
       </header>
 
-      {/* SETUP VIEW */}
-      {(showSetup || !currentResult) && (
-        <div className="space-y-6 animate-in fade-in duration-500">
-          <Card className="glass-card border-accent/20">
-            <CardHeader>
-              <CardTitle className="text-base uppercase tracking-wider font-headline text-accent">{t.setupTitle}</CardTitle>
-              <p className="text-[10px] text-muted-foreground">{t.setupDesc}</p>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide mb-4">
-                {team.map((hero) => (
-                  <div key={hero.id} className="w-14 flex-shrink-0">
-                    <div className="aspect-[3/4] rounded-md overflow-hidden bg-muted border border-white/5">
-                      <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="space-y-3 pt-3 border-t border-white/5">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-muted-foreground">Active Strategy</span>
-                  <Badge variant="secondary" className="text-[9px] uppercase">{strategy}</Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Button 
-            onClick={runSimulation} 
-            disabled={team.length === 0}
-            className="w-full h-16 hero-gradient font-headline font-bold text-lg shadow-lg hover:opacity-90 transition-all"
-          >
-            <Swords className="mr-2 w-6 h-6" />
-            {t.startBtn}
-          </Button>
-
-          {matchHistory.length > 0 && (
-            <Button 
-              variant="ghost" 
-              onClick={() => setShowSetup(false)} 
-              className="w-full text-xs text-muted-foreground"
-            >
-              Cancel
+      {/* NO MATCHES VIEW */}
+      {!currentResult && (
+        <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 animate-in fade-in duration-500">
+          <ShieldAlert className="w-16 h-16 text-muted-foreground opacity-20" />
+          <div>
+            <h2 className="text-xl font-headline font-bold uppercase">{t.noHistory}</h2>
+            <p className="text-xs text-muted-foreground mt-2 max-w-[200px] mx-auto leading-relaxed">
+              {t.noHistoryDesc}
+            </p>
+          </div>
+          <Link href="/" className="pt-4">
+            <Button variant="outline" className="text-[10px] font-bold uppercase border-white/10 px-8">
+              {t.return}
             </Button>
-          )}
+          </Link>
         </div>
       )}
 
       {/* REPORT VIEW */}
-      {currentResult && !showSetup && (
+      {currentResult && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex items-center justify-between mb-4 px-1">
             <div className="flex flex-col">
@@ -218,17 +119,10 @@ export default function MatchPage() {
               )}>
                 <CalendarClock className="w-4 h-4" /> {t.lastReport}
               </h2>
-              {oldestUnseenMatch && (
-                <p className="text-[8px] text-muted-foreground uppercase font-bold mt-1">
-                  {language === 'ru' ? `День сезона: ${oldestUnseenMatch.day}` : `Season Day: ${oldestUnseenMatch.day}`}
-                </p>
-              )}
+              <p className="text-[8px] text-muted-foreground uppercase font-bold mt-1">
+                {language === 'ru' ? `День сезона: ${currentResult.day}` : `Season Day: ${currentResult.day}`}
+              </p>
             </div>
-            {!oldestUnseenMatch && (
-              <Button size="sm" variant="outline" className="h-7 text-[9px] uppercase font-bold border-white/10" onClick={() => setShowSetup(true)}>
-                {t.newMatch}
-              </Button>
-            )}
           </div>
 
           <div className={cn(
@@ -276,12 +170,18 @@ export default function MatchPage() {
           </div>
 
           <div className="space-y-3">
-            <Button 
-              onClick={handleAcknowledgeMatch}
-              className="w-full h-14 hero-gradient font-bold uppercase text-sm tracking-widest shadow-lg"
-            >
-              {oldestUnseenMatch ? t.nextReport : t.viewNew}
-            </Button>
+            {oldestUnseenMatch ? (
+              <Button 
+                onClick={handleAcknowledgeMatch}
+                className="w-full h-14 hero-gradient font-bold uppercase text-sm tracking-widest shadow-lg"
+              >
+                {t.nextReport}
+              </Button>
+            ) : (
+              <div className="p-4 bg-primary/5 rounded-lg border border-primary/20 text-center mb-2">
+                <span className="text-[10px] font-bold text-primary uppercase tracking-widest">{t.viewAll}</span>
+              </div>
+            )}
             
             <Link href="/">
               <Button variant="outline" className="w-full text-[10px] font-bold uppercase border-white/5 h-10">

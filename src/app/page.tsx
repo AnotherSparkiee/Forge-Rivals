@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useMemo } from 'react';
@@ -113,7 +112,7 @@ export default function Home() {
       tomorrow: "TOMORROW",
       atTime: "at",
       activeStrat: "Active Strategy",
-      battleBtn: "MATCH TERMINAL",
+      battleBtn: "MATCH REVIEW",
       navTitle: "Navigation Terminals",
       locked: "Locked",
       preSeason: "Season Preparation",
@@ -142,7 +141,7 @@ export default function Home() {
       tomorrow: "ЗАВТРА",
       atTime: "в",
       activeStrat: "Активная стратегия",
-      battleBtn: "ТЕРМИНАЛ МАТЧА",
+      battleBtn: "ОБЗОР МАТЧЕЙ",
       navTitle: "Тактические Терминалы",
       locked: "Закрыто",
       preSeason: "Подготовка к сезону",
