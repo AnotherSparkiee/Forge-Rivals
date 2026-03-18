@@ -3,14 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { getMoscowTime, formatMoscowTime } from '@/app/lib/time-utils';
-import { ChevronLeft, Check, Clock } from 'lucide-react';
+import { ChevronLeft, Check } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /**
  * Tactical Bottom Navigation Bar
- * Layout: [Accept] --- [Server Time + Date] --- [Back]
+ * Layout: [Accept] --- [18.03 16:22:43] --- [Back]
  */
 export function BottomNav() {
   const router = useRouter();
@@ -54,11 +54,13 @@ export function BottomNav() {
           </Button>
         </div>
 
-        {/* Center: Server Time & Date (Format: 18.03 16:22:43) */}
-        <div className="flex flex-col items-center justify-center text-center">
-           <p className="text-[11px] font-mono font-bold text-accent tabular-nums tracking-wider bg-accent/5 px-2.5 py-1 rounded border border-accent/10 shadow-[0_0_15px_rgba(var(--accent),0.05)]">
-             {serverTime || '00.00 00:00:00'}
-           </p>
+        {/* Center: Server Date & Time on ONE LINE (Format: 18.03 16:22:43) */}
+        <div className="flex items-center justify-center">
+           <div className="px-3 py-1.5 bg-accent/5 rounded-lg border border-accent/10 shadow-[0_0_20px_rgba(var(--accent),0.05)]">
+             <p className="text-[11px] font-mono font-bold text-accent whitespace-nowrap tabular-nums tracking-wider leading-none">
+               {serverTime || '00.00 00:00:00'}
+             </p>
+           </div>
         </div>
 
         {/* Right: Back Button */}
