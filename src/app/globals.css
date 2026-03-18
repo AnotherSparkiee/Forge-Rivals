@@ -51,3 +51,8 @@
 * {
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Page transitions padding adjustment */
+main {
+  @apply pb-24;
+}
