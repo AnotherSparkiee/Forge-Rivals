@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * Tactical Bottom Navigation Bar
- * Layout: [Accept] --- [Server Time] --- [Back]
+ * Layout: [Accept] --- [Server Time + Date] --- [Back]
  */
 export function BottomNav() {
   const router = useRouter();
@@ -34,7 +34,6 @@ export function BottomNav() {
   const t = {
     accept: language === 'ru' ? 'ПРИНЯТЬ' : 'ACCEPT',
     back: language === 'ru' ? 'НАЗАД' : 'BACK',
-    timeLabel: language === 'ru' ? 'МСК' : 'MSK'
   };
 
   return (
@@ -55,13 +54,10 @@ export function BottomNav() {
           </Button>
         </div>
 
-        {/* Center: Server Time */}
+        {/* Center: Server Time & Date (Format: 18.03 16:22:43) */}
         <div className="flex flex-col items-center justify-center text-center">
-           <div className="flex items-center gap-1 text-[7px] text-muted-foreground uppercase font-bold tracking-[0.2em] opacity-60 mb-0.5">
-             <Clock className="w-2 h-2" /> {t.timeLabel}
-           </div>
-           <p className="text-[11px] font-mono font-bold text-accent tabular-nums tracking-wider bg-accent/5 px-2 py-0.5 rounded border border-accent/10">
-             {serverTime.split(' ')[1] || '00:00:00'}
+           <p className="text-[11px] font-mono font-bold text-accent tabular-nums tracking-wider bg-accent/5 px-2.5 py-1 rounded border border-accent/10 shadow-[0_0_15px_rgba(var(--accent),0.05)]">
+             {serverTime || '00.00 00:00:00'}
            </p>
         </div>
 
