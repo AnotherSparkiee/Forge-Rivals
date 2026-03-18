@@ -204,7 +204,7 @@ interface GameStateContextType extends GameState {
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
 
 export function GameStateProvider({ children }: { children: ReactNode }) {
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -214,20 +214,27 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   useEffect(() => {
+    // If auth is still checking, don't signal loaded yet
+    if (isUserLoading) {
+      setIsLoaded(false);
+      return;
+    }
+
     if (!user) {
       setState(DEFAULT_STATE);
       setIsLoaded(true);
       return;
     }
 
+    // Reset loaded state when starting sync for a new user
+    setIsLoaded(false);
+
     const key = getStorageKey();
     const saved = localStorage.getItem(key!);
-    let initialLocalState = DEFAULT_STATE;
-    
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        initialLocalState = { ...DEFAULT_STATE, ...parsed };
+        setState(s => ({ ...s, ...parsed }));
       } catch (e) {
         console.error("Failed to parse local storage state", e);
       }
@@ -240,7 +247,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const profileData = docSnap.data();
         
         setState(s => {
-          // Calculate season day based on start date
           const startDateStr = profileData.seasonStartDate || s.seasonStartDate || getTomorrowDateString();
           const start = new Date(startDateStr);
           start.setHours(0, 0, 0, 0);
@@ -270,14 +276,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           };
         });
       }
+      // Signal loaded only after first snapshot response
       setIsLoaded(true);
     }, (error) => {
       console.error("Firestore sync error:", error);
-      setIsLoaded(true); // Still set loaded to allow fallbacks
+      setIsLoaded(true); 
     });
 
     return () => unsubscribe();
-  }, [user, db, getStorageKey]);
+  }, [user, isUserLoading, db, getStorageKey]);
 
   useEffect(() => {
     const key = getStorageKey();

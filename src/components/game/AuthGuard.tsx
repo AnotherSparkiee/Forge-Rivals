@@ -27,10 +27,11 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       return;
     }
 
-    // 3. Once store is loaded, verify setup completion
+    // 3. Once auth is confirmed AND store has synchronized with Firestore
     if (user && isLoaded) {
       const isSetupComplete = !!(selectedLeagueId && country);
 
+      // Redirect to setup if incomplete, otherwise redirect to home if they hit setup manually
       if (!isSetupComplete && pathname !== '/setup') {
         router.replace('/setup');
       } else if (isSetupComplete && pathname === '/setup') {
@@ -39,27 +40,22 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     }
   }, [user, isUserLoading, isLoaded, selectedLeagueId, country, router, pathname]);
 
-  // Auth pages (login/register) are always accessible immediately
+  // Auth pages are always accessible
   if (pathname?.startsWith('/auth')) {
     return <>{children}</>;
   }
 
-  // Show loading screen while auth or game state is initializing
+  // Show loading screen while auth is loading OR while game state is syncing from DB
   if (isUserLoading || !isLoaded) {
     return <LoadingScreen />;
   }
 
-  // If user is logged in but setup is incomplete, prevent access to game screens
-  if (user && pathname !== '/setup') {
+  // Final check to prevent content flicker if redirect is about to happen
+  if (user && isLoaded) {
     const isSetupComplete = !!(selectedLeagueId && country);
-    if (!isSetupComplete) {
+    if (!isSetupComplete && pathname !== '/setup') {
       return <LoadingScreen />;
     }
-  }
-
-  // Final catch-all: if no user and not on auth page, don't render children
-  if (!user && !pathname?.startsWith('/auth')) {
-    return null;
   }
 
   return <>{children}</>;
