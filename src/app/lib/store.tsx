@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
@@ -59,6 +60,16 @@ interface MedicalState {
   constructionStarts: Record<string, string | null>;
 }
 
+interface MatchResultEntry {
+  day: number;
+  winner: string;
+  scoreA: number;
+  scoreB: number;
+  matchSummary: string;
+  teamStats: any;
+  heroPerformance: any[];
+}
+
 interface GameState {
   credits: number;
   ownedHeroes: Hero[];
@@ -66,7 +77,7 @@ interface GameState {
   lineup: Record<LineupSlot, string | null>;
   strategy: string;
   rank: number;
-  matchHistory: any[];
+  matchHistory: MatchResultEntry[];
   language: 'en' | 'ru';
   wins: number;
   draws: number;
@@ -78,6 +89,7 @@ interface GameState {
   selectedLeagueId: string | null;
   country: string | null;
   lastLeagueMatchDate: string | null;
+  lastSeenMatchDay: number;
   seasonDay: number;
   seasonStartDate: string | null;
   arena: ArenaState;
@@ -177,6 +189,7 @@ const DEFAULT_STATE: GameState = {
   selectedLeagueId: null,
   country: null,
   lastLeagueMatchDate: null,
+  lastSeenMatchDay: 0,
   seasonDay: 0,
   seasonStartDate: getTomorrowDateString(),
   arena: DEFAULT_ARENA,
@@ -198,7 +211,8 @@ interface GameStateContextType extends GameState {
   startCapacityExpansion: (seats: number, cost: number, hours: number) => boolean;
   checkConstructions: () => void;
   setLanguage: (lang: 'en' | 'ru') => void;
-  recordMatch: (winner: string, result: any, isAutomated?: boolean) => void;
+  recordMatch: (winner: string, result: any, matchDay: number, isAutomated?: boolean) => void;
+  markMatchAsSeen: (day: number) => void;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
@@ -214,7 +228,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   useEffect(() => {
-    // If auth is still checking, don't signal loaded yet
     if (isUserLoading) {
       setIsLoaded(false);
       return;
@@ -226,7 +239,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Reset loaded state when starting sync for a new user
     setIsLoaded(false);
 
     const key = getStorageKey();
@@ -240,7 +252,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Subscribe to Firestore Profile changes
     const profileRef = doc(db, 'players_v2', user.uid);
     const unsubscribe = onSnapshot(profileRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -271,12 +282,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             divisionSubId: profileData.divisionSubId ?? s.divisionSubId,
             selectedLeagueId: profileData.selectedLeagueId ?? s.selectedLeagueId,
             country: profileData.country ?? s.country,
+            lastSeenMatchDay: profileData.lastSeenMatchDay ?? s.lastSeenMatchDay ?? 0,
+            lastLeagueMatchDate: profileData.lastLeagueMatchDate ?? s.lastLeagueMatchDate,
             seasonStartDate: startDateStr,
             seasonDay: currentDay,
           };
         });
       }
-      // Signal loaded only after first snapshot response
       setIsLoaded(true);
     }, (error) => {
       console.error("Firestore sync error:", error);
@@ -504,7 +516,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const recordMatch = useCallback((winner: string, result: any, isAutomated = false) => {
+  const recordMatch = useCallback((winner: string, result: any, matchDay: number, isAutomated = false) => {
     const scoreA = result.scoreA || 0;
     const scoreB = result.scoreB || 0;
     let creditsEarned = 50;
@@ -520,6 +532,19 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
 
     setState(s => {
+      // Avoid duplicate matches for the same day in history
+      if (s.matchHistory.some(m => m.day === matchDay)) return s;
+
+      const matchEntry: MatchResultEntry = {
+        day: matchDay,
+        winner,
+        scoreA,
+        scoreB,
+        matchSummary: result.matchSummary,
+        teamStats: result.teamStats,
+        heroPerformance: result.heroPerformance
+      };
+
       const newState = {
         ...s,
         credits: s.credits + creditsEarned,
@@ -528,7 +553,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         draws: s.draws + matchDraws,
         losses: s.losses + matchLosses,
         points: s.points + matchPoints,
-        matchHistory: [result, ...s.matchHistory].slice(0, 10),
+        matchHistory: [matchEntry, ...s.matchHistory].slice(0, 30),
         lastLeagueMatchDate: isAutomated ? getMoscowTime().toISOString().split('T')[0] : s.lastLeagueMatchDate
       };
 
@@ -547,6 +572,20 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, [user, db]);
 
+  const markMatchAsSeen = useCallback((day: number) => {
+    setState(s => {
+      if (day <= s.lastSeenMatchDay) return s;
+      
+      if (user) {
+        const profileRef = doc(db, 'players_v2', user.uid);
+        setDoc(profileRef, { lastSeenMatchDay: day }, { merge: true })
+          .catch(e => console.error("Failed to update lastSeenMatchDay", e));
+      }
+      
+      return { ...s, lastSeenMatchDay: day };
+    });
+  }, [user, db]);
+
   return (
     <GameStateContext.Provider value={{
       ...state,
@@ -561,7 +600,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       startCapacityExpansion,
       checkConstructions,
       setLanguage,
-      recordMatch
+      recordMatch,
+      markMatchAsSeen
     }}>
       {children}
     </GameStateContext.Provider>

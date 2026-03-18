@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { isMatchDue, getMoscowDateString } from '@/app/lib/time-utils';
+import { isMatchDue, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { getMockGroupTeams, getSchedule, LEAGUES } from '@/app/lib/leagues-data';
 import { INITIAL_HEROES } from '@/app/lib/moba-data';
 import { simulateMobaMatch, SimulateMobaMatchOutput } from '@/ai/flows/simulate-moba-match';
@@ -20,7 +21,8 @@ import { cn } from '@/lib/utils';
 export function AutoMatchManager() {
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, 
-    seasonDay, lastLeagueMatchDate, recordMatch, team, strategy, rank, seasonStartDate
+    seasonDay, lastLeagueMatchDate, recordMatch, team, strategy, rank, seasonStartDate,
+    lastSeenMatchDay, markMatchAsSeen, matchHistory
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
@@ -28,7 +30,7 @@ export function AutoMatchManager() {
   
   const [isSimulating, setIsSimulating] = useState(false);
   const [showResultDialog, setShowResultDialog] = useState(false);
-  const [currentResult, setCurrentResult] = useState<SimulateMobaMatchOutput | null>(null);
+  const [currentResult, setCurrentResult] = useState<any | null>(null);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
@@ -51,20 +53,24 @@ export function AutoMatchManager() {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
       const matchTime = league?.startTime || '23:00';
       
+      // If today's match is due, trigger it
       if (isMatchDue(matchTime, lastLeagueMatchDate)) {
-        triggerAutoMatch(matchTime);
+        triggerAutoMatch(matchTime, seasonDay);
       }
     }
   }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay]);
 
-  const triggerAutoMatch = async (matchTime: string) => {
-    if (!groupPlayers) return;
+  const triggerAutoMatch = async (matchTime: string, targetDay: number) => {
+    if (!groupPlayers || !user) return;
     
+    // Skip if already in history
+    if (matchHistory.some(m => m.day === targetDay)) return;
+
     setIsSimulating(true);
     
     toast({
       title: language === 'ru' ? "Синхронизация матча..." : "Match Syncing...",
-      description: language === 'ru' ? `Начало развертывания (${matchTime} MSK)` : `Deployment window open (${matchTime} MSK)`,
+      description: language === 'ru' ? `Начало развертывания (День ${targetDay})` : `Deployment window open (Day ${targetDay})`,
     });
 
     try {
@@ -75,14 +81,14 @@ export function AutoMatchManager() {
         divisionSubId, 
         groupId, 
         true, 
-        seasonDay,
+        targetDay,
         undefined,
         profile?.selectedLeagueId || "ALPHA",
         groupPlayers,
         user?.uid
       );
       const schedule = getSchedule(groupTeams);
-      const todayMatch = schedule[seasonDay - 1]?.find((m: any) => m.home.id === user?.uid || m.away.id === user?.uid);
+      const todayMatch = schedule[targetDay - 1]?.find((m: any) => m.home.id === user?.uid || m.away.id === user?.uid);
       
       if (!todayMatch) throw new Error("No match scheduled for today");
 
@@ -103,25 +109,31 @@ export function AutoMatchManager() {
         isBo2: true
       });
       
-      recordMatch(result.winner, result, true);
-      setCurrentResult(result);
+      recordMatch(result.winner, result, targetDay, true);
       
-      toast({
-        title: language === 'ru' ? "Матч лиги завершен!" : "League Match Completed!",
-        description: `${profile?.displayName || "My Team"} ${result.scoreA}:${result.scoreB} ${opponent.name}`,
-        action: (
-          <Button variant="outline" size="sm" onClick={() => setShowResultDialog(true)}>
-            {language === 'ru' ? "ОБЗОР" : "REVIEW"}
-          </Button>
-        ),
-      });
+      // We only show the dialog if it's the CURRENT day's match and user is online
+      // If it's a catch-up match, it just goes to history/unseen
+      const todayStr = getMoscowDateString();
+      const league = LEAGUES.find(l => l.id === profile?.selectedLeagueId);
+      const isActuallyToday = targetDay === seasonDay && isMatchDue(league?.startTime || '23:00', null);
+
+      if (isActuallyToday) {
+        setCurrentResult({ ...result, day: targetDay });
+        toast({
+          title: language === 'ru' ? "Матч лиги завершен!" : "League Match Completed!",
+          description: `${profile?.displayName || "My Team"} ${result.scoreA}:${result.scoreB} ${opponent.name}`,
+          action: (
+            <Button variant="outline" size="sm" onClick={() => {
+              setCurrentResult({ ...result, day: targetDay });
+              setShowResultDialog(true);
+            }}>
+              {language === 'ru' ? "ОБЗОР" : "REVIEW"}
+            </Button>
+          ),
+        });
+      }
     } catch (e) {
       console.error("Auto simulation failed", e);
-      toast({
-        variant: "destructive",
-        title: language === 'ru' ? "Ошибка симуляции" : "Simulation Error",
-        description: language === 'ru' ? "Сбой канала связи с сервером." : "Command link failure.",
-      });
     } finally {
       setIsSimulating(false);
     }
@@ -140,7 +152,7 @@ export function AutoMatchManager() {
         <Badge variant="outline" className="bg-background/90 backdrop-blur border-primary text-primary px-4 py-2 flex items-center gap-2 shadow-2xl">
           <Loader2 className="w-3 h-3 animate-spin" />
           <span className="text-[10px] font-bold uppercase tracking-widest">
-            {language === 'ru' ? 'Идет симуляция матча' : 'Simulating League Match'}
+            {language === 'ru' ? 'Синхронизация с сервером' : 'Syncing with League Server'}
           </span>
         </Badge>
       </div>
@@ -153,7 +165,12 @@ export function AutoMatchManager() {
   const isDraw = currentResult.scoreA === 1 && currentResult.scoreB === 1;
 
   return (
-    <Dialog open={showResultDialog} onOpenChange={setShowResultDialog}>
+    <Dialog open={showResultDialog} onOpenChange={(open) => {
+      setShowResultDialog(open);
+      if (!open && currentResult) {
+        markMatchAsSeen(currentResult.day);
+      }
+    }}>
       <DialogContent className="max-w-md p-0 overflow-hidden bg-background border-white/5">
         <div className={cn(
           "p-6 text-center border-b",
@@ -169,7 +186,7 @@ export function AutoMatchManager() {
             <span>{currentResult.scoreB}</span>
           </div>
           <p className="text-[10px] opacity-80 uppercase tracking-widest mt-2 font-bold font-mono">
-            {getDateForDay(seasonDay)} @ {profile?.selectedLeagueId ? LEAGUES.find(l => l.id === profile.selectedLeagueId)?.startTime : '23:00'} MSK
+            {getDateForDay(currentResult.day)} @ {profile?.selectedLeagueId ? LEAGUES.find(l => l.id === profile.selectedLeagueId)?.startTime : '23:00'} MSK
           </p>
         </div>
 

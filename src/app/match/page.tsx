@@ -1,13 +1,14 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/firebase';
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Swords, Loader2, Trophy, Skull, Crosshair, ChevronLeft, CalendarClock } from 'lucide-react';
-import { simulateMobaMatch, SimulateMobaMatchOutput } from '@/ai/flows/simulate-moba-match';
+import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { INITIAL_HEROES } from '../lib/moba-data';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -17,9 +18,9 @@ import { LoadingScreen } from '@/components/game/LoadingScreen';
 export default function MatchPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
-  const { team, strategy, recordMatch, matchHistory, language, isLoaded } = useGameState();
+  const { team, strategy, recordMatch, matchHistory, language, isLoaded, lastSeenMatchDay, markMatchAsSeen, seasonDay } = useGameState();
   const [isSimulating, setIsSimulating] = useState(false);
-  const [matchResult, setMatchResult] = useState<SimulateMobaMatchOutput | null>(null);
+  const [localSimulationResult, setLocalSimulationResult] = useState<any | null>(null);
   const [showSetup, setShowSetup] = useState(false);
 
   useEffect(() => {
@@ -28,13 +29,22 @@ export default function MatchPage() {
     }
   }, [user, isUserLoading, router]);
 
+  // Find the oldest unseen match in history
+  const oldestUnseenMatch = useMemo(() => {
+    return [...matchHistory]
+      .filter(m => m.day > lastSeenMatchDay)
+      .sort((a, b) => a.day - b.day)[0];
+  }, [matchHistory, lastSeenMatchDay]);
+
+  const currentResult = oldestUnseenMatch || localSimulationResult || (matchHistory.length > 0 ? matchHistory[0] : null);
+
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
 
   const runSimulation = async () => {
     setIsSimulating(true);
-    setMatchResult(null);
+    setLocalSimulationResult(null);
     try {
       const opponentTeam = {
         name: "Shadow Realm Challengers",
@@ -56,13 +66,22 @@ export default function MatchPage() {
         isBo2: true
       });
 
-      setMatchResult(result);
-      recordMatch(result.winner, result);
+      setLocalSimulationResult(result);
+      // For manual simulation, we use a placeholder day or current day
+      recordMatch(result.winner, result, 999);
       setShowSetup(false);
     } catch (error) {
       console.error(error);
     } finally {
       setIsSimulating(false);
+    }
+  };
+
+  const handleAcknowledgeMatch = () => {
+    if (oldestUnseenMatch) {
+      markMatchAsSeen(oldestUnseenMatch.day);
+    } else {
+      setShowSetup(true);
     }
   };
 
@@ -73,14 +92,17 @@ export default function MatchPage() {
       setupTitle: "New Deployment",
       setupDesc: "Configure and start a training simulation",
       startBtn: "START SIMULATION",
-      lastReport: "LATEST MATCH REPORT",
+      lastReport: oldestUnseenMatch ? "PENDING TRANSMISSION" : "LATEST MATCH REPORT",
       noHistory: "No match reports available. Start your first simulation.",
       newMatch: "NEW SIMULATION",
       summary: "Match Summary",
       victory: "VICTORY",
       draw: "DRAW",
       defeat: "DEFEAT",
-      return: "RETURN TO HUB"
+      return: "RETURN TO HUB",
+      nextReport: "VIEW NEXT REPORT",
+      viewNew: "NEW DEPLOYMENT",
+      missedGames: `You missed ${matchHistory.filter(m => m.day > lastSeenMatchDay).length} match reports.`
     },
     ru: {
       title: "КОМАНДНЫЙ ЦЕНТР",
@@ -88,21 +110,21 @@ export default function MatchPage() {
       setupTitle: "Новое развертывание",
       setupDesc: "Настройте и запустите тренировочный бой",
       startBtn: "НАЧАТЬ СИМУЛЯЦИЮ",
-      lastReport: "ОТЧЕТ ПОСЛЕДНЕГО МАТЧА",
+      lastReport: oldestUnseenMatch ? "ОЖИДАЮЩАЯ ПЕРЕДАЧА" : "ОТЧЕТ ПОСЛЕДНЕГО МАТЧА",
       noHistory: "История матчей пуста. Запустите свою первую симуляцию.",
       newMatch: "НОВОЕ РАЗВЕРТЫВАНИЕ",
       summary: "Обзор матча",
       victory: "ПОБЕДА",
       draw: "НИЧЬЯ",
       defeat: "ПОРАЖЕНИЕ",
-      return: "В ГЛАВНЫЙ ХАБ"
+      return: "В ГЛАВНЫЙ ХАБ",
+      nextReport: "СЛЕДУЮЩИЙ ОТЧЕТ",
+      viewNew: "НОВОЕ ЗАДАНИЕ",
+      missedGames: `Вы пропустили ${matchHistory.filter(m => m.day > lastSeenMatchDay).length} отчетов о матчах.`
     }
   };
 
   const t = labels[language as keyof typeof labels] || labels.ru;
-
-  // If we have a fresh simulation result, show it. Otherwise show the latest from history.
-  const currentResult = matchResult || (matchHistory.length > 0 ? matchHistory[0] as SimulateMobaMatchOutput : null);
 
   if (isSimulating) {
     return (
@@ -189,16 +211,28 @@ export default function MatchPage() {
       {currentResult && !showSetup && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex items-center justify-between mb-4 px-1">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-              <CalendarClock className="w-4 h-4" /> {t.lastReport}
-            </h2>
-            <Button size="sm" variant="outline" className="h-7 text-[9px] uppercase font-bold border-white/10" onClick={() => setShowSetup(true)}>
-              {t.newMatch}
-            </Button>
+            <div className="flex flex-col">
+              <h2 className={cn(
+                "text-xs font-bold uppercase tracking-widest flex items-center gap-2",
+                oldestUnseenMatch ? "text-red-400" : "text-accent"
+              )}>
+                <CalendarClock className="w-4 h-4" /> {t.lastReport}
+              </h2>
+              {oldestUnseenMatch && (
+                <p className="text-[8px] text-muted-foreground uppercase font-bold mt-1">
+                  {language === 'ru' ? `День сезона: ${oldestUnseenMatch.day}` : `Season Day: ${oldestUnseenMatch.day}`}
+                </p>
+              )}
+            </div>
+            {!oldestUnseenMatch && (
+              <Button size="sm" variant="outline" className="h-7 text-[9px] uppercase font-bold border-white/10" onClick={() => setShowSetup(true)}>
+                {t.newMatch}
+              </Button>
+            )}
           </div>
 
           <div className={cn(
-            "rounded-xl p-6 text-center mb-6 border",
+            "rounded-xl p-6 text-center mb-6 border transition-all",
             currentResult.scoreA > currentResult.scoreB ? "bg-primary/10 border-primary/50" : (currentResult.scoreA === currentResult.scoreB ? "bg-accent/10 border-accent/20" : "bg-destructive/10 border-destructive/50")
           )}>
             <Trophy className={cn("w-16 h-16 mx-auto mb-3", currentResult.scoreA > currentResult.scoreB ? "text-primary" : "text-muted-foreground")} />
@@ -238,13 +272,23 @@ export default function MatchPage() {
                 <span className="text-xl font-bold">{currentResult.teamStats.teamA.towersDestroyed}</span>
                 <span className="text-[8px] text-muted-foreground uppercase font-bold">Towers</span>
               </CardContent>
-            </div>
+            </Card>
+          </div>
 
-          <Link href="/">
-            <Button variant="outline" className="w-full text-xs font-bold uppercase border-white/5 h-12">
-              {t.return}
+          <div className="space-y-3">
+            <Button 
+              onClick={handleAcknowledgeMatch}
+              className="w-full h-14 hero-gradient font-bold uppercase text-sm tracking-widest shadow-lg"
+            >
+              {oldestUnseenMatch ? t.nextReport : t.viewNew}
             </Button>
-          </Link>
+            
+            <Link href="/">
+              <Button variant="outline" className="w-full text-[10px] font-bold uppercase border-white/5 h-10">
+                {t.return}
+              </Button>
+            </Link>
+          </div>
         </div>
       )}
     </div>

@@ -27,7 +27,8 @@ export default function Home() {
   const db = useFirestore();
   const { 
     rank, leagueLevel, divisionSubId, groupId, 
-    strategy, language, isLoaded, lastLeagueMatchDate, seasonDay, team
+    strategy, language, isLoaded, lastLeagueMatchDate, seasonDay, team,
+    matchHistory, lastSeenMatchDay
   } = useGameState();
 
   // Fetch profile and group for match info
@@ -93,6 +94,11 @@ export default function Home() {
       isToday: targetDay === seasonDay
     };
   }, [isLoaded, profile, groupPlayers, seasonDay, isTodayPlayed, rank, leagueLevel, divisionSubId, groupId, user?.uid]);
+
+  // Calculate unseen matches
+  const unseenCount = useMemo(() => {
+    return matchHistory.filter(m => m.day > lastSeenMatchDay).length;
+  }, [matchHistory, lastSeenMatchDay]);
 
   if (isUserLoading || !isLoaded || !user || isProfileLoading || isGroupLoading) {
     return <LoadingScreen />;
@@ -260,7 +266,7 @@ export default function Home() {
       </section>
 
       <div className="space-y-4 mb-12">
-        <Link href="/match" className="block">
+        <Link href="/match" className="block relative">
           <Button className="w-full h-20 hero-gradient border-none shadow-xl hover:opacity-90 transition-all flex flex-col gap-1">
             <div className="flex items-center gap-2">
               <Swords className="w-6 h-6" />
@@ -268,6 +274,11 @@ export default function Home() {
             </div>
             <span className="text-[10px] opacity-80 uppercase tracking-widest">{t.activeStrat}: {strategy}</span>
           </Button>
+          {unseenCount > 0 && (
+            <div className="absolute -top-2 -right-2 w-7 h-7 bg-red-600 rounded-full flex items-center justify-center border-2 border-background shadow-lg animate-bounce">
+              <span className="text-[10px] font-black text-white">{unseenCount}</span>
+            </div>
+          )}
         </Link>
       </div>
 
