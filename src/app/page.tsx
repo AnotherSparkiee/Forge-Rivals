@@ -8,7 +8,8 @@ import {
   Swords, Users, Trophy, TrendingUp, 
   ShoppingCart, Newspaper, Shield, Star, 
   ChevronRight, CalendarDays, Zap, Clock,
-  UserSearch, ShieldAlert, AlertCircle
+  UserSearch, ShieldAlert, AlertCircle,
+  Medal
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -131,6 +132,7 @@ export default function Home() {
         { label: 'Clubhouse', desc: 'Join associations and tournaments' },
         { label: 'News Feed', desc: 'Latest updates from the MOBA world' },
         { label: 'Training Base', desc: 'Improve hero characteristics' },
+        { label: 'Tournaments', desc: 'Global events and friendly matches' },
       ]
     },
     ru: {
@@ -160,6 +162,7 @@ export default function Home() {
         { label: 'Клуб', desc: 'Ассоциации и турниры' },
         { label: 'Новости', desc: 'События мира MOBA' },
         { label: 'Тренировочная база', desc: 'Повышение характеристик героев' },
+        { label: 'Турниры', desc: 'Глобальные ивенты и товарищеские игры' },
       ]
     }
   };
@@ -171,6 +174,7 @@ export default function Home() {
     { label: t.menu[8].label, href: '/training', icon: Zap, desc: t.menu[8].desc, active: true },
     { label: t.menu[2].label, href: '/rankings', icon: Trophy, desc: t.menu[2].desc, active: true },
     { label: t.menu[3].label, href: '/matches', icon: CalendarDays, desc: t.menu[3].desc, active: true },
+    { label: t.menu[9].label, href: '/tournaments', icon: Medal, desc: t.menu[9].desc, active: true },
     { label: t.menu[4].label, href: '#', icon: ShoppingCart, desc: t.menu[4].desc, active: false },
     { label: t.menu[5].label, href: '#', icon: TrendingUp, desc: t.menu[5].desc, active: false },
     { label: t.menu[6].label, href: '#', icon: Shield, desc: t.menu[6].desc, active: false },
