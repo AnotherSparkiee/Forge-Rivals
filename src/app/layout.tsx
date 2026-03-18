@@ -1,3 +1,4 @@
+
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
@@ -6,6 +7,7 @@ import { GameStateProvider } from "@/app/lib/store";
 import { TopBar } from "@/components/game/TopBar";
 import { BottomNav } from "@/components/game/BottomNav";
 import { AutoMatchManager } from "@/components/game/AutoMatchManager";
+import { FriendlyMatchListener } from "@/components/game/FriendlyMatchListener";
 import { AuthGuard } from "@/components/game/AuthGuard";
 import { Suspense } from 'react';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -33,6 +35,7 @@ export default function RootLayout({
             <AuthGuard>
               <TopBar />
               <AutoMatchManager />
+              <FriendlyMatchListener />
               <Suspense fallback={<LoadingScreen />}>
                 {children}
               </Suspense>

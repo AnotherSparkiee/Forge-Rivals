@@ -45,29 +45,20 @@
             "type": "string"
           }
         },
-        "leagueRankingId": {
-          "type": "string",
-          "description": "Reference to the player's current league ranking."
-        },
         "leagueLevel": {
-          "type": "number",
-          "description": "The level in the pyramid (1 is highest)."
+          "type": "number"
         },
         "divisionSubId": {
-          "type": "number",
-          "description": "Sub-division ID at the current level."
+          "type": "number"
         },
         "groupId": {
-          "type": "number",
-          "description": "Group ID within the division (1-8)."
+          "type": "number"
         },
         "country": {
-          "type": "string",
-          "description": "The player's selected operational sector (country)."
+          "type": "string"
         },
         "selectedLeagueId": {
-          "type": "string",
-          "description": "The ID of the league window selected by the player."
+          "type": "string"
         }
       },
       "required": [
@@ -78,200 +69,26 @@
         "experiencePoints",
         "lastLoginDate",
         "createdAt",
-        "ownedHeroIds",
-        "leagueLevel",
-        "divisionSubId",
-        "groupId"
+        "ownedHeroIds"
       ]
     },
-    "Hero": {
+    "FriendlyLobby": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Hero",
+      "title": "FriendlyLobby",
       "type": "object",
-      "description": "Defines a MOBA hero character with their base statistics, role, and abilities.",
+      "description": "A temporary lobby for matchmaking friendly matches.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Hero entity."
+        "hostId": { "type": "string" },
+        "hostName": { "type": "string" },
+        "status": { 
+          "type": "string", 
+          "enum": ["searching", "challenged", "accepted", "rejected"] 
         },
-        "name": {
-          "type": "string",
-          "description": "The name of the hero."
-        },
-        "description": {
-          "type": "string",
-          "description": "A brief description or lore of the hero."
-        },
-        "role": {
-          "type": "string",
-          "description": "The primary intrinsic role of the hero (e.g., 'Carry', 'Support', 'Tank')."
-        },
-        "rarity": {
-          "type": "string",
-          "description": "The rarity level of the hero (e.g., 'Common', 'Rare', 'Epic', 'Legendary')."
-        },
-        "baseAttack": {
-          "type": "number",
-          "description": "The hero's base attack power."
-        },
-        "baseDefense": {
-          "type": "number",
-          "description": "The hero's base defensive power."
-        },
-        "baseHealth": {
-          "type": "number",
-          "description": "The hero's base health points."
-        },
-        "baseAbilityPower": {
-          "type": "number",
-          "description": "The hero's base ability power for magical damage or healing."
-        },
-        "abilityNames": {
-          "type": "array",
-          "description": "A list of the hero's primary ability names.",
-          "items": {
-            "type": "string"
-          }
-        },
-        "imageUrl": {
-          "type": "string",
-          "description": "URL to the hero's portrait or icon image.",
-          "format": "uri"
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "description",
-        "role",
-        "rarity",
-        "baseAttack",
-        "baseDefense",
-        "baseHealth",
-        "baseAbilityPower",
-        "abilityNames",
-        "imageUrl"
-      ]
-    },
-    "PlayerTeam": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "PlayerTeam",
-      "type": "object",
-      "description": "Represents a team of heroes managed by a player for competitive play.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the PlayerTeam entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the player's team."
-        },
-        "description": {
-          "type": "string",
-          "description": "A short description of the team or its motto."
-        },
-        "userProfileId": {
-          "type": "string",
-          "description": "Reference to the UserProfile that owns this team."
-        },
-        "rosterSlotIds": {
-          "type": "array",
-          "description": "References to the TeamRosterSlots that compose this team's lineup.",
-          "items": {
-            "type": "string"
-          }
-        },
-        "strategyId": {
-          "type": "string",
-          "description": "Reference to the strategy assigned to this team."
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "userProfileId",
-        "rosterSlotIds",
-        "strategyId"
-      ]
-    },
-    "TeamRosterSlot": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "TeamRosterSlot",
-      "type": "object",
-      "description": "Represents a specific hero assigned to a slot within a player's team.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the TeamRosterSlot entity."
-        },
-        "playerTeamId": {
-          "type": "string",
-          "description": "Reference to the PlayerTeam this roster slot belongs to."
-        },
-        "heroId": {
-          "type": "string",
-          "description": "Reference to the Hero assigned to this slot."
-        },
-        "assignedRole": {
-          "type": "string",
-          "description": "The specific lane or position role assigned to this hero."
-        },
-        "level": {
-          "type": "number",
-          "description": "The current level of the hero."
-        },
-        "experience": {
-          "type": "number",
-          "description": "The experience points accumulated by this hero."
-        }
-      },
-      "required": [
-        "id",
-        "playerTeamId",
-        "heroId",
-        "assignedRole",
-        "level",
-        "experience"
-      ]
-    },
-    "Strategy": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Strategy",
-      "type": "object",
-      "description": "Defines a pre-configured strategy or tactical approach for a player's team.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Strategy entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "A descriptive name for the strategy."
-        },
-        "description": {
-          "type": "string",
-          "description": "Detailed description of the strategy."
-        },
-        "tacticsType": {
-          "type": "string",
-          "description": "General type of tactics employed by this strategy."
-        },
-        "focusPoints": {
-          "type": "array",
-          "description": "Key areas or phases of the game this strategy emphasizes.",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "description",
-        "tacticsType",
-        "focusPoints"
-      ]
+        "challengerId": { "type": "string" },
+        "challengerName": { "type": "string" },
+        "matchResult": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "auth": {
@@ -290,13 +107,17 @@
           "schema": {
             "$ref": "#/backend/entities/UserProfile"
           },
-          "description": "Stores individual player profiles.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique ID of the user."
-            }
-          ]
+          "description": "Stores individual player profiles."
+        }
+      },
+      {
+        "path": "/friendly_lobbies/{userId}",
+        "definition": {
+          "entityName": "FriendlyLobby",
+          "schema": {
+            "$ref": "#/backend/entities/FriendlyLobby"
+          },
+          "description": "Active friendly match requests."
         }
       }
     ]

@@ -3,12 +3,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * Moba Tactics Online Security Rules - V2
-     */
-
-    // --- Helper Functions ---
-
     function isSignedIn() {
       return request.auth != null;
     }
@@ -17,30 +11,25 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // --- Collection Rules ---
-
     match /players_v2/{userId} {
-      // Разрешаем чтение профиля владельцу
-      allow get: if isOwner(userId);
-      
-      // Разрешаем листинг для поиска по названию команды и распределения по лигам
-      allow list: if true; 
-      
-      // Создание и обновление: пользователь должен быть владельцем
-      // Упрощаем правила для предотвращения ошибок при создании/обновлении через setDoc
+      allow get: if isSignedIn();
+      allow list: if isSignedIn(); 
       allow create, update: if isOwner(userId);
-      
-      // Удаление: только владелец
       allow delete: if isOwner(userId);
+    }
+
+    match /friendly_lobbies/{userId} {
+      allow get, list: if isSignedIn();
+      allow create: if isOwner(userId);
+      allow delete: if isOwner(userId);
+      allow update: if isOwner(userId) 
+                    || (resource.data.status == 'searching' 
+                        && request.resource.data.status == 'challenged'
+                        && request.resource.data.challengerId == request.auth.uid);
     }
 
     match /heroes/{heroId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
-    }
-
-    match /roles_admin/{userId} {
-      allow get, list, create, update, delete: if false;
     }
   }
 }
