@@ -8,10 +8,9 @@ import {
   Swords, Users, Trophy, TrendingUp, 
   ShoppingCart, Newspaper, Shield, Star, 
   ChevronRight, CalendarDays, Zap, Clock,
-  UserSearch, ShieldAlert, AlertCircle,
-  Medal
+  UserSearch, ShieldAlert, Medal
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +18,6 @@ import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { doc, collection, query, where } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, LEAGUES } from './lib/leagues-data';
 import { getMoscowDateString } from './lib/time-utils';
-import { cn } from '@/lib/utils';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -31,7 +29,6 @@ export default function Home() {
     matchHistory, lastSeenMatchDay
   } = useGameState();
 
-  // Fetch profile and group for match info
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
@@ -95,7 +92,6 @@ export default function Home() {
     };
   }, [isLoaded, profile, groupPlayers, seasonDay, isTodayPlayed, rank, leagueLevel, divisionSubId, groupId, user?.uid]);
 
-  // Calculate unseen matches
   const unseenCount = useMemo(() => {
     return matchHistory.filter(m => m.day > lastSeenMatchDay).length;
   }, [matchHistory, lastSeenMatchDay]);
@@ -190,7 +186,6 @@ export default function Home() {
         </h1>
       </header>
 
-      {/* NEXT MATCH WIDGET */}
       <section className="mb-8">
         {nextMatchInfo ? (
           <Card className="glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden">
