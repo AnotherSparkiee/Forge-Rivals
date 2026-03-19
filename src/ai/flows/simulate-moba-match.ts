@@ -47,6 +47,8 @@ const SimulateMobaMatchInputSchema = z.object({
       'Whether to include random in-game events that can influence the match outcome.'
     ),
   isBo2: z.boolean().default(true).describe('Whether this is a Best of 2 series (result MUST be 2:0, 1:1, or 0:2).'),
+  scoreA: z.number().optional().describe('Force score for Team A.'),
+  scoreB: z.number().optional().describe('Force score for Team B.'),
 });
 export type SimulateMobaMatchInput = z.infer<typeof SimulateMobaMatchInputSchema>;
 
@@ -133,12 +135,17 @@ Team Heroes:
   Role: {{{role}}}
 {{/each}}
 
+{{#if scoreA}}
+CRITICAL REQUIREMENT: The final score MUST be strictly Team A: {{{scoreA}}} - Team B: {{{scoreB}}}.
+Generate a match narrative and statistics that lead to this exact outcome.
+{{else}}
 You MUST return a score of strictly 2-0, 1-1, or 0-2.
 - 2-0: Team A wins both maps.
 - 1-1: Draw, each team wins one map.
 - 0-2: Team B wins both maps.
+{{/if}}
 
-Provide a detailed narrative match summary and precise statistics for both teams and individual heroes based on the Bo2 outcome.`,
+Provide a detailed narrative match summary and precise statistics for both teams and individual heroes based on the required outcome.`,
 });
 
 const simulateMobaMatchFlow = ai.defineFlow(

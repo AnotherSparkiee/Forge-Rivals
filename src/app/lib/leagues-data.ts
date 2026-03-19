@@ -44,11 +44,12 @@ export const LEAGUES: LeagueOption[] = [
 export function getMatchResult(homeId: string, awayId: string, day: number): [number, number] {
   const hId = homeId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const aId = awayId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const seed = (hId * 3) + (aId * 7) + (day * 13);
-  const val = seed % 10;
+  // Use a fixed salt to ensure stability
+  const seed = (hId * 13) + (aId * 37) + (day * 7);
+  const val = seed % 100;
   
-  if (val < 4) return [2, 0]; 
-  if (val < 7) return [1, 1]; 
+  if (val < 40) return [2, 0]; 
+  if (val < 70) return [1, 1]; 
   return [0, 2]; 
 }
 
@@ -111,10 +112,10 @@ export function getMockGroupTeams(
     teams.push({
       id: p.id,
       name: isMe ? (playerName || p.displayName || "My Team") : (p.displayName || "Unknown Commander"),
-      wins: isMe ? (playerStats?.wins ?? p.wins ?? 0) : (p.wins || 0),
-      draws: isMe ? (playerStats?.draws ?? p.draws ?? 0) : (p.draws || 0),
-      losses: isMe ? (playerStats?.losses ?? p.losses ?? 0) : (p.losses || 0),
-      points: isMe ? (playerStats?.points ?? p.points ?? 0) : (p.points || 0),
+      wins: 0, // Reset to 0, will be recalculated deterministically for the table
+      draws: 0,
+      losses: 0,
+      points: 0,
       isPlayer: true,
       isMe: isMe
     });
@@ -140,10 +141,13 @@ export function getMockGroupTeams(
   // This ensures the bracket (who plays whom on which day) is stable throughout the season.
   teams.sort((a, b) => a.id.localeCompare(b.id));
 
-  // 3. Simulate bot vs bot matches for previous days
+  // 3. Simulate ALL matches up to currentDay - 1
   const seasonSchedule = getSchedule(teams);
   
-  for (let d = 1; d < currentDay; d++) {
+  // Also include the current day if the local user has already played it
+  const maxDayToSimulate = includePlayer && playerStats ? currentDay : currentDay - 1;
+
+  for (let d = 1; d <= maxDayToSimulate; d++) {
     const matches = seasonSchedule[d - 1];
     if (!matches) continue;
 
@@ -153,15 +157,11 @@ export function getMockGroupTeams(
       
       if (!home || !away) return;
 
-      // Only simulate if BOTH are bots. 
-      if (!home.isPlayer && !away.isPlayer) {
-        const [hScore, aScore] = getMatchResult(home.id, away.id, d);
-        applyResult(home, away, hScore, aScore);
-      }
+      const [hScore, aScore] = getMatchResult(home.id, away.id, d);
+      applyResult(home, away, hScore, aScore);
     });
   }
 
-  // Return the stable list. Sorting for display (standings) should be done in the UI.
   return teams;
 }
 

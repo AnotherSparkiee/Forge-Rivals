@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,7 +5,7 @@ import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
 import { isMatchDue, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
-import { getMockGroupTeams, getSchedule, LEAGUES } from '@/app/lib/leagues-data';
+import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '@/app/lib/leagues-data';
 import { INITIAL_HEROES } from '@/app/lib/moba-data';
 import { simulateMobaMatch, SimulateMobaMatchOutput } from '@/ai/flows/simulate-moba-match';
 import { useToast } from '@/hooks/use-toast';
@@ -74,6 +73,7 @@ export function AutoMatchManager() {
     });
 
     try {
+      // 1. Calculate deterministic result for the table
       const groupTeams = getMockGroupTeams(
         rank, 
         profile?.displayName || "My Team", 
@@ -93,7 +93,13 @@ export function AutoMatchManager() {
       if (!todayMatch) throw new Error("No match scheduled for today");
 
       const opponent = todayMatch.home.id === user?.uid ? todayMatch.away : todayMatch.home;
+      const [detScoreA, detScoreB] = getMatchResult(todayMatch.home.id, todayMatch.away.id, targetDay);
+      
+      // We must pass the correct score to AI based on who is home/away
+      const forcedScoreA = todayMatch.home.id === user.uid ? detScoreA : detScoreB;
+      const forcedScoreB = todayMatch.away.id === user.uid ? detScoreA : detScoreB;
 
+      // 2. Simulate via AI with FORCED deterministic score
       const result = await simulateMobaMatch({
         teamA: {
           name: profile?.displayName || "My Team",
@@ -106,30 +112,23 @@ export function AutoMatchManager() {
           heroes: INITIAL_HEROES.map(h => ({ ...h, baseStats: { ...h.baseStats, attack: h.baseStats.attack + (opponent.isPlayer ? 5 : 2) } }))
         },
         includeRandomEvents: true,
-        isBo2: true
+        isBo2: true,
+        scoreA: forcedScoreA,
+        scoreB: forcedScoreB
       });
       
       recordMatch(result.winner, result, targetDay, true);
       
       // We only show the dialog if it's the CURRENT day's match and user is online
-      // If it's a catch-up match, it just goes to history/unseen
-      const todayStr = getMoscowDateString();
       const league = LEAGUES.find(l => l.id === profile?.selectedLeagueId);
       const isActuallyToday = targetDay === seasonDay && isMatchDue(league?.startTime || '23:00', null);
 
       if (isActuallyToday) {
         setCurrentResult({ ...result, day: targetDay });
+        setShowResultDialog(true);
         toast({
           title: language === 'ru' ? "Матч лиги завершен!" : "League Match Completed!",
           description: `${profile?.displayName || "My Team"} ${result.scoreA}:${result.scoreB} ${opponent.name}`,
-          action: (
-            <Button variant="outline" size="sm" onClick={() => {
-              setCurrentResult({ ...result, day: targetDay });
-              setShowResultDialog(true);
-            }}>
-              {language === 'ru' ? "ОБЗОР" : "REVIEW"}
-            </Button>
-          ),
         });
       }
     } catch (e) {
@@ -161,8 +160,8 @@ export function AutoMatchManager() {
 
   if (!currentResult) return null;
 
-  const isWin = currentResult.scoreA === 2 && currentResult.scoreB === 0;
-  const isDraw = currentResult.scoreA === 1 && currentResult.scoreB === 1;
+  const isWin = currentResult.scoreA > currentResult.scoreB;
+  const isDraw = currentResult.scoreA === currentResult.scoreB;
 
   return (
     <Dialog open={showResultDialog} onOpenChange={(open) => {
