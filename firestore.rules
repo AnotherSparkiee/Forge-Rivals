@@ -12,8 +12,8 @@ service cloud.firestore {
     }
 
     match /players_v2/{userId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn(); 
+      // Allow public read access to verify team names and look up emails during login/registration
+      allow get, list: if true;
       allow create, update: if isOwner(userId);
       allow delete: if isOwner(userId);
     }
