@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -16,6 +15,7 @@ import Link from 'next/link';
 import { query, collection, where, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { cn } from '@/lib/utils';
 
 export default function OpenFriendliesPage() {
   const { user, isUserLoading } = useUser();
