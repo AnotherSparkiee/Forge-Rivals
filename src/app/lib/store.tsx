@@ -239,6 +239,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Reset loading flag when user changes to ensure we wait for fresh Firestore data
     setIsLoaded(false);
 
     const key = getStorageKey();
@@ -248,7 +249,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const parsed = JSON.parse(saved);
         setState(s => ({ ...s, ...parsed }));
       } catch (e) {
-        console.error("Failed to parse local storage state", e);
+        console.warn("Failed to parse local storage state", e);
       }
     }
 
@@ -291,7 +292,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
       setIsLoaded(true);
     }, (error) => {
-      console.error("Firestore sync error:", error);
+      // If we hit a permission error or similar, we should still mark as loaded
+      // to avoid infinite spinner on the login/register pages
+      console.warn("Firestore sync error:", error.message);
       setIsLoaded(true); 
     });
 
@@ -565,7 +568,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           losses: newState.losses,
           points: newState.points,
           lastLeagueMatchDate: newState.lastLeagueMatchDate
-        }, { merge: true }).catch(e => console.error("Firestore match sync failed", e));
+        }, { merge: true }).catch(e => console.warn("Firestore match sync failed", e));
       }
 
       return newState;
@@ -579,7 +582,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       if (user) {
         const profileRef = doc(db, 'players_v2', user.uid);
         setDoc(profileRef, { lastSeenMatchDay: day }, { merge: true })
-          .catch(e => console.error("Failed to update lastSeenMatchDay", e));
+          .catch(e => console.warn("Failed to update lastSeenMatchDay", e));
       }
       
       return { ...s, lastSeenMatchDay: day };
