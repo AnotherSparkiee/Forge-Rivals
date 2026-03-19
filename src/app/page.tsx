@@ -8,7 +8,7 @@ import {
   Swords, Users, Trophy, TrendingUp, 
   ShoppingCart, Newspaper, Shield, Star, 
   ChevronRight, CalendarDays, Zap, Clock,
-  UserSearch, ShieldAlert, Medal
+  UserSearch, ShieldAlert, Medal, User
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -129,6 +129,7 @@ export default function Home() {
         { label: 'News Feed', desc: 'Latest updates from the MOBA world' },
         { label: 'Training Base', desc: 'Improve hero characteristics' },
         { label: 'Tournaments', desc: 'Global events and friendly matches' },
+        { label: 'Manager Profile', desc: 'Operational status and settings' },
       ]
     },
     ru: {
@@ -159,6 +160,7 @@ export default function Home() {
         { label: 'Новости', desc: 'События мира MOBA' },
         { label: 'Тренировочная база', desc: 'Повышение характеристик героев' },
         { label: 'Турниры', desc: 'Глобальные ивенты и товарищеские игры' },
+        { label: 'Профиль Менеджера', desc: 'Статус операций и настройки' },
       ]
     }
   };
@@ -175,6 +177,7 @@ export default function Home() {
     { label: t.menu[5].label, href: '#', icon: TrendingUp, desc: t.menu[5].desc, active: false },
     { label: t.menu[6].label, href: '#', icon: Shield, desc: t.menu[6].desc, active: false },
     { label: t.menu[7].label, href: '#', icon: Newspaper, desc: t.menu[7].desc, active: false },
+    { label: t.menu[10].label, href: '/profile', icon: User, desc: t.menu[10].desc, active: true },
   ];
 
   return (
