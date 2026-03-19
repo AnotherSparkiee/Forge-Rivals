@@ -45,7 +45,6 @@ export default function RankingsPage() {
   const { toast } = useToast();
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
-  const [serverTime, setServerTime] = useState<string>('');
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -98,13 +97,6 @@ export default function RankingsPage() {
     return [...teams].sort((a, b) => b.points - a.points || (b.wins - a.wins));
   }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, wins, draws, losses, points, isTodayPlayed, rank, user?.uid]);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setServerTime(formatMoscowTime(getMoscowTime()));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
@@ -115,7 +107,6 @@ export default function RankingsPage() {
       subtitle: "Pyramid Hierarchy",
       menuTitle: "Tournament Terminals",
       promote: "Promote",
-      serverClock: "Server Clock (MSK)",
       matchStatus: "League Status",
       waiting: "Waiting for " + league.startTime,
       completed: "Match completed",
@@ -123,6 +114,8 @@ export default function RankingsPage() {
       div_label: "Division",
       level_label: "Level",
       season_label: "Season Day",
+      current_season: "Active Season",
+      season_value: "Season 1",
       bo2_format: `Bo2 Format (${league.startTime} daily)`,
       startsToday: `Starts TODAY ${league.startTime}`,
       tiers: ["Elite Tier", "Professional Tier", "Challenger Tier"],
@@ -140,7 +133,6 @@ export default function RankingsPage() {
       subtitle: "Иерархия Пирамиды",
       menuTitle: "Турнирные Терминалы",
       promote: "Повышить",
-      serverClock: "Часы Сервера (МСК)",
       matchStatus: "Статус лиги",
       waiting: "Ожидание " + league.startTime,
       completed: "Матч завершен",
@@ -148,6 +140,8 @@ export default function RankingsPage() {
       div_label: "Дивизион",
       level_label: "Уровень",
       season_label: "День сезона",
+      current_season: "Текущий сезон",
+      season_value: "Сезон 1",
       bo2_format: `Формат Bo2 (Ежедневно ${league.startTime})`,
       startsToday: `Старт СЕГОДНЯ в ${league.startTime}`,
       tiers: ["Элитный уровень", "Профессиональный уровень", "Претендентский уровень"],
@@ -215,8 +209,8 @@ export default function RankingsPage() {
               </Card>
               <Card className="glass-card bg-accent/5">
                 <CardContent className="p-4 flex items-center gap-3">
-                  <Clock className="w-5 h-5 text-accent" />
-                  <div><p className="text-[10px] uppercase text-muted-foreground font-bold">MSK TIME</p><p className="text-xs font-mono font-bold">{serverTime.split(' ')[1] || '00:00:00'}</p></div>
+                  <Trophy className="w-5 h-5 text-accent" />
+                  <div><p className="text-[10px] uppercase text-muted-foreground font-bold">{t.current_season}</p><p className="text-lg font-headline font-bold text-accent">{t.season_value}</p></div>
                 </CardContent>
               </Card>
             </div>
