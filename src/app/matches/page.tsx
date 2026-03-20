@@ -238,13 +238,13 @@ export default function MatchesPage() {
     );
   };
 
-  const renderHistoryRow = (match: any) => {
+  const renderHistoryRow = (match: any, index: number) => {
     const isWin = (match.scoreA > match.scoreB);
     const isDraw = (match.scoreA === match.scoreB);
     const date = new Date(match.playedAt).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
 
     return (
-      <div key={match.playedAt} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
+      <div key={`${match.playedAt}-${index}`} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
         <div className="flex flex-col items-center w-12 flex-shrink-0 border-r border-white/5 pr-2">
           <span className="text-[10px] font-mono font-bold text-accent">{date}</span>
           <span className="text-[7px] uppercase font-black text-muted-foreground text-center leading-none mt-1">
@@ -359,7 +359,7 @@ export default function MatchesPage() {
 
         return (
           <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-500">
-            {matchHistory.map((match) => renderHistoryRow(match))}
+            {matchHistory.map((match, index) => renderHistoryRow(match, index))}
           </div>
         );
       }
