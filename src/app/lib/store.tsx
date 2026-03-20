@@ -255,20 +255,17 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           
           let currentDay = 0;
           if (startDateStr) {
-            // Robust calendar day calculation using Moscow date components
             const mskNow = getMoscowTime();
             const [year, month, day] = startDateStr.split('-').map(Number);
             
-            // Calculate days since Epoch for Moscow Today and Start Date to avoid timezone shifts
             const todayUtc = Date.UTC(mskNow.getFullYear(), mskNow.getMonth(), mskNow.getDate());
             const startUtc = Date.UTC(year, month - 1, day);
             
             const diffDays = Math.floor((todayUtc - startUtc) / (1000 * 60 * 60 * 24));
             
             if (diffDays >= 0) {
-              currentDay = (diffDays % 14) + 1; // Current match day (1-14)
+              currentDay = (diffDays % 14) + 1;
             } else {
-              // Should only happen if server clock is behind or manual date edit
               currentDay = 1;
             }
           }
@@ -541,8 +538,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
 
     setState(s => {
-      // Avoid duplicate league matches for the same day in history
-      if (type === 'league' && s.matchHistory.some(m => m.day === matchDay && m.type === 'league')) return s;
+      // STRICT BLOCK for duplicate league matches for the same day
+      if (type === 'league' && s.matchHistory.some(m => m.day === matchDay && m.type === 'league')) {
+        console.warn(`Prevented duplicate league match recording for Day ${matchDay}`);
+        return s;
+      }
 
       const matchId = `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -569,7 +569,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         losses: s.losses + matchLosses,
         points: s.points + matchPoints,
         matchHistory: [matchEntry, ...s.matchHistory].slice(0, 100),
-        lastLeagueMatchDate: isAutomated ? getMoscowDateString() : s.lastLeagueMatchDate
+        lastLeagueMatchDate: type === 'league' ? getMoscowDateString() : s.lastLeagueMatchDate
       };
 
       if (user) {

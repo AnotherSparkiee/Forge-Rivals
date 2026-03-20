@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
@@ -30,6 +30,9 @@ export function AutoMatchManager() {
   const [isSimulating, setIsSimulating] = useState(false);
   const [showResultDialog, setShowResultDialog] = useState(false);
   const [currentResult, setCurrentResult] = useState<any | null>(null);
+  
+  // Ref to prevent double-simulation during catch-up
+  const simulationRef = useRef(false);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
@@ -48,7 +51,7 @@ export function AutoMatchManager() {
 
   useEffect(() => {
     // Check for missing matches since creation/last login
-    if (isLoaded && seasonDay > 0 && !isSimulating && !isUserLoading && profile?.selectedLeagueId && groupPlayers && user) {
+    if (isLoaded && seasonDay > 0 && !isSimulating && !simulationRef.current && !isUserLoading && profile?.selectedLeagueId && groupPlayers && user) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
       const matchTime = league?.startTime || '23:00';
       
@@ -70,11 +73,12 @@ export function AutoMatchManager() {
       };
       catchUp();
     }
-  }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, matchHistory, user]);
+  }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, matchHistory, user, isSimulating]);
 
   const triggerAutoMatch = async (matchTime: string, targetDay: number) => {
-    if (!groupPlayers || !user || !profile) return;
+    if (!groupPlayers || !user || !profile || simulationRef.current) return;
     
+    simulationRef.current = true;
     setIsSimulating(true);
     
     toast({
@@ -112,6 +116,7 @@ export function AutoMatchManager() {
       const forcedScoreB = todayMatch.away.id === user.uid ? detScoreA : detScoreB;
 
       // 2. Simulate via AI with FORCED deterministic score to match table
+      // Added realistic hero adjustments for opponents to make games more significant
       const result = await simulateMobaMatch({
         teamA: {
           name: profile.displayName || "My Team",
@@ -120,8 +125,15 @@ export function AutoMatchManager() {
         },
         teamB: {
           name: opponentName,
-          strategy: opponent.isPlayer ? "Manager Strategy" : "Standard Tactics",
-          heroes: INITIAL_HEROES.map(h => ({ ...h, baseStats: { ...h.baseStats, attack: h.baseStats.attack + (opponent.isPlayer ? 5 : 2) } }))
+          strategy: opponent.isPlayer ? "High Level Tactics" : "Balanced Execution",
+          heroes: INITIAL_HEROES.map(h => ({ 
+            ...h, 
+            baseStats: { 
+              ...h.baseStats, 
+              attack: h.baseStats.attack + (opponent.isPlayer ? 15 : 8),
+              health: h.baseStats.health + (opponent.isPlayer ? 100 : 50)
+            } 
+          }))
         },
         includeRandomEvents: true,
         isBo2: true,
@@ -145,6 +157,7 @@ export function AutoMatchManager() {
       console.error("Auto simulation failed", e);
     } finally {
       setIsSimulating(false);
+      simulationRef.current = false;
     }
   };
 

@@ -106,10 +106,13 @@ export default function Home() {
       
       targetDate.setHours(hours, minutes, 0, 0);
       
-      // If the target match is Day N+1, it's definitely tomorrow
-      if (!nextMatchInfo.isToday) {
+      // If we already passed the match time today, the countdown targets tomorrow's version of that time
+      if (mskNow.getTime() >= targetDate.getTime()) {
         targetDate.setDate(targetDate.getDate() + 1);
-      } 
+      } else if (!nextMatchInfo.isToday) {
+        // If the match info already flagged it as a future day, ensure we add 1 day
+        targetDate.setDate(targetDate.getDate() + 1);
+      }
 
       const diff = targetDate.getTime() - mskNow.getTime();
       
@@ -119,8 +122,14 @@ export default function Home() {
         const h = Math.floor(diff / 3600000);
         const m = Math.floor((diff % 3600000) / 60000);
         const s = Math.floor((diff % 60000) / 1000);
+        
+        // Ensure we never show > 24 hours for a daily match
+        const displayHours = h >= 24 ? 23 : h;
+        const displayMins = h >= 24 ? 59 : m;
+        const displaySecs = h >= 24 ? 59 : s;
+
         setCountdown(
-          `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+          `${String(displayHours).padStart(2, '0')}:${String(displayMins).padStart(2, '0')}:${String(displaySecs).padStart(2, '0')}`
         );
       }
     }, 1000);
