@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -30,7 +31,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function ProfilePage() {
-  const { ownedHeroes, rank, language, setLanguage, isLoaded: isStoreLoaded, credits, leagueLevel, divisionSubId, groupId } = useGameState();
+  const { ownedHeroes, rank, language, setLanguage, isLoaded: isStoreLoaded, credits, crystals, leagueLevel, divisionSubId, groupId } = useGameState();
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const db = useFirestore();
@@ -159,10 +160,7 @@ export default function ProfilePage() {
     if (!user) return;
     setIsDeleting(true);
     try {
-      // 1. Delete Firestore Document
       await deleteDoc(doc(db, 'players_v2', user.uid));
-      
-      // 2. Delete Auth User
       await deleteUser(user);
       
       toast({
@@ -297,7 +295,7 @@ export default function ProfilePage() {
             </div>
             <div>
               <p className="text-[9px] text-muted-foreground uppercase font-bold">{t.crystals}</p>
-              <p className="text-sm font-headline font-bold">0</p>
+              <p className="text-sm font-headline font-bold">{crystals.toLocaleString()}</p>
             </div>
           </div>
         </div>
@@ -372,7 +370,6 @@ export default function ProfilePage() {
         {t.logout}
       </Button>
 
-      {/* Account Deletion Dialog */}
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent className="bg-card border-white/10">
           <AlertDialogHeader>

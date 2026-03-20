@@ -61,8 +61,8 @@ interface MedicalState {
 }
 
 export interface MatchResultEntry {
-  id: string; // Unique ID for viewing the match report
-  day: number; // 0 for friendlies
+  id: string; 
+  day: number; 
   type: 'league' | 'friendly';
   opponentName: string;
   winner: string;
@@ -98,6 +98,7 @@ interface GameState {
   seasonDay: number;
   seasonStartDate: string | null;
   lastRewardClaimDate: string | null;
+  rewardDay: number; // 1 to 30
   arena: ArenaState;
   hq: HQState;
   bootcamp: BootcampState;
@@ -190,6 +191,7 @@ const DEFAULT_STATE: GameState = {
   seasonDay: 0,
   seasonStartDate: null,
   lastRewardClaimDate: null,
+  rewardDay: 1,
   arena: DEFAULT_ARENA,
   hq: DEFAULT_HQ,
   bootcamp: DEFAULT_BOOTCAMP,
@@ -296,6 +298,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             seasonStartDate: startDateStr,
             seasonDay: currentDay,
             lastRewardClaimDate: profileData.lastRewardClaimDate ?? s.lastRewardClaimDate,
+            rewardDay: profileData.rewardDay ?? s.rewardDay ?? 1,
           };
         });
       }
@@ -344,13 +347,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       
       const newCredits = s.credits + creditsReward;
       const newCrystals = s.crystals + crystalsReward;
+      const nextRewardDay = s.rewardDay >= 30 ? 1 : s.rewardDay + 1;
       
       if (user) {
         const profileRef = doc(db, 'players_v2', user.uid);
         setDoc(profileRef, { 
           inGameCurrency: newCredits, 
           crystals: newCrystals,
-          lastRewardClaimDate: today
+          lastRewardClaimDate: today,
+          rewardDay: nextRewardDay
         }, { merge: true }).catch(e => console.error("Reward sync failed", e));
       }
       
@@ -358,7 +363,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         ...s,
         credits: newCredits,
         crystals: newCrystals,
-        lastRewardClaimDate: today
+        lastRewardClaimDate: today,
+        rewardDay: nextRewardDay
       };
     });
   }, [user, db]);
@@ -613,7 +619,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       creditsEarned = 100; rankChange = 5; matchDraws = 1; matchPoints = 1;
     } else if (scoreA === 0 && scoreB === 2) {
       matchLosses = 1;
-    } else if (scoreA > scoreB) { // for bo1 friendlies
+    } else if (scoreA > scoreB) { 
       creditsEarned = 150; matchWins = 1; rankChange = 10;
     } else if (scoreA < scoreB) {
       matchLosses = 1;
@@ -622,7 +628,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
 
     setState(s => {
-      // STRICT BLOCK for duplicate league matches for the same day
       if (type === 'league' && s.matchHistory.some(m => m.day === matchDay && m.type === 'league')) {
         console.warn(`Prevented duplicate league match recording for Day ${matchDay}`);
         return s;
