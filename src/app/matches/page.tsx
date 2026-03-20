@@ -194,12 +194,12 @@ export default function MatchesPage() {
       const historicalMatch = matchHistory.find(m => 
         m.day === day && 
         m.type === 'league' && 
-        (match.home.isMe || match.away.isMe)
+        (match.home.id === user.uid || match.away.id === user.uid)
       );
 
       if (historicalMatch) {
-        hScore = match.home.isMe ? historicalMatch.scoreA : historicalMatch.scoreB;
-        aScore = match.away.isMe ? historicalMatch.scoreA : historicalMatch.scoreB;
+        hScore = match.home.id === user.uid ? historicalMatch.scoreA : historicalMatch.scoreB;
+        aScore = match.away.id === user.uid ? historicalMatch.scoreA : historicalMatch.scoreB;
       } else {
         // Fallback to deterministic result for bot-only matches or missing records
         [hScore, aScore] = getMatchResult(match.home.id, match.away.id, day);
@@ -213,7 +213,7 @@ export default function MatchesPage() {
           <span className="text-[8px] uppercase font-bold text-muted-foreground">{t.day} {day}</span>
         </div>
         <div className="flex-1 flex items-center justify-between gap-1 min-w-0">
-          <div className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", match.home.isMe && "text-primary")}>
+          <div className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", match.home.id === user.uid && "text-primary")}>
             {match.home.name}
           </div>
           <div className="flex flex-col items-center px-2 min-w-[70px]">
@@ -232,7 +232,7 @@ export default function MatchesPage() {
               </div>
             )}
           </div>
-          <div className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", match.away.isMe && "text-primary")}>
+          <div className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", match.away.id === user.uid && "text-primary")}>
             {match.away.name}
           </div>
         </div>
@@ -280,7 +280,7 @@ export default function MatchesPage() {
             </div>
           </div>
           <div className="flex-1 text-left text-[10px] font-bold uppercase truncate">
-            {match.opponentName || 'Unknown'}
+            {match.opponentName || 'Unknown Team'}
           </div>
         </div>
       </div>

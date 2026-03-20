@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -48,24 +47,34 @@ export function AutoMatchManager() {
   const { data: groupPlayers } = useCollection(groupQuery);
 
   useEffect(() => {
-    // Only simulate if season is active (Day > 0)
-    if (isLoaded && seasonDay > 0 && !isSimulating && !isUserLoading && profile?.selectedLeagueId && groupPlayers) {
+    // 1. Check for missing matches since creation/last login
+    if (isLoaded && seasonDay > 0 && !isSimulating && !isUserLoading && profile?.selectedLeagueId && groupPlayers && user) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
       const matchTime = league?.startTime || '23:00';
       
-      // If today's match is due, trigger it
-      if (isMatchDue(matchTime, lastLeagueMatchDate)) {
-        triggerAutoMatch(matchTime, seasonDay);
-      }
+      // Look for any day from 1 to seasonDay that is not in history
+      const catchUp = async () => {
+        for (let d = 1; d <= seasonDay; d++) {
+          const alreadyPlayed = matchHistory.some(m => m.day === d && m.type === 'league');
+          if (alreadyPlayed) continue;
+
+          // If it's today, check if it's due. If it's a previous day, it's definitely due.
+          const isDue = d < seasonDay || isMatchDue(matchTime, lastLeagueMatchDate);
+          
+          if (isDue) {
+            await triggerAutoMatch(matchTime, d);
+            // Break to simulate only one at a time to prevent UI spam, will pick up on next effect run
+            break; 
+          }
+        }
+      };
+      catchUp();
     }
-  }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay]);
+  }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, matchHistory, user]);
 
   const triggerAutoMatch = async (matchTime: string, targetDay: number) => {
     if (!groupPlayers || !user) return;
     
-    // Skip if already in history
-    if (matchHistory.some(m => m.day === targetDay && m.type === 'league')) return;
-
     setIsSimulating(true);
     
     toast({
@@ -119,10 +128,8 @@ export function AutoMatchManager() {
       
       recordMatch(result.winner, result, targetDay, opponent.name, 'league', true);
       
-      const league = LEAGUES.find(l => l.id === profile?.selectedLeagueId);
-      const isActuallyToday = targetDay === seasonDay && isMatchDue(league?.startTime || '23:00', null);
-
-      if (isActuallyToday) {
+      // Only show dialog if it's the current active day
+      if (targetDay === seasonDay) {
         setCurrentResult({ ...result, day: targetDay, opponentName: opponent.name });
         setShowResultDialog(true);
         toast({

@@ -278,6 +278,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             country: profileData.country ?? s.country,
             lastSeenMatchDay: profileData.lastSeenMatchDay ?? s.lastSeenMatchDay ?? 0,
             lastLeagueMatchDate: profileData.lastLeagueMatchDate ?? s.lastLeagueMatchDate,
+            matchHistory: profileData.matchHistory ?? s.matchHistory ?? [],
             seasonStartDate: startDateStr,
             seasonDay: currentDay,
           };
@@ -532,7 +533,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const matchEntry: MatchResultEntry = {
         day: matchDay,
         type,
-        opponentName,
+        opponentName: opponentName || "Unknown Team",
         winner,
         scoreA,
         scoreB,
@@ -550,18 +551,19 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         draws: s.draws + matchDraws,
         losses: s.losses + matchLosses,
         points: s.points + matchPoints,
-        matchHistory: [matchEntry, ...s.matchHistory].slice(0, 50),
+        matchHistory: [matchEntry, ...s.matchHistory].slice(0, 100),
         lastLeagueMatchDate: isAutomated ? getMoscowTime().toISOString().split('T')[0] : s.lastLeagueMatchDate
       };
 
-      if (isAutomated && user) {
+      if (user) {
         const profileRef = doc(db, 'players_v2', user.uid);
         setDoc(profileRef, {
           wins: newState.wins,
           draws: newState.draws,
           losses: newState.losses,
           points: newState.points,
-          lastLeagueMatchDate: newState.lastLeagueMatchDate
+          lastLeagueMatchDate: newState.lastLeagueMatchDate,
+          matchHistory: newState.matchHistory
         }, { merge: true }).catch(e => console.warn("Firestore match sync failed", e));
       }
 
