@@ -307,7 +307,6 @@ export default function Home() {
               <Swords className="w-6 h-6" />
               <span className="text-xl font-headline font-bold italic uppercase">{t.battleBtn}</span>
             </div>
-            <span className="text-[10px] opacity-80 uppercase tracking-widest">{t.activeStrat}: {strategy}</span>
           </Button>
           {unseenCount > 0 && (
             <div className="absolute -top-2 -right-2 w-7 h-7 bg-red-600 rounded-full flex items-center justify-center border-2 border-background shadow-lg animate-bounce">
