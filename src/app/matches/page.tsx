@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -6,7 +7,7 @@ import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, CalendarDays, UserSearch, CalendarClock, 
   History, Calendar, CheckSquare, ChevronRight, Shield,
-  Loader2, Clock
+  Loader2, Clock, Swords
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,7 @@ import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '../lib/leagues-data';
-import { getMoscowDateString } from '../lib/time-utils';
+import { getMoscowDateString, getMoscowTime } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 type MatchTab = 
@@ -36,6 +37,7 @@ export default function MatchesPage() {
   } = useGameState();
   const db = useFirestore();
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
+  const [countdown, setCountdown] = useState('');
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -69,7 +71,6 @@ export default function MatchesPage() {
 
   const groupTeams = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return [];
-    // Even if seasonDay is 0, we use Day 1 as calculation baseline for future matches
     const calculationDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
     return getMockGroupTeams(
       rank, 
@@ -90,6 +91,34 @@ export default function MatchesPage() {
     if (groupTeams.length === 0) return [];
     return getSchedule(groupTeams);
   }, [groupTeams]);
+
+  useEffect(() => {
+    if (activeTab !== 'next_opponent' || !league) return;
+
+    const interval = setInterval(() => {
+      const mskNow = getMoscowTime();
+      const targetDate = new Date(mskNow);
+      const [hours, minutes] = league.startTime.split(':').map(Number);
+      targetDate.setHours(hours, minutes, 0, 0);
+
+      // If today is played or current time passed the start time, target is tomorrow
+      if (isTodayPlayed || mskNow > targetDate) {
+        targetDate.setDate(targetDate.getDate() + 1);
+      }
+
+      const diff = targetDate.getTime() - mskNow.getTime();
+      if (diff <= 0) {
+        setCountdown('00:00:00');
+      } else {
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [activeTab, league, isTodayPlayed]);
 
   const getDateForDay = (day: number) => {
     if (!seasonStartDate) return "";
@@ -117,6 +146,7 @@ export default function MatchesPage() {
       atTime: "at",
       today: "TODAY",
       tomorrow: "TOMORROW",
+      startsIn: "DEPLOYMENT IN:",
       tabs: {
         next_opponent: { label: "Next Opponent", desc: "Detailed brief on your next rival", icon: UserSearch },
         my_future: { label: "My Future", desc: "Upcoming matches for your team", icon: CalendarClock },
@@ -139,6 +169,7 @@ export default function MatchesPage() {
       atTime: "в",
       today: "СЕГОДНЯ",
       tomorrow: "ЗАВТРА",
+      startsIn: "РАЗВЕРТЫВАНИЕ ЧЕРЕЗ:",
       tabs: {
         next_opponent: { label: "Следующий соперник", desc: "Досье на ближайшего врага", icon: UserSearch },
         my_future: { label: "Свои будущие", desc: "Предстоящие игры команды", icon: CalendarClock },
@@ -162,7 +193,7 @@ export default function MatchesPage() {
 
     if (isPlayed) {
       if (day === seasonDay && isTodayPlayed && (match.home.isMe || match.away.isMe)) {
-        const lastResult = matchHistory[0];
+        const lastResult = matchHistory.find(m => m.day === day && m.type === 'league');
         if (lastResult) {
             hScore = match.home.isMe ? lastResult.scoreA : lastResult.scoreB;
             aScore = match.away.isMe ? lastResult.scoreA : lastResult.scoreB;
@@ -208,6 +239,42 @@ export default function MatchesPage() {
     );
   };
 
+  const renderHistoryRow = (match: any) => {
+    const isWin = (match.scoreA > match.scoreB);
+    const isDraw = (match.scoreA === match.scoreB);
+    const date = new Date(match.playedAt).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+
+    return (
+      <div key={match.playedAt} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
+        <div className="flex flex-col items-center w-12 flex-shrink-0 border-r border-white/5 pr-2">
+          <span className="text-[10px] font-mono font-bold text-accent">{date}</span>
+          <span className="text-[7px] uppercase font-black text-muted-foreground text-center leading-none mt-1">
+            {match.type === 'league' ? `DAY ${match.day}` : 'FRIENDLY'}
+          </span>
+        </div>
+        <div className="flex-1 flex items-center justify-between gap-1 min-w-0">
+          <div className="flex-1 text-right text-[10px] font-bold uppercase truncate text-primary">
+            {profile?.displayName || 'My Team'}
+          </div>
+          <div className="flex flex-col items-center px-4">
+            <div className="flex items-center gap-1.5">
+              <span className={cn("text-base font-headline font-bold", isWin ? "text-primary" : isDraw ? "text-accent" : "text-destructive")}>
+                {match.scoreA}
+              </span>
+              <span className="text-muted-foreground text-[10px]">:</span>
+              <span className={cn("text-base font-headline font-bold")}>
+                {match.scoreB}
+              </span>
+            </div>
+          </div>
+          <div className="flex-1 text-left text-[10px] font-bold uppercase truncate">
+            {match.opponentName || 'Unknown'}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'next_opponent': {
@@ -229,9 +296,15 @@ export default function MatchesPage() {
             <Card className="glass-card border-primary/20 bg-primary/5">
               <CardHeader className="text-center pb-2">
                 <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">Intelligence Report</CardTitle>
-                <Badge variant="outline" className="mx-auto text-[10px] uppercase border-primary/50 text-primary flex items-center gap-1.5 py-1">
-                  <Clock className="w-3 h-3" /> {isTargetToday ? t.today : t.tomorrow} {t.atTime} {startHour}
-                </Badge>
+                <div className="flex flex-col items-center gap-2 mt-2">
+                  <Badge variant="outline" className="text-[10px] uppercase border-primary/50 text-primary flex items-center gap-1.5 py-1">
+                    <Clock className="w-3 h-3" /> {isTargetToday ? t.today : t.tomorrow} {t.atTime} {startHour}
+                  </Badge>
+                  <div className="bg-background/50 px-3 py-1 rounded border border-white/5">
+                    <p className="text-[8px] font-bold text-muted-foreground uppercase text-center mb-0.5">{t.startsIn}</p>
+                    <p className="text-sm font-mono font-bold text-primary tabular-nums">{countdown || '00:00:00'}</p>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="flex flex-col items-center space-y-4">
                 <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 border-accent shadow-[0_0_15px_rgba(var(--accent),0.2)]">
@@ -249,9 +322,6 @@ export default function MatchesPage() {
                     <Calendar className="w-3 h-3" /> {t.matchTime}
                   </p>
                   <p className="text-xl font-headline font-bold tracking-tight">{matchDate} @ {startHour}</p>
-                  <p className="text-[9px] text-muted-foreground uppercase mt-1 italic font-bold">
-                    {language === 'ru' ? `Синхронизация по МСК: ${startHour}` : `MSK Sync: ${startHour}`}
-                  </p>
                 </div>
 
                 <div className="w-full grid grid-cols-2 gap-3 pt-4 border-t border-white/5">
@@ -285,16 +355,16 @@ export default function MatchesPage() {
       }
 
       case 'my_played': {
-        const endIdx = isTodayPlayed ? seasonDay : (seasonDay === 0 ? 0 : seasonDay - 1);
-        if (endIdx === 0) return <p className="text-center py-10 text-muted-foreground">No matches played yet.</p>;
-        const playedMatches = schedule.slice(0, endIdx).map((dayMatches: any, i) => {
-          const m = dayMatches.find((match: any) => match.home.id === user?.uid || match.away.id === user?.uid);
-          return { match: m, dayIdx: i };
-        }).filter(item => !!item.match).reverse();
+        if (matchHistory.length === 0) return (
+          <div className="text-center py-20 opacity-50 space-y-4">
+            <History className="w-12 h-12 mx-auto" />
+            <p className="text-xs uppercase font-bold tracking-widest">{t.noData}</p>
+          </div>
+        );
 
         return (
           <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-500">
-            {playedMatches.map(item => renderMatchRow(item.match, item.dayIdx))}
+            {matchHistory.map((match) => renderHistoryRow(match))}
           </div>
         );
       }

@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { useGameState } from './lib/store';
@@ -17,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { doc, collection, query, where } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, LEAGUES } from './lib/leagues-data';
-import { getMoscowDateString } from './lib/time-utils';
+import { getMoscowDateString, getMoscowTime } from './lib/time-utils';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -28,6 +29,8 @@ export default function Home() {
     strategy, language, isLoaded, lastLeagueMatchDate, seasonDay, team,
     matchHistory, lastSeenMatchDay
   } = useGameState();
+
+  const [countdown, setCountdown] = useState<string>('');
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -92,8 +95,42 @@ export default function Home() {
     };
   }, [isLoaded, profile, groupPlayers, seasonDay, isTodayPlayed, rank, leagueLevel, divisionSubId, groupId, user?.uid]);
 
+  useEffect(() => {
+    if (!nextMatchInfo) return;
+
+    const interval = setInterval(() => {
+      const mskNow = getMoscowTime();
+      const targetDate = new Date(mskNow);
+      const [hours, minutes] = nextMatchInfo.time.split(':').map(Number);
+      
+      targetDate.setHours(hours, minutes, 0, 0);
+      
+      if (!nextMatchInfo.isToday) {
+        targetDate.setDate(targetDate.getDate() + 1);
+      } else if (mskNow > targetDate) {
+        // If it's today but the time passed, it's for tomorrow (next day season)
+        targetDate.setDate(targetDate.getDate() + 1);
+      }
+
+      const diff = targetDate.getTime() - mskNow.getTime();
+      
+      if (diff <= 0) {
+        setCountdown('00:00:00');
+      } else {
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        setCountdown(
+          `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+        );
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [nextMatchInfo]);
+
   const unseenCount = useMemo(() => {
-    return matchHistory.filter(m => m.day > lastSeenMatchDay).length;
+    return matchHistory.filter(m => m.day > lastSeenMatchDay && m.type === 'league').length;
   }, [matchHistory, lastSeenMatchDay]);
 
   if (isUserLoading || !isLoaded || !user || isProfileLoading || isGroupLoading) {
@@ -118,6 +155,7 @@ export default function Home() {
       seasonEndedDesc: "The championship cycle is over. Final results are being calculated.",
       noOpponent: "No Active Opponents",
       noOpponentDesc: "The tactical link is clear. No scheduled engagements in this sector.",
+      startsIn: "DEPLOYMENT IN:",
       menu: [
         { label: 'Battle Simulation', desc: 'Deploy team for automated matches' },
         { label: 'Team Roster', desc: 'Manage your active hero lineup' },
@@ -149,6 +187,7 @@ export default function Home() {
       seasonEndedDesc: "Цикл чемпионата окончен. Идет подведение итоговых результатов.",
       noOpponent: "Нет активных соперников",
       noOpponentDesc: "Тактический канал чист. Запланированных встреч в данном секторе нет.",
+      startsIn: "РАЗВЕРТЫВАНИЕ ЧЕРЕЗ:",
       menu: [
         { label: 'Боевая Симуляция', desc: 'Развертывание команды для матча' },
         { label: 'Ростер Команды', desc: 'Управление активным составом' },
@@ -173,10 +212,6 @@ export default function Home() {
     { label: t.menu[2].label, href: '/rankings', icon: Trophy, desc: t.menu[2].desc, active: true },
     { label: t.menu[3].label, href: '/matches', icon: CalendarDays, desc: t.menu[3].desc, active: true },
     { label: t.menu[9].label, href: '/tournaments', icon: Medal, desc: t.menu[9].desc, active: true },
-    { label: t.menu[4].label, href: '#', icon: ShoppingCart, desc: t.menu[4].desc, active: false },
-    { label: t.menu[5].label, href: '#', icon: TrendingUp, desc: t.menu[5].desc, active: false },
-    { label: t.menu[6].label, href: '#', icon: Shield, desc: t.menu[6].desc, active: false },
-    { label: t.menu[7].label, href: '#', icon: Newspaper, desc: t.menu[7].desc, active: false },
     { label: t.menu[10].label, href: '/profile', icon: User, desc: t.menu[10].desc, active: true },
   ];
 
@@ -197,7 +232,10 @@ export default function Home() {
                 <Badge variant="outline" className="text-[10px] uppercase border-primary/50 text-primary flex items-center gap-1.5 py-1">
                   <Clock className="w-3 h-3" /> {nextMatchInfo.isToday ? t.today : t.tomorrow} {t.atTime} {nextMatchInfo.time}
                 </Badge>
-                <span className="text-[10px] font-bold text-muted-foreground uppercase">Day {nextMatchInfo.day}</span>
+                <div className="flex flex-col items-end">
+                  <span className="text-[8px] font-bold text-accent uppercase tracking-tighter mb-0.5">{t.startsIn}</span>
+                  <span className="text-xs font-mono font-bold text-primary tabular-nums">{countdown || '00:00:00'}</span>
+                </div>
               </div>
               <div className="p-6 flex flex-col items-center text-center">
                 <div className="relative mb-4">
@@ -216,7 +254,7 @@ export default function Home() {
                     {nextMatchInfo.opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'}
                   </Badge>
                   <div className="text-[10px] font-bold text-accent">
-                    DIV {leagueLevel}.{divisionSubId}
+                    DIV {leagueLevel}.{divisionSubId} | Day {nextMatchInfo.day}
                   </div>
                 </div>
               </div>
@@ -289,8 +327,8 @@ export default function Home() {
           {menuItems.map((item) => (
             <Link 
               key={item.label} 
-              href={item.active ? item.href : '#'} 
-              className={item.active ? 'block' : 'block cursor-not-allowed opacity-60'}
+              href={item.href} 
+              className='block'
             >
               <Card className="glass-card hover:bg-white/5 transition-colors border-white/5">
                 <CardContent className="p-4 flex items-center justify-between">
@@ -303,11 +341,7 @@ export default function Home() {
                       <p className="text-[10px] text-muted-foreground">{item.desc}</p>
                     </div>
                   </div>
-                  {item.active ? (
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                  ) : (
-                    <Badge variant="outline" className="text-[8px] uppercase">{t.locked}</Badge>
-                  )}
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 </CardContent>
               </Card>
             </Link>

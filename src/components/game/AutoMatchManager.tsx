@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -63,7 +64,7 @@ export function AutoMatchManager() {
     if (!groupPlayers || !user) return;
     
     // Skip if already in history
-    if (matchHistory.some(m => m.day === targetDay)) return;
+    if (matchHistory.some(m => m.day === targetDay && m.type === 'league')) return;
 
     setIsSimulating(true);
     
@@ -95,7 +96,6 @@ export function AutoMatchManager() {
       const opponent = todayMatch.home.id === user?.uid ? todayMatch.away : todayMatch.home;
       const [detScoreA, detScoreB] = getMatchResult(todayMatch.home.id, todayMatch.away.id, targetDay);
       
-      // We must pass the correct score to AI based on who is home/away
       const forcedScoreA = todayMatch.home.id === user.uid ? detScoreA : detScoreB;
       const forcedScoreB = todayMatch.away.id === user.uid ? detScoreA : detScoreB;
 
@@ -117,14 +117,13 @@ export function AutoMatchManager() {
         scoreB: forcedScoreB
       });
       
-      recordMatch(result.winner, result, targetDay, true);
+      recordMatch(result.winner, result, targetDay, opponent.name, 'league', true);
       
-      // We only show the dialog if it's the CURRENT day's match and user is online
       const league = LEAGUES.find(l => l.id === profile?.selectedLeagueId);
       const isActuallyToday = targetDay === seasonDay && isMatchDue(league?.startTime || '23:00', null);
 
       if (isActuallyToday) {
-        setCurrentResult({ ...result, day: targetDay });
+        setCurrentResult({ ...result, day: targetDay, opponentName: opponent.name });
         setShowResultDialog(true);
         toast({
           title: language === 'ru' ? "Матч лиги завершен!" : "League Match Completed!",

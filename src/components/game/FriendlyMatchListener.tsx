@@ -89,7 +89,7 @@ export function FriendlyMatchListener() {
         });
         
         // Save to local history for Host
-        recordMatch(result.winner, result, 0, false);
+        recordMatch(result.winner, result, 0, hostLobby.challengerName, 'friendly', false);
       } else {
         await updateDoc(lobbyRef, {
           status: 'rejected',
@@ -108,7 +108,7 @@ export function FriendlyMatchListener() {
     try {
       // If was accepted, record match for Challenger too
       if (challengeResult.status === 'accepted' && challengeResult.matchResult) {
-        recordMatch(challengeResult.matchResult.winner, challengeResult.matchResult, 0, false);
+        recordMatch(challengeResult.matchResult.winner, challengeResult.matchResult, 0, challengeResult.hostName, 'friendly', false);
       }
       await deleteDoc(doc(db, 'friendly_lobbies', challengeResult.id));
       setChallengeResult(null);

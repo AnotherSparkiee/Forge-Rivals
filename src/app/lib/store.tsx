@@ -61,13 +61,16 @@ interface MedicalState {
 }
 
 interface MatchResultEntry {
-  day: number;
+  day: number; // 0 for friendlies
+  type: 'league' | 'friendly';
+  opponentName: string;
   winner: string;
   scoreA: number;
   scoreB: number;
   matchSummary: string;
   teamStats: any;
   heroPerformance: any[];
+  playedAt: string;
 }
 
 interface GameState {
@@ -211,7 +214,7 @@ interface GameStateContextType extends GameState {
   startCapacityExpansion: (seats: number, cost: number, hours: number) => boolean;
   checkConstructions: () => void;
   setLanguage: (lang: 'en' | 'ru') => void;
-  recordMatch: (winner: string, result: any, matchDay: number, isAutomated?: boolean) => void;
+  recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: 'league' | 'friendly', isAutomated?: boolean) => void;
   markMatchAsSeen: (day: number) => void;
 }
 
@@ -239,7 +242,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Reset loading flag when user changes to ensure we wait for fresh Firestore data
     setIsLoaded(false);
 
     const key = getStorageKey();
@@ -292,8 +294,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
       setIsLoaded(true);
     }, (error) => {
-      // If we hit a permission error or similar, we should still mark as loaded
-      // to avoid infinite spinner on the login/register pages
       console.warn("Firestore sync error:", error.message);
       setIsLoaded(true); 
     });
@@ -519,7 +519,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const recordMatch = useCallback((winner: string, result: any, matchDay: number, isAutomated = false) => {
+  const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: 'league' | 'friendly', isAutomated = false) => {
     const scoreA = result.scoreA || 0;
     const scoreB = result.scoreB || 0;
     let creditsEarned = 50;
@@ -535,17 +535,20 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
 
     setState(s => {
-      // Avoid duplicate matches for the same day in history
-      if (s.matchHistory.some(m => m.day === matchDay)) return s;
+      // Avoid duplicate league matches for the same day in history
+      if (type === 'league' && s.matchHistory.some(m => m.day === matchDay && m.type === 'league')) return s;
 
       const matchEntry: MatchResultEntry = {
         day: matchDay,
+        type,
+        opponentName,
         winner,
         scoreA,
         scoreB,
         matchSummary: result.matchSummary,
         teamStats: result.teamStats,
-        heroPerformance: result.heroPerformance
+        heroPerformance: result.heroPerformance,
+        playedAt: new Date().toISOString()
       };
 
       const newState = {
@@ -556,7 +559,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         draws: s.draws + matchDraws,
         losses: s.losses + matchLosses,
         points: s.points + matchPoints,
-        matchHistory: [matchEntry, ...s.matchHistory].slice(0, 30),
+        matchHistory: [matchEntry, ...s.matchHistory].slice(0, 50),
         lastLeagueMatchDate: isAutomated ? getMoscowTime().toISOString().split('T')[0] : s.lastLeagueMatchDate
       };
 
