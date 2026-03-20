@@ -47,23 +47,23 @@ export function AutoMatchManager() {
   const { data: groupPlayers } = useCollection(groupQuery);
 
   useEffect(() => {
-    // 1. Check for missing matches since creation/last login
+    // Check for missing matches since creation/last login
     if (isLoaded && seasonDay > 0 && !isSimulating && !isUserLoading && profile?.selectedLeagueId && groupPlayers && user) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
       const matchTime = league?.startTime || '23:00';
       
-      // Look for any day from 1 to seasonDay that is not in history
       const catchUp = async () => {
+        // Iterate through all days up to current season day to find gaps in history
         for (let d = 1; d <= seasonDay; d++) {
           const alreadyPlayed = matchHistory.some(m => m.day === d && m.type === 'league');
           if (alreadyPlayed) continue;
 
-          // If it's today, check if it's due. If it's a previous day, it's definitely due.
+          // If it's a previous day, it's definitely due. If it's today, check if league time passed.
           const isDue = d < seasonDay || isMatchDue(matchTime, lastLeagueMatchDate);
           
           if (isDue) {
             await triggerAutoMatch(matchTime, d);
-            // Break to simulate only one at a time to prevent UI spam, will pick up on next effect run
+            // Simulate only one at a time per effect cycle to keep UI reactive
             break; 
           }
         }
@@ -73,7 +73,7 @@ export function AutoMatchManager() {
   }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, matchHistory, user]);
 
   const triggerAutoMatch = async (matchTime: string, targetDay: number) => {
-    if (!groupPlayers || !user) return;
+    if (!groupPlayers || !user || !profile) return;
     
     setIsSimulating(true);
     
@@ -83,40 +83,43 @@ export function AutoMatchManager() {
     });
 
     try {
-      // 1. Calculate deterministic result for the table
+      // 1. Calculate deterministic result for the table stability
       const groupTeams = getMockGroupTeams(
         rank, 
-        profile?.displayName || "My Team", 
+        profile.displayName || "My Team", 
         leagueLevel, 
         divisionSubId, 
         groupId, 
         true, 
         targetDay,
         undefined,
-        profile?.selectedLeagueId || "ALPHA",
+        profile.selectedLeagueId || "ALPHA",
         groupPlayers,
-        user?.uid
+        user.uid
       );
       const schedule = getSchedule(groupTeams);
-      const todayMatch = schedule[targetDay - 1]?.find((m: any) => m.home.id === user?.uid || m.away.id === user?.uid);
+      const todayMatch = schedule[targetDay - 1]?.find((m: any) => m.home.id === user.uid || m.away.id === user.uid);
       
-      if (!todayMatch) throw new Error("No match scheduled for today");
+      if (!todayMatch) throw new Error("No match scheduled for this day");
 
-      const opponent = todayMatch.home.id === user?.uid ? todayMatch.away : todayMatch.home;
+      const opponent = todayMatch.home.id === user.uid ? todayMatch.away : todayMatch.home;
+      const opponentName = opponent.name || "Unknown Team";
+      
       const [detScoreA, detScoreB] = getMatchResult(todayMatch.home.id, todayMatch.away.id, targetDay);
       
+      // Determine score for simulation (Score A is always the current user)
       const forcedScoreA = todayMatch.home.id === user.uid ? detScoreA : detScoreB;
       const forcedScoreB = todayMatch.away.id === user.uid ? detScoreA : detScoreB;
 
-      // 2. Simulate via AI with FORCED deterministic score
+      // 2. Simulate via AI with FORCED deterministic score to match table
       const result = await simulateMobaMatch({
         teamA: {
-          name: profile?.displayName || "My Team",
+          name: profile.displayName || "My Team",
           strategy: strategy,
           heroes: team
         },
         teamB: {
-          name: opponent.name,
+          name: opponentName,
           strategy: opponent.isPlayer ? "Manager Strategy" : "Standard Tactics",
           heroes: INITIAL_HEROES.map(h => ({ ...h, baseStats: { ...h.baseStats, attack: h.baseStats.attack + (opponent.isPlayer ? 5 : 2) } }))
         },
@@ -126,15 +129,16 @@ export function AutoMatchManager() {
         scoreB: forcedScoreB
       });
       
-      recordMatch(result.winner, result, targetDay, opponent.name, 'league', true);
+      // Explicitly pass the opponent name to recordMatch to avoid "Unknown" in history
+      recordMatch(result.winner, result, targetDay, opponentName, 'league', true);
       
-      // Only show dialog if it's the current active day
+      // Only show popup if it's the current active day (not catch-up from previous days)
       if (targetDay === seasonDay) {
-        setCurrentResult({ ...result, day: targetDay, opponentName: opponent.name });
+        setCurrentResult({ ...result, day: targetDay, opponentName: opponentName });
         setShowResultDialog(true);
         toast({
           title: language === 'ru' ? "Матч лиги завершен!" : "League Match Completed!",
-          description: `${profile?.displayName || "My Team"} ${result.scoreA}:${result.scoreB} ${opponent.name}`,
+          description: `${profile.displayName || "My Team"} ${result.scoreA}:${result.scoreB} ${opponentName}`,
         });
       }
     } catch (e) {

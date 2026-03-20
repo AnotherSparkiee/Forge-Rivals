@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -74,7 +73,7 @@ export function FriendlyMatchListener() {
         const result = await simulateMobaMatch({
           teamA: { name: hostLobby.hostName, strategy: strategy, heroes: team },
           teamB: { 
-            name: hostLobby.challengerName, 
+            name: hostLobby.challengerName || "Rival Manager", 
             strategy: "Aggressive Play", 
             heroes: INITIAL_HEROES.slice(0, 5) 
           },
@@ -88,8 +87,8 @@ export function FriendlyMatchListener() {
           updatedAt: serverTimestamp()
         });
         
-        // Save to local history for Host
-        recordMatch(result.winner, result, 0, hostLobby.challengerName, 'friendly', false);
+        // Save to local history for Host (The opponent is the challenger)
+        recordMatch(result.winner, result, 0, hostLobby.challengerName || "Rival Manager", 'friendly', false);
       } else {
         await updateDoc(lobbyRef, {
           status: 'rejected',
@@ -108,7 +107,18 @@ export function FriendlyMatchListener() {
     try {
       // If was accepted, record match for Challenger too
       if (challengeResult.status === 'accepted' && challengeResult.matchResult) {
-        recordMatch(challengeResult.matchResult.winner, challengeResult.matchResult, 0, challengeResult.hostName, 'friendly', false);
+        // For challenger, Team A in result is Host, Team B is Challenger
+        // We need to swap perspective for recordMatch if needed, but recordMatch currently assumes Team A is User
+        // Actually, simulateMobaMatch above puts Host as Team A. 
+        // So for challenger, we need to swap.
+        const userResult = {
+          ...challengeResult.matchResult,
+          scoreA: challengeResult.matchResult.scoreB,
+          scoreB: challengeResult.matchResult.scoreA,
+          winner: challengeResult.matchResult.winner === challengeResult.hostName ? challengeResult.hostName : (challengeResult.matchResult.winner === "Draw" ? "Draw" : challengeResult.challengerName)
+        };
+        
+        recordMatch(userResult.winner, userResult, 0, challengeResult.hostName || "Host Manager", 'friendly', false);
       }
       await deleteDoc(doc(db, 'friendly_lobbies', challengeResult.id));
       setChallengeResult(null);

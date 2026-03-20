@@ -190,7 +190,7 @@ export default function MatchesPage() {
     let aScore = 0;
 
     if (isPlayed) {
-      // Prioritize actual history for the player's team to ensure consistency with AI simulation
+      // Prioritize actual history for the player's team
       const historicalMatch = matchHistory.find(m => 
         m.day === day && 
         m.type === 'league' && 
@@ -201,13 +201,13 @@ export default function MatchesPage() {
         hScore = match.home.id === user.uid ? historicalMatch.scoreA : historicalMatch.scoreB;
         aScore = match.away.id === user.uid ? historicalMatch.scoreA : historicalMatch.scoreB;
       } else {
-        // Fallback to deterministic result for bot-only matches or missing records
+        // Fallback to deterministic result
         [hScore, aScore] = getMatchResult(match.home.id, match.away.id, day);
       }
     }
 
     return (
-      <div key={`${day}-${match.home.id}-${match.away.id}`} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
+      <div key={`match-${day}-${match.home.id}-${match.away.id}`} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
         <div className="flex flex-col items-center w-12 flex-shrink-0 border-r border-white/5 pr-2">
           <span className="text-[10px] font-mono font-bold text-accent">{matchDate}</span>
           <span className="text-[8px] uppercase font-bold text-muted-foreground">{t.day} {day}</span>
@@ -249,7 +249,8 @@ export default function MatchesPage() {
       if (match.playedAt) {
         const d = new Date(match.playedAt);
         if (!isNaN(d.getTime())) {
-          dateStr = d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+          dateStr = d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) + 
+                    " " + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
         }
       }
     } catch (e) {
@@ -257,9 +258,9 @@ export default function MatchesPage() {
     }
 
     return (
-      <div key={`${match.playedAt || 'match'}-${index}`} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
-        <div className="flex flex-col items-center w-12 flex-shrink-0 border-r border-white/5 pr-2">
-          <span className="text-[10px] font-mono font-bold text-accent">{dateStr}</span>
+      <div key={`history-${match.playedAt || 'match'}-${index}`} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
+        <div className="flex flex-col items-center w-16 flex-shrink-0 border-r border-white/5 pr-2">
+          <span className="text-[10px] font-mono font-bold text-accent whitespace-nowrap">{dateStr}</span>
           <span className="text-[7px] uppercase font-black text-muted-foreground text-center leading-none mt-1">
             {match.type === 'league' ? `DAY ${match.day}` : 'FRIENDLY'}
           </span>
@@ -381,7 +382,7 @@ export default function MatchesPage() {
         return (
           <div className="space-y-8 animate-in fade-in duration-500">
             {schedule.map((dayMatches: any, dIdx: number) => (
-              <div key={dIdx} className="space-y-3">
+              <div key={`calendar-${dIdx}`} className="space-y-3">
                 <div className="flex items-center gap-2 px-1">
                   <span className="text-[10px] uppercase font-bold tracking-widest text-accent font-mono flex items-center gap-2">
                     <Clock className="w-3 h-3" /> {getDateForDay(dIdx + 1)} @ {league.startTime}
@@ -407,7 +408,7 @@ export default function MatchesPage() {
             {allPlayed.map((dayMatches: any, dIdx: number) => {
               const actualDayIdx = endIdx - 1 - dIdx;
               return (
-                <div key={actualDayIdx} className="space-y-3">
+                <div key={`played-${actualDayIdx}`} className="space-y-3">
                   <div className="flex items-center gap-2 px-1">
                     <span className="text-[10px] uppercase font-bold tracking-widest text-accent font-mono">{getDateForDay(actualDayIdx + 1)} @ {league.startTime}</span>
                     <div className="h-px flex-1 bg-white/5"></div>

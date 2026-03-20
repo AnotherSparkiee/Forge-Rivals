@@ -260,8 +260,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             
             if (mskNow.getTime() >= start.getTime()) {
               const diffTime = mskNow.getTime() - start.getTime();
-              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-              currentDay = ((diffDays - 1) % 14) + 1;
+              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); // 0-indexed days
+              currentDay = (diffDays % 14) + 1; // Current match day
             }
           }
 
@@ -522,8 +522,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       creditsEarned = 200; rankChange = 25; matchWins = 1; matchPoints = 3;
     } else if (scoreA === 1 && scoreB === 1) {
       creditsEarned = 100; rankChange = 5; matchDraws = 1; matchPoints = 1;
-    } else {
+    } else if (scoreA === 0 && scoreB === 2) {
       matchLosses = 1;
+    } else if (scoreA > scoreB) { // for bo1 friendlies
+      creditsEarned = 150; matchWins = 1; rankChange = 10;
+    } else if (scoreA < scoreB) {
+      matchLosses = 1;
+    } else {
+      matchDraws = 1;
     }
 
     setState(s => {
