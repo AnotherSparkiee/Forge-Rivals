@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -146,7 +145,7 @@ export default function MatchesPage() {
       atTime: "at",
       today: "TODAY",
       tomorrow: "TOMORROW",
-      startsIn: "DEPLOYMENT IN:",
+      startsIn: "TIME UNTIL MATCH:",
       tabs: {
         next_opponent: { label: "Next Opponent", desc: "Detailed brief on your next rival", icon: UserSearch },
         my_future: { label: "My Future", desc: "Upcoming matches for your team", icon: CalendarClock },
@@ -169,7 +168,7 @@ export default function MatchesPage() {
       atTime: "в",
       today: "СЕГОДНЯ",
       tomorrow: "ЗАВТРА",
-      startsIn: "РАЗВЕРТЫВАНИЕ ЧЕРЕЗ:",
+      startsIn: "ДО МАТЧА ОСТАЛОСЬ:",
       tabs: {
         next_opponent: { label: "Следующий соперник", desc: "Досье на ближайшего врага", icon: UserSearch },
         my_future: { label: "Свои будущие", desc: "Предстоящие игры команды", icon: CalendarClock },
@@ -295,10 +294,10 @@ export default function MatchesPage() {
             <Card className="glass-card border-primary/20 bg-primary/5">
               <CardHeader className="text-center pb-2">
                 <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">Intelligence Report</CardTitle>
-                <div className="flex flex-col items-center gap-2 mt-2">
-                  <div className="bg-background/50 px-3 py-1 rounded border border-white/5">
-                    <p className="text-[8px] font-bold text-muted-foreground uppercase text-center mb-0.5">{t.startsIn}</p>
-                    <p className="text-sm font-mono font-bold text-primary tabular-nums">{countdown || '00:00:00'}</p>
+                <div className="flex flex-col items-center gap-2 mt-4">
+                  <div className="bg-background/50 px-6 py-2 rounded-xl border border-white/5">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase text-center mb-1">{t.startsIn}</p>
+                    <p className="text-3xl font-headline font-bold text-primary tabular-nums tracking-tighter">{countdown || '00:00:00'}</p>
                   </div>
                 </div>
               </CardHeader>

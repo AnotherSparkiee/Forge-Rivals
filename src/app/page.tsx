@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -155,7 +154,7 @@ export default function Home() {
       seasonEndedDesc: "The championship cycle is over. Final results are being calculated.",
       noOpponent: "No Active Opponents",
       noOpponentDesc: "The tactical link is clear. No scheduled engagements in this sector.",
-      startsIn: "DEPLOYMENT IN:",
+      startsIn: "TIME UNTIL MATCH:",
       menu: [
         { label: 'Battle Simulation', desc: 'Deploy team for automated matches' },
         { label: 'Team Roster', desc: 'Manage your active hero lineup' },
@@ -187,7 +186,7 @@ export default function Home() {
       seasonEndedDesc: "Цикл чемпионата окончен. Идет подведение итоговых результатов.",
       noOpponent: "Нет активных соперников",
       noOpponentDesc: "Тактический канал чист. Запланированных встреч в данном секторе нет.",
-      startsIn: "РАЗВЕРТЫВАНИЕ ЧЕРЕЗ:",
+      startsIn: "ДО МАТЧА ОСТАЛОСЬ:",
       menu: [
         { label: 'Боевая Симуляция', desc: 'Развертывание команды для матча' },
         { label: 'Ростер Команды', desc: 'Управление активным составом' },
@@ -230,8 +229,8 @@ export default function Home() {
             <CardContent className="p-0">
               <div className="p-4 border-b border-white/5 flex items-center justify-center">
                 <div className="flex flex-col items-center">
-                  <span className="text-[8px] font-bold text-accent uppercase tracking-tighter mb-0.5">{t.startsIn}</span>
-                  <span className="text-xs font-mono font-bold text-primary tabular-nums">{countdown || '00:00:00'}</span>
+                  <span className="text-[10px] font-bold text-accent uppercase tracking-tighter mb-1">{t.startsIn}</span>
+                  <span className="text-3xl font-headline font-bold text-primary tabular-nums tracking-tighter">{countdown || '00:00:00'}</span>
                 </div>
               </div>
               <div className="p-6 flex flex-col items-center text-center">
