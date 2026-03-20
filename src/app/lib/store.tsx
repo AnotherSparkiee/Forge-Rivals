@@ -59,7 +59,8 @@ interface MedicalState {
   constructionStarts: Record<string, string | null>;
 }
 
-interface MatchResultEntry {
+export interface MatchResultEntry {
+  id: string; // Unique ID for viewing the match report
   day: number; // 0 for friendlies
   type: 'league' | 'friendly';
   opponentName: string;
@@ -536,7 +537,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       // Avoid duplicate league matches for the same day in history
       if (type === 'league' && s.matchHistory.some(m => m.day === matchDay && m.type === 'league')) return s;
 
+      const matchId = `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
       const matchEntry: MatchResultEntry = {
+        id: matchId,
         day: matchDay,
         type,
         opponentName: opponentName || "Unknown Team",

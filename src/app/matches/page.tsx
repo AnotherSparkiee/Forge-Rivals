@@ -258,33 +258,38 @@ export default function MatchesPage() {
     }
 
     return (
-      <div key={`history-${match.playedAt || 'match'}-${index}`} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
-        <div className="flex flex-col items-center w-16 flex-shrink-0 border-r border-white/5 pr-2">
-          <span className="text-[10px] font-mono font-bold text-accent whitespace-nowrap">{dateStr}</span>
-          <span className="text-[7px] uppercase font-black text-muted-foreground text-center leading-none mt-1">
-            {match.type === 'league' ? `DAY ${match.day}` : 'FRIENDLY'}
-          </span>
-        </div>
-        <div className="flex-1 flex items-center justify-between gap-1 min-w-0">
-          <div className="flex-1 text-right text-[10px] font-bold uppercase truncate text-primary">
-            {profile?.displayName || 'My Team'}
+      <Link key={`history-${match.id}-${index}`} href={`/match?id=${match.id}`} className="block group">
+        <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3 group-hover:bg-white/5 transition-colors">
+          <div className="flex flex-col items-center w-16 flex-shrink-0 border-r border-white/5 pr-2">
+            <span className="text-[10px] font-mono font-bold text-accent whitespace-nowrap">{dateStr}</span>
+            <span className="text-[7px] uppercase font-black text-muted-foreground text-center leading-none mt-1">
+              {match.type === 'league' ? `DAY ${match.day}` : 'FRIENDLY'}
+            </span>
           </div>
-          <div className="flex flex-col items-center px-4">
-            <div className="flex items-center gap-1.5">
-              <span className={cn("text-base font-headline font-bold", isWin ? "text-primary" : isDraw ? "text-accent" : "text-destructive")}>
-                {match.scoreA}
-              </span>
-              <span className="text-muted-foreground text-[10px]">:</span>
-              <span className={cn("text-base font-headline font-bold")}>
-                {match.scoreB}
-              </span>
+          <div className="flex-1 flex items-center justify-between gap-1 min-w-0 px-2">
+            <div className="flex-1 text-right text-[10px] font-bold uppercase truncate text-primary">
+              {profile?.displayName || 'My Team'}
+            </div>
+            <div className="flex flex-col items-center px-4">
+              <div className="flex items-center gap-1.5">
+                <span className={cn("text-base font-headline font-bold", isWin ? "text-primary" : isDraw ? "text-accent" : "text-destructive")}>
+                  {match.scoreA}
+                </span>
+                <span className="text-muted-foreground text-[10px]">:</span>
+                <span className={cn("text-base font-headline font-bold")}>
+                  {match.scoreB}
+                </span>
+              </div>
+            </div>
+            <div className="flex-1 text-left text-[10px] font-bold uppercase truncate">
+              {match.opponentName || 'Unknown Team'}
             </div>
           </div>
-          <div className="flex-1 text-left text-[10px] font-bold uppercase truncate">
-            {match.opponentName || 'Unknown Team'}
+          <div className="flex-shrink-0">
+            <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
           </div>
         </div>
-      </div>
+      </Link>
     );
   };
 

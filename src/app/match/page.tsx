@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@/firebase';
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
@@ -12,10 +12,13 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-export default function MatchPage() {
+function MatchContent() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { language, isLoaded, lastSeenMatchDay, markMatchAsSeen, matchHistory } = useGameState();
+
+  const matchId = searchParams.get('id');
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -23,31 +26,34 @@ export default function MatchPage() {
     }
   }, [user, isUserLoading, router]);
 
-  // Find the oldest unseen match in history
-  const oldestUnseenMatch = useMemo(() => {
+  // If a specific match ID is provided, find it in history.
+  // Otherwise, find the oldest unseen match.
+  const currentResult = useMemo(() => {
+    if (matchId) {
+      return matchHistory.find(m => m.id === matchId) || null;
+    }
     return [...matchHistory]
       .filter(m => m.day > lastSeenMatchDay)
-      .sort((a, b) => a.day - b.day)[0];
-  }, [matchHistory, lastSeenMatchDay]);
+      .sort((a, b) => a.day - b.day)[0] || (matchHistory.length > 0 ? matchHistory[0] : null);
+  }, [matchHistory, lastSeenMatchDay, matchId]);
 
-  // Show oldest unseen, or if none, show the very latest from history
-  const currentResult = oldestUnseenMatch || (matchHistory.length > 0 ? matchHistory[0] : null);
+  const isHistoricalViewing = !!matchId;
 
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
 
   const handleAcknowledgeMatch = () => {
-    if (oldestUnseenMatch) {
-      markMatchAsSeen(oldestUnseenMatch.day);
+    if (currentResult && !isHistoricalViewing) {
+      markMatchAsSeen(currentResult.day);
     }
   };
 
   const labels = {
     en: {
-      title: "MATCH REVIEW",
-      subtitle: "Tactical match analytics",
-      lastReport: oldestUnseenMatch ? "PENDING TRANSMISSION" : "LATEST MATCH REPORT",
+      title: isHistoricalViewing ? "MATCH REPLAY" : "MATCH REVIEW",
+      subtitle: isHistoricalViewing ? "Historical data retrieval" : "Tactical match analytics",
+      lastReport: isHistoricalViewing ? "ARCHIVED RECORD" : (currentResult && currentResult.day > lastSeenMatchDay ? "PENDING TRANSMISSION" : "LATEST MATCH REPORT"),
       noHistory: "No match reports found.",
       noHistoryDesc: "Synchronize with league server to receive tactical data.",
       summary: "Match Summary",
@@ -56,12 +62,13 @@ export default function MatchPage() {
       defeat: "DEFEAT",
       return: "RETURN TO HUB",
       nextReport: "VIEW NEXT REPORT",
-      viewAll: "ALL REPORTS VIEWED"
+      viewAll: "ALL REPORTS VIEWED",
+      closeReplay: "CLOSE REPLAY"
     },
     ru: {
-      title: "ОБЗОР МАТЧЕЙ",
-      subtitle: "Тактическая аналитика игр",
-      lastReport: oldestUnseenMatch ? "ОЖИДАЮЩАЯ ПЕРЕДАЧА" : "ОТЧЕТ ПОСЛЕДНЕГО МАТЧА",
+      title: isHistoricalViewing ? "ПЕРЕСМОТР МАТЧА" : "ОБЗОР МАТЧЕЙ",
+      subtitle: isHistoricalViewing ? "Просмотр архивных данных" : "Тактическая аналитика игр",
+      lastReport: isHistoricalViewing ? "АРХИВНАЯ ЗАПИСЬ" : (currentResult && currentResult.day > lastSeenMatchDay ? "ОЖИДАЮЩАЯ ПЕРЕДАЧА" : "ОТЧЕТ ПОСЛЕДНЕГО МАТЧА"),
       noHistory: "Отчеты не найдены.",
       noHistoryDesc: "Дождитесь синхронизации с сервером лиги для получения данных.",
       summary: "Обзор матча",
@@ -70,7 +77,8 @@ export default function MatchPage() {
       defeat: "ПОРАЖЕНИЕ",
       return: "В ГЛАВНЫЙ ХАБ",
       nextReport: "СЛЕДУЮЩИЙ ОТЧЕТ",
-      viewAll: "ВСЕ ОТЧЕТЫ ПРОСМОТРЕНЫ"
+      viewAll: "ВСЕ ОТЧЕТЫ ПРОСМОТРЕНЫ",
+      closeReplay: "ЗАКРЫТЬ ПОВТОР"
     }
   };
 
@@ -79,7 +87,7 @@ export default function MatchPage() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-12">
       <header className="mb-6 flex items-center gap-4">
-        <Link href="/">
+        <Link href={isHistoricalViewing ? "/matches" : "/"}>
           <Button variant="ghost" size="icon" className="rounded-full">
             <ChevronLeft className="w-6 h-6" />
           </Button>
@@ -115,14 +123,21 @@ export default function MatchPage() {
             <div className="flex flex-col">
               <h2 className={cn(
                 "text-xs font-bold uppercase tracking-widest flex items-center gap-2",
-                oldestUnseenMatch ? "text-red-400" : "text-accent"
+                !isHistoricalViewing && currentResult.day > lastSeenMatchDay ? "text-red-400" : "text-accent"
               )}>
                 <CalendarClock className="w-4 h-4" /> {t.lastReport}
               </h2>
               <p className="text-[8px] text-muted-foreground uppercase font-bold mt-1">
-                {language === 'ru' ? `День сезона: ${currentResult.day}` : `Season Day: ${currentResult.day}`}
+                {currentResult.type === 'friendly' ? 
+                  (language === 'ru' ? 'ТОВАРИЩЕСКИЙ МАТЧ' : 'FRIENDLY MATCH') : 
+                  (language === 'ru' ? `День сезона: ${currentResult.day}` : `Season Day: ${currentResult.day}`)}
               </p>
             </div>
+            {isHistoricalViewing && (
+              <Badge variant="outline" className="text-[8px] border-accent/20 text-accent font-mono">
+                ID: {currentResult.id.slice(-8).toUpperCase()}
+              </Badge>
+            )}
           </div>
 
           <div className={cn(
@@ -170,27 +185,43 @@ export default function MatchPage() {
           </div>
 
           <div className="space-y-3">
-            {oldestUnseenMatch ? (
+            {!isHistoricalViewing && currentResult.day > lastSeenMatchDay ? (
               <Button 
                 onClick={handleAcknowledgeMatch}
                 className="w-full h-14 hero-gradient font-bold uppercase text-sm tracking-widest shadow-lg"
               >
                 {t.nextReport}
               </Button>
+            ) : isHistoricalViewing ? (
+              <Link href="/matches">
+                <Button className="w-full h-14 hero-gradient font-bold uppercase text-sm tracking-widest shadow-lg">
+                  {t.closeReplay}
+                </Button>
+              </Link>
             ) : (
               <div className="p-4 bg-primary/5 rounded-lg border border-primary/20 text-center mb-2">
                 <span className="text-[10px] font-bold text-primary uppercase tracking-widest">{t.viewAll}</span>
               </div>
             )}
             
-            <Link href="/">
-              <Button variant="outline" className="w-full text-[10px] font-bold uppercase border-white/5 h-10">
-                {t.return}
-              </Button>
-            </Link>
+            {!isHistoricalViewing && (
+              <Link href="/">
+                <Button variant="outline" className="w-full text-[10px] font-bold uppercase border-white/5 h-10">
+                  {t.return}
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+export default function MatchPage() {
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <MatchContent />
+    </Suspense>
   );
 }
