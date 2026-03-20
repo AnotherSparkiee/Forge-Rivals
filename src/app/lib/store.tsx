@@ -255,14 +255,20 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           
           let currentDay = 0;
           if (startDateStr) {
-            const start = new Date(startDateStr);
-            start.setHours(0, 0, 0, 0);
+            // Robust Moscow calendar day calculation
             const mskNow = getMoscowTime();
+            const [year, month, day] = startDateStr.split('-').map(Number);
             
-            if (mskNow.getTime() >= start.getTime()) {
-              const diffTime = mskNow.getTime() - start.getTime();
-              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); // 0-indexed days
-              currentDay = (diffDays % 14) + 1; // Current match day
+            // Create a midnight date objects for comparison
+            const mskTodayMidnight = new Date(mskNow.getFullYear(), mskNow.getMonth(), mskNow.getDate());
+            const mskStartMidnight = new Date(year, month - 1, day);
+            
+            // Difference in calendar days
+            const diffTime = mskTodayMidnight.getTime() - mskStartMidnight.getTime();
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays >= 0) {
+              currentDay = (diffDays % 14) + 1; // Current match day (1-14)
             }
           }
 

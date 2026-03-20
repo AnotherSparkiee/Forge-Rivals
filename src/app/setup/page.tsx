@@ -12,6 +12,7 @@ import { Loader2, Clock, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useGameState } from '@/app/lib/store';
+import { getMoscowDateString } from '@/app/lib/time-utils';
 
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
@@ -79,6 +80,8 @@ export default function SetupPage() {
       const profileRef = doc(db, 'players_v2', user.uid);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       
+      const mskTodayStr = getMoscowDateString();
+
       const updateData = {
         id: user.uid,
         selectedLeagueId: selectedLeagueId,
@@ -91,7 +94,7 @@ export default function SetupPage() {
         losses: Number(inheritedStats.losses),
         points: Number(inheritedStats.points),
         setupDate: new Date().toISOString(),
-        seasonStartDate: new Date().toISOString().split('T')[0] // Set start date to today upon setup
+        seasonStartDate: mskTodayStr // Start season from registration day according to Moscow
       };
       
       await setDoc(profileRef, updateData, { merge: true });

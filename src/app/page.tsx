@@ -60,6 +60,8 @@ export default function Home() {
   const nextMatchInfo = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return null;
     
+    // Logic: if today is already simulated, show next day. 
+    // If today hasn't been simulated, show today's opponent even if it's past league time.
     const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
     if (targetDay > 14) return null;
 
@@ -104,11 +106,13 @@ export default function Home() {
       
       targetDate.setHours(hours, minutes, 0, 0);
       
+      // If the target match is Day N+1, it's definitely tomorrow
       if (!nextMatchInfo.isToday) {
         targetDate.setDate(targetDate.getDate() + 1);
       } else if (mskNow > targetDate) {
-        // If it's today but the time passed, it's for tomorrow (next day season)
-        targetDate.setDate(targetDate.getDate() + 1);
+        // If it's today but the time passed, and we are showing today's match (because it wasn't played),
+        // the countdown should probably be 00:00:00 or show "Window Open".
+        // But for consistency, let's just show 00:00:00 until simulation happens.
       }
 
       const diff = targetDate.getTime() - mskNow.getTime();

@@ -70,6 +70,7 @@ export default function MatchesPage() {
 
   const groupTeams = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return [];
+    // Important: for rankings and general table, we show results including today if played
     const calculationDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
     return getMockGroupTeams(
       rank, 
@@ -100,7 +101,9 @@ export default function MatchesPage() {
       const [hours, minutes] = league.startTime.split(':').map(Number);
       targetDate.setHours(hours, minutes, 0, 0);
 
-      if (isTodayPlayed || mskNow > targetDate) {
+      const targetDayIsToday = !isTodayPlayed;
+
+      if (!targetDayIsToday) {
         targetDate.setDate(targetDate.getDate() + 1);
       }
 
