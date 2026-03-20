@@ -228,11 +228,8 @@ export default function Home() {
         {nextMatchInfo ? (
           <Card className="glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden">
             <CardContent className="p-0">
-              <div className="p-4 border-b border-white/5 flex items-center justify-between">
-                <Badge variant="outline" className="text-[10px] uppercase border-primary/50 text-primary flex items-center gap-1.5 py-1">
-                  <Clock className="w-3 h-3" /> {nextMatchInfo.isToday ? t.today : t.tomorrow} {t.atTime} {nextMatchInfo.time}
-                </Badge>
-                <div className="flex flex-col items-end">
+              <div className="p-4 border-b border-white/5 flex items-center justify-center">
+                <div className="flex flex-col items-center">
                   <span className="text-[8px] font-bold text-accent uppercase tracking-tighter mb-0.5">{t.startsIn}</span>
                   <span className="text-xs font-mono font-bold text-primary tabular-nums">{countdown || '00:00:00'}</span>
                 </div>

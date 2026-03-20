@@ -289,7 +289,6 @@ export default function MatchesPage() {
         const opponent = myMatch.home.id === user?.uid ? myMatch.away : myMatch.home;
         const startHour = league.startTime;
         const matchDate = getDateForDay(targetDay);
-        const isTargetToday = targetDay === seasonDay;
         
         return (
           <div className="space-y-6 animate-in fade-in duration-500">
@@ -297,9 +296,6 @@ export default function MatchesPage() {
               <CardHeader className="text-center pb-2">
                 <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">Intelligence Report</CardTitle>
                 <div className="flex flex-col items-center gap-2 mt-2">
-                  <Badge variant="outline" className="text-[10px] uppercase border-primary/50 text-primary flex items-center gap-1.5 py-1">
-                    <Clock className="w-3 h-3" /> {isTargetToday ? t.today : t.tomorrow} {t.atTime} {startHour}
-                  </Badge>
                   <div className="bg-background/50 px-3 py-1 rounded border border-white/5">
                     <p className="text-[8px] font-bold text-muted-foreground uppercase text-center mb-0.5">{t.startsIn}</p>
                     <p className="text-sm font-mono font-bold text-primary tabular-nums">{countdown || '00:00:00'}</p>
