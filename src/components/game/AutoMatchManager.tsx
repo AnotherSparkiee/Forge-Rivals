@@ -130,8 +130,8 @@ export function AutoMatchManager() {
             ...h, 
             baseStats: { 
               ...h.baseStats, 
-              attack: h.baseStats.attack + (opponent.isPlayer ? 15 : 8),
-              health: h.baseStats.health + (opponent.isPlayer ? 100 : 50)
+              attack: h.baseStats.attack + (opponent.isPlayer ? 20 : 12),
+              health: h.baseStats.health + (opponent.isPlayer ? 150 : 80)
             } 
           }))
         },

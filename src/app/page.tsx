@@ -60,8 +60,6 @@ export default function Home() {
   const nextMatchInfo = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return null;
     
-    // Logic: if today is already simulated, show next day. 
-    // If today hasn't been simulated, show today's opponent.
     const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
     if (targetDay > 14) return null;
 
@@ -106,11 +104,8 @@ export default function Home() {
       
       targetDate.setHours(hours, minutes, 0, 0);
       
-      // If we already passed the match time today, the countdown targets tomorrow's version of that time
-      if (mskNow.getTime() >= targetDate.getTime()) {
-        targetDate.setDate(targetDate.getDate() + 1);
-      } else if (!nextMatchInfo.isToday) {
-        // If the match info already flagged it as a future day, ensure we add 1 day
+      // If today is already played, we target tomorrow at the same league time
+      if (isTodayPlayed) {
         targetDate.setDate(targetDate.getDate() + 1);
       }
 
@@ -123,19 +118,14 @@ export default function Home() {
         const m = Math.floor((diff % 3600000) / 60000);
         const s = Math.floor((diff % 60000) / 1000);
         
-        // Ensure we never show > 24 hours for a daily match
-        const displayHours = h >= 24 ? 23 : h;
-        const displayMins = h >= 24 ? 59 : m;
-        const displaySecs = h >= 24 ? 59 : s;
-
         setCountdown(
-          `${String(displayHours).padStart(2, '0')}:${String(displayMins).padStart(2, '0')}:${String(displaySecs).padStart(2, '0')}`
+          `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
         );
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [nextMatchInfo]);
+  }, [nextMatchInfo, isTodayPlayed]);
 
   const unseenCount = useMemo(() => {
     return matchHistory.filter(m => m.day > lastSeenMatchDay && m.type === 'league').length;
