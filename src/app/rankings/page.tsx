@@ -4,21 +4,19 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
-  Trophy, Medal, Star, ChevronLeft, ArrowUpCircle, 
-  Users, Target, Shield, Zap, Swords, ChevronRight,
-  LayoutDashboard, TrendingUp, Award, Loader2, Clock,
-  ArrowLeft, Calendar
+  Trophy, Medal, ChevronLeft, Award, 
+  Users, Shield, Star, Swords, ChevronRight,
+  LayoutDashboard, Loader2, Clock, Calendar
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
-import { getMockGroupTeams, SEASON_DURATION_DAYS, LEAGUES } from '../lib/leagues-data';
+import { getMockGroupTeams, LEAGUES } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { getMoscowTime, formatMoscowTime, getMoscowDateString } from '../lib/time-utils';
+import { getMoscowDateString } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 type RankingTab = 
@@ -28,21 +26,16 @@ type RankingTab =
   | 'masters_cup' 
   | 'my_pyramid' 
   | 'pyramid_cup' 
-  | 'friendly' 
-  | 'pyramids_list' 
-  | 'pyramids_rating' 
-  | 'kda_leaders';
+  | 'friendly';
 
 export default function RankingsPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { 
     rank, leagueLevel, divisionSubId, groupId, isLoaded, language, 
-    lastLeagueMatchDate, seasonDay, seasonStartDate,
-    wins, draws, losses, points
+    lastLeagueMatchDate, seasonDay
   } = useGameState();
   const db = useFirestore();
-  const { toast } = useToast();
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
 
@@ -78,24 +71,27 @@ export default function RankingsPage() {
 
   const myLeagueRankings = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return [];
-    // If Day 0, show initial bot standings
-    const calculationDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
+    
+    // IMPORTANT: Table shows results only for completed matches.
+    // If today is Day 3 and player HAS NOT played today -> show up to Day 2.
+    // If today is Day 3 and player HAS played today -> show up to Day 3.
+    const completedDays = isTodayPlayed ? seasonDay : seasonDay - 1;
+    
     const teams = getMockGroupTeams(
       rank, 
       profile.displayName || "My Team", 
       leagueLevel, 
       divisionSubId, 
       groupId, 
-      true, 
-      calculationDay,
-      { wins, draws, losses, points },
       profile.selectedLeagueId || "ALPHA",
       groupPlayers,
-      user?.uid
+      user?.uid,
+      Math.max(0, completedDays)
     );
-    // Sort for display by points and wins
+    
+    // Sort for display by points then wins
     return [...teams].sort((a, b) => b.points - a.points || (b.wins - a.wins));
-  }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, wins, draws, losses, points, isTodayPlayed, rank, user?.uid]);
+  }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, isTodayPlayed, rank, user?.uid]);
 
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
@@ -106,19 +102,15 @@ export default function RankingsPage() {
       title: "TOURNAMENT TABLES",
       subtitle: "Pyramid Hierarchy",
       menuTitle: "Tournament Terminals",
-      promote: "Promote",
       matchStatus: "League Status",
       waiting: "Waiting for " + league.startTime,
       completed: "Match completed",
       upcoming: "Season starts tomorrow",
       div_label: "Division",
-      level_label: "Level",
       season_label: "Season Day",
       current_season: "Active Season",
       season_value: "Season 1",
       bo2_format: `Bo2 Format (${league.startTime} daily)`,
-      startsToday: `Starts TODAY ${league.startTime}`,
-      tiers: ["Elite Tier", "Professional Tier", "Challenger Tier"],
       tabs: {
         my_league: { label: "My League", desc: "Current group rankings", icon: Trophy },
         champions_cup: { label: "Champions Cup", desc: "Top tier elite", icon: Award },
@@ -132,19 +124,15 @@ export default function RankingsPage() {
       title: "ТУРНИРНЫЕ ТАБЛИЦЫ",
       subtitle: "Иерархия Пирамиды",
       menuTitle: "Турнирные Терминалы",
-      promote: "Повышить",
       matchStatus: "Статус лиги",
       waiting: "Ожидание " + league.startTime,
       completed: "Матч завершен",
       upcoming: "Сезон начнется завтра",
       div_label: "Дивизион",
-      level_label: "Уровень",
       season_label: "День сезона",
       current_season: "Текущий сезон",
       season_value: "Сезон 1",
       bo2_format: `Формат Bo2 (Ежедневно ${league.startTime})`,
-      startsToday: `Старт СЕГОДНЯ в ${league.startTime}`,
-      tiers: ["Элитный уровень", "Профессиональный уровень", "Претендентский уровень"],
       tabs: {
         my_league: { label: "Своя лига", desc: "Рейтинг вашей группы", icon: Trophy },
         champions_cup: { label: "Кубок чемпионов", desc: "Элитный турнир", icon: Award },

@@ -6,7 +6,7 @@ import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, CalendarDays, UserSearch, CalendarClock, 
   History, Calendar, CheckSquare, ChevronRight, Shield,
-  Loader2, Clock, Swords
+  Clock, Swords
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,7 @@ export default function MatchesPage() {
   const router = useRouter();
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, seasonDay, rank, 
-    wins, draws, losses, points, lastLeagueMatchDate, matchHistory, seasonStartDate
+    lastLeagueMatchDate, matchHistory, seasonStartDate
   } = useGameState();
   const db = useFirestore();
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
@@ -77,22 +77,20 @@ export default function MatchesPage() {
 
   const groupTeams = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return [];
-    // Important: for rankings and general table, we show results including today if played
-    const calculationDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
+    // Standings show ONLY completed matches.
+    const completedDays = isTodayPlayed ? seasonDay : seasonDay - 1;
     return getMockGroupTeams(
       rank, 
       profile.displayName || "My Team", 
       leagueLevel, 
       divisionSubId, 
       groupId, 
-      true, 
-      calculationDay,
-      { wins, draws, losses, points },
       profile.selectedLeagueId || "ALPHA",
       groupPlayers,
-      user?.uid
+      user?.uid,
+      Math.max(0, completedDays)
     );
-  }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, rank, wins, draws, losses, points, isTodayPlayed, user?.uid]);
+  }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, rank, isTodayPlayed, user?.uid]);
 
   const schedule = useMemo(() => {
     if (groupTeams.length === 0) return [];
@@ -102,6 +100,8 @@ export default function MatchesPage() {
   const nextMatchInfo = useMemo(() => {
     if (!isLoaded || !profile || !groupTeams.length || !schedule.length) return null;
     
+    // If not played today AND time hasn't passed -> next is Today.
+    // Otherwise -> next is Tomorrow.
     const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed || isPastMatchTimeToday ? seasonDay + 1 : seasonDay);
     if (targetDay > 14) return null;
 
@@ -178,7 +178,6 @@ export default function MatchesPage() {
       matchTime: "Deployment Window",
       startTime: "Start Time",
       noData: "No records found for this sector.",
-      atTime: "at",
       today: "TODAY",
       tomorrow: "TOMORROW",
       startsIn: "TIME UNTIL MATCH:",
@@ -201,7 +200,6 @@ export default function MatchesPage() {
       matchTime: "Окно развертывания",
       startTime: "Начало",
       noData: "Записей в данном секторе не обнаружено.",
-      atTime: "в",
       today: "СЕГОДНЯ",
       tomorrow: "ЗАВТРА",
       startsIn: "ДО МАТЧА ОСТАЛОСЬ:",
@@ -227,7 +225,6 @@ export default function MatchesPage() {
     let aScore = 0;
 
     if (isPlayed) {
-      // Prioritize actual history for the player's team
       const historicalMatch = matchHistory.find(m => 
         m.day === day && 
         m.type === 'league' && 
@@ -238,7 +235,6 @@ export default function MatchesPage() {
         hScore = match.home.id === user.uid ? historicalMatch.scoreA : historicalMatch.scoreB;
         aScore = match.away.id === user.uid ? historicalMatch.scoreA : historicalMatch.scoreB;
       } else {
-        // Fallback to deterministic result
         [hScore, aScore] = getMatchResult(match.home.id, match.away.id, day);
       }
     }
@@ -396,7 +392,11 @@ export default function MatchesPage() {
 
         return (
           <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-500">
-            {futureMatches.map(item => renderMatchRow(item.match, item.dayIdx))}
+            {futureMatches.length > 0 ? (
+              futureMatches.map(item => renderMatchRow(item.match, item.dayIdx))
+            ) : (
+              <p className="text-center py-10 text-muted-foreground uppercase text-xs">No upcoming matches</p>
+            )}
           </div>
         );
       }

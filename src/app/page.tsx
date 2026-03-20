@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -6,10 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { useGameState } from './lib/store';
 import { 
-  Swords, Users, Trophy, TrendingUp, 
-  ShoppingCart, Newspaper, Shield, Star, 
-  ChevronRight, CalendarDays, Zap, Clock,
-  UserSearch, ShieldAlert, Medal, User
+  Users, Trophy, Zap, Clock,
+  UserSearch, ShieldAlert, Medal, User, Swords, ChevronRight
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -68,9 +65,8 @@ export default function Home() {
     // Check if current time is past match window today
     const isPastMatchTimeToday = mskNow.getHours() > matchH || (mskNow.getHours() === matchH && mskNow.getMinutes() >= (matchM || 0));
     
-    // Logic: 
-    // If we haven't played today AND it's not yet too late -> show TODAY
-    // If we HAVE played today OR it's past time -> show TOMORROW
+    // Logic: If not played today AND time hasn't passed -> target is Today.
+    // Otherwise -> target is Tomorrow.
     const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed || isPastMatchTimeToday ? seasonDay + 1 : seasonDay);
     if (targetDay > 14) return null;
 
@@ -80,12 +76,10 @@ export default function Home() {
       leagueLevel, 
       divisionSubId, 
       groupId, 
-      true, 
-      targetDay,
-      undefined,
       profile.selectedLeagueId || "ALPHA",
       groupPlayers,
-      user?.uid
+      user?.uid,
+      0 // Don't simulate for info
     );
     
     const schedule = getSchedule(groupTeams);
@@ -114,13 +108,13 @@ export default function Home() {
       const targetDate = new Date(mskNow);
       targetDate.setHours(hours, minutes, 0, 0);
       
-      // If we are looking at tomorrow's match, targetDate should be tomorrow
       if (nextMatchInfo.isNextDay) {
+        // If we are showing "Tomorrow", always add 1 day to current MSK time if we are already past match time today
         if (mskNow.getTime() >= targetDate.getTime()) {
           targetDate.setDate(targetDate.getDate() + 1);
         }
       } else {
-        // If we are looking at today's match but time passed, it should stay at 0 until played
+        // If showing "Today", if time passed -> 00:00:00 (Waiting for simulation)
         if (mskNow.getTime() >= targetDate.getTime()) {
           setCountdown('00:00:00');
           return;
@@ -142,7 +136,6 @@ export default function Home() {
   }, [nextMatchInfo]);
 
   const unseenCount = useMemo(() => {
-    // Count ALL league matches that haven't been acknowledged yet
     return matchHistory.filter(m => m.type === 'league' && m.day > lastSeenMatchDay).length;
   }, [matchHistory, lastSeenMatchDay]);
 
@@ -154,20 +147,17 @@ export default function Home() {
     en: {
       nextMatch: "Next Engagement",
       vs: "VS",
-      intelBrief: "Tactical Brief",
       today: "TODAY",
       tomorrow: "TOMORROW",
-      atTime: "at",
       battleBtn: "MATCH REVIEW",
       navTitle: "Navigation Terminals",
-      locked: "Locked",
       preSeason: "Season Preparation",
       preSeasonDesc: "Calculating league brackets. First matches start tomorrow.",
       seasonEnded: "Season Finished",
       seasonEndedDesc: "The championship cycle is over. Final results are being calculated.",
       noOpponent: "No Active Opponents",
       noOpponentDesc: "The tactical link is clear. No scheduled engagements in this sector.",
-      startsIn: "DO МАТЧА ОСТАЛОСЬ:",
+      startsIn: "TIME UNTIL MATCH:",
       menu: [
         { label: 'Battle Simulation', desc: 'Deploy team for automated matches' },
         { label: 'Team Roster', desc: 'Manage your active hero lineup' },
@@ -185,13 +175,10 @@ export default function Home() {
     ru: {
       nextMatch: "Следующий матч",
       vs: "ПРОТИВ",
-      intelBrief: "Тактическое досье",
       today: "СЕГОДНЯ",
       tomorrow: "ЗАВТРА",
-      atTime: "в",
       battleBtn: "ОБЗОР МАТЧЕЙ",
       navTitle: "Тактические Терминалы",
-      locked: "Закрыто",
       preSeason: "Подготовка к сезону",
       preSeasonDesc: "Формирование дивизионов. Первые игры начнутся завтра.",
       seasonEnded: "Сезон завершен",
@@ -248,7 +235,7 @@ export default function Home() {
               <div className="p-6 flex flex-col items-center text-center">
                 <div className="relative mb-4">
                   <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 border-accent shadow-[0_0_20px_rgba(var(--accent),0.2)]">
-                    <Shield className="w-10 h-10 text-accent" />
+                    <User className="w-10 h-10 text-accent" />
                   </div>
                   <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1.5 border border-white/10">
                     <Swords className="w-4 h-4 text-primary" />
@@ -264,17 +251,6 @@ export default function Home() {
                   <div className="text-[10px] font-bold text-accent">
                     DIV {leagueLevel}.{divisionSubId} | Day {nextMatchInfo.day}
                   </div>
-                </div>
-              </div>
-              <div className="bg-primary/5 p-3 flex items-center justify-center gap-4 border-t border-white/5">
-                <div className="text-center">
-                  <p className="text-[8px] uppercase text-muted-foreground font-bold">W-D-L</p>
-                  <p className="text-xs font-bold">{nextMatchInfo.opponent.wins}-{nextMatchInfo.opponent.draws}-{nextMatchInfo.opponent.losses}</p>
-                </div>
-                <div className="h-6 w-px bg-white/5"></div>
-                <div className="text-center">
-                  <p className="text-[8px] uppercase text-muted-foreground font-bold">Points</p>
-                  <p className="text-xs font-bold text-accent">{nextMatchInfo.opponent.points}</p>
                 </div>
               </div>
             </CardContent>

@@ -89,18 +89,19 @@ export function getSchedule(teams: any[]) {
   return seasonSchedule;
 }
 
+/**
+ * Builds the group standings table by simulating all matches up to a specific day.
+ */
 export function getMockGroupTeams(
   playerRank: number, 
   playerName: string = "Player Team",
   level: number = 1,
   division: number = 1,
   group: number = 1,
-  includePlayer: boolean = false,
-  currentDay: number = 1,
-  playerStats?: { wins: number, draws: number, losses: number, points: number },
   leagueId: string = "ALPHA",
   realPlayers: any[] = [],
-  currentPlayerId?: string
+  currentPlayerId?: string,
+  upToDay: number = 0 // NEW: strictly simulate only up to this day
 ) {
   const teams: any[] = [];
   
@@ -112,7 +113,7 @@ export function getMockGroupTeams(
     teams.push({
       id: p.id,
       name: isMe ? (playerName || p.displayName || "My Team") : (p.displayName || "Unknown Commander"),
-      wins: 0, // Reset to 0, will be recalculated deterministically for the table
+      wins: 0,
       draws: 0,
       losses: 0,
       points: 0,
@@ -137,29 +138,28 @@ export function getMockGroupTeams(
     });
   }
 
-  // CRITICAL: Always sort teams by ID before simulating and generating schedule
-  // This ensures the bracket (who plays whom on which day) is stable throughout the season.
+  // Sort teams by ID for stable scheduling
   teams.sort((a, b) => a.id.localeCompare(b.id));
 
-  // 3. Simulate ALL matches up to currentDay - 1
-  const seasonSchedule = getSchedule(teams);
-  
-  // Also include the current day if the local user has already played it
-  const maxDayToSimulate = includePlayer && playerStats ? currentDay : currentDay - 1;
+  // 3. Simulate matches strictly up to upToDay
+  if (upToDay > 0) {
+    const seasonSchedule = getSchedule(teams);
+    const limit = Math.min(upToDay, SEASON_DURATION_DAYS);
 
-  for (let d = 1; d <= maxDayToSimulate; d++) {
-    const matches = seasonSchedule[d - 1];
-    if (!matches) continue;
+    for (let d = 1; d <= limit; d++) {
+      const matches = seasonSchedule[d - 1];
+      if (!matches) continue;
 
-    matches.forEach((m: any) => {
-      const home = teams.find(t => t.id === m.home.id);
-      const away = teams.find(t => t.id === m.away.id);
-      
-      if (!home || !away) return;
+      matches.forEach((m: any) => {
+        const home = teams.find(t => t.id === m.home.id);
+        const away = teams.find(t => t.id === m.away.id);
+        
+        if (!home || !away) return;
 
-      const [hScore, aScore] = getMatchResult(home.id, away.id, d);
-      applyResult(home, away, hScore, aScore);
-    });
+        const [hScore, aScore] = getMatchResult(home.id, away.id, d);
+        applyResult(home, away, hScore, aScore);
+      });
+    }
   }
 
   return teams;

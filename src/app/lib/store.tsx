@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
@@ -279,6 +278,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             }
           }
 
+          // Maintenance: Annul any league matches that are in the future
+          const history = profileData.matchHistory || s.matchHistory || [];
+          const validHistory = history.filter((m: MatchResultEntry) => {
+            if (m.type !== 'league') return true;
+            return m.day <= currentDay;
+          });
+
           return {
             ...s,
             credits: profileData.inGameCurrency ?? s.credits,
@@ -294,7 +300,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             country: profileData.country ?? s.country,
             lastSeenMatchDay: profileData.lastSeenMatchDay ?? s.lastSeenMatchDay ?? 0,
             lastLeagueMatchDate: profileData.lastLeagueMatchDate ?? s.lastLeagueMatchDate,
-            matchHistory: profileData.matchHistory ?? s.matchHistory ?? [],
+            matchHistory: validHistory,
             seasonStartDate: startDateStr,
             seasonDay: currentDay,
             lastRewardClaimDate: profileData.lastRewardClaimDate ?? s.lastRewardClaimDate,
