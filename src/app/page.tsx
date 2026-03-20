@@ -61,7 +61,7 @@ export default function Home() {
     if (!isLoaded || !profile || !groupPlayers) return null;
     
     // Logic: if today is already simulated, show next day. 
-    // If today hasn't been simulated, show today's opponent even if it's past league time.
+    // If today hasn't been simulated, show today's opponent.
     const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
     if (targetDay > 14) return null;
 
@@ -92,7 +92,7 @@ export default function Home() {
       opponent,
       day: targetDay,
       time: league.startTime,
-      isToday: targetDay === seasonDay
+      isToday: targetDay === seasonDay || (seasonDay === 0 && targetDay === 1)
     };
   }, [isLoaded, profile, groupPlayers, seasonDay, isTodayPlayed, rank, leagueLevel, divisionSubId, groupId, user?.uid]);
 
@@ -109,11 +109,7 @@ export default function Home() {
       // If the target match is Day N+1, it's definitely tomorrow
       if (!nextMatchInfo.isToday) {
         targetDate.setDate(targetDate.getDate() + 1);
-      } else if (mskNow > targetDate) {
-        // If it's today but the time passed, and we are showing today's match (because it wasn't played),
-        // the countdown should probably be 00:00:00 or show "Window Open".
-        // But for consistency, let's just show 00:00:00 until simulation happens.
-      }
+      } 
 
       const diff = targetDate.getTime() - mskNow.getTime();
       
@@ -212,7 +208,7 @@ export default function Home() {
   const menuItems = [
     { label: t.menu[1].label, href: '/roster', icon: Users, desc: t.menu[1].desc, active: true },
     { label: t.menu[8].label, href: '/training', icon: Zap, desc: t.menu[8].desc, active: true },
-    { label: t.menu[2].label, href: '/rankings', icon: Trophy, desc: t.menu[2].desc, active: true },
+    { label: t.menu[2].label, href: '/rankings', icon: Trophy, desc: t.menu[2].desc, Bird: true },
     { label: t.menu[3].label, href: '/matches', icon: CalendarDays, desc: t.menu[3].desc, active: true },
     { label: t.menu[9].label, href: '/tournaments', icon: Medal, desc: t.menu[9].desc, active: true },
     { label: t.menu[10].label, href: '/profile', icon: User, desc: t.menu[10].desc, active: true },

@@ -101,9 +101,8 @@ export default function MatchesPage() {
       const [hours, minutes] = league.startTime.split(':').map(Number);
       targetDate.setHours(hours, minutes, 0, 0);
 
-      const targetDayIsToday = !isTodayPlayed;
-
-      if (!targetDayIsToday) {
+      // If today's match is already played, target is tomorrow's match
+      if (isTodayPlayed) {
         targetDate.setDate(targetDate.getDate() + 1);
       }
 

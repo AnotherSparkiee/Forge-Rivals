@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Hero, INITIAL_HEROES } from './moba-data';
-import { getMoscowTime } from './time-utils';
+import { getMoscowTime, getMoscowDateString } from './time-utils';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 
@@ -217,7 +217,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   const getStorageKey = useCallback(() => {
-    return user ? `moba_tactics_v2_${user.uid}` : null;
+    return user ? `moba_tactics_v3_${user.uid}` : null;
   }, [user]);
 
   useEffect(() => {
@@ -255,20 +255,21 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           
           let currentDay = 0;
           if (startDateStr) {
-            // Robust Moscow calendar day calculation
+            // Robust calendar day calculation using Moscow date components
             const mskNow = getMoscowTime();
             const [year, month, day] = startDateStr.split('-').map(Number);
             
-            // Create a midnight date objects for comparison
-            const mskTodayMidnight = new Date(mskNow.getFullYear(), mskNow.getMonth(), mskNow.getDate());
-            const mskStartMidnight = new Date(year, month - 1, day);
+            // Calculate days since Epoch for Moscow Today and Start Date to avoid timezone shifts
+            const todayUtc = Date.UTC(mskNow.getFullYear(), mskNow.getMonth(), mskNow.getDate());
+            const startUtc = Date.UTC(year, month - 1, day);
             
-            // Difference in calendar days
-            const diffTime = mskTodayMidnight.getTime() - mskStartMidnight.getTime();
-            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+            const diffDays = Math.floor((todayUtc - startUtc) / (1000 * 60 * 60 * 24));
             
             if (diffDays >= 0) {
               currentDay = (diffDays % 14) + 1; // Current match day (1-14)
+            } else {
+              // Should only happen if server clock is behind or manual date edit
+              currentDay = 1;
             }
           }
 
@@ -568,7 +569,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         losses: s.losses + matchLosses,
         points: s.points + matchPoints,
         matchHistory: [matchEntry, ...s.matchHistory].slice(0, 100),
-        lastLeagueMatchDate: isAutomated ? getMoscowTime().toISOString().split('T')[0] : s.lastLeagueMatchDate
+        lastLeagueMatchDate: isAutomated ? getMoscowDateString() : s.lastLeagueMatchDate
       };
 
       if (user) {
