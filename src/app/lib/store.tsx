@@ -204,7 +204,7 @@ interface GameStateContextType extends GameState {
   startCapacityExpansion: (seats: number, cost: number, hours: number) => boolean;
   checkConstructions: () => void;
   setLanguage: (lang: 'en' | 'ru') => void;
-  recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: 'league' | 'friendly', isAutomated?: boolean) => void;
+  recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: 'league' | 'friendly', customPlayedAt?: string) => void;
   markMatchAsSeen: (day: number) => void;
 }
 
@@ -516,7 +516,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: 'league' | 'friendly', isAutomated = false) => {
+  const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: 'league' | 'friendly', customPlayedAt?: string) => {
     const scoreA = result.scoreA || 0;
     const scoreB = result.scoreB || 0;
     let creditsEarned = 50;
@@ -557,7 +557,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         matchSummary: result.matchSummary,
         teamStats: result.teamStats,
         heroPerformance: result.heroPerformance,
-        playedAt: new Date().toISOString()
+        playedAt: customPlayedAt || new Date().toISOString()
       };
 
       const newState = {

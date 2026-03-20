@@ -60,7 +60,15 @@ export default function Home() {
   const nextMatchInfo = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return null;
     
-    const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
+    const todayStr = getMoscowDateString();
+    const mskNow = getMoscowTime();
+    const league = LEAGUES.find(l => l.id === profile.selectedLeagueId) || LEAGUES[0];
+    const [matchH, matchM] = league.startTime.split(':').map(Number);
+    
+    const isPastMatchTime = mskNow.getHours() > matchH || (mskNow.getHours() === matchH && mskNow.getMinutes() >= (matchM || 0));
+    
+    // Target next day if today's match is done OR time has passed and we are looking at next
+    const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed || isPastMatchTime ? seasonDay + 1 : seasonDay);
     if (targetDay > 14) return null;
 
     const groupTeams = getMockGroupTeams(
@@ -84,13 +92,12 @@ export default function Home() {
     if (!myMatch) return null;
 
     const opponent = myMatch.home.id === user?.uid ? myMatch.away : myMatch.home;
-    const league = LEAGUES.find(l => l.id === profile.selectedLeagueId) || LEAGUES[0];
 
     return {
       opponent,
       day: targetDay,
       time: league.startTime,
-      isToday: targetDay === seasonDay || (seasonDay === 0 && targetDay === 1)
+      isNextDay: isTodayPlayed || isPastMatchTime
     };
   }, [isLoaded, profile, groupPlayers, seasonDay, isTodayPlayed, rank, leagueLevel, divisionSubId, groupId, user?.uid]);
 
@@ -99,14 +106,22 @@ export default function Home() {
 
     const interval = setInterval(() => {
       const mskNow = getMoscowTime();
-      const targetDate = new Date(mskNow);
       const [hours, minutes] = nextMatchInfo.time.split(':').map(Number);
       
+      const targetDate = new Date(mskNow);
       targetDate.setHours(hours, minutes, 0, 0);
       
-      // If today is already played, we target tomorrow at the same league time
-      if (isTodayPlayed) {
-        targetDate.setDate(targetDate.getDate() + 1);
+      if (nextMatchInfo.isNextDay) {
+        // If we are already targeting tomorrow, make sure targetDate is tomorrow
+        if (mskNow.getTime() >= targetDate.getTime()) {
+           targetDate.setDate(targetDate.getDate() + 1);
+        }
+      } else {
+        // We are targeting today. If current time is after match time, countdown should be 0
+        if (mskNow.getTime() >= targetDate.getTime()) {
+           setCountdown('00:00:00');
+           return;
+        }
       }
 
       const diff = targetDate.getTime() - mskNow.getTime();
@@ -125,7 +140,7 @@ export default function Home() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [nextMatchInfo, isTodayPlayed]);
+  }, [nextMatchInfo]);
 
   const unseenCount = useMemo(() => {
     return matchHistory.filter(m => m.day > lastSeenMatchDay && m.type === 'league').length;
@@ -207,7 +222,7 @@ export default function Home() {
   const menuItems = [
     { label: t.menu[1].label, href: '/roster', icon: Users, desc: t.menu[1].desc, active: true },
     { label: t.menu[8].label, href: '/training', icon: Zap, desc: t.menu[8].desc, active: true },
-    { label: t.menu[2].label, href: '/rankings', icon: Trophy, desc: t.menu[2].desc, Bird: true },
+    { label: t.menu[2].label, href: '/rankings', icon: Trophy, desc: t.menu[2].desc, active: true },
     { label: t.menu[3].label, href: '/matches', icon: CalendarDays, desc: t.menu[3].desc, active: true },
     { label: t.menu[9].label, href: '/tournaments', icon: Medal, desc: t.menu[9].desc, active: true },
     { label: t.menu[10].label, href: '/profile', icon: User, desc: t.menu[10].desc, active: true },

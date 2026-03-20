@@ -39,9 +39,13 @@ export function isMatchDue(startTimeStr: string, lastMatchDateStr: string | null
   // If already played today, not due
   if (lastMatchDateStr === todayStr) return false;
 
-  const matchHour = parseInt(startTimeStr.split(':')[0], 10);
+  const [matchHour, matchMinutes] = startTimeStr.split(':').map(Number);
   const currentHour = mskNow.getHours();
+  const currentMinute = mskNow.getMinutes();
 
   // Trigger if we are at or past the match hour
-  return currentHour >= matchHour;
+  if (currentHour > matchHour) return true;
+  if (currentHour === matchHour && currentMinute >= (matchMinutes || 0)) return true;
+
+  return false;
 }

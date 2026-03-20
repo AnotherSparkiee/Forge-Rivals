@@ -116,7 +116,9 @@ export function AutoMatchManager() {
       const forcedScoreB = todayMatch.away.id === user.uid ? detScoreA : detScoreB;
 
       // 2. Simulate via AI with FORCED deterministic score to match table
-      // Added realistic hero adjustments for opponents to make games more significant
+      // Increase bot power for significant results
+      const botPowerMultiplier = 1 + (leagueLevel * 0.1); 
+      
       const result = await simulateMobaMatch({
         teamA: {
           name: profile.displayName || "My Team",
@@ -125,13 +127,13 @@ export function AutoMatchManager() {
         },
         teamB: {
           name: opponentName,
-          strategy: opponent.isPlayer ? "High Level Tactics" : "Balanced Execution",
+          strategy: opponent.isPlayer ? "Advanced Elite Tactics" : "Hard Core Execution",
           heroes: INITIAL_HEROES.map(h => ({ 
             ...h, 
             baseStats: { 
               ...h.baseStats, 
-              attack: h.baseStats.attack + (opponent.isPlayer ? 20 : 12),
-              health: h.baseStats.health + (opponent.isPlayer ? 150 : 80)
+              attack: Math.round(h.baseStats.attack * botPowerMultiplier) + (opponent.isPlayer ? 25 : 15),
+              health: Math.round(h.baseStats.health * botPowerMultiplier) + (opponent.isPlayer ? 200 : 100)
             } 
           }))
         },
@@ -141,8 +143,17 @@ export function AutoMatchManager() {
         scoreB: forcedScoreB
       });
       
-      // Explicitly pass the opponent name to recordMatch to avoid "Unknown" in history
-      recordMatch(result.winner, result, targetDay, opponentName, 'league', true);
+      // If catching up, use a theoretical timestamp for the match day
+      let customPlayedAt = undefined;
+      if (targetDay < seasonDay && seasonStartDate) {
+        const matchDate = new Date(seasonStartDate);
+        matchDate.setDate(matchDate.getDate() + (targetDay - 1));
+        const [h, m] = matchTime.split(':').map(Number);
+        matchDate.setHours(h, m, 0, 0);
+        customPlayedAt = matchDate.toISOString();
+      }
+
+      recordMatch(result.winner, result, targetDay, opponentName, 'league', customPlayedAt);
       
       // Only show popup if it's the current active day (not catch-up from previous days)
       if (targetDay === seasonDay) {
