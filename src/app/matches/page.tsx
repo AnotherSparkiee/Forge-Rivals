@@ -68,6 +68,13 @@ export default function MatchesPage() {
     return lastLeagueMatchDate === todayStr;
   }, [lastLeagueMatchDate]);
 
+  const isPastMatchTimeToday = useMemo(() => {
+    if (!league) return false;
+    const [matchH, matchM] = league.startTime.split(':').map(Number);
+    const mskNow = getMoscowTime();
+    return mskNow.getHours() > matchH || (mskNow.getHours() === matchH && mskNow.getMinutes() >= (matchM || 0));
+  }, [league]);
+
   const groupTeams = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return [];
     // Important: for rankings and general table, we show results including today if played
@@ -92,18 +99,46 @@ export default function MatchesPage() {
     return getSchedule(groupTeams);
   }, [groupTeams]);
 
+  const nextMatchInfo = useMemo(() => {
+    if (!isLoaded || !profile || !groupTeams.length || !schedule.length) return null;
+    
+    const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed || isPastMatchTimeToday ? seasonDay + 1 : seasonDay);
+    if (targetDay > 14) return null;
+
+    const dayMatches = schedule[targetDay - 1];
+    const myMatch = dayMatches?.find((m: any) => m.home.id === user?.uid || m.away.id === user?.uid);
+    
+    if (!myMatch) return null;
+
+    const opponent = myMatch.home.id === user?.uid ? myMatch.away : myMatch.home;
+
+    return {
+      opponent,
+      day: targetDay,
+      time: league.startTime,
+      isNextDay: isTodayPlayed || isPastMatchTimeToday
+    };
+  }, [isLoaded, profile, groupTeams, schedule, seasonDay, isTodayPlayed, isPastMatchTimeToday, league, user?.uid]);
+
   useEffect(() => {
-    if (activeTab !== 'next_opponent' || !league) return;
+    if (activeTab !== 'next_opponent' || !nextMatchInfo) return;
 
     const interval = setInterval(() => {
       const mskNow = getMoscowTime();
+      const [hours, minutes] = nextMatchInfo.time.split(':').map(Number);
+      
       const targetDate = new Date(mskNow);
-      const [hours, minutes] = league.startTime.split(':').map(Number);
       targetDate.setHours(hours, minutes, 0, 0);
-
-      // If today's match is already played, target is tomorrow's match
-      if (isTodayPlayed) {
-        targetDate.setDate(targetDate.getDate() + 1);
+      
+      if (nextMatchInfo.isNextDay) {
+        if (mskNow.getTime() >= targetDate.getTime()) {
+          targetDate.setDate(targetDate.getDate() + 1);
+        }
+      } else {
+        if (mskNow.getTime() >= targetDate.getTime()) {
+          setCountdown('00:00:00');
+          return;
+        }
       }
 
       const diff = targetDate.getTime() - mskNow.getTime();
@@ -118,7 +153,7 @@ export default function MatchesPage() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [activeTab, league, isTodayPlayed]);
+  }, [activeTab, nextMatchInfo]);
 
   const getDateForDay = (day: number) => {
     if (!seasonStartDate) return "";
@@ -298,17 +333,11 @@ export default function MatchesPage() {
   const renderContent = () => {
     switch (activeTab) {
       case 'next_opponent': {
-        const targetDay = isTodayPlayed ? seasonDay + 1 : (seasonDay === 0 ? 1 : seasonDay);
-        if (targetDay > 14) return <p className="text-center py-10 text-muted-foreground uppercase text-xs">Season Finished</p>;
+        if (!nextMatchInfo) return <p className="text-center py-10 text-muted-foreground uppercase text-xs">Season Finished or Pre-season</p>;
         
-        const targetMatches = schedule[targetDay - 1];
-        const myMatch = targetMatches?.find((m: any) => m.home.id === user?.uid || m.away.id === user?.uid);
-        
-        if (!myMatch) return <p className="text-center py-10 text-muted-foreground">{t.noData}</p>;
-        
-        const opponent = myMatch.home.id === user?.uid ? myMatch.away : myMatch.home;
-        const startHour = league.startTime;
-        const matchDate = getDateForDay(targetDay);
+        const opponent = nextMatchInfo.opponent;
+        const startHour = nextMatchInfo.time;
+        const matchDate = getDateForDay(nextMatchInfo.day);
         
         return (
           <div className="space-y-6 animate-in fade-in duration-500">
@@ -337,7 +366,9 @@ export default function MatchesPage() {
                   <p className="text-[10px] uppercase text-accent font-bold mb-1 flex items-center justify-center gap-1">
                     <Calendar className="w-3 h-3" /> {t.matchTime}
                   </p>
-                  <p className="text-xl font-headline font-bold tracking-tight">{matchDate} @ {startHour}</p>
+                  <p className="text-xl font-headline font-bold tracking-tight">
+                    {nextMatchInfo.isNextDay ? t.tomorrow : t.today} {matchDate} @ {startHour}
+                  </p>
                 </div>
 
                 <div className="w-full grid grid-cols-2 gap-3 pt-4 border-t border-white/5">
@@ -357,7 +388,7 @@ export default function MatchesPage() {
       }
 
       case 'my_future': {
-        const startIdx = isTodayPlayed ? seasonDay : (seasonDay === 0 ? 0 : seasonDay - 1);
+        const startIdx = isTodayPlayed || isPastMatchTimeToday ? seasonDay : (seasonDay === 0 ? 0 : seasonDay - 1);
         const futureMatches = schedule.slice(startIdx).map((dayMatches: any, i) => {
           const m = dayMatches.find((match: any) => match.home.id === user?.uid || match.away.id === user?.uid);
           return { match: m, dayIdx: startIdx + i };
