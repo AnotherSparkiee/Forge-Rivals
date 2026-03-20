@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -148,7 +149,8 @@ export default function LoginPage() {
           id: user.uid,
           displayName: user.displayName || `Manager_${user.uid.slice(0, 5)}`,
           email: user.email,
-          inGameCurrency: 500,
+          inGameCurrency: 10000000,
+          crystals: 0,
           experiencePoints: 0,
           lastLoginDate: new Date().toISOString(),
           createdAt: new Date().toISOString(),

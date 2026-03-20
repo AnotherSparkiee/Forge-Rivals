@@ -8,6 +8,7 @@ import { TopBar } from "@/components/game/TopBar";
 import { BottomNav } from "@/components/game/BottomNav";
 import { AutoMatchManager } from "@/components/game/AutoMatchManager";
 import { FriendlyMatchListener } from "@/components/game/FriendlyMatchListener";
+import { DailyRewardManager } from "@/components/game/DailyRewardManager";
 import { AuthGuard } from "@/components/game/AuthGuard";
 import { Suspense } from 'react';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -36,6 +37,7 @@ export default function RootLayout({
               <TopBar />
               <AutoMatchManager />
               <FriendlyMatchListener />
+              <DailyRewardManager />
               <Suspense fallback={<LoadingScreen />}>
                 {children}
               </Suspense>

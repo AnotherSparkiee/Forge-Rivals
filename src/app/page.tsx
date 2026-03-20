@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -25,7 +26,7 @@ export default function Home() {
   const db = useFirestore();
   const { 
     rank, leagueLevel, divisionSubId, groupId, 
-    strategy, language, isLoaded, lastLeagueMatchDate, seasonDay, team,
+    language, isLoaded, lastLeagueMatchDate, seasonDay,
     matchHistory, lastSeenMatchDay
   } = useGameState();
 
@@ -60,15 +61,17 @@ export default function Home() {
   const nextMatchInfo = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return null;
     
-    const todayStr = getMoscowDateString();
-    const mskNow = getMoscowTime();
     const league = LEAGUES.find(l => l.id === profile.selectedLeagueId) || LEAGUES[0];
     const [matchH, matchM] = league.startTime.split(':').map(Number);
+    const mskNow = getMoscowTime();
     
-    const isPastMatchTime = mskNow.getHours() > matchH || (mskNow.getHours() === matchH && mskNow.getMinutes() >= (matchM || 0));
+    // Check if current time is past match window today
+    const isPastMatchTimeToday = mskNow.getHours() > matchH || (mskNow.getHours() === matchH && mskNow.getMinutes() >= (matchM || 0));
     
-    // Target next day if today's match is done OR time has passed and we are looking at next
-    const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed || isPastMatchTime ? seasonDay + 1 : seasonDay);
+    // Logic: 
+    // If we haven't played today AND it's not yet too late -> show TODAY
+    // If we HAVE played today OR it's past time -> show TOMORROW
+    const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed || isPastMatchTimeToday ? seasonDay + 1 : seasonDay);
     if (targetDay > 14) return null;
 
     const groupTeams = getMockGroupTeams(
@@ -97,7 +100,7 @@ export default function Home() {
       opponent,
       day: targetDay,
       time: league.startTime,
-      isNextDay: isTodayPlayed || isPastMatchTime
+      isNextDay: isTodayPlayed || isPastMatchTimeToday
     };
   }, [isLoaded, profile, groupPlayers, seasonDay, isTodayPlayed, rank, leagueLevel, divisionSubId, groupId, user?.uid]);
 
@@ -111,31 +114,27 @@ export default function Home() {
       const targetDate = new Date(mskNow);
       targetDate.setHours(hours, minutes, 0, 0);
       
+      // If we are looking at tomorrow's match, targetDate should be tomorrow
       if (nextMatchInfo.isNextDay) {
-        // If we are already targeting tomorrow, make sure targetDate is tomorrow
         if (mskNow.getTime() >= targetDate.getTime()) {
-           targetDate.setDate(targetDate.getDate() + 1);
+          targetDate.setDate(targetDate.getDate() + 1);
         }
       } else {
-        // We are targeting today. If current time is after match time, countdown should be 0
+        // If we are looking at today's match but time passed, it should stay at 0 until played
         if (mskNow.getTime() >= targetDate.getTime()) {
-           setCountdown('00:00:00');
-           return;
+          setCountdown('00:00:00');
+          return;
         }
       }
 
       const diff = targetDate.getTime() - mskNow.getTime();
-      
       if (diff <= 0) {
         setCountdown('00:00:00');
       } else {
         const h = Math.floor(diff / 3600000);
         const m = Math.floor((diff % 3600000) / 60000);
         const s = Math.floor((diff % 60000) / 1000);
-        
-        setCountdown(
-          `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-        );
+        setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
       }
     }, 1000);
 
@@ -143,7 +142,8 @@ export default function Home() {
   }, [nextMatchInfo]);
 
   const unseenCount = useMemo(() => {
-    return matchHistory.filter(m => m.day > lastSeenMatchDay && m.type === 'league').length;
+    // Count ALL league matches that haven't been acknowledged yet
+    return matchHistory.filter(m => m.type === 'league' && m.day > lastSeenMatchDay).length;
   }, [matchHistory, lastSeenMatchDay]);
 
   if (isUserLoading || !isLoaded || !user || isProfileLoading || isGroupLoading) {
@@ -158,7 +158,6 @@ export default function Home() {
       today: "TODAY",
       tomorrow: "TOMORROW",
       atTime: "at",
-      activeStrat: "Active Strategy",
       battleBtn: "MATCH REVIEW",
       navTitle: "Navigation Terminals",
       locked: "Locked",
@@ -168,7 +167,7 @@ export default function Home() {
       seasonEndedDesc: "The championship cycle is over. Final results are being calculated.",
       noOpponent: "No Active Opponents",
       noOpponentDesc: "The tactical link is clear. No scheduled engagements in this sector.",
-      startsIn: "TIME UNTIL MATCH:",
+      startsIn: "DO МАТЧА ОСТАЛОСЬ:",
       menu: [
         { label: 'Battle Simulation', desc: 'Deploy team for automated matches' },
         { label: 'Team Roster', desc: 'Manage your active hero lineup' },
@@ -190,7 +189,6 @@ export default function Home() {
       today: "СЕГОДНЯ",
       tomorrow: "ЗАВТРА",
       atTime: "в",
-      activeStrat: "Активная стратегия",
       battleBtn: "ОБЗОР МАТЧЕЙ",
       navTitle: "Тактические Терминалы",
       locked: "Закрыто",
@@ -244,7 +242,7 @@ export default function Home() {
               <div className="p-4 border-b border-white/5 flex items-center justify-center">
                 <div className="flex flex-col items-center">
                   <span className="text-[10px] font-bold text-accent uppercase tracking-tighter mb-1">{t.startsIn}</span>
-                  <span className="text-3xl font-headline font-bold text-primary tabular-nums tracking-tighter">{countdown || '00:00:00'}</span>
+                  <span className="text-4xl font-headline font-bold text-primary tabular-nums tracking-tighter drop-shadow-[0_0_10px_rgba(var(--primary),0.5)]">{countdown || '00:00:00'}</span>
                 </div>
               </div>
               <div className="p-6 flex flex-col items-center text-center">
@@ -323,7 +321,7 @@ export default function Home() {
             </div>
           </Button>
           {unseenCount > 0 && (
-            <div className="absolute -top-2 -right-2 w-7 h-7 bg-red-600 rounded-full flex items-center justify-center border-2 border-background shadow-lg animate-bounce">
+            <div className="absolute -top-2 -right-2 w-7 h-7 bg-red-600 rounded-full flex items-center justify-center border-2 border-background shadow-lg animate-bounce z-20">
               <span className="text-[10px] font-black text-white">{unseenCount}</span>
             </div>
           )}

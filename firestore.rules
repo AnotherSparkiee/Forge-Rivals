@@ -12,9 +12,9 @@ service cloud.firestore {
     }
 
     match /players_v2/{userId} {
-      // Allow public read to verify team names and look up emails during login
+      // Allow read for everyone to see rankings and profiles
       allow read: if true;
-      // Allow creation and update only by the owner
+      // Allow write only by the owner
       allow write: if isOwner(userId);
     }
 

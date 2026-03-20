@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
@@ -75,6 +76,7 @@ export interface MatchResultEntry {
 
 interface GameState {
   credits: number;
+  crystals: number;
   ownedHeroes: Hero[];
   team: Hero[];
   lineup: Record<LineupSlot, string | null>;
@@ -95,6 +97,7 @@ interface GameState {
   lastSeenMatchDay: number;
   seasonDay: number;
   seasonStartDate: string | null;
+  lastRewardClaimDate: string | null;
   arena: ArenaState;
   hq: HQState;
   bootcamp: BootcampState;
@@ -153,10 +156,11 @@ const DEFAULT_MEDICAL: MedicalState = {
   constructionStarts: {},
 };
 
-const START_CREDITS = 500;
+const START_CREDITS = 10000000;
 
 const DEFAULT_STATE: GameState = {
   credits: START_CREDITS,
+  crystals: 0,
   ownedHeroes: INITIAL_HEROES,
   team: INITIAL_HEROES.slice(0, 5),
   lineup: {
@@ -185,6 +189,7 @@ const DEFAULT_STATE: GameState = {
   lastSeenMatchDay: 0,
   seasonDay: 0,
   seasonStartDate: null,
+  lastRewardClaimDate: null,
   arena: DEFAULT_ARENA,
   hq: DEFAULT_HQ,
   bootcamp: DEFAULT_BOOTCAMP,
@@ -195,6 +200,7 @@ const DEFAULT_STATE: GameState = {
 interface GameStateContextType extends GameState {
   isLoaded: boolean;
   addCredits: (amount: number) => void;
+  addCrystals: (amount: number) => void;
   assignToRole: (slot: LineupSlot, heroId: string | null) => void;
   startArenaConstruction: (facility: any, cost: number) => boolean;
   startHQConstruction: (facility: any, cost: number) => boolean;
@@ -206,6 +212,7 @@ interface GameStateContextType extends GameState {
   setLanguage: (lang: 'en' | 'ru') => void;
   recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: 'league' | 'friendly', customPlayedAt?: string) => void;
   markMatchAsSeen: (day: number) => void;
+  claimReward: (creditsReward: number, crystalsReward: number) => void;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
@@ -217,7 +224,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   const getStorageKey = useCallback(() => {
-    return user ? `moba_tactics_v3_${user.uid}` : null;
+    return user ? `moba_tactics_v4_${user.uid}` : null;
   }, [user]);
 
   useEffect(() => {
@@ -272,6 +279,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
           return {
             ...s,
+            credits: profileData.inGameCurrency ?? s.credits,
+            crystals: profileData.crystals ?? s.crystals,
             wins: profileData.wins ?? s.wins,
             draws: profileData.draws ?? s.draws,
             losses: profileData.losses ?? s.losses,
@@ -286,6 +295,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             matchHistory: profileData.matchHistory ?? s.matchHistory ?? [],
             seasonStartDate: startDateStr,
             seasonDay: currentDay,
+            lastRewardClaimDate: profileData.lastRewardClaimDate ?? s.lastRewardClaimDate,
           };
         });
       }
@@ -306,8 +316,52 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [state, isLoaded, getStorageKey, user]);
 
   const addCredits = useCallback((amount: number) => {
-    setState(s => ({ ...s, credits: s.credits + amount }));
-  }, []);
+    setState(s => {
+      const newCredits = s.credits + amount;
+      if (user) {
+        const profileRef = doc(db, 'players_v2', user.uid);
+        setDoc(profileRef, { inGameCurrency: newCredits }, { merge: true });
+      }
+      return { ...s, credits: newCredits };
+    });
+  }, [user, db]);
+
+  const addCrystals = useCallback((amount: number) => {
+    setState(s => {
+      const newCrystals = s.crystals + amount;
+      if (user) {
+        const profileRef = doc(db, 'players_v2', user.uid);
+        setDoc(profileRef, { crystals: newCrystals }, { merge: true });
+      }
+      return { ...s, crystals: newCrystals };
+    });
+  }, [user, db]);
+
+  const claimReward = useCallback((creditsReward: number, crystalsReward: number) => {
+    const today = getMoscowDateString();
+    setState(s => {
+      if (s.lastRewardClaimDate === today) return s;
+      
+      const newCredits = s.credits + creditsReward;
+      const newCrystals = s.crystals + crystalsReward;
+      
+      if (user) {
+        const profileRef = doc(db, 'players_v2', user.uid);
+        setDoc(profileRef, { 
+          inGameCurrency: newCredits, 
+          crystals: newCrystals,
+          lastRewardClaimDate: today
+        }, { merge: true }).catch(e => console.error("Reward sync failed", e));
+      }
+      
+      return {
+        ...s,
+        credits: newCredits,
+        crystals: newCrystals,
+        lastRewardClaimDate: today
+      };
+    });
+  }, [user, db]);
 
   const isSectorBusy = useCallback((sector: any) => {
     return Object.values(sector.constructionFinishes).some(v => v !== null && v !== undefined);
@@ -322,9 +376,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const startTime = new Date();
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
+        const newCredits = s.credits - cost;
+        if (user) {
+          const profileRef = doc(db, 'players_v2', user.uid);
+          setDoc(profileRef, { inGameCurrency: newCredits }, { merge: true });
+        }
         return {
           ...s,
-          credits: s.credits - cost,
+          credits: newCredits,
           arena: {
             ...s.arena,
             constructionStarts: { ...s.arena.constructionStarts, [facility]: startTime.toISOString() },
@@ -335,7 +394,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return s;
     });
     return result;
-  }, [isSectorBusy]);
+  }, [isSectorBusy, user, db]);
 
   const startHQConstruction = useCallback((facility: keyof Omit<HQState, 'constructionFinishes' | 'constructionStarts'>, cost: number) => {
     let result = false;
@@ -346,9 +405,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const startTime = new Date();
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
+        const newCredits = s.credits - cost;
+        if (user) {
+          const profileRef = doc(db, 'players_v2', user.uid);
+          setDoc(profileRef, { inGameCurrency: newCredits }, { merge: true });
+        }
         return {
           ...s,
-          credits: s.credits - cost,
+          credits: newCredits,
           hq: {
             ...s.hq,
             constructionStarts: { ...s.hq.constructionStarts, [facility]: startTime.toISOString() },
@@ -359,7 +423,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return s;
     });
     return result;
-  }, [isSectorBusy]);
+  }, [isSectorBusy, user, db]);
 
   const startBootcampConstruction = useCallback((facility: keyof Omit<BootcampState, 'constructionFinishes' | 'constructionStarts'>, cost: number) => {
     let result = false;
@@ -370,9 +434,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const startTime = new Date();
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
+        const newCredits = s.credits - cost;
+        if (user) {
+          const profileRef = doc(db, 'players_v2', user.uid);
+          setDoc(profileRef, { inGameCurrency: newCredits }, { merge: true });
+        }
         return {
           ...s,
-          credits: s.credits - cost,
+          credits: newCredits,
           bootcamp: {
             ...s.bootcamp,
             constructionStarts: { ...s.bootcamp.constructionStarts, [facility]: startTime.toISOString() },
@@ -383,7 +452,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return s;
     });
     return result;
-  }, [isSectorBusy]);
+  }, [isSectorBusy, user, db]);
 
   const startAcademyConstruction = useCallback((facility: keyof Omit<AcademyState, 'constructionFinishes' | 'constructionStarts'>, cost: number) => {
     let result = false;
@@ -394,9 +463,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const startTime = new Date();
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
+        const newCredits = s.credits - cost;
+        if (user) {
+          const profileRef = doc(db, 'players_v2', user.uid);
+          setDoc(profileRef, { inGameCurrency: newCredits }, { merge: true });
+        }
         return {
           ...s,
-          credits: s.credits - cost,
+          credits: newCredits,
           academy: {
             ...s.academy,
             constructionStarts: { ...s.academy.constructionStarts, [facility]: startTime.toISOString() },
@@ -407,7 +481,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return s;
     });
     return result;
-  }, [isSectorBusy]);
+  }, [isSectorBusy, user, db]);
 
   const startMedicalConstruction = useCallback((facility: keyof Omit<MedicalState, 'constructionFinishes' | 'constructionStarts'>, cost: number) => {
     let result = false;
@@ -418,9 +492,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const startTime = new Date();
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
+        const newCredits = s.credits - cost;
+        if (user) {
+          const profileRef = doc(db, 'players_v2', user.uid);
+          setDoc(profileRef, { inGameCurrency: newCredits }, { merge: true });
+        }
         return {
           ...s,
-          credits: s.credits - cost,
+          credits: newCredits,
           medical: {
             ...s.medical,
             constructionStarts: { ...s.medical.constructionStarts, [facility]: startTime.toISOString() },
@@ -431,7 +510,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return s;
     });
     return result;
-  }, [isSectorBusy]);
+  }, [isSectorBusy, user, db]);
 
   const startCapacityExpansion = useCallback((seats: number, cost: number, hours: number) => {
     let result = false;
@@ -440,9 +519,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const startTime = new Date();
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
+        const newCredits = s.credits - cost;
+        if (user) {
+          const profileRef = doc(db, 'players_v2', user.uid);
+          setDoc(profileRef, { inGameCurrency: newCredits }, { merge: true });
+        }
         return {
           ...s,
-          credits: s.credits - cost,
+          credits: newCredits,
           arena: {
             ...s.arena,
             pendingCapacitySeats: seats,
@@ -454,7 +538,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return s;
     });
     return result;
-  }, [isSectorBusy]);
+  }, [isSectorBusy, user, db]);
 
   const checkConstructions = useCallback(() => {
     setState(s => {
@@ -575,6 +659,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       if (user) {
         const profileRef = doc(db, 'players_v2', user.uid);
         setDoc(profileRef, {
+          inGameCurrency: newState.credits,
           wins: newState.wins,
           draws: newState.draws,
           losses: newState.losses,
@@ -607,6 +692,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       ...state,
       isLoaded,
       addCredits,
+      addCrystals,
       assignToRole,
       startArenaConstruction,
       startHQConstruction,
@@ -617,7 +703,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       checkConstructions,
       setLanguage,
       recordMatch,
-      markMatchAsSeen
+      markMatchAsSeen,
+      claimReward
     }}>
       {children}
     </GameStateContext.Provider>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -11,7 +12,7 @@ import { LEAGUES } from '@/app/lib/leagues-data';
 export function TopBar() {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
-  const { credits, language } = useGameState();
+  const { credits, crystals, language } = useGameState();
   const db = useFirestore();
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
@@ -58,7 +59,7 @@ export function TopBar() {
           <div className="flex items-center gap-1.5 bg-accent/10 px-2 py-1 rounded-full border border-accent/20 shadow-[0_0_10px_rgba(var(--accent),0.05)]">
             <Gem className="w-3 h-3 text-accent" />
             <span className="text-[10px] font-headline font-bold text-accent">
-              0
+              {crystals || 0}
             </span>
           </div>
         </div>
