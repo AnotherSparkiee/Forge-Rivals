@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
@@ -102,16 +101,6 @@ interface GameState {
   medical: MedicalState;
 }
 
-const getTomorrowDateString = () => {
-  const msk = getMoscowTime();
-  const tomorrow = new Date(msk);
-  tomorrow.setDate(msk.getDate() + 1);
-  const year = tomorrow.getFullYear();
-  const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
-  const day = String(tomorrow.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
 const DEFAULT_ARENA: ArenaState = {
   capacity: 5000,
   pressCenterLevel: 0,
@@ -194,7 +183,7 @@ const DEFAULT_STATE: GameState = {
   lastLeagueMatchDate: null,
   lastSeenMatchDay: 0,
   seasonDay: 0,
-  seasonStartDate: getTomorrowDateString(),
+  seasonStartDate: null,
   arena: DEFAULT_ARENA,
   hq: DEFAULT_HQ,
   bootcamp: DEFAULT_BOOTCAMP,
@@ -261,17 +250,19 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const profileData = docSnap.data();
         
         setState(s => {
-          const startDateStr = profileData.seasonStartDate || s.seasonStartDate || getTomorrowDateString();
-          const start = new Date(startDateStr);
-          start.setHours(0, 0, 0, 0);
-
-          let currentDay = 0;
-          const mskNow = getMoscowTime();
+          const startDateStr = profileData.seasonStartDate || s.seasonStartDate;
           
-          if (mskNow.getTime() >= start.getTime()) {
-            const diffTime = mskNow.getTime() - start.getTime();
-            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-            currentDay = ((diffDays - 1) % 14) + 1;
+          let currentDay = 0;
+          if (startDateStr) {
+            const start = new Date(startDateStr);
+            start.setHours(0, 0, 0, 0);
+            const mskNow = getMoscowTime();
+            
+            if (mskNow.getTime() >= start.getTime()) {
+              const diffTime = mskNow.getTime() - start.getTime();
+              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+              currentDay = ((diffDays - 1) % 14) + 1;
+            }
           }
 
           return {

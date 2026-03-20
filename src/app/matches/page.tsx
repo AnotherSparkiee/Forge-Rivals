@@ -100,7 +100,6 @@ export default function MatchesPage() {
       const [hours, minutes] = league.startTime.split(':').map(Number);
       targetDate.setHours(hours, minutes, 0, 0);
 
-      // If today is played or current time passed the start time, target is tomorrow
       if (isTodayPlayed || mskNow > targetDate) {
         targetDate.setDate(targetDate.getDate() + 1);
       }
@@ -191,15 +190,18 @@ export default function MatchesPage() {
     let aScore = 0;
 
     if (isPlayed) {
-      if (day === seasonDay && isTodayPlayed && (match.home.isMe || match.away.isMe)) {
-        const lastResult = matchHistory.find(m => m.day === day && m.type === 'league');
-        if (lastResult) {
-            hScore = match.home.isMe ? lastResult.scoreA : lastResult.scoreB;
-            aScore = match.away.isMe ? lastResult.scoreA : lastResult.scoreB;
-        } else {
-            [hScore, aScore] = getMatchResult(match.home.id, match.away.id, day);
-        }
+      // Prioritize actual history for the player's team to ensure consistency with AI simulation
+      const historicalMatch = matchHistory.find(m => 
+        m.day === day && 
+        m.type === 'league' && 
+        (match.home.isMe || match.away.isMe)
+      );
+
+      if (historicalMatch) {
+        hScore = match.home.isMe ? historicalMatch.scoreA : historicalMatch.scoreB;
+        aScore = match.away.isMe ? historicalMatch.scoreA : historicalMatch.scoreB;
       } else {
+        // Fallback to deterministic result for bot-only matches or missing records
         [hScore, aScore] = getMatchResult(match.home.id, match.away.id, day);
       }
     }
@@ -241,12 +243,23 @@ export default function MatchesPage() {
   const renderHistoryRow = (match: any, index: number) => {
     const isWin = (match.scoreA > match.scoreB);
     const isDraw = (match.scoreA === match.scoreB);
-    const date = new Date(match.playedAt).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+    
+    let dateStr = "??.??";
+    try {
+      if (match.playedAt) {
+        const d = new Date(match.playedAt);
+        if (!isNaN(d.getTime())) {
+          dateStr = d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+        }
+      }
+    } catch (e) {
+      console.warn("Date formatting error in history row", e);
+    }
 
     return (
-      <div key={`${match.playedAt}-${index}`} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
+      <div key={`${match.playedAt || 'match'}-${index}`} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
         <div className="flex flex-col items-center w-12 flex-shrink-0 border-r border-white/5 pr-2">
-          <span className="text-[10px] font-mono font-bold text-accent">{date}</span>
+          <span className="text-[10px] font-mono font-bold text-accent">{dateStr}</span>
           <span className="text-[7px] uppercase font-black text-muted-foreground text-center leading-none mt-1">
             {match.type === 'league' ? `DAY ${match.day}` : 'FRIENDLY'}
           </span>
@@ -321,7 +334,7 @@ export default function MatchesPage() {
 
                 <div className="w-full grid grid-cols-2 gap-3 pt-4 border-t border-white/5">
                    <div className="text-center">
-                     <p className="text-[10px] uppercase text-muted-foreground font-bold">W-D-L</p>
+                     <p className="text-[8px] uppercase text-muted-foreground font-bold">W-D-L</p>
                      <p className="text-sm font-bold">{opponent.wins}-{opponent.draws}-{opponent.losses}</p>
                    </div>
                    <div className="text-center">
