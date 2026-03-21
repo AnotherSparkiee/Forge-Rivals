@@ -116,9 +116,17 @@ export default function Home() {
 
   const friendlyMatchInfo = useMemo(() => {
     if (!activeFriendly || !user) return null;
+    
+    const acceptedAt = activeFriendly.acceptedAt?.toMillis() || Date.now();
+    const now = Date.now();
+    
+    // SANITY CHECK: If match is older than 16 minutes, it's stale/finished.
+    // The FriendlyMatchListener should handle the recording, but here we hide it from UI.
+    if (now - acceptedAt > 16 * 60 * 1000) return null;
+
     const isHost = activeFriendly.hostId === user.uid;
     const opponentName = isHost ? activeFriendly.challengerName : activeFriendly.hostName;
-    const acceptedAt = activeFriendly.acceptedAt?.toMillis() || Date.now();
+    
     return {
       opponent: { name: opponentName, isPlayer: true },
       day: 0,
@@ -145,35 +153,34 @@ export default function Home() {
           const s = Math.floor((diff % 60000) / 1000);
           setCountdown(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
         }
-        return;
-      }
-
-      // League Logic
-      const info = displayMatchInfo as any;
-      if (!info.time) return;
-      const [hours, minutes] = info.time.split(':').map(Number);
-      const targetDate = new Date(mskNow);
-      targetDate.setHours(hours, minutes, 0, 0);
-      
-      if (info.isNextDay) {
-        if (mskNow.getTime() >= targetDate.getTime()) {
-          targetDate.setDate(targetDate.getDate() + 1);
-        }
       } else {
-        if (mskNow.getTime() >= targetDate.getTime()) {
+        // League Logic
+        const info = displayMatchInfo as any;
+        if (!info.time) return;
+        const [hours, minutes] = info.time.split(':').map(Number);
+        const targetDate = new Date(mskNow);
+        targetDate.setHours(hours, minutes, 0, 0);
+        
+        if (info.isNextDay) {
+          if (mskNow.getTime() >= targetDate.getTime()) {
+            targetDate.setDate(targetDate.getDate() + 1);
+          }
+        } else {
+          if (mskNow.getTime() >= targetDate.getTime()) {
+            setCountdown('00:00:00');
+            return;
+          }
+        }
+
+        const diff = targetDate.getTime() - mskNow.getTime();
+        if (diff <= 0) {
           setCountdown('00:00:00');
-          return;
+        } else {
+          const h = Math.floor(diff / 3600000);
+          const m = Math.floor((diff % 3600000) / 60000);
+          const s = Math.floor((diff % 60000) / 1000);
+          setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
         }
-      }
-
-      const diff = targetDate.getTime() - mskNow.getTime();
-      if (diff <= 0) {
-        setCountdown('00:00:00');
-      } else {
-        const h = Math.floor(diff / 3600000);
-        const m = Math.floor((diff % 3600000) / 60000);
-        const s = Math.floor((diff % 60000) / 1000);
-        setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
       }
     }, 1000);
 
