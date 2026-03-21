@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -56,7 +57,10 @@ export default function Home() {
   // Listen for active friendly match ONLY when accepted and involving THIS user
   useEffect(() => {
     if (!user || isUserLoading) return;
+    
+    // We listen for any lobby where the user is either host or challenger and status is accepted
     const q = query(collection(db, 'friendly_lobbies'), where('status', '==', 'accepted'));
+    
     const unsub = onSnapshot(q, (snapshot) => {
       const match = snapshot.docs.find(d => {
         const data = d.data();
@@ -65,9 +69,16 @@ export default function Home() {
       
       if (match) {
         const data = match.data();
-        const acceptedAt = data.acceptedAt?.toMillis() || Date.now();
-        // If match is older than 15 minutes, don't set it as active
-        if (Date.now() - acceptedAt < 15 * 60 * 1000) {
+        const acceptedAt = data.acceptedAt?.toMillis();
+        
+        // CRITICAL: If acceptedAt is missing, it's an invalid or old-format match
+        if (!acceptedAt) {
+          setActiveFriendly(null);
+          return;
+        }
+
+        // If match is older than 16 minutes (duration + buffer), it's stale
+        if (Date.now() - acceptedAt < 16 * 60 * 1000) {
           setActiveFriendly({ ...data, id: match.id });
         } else {
           setActiveFriendly(null);
@@ -128,10 +139,11 @@ export default function Home() {
   const friendlyMatchInfo = useMemo(() => {
     if (!activeFriendly || !user) return null;
     
-    const acceptedAt = activeFriendly.acceptedAt?.toMillis() || Date.now();
+    const acceptedAt = activeFriendly.acceptedAt?.toMillis();
+    if (!acceptedAt) return null;
+
     const now = Date.now();
-    
-    // Safety check for stale documents
+    // Safety check for stale documents (match duration is 15 mins)
     if (now - acceptedAt > 15.5 * 60 * 1000) return null;
 
     const isHost = activeFriendly.hostId === user.uid;
@@ -152,7 +164,6 @@ export default function Home() {
 
     const interval = setInterval(() => {
       if (displayMatchInfo.isFriendly) {
-        // Use system UTC time for relative countdown (Date.now())
         const finishTime = (displayMatchInfo as any).acceptedAt + (15 * 60 * 1000);
         const diff = finishTime - Date.now();
         if (diff <= 0) {
@@ -163,7 +174,6 @@ export default function Home() {
           setCountdown(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
         }
       } else {
-        // League Logic (Moscow Time based)
         const mskNow = getMoscowTime();
         const info = displayMatchInfo as any;
         if (!info.time) return;

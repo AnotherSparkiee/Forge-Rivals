@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -92,8 +93,13 @@ export function FriendlyMatchListener() {
     if (data.status === 'accepted' && data.matchResult) {
       if (processedMatches.current.has(data.id)) return;
 
-      // Use current system time for elapsed calculation
-      const acceptedAt = data.acceptedAt?.toMillis() || Date.now();
+      const acceptedAt = data.acceptedAt?.toMillis();
+      if (!acceptedAt) {
+        // If data is corrupted (no timestamp), clean up if host
+        if (isHost) deleteDoc(doc(db, 'friendly_lobbies', data.id));
+        return;
+      }
+
       const finishTime = acceptedAt + MATCH_DURATION_MS;
       
       const checkAndComplete = () => {
@@ -122,7 +128,7 @@ export function FriendlyMatchListener() {
           // Only Host deletes the record to prevent race conditions
           if (isHost) {
             setTimeout(() => {
-              deleteDoc(doc(db, 'friendly_lobbies', data.id));
+              deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
             }, 5000); 
           }
         }
@@ -130,11 +136,11 @@ export function FriendlyMatchListener() {
 
       // If extremely stale (e.g. accepted hours ago), clean up immediately
       if (Date.now() - acceptedAt > 60 * 60 * 1000) {
-        if (isHost) deleteDoc(doc(db, 'friendly_lobbies', data.id));
+        if (isHost) deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
         return;
       }
 
-      const timer = setInterval(checkAndComplete, 5000);
+      const timer = setInterval(checkAndComplete, 10000);
       checkAndComplete();
       return () => clearInterval(timer);
     }
