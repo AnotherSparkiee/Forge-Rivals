@@ -17,6 +17,7 @@ import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { doc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, LEAGUES } from './lib/leagues-data';
 import { getMoscowDateString, getMoscowTime } from './lib/time-utils';
+import { cn } from '@/lib/utils';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -25,7 +26,7 @@ export default function Home() {
   const { 
     rank, leagueLevel, divisionSubId, groupId, 
     language, isLoaded, lastLeagueMatchDate, seasonDay,
-    matchHistory, lastSeenMatchDay
+    matchHistory, lastSeenMatchDay, strategy, team
   } = useGameState();
 
   const [countdown, setCountdown] = useState<string>('');
