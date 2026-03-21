@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUser, useFirestore } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { doc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, collection, query, where } from 'firebase/firestore';
@@ -29,6 +29,9 @@ export function FriendlyMatchListener() {
   const [activeLobby, setActiveLobby] = useState<any | null>(null);
   const [challengeResult, setChallengeResult] = useState<any | null>(null);
   const [isProcessing, setIsActionLoading] = useState(false);
+  
+  // Track processed matches to avoid double-recording
+  const processedMatches = useRef<Set<string>>(new Set());
 
   // 1. Listen for challenges or active matches as Host
   useEffect(() => {
@@ -87,12 +90,18 @@ export function FriendlyMatchListener() {
 
     // Auto-record accepted when time is up
     if (data.status === 'accepted' && data.matchResult) {
+      if (processedMatches.current.has(data.id)) return;
+
       const acceptedAt = data.acceptedAt?.toMillis() || Date.now();
       const finishTime = acceptedAt + MATCH_DURATION_MS;
       
       const checkAndComplete = () => {
         if (Date.now() >= finishTime) {
+          if (processedMatches.current.has(data.id)) return;
+          processedMatches.current.add(data.id);
+
           const result = data.matchResult;
+          // Challenger needs flipped scores for their history
           const finalResult = isHost ? result : {
             ...result,
             scoreA: result.scoreB,
@@ -109,8 +118,11 @@ export function FriendlyMatchListener() {
           });
 
           // Only Host deletes the record to prevent race conditions during recording
+          // Challenger query will simply return empty once deleted
           if (isHost) {
-            deleteDoc(doc(db, 'friendly_lobbies', data.id));
+            setTimeout(() => {
+              deleteDoc(doc(db, 'friendly_lobbies', data.id));
+            }, 5000); // 5s buffer for challenger to sync
           }
         }
       };
@@ -119,7 +131,7 @@ export function FriendlyMatchListener() {
       checkAndComplete();
       return () => clearInterval(timer);
     }
-  }, [activeLobby, challengeResult, user, language, recordMatch, db]);
+  }, [activeLobby, challengeResult, user, language, recordMatch, db, toast]);
 
   const handleHostRespond = async (accept: boolean) => {
     if (!activeLobby) return;

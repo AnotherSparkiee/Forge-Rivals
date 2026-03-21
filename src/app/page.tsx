@@ -53,7 +53,7 @@ export default function Home() {
     }
   }, [user, isUserLoading, router]);
 
-  // Listen for active friendly match
+  // Listen for active friendly match ONLY when accepted
   useEffect(() => {
     if (!user || isUserLoading) return;
     const q = query(collection(db, 'friendly_lobbies'), where('status', '==', 'accepted'));
