@@ -40,11 +40,12 @@ export const LEAGUES: LeagueOption[] = [
 /**
  * Deterministic match result based on team IDs and day.
  * Returns score strictly as [2, 0] (Win), [1, 1] (Draw), or [0, 2] (Loss)
+ * This ensures that Team A vs Team B always has the same result for EVERY player in the league.
  */
 export function getMatchResult(homeId: string, awayId: string, day: number): [number, number] {
   const hId = homeId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const aId = awayId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  // Use a fixed salt to ensure stability
+  // Use a fixed salt to ensure stability across all users
   const seed = (hId * 13) + (aId * 37) + (day * 7);
   const val = seed % 100;
   
@@ -91,6 +92,7 @@ export function getSchedule(teams: any[]) {
 
 /**
  * Builds the group standings table by simulating all matches up to a specific day.
+ * This is the SOURCE OF TRUTH for online rankings.
  */
 export function getMockGroupTeams(
   playerRank: number, 
@@ -105,10 +107,8 @@ export function getMockGroupTeams(
 ) {
   const teams: any[] = [];
   
-  // Defensive check to prevent "not iterable" error
-  const playersList = Array.isArray(realPlayers) ? realPlayers : [];
-  
   // 1. Add all real players from Firestore
+  const playersList = Array.isArray(realPlayers) ? realPlayers : [];
   const sortedRealPlayers = [...playersList].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
   
   sortedRealPlayers.forEach(p => {
@@ -145,6 +145,7 @@ export function getMockGroupTeams(
   teams.sort((a, b) => a.id.localeCompare(b.id));
 
   // 3. Simulate matches strictly up to upToDay
+  // Since this logic is deterministic, EVERY player will see the same table.
   if (upToDay > 0) {
     const seasonSchedule = getSchedule(teams);
     const limit = Math.min(upToDay, SEASON_DURATION_DAYS);

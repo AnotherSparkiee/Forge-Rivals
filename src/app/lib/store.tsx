@@ -1,10 +1,11 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
 import { Hero, INITIAL_HEROES } from './moba-data';
-import { getMoscowTime, getMoscowDateString } from './time-utils';
+import { getMoscowTime, getMoscowDateString, isMatchDue } from './time-utils';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
+import { getMockGroupTeams, LEAGUES } from './leagues-data';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2';
 
@@ -214,6 +215,7 @@ interface GameStateContextType extends GameState {
   recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: 'league' | 'friendly', customPlayedAt?: string) => void;
   markMatchAsSeen: (day: number) => void;
   claimReward: (creditsReward: number, crystalsReward: number) => void;
+  syncStats: (groupPlayers: any[]) => void;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
@@ -266,10 +268,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             const mskNow = getMoscowTime();
             const [year, month, day] = startDateStr.split('-').map(Number);
             
-            const todayUtc = Date.UTC(mskNow.getFullYear(), mskNow.getMonth(), mskNow.getDate());
-            const startUtc = Date.UTC(year, month - 1, day);
+            const todayUtc = Date.UTC(year, month - 1, day);
+            const nowUtc = Date.UTC(mskNow.getFullYear(), mskNow.getMonth(), mskNow.getDate());
             
-            const diffDays = Math.floor((todayUtc - startUtc) / (1000 * 60 * 60 * 24));
+            const diffDays = Math.floor((nowUtc - todayUtc) / (1000 * 60 * 60 * 24));
             
             if (diffDays >= 0) {
               currentDay = (diffDays % 14) + 1;
@@ -278,7 +280,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             }
           }
 
-          // Maintenance: Annul any league matches that are in the future
           const history = profileData.matchHistory || s.matchHistory || [];
           const validHistory = history.filter((m: MatchResultEntry) => {
             if (m.type !== 'league') return true;
@@ -289,6 +290,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             ...s,
             credits: profileData.inGameCurrency ?? s.credits,
             crystals: profileData.crystals ?? s.crystals,
+            // Stats (wins, points, etc.) will be synchronized via syncStats function below
             wins: profileData.wins ?? s.wins,
             draws: profileData.draws ?? s.draws,
             losses: profileData.losses ?? s.losses,
@@ -323,6 +325,59 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(key, JSON.stringify(state));
     }
   }, [state, isLoaded, getStorageKey, user]);
+
+  /**
+   * IMPORTANT: This function synchronizes the player's league stats with the deterministic global schedule.
+   * This makes the game feel "Online" because stats update for everyone at the same time.
+   */
+  const syncStats = useCallback((groupPlayers: any[]) => {
+    if (!state.selectedLeagueId || !state.seasonDay || !user) return;
+
+    const league = LEAGUES.find(l => l.id === state.selectedLeagueId);
+    const isPlayedToday = isMatchDue(league?.startTime || "23:00", state.lastLeagueMatchDate);
+    const completedDays = isPlayedToday ? state.seasonDay : Math.max(0, state.seasonDay - 1);
+
+    const groupTeams = getMockGroupTeams(
+      state.rank, 
+      user.displayName || "My Team", 
+      state.leagueLevel, 
+      state.divisionSubId, 
+      state.groupId, 
+      state.selectedLeagueId,
+      groupPlayers,
+      user.uid,
+      completedDays
+    );
+
+    const myTeam = groupTeams.find(t => t.id === user.uid);
+    if (!myTeam) return;
+
+    setState(s => {
+      // If stats are already correct, don't trigger re-render
+      if (s.wins === myTeam.wins && s.draws === myTeam.draws && s.losses === myTeam.losses && s.points === myTeam.points) {
+        return s;
+      }
+
+      const newState = {
+        ...s,
+        wins: myTeam.wins,
+        draws: myTeam.draws,
+        losses: myTeam.losses,
+        points: myTeam.points
+      };
+
+      // Persist to Firestore
+      const profileRef = doc(db, 'players_v2', user.uid);
+      setDoc(profileRef, {
+        wins: myTeam.wins,
+        draws: myTeam.draws,
+        losses: myTeam.losses,
+        points: myTeam.points
+      }, { merge: true }).catch(e => console.warn("Stat sync failed", e));
+
+      return newState;
+    });
+  }, [state.selectedLeagueId, state.seasonDay, state.lastLeagueMatchDate, state.rank, state.leagueLevel, state.divisionSubId, state.groupId, user, db]);
 
   const addCredits = useCallback((amount: number) => {
     setState(s => {
@@ -617,20 +672,19 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const scoreB = result.scoreB || 0;
     let creditsEarned = 50;
     let rankChange = -15;
-    let matchWins = 0, matchDraws = 0, matchLosses = 0, matchPoints = 0;
 
     if (scoreA === 2 && scoreB === 0) {
-      creditsEarned = 200; rankChange = 25; matchWins = 1; matchPoints = 3;
+      creditsEarned = 200; rankChange = 25;
     } else if (scoreA === 1 && scoreB === 1) {
-      creditsEarned = 100; rankChange = 5; matchDraws = 1; matchPoints = 1;
+      creditsEarned = 100; rankChange = 5;
     } else if (scoreA === 0 && scoreB === 2) {
-      matchLosses = 1;
+      // Rank change already -15
     } else if (scoreA > scoreB) { 
-      creditsEarned = 150; matchWins = 1; rankChange = 10;
+      creditsEarned = 150; rankChange = 10;
     } else if (scoreA < scoreB) {
-      matchLosses = 1;
+      // Rank change already -15
     } else {
-      matchDraws = 1;
+      rankChange = 0;
     }
 
     setState(s => {
@@ -656,18 +710,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       };
 
       const todayStr = getMoscowDateString();
-      // Only block future match triggers for TODAY if we actually played today's match.
-      // If we recorded a catch-up match from the past, don't set lastLeagueMatchDate to today.
       const shouldUpdateLastMatchDate = type === 'league' && matchDay === s.seasonDay;
 
       const newState = {
         ...s,
         credits: s.credits + creditsEarned,
         rank: s.rank + rankChange,
-        wins: s.wins + matchWins,
-        draws: s.draws + matchDraws,
-        losses: s.losses + matchLosses,
-        points: s.points + matchPoints,
         matchHistory: [matchEntry, ...s.matchHistory].slice(0, 100),
         lastLeagueMatchDate: shouldUpdateLastMatchDate ? todayStr : s.lastLeagueMatchDate
       };
@@ -676,10 +724,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const profileRef = doc(db, 'players_v2', user.uid);
         setDoc(profileRef, {
           inGameCurrency: newState.credits,
-          wins: newState.wins,
-          draws: newState.draws,
-          losses: newState.losses,
-          points: newState.points,
+          rank: newState.rank,
           lastLeagueMatchDate: newState.lastLeagueMatchDate,
           matchHistory: newState.matchHistory
         }, { merge: true }).catch(e => console.warn("Firestore match sync failed", e));
@@ -720,7 +765,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       setLanguage,
       recordMatch,
       markMatchAsSeen,
-      claimReward
+      claimReward,
+      syncStats
     }}>
       {children}
     </GameStateContext.Provider>

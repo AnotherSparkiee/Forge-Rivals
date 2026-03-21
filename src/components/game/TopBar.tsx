@@ -1,22 +1,41 @@
-
 'use client';
 
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { doc } from 'firebase/firestore';
-import { Globe, Gem } from 'lucide-react';
+import { doc, collection, query, where } from 'firebase/firestore';
+import { Globe, Gem, Trophy } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { LEAGUES } from '@/app/lib/leagues-data';
+import { useEffect } from 'react';
 
 export function TopBar() {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
-  const { credits, crystals, language } = useGameState();
+  const { credits, crystals, wins, draws, losses, points, syncStats } = useGameState();
   const db = useFirestore();
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
+
+  const groupQuery = useMemoFirebase(() => {
+    if (!profile?.selectedLeagueId) return null;
+    return query(
+      collection(db, 'players_v2'),
+      where('selectedLeagueId', '==', profile.selectedLeagueId),
+      where('leagueLevel', '==', profile.leagueLevel),
+      where('groupId', '==', profile.groupId)
+    );
+  }, [db, profile?.selectedLeagueId, profile?.leagueLevel, profile?.groupId]);
+
+  const { data: groupPlayers } = useCollection(groupQuery);
+
+  // Sync league stats with global deterministic state whenever group data or time changes
+  useEffect(() => {
+    if (groupPlayers && groupPlayers.length > 0) {
+      syncStats(groupPlayers);
+    }
+  }, [groupPlayers, syncStats]);
 
   if (isUserLoading || !user || pathname?.startsWith('/auth') || pathname === '/setup') {
     return null;
@@ -38,9 +57,16 @@ export function TopBar() {
             <p className="text-[10px] font-bold text-primary uppercase leading-tight tracking-tighter truncate">
               {profile?.displayName || 'Syncing...'}
             </p>
-            <p className="text-[8px] text-muted-foreground uppercase tracking-widest leading-tight flex items-center gap-1 opacity-70">
-              <Globe className="w-2 h-2" /> {league ? `${league.id} @ ${league.startTime}` : profile?.country || 'Sector'}
-            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-[8px] text-muted-foreground uppercase tracking-widest leading-tight flex items-center gap-1 opacity-70">
+                <Globe className="w-2 h-2" /> {league ? `${league.id}` : profile?.country || 'Sector'}
+              </p>
+              <div className="h-2 w-px bg-white/10"></div>
+              <div className="flex items-center gap-1">
+                <Trophy className="w-2 h-2 text-yellow-500" />
+                <span className="text-[8px] font-bold text-accent">{points} PTS</span>
+              </div>
+            </div>
           </div>
         </div>
 
