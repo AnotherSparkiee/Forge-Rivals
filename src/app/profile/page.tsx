@@ -30,9 +30,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
-type ProfileTab = 'training' | 'team' | 'page' | 'news' | 'daily' | 'bonuses' | 'gift';
+type ProfileTab = 'menu' | 'training' | 'team' | 'page' | 'news' | 'daily' | 'bonuses' | 'gift';
 
 export default function ProfilePage() {
   const { ownedHeroes, rank, language, setLanguage, isLoaded: isStoreLoaded, credits, crystals, leagueLevel, divisionSubId, groupId } = useGameState();
@@ -42,7 +41,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
   
-  const [activeTab, setActiveTab] = useState<ProfileTab>('team');
+  const [activeTab, setActiveTab] = useState<ProfileTab>('menu');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -67,6 +66,7 @@ export default function ProfilePage() {
   const translations = {
     en: {
       title: "LEGENDARY MANAGER",
+      backToMenu: "Back to Hub",
       rosterInfo: "Roster Status",
       heroes: "Heroes",
       mmr: "MMR Points",
@@ -96,19 +96,20 @@ export default function ProfilePage() {
       deleteConfirm: "YES, DELETE MY PROFILE",
       deleteCancel: "CANCEL",
       reloginRequired: "Security check required. Please relogin before deletion.",
-      tabs: {
-        training: "Training Task",
-        team: "My Team",
-        page: "My Page",
-        news: "My News",
-        daily: "Daily Bonuses",
-        bonuses: "My Bonuses",
-        gift: "Gift Bonuses"
-      },
-      emptyState: "Terminal data not yet synchronized. Feature coming soon."
+      emptyState: "Terminal data not yet synchronized. Feature coming soon.",
+      menu: [
+        { id: 'training', label: "Training Task", desc: "Tutorial and progression rewards", icon: BookOpen },
+        { id: 'team', label: "My Team", desc: "Personal stats, finances and settings", icon: Users },
+        { id: 'page', label: "My Page", desc: "Manager profile and biography", icon: LayoutDashboard },
+        { id: 'news', label: "My News", desc: "Personal achievement feed", icon: Newspaper },
+        { id: 'daily', label: "Daily Bonuses", desc: "Claim login rewards", icon: Gift },
+        { id: 'bonuses', label: "My Bonuses", desc: "Active and stored boosters", icon: Package },
+        { id: 'gift', label: "Gift Bonuses", desc: "Send items to other managers", icon: Heart },
+      ]
     },
     ru: {
       title: "ЛЕГЕНДАРНЫЙ МЕНЕДЖЕР",
+      backToMenu: "Вернуться в хаб",
       rosterInfo: "Информация о Росторе",
       heroes: "Героев",
       mmr: "Очки MMR",
@@ -138,16 +139,16 @@ export default function ProfilePage() {
       deleteConfirm: "ДА, УДАЛИТЬ ПРОФИЛЬ",
       deleteCancel: "ОТМЕНА",
       reloginRequired: "Требуется проверка безопасности. Пожалуйста, перезайдите.",
-      tabs: {
-        training: "Задание обучения",
-        team: "Моя команда",
-        page: "Моя страница",
-        news: "Мои новости",
-        daily: "Дневные бонусы",
-        bonuses: "Мои бонусы",
-        gift: "Подарить бонусы"
-      },
-      emptyState: "Данные терминала еще не синхронизированы. Функция скоро появится."
+      emptyState: "Данные терминала еще не синхронизированы. Функция скоро появится.",
+      menu: [
+        { id: 'training', label: "Задание обучения", desc: "Обучающие квесты и награды", icon: BookOpen },
+        { id: 'team', label: "Моя команда", desc: "Статистика, финансы и настройки", icon: Users },
+        { id: 'page', label: "Моя страница", desc: "Публичный профиль менеджера", icon: LayoutDashboard },
+        { id: 'news', label: "Мои новости", desc: "Лента ваших достижений", icon: Newspaper },
+        { id: 'daily', label: "Дневные бонусы", desc: "Получить награды за вход", icon: Gift },
+        { id: 'bonuses', label: "Мои бонусы", desc: "Активные и складские бусты", icon: Package },
+        { id: 'gift', label: "Подарить бонусы", desc: "Отправить бонусы другим", icon: Heart },
+      ]
     }
   };
 
@@ -188,17 +189,34 @@ export default function ProfilePage() {
   const xpLevel = Math.floor(currentExp / 1000) + 1;
   const progress = (currentExp % 1000 / 1000) * 100;
 
-  const tabList = [
-    { id: 'training', icon: BookOpen },
-    { id: 'team', icon: Users },
-    { id: 'page', icon: LayoutDashboard },
-    { id: 'news', icon: Newspaper },
-    { id: 'daily', icon: Gift },
-    { id: 'bonuses', icon: Package },
-    { id: 'gift', icon: Heart },
-  ];
+  const renderContent = () => {
+    if (activeTab === 'menu') {
+      return (
+        <div className="space-y-2 animate-in fade-in duration-500">
+          {t.menu.map((item) => (
+            <Card 
+              key={item.id} 
+              className="glass-card hover:bg-white/5 transition-colors border-white/5 cursor-pointer"
+              onClick={() => setActiveTab(item.id as ProfileTab)}
+            >
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 rounded-lg bg-secondary/50">
+                    <item.icon className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold uppercase">{item.label}</h3>
+                    <p className="text-[10px] text-muted-foreground">{item.desc}</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      );
+    }
 
-  const renderTabContent = () => {
     if (activeTab === 'team') {
       return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -376,12 +394,23 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
-      <header className="flex flex-col items-center mb-6 relative">
-        <Link href="/" className="absolute left-0 top-0">
-          <Button variant="ghost" size="icon" className="rounded-full">
+      <header className="flex flex-col items-center mb-10 relative">
+        <div className="absolute left-0 top-0">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="rounded-full"
+            onClick={() => {
+              if (activeTab === 'menu') {
+                router.push('/');
+              } else {
+                setActiveTab('menu');
+              }
+            }}
+          >
             <ChevronLeft className="w-6 h-6" />
           </Button>
-        </Link>
+        </div>
         <div className="w-24 h-24 rounded-full border-4 border-primary/20 p-1 mb-4 bg-secondary shadow-[0_0_20px_rgba(var(--primary),0.3)]">
           <div className="w-full h-full rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
             <User className="w-12 h-12 text-primary-foreground" />
@@ -395,33 +424,7 @@ export default function ProfilePage() {
         </p>
       </header>
 
-      {/* Profile Tabs Navigation */}
-      <div className="mb-8 -mx-4">
-        <ScrollArea className="w-full whitespace-nowrap">
-          <div className="flex w-max space-x-2 p-4">
-            {tabList.map((tab) => (
-              <Button
-                key={tab.id}
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "flex flex-col items-center gap-1 h-auto py-2 px-4 rounded-xl border border-white/5 transition-all",
-                  activeTab === tab.id ? "bg-primary/10 text-primary border-primary/30" : "bg-secondary/20 text-muted-foreground hover:bg-secondary/40"
-                )}
-                onClick={() => setActiveTab(tab.id as ProfileTab)}
-              >
-                <tab.icon className={cn("w-5 h-5", activeTab === tab.id ? "text-primary" : "text-muted-foreground")} />
-                <span className="text-[8px] font-black uppercase tracking-tighter">
-                  {t.tabs[tab.id as keyof typeof t.tabs]}
-                </span>
-              </Button>
-            ))}
-          </div>
-          <ScrollBar orientation="horizontal" className="hidden" />
-        </ScrollArea>
-      </div>
-
-      {renderTabContent()}
+      {renderContent()}
 
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent className="bg-card border-white/10">
