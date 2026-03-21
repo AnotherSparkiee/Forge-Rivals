@@ -10,7 +10,7 @@ import { INITIAL_HEROES } from '@/app/lib/moba-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { useToast } from '@/hooks/use-toast';
 import { 
-  Dialog, DialogContent, DialogFooter 
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -193,6 +193,9 @@ export function AutoMatchManager() {
       }
     }}>
       <DialogContent className="max-w-md p-0 overflow-hidden bg-background border-white/5">
+        <DialogHeader className="sr-only">
+          <DialogTitle>{language === 'ru' ? 'Результат матча' : 'Match Result'}</DialogTitle>
+        </DialogHeader>
         <div className={cn(
           "p-6 text-center border-b",
           isWin ? "bg-primary/10 border-primary/20" : isDraw ? "bg-accent/10 border-accent/20" : "bg-destructive/10 border-destructive/20"

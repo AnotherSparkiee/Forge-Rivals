@@ -171,8 +171,10 @@ export function FriendlyMatchListener() {
     if (data.status === 'rejected') {
       return (
         <div className="text-center py-4">
-          <XCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h3 className="font-headline font-bold text-red-400 uppercase">{t.resRejected}</h3>
+          <DialogHeader>
+            <DialogTitle className="font-headline font-bold text-red-400 uppercase text-center">{t.resRejected}</DialogTitle>
+          </DialogHeader>
+          <XCircle className="w-12 h-12 text-red-400 mx-auto mb-4 mt-4" />
           <p className="text-xs text-muted-foreground mt-2">
             {language === 'ru' ? `Менеджер ${isHost ? data.challengerName : data.hostName} отклонил запрос.` : `Manager ${isHost ? data.challengerName : data.hostName} declined the request.`}
           </p>
@@ -188,21 +190,24 @@ export function FriendlyMatchListener() {
 
       return (
         <div className="text-center py-4">
+          <DialogHeader>
+            <DialogTitle className={cn("font-headline font-bold uppercase text-lg text-center", isFinished ? "text-green-400" : "text-primary")}>
+              {isFinished ? (language === 'ru' ? 'МАТЧ ЗАВЕРШЕН' : 'MATCH COMPLETED') : t.inProgress}
+            </DialogTitle>
+          </DialogHeader>
           {isFinished ? (
             <>
-              <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4 border border-green-500/20">
+              <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4 mt-4 border border-green-500/20">
                 <PlayCircle className="w-8 h-8 text-green-400" />
               </div>
-              <h3 className="font-headline font-bold text-green-400 uppercase text-lg">{language === 'ru' ? 'МАТЧ ЗАВЕРШЕН' : 'MATCH COMPLETED'}</h3>
               <p className="text-xs text-muted-foreground mt-2">{language === 'ru' ? 'Результаты симуляции получены.' : 'Simulation results are ready.'}</p>
               <Button className="w-full mt-6 hero-gradient font-bold h-12 uppercase text-[10px]" onClick={() => handleClearResult(data)}>{t.view}</Button>
             </>
           ) : (
             <>
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4 border border-primary/20 animate-pulse">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4 mt-4 border border-primary/20 animate-pulse">
                 <Clock className="w-8 h-8 text-primary" />
               </div>
-              <h3 className="font-headline font-bold text-primary uppercase">{t.inProgress}</h3>
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mt-1">{t.wait}: {formatTime(timeLeft)}</p>
               <div className="mt-6 p-3 bg-secondary/30 rounded-xl border border-white/5">
                 <p className="text-[10px] text-muted-foreground italic leading-relaxed">"{t.inProgressDesc}"</p>
