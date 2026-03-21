@@ -12,14 +12,14 @@ import { Loader2, Clock, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useGameState } from '@/app/lib/store';
-import { getMoscowDateString } from '@/app/lib/time-utils';
+import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const { seasonDay, isLoaded, selectedLeagueId: currentLeague, country: currentCountry } = useGameState();
+  const { isLoaded, selectedLeagueId: currentLeague, country: currentCountry } = useGameState();
   
   const [step, setStep] = useState<'league' | 'country'>('league');
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
@@ -33,7 +33,6 @@ export default function SetupPage() {
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
-    // If setup is already complete in the reactive store, redirect home
     if (isLoaded && currentLeague && currentCountry) {
       router.push('/');
     }
@@ -46,8 +45,9 @@ export default function SetupPage() {
   };
 
   const calculateInheritedStats = (leagueId: string, level: number, group: number, day: number) => {
-    if (day <= 0) return { wins: 0, draws: 0, losses: 0, points: 0 };
-    const groupTeams = getMockGroupTeams(1000, "Template", level, 1, group, false, day, undefined, leagueId);
+    if (day <= 1) return { wins: 0, draws: 0, losses: 0, points: 0 };
+    // Simulate up to yesterday
+    const groupTeams = getMockGroupTeams(1000, "Template", level, 1, group, leagueId, [], undefined, day - 1);
     const replacedBot = groupTeams.length > 0 ? groupTeams[groupTeams.length - 1] : { wins: 0, draws: 0, losses: 0, points: 0 };
     return {
       wins: replacedBot.wins || 0,
@@ -75,13 +75,12 @@ export default function SetupPage() {
         targetGroup = 1;
       }
 
+      const { seasonDay, seasonStartDate } = getGlobalSeasonInfo();
       const inheritedStats = calculateInheritedStats(selectedLeagueId, targetLevel, targetGroup, seasonDay);
 
       const profileRef = doc(db, 'players_v2', user.uid);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       
-      const mskTodayStr = getMoscowDateString();
-
       const updateData = {
         id: user.uid,
         selectedLeagueId: selectedLeagueId,
@@ -94,7 +93,7 @@ export default function SetupPage() {
         losses: Number(inheritedStats.losses),
         points: Number(inheritedStats.points),
         setupDate: new Date().toISOString(),
-        seasonStartDate: mskTodayStr // Start season from registration day according to Moscow
+        seasonStartDate: seasonStartDate
       };
       
       await setDoc(profileRef, updateData, { merge: true });
@@ -117,7 +116,7 @@ export default function SetupPage() {
   };
 
   if (isUserLoading || !isLoaded) {
-    return <LoadingScreen />;
+    return <Loader2 className="w-8 h-8 animate-spin text-primary" />;
   }
 
   return (

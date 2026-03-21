@@ -3,7 +3,7 @@
  */
 
 export function getMoscowTime(): Date {
-  // Moscow is UTC+3. We calculate it by taking the UTC time and adding 3 hours.
+  // Moscow is UTC+3.
   const now = new Date();
   const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
   const mskOffset = 3 * 3600000;
@@ -29,8 +29,37 @@ export function formatMoscowTime(date: Date): string {
 }
 
 /**
+ * Calculates the global season info based on a fixed epoch.
+ * This ensures ALL players are on the same season day.
+ */
+export function getGlobalSeasonInfo() {
+  const mskNow = getMoscowTime();
+  // Fixed Epoch: Jan 1st, 2024
+  const epoch = Date.UTC(2024, 0, 1);
+  const nowUtc = Date.UTC(mskNow.getFullYear(), mskNow.getMonth(), mskNow.getDate());
+  
+  const diffDays = Math.floor((nowUtc - epoch) / (1000 * 60 * 60 * 24));
+  const seasonDuration = 14;
+  
+  const currentSeasonDay = (diffDays % seasonDuration) + 1;
+  
+  // Calculate when THIS specific season cycle started
+  const seasonStartMsk = new Date(mskNow);
+  seasonStartMsk.setDate(mskNow.getDate() - (currentSeasonDay - 1));
+  
+  const year = seasonStartMsk.getFullYear();
+  const month = String(seasonStartMsk.getMonth() + 1).padStart(2, '0');
+  const day = String(seasonStartMsk.getDate()).padStart(2, '0');
+  const seasonStartDateStr = `${year}-${month}-${day}`;
+
+  return {
+    seasonDay: currentSeasonDay,
+    seasonStartDate: seasonStartDateStr
+  };
+}
+
+/**
  * Checks if a match should be triggered based on league start time
- * Example startTime: "23:00" -> match starts at 23:00 MSK
  */
 export function isMatchDue(startTimeStr: string, lastMatchDateStr: string | null): boolean {
   const mskNow = getMoscowTime();

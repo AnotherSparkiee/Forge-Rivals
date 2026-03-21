@@ -1,10 +1,10 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Hero, INITIAL_HEROES } from './moba-data';
-import { getMoscowTime, getMoscowDateString, isMatchDue } from './time-utils';
+import { getMoscowTime, getMoscowDateString, isMatchDue, getGlobalSeasonInfo } from './time-utils';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, setDoc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { getMockGroupTeams, LEAGUES } from './leagues-data';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2';
@@ -261,36 +261,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const profileData = docSnap.data();
         
         setState(s => {
-          const startDateStr = profileData.seasonStartDate || s.seasonStartDate;
+          const { seasonDay: globalDay, seasonStartDate: globalStart } = getGlobalSeasonInfo();
           
-          let currentDay = 0;
-          if (startDateStr) {
-            const mskNow = getMoscowTime();
-            const [year, month, day] = startDateStr.split('-').map(Number);
-            
-            const todayUtc = Date.UTC(year, month - 1, day);
-            const nowUtc = Date.UTC(mskNow.getFullYear(), mskNow.getMonth(), mskNow.getDate());
-            
-            const diffDays = Math.floor((nowUtc - todayUtc) / (1000 * 60 * 60 * 24));
-            
-            if (diffDays >= 0) {
-              currentDay = (diffDays % 14) + 1;
-            } else {
-              currentDay = 1;
-            }
-          }
-
           const history = profileData.matchHistory || s.matchHistory || [];
           const validHistory = history.filter((m: MatchResultEntry) => {
             if (m.type !== 'league') return true;
-            return m.day <= currentDay;
+            return m.day <= globalDay;
           });
 
           return {
             ...s,
             credits: profileData.inGameCurrency ?? s.credits,
             crystals: profileData.crystals ?? s.crystals,
-            // Stats (wins, points, etc.) will be synchronized via syncStats function below
             wins: profileData.wins ?? s.wins,
             draws: profileData.draws ?? s.draws,
             losses: profileData.losses ?? s.losses,
@@ -303,8 +285,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             lastSeenMatchDay: profileData.lastSeenMatchDay ?? s.lastSeenMatchDay ?? 0,
             lastLeagueMatchDate: profileData.lastLeagueMatchDate ?? s.lastLeagueMatchDate,
             matchHistory: validHistory,
-            seasonStartDate: startDateStr,
-            seasonDay: currentDay,
+            seasonStartDate: globalStart,
+            seasonDay: globalDay,
             lastRewardClaimDate: profileData.lastRewardClaimDate ?? s.lastRewardClaimDate,
             rewardDay: profileData.rewardDay ?? s.rewardDay ?? 1,
           };
@@ -326,10 +308,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }, [state, isLoaded, getStorageKey, user]);
 
-  /**
-   * IMPORTANT: This function synchronizes the player's league stats with the deterministic global schedule.
-   * This makes the game feel "Online" because stats update for everyone at the same time.
-   */
   const syncStats = useCallback((groupPlayers: any[]) => {
     if (!state.selectedLeagueId || !state.seasonDay || !user) return;
 
@@ -353,7 +331,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!myTeam) return;
 
     setState(s => {
-      // If stats are already correct, don't trigger re-render
       if (s.wins === myTeam.wins && s.draws === myTeam.draws && s.losses === myTeam.losses && s.points === myTeam.points) {
         return s;
       }
@@ -366,7 +343,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         points: myTeam.points
       };
 
-      // Persist to Firestore
       const profileRef = doc(db, 'players_v2', user.uid);
       setDoc(profileRef, {
         wins: myTeam.wins,
