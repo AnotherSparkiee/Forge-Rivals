@@ -7,14 +7,14 @@ import { useGameState } from './lib/store';
 import { 
   Users, Trophy, Zap, Clock,
   UserSearch, ShieldAlert, Medal, User, Swords, ChevronRight,
-  CalendarDays
+  CalendarDays, PlayCircle
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { doc, collection, query, where } from 'firebase/firestore';
+import { doc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, LEAGUES } from './lib/leagues-data';
 import { getMoscowDateString, getMoscowTime } from './lib/time-utils';
 
@@ -29,6 +29,7 @@ export default function Home() {
   } = useGameState();
 
   const [countdown, setCountdown] = useState<string>('');
+  const [activeFriendly, setActiveFriendly] = useState<any | null>(null);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -51,12 +52,27 @@ export default function Home() {
     }
   }, [user, isUserLoading, router]);
 
+  // Listen for active friendly match
+  useEffect(() => {
+    if (!user || isUserLoading) return;
+    const q = query(collection(db, 'friendly_lobbies'), where('status', '==', 'accepted'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const match = snapshot.docs.find(d => {
+        const data = d.data();
+        return data.hostId === user.uid || data.challengerId === user.uid;
+      });
+      if (match) setActiveFriendly({ ...match.data(), id: match.id });
+      else setActiveFriendly(null);
+    });
+    return () => unsub();
+  }, [user, isUserLoading, db]);
+
   const isTodayPlayed = useMemo(() => {
     const todayStr = getMoscowDateString();
     return lastLeagueMatchDate === todayStr;
   }, [lastLeagueMatchDate]);
 
-  const nextMatchInfo = useMemo(() => {
+  const leagueNextMatch = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return null;
     
     const league = LEAGUES.find(l => l.id === profile.selectedLeagueId) || LEAGUES[0];
@@ -92,21 +108,53 @@ export default function Home() {
       opponent,
       day: targetDay,
       time: league.startTime,
-      isNextDay: isTodayPlayed || isPastMatchTimeToday
+      isNextDay: isTodayPlayed || isPastMatchTimeToday,
+      isFriendly: false
     };
   }, [isLoaded, profile, groupPlayers, seasonDay, isTodayPlayed, rank, leagueLevel, divisionSubId, groupId, user?.uid]);
 
+  const friendlyMatchInfo = useMemo(() => {
+    if (!activeFriendly || !user) return null;
+    const isHost = activeFriendly.hostId === user.uid;
+    const opponentName = isHost ? activeFriendly.challengerName : activeFriendly.hostName;
+    const acceptedAt = activeFriendly.acceptedAt?.toMillis() || Date.now();
+    return {
+      opponent: { name: opponentName, isPlayer: true },
+      day: 0,
+      isFriendly: true,
+      acceptedAt
+    };
+  }, [activeFriendly, user]);
+
+  const displayMatchInfo = friendlyMatchInfo || leagueNextMatch;
+
   useEffect(() => {
-    if (!nextMatchInfo) return;
+    if (!displayMatchInfo) return;
 
     const interval = setInterval(() => {
       const mskNow = getMoscowTime();
-      const [hours, minutes] = nextMatchInfo.time.split(':').map(Number);
       
+      if (displayMatchInfo.isFriendly) {
+        const finishTime = displayMatchInfo.acceptedAt! + (15 * 60 * 1000);
+        const diff = finishTime - mskNow.getTime();
+        if (diff <= 0) {
+          setCountdown('00:00:00');
+        } else {
+          const m = Math.floor(diff / 60000);
+          const s = Math.floor((diff % 60000) / 1000);
+          setCountdown(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+        }
+        return;
+      }
+
+      // League Logic
+      const info = displayMatchInfo as any;
+      if (!info.time) return;
+      const [hours, minutes] = info.time.split(':').map(Number);
       const targetDate = new Date(mskNow);
       targetDate.setHours(hours, minutes, 0, 0);
       
-      if (nextMatchInfo.isNextDay) {
+      if (info.isNextDay) {
         if (mskNow.getTime() >= targetDate.getTime()) {
           targetDate.setDate(targetDate.getDate() + 1);
         }
@@ -129,7 +177,7 @@ export default function Home() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [nextMatchInfo]);
+  }, [displayMatchInfo]);
 
   const unseenCount = useMemo(() => {
     return matchHistory.filter(m => m.type === 'league' && m.day > lastSeenMatchDay).length;
@@ -141,7 +189,7 @@ export default function Home() {
 
   const translations = {
     en: {
-      nextMatch: "Next Engagement",
+      nextMatch: displayMatchInfo?.isFriendly ? "Live Friendly" : "Next Engagement",
       vs: "VS",
       today: "TODAY",
       tomorrow: "TOMORROW",
@@ -153,7 +201,7 @@ export default function Home() {
       seasonEndedDesc: "The championship cycle is over. Final results are being calculated.",
       noOpponent: "No Active Opponents",
       noOpponentDesc: "The tactical link is clear. No scheduled engagements in this sector.",
-      startsIn: "TIME UNTIL MATCH:",
+      startsIn: displayMatchInfo?.isFriendly ? "REMAINING TIME:" : "TIME UNTIL MATCH:",
       menu: [
         { label: 'Battle Simulation', desc: 'Deploy team for automated matches' },
         { label: 'Team Roster', desc: 'Manage your active hero lineup' },
@@ -169,7 +217,7 @@ export default function Home() {
       ]
     },
     ru: {
-      nextMatch: "Следующий матч",
+      nextMatch: displayMatchInfo?.isFriendly ? "Текущий матч" : "Следующий матч",
       vs: "ПРОТИВ",
       today: "СЕГОДНЯ",
       tomorrow: "ЗАВТРА",
@@ -181,7 +229,7 @@ export default function Home() {
       seasonEndedDesc: "Цикл чемпионата окончен. Идет подведение итоговых результатов.",
       noOpponent: "Нет активных соперников",
       noOpponentDesc: "Тактический канал чист. Запланированных встреч в данном секторе нет.",
-      startsIn: "ДО МАТЧА ОСТАЛОСЬ:",
+      startsIn: displayMatchInfo?.isFriendly ? "ВРЕМЯ ДО КОНЦА:" : "ДО МАТЧА ОСТАЛОСЬ:",
       menu: [
         { label: 'Боевая Симуляция', desc: 'Развертывание команды для матча' },
         { label: 'Ростер Команды', desc: 'Управление активным составом' },
@@ -213,39 +261,54 @@ export default function Home() {
     <div className="max-w-md mx-auto px-4 pt-8 pb-12">
       <header className="mb-6">
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
-          <UserSearch className="w-6 h-6 text-accent" />
+          {displayMatchInfo?.isFriendly ? <PlayCircle className="w-6 h-6 text-green-400 animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />}
           {t.nextMatch}
         </h1>
       </header>
 
       <section className="mb-8">
-        {nextMatchInfo ? (
-          <Card className="glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden">
+        {displayMatchInfo ? (
+          <Card className={cn(
+            "glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden",
+            displayMatchInfo.isFriendly && "border-green-500/30 bg-green-500/5"
+          )}>
             <CardContent className="p-0">
               <div className="p-4 border-b border-white/5 flex items-center justify-center">
                 <div className="flex flex-col items-center">
-                  <span className="text-[10px] font-bold text-accent uppercase tracking-tighter mb-1">{t.startsIn}</span>
-                  <span className="text-4xl font-headline font-bold text-primary tabular-nums tracking-tighter drop-shadow-[0_0_10px_rgba(var(--primary),0.5)]">{countdown || '00:00:00'}</span>
+                  <span className={cn("text-[10px] font-bold uppercase tracking-tighter mb-1", displayMatchInfo.isFriendly ? "text-green-400" : "text-accent")}>
+                    {t.startsIn}
+                  </span>
+                  <span className={cn(
+                    "text-4xl font-headline font-bold tabular-nums tracking-tighter drop-shadow-[0_0_10px_rgba(var(--primary),0.5)]",
+                    displayMatchInfo.isFriendly ? "text-green-400" : "text-primary"
+                  )}>
+                    {countdown || '00:00:00'}
+                  </span>
                 </div>
               </div>
               <div className="p-6 flex flex-col items-center text-center">
                 <div className="relative mb-4">
-                  <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 border-accent shadow-[0_0_20px_rgba(var(--accent),0.2)]">
-                    <User className="w-10 h-10 text-accent" />
+                  <div className={cn(
+                    "w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 shadow-[0_0_20px_rgba(var(--accent),0.2)]",
+                    displayMatchInfo.isFriendly ? "border-green-500" : "border-accent"
+                  )}>
+                    <User className={cn("w-10 h-10", displayMatchInfo.isFriendly ? "text-green-400" : "text-accent")} />
                   </div>
                   <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1.5 border border-white/10">
-                    <Swords className="w-4 h-4 text-primary" />
+                    <Swords className={cn("w-4 h-4", displayMatchInfo.isFriendly ? "text-green-400" : "text-primary")} />
                   </div>
                 </div>
-                <h3 className="text-xl font-headline font-bold text-primary italic uppercase truncate w-full px-4">
-                  {nextMatchInfo.opponent.name}
+                <h3 className={cn("text-xl font-headline font-bold italic uppercase truncate w-full px-4", displayMatchInfo.isFriendly ? "text-green-400" : "text-primary")}>
+                  {displayMatchInfo.opponent.name}
                 </h3>
                 <div className="flex items-center gap-2 mt-2">
                   <Badge variant="secondary" className="text-[8px] uppercase tracking-tighter">
-                    {nextMatchInfo.opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'}
+                    {displayMatchInfo.opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'}
                   </Badge>
-                  <div className="text-[10px] font-bold text-accent">
-                    DIV {leagueLevel}.{divisionSubId} | Day {nextMatchInfo.day}
+                  <div className={cn("text-[10px] font-bold", displayMatchInfo.isFriendly ? "text-green-400" : "text-accent")}>
+                    {displayMatchInfo.isFriendly ? 
+                      (language === 'ru' ? 'ТОВАРИЩЕСКИЙ МАТЧ' : 'FRIENDLY MATCH') : 
+                      `DIV ${leagueLevel}.${divisionSubId} | Day ${displayMatchInfo.day}`}
                   </div>
                 </div>
               </div>
