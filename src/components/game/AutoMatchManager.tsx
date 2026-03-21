@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Skull, Crosshair, Swords, Loader2, ArrowUpCircle, ArrowDownCircle, MinusCircle } from 'lucide-react';
+import { Trophy, Skull, Crosshair, Swords, Loader2, ArrowUpCircle, ArrowDownCircle, MinusCircle, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function AutoMatchManager() {
@@ -49,7 +49,7 @@ export function AutoMatchManager() {
   const { data: groupPlayers } = useCollection(groupQuery);
 
   useEffect(() => {
-    if (isLoaded && seasonDay > 0 && !isSimulating && !simulationRef.current && !isUserLoading && profile?.selectedLeagueId && groupPlayers && user) {
+    if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !simulationRef.current && !isUserLoading && profile?.selectedLeagueId && groupPlayers && user) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
       const matchTime = league?.startTime || '23:00';
       
@@ -107,7 +107,8 @@ export function AutoMatchManager() {
       const forcedScoreA = todayMatch.home.id === user.uid ? detScoreA : detScoreB;
       const forcedScoreB = todayMatch.away.id === user.uid ? detScoreA : detScoreB;
 
-      const botPowerMultiplier = 1.2 + (leagueLevel * 0.15); 
+      // Bot power increases as level decreases (1 is top)
+      const botPowerMultiplier = 1.2 + ((10 - leagueLevel) * 0.15); 
       
       const result = await simulateMobaMatch({
         teamA: {
@@ -190,13 +191,15 @@ export function AutoMatchManager() {
     congrats: language === 'ru' ? 'СЕЗОН ЗАВЕРШЕН!' : 'SEASON COMPLETE!',
     pos: language === 'ru' ? 'Ваше место:' : 'Your Place:',
     pts: language === 'ru' ? 'Набрано очков:' : 'Points Scored:',
-    promoted: language === 'ru' ? 'ПОВЫШЕНИЕ В КЛАССЕ!' : 'LEVEL UP / PROMOTED!',
-    demoted: language === 'ru' ? 'ПОНИЖЕНИЕ В КЛАССЕ' : 'LEVEL DOWN / DEMOTED',
+    promoted: language === 'ru' ? 'ПОВЫШЕНИЕ В КЛАССЕ!' : 'PROMOTED TO HIGHER TIER!',
+    demoted: language === 'ru' ? 'ПОНИЖЕНИЕ В КЛАССЕ' : 'RELEGATED TO LOWER TIER',
     stayed: language === 'ru' ? 'ВЫ ОСТАЕТЕСЬ В ДИВИЗИОНЕ' : 'POSITION MAINTAINED',
     descPromoted: language === 'ru' ? 'Поздравляем! Вы переходите в более сильный дивизион.' : 'Congratulations! You are moving to a stronger division.',
     descDemoted: language === 'ru' ? 'К сожалению, ваша команда вылетает в нижний дивизион.' : 'Unfortunately, your team has been relegated.',
     descStayed: language === 'ru' ? 'Вы сохранили прописку в текущем дивизионе на следующий сезон.' : 'You maintained your spot in the current division for next season.',
-    next: language === 'ru' ? 'ПОДГОТОВИТЬСЯ К СЛЕДУЮЩЕМУ СЕЗОНУ' : 'PREPARE FOR NEXT SEASON'
+    next: language === 'ru' ? 'ПОДГОТОВИТЬСЯ К СЛЕДУЮЩЕМУ СЕЗОНУ' : 'PREPARE FOR NEXT SEASON',
+    trophyEarned: language === 'ru' ? 'ВЫ ПОЛУЧИЛИ ЭЛИТНЫЙ КУБОК!' : 'YOU EARNED THE ELITE CUP!',
+    trophyDesc: language === 'ru' ? 'За победу в 1 дивизионе 1 группе вы награждаетесь легендарным трофеем.' : 'For winning Division 1 Group 1, you are awarded the legendary trophy.'
   };
 
   return (
@@ -264,10 +267,18 @@ export function AutoMatchManager() {
         <DialogContent className="max-w-md p-0 overflow-hidden bg-background border-white/10 shadow-2xl">
           <DialogHeader className="p-8 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
             <div className="mx-auto w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary shadow-[0_0_30px_rgba(var(--primary),0.3)]">
-              {seasonResults?.promoted ? <ArrowUpCircle className="w-10 h-10 text-primary animate-bounce" /> : seasonResults?.demoted ? <ArrowDownCircle className="w-10 h-10 text-red-400" /> : <MinusCircle className="w-10 h-10 text-accent" />}
+              {seasonResults?.awardedTrophy ? (
+                <Star className="w-10 h-10 text-yellow-500 animate-pulse" />
+              ) : seasonResults?.promoted ? (
+                <ArrowUpCircle className="w-10 h-10 text-primary animate-bounce" />
+              ) : seasonResults?.demoted ? (
+                <ArrowDownCircle className="w-10 h-10 text-red-400" />
+              ) : (
+                <MinusCircle className="w-10 h-10 text-accent" />
+              )}
             </div>
             <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-primary">
-              {t.congrats}
+              {seasonResults?.awardedTrophy ? t.trophyEarned : t.congrats}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground mt-2 uppercase tracking-widest font-bold">
               {language === 'ru' ? `Завершен Сезон ${seasonResults?.seasonNumber}` : `Season ${seasonResults?.seasonNumber} Concluded`}
@@ -288,13 +299,13 @@ export function AutoMatchManager() {
 
             <div className={cn(
               "p-6 rounded-xl border-2 text-center space-y-2",
-              seasonResults?.promoted ? "bg-primary/10 border-primary/30" : seasonResults?.demoted ? "bg-destructive/10 border-destructive/30" : "bg-accent/10 border-accent/30"
+              seasonResults?.promoted || seasonResults?.awardedTrophy ? "bg-primary/10 border-primary/30" : seasonResults?.demoted ? "bg-destructive/10 border-destructive/30" : "bg-accent/10 border-accent/30"
             )}>
               <h3 className="text-xl font-headline font-bold uppercase tracking-tight">
-                {seasonResults?.promoted ? t.promoted : seasonResults?.demoted ? t.demoted : t.stayed}
+                {seasonResults?.awardedTrophy ? t.trophyEarned : seasonResults?.promoted ? t.promoted : seasonResults?.demoted ? t.demoted : t.stayed}
               </h3>
               <p className="text-xs text-muted-foreground italic">
-                {seasonResults?.promoted ? t.descPromoted : seasonResults?.demoted ? t.descDemoted : t.descStayed}
+                {seasonResults?.awardedTrophy ? t.trophyDesc : seasonResults?.promoted ? t.descPromoted : seasonResults?.demoted ? t.descDemoted : t.descStayed}
               </p>
             </div>
           </div>

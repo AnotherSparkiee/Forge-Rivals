@@ -46,7 +46,7 @@ export default function SetupPage() {
 
   const calculateInheritedStats = (leagueId: string, level: number, group: number, day: number) => {
     if (day <= 1) return { wins: 0, draws: 0, losses: 0, points: 0 };
-    // Simulate up to yesterday
+    // Simulate up to yesterday for the bottom level (starting level)
     const groupTeams = getMockGroupTeams(1000, "Template", level, 1, group, leagueId, [], undefined, day - 1);
     const replacedBot = groupTeams.length > 0 ? groupTeams[groupTeams.length - 1] : { wins: 0, draws: 0, losses: 0, points: 0 };
     return {
@@ -63,16 +63,22 @@ export default function SetupPage() {
     setIsUpdating(true);
     try {
       const usersCol = collection(db, 'players_v2');
-      const leagueQuery = query(usersCol, where('selectedLeagueId', '==', selectedLeagueId));
+      // NEW MANAGERS START AT THE BOTTOM (LEVEL 9)
+      let targetLevel = 9; 
+      
+      const leagueQuery = query(
+        usersCol, 
+        where('selectedLeagueId', '==', selectedLeagueId),
+        where('leagueLevel', '==', targetLevel)
+      );
       const leagueSnap = await getDocs(leagueQuery);
       
       const playerCount = leagueSnap.size;
-      let targetLevel = 1;
       let targetGroup = Math.floor(playerCount / TEAMS_PER_GROUP) + 1;
       
-      if (targetGroup > 64) { 
-        targetLevel = 2;
-        targetGroup = 1;
+      // Basic overflow logic for the bottom level
+      if (targetGroup > 512) { 
+        targetGroup = 1; // Start filling again or handle differently
       }
 
       const { seasonDay, seasonStartDate } = getGlobalSeasonInfo();
@@ -116,7 +122,11 @@ export default function SetupPage() {
   };
 
   if (isUserLoading || !isLoaded) {
-    return <Loader2 className="w-8 h-8 animate-spin text-primary" />;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   return (
@@ -127,7 +137,7 @@ export default function SetupPage() {
         </h1>
         <p className="text-muted-foreground text-lg italic">
           {step === 'league' 
-            ? 'Choose your tactical time window. New managers take over existing slots in the hierarchy.' 
+            ? 'Choose your tactical time window. New managers take over existing slots in the bottom tier.' 
             : 'Your flag will represent your organization in the global rankings.'}
         </p>
       </header>

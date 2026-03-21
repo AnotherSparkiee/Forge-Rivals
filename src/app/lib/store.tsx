@@ -193,9 +193,9 @@ const DEFAULT_STATE: GameState = {
   draws: 0,
   losses: 0,
   points: 0,
-  leagueLevel: 0,
-  divisionSubId: 0,
-  groupId: 0,
+  leagueLevel: 9, // Start at Level 9 (Bottom)
+  divisionSubId: 1,
+  groupId: 1,
   selectedLeagueId: null,
   country: null,
   lastLeagueMatchDate: null,
@@ -358,17 +358,20 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       let demoted = false;
       let awardedTrophy = false;
 
-      // NEW RULES: Only 1st place promoted. 7-8 demoted.
+      // HIERARCHY RULES: Level 1 is Peak. Level 9 is Bottom.
       if (myPos === 1) {
-        newLevel = Math.min(newLevel + 1, 9);
-        promoted = true;
-        // Trophy if Div 9, Group 1 winner
-        if (state.leagueLevel === 9 && state.groupId === 1) {
+        // Promotion means level number DECREASES
+        newLevel = Math.max(newLevel - 1, 1);
+        if (newLevel < state.leagueLevel) promoted = true;
+        
+        // Trophy if winner of Level 1, Group 1
+        if (state.leagueLevel === 1 && state.groupId === 1) {
           awardedTrophy = true;
         }
       } else if (myPos >= 7) {
-        newLevel = Math.max(newLevel - 1, 1);
-        demoted = true;
+        // Demotion means level number INCREASES
+        newLevel = Math.min(newLevel + 1, 9);
+        if (newLevel > state.leagueLevel) demoted = true;
       }
 
       const results = {
