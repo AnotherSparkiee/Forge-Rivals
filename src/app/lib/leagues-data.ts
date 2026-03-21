@@ -101,12 +101,15 @@ export function getMockGroupTeams(
   leagueId: string = "ALPHA",
   realPlayers: any[] = [],
   currentPlayerId?: string,
-  upToDay: number = 0 // NEW: strictly simulate only up to this day
+  upToDay: number = 0 
 ) {
   const teams: any[] = [];
   
+  // Defensive check to prevent "not iterable" error
+  const playersList = Array.isArray(realPlayers) ? realPlayers : [];
+  
   // 1. Add all real players from Firestore
-  const sortedRealPlayers = [...realPlayers].sort((a, b) => a.id.localeCompare(b.id));
+  const sortedRealPlayers = [...playersList].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
   
   sortedRealPlayers.forEach(p => {
     const isMe = p.id === currentPlayerId;
@@ -123,7 +126,7 @@ export function getMockGroupTeams(
   });
 
   // 2. Fill remaining slots with bots
-  const botsNeeded = TEAMS_PER_GROUP - teams.length;
+  const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   for (let i = 0; i < botsNeeded; i++) {
     const botUniqueId = `${leagueId}_L${level}_G${group}_B${i}`;
     teams.push({

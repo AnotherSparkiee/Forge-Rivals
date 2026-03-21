@@ -4,24 +4,24 @@ import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { isMatchDue, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
+import { isMatchDue, getMoscowDateString } from '@/app/lib/time-utils';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '@/app/lib/leagues-data';
 import { INITIAL_HEROES } from '@/app/lib/moba-data';
-import { simulateMobaMatch, SimulateMobaMatchOutput } from '@/ai/flows/simulate-moba-match';
+import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Dialog, DialogContent, DialogFooter 
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Skull, Crosshair, Swords, Clock, Loader2 } from 'lucide-react';
+import { Trophy, Skull, Crosshair, Swords, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function AutoMatchManager() {
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, 
     seasonDay, lastLeagueMatchDate, recordMatch, team, strategy, rank, seasonStartDate,
-    lastSeenMatchDay, markMatchAsSeen, matchHistory
+    markMatchAsSeen, matchHistory
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
@@ -31,7 +31,6 @@ export function AutoMatchManager() {
   const [showResultDialog, setShowResultDialog] = useState(false);
   const [currentResult, setCurrentResult] = useState<any | null>(null);
   
-  // Ref to prevent double-simulation during catch-up
   const simulationRef = useRef(false);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
@@ -50,23 +49,19 @@ export function AutoMatchManager() {
   const { data: groupPlayers } = useCollection(groupQuery);
 
   useEffect(() => {
-    // Check for missing matches since creation/last login
     if (isLoaded && seasonDay > 0 && !isSimulating && !simulationRef.current && !isUserLoading && profile?.selectedLeagueId && groupPlayers && user) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
       const matchTime = league?.startTime || '23:00';
       
       const catchUp = async () => {
-        // Iterate through all days up to current season day to find gaps in history
         for (let d = 1; d <= seasonDay; d++) {
           const alreadyPlayed = matchHistory.some(m => m.day === d && m.type === 'league');
           if (alreadyPlayed) continue;
 
-          // If it's a previous day, it's definitely due. If it's today, check if league time passed.
           const isDue = d < seasonDay || isMatchDue(matchTime, lastLeagueMatchDate);
           
           if (isDue) {
             await triggerAutoMatch(matchTime, d);
-            // Simulate only one at a time per effect cycle to keep UI reactive
             break; 
           }
         }
@@ -87,20 +82,18 @@ export function AutoMatchManager() {
     });
 
     try {
-      // 1. Calculate deterministic result for the table stability
       const groupTeams = getMockGroupTeams(
         rank, 
         profile.displayName || "My Team", 
         leagueLevel, 
         divisionSubId, 
         groupId, 
-        true, 
-        targetDay,
-        undefined,
         profile.selectedLeagueId || "ALPHA",
-        groupPlayers,
-        user.uid
+        groupPlayers || [],
+        user.uid,
+        0
       );
+      
       const schedule = getSchedule(groupTeams);
       const todayMatch = schedule[targetDay - 1]?.find((m: any) => m.home.id === user.uid || m.away.id === user.uid);
       
@@ -111,13 +104,10 @@ export function AutoMatchManager() {
       
       const [detScoreA, detScoreB] = getMatchResult(todayMatch.home.id, todayMatch.away.id, targetDay);
       
-      // Determine score for simulation (Score A is always the current user)
       const forcedScoreA = todayMatch.home.id === user.uid ? detScoreA : detScoreB;
       const forcedScoreB = todayMatch.away.id === user.uid ? detScoreA : detScoreB;
 
-      // 2. Simulate via AI with FORCED deterministic score to match table
-      // Increase bot power for significant results
-      const botPowerMultiplier = 1 + (leagueLevel * 0.1); 
+      const botPowerMultiplier = 1.2 + (leagueLevel * 0.15); 
       
       const result = await simulateMobaMatch({
         teamA: {
@@ -132,8 +122,8 @@ export function AutoMatchManager() {
             ...h, 
             baseStats: { 
               ...h.baseStats, 
-              attack: Math.round(h.baseStats.attack * botPowerMultiplier) + (opponent.isPlayer ? 25 : 15),
-              health: Math.round(h.baseStats.health * botPowerMultiplier) + (opponent.isPlayer ? 200 : 100)
+              attack: Math.round(h.baseStats.attack * botPowerMultiplier) + 30,
+              health: Math.round(h.baseStats.health * botPowerMultiplier) + 300
             } 
           }))
         },
@@ -143,7 +133,6 @@ export function AutoMatchManager() {
         scoreB: forcedScoreB
       });
       
-      // If catching up, use a theoretical timestamp for the match day
       let customPlayedAt = undefined;
       if (targetDay < seasonDay && seasonStartDate) {
         const matchDate = new Date(seasonStartDate);
@@ -155,7 +144,6 @@ export function AutoMatchManager() {
 
       recordMatch(result.winner, result, targetDay, opponentName, 'league', customPlayedAt);
       
-      // Only show popup if it's the current active day (not catch-up from previous days)
       if (targetDay === seasonDay) {
         setCurrentResult({ ...result, day: targetDay, opponentName: opponentName });
         setShowResultDialog(true);
