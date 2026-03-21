@@ -84,7 +84,7 @@ export function FriendlyMatchListener() {
         });
       }
       if (isHost) {
-        deleteDoc(doc(db, 'friendly_lobbies', data.id));
+        deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
       }
       return;
     }
@@ -93,13 +93,7 @@ export function FriendlyMatchListener() {
     if (data.status === 'accepted' && data.matchResult) {
       if (processedMatches.current.has(data.id)) return;
 
-      const acceptedAt = data.acceptedAt?.toMillis();
-      if (!acceptedAt) {
-        // If data is corrupted (no timestamp), clean up if host
-        if (isHost) deleteDoc(doc(db, 'friendly_lobbies', data.id));
-        return;
-      }
-
+      const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); // Fallback if sync is pending
       const finishTime = acceptedAt + MATCH_DURATION_MS;
       
       const checkAndComplete = () => {

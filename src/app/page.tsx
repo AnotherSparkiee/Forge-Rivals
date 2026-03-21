@@ -58,28 +58,22 @@ export default function Home() {
   useEffect(() => {
     if (!user || isUserLoading) return;
     
-    // We listen for any lobby where the user is either host or challenger and status is accepted
+    // Listen for any lobby where status is accepted
     const q = query(collection(db, 'friendly_lobbies'), where('status', '==', 'accepted'));
     
     const unsub = onSnapshot(q, (snapshot) => {
-      const match = snapshot.docs.find(d => {
+      const matchDoc = snapshot.docs.find(d => {
         const data = d.data();
         return data.hostId === user.uid || data.challengerId === user.uid;
       });
       
-      if (match) {
-        const data = match.data();
-        const acceptedAt = data.acceptedAt?.toMillis();
+      if (matchDoc) {
+        const data = matchDoc.data();
+        const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); // Fallback to now if serverTimestamp is pending
         
-        // CRITICAL: If acceptedAt is missing, it's an invalid or old-format match
-        if (!acceptedAt) {
-          setActiveFriendly(null);
-          return;
-        }
-
-        // If match is older than 16 minutes (duration + buffer), it's stale
+        // If match is older than 16 minutes, it's stale
         if (Date.now() - acceptedAt < 16 * 60 * 1000) {
-          setActiveFriendly({ ...data, id: match.id });
+          setActiveFriendly({ ...data, id: matchDoc.id });
         } else {
           setActiveFriendly(null);
         }
@@ -139,11 +133,10 @@ export default function Home() {
   const friendlyMatchInfo = useMemo(() => {
     if (!activeFriendly || !user) return null;
     
-    const acceptedAt = activeFriendly.acceptedAt?.toMillis();
-    if (!acceptedAt) return null;
-
+    // Allow a null acceptedAt for 1 second during initial server write
+    const acceptedAt = activeFriendly.acceptedAt?.toMillis() || Date.now();
     const now = Date.now();
-    // Safety check for stale documents (match duration is 15 mins)
+    
     if (now - acceptedAt > 15.5 * 60 * 1000) return null;
 
     const isHost = activeFriendly.hostId === user.uid;
@@ -164,7 +157,8 @@ export default function Home() {
 
     const interval = setInterval(() => {
       if (displayMatchInfo.isFriendly) {
-        const finishTime = (displayMatchInfo as any).acceptedAt + (15 * 60 * 1000);
+        const acceptedAt = (displayMatchInfo as any).acceptedAt;
+        const finishTime = acceptedAt + (15 * 60 * 1000);
         const diff = finishTime - Date.now();
         if (diff <= 0) {
           setCountdown('00:00');
