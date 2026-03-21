@@ -92,11 +92,13 @@ export function FriendlyMatchListener() {
     if (data.status === 'accepted' && data.matchResult) {
       if (processedMatches.current.has(data.id)) return;
 
+      // Use current system time for elapsed calculation
       const acceptedAt = data.acceptedAt?.toMillis() || Date.now();
       const finishTime = acceptedAt + MATCH_DURATION_MS;
       
       const checkAndComplete = () => {
-        if (Date.now() >= finishTime) {
+        const now = Date.now();
+        if (now >= finishTime) {
           if (processedMatches.current.has(data.id)) return;
           processedMatches.current.add(data.id);
 
@@ -117,17 +119,22 @@ export function FriendlyMatchListener() {
             description: language === 'ru' ? `Товарищеская игра против ${opponentName} окончена.` : `Friendly match vs ${opponentName} finished.`,
           });
 
-          // Only Host deletes the record to prevent race conditions during recording
-          // Challenger query will simply return empty once deleted
+          // Only Host deletes the record to prevent race conditions
           if (isHost) {
             setTimeout(() => {
               deleteDoc(doc(db, 'friendly_lobbies', data.id));
-            }, 5000); // 5s buffer for challenger to sync
+            }, 5000); 
           }
         }
       };
 
-      const timer = setInterval(checkAndComplete, 10000);
+      // If extremely stale (e.g. accepted hours ago), clean up immediately
+      if (Date.now() - acceptedAt > 60 * 60 * 1000) {
+        if (isHost) deleteDoc(doc(db, 'friendly_lobbies', data.id));
+        return;
+      }
+
+      const timer = setInterval(checkAndComplete, 5000);
       checkAndComplete();
       return () => clearInterval(timer);
     }
@@ -181,7 +188,6 @@ export function FriendlyMatchListener() {
     decline: language === 'ru' ? "ОТКЛОНИТЬ" : "DECLINE",
   };
 
-  // Only show the receiving challenge dialog
   return (
     <Dialog open={activeLobby?.status === 'challenged'} onOpenChange={(open) => {
       if (!open && !isProcessing) setActiveLobby(null);

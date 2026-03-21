@@ -53,7 +53,7 @@ export default function Home() {
     }
   }, [user, isUserLoading, router]);
 
-  // Listen for active friendly match ONLY when accepted
+  // Listen for active friendly match ONLY when accepted and involving THIS user
   useEffect(() => {
     if (!user || isUserLoading) return;
     const q = query(collection(db, 'friendly_lobbies'), where('status', '==', 'accepted'));
@@ -62,8 +62,19 @@ export default function Home() {
         const data = d.data();
         return data.hostId === user.uid || data.challengerId === user.uid;
       });
-      if (match) setActiveFriendly({ ...match.data(), id: match.id });
-      else setActiveFriendly(null);
+      
+      if (match) {
+        const data = match.data();
+        const acceptedAt = data.acceptedAt?.toMillis() || Date.now();
+        // If match is older than 15 minutes, don't set it as active
+        if (Date.now() - acceptedAt < 15 * 60 * 1000) {
+          setActiveFriendly({ ...data, id: match.id });
+        } else {
+          setActiveFriendly(null);
+        }
+      } else {
+        setActiveFriendly(null);
+      }
     });
     return () => unsub();
   }, [user, isUserLoading, db]);
@@ -120,9 +131,8 @@ export default function Home() {
     const acceptedAt = activeFriendly.acceptedAt?.toMillis() || Date.now();
     const now = Date.now();
     
-    // SANITY CHECK: If match is older than 16 minutes, it's stale/finished.
-    // The FriendlyMatchListener should handle the recording, but here we hide it from UI.
-    if (now - acceptedAt > 16 * 60 * 1000) return null;
+    // Safety check for stale documents
+    if (now - acceptedAt > 15.5 * 60 * 1000) return null;
 
     const isHost = activeFriendly.hostId === user.uid;
     const opponentName = isHost ? activeFriendly.challengerName : activeFriendly.hostName;
@@ -141,20 +151,20 @@ export default function Home() {
     if (!displayMatchInfo) return;
 
     const interval = setInterval(() => {
-      const mskNow = getMoscowTime();
-      
       if (displayMatchInfo.isFriendly) {
-        const finishTime = displayMatchInfo.acceptedAt! + (15 * 60 * 1000);
-        const diff = finishTime - mskNow.getTime();
+        // Use system UTC time for relative countdown (Date.now())
+        const finishTime = (displayMatchInfo as any).acceptedAt + (15 * 60 * 1000);
+        const diff = finishTime - Date.now();
         if (diff <= 0) {
-          setCountdown('00:00:00');
+          setCountdown('00:00');
         } else {
           const m = Math.floor(diff / 60000);
           const s = Math.floor((diff % 60000) / 1000);
           setCountdown(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
         }
       } else {
-        // League Logic
+        // League Logic (Moscow Time based)
+        const mskNow = getMoscowTime();
         const info = displayMatchInfo as any;
         if (!info.time) return;
         const [hours, minutes] = info.time.split(':').map(Number);
@@ -290,7 +300,7 @@ export default function Home() {
                     "text-4xl font-headline font-bold tabular-nums tracking-tighter drop-shadow-[0_0_10px_rgba(var(--primary),0.5)]",
                     displayMatchInfo.isFriendly ? "text-green-400" : "text-primary"
                   )}>
-                    {countdown || '00:00:00'}
+                    {countdown || (displayMatchInfo.isFriendly ? '15:00' : '00:00:00')}
                   </span>
                 </div>
               </div>
