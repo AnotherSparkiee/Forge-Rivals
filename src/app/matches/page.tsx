@@ -68,13 +68,6 @@ export default function MatchesPage() {
     return lastLeagueMatchDate === todayStr;
   }, [lastLeagueMatchDate]);
 
-  const isPastMatchTimeToday = useMemo(() => {
-    if (!league) return false;
-    const [matchH, matchM] = league.startTime.split(':').map(Number);
-    const mskNow = getMoscowTime();
-    return mskNow.getHours() > matchH || (mskNow.getHours() === matchH && mskNow.getMinutes() >= (matchM || 0));
-  }, [league]);
-
   const groupTeams = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return [];
     // Standings show ONLY completed matches.
@@ -100,9 +93,8 @@ export default function MatchesPage() {
   const nextMatchInfo = useMemo(() => {
     if (!isLoaded || !profile || !groupTeams.length || !schedule.length) return null;
     
-    // If not played today AND time hasn't passed -> next is Today.
-    // Otherwise -> next is Tomorrow.
-    const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed || isPastMatchTimeToday ? seasonDay + 1 : seasonDay);
+    // Target Day is today if not played, otherwise tomorrow.
+    const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
     if (targetDay > 14) return null;
 
     const dayMatches = schedule[targetDay - 1];
@@ -116,9 +108,9 @@ export default function MatchesPage() {
       opponent,
       day: targetDay,
       time: league.startTime,
-      isNextDay: isTodayPlayed || isPastMatchTimeToday
+      isNextDay: targetDay > seasonDay
     };
-  }, [isLoaded, profile, groupTeams, schedule, seasonDay, isTodayPlayed, isPastMatchTimeToday, league, user?.uid]);
+  }, [isLoaded, profile, groupTeams, schedule, seasonDay, isTodayPlayed, league, user?.uid]);
 
   useEffect(() => {
     if (activeTab !== 'next_opponent' || !nextMatchInfo) return;
@@ -384,7 +376,7 @@ export default function MatchesPage() {
       }
 
       case 'my_future': {
-        const startIdx = isTodayPlayed || isPastMatchTimeToday ? seasonDay : (seasonDay === 0 ? 0 : seasonDay - 1);
+        const startIdx = isTodayPlayed ? seasonDay : (seasonDay === 0 ? 0 : seasonDay - 1);
         const futureMatches = schedule.slice(startIdx).map((dayMatches: any, i) => {
           const m = dayMatches.find((match: any) => match.home.id === user?.uid || match.away.id === user?.uid);
           return { match: m, dayIdx: startIdx + i };

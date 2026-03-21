@@ -58,11 +58,13 @@ export function AutoMatchManager() {
           const alreadyPlayed = matchHistory.some(m => m.day === d && m.type === 'league');
           if (alreadyPlayed) continue;
 
+          // If it's a day in the past, it's definitely due.
+          // If it's today, check the league start time.
           const isDue = d < seasonDay || isMatchDue(matchTime, lastLeagueMatchDate);
           
           if (isDue) {
             await triggerAutoMatch(matchTime, d);
-            break; 
+            break; // Record one match, then re-trigger effect via state update
           }
         }
       };
@@ -152,8 +154,13 @@ export function AutoMatchManager() {
           description: `${profile.displayName || "My Team"} ${result.scoreA}:${result.scoreB} ${opponentName}`,
         });
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Auto simulation failed", e);
+      toast({
+        variant: "destructive",
+        title: "Simulation Error",
+        description: e.message || "Failed to finalize match transmission.",
+      });
     } finally {
       setIsSimulating(false);
       simulationRef.current = false;

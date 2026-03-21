@@ -655,6 +655,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         playedAt: customPlayedAt || new Date().toISOString()
       };
 
+      const todayStr = getMoscowDateString();
+      // Only block future match triggers for TODAY if we actually played today's match.
+      // If we recorded a catch-up match from the past, don't set lastLeagueMatchDate to today.
+      const shouldUpdateLastMatchDate = type === 'league' && matchDay === s.seasonDay;
+
       const newState = {
         ...s,
         credits: s.credits + creditsEarned,
@@ -664,7 +669,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         losses: s.losses + matchLosses,
         points: s.points + matchPoints,
         matchHistory: [matchEntry, ...s.matchHistory].slice(0, 100),
-        lastLeagueMatchDate: type === 'league' ? getMoscowDateString() : s.lastLeagueMatchDate
+        lastLeagueMatchDate: shouldUpdateLastMatchDate ? todayStr : s.lastLeagueMatchDate
       };
 
       if (user) {

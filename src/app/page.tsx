@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -69,7 +68,7 @@ export default function Home() {
       
       if (matchDoc) {
         const data = matchDoc.data();
-        const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); // Fallback to now if serverTimestamp is pending
+        const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); 
         
         // If match is older than 16 minutes, it's stale
         if (Date.now() - acceptedAt < 16 * 60 * 1000) {
@@ -93,12 +92,10 @@ export default function Home() {
     if (!isLoaded || !profile || !groupPlayers) return null;
     
     const league = LEAGUES.find(l => l.id === profile.selectedLeagueId) || LEAGUES[0];
-    const [matchH, matchM] = league.startTime.split(':').map(Number);
-    const mskNow = getMoscowTime();
     
-    const isPastMatchTimeToday = mskNow.getHours() > matchH || (mskNow.getHours() === matchH && mskNow.getMinutes() >= (matchM || 0));
-    
-    const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed || isPastMatchTimeToday ? seasonDay + 1 : seasonDay);
+    // Next target day is seasonDay (today) if not played, otherwise tomorrow.
+    // We ignore match time here because even if time passed, it's still "today's match" until recorded.
+    const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
     if (targetDay > 14) return null;
 
     const groupTeams = getMockGroupTeams(
@@ -125,7 +122,7 @@ export default function Home() {
       opponent,
       day: targetDay,
       time: league.startTime,
-      isNextDay: isTodayPlayed || isPastMatchTimeToday,
+      isNextDay: targetDay > seasonDay,
       isFriendly: false
     };
   }, [isLoaded, profile, groupPlayers, seasonDay, isTodayPlayed, rank, leagueLevel, divisionSubId, groupId, user?.uid]);
@@ -133,7 +130,6 @@ export default function Home() {
   const friendlyMatchInfo = useMemo(() => {
     if (!activeFriendly || !user) return null;
     
-    // Allow a null acceptedAt for 1 second during initial server write
     const acceptedAt = activeFriendly.acceptedAt?.toMillis() || Date.now();
     const now = Date.now();
     
@@ -180,6 +176,7 @@ export default function Home() {
             targetDate.setDate(targetDate.getDate() + 1);
           }
         } else {
+          // If match time hasn't passed today, show countdown
           if (mskNow.getTime() >= targetDate.getTime()) {
             setCountdown('00:00:00');
             return;
