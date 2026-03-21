@@ -6,7 +6,8 @@ import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@
 import { useGameState } from './lib/store';
 import { 
   Users, Trophy, Zap, Clock,
-  UserSearch, ShieldAlert, Medal, User, Swords, ChevronRight
+  UserSearch, ShieldAlert, Medal, User, Swords, ChevronRight,
+  CalendarDays
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -62,11 +63,8 @@ export default function Home() {
     const [matchH, matchM] = league.startTime.split(':').map(Number);
     const mskNow = getMoscowTime();
     
-    // Check if current time is past match window today
     const isPastMatchTimeToday = mskNow.getHours() > matchH || (mskNow.getHours() === matchH && mskNow.getMinutes() >= (matchM || 0));
     
-    // Logic: If not played today AND time hasn't passed -> target is Today.
-    // Otherwise -> target is Tomorrow.
     const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed || isPastMatchTimeToday ? seasonDay + 1 : seasonDay);
     if (targetDay > 14) return null;
 
@@ -79,7 +77,7 @@ export default function Home() {
       profile.selectedLeagueId || "ALPHA",
       groupPlayers,
       user?.uid,
-      0 // Don't simulate for info
+      0 
     );
     
     const schedule = getSchedule(groupTeams);
@@ -109,12 +107,10 @@ export default function Home() {
       targetDate.setHours(hours, minutes, 0, 0);
       
       if (nextMatchInfo.isNextDay) {
-        // If we are showing "Tomorrow", always add 1 day to current MSK time if we are already past match time today
         if (mskNow.getTime() >= targetDate.getTime()) {
           targetDate.setDate(targetDate.getDate() + 1);
         }
       } else {
-        // If showing "Today", if time passed -> 00:00:00 (Waiting for simulation)
         if (mskNow.getTime() >= targetDate.getTime()) {
           setCountdown('00:00:00');
           return;
