@@ -7,7 +7,7 @@ import { useGameState } from './lib/store';
 import { 
   Users, Trophy, Zap, Clock,
   UserSearch, ShieldAlert, Medal, User, Swords, ChevronRight,
-  CalendarDays, PlayCircle
+  CalendarDays, PlayCircle, Loader2
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -53,11 +53,9 @@ export default function Home() {
     }
   }, [user, isUserLoading, router]);
 
-  // Listen for active friendly match ONLY when accepted and involving THIS user
   useEffect(() => {
     if (!user || isUserLoading) return;
     
-    // Listen for any lobby where status is accepted
     const q = query(collection(db, 'friendly_lobbies'), where('status', '==', 'accepted'));
     
     const unsub = onSnapshot(q, (snapshot) => {
@@ -68,13 +66,15 @@ export default function Home() {
       
       if (matchDoc) {
         const data = matchDoc.data();
-        const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); 
-        
-        // If match is older than 16 minutes, it's stale
-        if (Date.now() - acceptedAt < 16 * 60 * 1000) {
-          setActiveFriendly({ ...data, id: matchDoc.id });
+        if (data.acceptedAt) {
+          const acceptedAt = data.acceptedAt?.toMillis(); 
+          if (Date.now() - acceptedAt < 16 * 60 * 1000) {
+            setActiveFriendly({ ...data, id: matchDoc.id });
+          } else {
+            setActiveFriendly(null);
+          }
         } else {
-          setActiveFriendly(null);
+          setActiveFriendly({ ...data, id: matchDoc.id, acceptedAt: { toMillis: () => Date.now() } });
         }
       } else {
         setActiveFriendly(null);
@@ -89,12 +89,9 @@ export default function Home() {
   }, [lastLeagueMatchDate]);
 
   const leagueNextMatch = useMemo(() => {
-    if (!isLoaded || !profile || !groupPlayers) return null;
+    if (!isLoaded || !profile || !groupPlayers || seasonDay > 14) return null;
     
     const league = LEAGUES.find(l => l.id === profile.selectedLeagueId) || LEAGUES[0];
-    
-    // Next target day is seasonDay (today) if not played, otherwise tomorrow.
-    // We ignore match time here because even if time passed, it's still "today's match" until recorded.
     const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
     if (targetDay > 14) return null;
 
@@ -176,7 +173,6 @@ export default function Home() {
             targetDate.setDate(targetDate.getDate() + 1);
           }
         } else {
-          // If match time hasn't passed today, show countdown
           if (mskNow.getTime() >= targetDate.getTime()) {
             setCountdown('00:00:00');
             return;
@@ -214,12 +210,10 @@ export default function Home() {
       tomorrow: "TOMORROW",
       battleBtn: "MATCH REVIEW",
       navTitle: "Navigation Terminals",
-      preSeason: "Season Preparation",
-      preSeasonDesc: "Calculating league brackets. First matches start tomorrow.",
-      seasonEnded: "Season Finished",
-      seasonEndedDesc: "The championship cycle is over. Final results are being calculated.",
-      noOpponent: "No Active Opponents",
-      noOpponentDesc: "The tactical link is clear. No scheduled engagements in this sector.",
+      interSeason: "Inter-season",
+      interSeasonDesc: "Calculating new hierarchies. Formation in progress.",
+      preSeason: "Pre-season Readiness",
+      preSeasonDesc: "Strict 48h deployment window. Matches resume soon.",
       startsIn: displayMatchInfo?.isFriendly ? "REMAINING TIME:" : "TIME UNTIL MATCH:",
       menu: [
         { label: 'Battle Simulation', desc: 'Deploy team for automated matches' },
@@ -242,12 +236,10 @@ export default function Home() {
       tomorrow: "ЗАВТРА",
       battleBtn: "ОБЗОР МАТЧЕЙ",
       navTitle: "Тактические Терминалы",
-      preSeason: "Подготовка к сезону",
-      preSeasonDesc: "Формирование дивизионов. Первые игры начнутся завтра.",
-      seasonEnded: "Сезон завершен",
-      seasonEndedDesc: "Цикл чемпионата окончен. Идет подведение итоговых результатов.",
-      noOpponent: "Нет активных соперников",
-      noOpponentDesc: "Тактический канал чист. Запланированных встреч в данном секторе нет.",
+      interSeason: "Межсезонье",
+      interSeasonDesc: "Формирование новых групп и расчет дивизионов.",
+      preSeason: "Подготовка к лиге",
+      preSeasonDesc: "Сбор разведданных. Первая игра начнется завтра.",
       startsIn: displayMatchInfo?.isFriendly ? "ВРЕМЯ ДО КОНЦА:" : "ДО МАТЧА ОСТАЛОСЬ:",
       menu: [
         { label: 'Боевая Симуляция', desc: 'Развертывание команды для матча' },
@@ -336,28 +328,28 @@ export default function Home() {
         ) : (
           <Card className="glass-card border-accent/20 bg-accent/5">
             <CardContent className="p-8 flex flex-col items-center text-center space-y-4">
-              {seasonDay === 0 ? (
+              {seasonDay === 15 ? (
                 <>
-                  <Clock className="w-12 h-12 text-accent animate-pulse" />
+                  <Loader2 className="w-12 h-12 text-accent animate-spin" />
+                  <div>
+                    <h3 className="text-lg font-headline font-bold uppercase">{t.interSeason}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{t.interSeasonDesc}</p>
+                  </div>
+                </>
+              ) : seasonDay === 16 ? (
+                <>
+                  <Clock className="w-12 h-12 text-primary animate-pulse" />
                   <div>
                     <h3 className="text-lg font-headline font-bold uppercase">{t.preSeason}</h3>
                     <p className="text-xs text-muted-foreground mt-1">{t.preSeasonDesc}</p>
-                  </div>
-                </>
-              ) : seasonDay > 14 ? (
-                <>
-                  <Trophy className="w-12 h-12 text-yellow-500 animate-bounce" />
-                  <div>
-                    <h3 className="text-lg font-headline font-bold uppercase">{t.seasonEnded}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">{t.seasonEndedDesc}</p>
                   </div>
                 </>
               ) : (
                 <>
                   <ShieldAlert className="w-12 h-12 text-muted-foreground" />
                   <div>
-                    <h3 className="text-lg font-headline font-bold uppercase">{t.noOpponent}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">{t.noOpponentDesc}</p>
+                    <h3 className="text-lg font-headline font-bold uppercase">No Scheduled Match</h3>
+                    <p className="text-xs text-muted-foreground mt-1">Operational status normal.</p>
                   </div>
                 </>
               )}

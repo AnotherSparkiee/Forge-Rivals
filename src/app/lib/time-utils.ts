@@ -30,7 +30,7 @@ export function formatMoscowTime(date: Date): string {
 
 /**
  * Calculates the global season info based on a fixed epoch.
- * This ensures ALL players are on the same season day and number.
+ * New cycle: 16 days (14 days of matches + 2 days of break).
  */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
@@ -39,10 +39,10 @@ export function getGlobalSeasonInfo() {
   const nowUtc = Date.UTC(mskNow.getFullYear(), mskNow.getMonth(), mskNow.getDate());
   
   const diffDays = Math.floor((nowUtc - epoch) / (1000 * 60 * 60 * 24));
-  const seasonDuration = 14;
+  const cycleDuration = 16; // 14 matches + 2 days off-season
   
-  const currentSeasonDay = (diffDays % seasonDuration) + 1;
-  const currentSeasonNumber = Math.floor(diffDays / seasonDuration) + 1;
+  const currentSeasonDay = (diffDays % cycleDuration) + 1;
+  const currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
   
   // Calculate when THIS specific season cycle started
   const seasonStartMsk = new Date(mskNow);

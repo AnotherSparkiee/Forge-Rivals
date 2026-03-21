@@ -101,7 +101,7 @@ interface GameState {
   lastProcessedSeason: number;
   seasonStartDate: string | null;
   lastRewardClaimDate: string | null;
-  rewardDay: number; // 1 to 30
+  rewardDay: number; 
   arena: ArenaState;
   hq: HQState;
   bootcamp: BootcampState;
@@ -113,7 +113,9 @@ interface GameState {
     promoted: boolean;
     demoted: boolean;
     seasonNumber: number;
+    awardedTrophy: boolean;
   } | null;
+  hasEliteTrophy: boolean;
 }
 
 const DEFAULT_ARENA: ArenaState = {
@@ -210,6 +212,7 @@ const DEFAULT_STATE: GameState = {
   academy: DEFAULT_ACADEMY,
   medical: DEFAULT_MEDICAL,
   seasonResults: null,
+  hasEliteTrophy: false,
 };
 
 interface GameStateContextType extends GameState {
@@ -278,10 +281,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           const { seasonDay: globalDay, seasonNumber: globalSeason, seasonStartDate: globalStart } = getGlobalSeasonInfo();
           
           const history = profileData.matchHistory || s.matchHistory || [];
-          // Filter history to show only matches from current season for UI
           const validHistory = history.filter((m: MatchResultEntry) => {
             if (m.type !== 'league') return true;
-            return m.seasonNumber === globalSeason && m.day <= globalDay;
+            return m.seasonNumber === globalSeason && m.day <= 14;
           });
 
           return {
@@ -299,7 +301,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             country: profileData.country ?? s.country,
             lastSeenMatchDay: profileData.lastSeenMatchDay ?? s.lastSeenMatchDay ?? 0,
             lastLeagueMatchDate: profileData.lastLeagueMatchDate ?? s.lastLeagueMatchDate,
-            matchHistory: history, // Keep full history in memory
+            matchHistory: history,
             seasonStartDate: globalStart,
             seasonDay: globalDay,
             seasonNumber: globalSeason,
@@ -307,6 +309,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             lastRewardClaimDate: profileData.lastRewardClaimDate ?? s.lastRewardClaimDate,
             rewardDay: profileData.rewardDay ?? s.rewardDay ?? 1,
             seasonResults: profileData.seasonResults ?? s.seasonResults ?? null,
+            hasEliteTrophy: profileData.hasEliteTrophy ?? s.hasEliteTrophy ?? false,
           };
         });
       }
@@ -329,13 +332,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const syncStats = useCallback((groupPlayers: any[]) => {
     if (!state.selectedLeagueId || !state.seasonDay || !user) return;
 
-    const { seasonNumber: globalSeason } = getGlobalSeasonInfo();
+    const { seasonNumber: globalSeason, seasonDay: globalDay } = getGlobalSeasonInfo();
 
-    // SEASON TRANSITION LOGIC
+    // SEASON TRANSITION LOGIC (Triggered on Day 15 or 16 of the PREVIOUS season if not processed)
     if (state.lastProcessedSeason > 0 && globalSeason > state.lastProcessedSeason) {
       console.log(`Transitioning from Season ${state.lastProcessedSeason} to ${globalSeason}`);
       
-      // 1. Calculate final standings of the PREVIOUS season (Day 14)
       const lastSeasonTeams = getMockGroupTeams(
         state.rank, 
         user.displayName || "My Team", 
@@ -345,7 +347,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         state.selectedLeagueId,
         groupPlayers,
         user.uid,
-        14 // Simulate full 14 days
+        14 
       );
 
       const sorted = [...lastSeasonTeams].sort((a, b) => b.points - a.points || b.wins - a.wins);
@@ -354,10 +356,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       let newLevel = state.leagueLevel;
       let promoted = false;
       let demoted = false;
+      let awardedTrophy = false;
 
-      if (myPos <= 3) {
+      // NEW RULES: Only 1st place promoted. 7-8 demoted.
+      if (myPos === 1) {
         newLevel = Math.min(newLevel + 1, 9);
         promoted = true;
+        // Trophy if Div 9, Group 1 winner
+        if (state.leagueLevel === 9 && state.groupId === 1) {
+          awardedTrophy = true;
+        }
       } else if (myPos >= 7) {
         newLevel = Math.max(newLevel - 1, 1);
         demoted = true;
@@ -368,10 +376,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         lastPoints: lastSeasonTeams.find(t => t.id === user.uid)?.points || 0,
         promoted,
         demoted,
-        seasonNumber: state.lastProcessedSeason
+        seasonNumber: state.lastProcessedSeason,
+        awardedTrophy
       };
 
-      // Update Firestore with new season starting state
       const profileRef = doc(db, 'players_v2', user.uid);
       setDoc(profileRef, {
         leagueLevel: newLevel,
@@ -382,13 +390,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         lastProcessedSeason: globalSeason,
         lastLeagueMatchDate: null,
         lastSeenMatchDay: 0,
-        seasonResults: results
+        seasonResults: results,
+        hasEliteTrophy: awardedTrophy || state.hasEliteTrophy
       }, { merge: true }).catch(e => console.error("Season reset failed", e));
 
-      return; // Exit and let onSnapshot re-trigger
+      return; 
     }
 
-    // NORMAL STAT SYNC
+    // NORMAL STAT SYNC (Only during match days 1-14)
+    if (globalDay > 14) return;
+
     const league = LEAGUES.find(l => l.id === state.selectedLeagueId);
     const isPlayedToday = isMatchDue(league?.startTime || "23:00", state.lastLeagueMatchDate);
     const completedDays = isPlayedToday ? state.seasonDay : Math.max(0, state.seasonDay - 1);
@@ -415,10 +426,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         draws: myTeam.draws,
         losses: myTeam.losses,
         points: myTeam.points,
-        lastProcessedSeason: globalSeason // Ensure we track current season
+        lastProcessedSeason: globalSeason 
       }, { merge: true }).catch(e => console.warn("Stat sync failed", e));
     }
-  }, [state.selectedLeagueId, state.seasonDay, state.lastLeagueMatchDate, state.rank, state.leagueLevel, state.divisionSubId, state.groupId, state.lastProcessedSeason, user, db]);
+  }, [state.selectedLeagueId, state.seasonDay, state.lastLeagueMatchDate, state.rank, state.leagueLevel, state.divisionSubId, state.groupId, state.lastProcessedSeason, state.hasEliteTrophy, user, db]);
 
   const addCredits = useCallback((amount: number) => {
     setState(s => {
@@ -758,7 +769,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         ...s,
         credits: s.credits + creditsEarned,
         rank: s.rank + rankChange,
-        matchHistory: [matchEntry, ...s.matchHistory].slice(0, 500), // Larger limit for history
+        matchHistory: [matchEntry, ...s.matchHistory].slice(0, 500), 
         lastLeagueMatchDate: shouldUpdateLastMatchDate ? todayStr : s.lastLeagueMatchDate
       };
 
