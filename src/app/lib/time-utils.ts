@@ -30,7 +30,7 @@ export function formatMoscowTime(date: Date): string {
 
 /**
  * Calculates the global season info based on a fixed epoch.
- * This ensures ALL players are on the same season day.
+ * This ensures ALL players are on the same season day and number.
  */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
@@ -42,6 +42,7 @@ export function getGlobalSeasonInfo() {
   const seasonDuration = 14;
   
   const currentSeasonDay = (diffDays % seasonDuration) + 1;
+  const currentSeasonNumber = Math.floor(diffDays / seasonDuration) + 1;
   
   // Calculate when THIS specific season cycle started
   const seasonStartMsk = new Date(mskNow);
@@ -54,6 +55,7 @@ export function getGlobalSeasonInfo() {
 
   return {
     seasonDay: currentSeasonDay,
+    seasonNumber: currentSeasonNumber,
     seasonStartDate: seasonStartDateStr
   };
 }

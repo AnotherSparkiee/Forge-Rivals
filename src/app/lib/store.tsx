@@ -63,6 +63,7 @@ interface MedicalState {
 export interface MatchResultEntry {
   id: string; 
   day: number; 
+  seasonNumber?: number;
   type: 'league' | 'friendly';
   opponentName: string;
   winner: string;
@@ -96,6 +97,8 @@ interface GameState {
   lastLeagueMatchDate: string | null;
   lastSeenMatchDay: number;
   seasonDay: number;
+  seasonNumber: number;
+  lastProcessedSeason: number;
   seasonStartDate: string | null;
   lastRewardClaimDate: string | null;
   rewardDay: number; // 1 to 30
@@ -104,6 +107,13 @@ interface GameState {
   bootcamp: BootcampState;
   academy: AcademyState;
   medical: MedicalState;
+  seasonResults: {
+    lastRank: number;
+    lastPoints: number;
+    promoted: boolean;
+    demoted: boolean;
+    seasonNumber: number;
+  } | null;
 }
 
 const DEFAULT_ARENA: ArenaState = {
@@ -189,6 +199,8 @@ const DEFAULT_STATE: GameState = {
   lastLeagueMatchDate: null,
   lastSeenMatchDay: 0,
   seasonDay: 0,
+  seasonNumber: 0,
+  lastProcessedSeason: 0,
   seasonStartDate: null,
   lastRewardClaimDate: null,
   rewardDay: 1,
@@ -197,6 +209,7 @@ const DEFAULT_STATE: GameState = {
   bootcamp: DEFAULT_BOOTCAMP,
   academy: DEFAULT_ACADEMY,
   medical: DEFAULT_MEDICAL,
+  seasonResults: null,
 };
 
 interface GameStateContextType extends GameState {
@@ -216,6 +229,7 @@ interface GameStateContextType extends GameState {
   markMatchAsSeen: (day: number) => void;
   claimReward: (creditsReward: number, crystalsReward: number) => void;
   syncStats: (groupPlayers: any[]) => void;
+  dismissSeasonResults: () => void;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
@@ -227,7 +241,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   const getStorageKey = useCallback(() => {
-    return user ? `moba_tactics_v4_${user.uid}` : null;
+    return user ? `moba_tactics_v5_${user.uid}` : null;
   }, [user]);
 
   useEffect(() => {
@@ -261,12 +275,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const profileData = docSnap.data();
         
         setState(s => {
-          const { seasonDay: globalDay, seasonStartDate: globalStart } = getGlobalSeasonInfo();
+          const { seasonDay: globalDay, seasonNumber: globalSeason, seasonStartDate: globalStart } = getGlobalSeasonInfo();
           
           const history = profileData.matchHistory || s.matchHistory || [];
+          // Filter history to show only matches from current season for UI
           const validHistory = history.filter((m: MatchResultEntry) => {
             if (m.type !== 'league') return true;
-            return m.day <= globalDay;
+            return m.seasonNumber === globalSeason && m.day <= globalDay;
           });
 
           return {
@@ -284,11 +299,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             country: profileData.country ?? s.country,
             lastSeenMatchDay: profileData.lastSeenMatchDay ?? s.lastSeenMatchDay ?? 0,
             lastLeagueMatchDate: profileData.lastLeagueMatchDate ?? s.lastLeagueMatchDate,
-            matchHistory: validHistory,
+            matchHistory: history, // Keep full history in memory
             seasonStartDate: globalStart,
             seasonDay: globalDay,
+            seasonNumber: globalSeason,
+            lastProcessedSeason: profileData.lastProcessedSeason ?? s.lastProcessedSeason ?? 0,
             lastRewardClaimDate: profileData.lastRewardClaimDate ?? s.lastRewardClaimDate,
             rewardDay: profileData.rewardDay ?? s.rewardDay ?? 1,
+            seasonResults: profileData.seasonResults ?? s.seasonResults ?? null,
           };
         });
       }
@@ -311,6 +329,66 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const syncStats = useCallback((groupPlayers: any[]) => {
     if (!state.selectedLeagueId || !state.seasonDay || !user) return;
 
+    const { seasonNumber: globalSeason } = getGlobalSeasonInfo();
+
+    // SEASON TRANSITION LOGIC
+    if (state.lastProcessedSeason > 0 && globalSeason > state.lastProcessedSeason) {
+      console.log(`Transitioning from Season ${state.lastProcessedSeason} to ${globalSeason}`);
+      
+      // 1. Calculate final standings of the PREVIOUS season (Day 14)
+      const lastSeasonTeams = getMockGroupTeams(
+        state.rank, 
+        user.displayName || "My Team", 
+        state.leagueLevel, 
+        state.divisionSubId, 
+        state.groupId, 
+        state.selectedLeagueId,
+        groupPlayers,
+        user.uid,
+        14 // Simulate full 14 days
+      );
+
+      const sorted = [...lastSeasonTeams].sort((a, b) => b.points - a.points || b.wins - a.wins);
+      const myPos = sorted.findIndex(t => t.id === user.uid) + 1;
+      
+      let newLevel = state.leagueLevel;
+      let promoted = false;
+      let demoted = false;
+
+      if (myPos <= 3) {
+        newLevel = Math.min(newLevel + 1, 9);
+        promoted = true;
+      } else if (myPos >= 7) {
+        newLevel = Math.max(newLevel - 1, 1);
+        demoted = true;
+      }
+
+      const results = {
+        lastRank: myPos,
+        lastPoints: lastSeasonTeams.find(t => t.id === user.uid)?.points || 0,
+        promoted,
+        demoted,
+        seasonNumber: state.lastProcessedSeason
+      };
+
+      // Update Firestore with new season starting state
+      const profileRef = doc(db, 'players_v2', user.uid);
+      setDoc(profileRef, {
+        leagueLevel: newLevel,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        points: 0,
+        lastProcessedSeason: globalSeason,
+        lastLeagueMatchDate: null,
+        lastSeenMatchDay: 0,
+        seasonResults: results
+      }, { merge: true }).catch(e => console.error("Season reset failed", e));
+
+      return; // Exit and let onSnapshot re-trigger
+    }
+
+    // NORMAL STAT SYNC
     const league = LEAGUES.find(l => l.id === state.selectedLeagueId);
     const isPlayedToday = isMatchDue(league?.startTime || "23:00", state.lastLeagueMatchDate);
     const completedDays = isPlayedToday ? state.seasonDay : Math.max(0, state.seasonDay - 1);
@@ -330,30 +408,17 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const myTeam = groupTeams.find(t => t.id === user.uid);
     if (!myTeam) return;
 
-    setState(s => {
-      if (s.wins === myTeam.wins && s.draws === myTeam.draws && s.losses === myTeam.losses && s.points === myTeam.points) {
-        return s;
-      }
-
-      const newState = {
-        ...s,
-        wins: myTeam.wins,
-        draws: myTeam.draws,
-        losses: myTeam.losses,
-        points: myTeam.points
-      };
-
+    if (state.wins !== myTeam.wins || state.points !== myTeam.points || state.lastProcessedSeason !== globalSeason) {
       const profileRef = doc(db, 'players_v2', user.uid);
       setDoc(profileRef, {
         wins: myTeam.wins,
         draws: myTeam.draws,
         losses: myTeam.losses,
-        points: myTeam.points
+        points: myTeam.points,
+        lastProcessedSeason: globalSeason // Ensure we track current season
       }, { merge: true }).catch(e => console.warn("Stat sync failed", e));
-
-      return newState;
-    });
-  }, [state.selectedLeagueId, state.seasonDay, state.lastLeagueMatchDate, state.rank, state.leagueLevel, state.divisionSubId, state.groupId, user, db]);
+    }
+  }, [state.selectedLeagueId, state.seasonDay, state.lastLeagueMatchDate, state.rank, state.leagueLevel, state.divisionSubId, state.groupId, state.lastProcessedSeason, user, db]);
 
   const addCredits = useCallback((amount: number) => {
     setState(s => {
@@ -664,7 +729,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
 
     setState(s => {
-      if (type === 'league' && s.matchHistory.some(m => m.day === matchDay && m.type === 'league')) {
+      if (type === 'league' && s.matchHistory.some(m => m.day === matchDay && m.type === 'league' && m.seasonNumber === s.seasonNumber)) {
         console.warn(`Prevented duplicate league match recording for Day ${matchDay}`);
         return s;
       }
@@ -674,6 +739,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const matchEntry: MatchResultEntry = {
         id: matchId,
         day: matchDay,
+        seasonNumber: type === 'league' ? s.seasonNumber : undefined,
         type,
         opponentName: opponentName || "Unknown Team",
         winner,
@@ -692,7 +758,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         ...s,
         credits: s.credits + creditsEarned,
         rank: s.rank + rankChange,
-        matchHistory: [matchEntry, ...s.matchHistory].slice(0, 100),
+        matchHistory: [matchEntry, ...s.matchHistory].slice(0, 500), // Larger limit for history
         lastLeagueMatchDate: shouldUpdateLastMatchDate ? todayStr : s.lastLeagueMatchDate
       };
 
@@ -724,6 +790,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, [user, db]);
 
+  const dismissSeasonResults = useCallback(() => {
+    setState(s => ({ ...s, seasonResults: null }));
+    if (user) {
+      const profileRef = doc(db, 'players_v2', user.uid);
+      setDoc(profileRef, { seasonResults: null }, { merge: true });
+    }
+  }, [user, db]);
+
   return (
     <GameStateContext.Provider value={{
       ...state,
@@ -742,7 +816,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       recordMatch,
       markMatchAsSeen,
       claimReward,
-      syncStats
+      syncStats,
+      dismissSeasonResults
     }}>
       {children}
     </GameStateContext.Provider>
