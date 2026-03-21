@@ -9,14 +9,15 @@ import {
   User, Settings, ShieldCheck, History, LogOut, 
   ChevronRight, Mail, ChevronLeft, Check, Loader2,
   Trophy, Star, Wallet, Gem, Flag, Zap, Trash2, AlertTriangle,
-  BookOpen, Users, LayoutDashboard, Newspaper, Gift, Package, Heart
+  BookOpen, Users, LayoutDashboard, Newspaper, Gift, Package, Heart,
+  Coins, Lock, CheckCircle2, Sparkles
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut, deleteUser } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { COUNTRIES } from '@/app/lib/countries-data';
@@ -30,11 +31,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 type ProfileTab = 'menu' | 'training' | 'team' | 'page' | 'news' | 'daily' | 'bonuses' | 'gift';
 
 export default function ProfilePage() {
-  const { ownedHeroes, rank, language, setLanguage, isLoaded: isStoreLoaded, credits, crystals, leagueLevel, divisionSubId, groupId } = useGameState();
+  const { 
+    ownedHeroes, rank, language, setLanguage, isLoaded: isStoreLoaded, 
+    credits, crystals, leagueLevel, divisionSubId, groupId, rewardDay 
+  } = useGameState();
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const db = useFirestore();
@@ -54,6 +59,16 @@ export default function ProfilePage() {
       router.push('/auth/login');
     }
   }, [user, isUserLoading, router]);
+
+  // Generate 30 days of rewards (consistent with DailyRewardManager)
+  const calendarRewards = useMemo(() => {
+    return Array.from({ length: 30 }, (_, i) => {
+      const day = i + 1;
+      const dayCredits = 100000 + (i * 150000) + (Math.floor(i / 7) * 500000);
+      const dayCrystals = 10 + (i * 15) + (day % 7 === 0 ? 50 : 0);
+      return { day, credits: dayCredits, crystals: dayCrystals };
+    });
+  }, []);
 
   if (!isStoreLoaded || isUserLoading || isProfileLoading) {
     return (
@@ -97,6 +112,10 @@ export default function ProfilePage() {
       deleteCancel: "CANCEL",
       reloginRequired: "Security check required. Please relogin before deletion.",
       emptyState: "Terminal data not yet synchronized. Feature coming soon.",
+      day: "Day",
+      today: "Today",
+      rewardTitle: "Bonus Calendar",
+      rewardDesc: "Complete 30-day logistics support program",
       menu: [
         { id: 'training', label: "Training Task", desc: "Tutorial and progression rewards", icon: BookOpen },
         { id: 'team', label: "My Team", desc: "Personal stats, finances and settings", icon: Users },
@@ -140,6 +159,10 @@ export default function ProfilePage() {
       deleteCancel: "ОТМЕНА",
       reloginRequired: "Требуется проверка безопасности. Пожалуйста, перезайдите.",
       emptyState: "Данные терминала еще не синхронизированы. Функция скоро появится.",
+      day: "День",
+      today: "Сегодня",
+      rewardTitle: "Календарь Бонусов",
+      rewardDesc: "Полная 30-дневная программа поддержки",
       menu: [
         { id: 'training', label: "Задание обучения", desc: "Обучающие квесты и награды", icon: BookOpen },
         { id: 'team', label: "Моя команда", desc: "Статистика, финансы и настройки", icon: Users },
@@ -376,6 +399,73 @@ export default function ProfilePage() {
             {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
             {t.logout}
           </Button>
+        </div>
+      );
+    }
+
+    if (activeTab === 'daily') {
+      return (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10">
+          <div className="text-center space-y-1">
+            <h2 className="text-lg font-headline font-bold text-primary uppercase tracking-tight">{t.rewardTitle}</h2>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] font-bold">{t.rewardDesc}</p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            {calendarRewards.map((reward) => {
+              const isClaimed = reward.day < rewardDay;
+              const isToday = reward.day === rewardDay;
+              const isUpcoming = reward.day > rewardDay;
+
+              return (
+                <div 
+                  key={reward.day}
+                  className={cn(
+                    "relative p-3 rounded-xl border flex flex-col items-center justify-center transition-all",
+                    isClaimed ? "bg-secondary/20 border-white/5 opacity-50" : 
+                    isToday ? "bg-primary/10 border-primary shadow-[0_0_15px_rgba(var(--primary),0.2)] ring-1 ring-primary/50" : 
+                    "bg-secondary/40 border-white/5"
+                  )}
+                >
+                  <span className={cn(
+                    "text-[8px] font-black uppercase tracking-tighter mb-1",
+                    isToday ? "text-primary" : "text-muted-foreground"
+                  )}>
+                    {t.day} {reward.day}
+                  </span>
+                  
+                  <div className="space-y-1 text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      <Coins className={cn("w-2.5 h-2.5", isToday ? "text-yellow-500" : "text-muted-foreground")} />
+                      <span className="text-[9px] font-bold">{(reward.credits / 1000).toFixed(0)}k</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-1">
+                      <Gem className={cn("w-2.5 h-2.5", isToday ? "text-accent" : "text-muted-foreground")} />
+                      <span className="text-[9px] font-bold">{reward.crystals}</span>
+                    </div>
+                  </div>
+
+                  {isClaimed && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-[1px] rounded-xl">
+                      <CheckCircle2 className="w-5 h-5 text-green-500" />
+                    </div>
+                  )}
+                  
+                  {isUpcoming && (
+                    <div className="absolute top-1 right-1">
+                      <Lock className="w-2 h-2 text-muted-foreground/50" />
+                    </div>
+                  )}
+
+                  {isToday && (
+                    <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[6px] font-black px-1 rounded uppercase flex items-center gap-0.5">
+                      <Sparkles className="w-1.5 h-1.5" /> {t.today}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       );
     }
