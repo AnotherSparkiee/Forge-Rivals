@@ -6,8 +6,7 @@ import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, Send, User, Loader2, MessageSquare } from 'lucide-react';
+import { ChevronLeft, Send, Loader2, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import { collection, query, orderBy, limit, addDoc, serverTimestamp, doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -97,8 +96,8 @@ export default function GlobalChatPage() {
   }) : [];
 
   return (
-    <div className="max-w-md mx-auto h-[calc(100vh-3.5rem-4rem)] flex flex-col pt-4">
-      <header className="px-4 mb-4 flex items-center gap-4">
+    <div className="max-w-md mx-auto h-[calc(100vh-3.5rem-5rem)] flex flex-col">
+      <header className="px-4 py-4 flex items-center gap-4 border-b border-white/5 bg-background/50 backdrop-blur-sm sticky top-0 z-10">
         <Link href="/chats">
           <Button variant="ghost" size="icon" className="rounded-full">
             <ChevronLeft className="w-6 h-6" />
@@ -110,7 +109,7 @@ export default function GlobalChatPage() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 space-y-4 scrollbar-hide pb-4" ref={scrollRef}>
+      <div className="flex-1 overflow-y-auto px-4 space-y-4 scrollbar-hide py-4" ref={scrollRef}>
         {isChatLoading ? (
           <div className="h-full flex flex-col items-center justify-center space-y-4 opacity-50">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -150,13 +149,13 @@ export default function GlobalChatPage() {
         )}
       </div>
 
-      <div className="p-4 bg-background/80 backdrop-blur-md border-t border-white/5 pb-20">
+      <div className="p-4 bg-background/95 backdrop-blur-md border-t border-white/10 sticky bottom-0">
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <Input 
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder={t.placeholder}
-            className="bg-secondary/50 border-white/5 h-12 text-sm focus-visible:ring-primary"
+            className="bg-secondary/50 border-white/10 h-12 text-sm focus-visible:ring-primary"
             autoComplete="off"
           />
           <Button 
