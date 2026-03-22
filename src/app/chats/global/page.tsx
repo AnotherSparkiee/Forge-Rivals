@@ -7,7 +7,7 @@ import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, Send, User, Loader2 } from 'lucide-react';
+import { ChevronLeft, Send, User, Loader2, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import { collection, query, orderBy, limit, addDoc, serverTimestamp, doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
