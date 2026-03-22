@@ -7,7 +7,7 @@ import { useGameState } from './lib/store';
 import { 
   Users, Trophy, Zap, Clock,
   UserSearch, ShieldAlert, Medal, User, Swords, ChevronRight,
-  CalendarDays, PlayCircle, Loader2
+  CalendarDays, PlayCircle, Loader2, MessageSquare
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -227,6 +227,7 @@ export default function Home() {
         { label: 'Training Base', desc: 'Improve hero characteristics' },
         { label: 'Tournaments', desc: 'Global events and friendly matches' },
         { label: 'Manager Profile', desc: 'Operational status and settings' },
+        { label: 'Chats', desc: 'Tactical communication network' },
       ]
     },
     ru: {
@@ -253,6 +254,7 @@ export default function Home() {
         { label: 'Тренировочная база', desc: 'Повышение характеристик героев' },
         { label: 'Турниры', desc: 'Глобальные ивенты и товарищеские игры' },
         { label: 'Профиль Менеджера', desc: 'Статус операций и настройки' },
+        { label: 'Чаты', desc: 'Сеть тактического общения' },
       ]
     }
   };
@@ -265,6 +267,7 @@ export default function Home() {
     { label: t.menu[2].label, href: '/rankings', icon: Trophy, desc: t.menu[2].desc, active: true },
     { label: t.menu[3].label, href: '/matches', icon: CalendarDays, desc: t.menu[3].desc, active: true },
     { label: t.menu[9].label, href: '/tournaments', icon: Medal, desc: t.menu[9].desc, active: true },
+    { label: t.menu[11].label, href: '/chats', icon: MessageSquare, desc: t.menu[11].desc, active: true },
     { label: t.menu[10].label, href: '/profile', icon: User, desc: t.menu[10].desc, active: true },
   ];
 
