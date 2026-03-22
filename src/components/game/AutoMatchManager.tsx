@@ -62,7 +62,6 @@ export function AutoMatchManager() {
           
           if (isDue) {
             await triggerAutoMatch(matchTime, d);
-            // Small artificial delay to avoid hammering the AI quota too fast during catch-up
             await new Promise(r => setTimeout(r, 1000));
             break; 
           }
@@ -79,10 +78,7 @@ export function AutoMatchManager() {
     setIsSimulating(true);
     setSyncing(true);
     
-    toast({
-      title: language === 'ru' ? "Синхронизация матча..." : "Match Syncing...",
-      description: language === 'ru' ? `Начало развертывания (День ${targetDay})` : `Deployment window open (Day ${targetDay})`,
-    });
+    // Toast removed as per user request to make synchronization silent and background-only
 
     try {
       const groupTeams = getMockGroupTeams(
@@ -110,7 +106,6 @@ export function AutoMatchManager() {
       const forcedScoreA = todayMatch.home.id === user.uid ? detScoreA : detScoreB;
       const forcedScoreB = todayMatch.away.id === user.uid ? detScoreA : detScoreB;
 
-      // Bot power increases as level decreases (1 is top)
       const botPowerMultiplier = 1.2 + ((10 - leagueLevel) * 0.15); 
       
       const result = await simulateMobaMatch({
