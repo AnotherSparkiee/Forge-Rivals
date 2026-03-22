@@ -96,16 +96,16 @@ export default function GlobalChatPage() {
   }) : [];
 
   return (
-    <div className="max-w-md mx-auto h-[calc(100vh-3.5rem-5rem)] flex flex-col">
-      <header className="px-4 py-4 flex items-center gap-4 border-b border-white/5 bg-background/50 backdrop-blur-sm sticky top-0 z-10">
+    <div className="max-w-md mx-auto h-[calc(100vh-3.5rem-4rem)] flex flex-col overflow-hidden">
+      <header className="px-4 py-3 flex items-center gap-4 border-b border-white/5 bg-background/50 backdrop-blur-sm sticky top-0 z-10 flex-shrink-0">
         <Link href="/chats">
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <ChevronLeft className="w-6 h-6" />
+          <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
+            <ChevronLeft className="w-5 h-5" />
           </Button>
         </Link>
         <div>
-          <h1 className="text-xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
+          <h1 className="text-lg font-headline font-bold uppercase tracking-tighter leading-none">{t.title}</h1>
+          <p className="text-muted-foreground text-[8px] uppercase tracking-widest mt-1">{t.subtitle}</p>
         </div>
       </header>
 
@@ -149,19 +149,19 @@ export default function GlobalChatPage() {
         )}
       </div>
 
-      <div className="p-4 bg-background/95 backdrop-blur-md border-t border-white/10 sticky bottom-0">
+      <div className="p-2 pb-1 bg-background/95 backdrop-blur-md border-t border-white/10 flex-shrink-0">
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <Input 
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder={t.placeholder}
-            className="bg-secondary/50 border-white/10 h-12 text-sm focus-visible:ring-primary"
+            className="bg-secondary/50 border-white/10 h-11 text-sm focus-visible:ring-primary"
             autoComplete="off"
           />
           <Button 
             type="submit" 
             disabled={!message.trim() || isSending}
-            className="h-12 w-12 rounded-xl hero-gradient p-0 flex items-center justify-center shrink-0"
+            className="h-11 w-11 rounded-xl hero-gradient p-0 flex items-center justify-center shrink-0"
           >
             {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
           </Button>
