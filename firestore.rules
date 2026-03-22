@@ -12,19 +12,24 @@ service cloud.firestore {
     }
 
     match /players_v2/{userId} {
-      // Allow read for everyone to see rankings and profiles
       allow read: if true;
-      // Allow write only by the owner
       allow write: if isOwner(userId);
     }
 
     match /friendly_lobbies/{userId} {
-      // Lobbies require being signed in to see, but owner to manage
       allow read: if isSignedIn();
       allow create, delete: if isOwner(userId);
-      // Update allowed for owner or for a challenger to send a challenge
       allow update: if isOwner(userId) 
                     || (isSignedIn() && request.resource.data.status == 'challenged');
+    }
+
+    match /global_chat/{messageId} {
+      // All signed in users can read global chat
+      allow read: if isSignedIn();
+      // Users can only create messages as themselves
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      // No updates or deletes allowed for global chat messages for now
+      allow update, delete: if false;
     }
 
     // Default deny for everything else

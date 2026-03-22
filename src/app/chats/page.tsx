@@ -36,7 +36,7 @@ export default function ChatsPage() {
       subtitle: "Tactical Messaging Network",
       locked: "Locked",
       menu: [
-        { label: 'Global Chat', desc: 'Real-time communication with all managers', icon: MessageSquare, active: false },
+        { label: 'Global Chat', desc: 'Real-time communication with all managers', icon: MessageSquare, active: true, href: '/chats/global' },
         { label: 'Private Messages', desc: 'Direct encrypted transmissions', icon: Mail, active: false },
         { label: 'Help for Newbies', desc: 'Training support and field guides', icon: HelpCircle, active: false },
         { label: 'Announcements', desc: 'Official league broadcasts and updates', icon: Megaphone, active: false },
@@ -47,7 +47,7 @@ export default function ChatsPage() {
       subtitle: "Сеть тактических сообщений",
       locked: "Закрыто",
       menu: [
-        { label: 'Общий чат', desc: 'Общение со всеми менеджерами лиги', icon: MessageSquare, active: false },
+        { label: 'Общий чат', desc: 'Общение со всеми менеджерами лиги', icon: MessageSquare, active: true, href: '/chats/global' },
         { label: 'Личные сообщения', desc: 'Прямые зашифрованные передачи', icon: Mail, active: false },
         { label: 'Помощь новичкам', desc: 'Поддержка и руководства для кадетов', icon: HelpCircle, active: false },
         { label: 'Объявления', desc: 'Официальные сводки и новости лиги', icon: Megaphone, active: false },
@@ -72,11 +72,8 @@ export default function ChatsPage() {
       </header>
 
       <div className="space-y-2">
-        {t.menu.map((item) => (
-          <div 
-            key={item.label} 
-            className={cn("block", !item.active && "cursor-not-allowed")}
-          >
+        {t.menu.map((item) => {
+          const content = (
             <Card 
               className={cn(
                 "glass-card border-white/5 transition-all",
@@ -100,8 +97,22 @@ export default function ChatsPage() {
                 )}
               </CardContent>
             </Card>
-          </div>
-        ))}
+          );
+
+          if (item.active && item.href) {
+            return (
+              <Link key={item.label} href={item.href} className="block">
+                {content}
+              </Link>
+            );
+          }
+
+          return (
+            <div key={item.label} className={cn("block", !item.active && "cursor-not-allowed")}>
+              {content}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
