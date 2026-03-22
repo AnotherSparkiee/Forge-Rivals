@@ -3,16 +3,17 @@
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { Globe, Gem, Trophy } from 'lucide-react';
+import { Globe, Gem, Trophy, Radio } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { LEAGUES } from '@/app/lib/leagues-data';
 import { useEffect } from 'react';
+import { cn } from '@/lib/utils';
 
 export function TopBar() {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
-  const { credits, crystals, wins, draws, losses, points, syncStats } = useGameState();
+  const { credits, crystals, wins, draws, losses, points, syncStats, isSyncing } = useGameState();
   const db = useFirestore();
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
@@ -60,6 +61,9 @@ export function TopBar() {
             <div className="flex items-center gap-2 mt-0.5">
               <p className="text-[8px] text-muted-foreground uppercase tracking-widest leading-tight flex items-center gap-1 opacity-70">
                 <Globe className="w-2 h-2" /> {league ? `${league.id}` : profile?.country || 'Sector'}
+                {isSyncing && (
+                  <Radio className="w-2.5 h-2.5 text-accent animate-pulse ml-1" />
+                )}
               </p>
               <div className="h-2 w-px bg-white/10"></div>
               <div className="flex items-center gap-1">

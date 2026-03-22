@@ -116,6 +116,7 @@ interface GameState {
     awardedTrophy: boolean;
   } | null;
   hasEliteTrophy: boolean;
+  isSyncing: boolean;
 }
 
 const DEFAULT_ARENA: ArenaState = {
@@ -213,6 +214,7 @@ const DEFAULT_STATE: GameState = {
   medical: DEFAULT_MEDICAL,
   seasonResults: null,
   hasEliteTrophy: false,
+  isSyncing: false,
 };
 
 // Helper to remove undefined properties before Firestore write
@@ -238,6 +240,7 @@ interface GameStateContextType extends GameState {
   claimReward: (creditsReward: number, crystalsReward: number) => void;
   syncStats: (groupPlayers: any[]) => void;
   dismissSeasonResults: () => void;
+  setSyncing: (val: boolean) => void;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
@@ -806,6 +809,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }, [user, db]);
 
+  const setSyncing = useCallback((val: boolean) => {
+    setState(s => ({ ...s, isSyncing: val }));
+  }, []);
+
   return (
     <GameStateContext.Provider value={{
       ...state,
@@ -825,7 +832,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       markMatchAsSeen,
       claimReward,
       syncStats,
-      dismissSeasonResults
+      dismissSeasonResults,
+      setSyncing
     }}>
       {children}
     </GameStateContext.Provider>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -11,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Gem, Gift, Sparkles, CheckCircle2, Lock, Coins } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { usePathname } from 'next/navigation';
 
 /**
  * Handles progressive 30-day login rewards.
@@ -19,23 +19,23 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 export function DailyRewardManager() {
   const { isLoaded, language, lastRewardClaimDate, rewardDay, claimReward } = useGameState();
   const [showReward, setShowReward] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
-    if (isLoaded) {
+    // Only show reward on the main dashboard page after registration/setup
+    if (isLoaded && pathname === '/') {
       const today = getMoscowDateString();
       if (lastRewardClaimDate !== today) {
         const timer = setTimeout(() => setShowReward(true), 1500);
         return () => clearTimeout(timer);
       }
     }
-  }, [isLoaded, lastRewardClaimDate]);
+  }, [isLoaded, lastRewardClaimDate, pathname]);
 
   // Generate 30 days of rewards
   const calendarRewards = useMemo(() => {
     return Array.from({ length: 30 }, (_, i) => {
       const day = i + 1;
-      // Progressive scaling: Day 1 starts at 100k, Day 30 is 5M
-      // Crystals: Day 1 is 10, Day 30 is 500
       const credits = 100000 + (i * 150000) + (Math.floor(i / 7) * 500000);
       const crystals = 10 + (i * 15) + (day % 7 === 0 ? 50 : 0);
       return { day, credits, crystals };

@@ -21,7 +21,7 @@ export function AutoMatchManager() {
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, 
     seasonDay, seasonNumber, lastLeagueMatchDate, recordMatch, team, strategy, rank, seasonStartDate,
-    markMatchAsSeen, matchHistory, seasonResults, dismissSeasonResults
+    markMatchAsSeen, matchHistory, seasonResults, dismissSeasonResults, setSyncing
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
@@ -77,6 +77,7 @@ export function AutoMatchManager() {
     
     simulationRef.current = true;
     setIsSimulating(true);
+    setSyncing(true);
     
     toast({
       title: language === 'ru' ? "Синхронизация матча..." : "Match Syncing...",
@@ -165,6 +166,7 @@ export function AutoMatchManager() {
     } finally {
       setIsSimulating(false);
       simulationRef.current = false;
+      setSyncing(false);
     }
   };
 
@@ -174,19 +176,6 @@ export function AutoMatchManager() {
     date.setDate(date.getDate() + (day - 1));
     return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
   };
-
-  if (isSimulating) {
-    return (
-      <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in zoom-in">
-        <Badge variant="outline" className="bg-background/90 backdrop-blur border-primary text-primary px-4 py-2 flex items-center gap-2 shadow-2xl">
-          <Loader2 className="w-3 h-3 animate-spin" />
-          <span className="text-[10px] font-bold uppercase tracking-widest">
-            {language === 'ru' ? 'Синхронизация с сервером' : 'Syncing with League Server'}
-          </span>
-        </Badge>
-      </div>
-    );
-  }
 
   const t = {
     title: language === 'ru' ? 'ИТОГИ СЕЗОНА' : 'SEASON RESULTS',
