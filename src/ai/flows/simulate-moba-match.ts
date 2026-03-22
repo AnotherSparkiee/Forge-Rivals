@@ -105,10 +105,65 @@ export type SimulateMobaMatchOutput = z.infer<
   typeof SimulateMobaMatchOutputSchema
 >;
 
+/**
+ * Procedural fallback for match simulation when AI quota is exhausted.
+ */
+function generateFallbackSimulation(input: SimulateMobaMatchInput): SimulateMobaMatchOutput {
+  const scoreA = input.scoreA !== undefined ? input.scoreA : (Math.random() > 0.5 ? 2 : 0);
+  const scoreB = input.scoreB !== undefined ? input.scoreB : (scoreA === 2 ? 0 : (scoreA === 1 ? 1 : 2));
+  
+  const winner = scoreA > scoreB ? input.teamA.name : (scoreA < scoreB ? input.teamB.name : "Draw");
+  
+  const genTeamStats = (score: number, opponentScore: number) => ({
+    kills: 10 + Math.floor(Math.random() * 15) + (score * 5),
+    deaths: 10 + Math.floor(Math.random() * 15) + (opponentScore * 5),
+    assists: 20 + Math.floor(Math.random() * 20),
+    towersDestroyed: score === 2 ? 11 : (score === 1 ? 7 : Math.floor(Math.random() * 5)),
+    objectivesTaken: score >= 1 ? ["Dragon", "Tower"] : ["Tower"]
+  });
+
+  const heroPerformance: any[] = [];
+  const processHeroes = (heroes: any[], teamName: string) => {
+    heroes.forEach(h => {
+      heroPerformance.push({
+        heroName: h.name,
+        teamName: teamName,
+        kills: Math.floor(Math.random() * 8),
+        deaths: Math.floor(Math.random() * 6),
+        assists: Math.floor(Math.random() * 12),
+        damageDealt: 15000 + Math.floor(Math.random() * 30000),
+        damageTaken: 10000 + Math.floor(Math.random() * 40000),
+        healingDone: h.role === 'Support' ? 5000 + Math.floor(Math.random() * 10000) : 0
+      });
+    });
+  };
+
+  processHeroes(input.teamA.heroes, input.teamA.name);
+  processHeroes(input.teamB.heroes, input.teamB.name);
+
+  return {
+    winner,
+    scoreA,
+    scoreB,
+    matchSummary: `The engagement between ${input.teamA.name} and ${input.teamB.name} was decided by superior tactical positioning. Key map objectives were traded, but ultimately the execution of ${winner === "Draw" ? "both teams" : winner} led to this result. (Tactical Fallback Protocol Active)`,
+    teamStats: {
+      teamA: genTeamStats(scoreA, scoreB),
+      teamB: genTeamStats(scoreB, scoreA)
+    },
+    heroPerformance
+  };
+}
+
 export async function simulateMobaMatch(
   input: SimulateMobaMatchInput
 ): Promise<SimulateMobaMatchOutput> {
-  return simulateMobaMatchFlow(input);
+  try {
+    const result = await simulateMobaMatchFlow(input);
+    return result;
+  } catch (error: any) {
+    console.warn("AI Simulation failed (Quota/Error). Triggering fallback logic.", error.message);
+    return generateFallbackSimulation(input);
+  }
 }
 
 const prompt = ai.definePrompt({

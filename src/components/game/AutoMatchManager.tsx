@@ -62,6 +62,8 @@ export function AutoMatchManager() {
           
           if (isDue) {
             await triggerAutoMatch(matchTime, d);
+            // Small artificial delay to avoid hammering the AI quota too fast during catch-up
+            await new Promise(r => setTimeout(r, 1000));
             break; 
           }
         }
