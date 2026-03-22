@@ -96,7 +96,7 @@ export default function GlobalChatPage() {
   }) : [];
 
   return (
-    <div className="max-w-md mx-auto h-[calc(100vh-3.5rem-4rem)] flex flex-col overflow-hidden">
+    <div className="max-w-md mx-auto h-[calc(100vh-3.5rem-5rem)] flex flex-col overflow-hidden relative">
       <header className="px-4 py-3 flex items-center gap-4 border-b border-white/5 bg-background/50 backdrop-blur-sm sticky top-0 z-10 flex-shrink-0">
         <Link href="/chats">
           <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
@@ -149,7 +149,7 @@ export default function GlobalChatPage() {
         )}
       </div>
 
-      <div className="p-2 pb-1 bg-background/95 backdrop-blur-md border-t border-white/10 flex-shrink-0">
+      <div className="sticky bottom-0 p-2 pb-1 bg-background/95 backdrop-blur-md border-t border-white/10 z-20 w-full flex-shrink-0">
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <Input 
             value={message}
