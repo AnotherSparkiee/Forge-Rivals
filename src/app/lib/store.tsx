@@ -193,7 +193,7 @@ const DEFAULT_STATE: GameState = {
   draws: 0,
   losses: 0,
   points: 0,
-  leagueLevel: 9, // Start at Level 9 (Bottom)
+  leagueLevel: 9, 
   divisionSubId: 1,
   groupId: 1,
   selectedLeagueId: null,
@@ -214,6 +214,11 @@ const DEFAULT_STATE: GameState = {
   seasonResults: null,
   hasEliteTrophy: false,
 };
+
+// Helper to remove undefined properties before Firestore write
+function sanitizeForFirestore(obj: any) {
+  return JSON.parse(JSON.stringify(obj));
+}
 
 interface GameStateContextType extends GameState {
   isLoaded: boolean;
@@ -281,32 +286,28 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           const { seasonDay: globalDay, seasonNumber: globalSeason, seasonStartDate: globalStart } = getGlobalSeasonInfo();
           
           const history = profileData.matchHistory || s.matchHistory || [];
-          const validHistory = history.filter((m: MatchResultEntry) => {
-            if (m.type !== 'league') return true;
-            return m.seasonNumber === globalSeason && m.day <= 14;
-          });
 
           return {
             ...s,
-            credits: profileData.inGameCurrency ?? s.credits,
-            crystals: profileData.crystals ?? s.crystals,
-            wins: profileData.wins ?? s.wins,
-            draws: profileData.draws ?? s.draws,
-            losses: profileData.losses ?? s.losses,
-            points: profileData.points ?? s.points,
-            leagueLevel: profileData.leagueLevel ?? s.leagueLevel,
-            groupId: profileData.groupId ?? s.groupId,
-            divisionSubId: profileData.divisionSubId ?? s.divisionSubId,
-            selectedLeagueId: profileData.selectedLeagueId ?? s.selectedLeagueId,
-            country: profileData.country ?? s.country,
+            credits: profileData.inGameCurrency ?? s.credits ?? 0,
+            crystals: profileData.crystals ?? s.crystals ?? 0,
+            wins: profileData.wins ?? s.wins ?? 0,
+            draws: profileData.draws ?? s.draws ?? 0,
+            losses: profileData.losses ?? s.losses ?? 0,
+            points: profileData.points ?? s.points ?? 0,
+            leagueLevel: profileData.leagueLevel ?? s.leagueLevel ?? 9,
+            groupId: profileData.groupId ?? s.groupId ?? 1,
+            divisionSubId: profileData.divisionSubId ?? s.divisionSubId ?? 1,
+            selectedLeagueId: profileData.selectedLeagueId ?? s.selectedLeagueId ?? null,
+            country: profileData.country ?? s.country ?? null,
             lastSeenMatchDay: profileData.lastSeenMatchDay ?? s.lastSeenMatchDay ?? 0,
-            lastLeagueMatchDate: profileData.lastLeagueMatchDate ?? s.lastLeagueMatchDate,
+            lastLeagueMatchDate: profileData.lastLeagueMatchDate ?? s.lastLeagueMatchDate ?? null,
             matchHistory: history,
             seasonStartDate: globalStart,
             seasonDay: globalDay,
             seasonNumber: globalSeason,
             lastProcessedSeason: profileData.lastProcessedSeason ?? s.lastProcessedSeason ?? 0,
-            lastRewardClaimDate: profileData.lastRewardClaimDate ?? s.lastRewardClaimDate,
+            lastRewardClaimDate: profileData.lastRewardClaimDate ?? s.lastRewardClaimDate ?? null,
             rewardDay: profileData.rewardDay ?? s.rewardDay ?? 1,
             seasonResults: profileData.seasonResults ?? s.seasonResults ?? null,
             hasEliteTrophy: profileData.hasEliteTrophy ?? s.hasEliteTrophy ?? false,
@@ -334,10 +335,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
     const { seasonNumber: globalSeason, seasonDay: globalDay } = getGlobalSeasonInfo();
 
-    // SEASON TRANSITION LOGIC (Triggered on Day 15 or 16 of the PREVIOUS season if not processed)
     if (state.lastProcessedSeason > 0 && globalSeason > state.lastProcessedSeason) {
-      console.log(`Transitioning from Season ${state.lastProcessedSeason} to ${globalSeason}`);
-      
       const lastSeasonTeams = getMockGroupTeams(
         state.rank, 
         user.displayName || "My Team", 
@@ -358,30 +356,25 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       let demoted = false;
       let awardedTrophy = false;
 
-      // HIERARCHY RULES: Level 1 is Peak. Level 9 is Bottom.
       if (myPos === 1) {
-        // Promotion means level number DECREASES
         newLevel = Math.max(newLevel - 1, 1);
         if (newLevel < state.leagueLevel) promoted = true;
-        
-        // Trophy if winner of Level 1, Group 1
         if (state.leagueLevel === 1 && state.groupId === 1) {
           awardedTrophy = true;
         }
       } else if (myPos >= 7) {
-        // Demotion means level number INCREASES
         newLevel = Math.min(newLevel + 1, 9);
         if (newLevel > state.leagueLevel) demoted = true;
       }
 
-      const results = {
+      const results = sanitizeForFirestore({
         lastRank: myPos,
         lastPoints: lastSeasonTeams.find(t => t.id === user.uid)?.points || 0,
         promoted,
         demoted,
         seasonNumber: state.lastProcessedSeason,
         awardedTrophy
-      };
+      });
 
       const profileRef = doc(db, 'players_v2', user.uid);
       setDoc(profileRef, {
@@ -400,7 +393,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return; 
     }
 
-    // NORMAL STAT SYNC (Only during match days 1-14)
     if (globalDay > 14) return;
 
     const league = LEAGUES.find(l => l.id === state.selectedLeagueId);
@@ -425,10 +417,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (state.wins !== myTeam.wins || state.points !== myTeam.points || state.lastProcessedSeason !== globalSeason) {
       const profileRef = doc(db, 'players_v2', user.uid);
       setDoc(profileRef, {
-        wins: myTeam.wins,
-        draws: myTeam.draws,
-        losses: myTeam.losses,
-        points: myTeam.points,
+        wins: Number(myTeam.wins || 0),
+        draws: Number(myTeam.draws || 0),
+        losses: Number(myTeam.losses || 0),
+        points: Number(myTeam.points || 0),
         lastProcessedSeason: globalSeason 
       }, { merge: true }).catch(e => console.warn("Stat sync failed", e));
     }
@@ -501,7 +493,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const newCredits = s.credits - cost;
         if (user) {
           const profileRef = doc(db, 'players_v2', user.uid);
-          setDoc(profileRef, { inGameCurrency: newCredits }, { merge: true });
+          setDoc(profileRef, { inGameCurrency: newCredits, arena: sanitizeForFirestore({ ...s.arena, constructionStarts: { ...s.arena.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
         }
         return {
           ...s,
@@ -530,7 +522,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const newCredits = s.credits - cost;
         if (user) {
           const profileRef = doc(db, 'players_v2', user.uid);
-          setDoc(profileRef, { inGameCurrency: newCredits }, { merge: true });
+          setDoc(profileRef, { inGameCurrency: newCredits, hq: sanitizeForFirestore({ ...s.hq, constructionStarts: { ...s.hq.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.hq.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
         }
         return {
           ...s,
@@ -559,7 +551,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const newCredits = s.credits - cost;
         if (user) {
           const profileRef = doc(db, 'players_v2', user.uid);
-          setDoc(profileRef, { inGameCurrency: newCredits }, { merge: true });
+          setDoc(profileRef, { inGameCurrency: newCredits, bootcamp: sanitizeForFirestore({ ...s.bootcamp, constructionStarts: { ...s.bootcamp.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.bootcamp.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
         }
         return {
           ...s,
@@ -588,7 +580,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const newCredits = s.credits - cost;
         if (user) {
           const profileRef = doc(db, 'players_v2', user.uid);
-          setDoc(profileRef, { inGameCurrency: newCredits }, { merge: true });
+          setDoc(profileRef, { inGameCurrency: newCredits, academy: sanitizeForFirestore({ ...s.academy, constructionStarts: { ...s.academy.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.academy.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
         }
         return {
           ...s,
@@ -617,7 +609,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const newCredits = s.credits - cost;
         if (user) {
           const profileRef = doc(db, 'players_v2', user.uid);
-          setDoc(profileRef, { inGameCurrency: newCredits }, { merge: true });
+          setDoc(profileRef, { inGameCurrency: newCredits, medical: sanitizeForFirestore({ ...s.medical, constructionStarts: { ...s.medical.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.medical.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
         }
         return {
           ...s,
@@ -644,7 +636,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const newCredits = s.credits - cost;
         if (user) {
           const profileRef = doc(db, 'players_v2', user.uid);
-          setDoc(profileRef, { inGameCurrency: newCredits }, { merge: true });
+          setDoc(profileRef, { inGameCurrency: newCredits, arena: sanitizeForFirestore({ ...s.arena, pendingCapacitySeats: seats, constructionStarts: { ...s.arena.constructionStarts, capacity: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, capacity: finishTime.toISOString() } }) }, { merge: true });
         }
         return {
           ...s,
@@ -744,7 +736,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
     setState(s => {
       if (type === 'league' && s.matchHistory.some(m => m.day === matchDay && m.type === 'league' && m.seasonNumber === s.seasonNumber)) {
-        console.warn(`Prevented duplicate league match recording for Day ${matchDay}`);
         return s;
       }
 
@@ -753,17 +744,20 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const matchEntry: MatchResultEntry = {
         id: matchId,
         day: matchDay,
-        seasonNumber: type === 'league' ? s.seasonNumber : undefined,
         type,
         opponentName: opponentName || "Unknown Team",
         winner,
         scoreA,
         scoreB,
-        matchSummary: result.matchSummary,
-        teamStats: result.teamStats,
-        heroPerformance: result.heroPerformance,
+        matchSummary: result.matchSummary || "",
+        teamStats: sanitizeForFirestore(result.teamStats || {}),
+        heroPerformance: sanitizeForFirestore(result.heroPerformance || []),
         playedAt: customPlayedAt || new Date().toISOString()
       };
+
+      if (type === 'league') {
+        matchEntry.seasonNumber = s.seasonNumber;
+      }
 
       const todayStr = getMoscowDateString();
       const shouldUpdateLastMatchDate = type === 'league' && matchDay === s.seasonDay;
@@ -781,7 +775,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         setDoc(profileRef, {
           inGameCurrency: newState.credits,
           rank: newState.rank,
-          lastLeagueMatchDate: newState.lastLeagueMatchDate,
+          lastLeagueMatchDate: newState.lastLeagueMatchDate ?? null,
           matchHistory: newState.matchHistory
         }, { merge: true }).catch(e => console.warn("Firestore match sync failed", e));
       }

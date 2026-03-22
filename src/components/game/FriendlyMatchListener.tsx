@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -15,6 +14,11 @@ import { INITIAL_HEROES } from '@/app/lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
 
 const MATCH_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+// Helper to remove undefined properties before Firestore write
+function sanitizeForFirestore(obj: any) {
+  return JSON.parse(JSON.stringify(obj));
+}
 
 /**
  * Handles friendly match logic in the background.
@@ -93,7 +97,7 @@ export function FriendlyMatchListener() {
     if (data.status === 'accepted' && data.matchResult) {
       if (processedMatches.current.has(data.id)) return;
 
-      const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); // Fallback if sync is pending
+      const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); 
       const finishTime = acceptedAt + MATCH_DURATION_MS;
       
       const checkAndComplete = () => {
@@ -128,7 +132,6 @@ export function FriendlyMatchListener() {
         }
       };
 
-      // If extremely stale (e.g. accepted hours ago), clean up immediately
       if (Date.now() - acceptedAt > 60 * 60 * 1000) {
         if (isHost) deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
         return;
@@ -159,7 +162,7 @@ export function FriendlyMatchListener() {
         
         await updateDoc(lobbyRef, {
           status: 'accepted',
-          matchResult: result,
+          matchResult: sanitizeForFirestore(result),
           acceptedAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });

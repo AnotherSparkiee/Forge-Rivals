@@ -63,7 +63,6 @@ export default function SetupPage() {
     setIsUpdating(true);
     try {
       const usersCol = collection(db, 'players_v2');
-      // NEW MANAGERS START AT THE BOTTOM (LEVEL 9)
       let targetLevel = 9; 
       
       const leagueQuery = query(
@@ -76,9 +75,8 @@ export default function SetupPage() {
       const playerCount = leagueSnap.size;
       let targetGroup = Math.floor(playerCount / TEAMS_PER_GROUP) + 1;
       
-      // Basic overflow logic for the bottom level
       if (targetGroup > 512) { 
-        targetGroup = 1; // Start filling again or handle differently
+        targetGroup = 1; 
       }
 
       const { seasonDay, seasonStartDate } = getGlobalSeasonInfo();
@@ -91,15 +89,15 @@ export default function SetupPage() {
         id: user.uid,
         selectedLeagueId: selectedLeagueId,
         country: selectedCountry?.name || 'International',
-        leagueLevel: targetLevel,
-        groupId: targetGroup,
+        leagueLevel: Number(targetLevel || 9),
+        groupId: Number(targetGroup || 1),
         divisionSubId: 1,
-        wins: Number(inheritedStats.wins),
-        draws: Number(inheritedStats.draws),
-        losses: Number(inheritedStats.losses),
-        points: Number(inheritedStats.points),
+        wins: Number(inheritedStats.wins || 0),
+        draws: Number(inheritedStats.draws || 0),
+        losses: Number(inheritedStats.losses || 0),
+        points: Number(inheritedStats.points || 0),
         setupDate: new Date().toISOString(),
-        seasonStartDate: seasonStartDate
+        seasonStartDate: seasonStartDate || new Date().toISOString()
       };
       
       await setDoc(profileRef, updateData, { merge: true });
