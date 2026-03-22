@@ -96,7 +96,7 @@ export default function GlobalChatPage() {
   }) : [];
 
   return (
-    <div className="max-w-md mx-auto h-[calc(100vh-3.5rem-5rem)] flex flex-col overflow-hidden relative">
+    <div className="max-w-md mx-auto h-[calc(100dvh-3.5rem-4rem)] flex flex-col overflow-hidden relative">
       <header className="px-4 py-3 flex items-center gap-4 border-b border-white/5 bg-background/50 backdrop-blur-sm sticky top-0 z-10 flex-shrink-0">
         <Link href="/chats">
           <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
@@ -109,7 +109,7 @@ export default function GlobalChatPage() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 space-y-4 scrollbar-hide py-4" ref={scrollRef}>
+      <div className="flex-1 overflow-y-auto px-4 space-y-4 scrollbar-hide pt-4 pb-20" ref={scrollRef}>
         {isChatLoading ? (
           <div className="h-full flex flex-col items-center justify-center space-y-4 opacity-50">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -142,30 +142,33 @@ export default function GlobalChatPage() {
             );
           })
         ) : (
-          <div className="h-full flex flex-col items-center justify-center opacity-20 text-center px-10">
-            <MessageSquare className="w-12 h-12 mb-4" />
+          <div className="h-full flex flex-col items-center justify-center opacity-20 text-center px-10 py-20">
+            <MessageSquare className="w-12 h-12 mb-4 mx-auto" />
             <p className="text-xs uppercase font-bold tracking-widest">No transmissions detected on this frequency.</p>
           </div>
         )}
       </div>
 
-      <div className="sticky bottom-0 p-2 pb-1 bg-background/95 backdrop-blur-md border-t border-white/10 z-20 w-full flex-shrink-0">
-        <form onSubmit={handleSendMessage} className="flex gap-2">
-          <Input 
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder={t.placeholder}
-            className="bg-secondary/50 border-white/10 h-11 text-sm focus-visible:ring-primary"
-            autoComplete="off"
-          />
-          <Button 
-            type="submit" 
-            disabled={!message.trim() || isSending}
-            className="h-11 w-11 rounded-xl hero-gradient p-0 flex items-center justify-center shrink-0"
-          >
-            {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-          </Button>
-        </form>
+      {/* Fixed Input Bar right above BottomNav */}
+      <div className="fixed bottom-16 left-0 right-0 z-30 flex justify-center px-0 pointer-events-none">
+        <div className="w-full max-w-md pointer-events-auto bg-background/95 backdrop-blur-xl border-t border-white/10 p-2 pb-1.5 shadow-[0_-10px_20px_rgba(0,0,0,0.4)]">
+          <form onSubmit={handleSendMessage} className="flex gap-2">
+            <Input 
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder={t.placeholder}
+              className="bg-secondary/50 border-white/10 h-11 text-sm focus-visible:ring-primary rounded-xl"
+              autoComplete="off"
+            />
+            <Button 
+              type="submit" 
+              disabled={!message.trim() || isSending}
+              className="h-11 w-11 rounded-xl hero-gradient p-0 flex items-center justify-center shrink-0 shadow-lg shadow-primary/20"
+            >
+              {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   );
