@@ -6,11 +6,23 @@ import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronLeft, Send, Loader2, MessageSquare } from 'lucide-react';
+import { 
+  ChevronLeft, Send, Loader2, MessageSquare, 
+  User, Mail, Shield, History, AlertTriangle, 
+  CornerUpLeft, ChevronRight
+} from 'lucide-react';
 import Link from 'next/link';
 import { collection, query, orderBy, limit, addDoc, serverTimestamp, doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Card, CardContent } from '@/components/ui/card';
 
 export default function GlobalChatPage() {
   const { user, isUserLoading } = useUser();
@@ -19,6 +31,7 @@ export default function GlobalChatPage() {
   const { language, isLoaded } = useGameState();
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<{id: string, name: string} | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
@@ -66,6 +79,13 @@ export default function GlobalChatPage() {
     }
   };
 
+  const handleReply = () => {
+    if (selectedUser) {
+      setMessage(`${selectedUser.name}, `);
+      setSelectedUser(null);
+    }
+  };
+
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
@@ -77,6 +97,17 @@ export default function GlobalChatPage() {
       placeholder: "Type message...",
       send: "SEND",
       connecting: "Establishing connection...",
+      noTransmissions: "No transmissions detected on this frequency.",
+      userMenu: "Operational Dossier",
+      userMenuDesc: "Direct command options for",
+      actions: [
+        { label: 'Reply', desc: 'Direct mention in public chat', icon: CornerUpLeft, action: handleReply },
+        { label: 'Private Messages', desc: 'Direct encrypted transmission', icon: Mail, disabled: true },
+        { label: 'Player Page', desc: 'Detailed manager statistics', icon: User, disabled: true },
+        { label: 'Club Page', desc: 'Team history and roster', icon: Shield, disabled: true },
+        { label: 'Ban History', desc: 'Operational conduct record', icon: History, disabled: true },
+        { label: 'Report', desc: 'Notify HQ of misconduct', icon: AlertTriangle, disabled: true, color: 'text-red-400' },
+      ]
     },
     ru: {
       title: "ОБЩИЙ ЧАТ",
@@ -84,6 +115,17 @@ export default function GlobalChatPage() {
       placeholder: "Введите сообщение...",
       send: "ОТПР",
       connecting: "Установка связи...",
+      noTransmissions: "Сигналов на данной частоте не обнаружено.",
+      userMenu: "Оперативное досье",
+      userMenuDesc: "Команды взаимодействия с",
+      actions: [
+        { label: 'Ответить', desc: 'Упомянуть в общем канале', icon: CornerUpLeft, action: handleReply },
+        { label: 'Личные сообщения', desc: 'Прямая зашифрованная связь', icon: Mail, disabled: true },
+        { label: 'Страница игрока', desc: 'Детальная статистика менеджера', icon: User, disabled: true },
+        { label: 'Страница клуба', desc: 'История и ростер команды', icon: Shield, disabled: true },
+        { label: 'История банов', desc: 'Записи о нарушениях', icon: History, disabled: true },
+        { label: 'Репорт', desc: 'Сообщить в штаб о нарушении', icon: AlertTriangle, disabled: true, color: 'text-red-400' },
+      ]
     }
   };
 
@@ -124,11 +166,25 @@ export default function GlobalChatPage() {
                 isMe ? "ml-auto items-end" : "mr-auto items-start"
               )}>
                 <div className="flex items-center gap-2 mb-1 px-1">
-                  {!isMe && <span className="text-[10px] font-black text-primary uppercase">{msg.userName}</span>}
+                  {!isMe && (
+                    <button 
+                      onClick={() => setSelectedUser({ id: msg.userId, name: msg.userName })}
+                      className="text-[10px] font-black text-primary uppercase hover:underline active:scale-95 transition-all"
+                    >
+                      {msg.userName}
+                    </button>
+                  )}
                   <span className="text-[8px] text-muted-foreground font-mono">
                     {msg.createdAt ? new Date(msg.createdAt.toMillis()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                   </span>
-                  {isMe && <span className="text-[10px] font-black text-accent uppercase">YOU</span>}
+                  {isMe && (
+                    <button 
+                      onClick={() => setSelectedUser({ id: msg.userId, name: msg.userName })}
+                      className="text-[10px] font-black text-accent uppercase hover:underline active:scale-95 transition-all"
+                    >
+                      YOU
+                    </button>
+                  )}
                 </div>
                 <div className={cn(
                   "px-4 py-2 rounded-2xl text-sm leading-relaxed border shadow-sm",
@@ -144,12 +200,12 @@ export default function GlobalChatPage() {
         ) : (
           <div className="h-full flex flex-col items-center justify-center opacity-20 text-center px-10 py-20">
             <MessageSquare className="w-12 h-12 mb-4 mx-auto" />
-            <p className="text-xs uppercase font-bold tracking-widest">No transmissions detected on this frequency.</p>
+            <p className="text-xs uppercase font-bold tracking-widest">{t.noTransmissions}</p>
           </div>
         )}
       </div>
 
-      {/* Fixed Input Bar right above BottomNav */}
+      {/* Fixed Input Bar */}
       <div className="fixed bottom-16 left-0 right-0 z-30 flex justify-center px-0 pointer-events-none">
         <div className="w-full max-w-md pointer-events-auto bg-background/95 backdrop-blur-xl border-t border-white/10 p-2 pb-1.5 shadow-[0_-10px_20px_rgba(0,0,0,0.4)]">
           <form onSubmit={handleSendMessage} className="flex gap-2">
@@ -170,6 +226,63 @@ export default function GlobalChatPage() {
           </form>
         </div>
       </div>
+
+      {/* User Interaction Dialog */}
+      <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
+        <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden">
+          <DialogHeader className="p-6 bg-gradient-to-br from-primary/10 to-transparent border-b border-white/5">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-secondary/50 flex items-center justify-center border border-white/10">
+                <User className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">
+                  {selectedUser?.name}
+                </DialogTitle>
+                <DialogDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
+                  {t.userMenuDesc} {selectedUser?.name}
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto scrollbar-hide">
+            {t.actions.map((item, idx) => (
+              <Card 
+                key={idx}
+                className={cn(
+                  "glass-card border-white/5 transition-all",
+                  item.disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-white/5 cursor-pointer active:scale-[0.98]"
+                )}
+                onClick={() => !item.disabled && item.action && item.action()}
+              >
+                <CardContent className="p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 rounded-lg bg-secondary/50">
+                      <item.icon className={cn("w-5 h-5", item.color || "text-primary")} />
+                    </div>
+                    <div>
+                      <h3 className={cn("text-xs font-bold uppercase", item.color)}>{item.label}</h3>
+                      <p className="text-[9px] text-muted-foreground leading-tight">{item.desc}</p>
+                    </div>
+                  </div>
+                  {!item.disabled && <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div className="p-4 bg-secondary/20 border-t border-white/5">
+            <Button 
+              variant="outline" 
+              className="w-full h-10 text-[10px] font-bold uppercase border-white/10"
+              onClick={() => setSelectedUser(null)}
+            >
+              {language === 'ru' ? 'ЗАКРЫТЬ' : 'CLOSE'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
