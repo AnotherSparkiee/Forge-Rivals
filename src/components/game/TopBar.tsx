@@ -1,17 +1,20 @@
+
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { Globe, Gem, Trophy, Radio } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+import { Globe, Gem, Trophy, Radio, Mail } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { LEAGUES } from '@/app/lib/leagues-data';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 export function TopBar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, isUserLoading } = useUser();
   const { credits, crystals, wins, draws, losses, points, syncStats, isSyncing } = useGameState();
   const db = useFirestore();
@@ -31,7 +34,20 @@ export function TopBar() {
 
   const { data: groupPlayers } = useCollection(groupQuery);
 
-  // Sync league stats with global deterministic state whenever group data or time changes
+  // Private Messages unread check
+  const unreadMessagesQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return query(
+      collection(db, 'private_messages'),
+      where('receiverId', '==', user.uid),
+      where('read', '==', false)
+    );
+  }, [db, user]);
+
+  const { data: unreadMessages } = useCollection(unreadMessagesQuery);
+  const hasUnread = (unreadMessages?.length || 0) > 0;
+
+  // Sync league stats
   useEffect(() => {
     if (groupPlayers && groupPlayers.length > 0) {
       syncStats(groupPlayers);
@@ -75,6 +91,19 @@ export function TopBar() {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* PM Notification */}
+          <Link href="/chats/private">
+            <div className={cn(
+              "w-8 h-8 rounded-full flex items-center justify-center transition-all relative",
+              hasUnread ? "bg-accent/20 border border-accent/50 animate-pulse" : "bg-secondary/50 border border-white/5"
+            )}>
+              <Mail className={cn("w-4 h-4", hasUnread ? "text-accent" : "text-muted-foreground")} />
+              {hasUnread && (
+                <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-background"></div>
+              )}
+            </div>
+          </Link>
+
           {/* Credits - Euros */}
           <div className="flex items-center gap-1.5 bg-primary/10 px-2 py-1 rounded-full border border-primary/20 shadow-[0_0_10px_rgba(var(--primary),0.05)]">
             <div className="w-3.5 h-3.5 rounded-full bg-yellow-500/20 flex items-center justify-center">

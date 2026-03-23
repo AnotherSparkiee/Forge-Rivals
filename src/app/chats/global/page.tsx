@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -86,6 +87,12 @@ export default function GlobalChatPage() {
     }
   };
 
+  const handlePrivateMessage = () => {
+    if (selectedUser) {
+      router.push(`/chats/private?uid=${selectedUser.id}&name=${encodeURIComponent(selectedUser.name)}`);
+    }
+  };
+
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
@@ -102,7 +109,7 @@ export default function GlobalChatPage() {
       userMenuDesc: "Direct command options for",
       actions: [
         { label: 'Reply', desc: 'Direct mention in public chat', icon: CornerUpLeft, action: handleReply },
-        { label: 'Private Messages', desc: 'Direct encrypted transmission', icon: Mail, disabled: true },
+        { label: 'Private Messages', desc: 'Direct encrypted transmission', icon: Mail, action: handlePrivateMessage },
         { label: 'Player Page', desc: 'Detailed manager statistics', icon: User, disabled: true },
         { label: 'Club Page', desc: 'Team history and roster', icon: Shield, disabled: true },
         { label: 'Ban History', desc: 'Operational conduct record', icon: History, disabled: true },
@@ -120,7 +127,7 @@ export default function GlobalChatPage() {
       userMenuDesc: "Команды взаимодействия с",
       actions: [
         { label: 'Ответить', desc: 'Упомянуть в общем канале', icon: CornerUpLeft, action: handleReply },
-        { label: 'Личные сообщения', desc: 'Прямая зашифрованная связь', icon: Mail, disabled: true },
+        { label: 'Личные сообщения', desc: 'Прямая зашифрованная связь', icon: Mail, action: handlePrivateMessage },
         { label: 'Страница игрока', desc: 'Детальная статистика менеджера', icon: User, disabled: true },
         { label: 'Страница клуба', desc: 'История и ростер команды', icon: Shield, disabled: true },
         { label: 'История банов', desc: 'Записи о нарушениях', icon: History, disabled: true },

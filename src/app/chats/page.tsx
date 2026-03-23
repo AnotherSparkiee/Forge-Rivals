@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -37,7 +38,7 @@ export default function ChatsPage() {
       locked: "Locked",
       menu: [
         { label: 'Global Chat', desc: 'Real-time communication with all managers', icon: MessageSquare, active: true, href: '/chats/global' },
-        { label: 'Private Messages', desc: 'Direct encrypted transmissions', icon: Mail, active: false },
+        { label: 'Private Messages', desc: 'Direct encrypted transmissions', icon: Mail, active: true, href: '/chats/private' },
         { label: 'Help for Newbies', desc: 'Training support and field guides', icon: HelpCircle, active: false },
         { label: 'Announcements', desc: 'Official league broadcasts and updates', icon: Megaphone, active: false },
       ]
@@ -48,7 +49,7 @@ export default function ChatsPage() {
       locked: "Закрыто",
       menu: [
         { label: 'Общий чат', desc: 'Общение со всеми менеджерами лиги', icon: MessageSquare, active: true, href: '/chats/global' },
-        { label: 'Личные сообщения', desc: 'Прямые зашифрованные передачи', icon: Mail, active: false },
+        { label: 'Личные сообщения', desc: 'Прямая зашифрованная связь', icon: Mail, active: true, href: '/chats/private' },
         { label: 'Помощь новичкам', desc: 'Поддержка и руководства для кадетов', icon: HelpCircle, active: false },
         { label: 'Объявления', desc: 'Официальные сводки и новости лиги', icon: Megaphone, active: false },
       ]
@@ -83,7 +84,7 @@ export default function ChatsPage() {
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="p-2 rounded-lg bg-secondary/50">
-                    <item.icon className="w-5 h-5 text-primary" />
+                    <item.icon className={cn("w-5 h-5", item.active ? "text-primary" : "text-muted-foreground")} />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold uppercase">{item.label}</h3>
