@@ -48,14 +48,14 @@ export default function PrivateMessagesPage() {
 
   // Load recent messages where user is a participant
   const messagesQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!user?.uid || !profile) return null;
     return query(
       collection(db, 'private_messages'),
       where('participants', 'array-contains', user.uid),
       orderBy('createdAt', 'asc'),
       limit(200)
     );
-  }, [db, user?.uid]);
+  }, [db, user?.uid, !!profile]);
 
   const { data: allMessages, isLoading: isMessagesLoading } = useCollection<Message>(messagesQuery);
 

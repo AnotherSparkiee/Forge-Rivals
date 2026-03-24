@@ -34,16 +34,16 @@ export function TopBar() {
 
   const { data: groupPlayers } = useCollection(groupQuery);
 
-  // Private Messages unread check matching the new robust security rules
+  // Private Messages unread check matching the updated rules
   const unreadMessagesQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!user?.uid || !profile) return null;
     return query(
       collection(db, 'private_messages'),
       where('participants', 'array-contains', user.uid),
       where('receiverId', '==', user.uid),
       where('read', '==', false)
     );
-  }, [db, user?.uid]);
+  }, [db, user?.uid, !!profile]);
 
   const { data: unreadMessages } = useCollection(unreadMessagesQuery);
   const hasUnread = (unreadMessages?.length || 0) > 0;
