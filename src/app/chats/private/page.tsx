@@ -13,7 +13,7 @@ import {
   ShieldCheck, Trash2, Search
 } from 'lucide-react';
 import Link from 'next/link';
-import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc, where, or } from 'firebase/firestore';
+import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc, where, or, limit } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -46,17 +46,17 @@ export default function PrivateMessagesPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  // Load all messages related to user
+  // Load recent messages related to user
   const messagesQuery = useMemoFirebase(() => {
     if (!user) return null;
-    // Используем OR запрос, который теперь поддерживается правилами
     return query(
       collection(db, 'private_messages'),
       or(
         where('senderId', '==', user.uid),
         where('receiverId', '==', user.uid)
       ),
-      orderBy('createdAt', 'asc')
+      orderBy('createdAt', 'asc'),
+      limit(200)
     );
   }, [db, user]);
 
@@ -98,13 +98,15 @@ export default function PrivateMessagesPage() {
   // Mark as read when opening a chat
   useEffect(() => {
     if (selectedChatId && allMessages && user) {
-      allMessages.forEach(async (msg) => {
-        if (msg.senderId === selectedChatId && msg.receiverId === user.uid && !msg.read) {
-          try {
-            await updateDoc(doc(db, 'private_messages', msg.id), { read: true });
-          } catch (e) {
-            console.error("Failed to mark as read", e);
-          }
+      const unreadFromTarget = allMessages.filter(
+        msg => msg.senderId === selectedChatId && msg.receiverId === user.uid && !msg.read
+      );
+
+      unreadFromTarget.forEach(async (msg) => {
+        try {
+          await updateDoc(doc(db, 'private_messages', msg.id), { read: true });
+        } catch (e) {
+          console.error("Failed to mark as read", e);
         }
       });
     }

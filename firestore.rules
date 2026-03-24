@@ -33,27 +33,25 @@ service cloud.firestore {
     }
 
     match /private_messages/{messageId} {
-      // Позволяем чтение, если пользователь является отправителем или получателем
-      // Используем явное разделение на get и list для лучшей работы индексов правил
-      allow get: if isSignedIn() && (
-        resource.data.senderId == request.auth.uid || 
-        resource.data.receiverId == request.auth.uid
-      );
-      allow list: if isSignedIn() && (
+      // Allow reading if the user is either the sender or the receiver
+      allow read: if isSignedIn() && (
         resource.data.senderId == request.auth.uid || 
         resource.data.receiverId == request.auth.uid
       );
       
-      // Создание разрешено только от своего имени
+      // Allow creation if the senderId matches the authenticated user
       allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
       
-      // Обновление (например, пометка "прочитано") разрешено только получателю
-      allow update: if isSignedIn() && resource.data.receiverId == request.auth.uid;
+      // Allow updates (like marking as read) for participants
+      allow update: if isSignedIn() && (
+        resource.data.senderId == request.auth.uid || 
+        resource.data.receiverId == request.auth.uid
+      );
       
       allow delete: if false;
     }
 
-    // Запрет по умолчанию для всего остального
+    // Deny all other access by default
     match /{document=**} {
       allow read, write: if false;
     }
