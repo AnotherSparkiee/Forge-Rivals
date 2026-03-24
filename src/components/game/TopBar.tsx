@@ -5,7 +5,7 @@ import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@
 import { useGameState } from '@/app/lib/store';
 import { doc, collection, query, where } from 'firebase/firestore';
 import { Globe, Gem, Trophy, Radio, Mail } from 'lucide-react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { LEAGUES } from '@/app/lib/leagues-data';
 import { useEffect, useMemo } from 'react';
@@ -14,7 +14,6 @@ import Link from 'next/link';
 
 export function TopBar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { user, isUserLoading } = useUser();
   const { credits, crystals, syncStats, isSyncing, points } = useGameState();
   const db = useFirestore();
@@ -34,25 +33,23 @@ export function TopBar() {
 
   const { data: groupPlayers } = useCollection(groupQuery);
 
-  // Simplified query: get messages for the user.
-  // We avoid multiple 'where' clauses to bypass the need for composite indexes.
+  // Simple query to avoid complex index requirements
   const unreadMessagesQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!user?.uid || !profile) return null;
     return query(
       collection(db, 'private_messages'),
       where('participants', 'array-contains', user.uid)
     );
-  }, [db, user?.uid]);
+  }, [db, user?.uid, !!profile]);
 
   const { data: allMessages } = useCollection(unreadMessagesQuery);
   
-  // Filter unread in JS to keep Firestore queries and rules dead simple
+  // Client-side filtering for notifications
   const hasUnread = useMemo(() => {
     if (!allMessages || !user) return false;
     return allMessages.some(msg => msg.receiverId === user.uid && !msg.read);
   }, [allMessages, user]);
 
-  // Sync league stats
   useEffect(() => {
     if (groupPlayers && groupPlayers.length > 0) {
       syncStats(groupPlayers);
@@ -96,7 +93,6 @@ export function TopBar() {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* PM Notification */}
           <Link href="/chats/private">
             <div className={cn(
               "w-8 h-8 rounded-full flex items-center justify-center transition-all relative",
@@ -109,7 +105,6 @@ export function TopBar() {
             </div>
           </Link>
 
-          {/* Credits - Euros */}
           <div className="flex items-center gap-1.5 bg-primary/10 px-2 py-1 rounded-full border border-primary/20 shadow-[0_0_10px_rgba(var(--primary),0.05)]">
             <div className="w-3.5 h-3.5 rounded-full bg-yellow-500/20 flex items-center justify-center">
               <span className="text-yellow-500 text-[8px] font-bold italic">€</span>
@@ -119,7 +114,6 @@ export function TopBar() {
             </span>
           </div>
           
-          {/* Premium Currency - Crystals */}
           <div className="flex items-center gap-1.5 bg-accent/10 px-2 py-1 rounded-full border border-accent/20 shadow-[0_0_10px_rgba(var(--accent),0.05)]">
             <Gem className="w-3 h-3 text-accent" />
             <span className="text-[10px] font-headline font-bold text-accent">

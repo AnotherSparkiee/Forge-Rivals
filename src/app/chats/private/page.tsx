@@ -3,16 +3,16 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
   ChevronLeft, Send, Loader2, Mail, 
-  User, ChevronRight, MessageSquare
+  User, ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
-import { collection, query, orderBy, serverTimestamp, doc, where, limit } from 'firebase/firestore';
+import { collection, query, serverTimestamp, doc, where, limit } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -46,28 +46,33 @@ export default function PrivateMessagesPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  // Simple query: get all messages where user is a participant.
-  // This avoids the need for composite indexes which can cause permission errors if missing.
+  // Simple query to avoid index errors and permission issues
   const messagesQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
       collection(db, 'private_messages'),
       where('participants', 'array-contains', user.uid),
-      orderBy('createdAt', 'asc'),
-      limit(200)
+      limit(500)
     );
   }, [db, user?.uid]);
 
-  const { data: allMessages, isLoading: isMessagesLoading } = useCollection<Message>(messagesQuery);
+  const { data: rawMessages, isLoading: isMessagesLoading } = useCollection<Message>(messagesQuery);
 
-  // Group messages into conversations
+  // Sort and group messages in JS to avoid complex Firestore indexes
+  const allMessages = useMemo(() => {
+    if (!rawMessages) return [];
+    return [...rawMessages].sort((a, b) => {
+      const timeA = a.createdAt?.toMillis?.() || 0;
+      const timeB = b.createdAt?.toMillis?.() || 0;
+      return timeA - timeB;
+    });
+  }, [rawMessages]);
+
   const conversations = useMemo(() => {
     if (!allMessages || !user) return [];
     const groups: Record<string, { id: string, name: string, lastMessage: string, lastTime: any, unread: number }> = {};
     
     allMessages.forEach(msg => {
-      if (!msg.participants || !msg.participants.includes(user.uid)) return;
-
       const otherId = msg.senderId === user.uid ? msg.receiverId : msg.senderId;
       const otherName = msg.senderId === user.uid ? msg.receiverName : msg.senderName;
       
@@ -82,10 +87,9 @@ export default function PrivateMessagesPage() {
       }
     });
     
-    return Object.values(groups).sort((a, b) => (b.lastTime?.toMillis() || 0) - (a.lastTime?.toMillis() || 0));
+    return Object.values(groups).sort((a, b) => (b.lastTime?.toMillis?.() || 0) - (a.lastTime?.toMillis?.() || 0));
   }, [allMessages, user]);
 
-  // Handle URL params for direct chat initiation
   useEffect(() => {
     const targetUid = searchParams.get('uid');
     const targetName = searchParams.get('name');
@@ -95,7 +99,6 @@ export default function PrivateMessagesPage() {
     }
   }, [searchParams, user]);
 
-  // Mark as read when opening a chat
   useEffect(() => {
     if (selectedChatId && allMessages && user) {
       const unreadFromTarget = allMessages.filter(
@@ -148,7 +151,6 @@ export default function PrivateMessagesPage() {
       noChats: "No active transmissions.",
       noChatsDesc: "Start a conversation from the Global Chat dossier.",
       placeholder: "Type message...",
-      back: "BACK TO LIST",
       unread: "NEW",
       you: "YOU",
       connecting: "Syncing data..."
@@ -159,7 +161,6 @@ export default function PrivateMessagesPage() {
       noChats: "Нет активных переписок.",
       noChatsDesc: "Начните общение через досье игрока в общем чате.",
       placeholder: "Введите сообщение...",
-      back: "К СПИСКУ",
       unread: "НОВОЕ",
       you: "ВЫ",
       connecting: "Синхронизация..."
@@ -168,10 +169,10 @@ export default function PrivateMessagesPage() {
 
   const t = translations[language as keyof typeof translations] || translations.ru;
 
-  const currentChatMessages = allMessages?.filter(msg => 
+  const currentChatMessages = allMessages.filter(msg => 
     (msg.senderId === user.uid && msg.receiverId === selectedChatId) ||
     (msg.senderId === selectedChatId && msg.receiverId === user.uid)
-  ) || [];
+  );
 
   return (
     <div className="max-w-md mx-auto h-[calc(100dvh-3.5rem-4rem)] flex flex-col overflow-hidden relative">
@@ -189,7 +190,6 @@ export default function PrivateMessagesPage() {
         </div>
       </header>
 
-      {/* CHAT LIST VIEW */}
       {!selectedChatId && (
         <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-hide">
           {isMessagesLoading ? (
@@ -219,7 +219,7 @@ export default function PrivateMessagesPage() {
                       <div className="flex items-center justify-between mb-0.5">
                         <h3 className="text-sm font-bold uppercase tracking-tight truncate">{chat.name}</h3>
                         <span className="text-[8px] text-muted-foreground font-mono">
-                          {chat.lastTime ? new Date(chat.lastTime.toMillis()).toLocaleDateString() : ''}
+                          {chat.lastTime ? new Date(chat.lastTime.toMillis?.() || 0).toLocaleDateString() : ''}
                         </span>
                       </div>
                       <p className="text-[10px] text-muted-foreground truncate leading-none">
@@ -247,7 +247,6 @@ export default function PrivateMessagesPage() {
         </div>
       )}
 
-      {/* ACTIVE CHAT VIEW */}
       {selectedChatId && (
         <>
           <div className="flex-1 overflow-y-auto px-4 space-y-4 scrollbar-hide pt-4 pb-20" ref={scrollRef}>
@@ -260,7 +259,7 @@ export default function PrivateMessagesPage() {
                 )}>
                   <div className="flex items-center gap-2 mb-1 px-1">
                     <span className="text-[8px] text-muted-foreground font-mono">
-                      {msg.createdAt ? new Date(msg.createdAt.toMillis()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                      {msg.createdAt ? new Date(msg.createdAt.toMillis?.() || 0).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                     </span>
                     {isMe && <span className="text-[8px] font-black text-accent uppercase">{t.you}</span>}
                   </div>
@@ -277,7 +276,6 @@ export default function PrivateMessagesPage() {
             })}
           </div>
 
-          {/* Fixed Input Bar */}
           <div className="fixed bottom-16 left-0 right-0 z-30 flex justify-center px-0 pointer-events-none">
             <div className="w-full max-w-md pointer-events-auto bg-background/95 backdrop-blur-xl border-t border-white/10 p-2 pb-1.5 shadow-[0_-10px_20px_rgba(0,0,0,0.4)]">
               <form onSubmit={handleSendMessage} className="flex gap-2">
