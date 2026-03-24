@@ -49,6 +49,7 @@ export default function PrivateMessagesPage() {
   // Load all messages related to user
   const messagesQuery = useMemoFirebase(() => {
     if (!user) return null;
+    // Используем OR запрос, который теперь поддерживается правилами
     return query(
       collection(db, 'private_messages'),
       or(

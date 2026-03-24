@@ -19,8 +19,11 @@ service cloud.firestore {
     match /friendly_lobbies/{userId} {
       allow read: if isSignedIn();
       allow create, delete: if isOwner(userId);
-      allow update: if isOwner(userId) 
-                    || (isSignedIn() && request.resource.data.status == 'challenged');
+      allow update: if isSignedIn() && (
+        isOwner(userId) || 
+        request.auth.uid == resource.data.challengerId ||
+        request.resource.data.status == 'challenged'
+      );
     }
 
     match /global_chat/{messageId} {
@@ -30,16 +33,27 @@ service cloud.firestore {
     }
 
     match /private_messages/{messageId} {
-      // Users can only read messages where they are either sender or receiver
-      allow read: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
-      // Users can only create messages as themselves
+      // Позволяем чтение, если пользователь является отправителем или получателем
+      // Используем явное разделение на get и list для лучшей работы индексов правил
+      allow get: if isSignedIn() && (
+        resource.data.senderId == request.auth.uid || 
+        resource.data.receiverId == request.auth.uid
+      );
+      allow list: if isSignedIn() && (
+        resource.data.senderId == request.auth.uid || 
+        resource.data.receiverId == request.auth.uid
+      );
+      
+      // Создание разрешено только от своего имени
       allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
-      // Users can update messages (e.g., mark as read) only if they are the receiver
+      
+      // Обновление (например, пометка "прочитано") разрешено только получателю
       allow update: if isSignedIn() && resource.data.receiverId == request.auth.uid;
+      
       allow delete: if false;
     }
 
-    // Default deny for everything else
+    // Запрет по умолчанию для всего остального
     match /{document=**} {
       allow read, write: if false;
     }
