@@ -7,70 +7,21 @@
       "type": "object",
       "description": "Represents a player's profile in the game, holding personal data, currency, and references to their owned heroes and teams.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the UserProfile entity."
-        },
-        "displayName": {
-          "type": "string",
-          "description": "The player's chosen display name."
-        },
-        "email": {
-          "type": "string",
-          "description": "The player's email address.",
-          "format": "email"
-        },
-        "inGameCurrency": {
-          "type": "number",
-          "description": "The amount of in-game currency the player possesses."
-        },
-        "experiencePoints": {
-          "type": "number",
-          "description": "The total experience points accumulated by the player."
-        },
-        "lastLoginDate": {
-          "type": "string",
-          "description": "Timestamp of the player's last login.",
-          "format": "date-time"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the user profile was created.",
-          "format": "date-time"
-        },
-        "ownedHeroIds": {
-          "type": "array",
-          "description": "References to heroes owned by this player.",
-          "items": {
-            "type": "string"
-          }
-        },
-        "leagueLevel": {
-          "type": "number"
-        },
-        "divisionSubId": {
-          "type": "number"
-        },
-        "groupId": {
-          "type": "number"
-        },
-        "country": {
-          "type": "string"
-        },
-        "selectedLeagueId": {
-          "type": "string"
-        }
+        "id": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "inGameCurrency": { "type": "number" },
+        "experiencePoints": { "type": "number" },
+        "lastLoginDate": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "ownedHeroIds": { "type": "array", "items": { "type": "string" } },
+        "leagueLevel": { "type": "number" },
+        "divisionSubId": { "type": "number" },
+        "groupId": { "type": "number" },
+        "country": { "type": "string" },
+        "selectedLeagueId": { "type": "string" }
       },
-      "required": [
-        "id",
-        "displayName",
-        "email",
-        "inGameCurrency",
-        "experiencePoints",
-        "lastLoginDate",
-        "createdAt",
-        "ownedHeroIds"
-      ]
+      "required": ["id", "displayName", "email", "inGameCurrency", "experiencePoints", "lastLoginDate", "createdAt", "ownedHeroIds"]
     },
     "FriendlyLobby": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -80,10 +31,7 @@
       "properties": {
         "hostId": { "type": "string" },
         "hostName": { "type": "string" },
-        "status": { 
-          "type": "string", 
-          "enum": ["searching", "challenged", "accepted", "rejected"] 
-        },
+        "status": { "type": "string", "enum": ["searching", "challenged", "accepted", "rejected"] },
         "challengerId": { "type": "string" },
         "challengerName": { "type": "string" },
         "matchResult": { "type": "object" },
@@ -113,10 +61,7 @@
         "senderName": { "type": "string" },
         "receiverId": { "type": "string" },
         "receiverName": { "type": "string" },
-        "participants": { 
-          "type": "array",
-          "items": { "type": "string" }
-        },
+        "participants": { "type": "array", "items": { "type": "string" } },
         "text": { "type": "string" },
         "read": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
@@ -125,53 +70,25 @@
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous",
-      "google.com"
-    ]
+    "providers": ["password", "anonymous", "google.com"]
   },
   "firestore": {
     "structure": [
       {
         "path": "/players_v2/{userId}",
-        "definition": {
-          "entityName": "UserProfile",
-          "schema": {
-            "$ref": "#/backend/entities/UserProfile"
-          },
-          "description": "Stores individual player profiles."
-        }
+        "definition": { "entityName": "UserProfile" }
       },
       {
         "path": "/friendly_lobbies/{userId}",
-        "definition": {
-          "entityName": "FriendlyLobby",
-          "schema": {
-            "$ref": "#/backend/entities/FriendlyLobby"
-          },
-          "description": "Active friendly match requests."
-        }
+        "definition": { "entityName": "FriendlyLobby" }
       },
       {
         "path": "/global_chat/{messageId}",
-        "definition": {
-          "entityName": "ChatMessage",
-          "schema": {
-            "$ref": "#/backend/entities/ChatMessage"
-          },
-          "description": "Messages in the global chat channel."
-        }
+        "definition": { "entityName": "ChatMessage" }
       },
       {
         "path": "/private_messages/{messageId}",
-        "definition": {
-          "entityName": "PrivateMessage",
-          "schema": {
-            "$ref": "#/backend/entities/PrivateMessage"
-          },
-          "description": "Encrypted direct transmissions between managers."
-        }
+        "definition": { "entityName": "PrivateMessage" }
       }
     ]
   }

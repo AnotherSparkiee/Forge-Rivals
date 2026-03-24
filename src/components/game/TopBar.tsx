@@ -16,25 +16,25 @@ export function TopBar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isUserLoading } = useUser();
-  const { credits, crystals, wins, draws, losses, points, syncStats, isSyncing } = useGameState();
+  const { credits, crystals, syncStats, isSyncing, points } = useGameState();
   const db = useFirestore();
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
-    if (!profile?.selectedLeagueId) return null;
+    if (!profile?.selectedLeagueId || !user?.uid) return null;
     return query(
       collection(db, 'players_v2'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
     );
-  }, [db, profile?.selectedLeagueId, profile?.leagueLevel, profile?.groupId]);
+  }, [db, profile?.selectedLeagueId, profile?.leagueLevel, profile?.groupId, user?.uid]);
 
   const { data: groupPlayers } = useCollection(groupQuery);
 
-  // Private Messages unread check matching the new security rules
+  // Private Messages unread check matching the new robust security rules
   const unreadMessagesQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(

@@ -46,7 +46,7 @@ export default function PrivateMessagesPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  // Load recent messages where user is a participant
+  // Load recent messages where user is a participant using the security-rule-compliant field
   const messagesQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
@@ -65,6 +65,8 @@ export default function PrivateMessagesPage() {
     const groups: Record<string, { id: string, name: string, lastMessage: string, lastTime: any, unread: number }> = {};
     
     allMessages.forEach(msg => {
+      if (!msg.participants || !msg.participants.includes(user.uid)) return;
+
       const otherId = msg.senderId === user.uid ? msg.receiverId : msg.senderId;
       const otherName = msg.senderId === user.uid ? msg.receiverName : msg.senderName;
       
@@ -86,11 +88,11 @@ export default function PrivateMessagesPage() {
   useEffect(() => {
     const targetUid = searchParams.get('uid');
     const targetName = searchParams.get('name');
-    if (targetUid && targetName) {
+    if (targetUid && targetName && user && targetUid !== user.uid) {
       setSelectedChatId(targetUid);
       setSelectedChatName(targetName);
     }
-  }, [searchParams]);
+  }, [searchParams, user]);
 
   // Mark as read when opening a chat
   useEffect(() => {
