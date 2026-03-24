@@ -48,7 +48,7 @@ export default function PrivateMessagesPage() {
 
   // Load recent messages related to user
   const messagesQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    if (!user?.uid) return null;
     return query(
       collection(db, 'private_messages'),
       or(
@@ -58,7 +58,7 @@ export default function PrivateMessagesPage() {
       orderBy('createdAt', 'asc'),
       limit(200)
     );
-  }, [db, user]);
+  }, [db, user?.uid]);
 
   const { data: allMessages, isLoading: isMessagesLoading } = useCollection<Message>(messagesQuery);
 

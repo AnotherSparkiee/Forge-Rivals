@@ -36,13 +36,13 @@ export function TopBar() {
 
   // Private Messages unread check
   const unreadMessagesQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    if (!user?.uid) return null;
     return query(
       collection(db, 'private_messages'),
       where('receiverId', '==', user.uid),
       where('read', '==', false)
     );
-  }, [db, user]);
+  }, [db, user?.uid]);
 
   const { data: unreadMessages } = useCollection(unreadMessagesQuery);
   const hasUnread = (unreadMessages?.length || 0) > 0;
@@ -63,7 +63,7 @@ export function TopBar() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-white/10 h-14 flex items-center">
-      <div className="w-full max-w-lg mx-auto px-4 flex items-center justify-between gap-4">
+      <div className="w-full max-lg mx-auto px-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <div className="w-8 h-8 rounded-lg bg-secondary/50 flex items-center justify-center flex-shrink-0 border border-white/5">
             <span className="text-lg" role="img" aria-label="country-flag">

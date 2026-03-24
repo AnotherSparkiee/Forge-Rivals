@@ -34,16 +34,16 @@ service cloud.firestore {
 
     match /private_messages/{messageId} {
       // Allow reading if the user is either the sender or the receiver
-      allow read: if isSignedIn() && (
+      allow read: if request.auth != null && (
         resource.data.senderId == request.auth.uid || 
         resource.data.receiverId == request.auth.uid
       );
       
       // Allow creation if the senderId matches the authenticated user
-      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.senderId == request.auth.uid;
       
       // Allow updates (like marking as read) for participants
-      allow update: if isSignedIn() && (
+      allow update: if request.auth != null && (
         resource.data.senderId == request.auth.uid || 
         resource.data.receiverId == request.auth.uid
       );
