@@ -269,6 +269,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
     setIsLoaded(false);
 
+    // Initial load from local storage for faster UI response
     const key = getStorageKey();
     const saved = localStorage.getItem(key!);
     if (saved) {
@@ -280,8 +281,17 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    // Safety timer: ensure the app loads even if Firestore is slow or blocked
+    const safetyTimer = setTimeout(() => {
+      if (!isLoaded) {
+        console.warn("Firestore connection slow. Proceeding with local state.");
+        setIsLoaded(true);
+      }
+    }, 8000);
+
     const profileRef = doc(db, 'players_v2', user.uid);
     const unsubscribe = onSnapshot(profileRef, (docSnap) => {
+      clearTimeout(safetyTimer);
       if (docSnap.exists()) {
         const profileData = docSnap.data();
         
@@ -319,11 +329,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
       setIsLoaded(true);
     }, (error) => {
+      clearTimeout(safetyTimer);
       console.warn("Firestore sync error:", error.message);
       setIsLoaded(true); 
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(safetyTimer);
+      unsubscribe();
+    };
   }, [user, isUserLoading, db, getStorageKey]);
 
   useEffect(() => {
@@ -620,7 +634,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           medical: {
             ...s.medical,
             constructionStarts: { ...s.medical.constructionStarts, [facility]: startTime.toISOString() },
-            constructionFinishes: { ...s.medical.constructionFinishes, [facility]: finishTime.toISOString() }
+            constructionFinishes: { ...s.arena.constructionFinishes, [facility]: finishTime.toISOString() }
           }
         };
       }

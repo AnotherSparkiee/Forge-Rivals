@@ -35,11 +35,14 @@ export function initializeFirebase() {
 export function getSdks(firebaseApp: FirebaseApp) {
   let firestore;
   try {
-    // Enabling long polling makes the connection more robust in studio/proxy environments
+    // Enabling long polling makes the connection more robust in studio/proxy environments.
+    // We also disable auto-detection to force long polling strictly.
     firestore = initializeFirestore(firebaseApp, {
       experimentalForceLongPolling: true,
+      experimentalAutoDetectLongPolling: false,
     });
   } catch (e) {
+    // If initializeFirestore fails (e.g., already initialized), we fall back to getFirestore.
     firestore = getFirestore(firebaseApp);
   }
 
