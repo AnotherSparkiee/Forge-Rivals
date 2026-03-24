@@ -46,7 +46,7 @@ export default function PrivateMessagesPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  // Load recent messages where user is a participant using the security-rule-compliant field
+  // Load recent messages where user is a participant
   const messagesQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
@@ -65,7 +65,8 @@ export default function PrivateMessagesPage() {
     const groups: Record<string, { id: string, name: string, lastMessage: string, lastTime: any, unread: number }> = {};
     
     allMessages.forEach(msg => {
-      if (!msg.participants || !msg.participants.includes(user.uid)) return;
+      // Basic safeguard for malformed data
+      if (!msg.participants || !Array.isArray(msg.participants) || !msg.participants.includes(user.uid)) return;
 
       const otherId = msg.senderId === user.uid ? msg.receiverId : msg.senderId;
       const otherName = msg.senderId === user.uid ? msg.receiverName : msg.senderName;
@@ -103,7 +104,8 @@ export default function PrivateMessagesPage() {
 
       unreadFromTarget.forEach(async (msg) => {
         try {
-          await updateDoc(doc(db, 'private_messages', msg.id), { read: true });
+          const msgRef = doc(db, 'private_messages', msg.id);
+          await updateDoc(msgRef, { read: true });
         } catch (e) {
           console.error("Failed to mark as read", e);
         }
@@ -283,7 +285,7 @@ export default function PrivateMessagesPage() {
 
           {/* Fixed Input Bar */}
           <div className="fixed bottom-16 left-0 right-0 z-30 flex justify-center px-0 pointer-events-none">
-            <div className="w-full max-w-md pointer-events-auto bg-background/95 backdrop-blur-xl border-t border-white/10 p-2 pb-1.5 shadow-[0_-10px_20px_rgba(0,0,0,0.4)]">
+            <div className="w-full max-md pointer-events-auto bg-background/95 backdrop-blur-xl border-t border-white/10 p-2 pb-1.5 shadow-[0_-10px_20px_rgba(0,0,0,0.4)]">
               <form onSubmit={handleSendMessage} className="flex gap-2">
                 <Input 
                   value={message}

@@ -34,20 +34,23 @@ service cloud.firestore {
 
     match /private_messages/{messageId} {
       // Allow reading if the user is one of the participants
-      // Guard against missing fields to prevent list evaluation errors
+      // list and get require the participants field to be a list and contain the UID
       allow read: if isSignedIn() && 
         "participants" in resource.data && 
+        resource.data.participants is list &&
         request.auth.uid in resource.data.participants;
       
       // Allow creation if the sender is the authenticated user and is in participants
       allow create: if isSignedIn() && 
         request.resource.data.senderId == request.auth.uid &&
         "participants" in request.resource.data &&
+        request.resource.data.participants is list &&
         request.auth.uid in request.resource.data.participants;
       
       // Allow updates (like marking as read) for participants
       allow update: if isSignedIn() && 
         "participants" in resource.data && 
+        resource.data.participants is list &&
         request.auth.uid in resource.data.participants;
       
       allow delete: if false;
