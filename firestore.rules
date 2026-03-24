@@ -34,7 +34,6 @@ service cloud.firestore {
 
     match /private_messages/{messageId} {
       // Allow reading if the user is one of the participants
-      // list and get require the participants field to be a list and contain the UID
       allow read: if isSignedIn() && 
         "participants" in resource.data && 
         resource.data.participants is list &&
