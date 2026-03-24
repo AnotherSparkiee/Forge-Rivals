@@ -34,19 +34,23 @@ export function TopBar() {
 
   const { data: groupPlayers } = useCollection(groupQuery);
 
-  // Private Messages unread check matching the updated rules
+  // Simplified query: get messages for the user.
+  // We avoid multiple 'where' clauses to bypass the need for composite indexes.
   const unreadMessagesQuery = useMemoFirebase(() => {
-    if (!user?.uid || !profile) return null;
+    if (!user?.uid) return null;
     return query(
       collection(db, 'private_messages'),
-      where('participants', 'array-contains', user.uid),
-      where('receiverId', '==', user.uid),
-      where('read', '==', false)
+      where('participants', 'array-contains', user.uid)
     );
-  }, [db, user?.uid, !!profile]);
+  }, [db, user?.uid]);
 
-  const { data: unreadMessages } = useCollection(unreadMessagesQuery);
-  const hasUnread = (unreadMessages?.length || 0) > 0;
+  const { data: allMessages } = useCollection(unreadMessagesQuery);
+  
+  // Filter unread in JS to keep Firestore queries and rules dead simple
+  const hasUnread = useMemo(() => {
+    if (!allMessages || !user) return false;
+    return allMessages.some(msg => msg.receiverId === user.uid && !msg.read);
+  }, [allMessages, user]);
 
   // Sync league stats
   useEffect(() => {

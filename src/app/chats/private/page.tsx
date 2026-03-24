@@ -46,16 +46,17 @@ export default function PrivateMessagesPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  // Load recent messages where user is a participant
+  // Simple query: get all messages where user is a participant.
+  // This avoids the need for composite indexes which can cause permission errors if missing.
   const messagesQuery = useMemoFirebase(() => {
-    if (!user?.uid || !profile) return null;
+    if (!user?.uid) return null;
     return query(
       collection(db, 'private_messages'),
       where('participants', 'array-contains', user.uid),
       orderBy('createdAt', 'asc'),
       limit(200)
     );
-  }, [db, user?.uid, !!profile]);
+  }, [db, user?.uid]);
 
   const { data: allMessages, isLoading: isMessagesLoading } = useCollection<Message>(messagesQuery);
 
@@ -65,7 +66,7 @@ export default function PrivateMessagesPage() {
     const groups: Record<string, { id: string, name: string, lastMessage: string, lastTime: any, unread: number }> = {};
     
     allMessages.forEach(msg => {
-      if (!msg.participants || !Array.isArray(msg.participants) || !msg.participants.includes(user.uid)) return;
+      if (!msg.participants || !msg.participants.includes(user.uid)) return;
 
       const otherId = msg.senderId === user.uid ? msg.receiverId : msg.senderId;
       const otherName = msg.senderId === user.uid ? msg.receiverName : msg.senderName;
