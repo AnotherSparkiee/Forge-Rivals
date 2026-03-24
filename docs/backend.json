@@ -55,7 +55,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "PrivateMessage",
       "type": "object",
-      "description": "An encrypted transmission between two managers.",
+      "description": "A secured transmission between two managers.",
       "properties": {
         "senderId": { "type": "string" },
         "senderName": { "type": "string" },

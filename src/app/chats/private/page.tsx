@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,7 @@ import {
   User, ChevronRight, MessageSquare
 } from 'lucide-react';
 import Link from 'next/link';
-import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc, where, limit } from 'firebase/firestore';
+import { collection, query, orderBy, serverTimestamp, doc, where, limit } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -65,7 +65,6 @@ export default function PrivateMessagesPage() {
     const groups: Record<string, { id: string, name: string, lastMessage: string, lastTime: any, unread: number }> = {};
     
     allMessages.forEach(msg => {
-      // Basic safeguard for malformed data
       if (!msg.participants || !Array.isArray(msg.participants) || !msg.participants.includes(user.uid)) return;
 
       const otherId = msg.senderId === user.uid ? msg.receiverId : msg.senderId;
@@ -102,13 +101,9 @@ export default function PrivateMessagesPage() {
         msg => msg.senderId === selectedChatId && msg.receiverId === user.uid && !msg.read
       );
 
-      unreadFromTarget.forEach(async (msg) => {
-        try {
-          const msgRef = doc(db, 'private_messages', msg.id);
-          await updateDoc(msgRef, { read: true });
-        } catch (e) {
-          console.error("Failed to mark as read", e);
-        }
+      unreadFromTarget.forEach((msg) => {
+        const msgRef = doc(db, 'private_messages', msg.id);
+        updateDocumentNonBlocking(msgRef, { read: true });
       });
     }
   }, [selectedChatId, allMessages, user, db]);
@@ -125,7 +120,7 @@ export default function PrivateMessagesPage() {
 
     setIsSending(true);
     try {
-      await addDoc(collection(db, 'private_messages'), {
+      addDocumentNonBlocking(collection(db, 'private_messages'), {
         senderId: user.uid,
         senderName: profile.displayName || "Manager",
         receiverId: selectedChatId,
@@ -136,8 +131,6 @@ export default function PrivateMessagesPage() {
         read: false
       });
       setMessage('');
-    } catch (e) {
-      console.error("Failed to send message", e);
     } finally {
       setIsSending(false);
     }
