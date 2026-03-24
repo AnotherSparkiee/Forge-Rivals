@@ -37,9 +37,11 @@ export function getSdks(firebaseApp: FirebaseApp) {
   try {
     // Enabling long polling makes the connection more robust in studio/proxy environments.
     // We also disable auto-detection to force long polling strictly.
+    // useFetchStreams: false is added to bypass issues with stream-based connections in some environments.
     firestore = initializeFirestore(firebaseApp, {
       experimentalForceLongPolling: true,
       experimentalAutoDetectLongPolling: false,
+      useFetchStreams: false,
     });
   } catch (e) {
     // If initializeFirestore fails (e.g., already initialized), we fall back to getFirestore.

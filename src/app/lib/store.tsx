@@ -267,8 +267,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setIsLoaded(false);
-
     // Initial load from local storage for faster UI response
     const key = getStorageKey();
     const saved = localStorage.getItem(key!);
@@ -281,10 +279,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Safety timer: ensure the app loads even if Firestore is slow or blocked
+    // Safety timer: ensure the app loads even if Firestore is slow or blocked.
+    // If backend doesn't respond within 8s, we proceed with whatever we have (local or default).
     const safetyTimer = setTimeout(() => {
       if (!isLoaded) {
-        console.warn("Firestore connection slow. Proceeding with local state.");
+        console.warn("Firestore connection slow. Proceeding with local/cached state.");
         setIsLoaded(true);
       }
     }, 8000);
@@ -297,7 +296,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         
         setState(s => {
           const { seasonDay: globalDay, seasonNumber: globalSeason, seasonStartDate: globalStart } = getGlobalSeasonInfo();
-          
           const history = profileData.matchHistory || s.matchHistory || [];
 
           return {
@@ -330,8 +328,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       setIsLoaded(true);
     }, (error) => {
       clearTimeout(safetyTimer);
-      console.warn("Firestore sync error:", error.message);
-      setIsLoaded(true); 
+      console.warn("Firestore sync error/offline:", error.message);
+      setIsLoaded(true); // Proceed anyway to avoid infinite loading screens
     });
 
     return () => {
