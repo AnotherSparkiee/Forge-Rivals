@@ -34,11 +34,12 @@ export function TopBar() {
 
   const { data: groupPlayers } = useCollection(groupQuery);
 
-  // Private Messages unread check
+  // Private Messages unread check matching the new security rules
   const unreadMessagesQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
       collection(db, 'private_messages'),
+      where('participants', 'array-contains', user.uid),
       where('receiverId', '==', user.uid),
       where('read', '==', false)
     );

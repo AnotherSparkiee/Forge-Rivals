@@ -9,11 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
   ChevronLeft, Send, Loader2, Mail, 
-  User, ChevronRight, MessageSquare, 
-  ShieldCheck, Trash2, Search
+  User, ChevronRight, MessageSquare
 } from 'lucide-react';
 import Link from 'next/link';
-import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc, where, or, limit } from 'firebase/firestore';
+import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc, where, limit } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,6 +24,7 @@ interface Message {
   senderName: string;
   receiverId: string;
   receiverName: string;
+  participants: string[];
   text: string;
   createdAt: any;
   read: boolean;
@@ -46,15 +46,12 @@ export default function PrivateMessagesPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  // Load recent messages related to user
+  // Load recent messages where user is a participant
   const messagesQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
       collection(db, 'private_messages'),
-      or(
-        where('senderId', '==', user.uid),
-        where('receiverId', '==', user.uid)
-      ),
+      where('participants', 'array-contains', user.uid),
       orderBy('createdAt', 'asc'),
       limit(200)
     );
@@ -129,6 +126,7 @@ export default function PrivateMessagesPage() {
         senderName: profile.displayName || "Manager",
         receiverId: selectedChatId,
         receiverName: selectedChatName,
+        participants: [user.uid, selectedChatId],
         text: message.trim(),
         createdAt: serverTimestamp(),
         read: false

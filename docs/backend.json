@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -101,6 +102,26 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "userName", "text", "createdAt"]
+    },
+    "PrivateMessage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PrivateMessage",
+      "type": "object",
+      "description": "An encrypted transmission between two managers.",
+      "properties": {
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "receiverName": { "type": "string" },
+        "participants": { 
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "text": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "receiverId", "participants", "text", "createdAt", "read"]
     }
   },
   "auth": {
@@ -140,6 +161,16 @@
             "$ref": "#/backend/entities/ChatMessage"
           },
           "description": "Messages in the global chat channel."
+        }
+      },
+      {
+        "path": "/private_messages/{messageId}",
+        "definition": {
+          "entityName": "PrivateMessage",
+          "schema": {
+            "$ref": "#/backend/entities/PrivateMessage"
+          },
+          "description": "Encrypted direct transmissions between managers."
         }
       }
     ]
