@@ -100,7 +100,7 @@ export default function LoginPage() {
 
     try {
       if (!identifier.includes('@')) {
-        const usersRef = collection(db, 'players_v2');
+        const usersRef = collection(db, 'players_v3');
         const q = query(usersRef, where('displayName', '==', identifier), limit(1));
         const querySnapshot = await getDocs(q);
         
@@ -141,7 +141,7 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      const userProfileRef = doc(db, 'players_v2', user.uid);
+      const userProfileRef = doc(db, 'players_v3', user.uid);
       const userSnap = await getDoc(userProfileRef);
 
       if (!userSnap.exists()) {
@@ -155,9 +155,9 @@ export default function LoginPage() {
           lastLoginDate: new Date().toISOString(),
           createdAt: new Date().toISOString(),
           ownedHeroIds: ['h1', 'h2', 'h3', 'h4', 'h5', 'h_sub1', 'h_sub2'],
-          leagueLevel: 0,
-          divisionSubId: 0,
-          groupId: 0,
+          leagueLevel: 9,
+          divisionSubId: 1,
+          groupId: 1,
         };
         await setDoc(userProfileRef, profileData);
         router.push('/setup');

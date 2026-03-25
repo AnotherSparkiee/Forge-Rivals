@@ -18,13 +18,13 @@ export function TopBar() {
   const { credits, crystals, syncStats, isSyncing, points } = useGameState();
   const db = useFirestore();
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v3', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId || !user?.uid) return null;
     return query(
-      collection(db, 'players_v2'),
+      collection(db, 'players_v3'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -33,7 +33,6 @@ export function TopBar() {
 
   const { data: groupPlayers } = useCollection(groupQuery);
 
-  // Simple query to avoid complex index requirements
   const unreadMessagesQuery = useMemoFirebase(() => {
     if (!user?.uid || !profile) return null;
     return query(
@@ -44,7 +43,6 @@ export function TopBar() {
 
   const { data: allMessages } = useCollection(unreadMessagesQuery);
   
-  // Client-side filtering for notifications
   const hasUnread = useMemo(() => {
     if (!allMessages || !user) return false;
     return allMessages.some(msg => msg.receiverId === user.uid && !msg.read);

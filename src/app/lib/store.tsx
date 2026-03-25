@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
@@ -217,7 +218,6 @@ const DEFAULT_STATE: GameState = {
   isSyncing: false,
 };
 
-// Helper to remove undefined properties before Firestore write
 function sanitizeForFirestore(obj: any) {
   return JSON.parse(JSON.stringify(obj));
 }
@@ -252,7 +252,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   const getStorageKey = useCallback(() => {
-    return user ? `moba_tactics_v5_${user.uid}` : null;
+    return user ? `moba_tactics_v6_${user.uid}` : null;
   }, [user]);
 
   useEffect(() => {
@@ -267,7 +267,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Initial load from local storage for faster UI response
     const key = getStorageKey();
     const saved = localStorage.getItem(key!);
     if (saved) {
@@ -279,8 +278,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Safety timer: ensure the app loads even if Firestore is slow or blocked.
-    // If backend doesn't respond within 8s, we proceed with whatever we have (local or default).
     const safetyTimer = setTimeout(() => {
       if (!isLoaded) {
         console.warn("Firestore connection slow. Proceeding with local/cached state.");
@@ -288,7 +285,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
     }, 8000);
 
-    const profileRef = doc(db, 'players_v2', user.uid);
+    const profileRef = doc(db, 'players_v3', user.uid);
     const unsubscribe = onSnapshot(profileRef, (docSnap) => {
       clearTimeout(safetyTimer);
       if (docSnap.exists()) {
@@ -329,7 +326,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }, (error) => {
       clearTimeout(safetyTimer);
       console.warn("Firestore sync error/offline:", error.message);
-      setIsLoaded(true); // Proceed anyway to avoid infinite loading screens
+      setIsLoaded(true);
     });
 
     return () => {
@@ -391,7 +388,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         awardedTrophy
       });
 
-      const profileRef = doc(db, 'players_v2', user.uid);
+      const profileRef = doc(db, 'players_v3', user.uid);
       setDoc(profileRef, {
         leagueLevel: newLevel,
         wins: 0,
@@ -430,7 +427,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!myTeam) return;
 
     if (state.wins !== myTeam.wins || state.points !== myTeam.points || state.lastProcessedSeason !== globalSeason) {
-      const profileRef = doc(db, 'players_v2', user.uid);
+      const profileRef = doc(db, 'players_v3', user.uid);
       setDoc(profileRef, {
         wins: Number(myTeam.wins || 0),
         draws: Number(myTeam.draws || 0),
@@ -445,7 +442,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(s => {
       const newCredits = s.credits + amount;
       if (user) {
-        const profileRef = doc(db, 'players_v2', user.uid);
+        const profileRef = doc(db, 'players_v3', user.uid);
         setDoc(profileRef, { inGameCurrency: newCredits }, { merge: true });
       }
       return { ...s, credits: newCredits };
@@ -456,7 +453,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(s => {
       const newCrystals = s.crystals + amount;
       if (user) {
-        const profileRef = doc(db, 'players_v2', user.uid);
+        const profileRef = doc(db, 'players_v3', user.uid);
         setDoc(profileRef, { crystals: newCrystals }, { merge: true });
       }
       return { ...s, crystals: newCrystals };
@@ -473,7 +470,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const nextRewardDay = s.rewardDay >= 30 ? 1 : s.rewardDay + 1;
       
       if (user) {
-        const profileRef = doc(db, 'players_v2', user.uid);
+        const profileRef = doc(db, 'players_v3', user.uid);
         setDoc(profileRef, { 
           inGameCurrency: newCredits, 
           crystals: newCrystals,
@@ -507,7 +504,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         result = true;
         const newCredits = s.credits - cost;
         if (user) {
-          const profileRef = doc(db, 'players_v2', user.uid);
+          const profileRef = doc(db, 'players_v3', user.uid);
           setDoc(profileRef, { inGameCurrency: newCredits, arena: sanitizeForFirestore({ ...s.arena, constructionStarts: { ...s.arena.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
         }
         return {
@@ -536,7 +533,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         result = true;
         const newCredits = s.credits - cost;
         if (user) {
-          const profileRef = doc(db, 'players_v2', user.uid);
+          const profileRef = doc(db, 'players_v3', user.uid);
           setDoc(profileRef, { inGameCurrency: newCredits, hq: sanitizeForFirestore({ ...s.hq, constructionStarts: { ...s.hq.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.hq.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
         }
         return {
@@ -565,7 +562,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         result = true;
         const newCredits = s.credits - cost;
         if (user) {
-          const profileRef = doc(db, 'players_v2', user.uid);
+          const profileRef = doc(db, 'players_v3', user.uid);
           setDoc(profileRef, { inGameCurrency: newCredits, bootcamp: sanitizeForFirestore({ ...s.bootcamp, constructionStarts: { ...s.bootcamp.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.bootcamp.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
         }
         return {
@@ -594,7 +591,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         result = true;
         const newCredits = s.credits - cost;
         if (user) {
-          const profileRef = doc(db, 'players_v2', user.uid);
+          const profileRef = doc(db, 'players_v3', user.uid);
           setDoc(profileRef, { inGameCurrency: newCredits, academy: sanitizeForFirestore({ ...s.academy, constructionStarts: { ...s.academy.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.academy.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
         }
         return {
@@ -623,7 +620,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         result = true;
         const newCredits = s.credits - cost;
         if (user) {
-          const profileRef = doc(db, 'players_v2', user.uid);
+          const profileRef = doc(db, 'players_v3', user.uid);
           setDoc(profileRef, { inGameCurrency: newCredits, medical: sanitizeForFirestore({ ...s.medical, constructionStarts: { ...s.medical.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.medical.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
         }
         return {
@@ -650,7 +647,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         result = true;
         const newCredits = s.credits - cost;
         if (user) {
-          const profileRef = doc(db, 'players_v2', user.uid);
+          const profileRef = doc(db, 'players_v3', user.uid);
           setDoc(profileRef, { inGameCurrency: newCredits, arena: sanitizeForFirestore({ ...s.arena, pendingCapacitySeats: seats, constructionStarts: { ...s.arena.constructionStarts, capacity: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, capacity: finishTime.toISOString() } }) }, { merge: true });
         }
         return {
@@ -740,11 +737,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     } else if (scoreA === 1 && scoreB === 1) {
       creditsEarned = 100; rankChange = 5;
     } else if (scoreA === 0 && scoreB === 2) {
-      // Rank change already -15
     } else if (scoreA > scoreB) { 
       creditsEarned = 150; rankChange = 10;
     } else if (scoreA < scoreB) {
-      // Rank change already -15
     } else {
       rankChange = 0;
     }
@@ -786,7 +781,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       };
 
       if (user) {
-        const profileRef = doc(db, 'players_v2', user.uid);
+        const profileRef = doc(db, 'players_v3', user.uid);
         setDoc(profileRef, {
           inGameCurrency: newState.credits,
           rank: newState.rank,
@@ -804,7 +799,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       if (day <= s.lastSeenMatchDay) return s;
       
       if (user) {
-        const profileRef = doc(db, 'players_v2', user.uid);
+        const profileRef = doc(db, 'players_v3', user.uid);
         setDoc(profileRef, { lastSeenMatchDay: day }, { merge: true })
           .catch(e => console.warn("Failed to update lastSeenMatchDay", e));
       }
@@ -816,7 +811,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const dismissSeasonResults = useCallback(() => {
     setState(s => ({ ...s, seasonResults: null }));
     if (user) {
-      const profileRef = doc(db, 'players_v2', user.uid);
+      const profileRef = doc(db, 'players_v3', user.uid);
       setDoc(profileRef, { seasonResults: null }, { merge: true });
     }
   }, [user, db]);

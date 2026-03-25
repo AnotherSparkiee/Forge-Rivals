@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -46,7 +47,6 @@ export default function SetupPage() {
 
   const calculateInheritedStats = (leagueId: string, level: number, group: number, day: number) => {
     if (day <= 1) return { wins: 0, draws: 0, losses: 0, points: 0 };
-    // Simulate up to yesterday for the bottom level (starting level)
     const groupTeams = getMockGroupTeams(1000, "Template", level, 1, group, leagueId, [], undefined, day - 1);
     const replacedBot = groupTeams.length > 0 ? groupTeams[groupTeams.length - 1] : { wins: 0, draws: 0, losses: 0, points: 0 };
     return {
@@ -62,7 +62,7 @@ export default function SetupPage() {
 
     setIsUpdating(true);
     try {
-      const usersCol = collection(db, 'players_v2');
+      const usersCol = collection(db, 'players_v3');
       let targetLevel = 9; 
       
       const leagueQuery = query(
@@ -82,7 +82,7 @@ export default function SetupPage() {
       const { seasonDay, seasonStartDate } = getGlobalSeasonInfo();
       const inheritedStats = calculateInheritedStats(selectedLeagueId, targetLevel, targetGroup, seasonDay);
 
-      const profileRef = doc(db, 'players_v2', user.uid);
+      const profileRef = doc(db, 'players_v3', user.uid);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       
       const updateData = {

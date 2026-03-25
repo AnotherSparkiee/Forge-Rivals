@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -33,13 +34,13 @@ export function AutoMatchManager() {
   
   const simulationRef = useRef(false);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v3', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
-      collection(db, 'players_v2'),
+      collection(db, 'players_v3'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -78,8 +79,6 @@ export function AutoMatchManager() {
     setIsSimulating(true);
     setSyncing(true);
     
-    // Toast removed as per user request to make synchronization silent and background-only
-
     try {
       const groupTeams = getMockGroupTeams(
         rank, 
@@ -248,7 +247,6 @@ export function AutoMatchManager() {
         </DialogContent>
       </Dialog>
 
-      {/* Season Summary Dialog */}
       <Dialog open={!!seasonResults} onOpenChange={(open) => !open && dismissSeasonResults()}>
         <DialogContent className="max-w-md p-0 overflow-hidden bg-background border-white/10 shadow-2xl">
           <DialogHeader className="p-8 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
