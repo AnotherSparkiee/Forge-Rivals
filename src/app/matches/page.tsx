@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -44,13 +45,13 @@ export default function MatchesPage() {
     }
   }, [user, isUserLoading, router]);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v3', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
-      collection(db, 'players_v2'),
+      collection(db, 'players_v3'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -70,7 +71,6 @@ export default function MatchesPage() {
 
   const groupTeams = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return [];
-    // Standings show ONLY completed matches.
     const completedDays = isTodayPlayed ? seasonDay : seasonDay - 1;
     return getMockGroupTeams(
       rank, 
@@ -93,7 +93,6 @@ export default function MatchesPage() {
   const nextMatchInfo = useMemo(() => {
     if (!isLoaded || !profile || !groupTeams.length || !schedule.length) return null;
     
-    // Target Day is today if not played, otherwise tomorrow.
     const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
     if (targetDay > 14) return null;
 

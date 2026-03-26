@@ -11,13 +11,13 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // New players collection
+    // New players collection - synced with app v3
     match /players_v3/{userId} {
-      allow read: if true;
+      allow read: if isSignedIn();
       allow write: if isOwner(userId);
     }
 
-    // Verification codes
+    // Verification codes logic
     match /email_verifications/{userId} {
       allow read: if isOwner(userId);
       allow create: if isSignedIn();

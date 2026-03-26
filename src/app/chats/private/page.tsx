@@ -43,10 +43,9 @@ export default function PrivateMessagesPage() {
   const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v3', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  // Simple query to avoid index errors and permission issues
   const messagesQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
@@ -58,7 +57,6 @@ export default function PrivateMessagesPage() {
 
   const { data: rawMessages, isLoading: isMessagesLoading } = useCollection<Message>(messagesQuery);
 
-  // Sort and group messages in JS to avoid complex Firestore indexes
   const allMessages = useMemo(() => {
     if (!rawMessages) return [];
     return [...rawMessages].sort((a, b) => {

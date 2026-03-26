@@ -35,7 +35,7 @@ export default function GlobalChatPage() {
   const [selectedUser, setSelectedUser] = useState<{id: string, name: string} | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v3', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const chatQuery = useMemoFirebase(() => {
@@ -212,7 +212,6 @@ export default function GlobalChatPage() {
         )}
       </div>
 
-      {/* Fixed Input Bar */}
       <div className="fixed bottom-16 left-0 right-0 z-30 flex justify-center px-0 pointer-events-none">
         <div className="w-full max-w-md pointer-events-auto bg-background/95 backdrop-blur-xl border-t border-white/10 p-2 pb-1.5 shadow-[0_-10px_20px_rgba(0,0,0,0.4)]">
           <form onSubmit={handleSendMessage} className="flex gap-2">
@@ -234,7 +233,6 @@ export default function GlobalChatPage() {
         </div>
       </div>
 
-      {/* User Interaction Dialog */}
       <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
         <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden">
           <DialogHeader className="p-6 bg-gradient-to-br from-primary/10 to-transparent border-b border-white/5">

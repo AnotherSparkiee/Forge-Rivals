@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -45,13 +46,13 @@ export default function RankingsPage() {
     }
   }, [user, isUserLoading, router]);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v2', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v3', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
-      collection(db, 'players_v2'),
+      collection(db, 'players_v3'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -71,10 +72,6 @@ export default function RankingsPage() {
 
   const myLeagueRankings = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return [];
-    
-    // IMPORTANT: Table shows results only for completed matches.
-    // If today is Day 3 and player HAS NOT played today -> show up to Day 2.
-    // If today is Day 3 and player HAS played today -> show up to Day 3.
     const completedDays = isTodayPlayed ? seasonDay : seasonDay - 1;
     
     const teams = getMockGroupTeams(
@@ -89,7 +86,6 @@ export default function RankingsPage() {
       Math.max(0, completedDays)
     );
     
-    // Sort for display by points then wins
     return [...teams].sort((a, b) => b.points - a.points || (b.wins - a.wins));
   }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, isTodayPlayed, rank, user?.uid]);
 
