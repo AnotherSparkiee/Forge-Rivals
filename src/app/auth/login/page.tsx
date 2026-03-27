@@ -30,7 +30,6 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   
-  // Forgot Password States
   const [isForgotOpen, setIsForgotOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [isForgotLoading, setIsForgotLoading] = useState(false);
@@ -100,7 +99,7 @@ export default function LoginPage() {
 
     try {
       if (!identifier.includes('@')) {
-        const usersRef = collection(db, 'players_v3');
+        const usersRef = collection(db, 'players_v4');
         const q = query(usersRef, where('displayName', '==', identifier), limit(1));
         const querySnapshot = await getDocs(q);
         
@@ -110,25 +109,14 @@ export default function LoginPage() {
         
         const userData = querySnapshot.docs[0].data();
         emailToUse = userData.email;
-        
-        if (!emailToUse) {
-          throw new Error("Profile exists but email sync is missing. Use email to login.");
-        }
       }
 
       await signInWithEmailAndPassword(auth, emailToUse, password);
       
-      toast({
-        title: t.successTitle,
-        description: t.successDesc,
-      });
+      toast({ title: t.successTitle, description: t.successDesc });
       router.push('/');
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: t.errorTitle,
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: t.errorTitle, description: error.message });
     } finally {
       setIsLoading(false);
     }
@@ -141,7 +129,7 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      const userProfileRef = doc(db, 'players_v3', user.uid);
+      const userProfileRef = doc(db, 'players_v4', user.uid);
       const userSnap = await getDoc(userProfileRef);
 
       if (!userSnap.exists()) {
@@ -170,16 +158,9 @@ export default function LoginPage() {
         }
       }
 
-      toast({
-        title: t.successTitle,
-        description: t.successDesc,
-      });
+      toast({ title: t.successTitle, description: t.successDesc });
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: t.errorTitle,
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: t.errorTitle, description: error.message });
     } finally {
       setIsGoogleLoading(false);
     }
@@ -188,22 +169,14 @@ export default function LoginPage() {
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotEmail) return;
-    
     setIsForgotLoading(true);
     try {
       await sendPasswordResetEmail(auth, forgotEmail);
-      toast({
-        title: t.forgotSuccess,
-        description: t.forgotSuccessDesc,
-      });
+      toast({ title: t.forgotSuccess, description: t.forgotSuccessDesc });
       setIsForgotOpen(false);
       setForgotEmail('');
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: t.errorTitle,
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: t.errorTitle, description: error.message });
     } finally {
       setIsForgotLoading(false);
     }
@@ -214,20 +187,10 @@ export default function LoginPage() {
   return (
     <div className="space-y-4">
       <div className="flex justify-center gap-2 mb-4 bg-secondary/20 p-1 rounded-lg border border-white/5">
-        <Button 
-          variant="ghost" 
-          size="sm"
-          className={cn("flex-1 text-xs font-bold h-8 uppercase tracking-widest", "bg-white/10 text-primary")}
-          onClick={() => router.push('/auth/login')}
-        >
+        <Button variant="ghost" size="sm" className={cn("flex-1 text-xs font-bold h-8 uppercase tracking-widest", "bg-white/10 text-primary")} onClick={() => router.push('/auth/login')}>
           {t.navLogin}
         </Button>
-        <Button 
-          variant="ghost" 
-          size="sm"
-          className={cn("flex-1 text-xs font-bold h-8 uppercase tracking-widest text-muted-foreground")}
-          onClick={() => router.push('/auth/register')}
-        >
+        <Button variant="ghost" size="sm" className={cn("flex-1 text-xs font-bold h-8 uppercase tracking-widest text-muted-foreground")} onClick={() => router.push('/auth/register')}>
           {t.navRegister}
         </Button>
       </div>
@@ -240,58 +203,31 @@ export default function LoginPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="identifier">{t.emailLabel}</Label>
-              <Input 
-                id="identifier" 
-                placeholder="Team Name or email@example.com" 
-                value={identifier} 
-                onChange={(e) => setIdentifier(e.target.value)} 
-                required 
-                className="bg-secondary/50"
-              />
+              <Input id="identifier" placeholder="Team Name or email@example.com" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required className="bg-secondary/50" />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">{t.passLabel}</Label>
-                <button 
-                  type="button" 
-                  onClick={() => setIsForgotOpen(true)}
-                  className="text-[10px] text-primary hover:underline font-bold uppercase tracking-tighter"
-                >
+                <button type="button" onClick={() => setIsForgotOpen(true)} className="text-[10px] text-primary hover:underline font-bold uppercase tracking-tighter">
                   {t.forgotPass}
                 </button>
               </div>
-              <Input 
-                id="password" 
-                type="password" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
-                required 
-                className="bg-secondary/50"
-              />
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="bg-secondary/50" />
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full hero-gradient font-bold" disabled={isLoading || isGoogleLoading}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : t.submitBtn}
             </Button>
-            
             <div className="flex items-center gap-4 w-full">
               <div className="h-px bg-white/10 flex-1"></div>
               <span className="text-[10px] text-muted-foreground font-bold uppercase">{t.orLabel}</span>
               <div className="h-px bg-white/10 flex-1"></div>
             </div>
-
-            <Button 
-              type="button" 
-              variant="outline" 
-              className="w-full font-bold border-white/10 hover:bg-white/5 h-11" 
-              onClick={handleGoogleLogin}
-              disabled={isLoading || isGoogleLoading}
-            >
+            <Button type="button" variant="outline" className="w-full font-bold border-white/10 hover:bg-white/5 h-11" onClick={handleGoogleLogin} disabled={isLoading || isGoogleLoading}>
               {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Chrome className="mr-2 h-4 w-4 text-red-400" />}
               {t.googleBtn}
             </Button>
-
             <p className="text-xs text-center text-muted-foreground mt-2">
               {t.newManager} <Link href="/auth/register" className="text-primary hover:underline">{t.registerLink}</Link>
             </p>
@@ -299,7 +235,6 @@ export default function LoginPage() {
         </form>
       </Card>
 
-      {/* Forgot Password Dialog */}
       <Dialog open={isForgotOpen} onOpenChange={setIsForgotOpen}>
         <DialogContent className="sm:max-w-[425px] bg-card border-white/10 text-foreground">
           <form onSubmit={handleForgotPassword}>
@@ -314,23 +249,11 @@ export default function LoginPage() {
             <div className="grid gap-4 py-6">
               <div className="space-y-2">
                 <Label htmlFor="forgotEmail" className="text-xs uppercase font-bold text-accent">{t.emailLabel}</Label>
-                <Input
-                  id="forgotEmail"
-                  type="email"
-                  placeholder={t.forgotPlaceholder}
-                  value={forgotEmail}
-                  onChange={(e) => setForgotEmail(e.target.value)}
-                  className="bg-secondary/50 border-white/5"
-                  required
-                />
+                <Input id="forgotEmail" type="email" placeholder={t.forgotPlaceholder} value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} className="bg-secondary/50 border-white/5" required />
               </div>
             </div>
             <DialogFooter>
-              <Button 
-                type="submit" 
-                className="w-full hero-gradient font-bold" 
-                disabled={isForgotLoading}
-              >
+              <Button type="submit" className="w-full hero-gradient font-bold" disabled={isForgotLoading}>
                 {isForgotLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.forgotSend}
               </Button>
             </DialogFooter>

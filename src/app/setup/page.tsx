@@ -62,7 +62,7 @@ export default function SetupPage() {
 
     setIsUpdating(true);
     try {
-      const usersCol = collection(db, 'players_v3');
+      const usersCol = collection(db, 'players_v4');
       let targetLevel = 9; 
       
       const leagueQuery = query(
@@ -71,18 +71,14 @@ export default function SetupPage() {
         where('leagueLevel', '==', targetLevel)
       );
       const leagueSnap = await getDocs(leagueQuery);
-      
       const playerCount = leagueSnap.size;
       let targetGroup = Math.floor(playerCount / TEAMS_PER_GROUP) + 1;
-      
-      if (targetGroup > 512) { 
-        targetGroup = 1; 
-      }
+      if (targetGroup > 512) targetGroup = 1;
 
       const { seasonDay, seasonStartDate } = getGlobalSeasonInfo();
       const inheritedStats = calculateInheritedStats(selectedLeagueId, targetLevel, targetGroup, seasonDay);
 
-      const profileRef = doc(db, 'players_v3', user.uid);
+      const profileRef = doc(db, 'players_v4', user.uid);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       
       const updateData = {
@@ -108,11 +104,10 @@ export default function SetupPage() {
       });
       router.push('/');
     } catch (error: any) {
-      console.error("Setup Error:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to save profile configuration. Please try again.",
+        description: "Failed to save profile configuration.",
       });
     } finally {
       setIsUpdating(false);
@@ -135,38 +130,25 @@ export default function SetupPage() {
         </h1>
         <p className="text-muted-foreground text-lg italic">
           {step === 'league' 
-            ? 'Choose your tactical time window. New managers take over existing slots in the bottom tier.' 
-            : 'Your flag will represent your organization in the global rankings.'}
+            ? 'Choose your tactical time window.' 
+            : 'Your flag will represent your organization.'}
         </p>
       </header>
 
       {step === 'league' ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
           {LEAGUES.map((league) => (
-            <Card 
-              key={league.id} 
-              className={cn(
-                "glass-card cursor-pointer transition-all hover:scale-[1.02]",
-                selectedLeagueId === league.id ? "ring-2 ring-primary border-primary bg-primary/5" : "hover:border-white/20"
-              )}
-              onClick={() => setSelectedLeagueId(league.id)}
-            >
+            <Card key={league.id} className={cn("glass-card cursor-pointer transition-all hover:scale-[1.02]", selectedLeagueId === league.id ? "ring-2 ring-primary border-primary bg-primary/5" : "hover:border-white/20")} onClick={() => setSelectedLeagueId(league.id)}>
               <CardHeader className="pb-2 p-4">
                 <div className="flex justify-between items-start">
                   <CardTitle className="font-headline text-lg">{league.id}</CardTitle>
                   <Clock className={cn("w-4 h-4", selectedLeagueId === league.id ? "text-primary" : "text-muted-foreground")} />
                 </div>
-                <CardDescription className="text-accent font-bold uppercase text-[10px] tracking-tighter">
-                  {league.startTime} MSK Sync
-                </CardDescription>
+                <CardDescription className="text-accent font-bold uppercase text-[10px] tracking-tighter">{league.startTime} MSK Sync</CardDescription>
               </CardHeader>
               <CardContent className="px-4 pb-4">
                 <p className="text-[10px] text-muted-foreground leading-relaxed italic">{league.description}</p>
-                {selectedLeagueId === league.id && (
-                  <div className="mt-2 flex justify-center">
-                    <CheckCircle2 className="text-primary w-5 h-5 animate-in zoom-in" />
-                  </div>
-                )}
+                {selectedLeagueId === league.id && <div className="mt-2 flex justify-center"><CheckCircle2 className="text-primary w-5 h-5 animate-in zoom-in" /></div>}
               </CardContent>
             </Card>
           ))}
@@ -174,20 +156,11 @@ export default function SetupPage() {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
           {COUNTRIES.map((country) => (
-            <Card 
-              key={country.code} 
-              className={cn(
-                "glass-card cursor-pointer transition-all hover:bg-white/5",
-                selectedCountryCode === country.code ? "ring-2 ring-primary border-primary bg-primary/5" : "hover:border-white/20"
-              )}
-              onClick={() => setSelectedCountryCode(country.code)}
-            >
+            <Card key={country.code} className={cn("glass-card cursor-pointer transition-all hover:bg-white/5", selectedCountryCode === country.code ? "ring-2 ring-primary border-primary bg-primary/5" : "hover:border-white/20")} onClick={() => setSelectedCountryCode(country.code)}>
               <CardContent className="flex flex-col items-center justify-center p-6 gap-2">
                 <span className="text-4xl">{country.flag}</span>
                 <span className="text-sm font-bold uppercase tracking-tighter text-center">{country.name}</span>
-                {selectedCountryCode === country.code && (
-                  <CheckCircle2 className="text-primary w-5 h-5 absolute top-2 right-2 animate-in zoom-in" />
-                )}
+                {selectedCountryCode === country.code && <CheckCircle2 className="text-primary w-5 h-5 absolute top-2 right-2 animate-in zoom-in" />}
               </CardContent>
             </Card>
           ))}
@@ -195,21 +168,8 @@ export default function SetupPage() {
       )}
 
       <div className="flex justify-center gap-4">
-        {step === 'country' && (
-          <Button 
-            variant="outline" 
-            onClick={() => setStep('league')}
-            className="w-full max-w-[150px] h-14"
-          >
-            BACK
-          </Button>
-        )}
-        <Button 
-          size="lg" 
-          disabled={isUpdating || (step === 'league' ? !selectedLeagueId : !selectedCountryCode)} 
-          onClick={step === 'league' ? handleNextStep : handleCompleteSetup}
-          className="w-full max-w-sm hero-gradient text-lg font-headline font-bold h-14"
-        >
+        {step === 'country' && <Button variant="outline" onClick={() => setStep('league')} className="w-full max-w-[150px] h-14">BACK</Button>}
+        <Button size="lg" disabled={isUpdating || (step === 'league' ? !selectedLeagueId : !selectedCountryCode)} onClick={step === 'league' ? handleNextStep : handleCompleteSetup} className="w-full max-w-sm hero-gradient text-lg font-headline font-bold h-14">
           {isUpdating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (step === 'league' ? 'NEXT' : 'FINALIZE SETUP')}
         </Button>
       </div>

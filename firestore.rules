@@ -7,21 +7,17 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // New players collection - strictly v3
-    match /players_v3/{userId} {
+    // New players collection - v4 (Global reset)
+    match /players_v4/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId);
+      allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
     match /friendly_lobbies/{userId} {
       allow read: if isSignedIn();
-      allow create, delete: if isOwner(userId);
+      allow create, delete: if isSignedIn() && request.auth.uid == userId;
       allow update: if isSignedIn() && (
-        isOwner(userId) || 
+        request.auth.uid == userId || 
         request.auth.uid == resource.data.challengerId ||
         request.resource.data.status == 'challenged'
       );

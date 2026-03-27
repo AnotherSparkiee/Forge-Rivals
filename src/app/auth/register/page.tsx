@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { doc, setDoc, collection, query, where, getDocs, limit, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -58,7 +58,7 @@ export default function RegisterPage() {
     ru: {
       title: "Инициация профиля",
       verifyTitle: "Проверка безопасности",
-      verifyDesc: "6-значный код доступа был сгенерирован для вашей частоты (почты).",
+      verifyDesc: "6-значный код доступа был сгенерирован для вашей почты.",
       codeLabel: "Код подтверждения",
       callsign: "Название команды",
       emailLabel: "Почта (Email)",
@@ -84,7 +84,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const usersRef = collection(db, 'players_v3');
+      const usersRef = collection(db, 'players_v4');
       const q = query(usersRef, where('displayName', '==', username), limit(1));
       const querySnapshot = await getDocs(q);
       
@@ -92,17 +92,14 @@ export default function RegisterPage() {
         throw new Error(t.usernameTaken);
       }
 
-      // Generate 6-digit code
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       setGeneratedCode(code);
       
-      // In a real app, you'd call a backend function here to send the actual email.
-      // For this prototype, we simulate the "send" and show a toast.
       console.log(`[SIMULATED EMAIL] To: ${email}, Code: ${code}`);
       
       toast({
         title: language === 'ru' ? "Код отправлен" : "Code Sent",
-        description: language === 'ru' ? `Проверьте ${email} (симуляция кода: ${code})` : `Check ${email} (simulated code: ${code})`,
+        description: language === 'ru' ? `Ваш код доступа: ${code}` : `Your access code: ${code}`,
       });
 
       setStep('verify');
@@ -144,7 +141,7 @@ export default function RegisterPage() {
         groupId: 1,
       };
 
-      await setDoc(doc(db, 'players_v3', user.uid), profileData);
+      await setDoc(doc(db, 'players_v4', user.uid), profileData);
 
       toast({ title: t.successTitle, description: t.successDesc });
       router.push('/setup');
@@ -162,8 +159,8 @@ export default function RegisterPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      const userProfileRef = doc(db, 'players_v3', user.uid);
-      const userSnap = await getDocs(query(collection(db, 'players_v3'), where('id', '==', user.uid), limit(1)));
+      const userProfileRef = doc(db, 'players_v4', user.uid);
+      const userSnap = await getDocs(query(collection(db, 'players_v4'), where('id', '==', user.uid), limit(1)));
 
       if (userSnap.empty) {
         const profileData = {
@@ -198,19 +195,10 @@ export default function RegisterPage() {
     <div className="space-y-4">
       {step === 'info' && (
         <div className="flex justify-center gap-2 mb-4 bg-secondary/20 p-1 rounded-lg border border-white/5">
-          <Button 
-            variant="ghost" 
-            size="sm"
-            className="flex-1 text-xs font-bold h-8 uppercase tracking-widest text-muted-foreground"
-            onClick={() => router.push('/auth/login')}
-          >
+          <Button variant="ghost" size="sm" className="flex-1 text-xs font-bold h-8 uppercase tracking-widest text-muted-foreground" onClick={() => router.push('/auth/login')}>
             {language === 'ru' ? 'ВХОД' : 'LOGIN'}
           </Button>
-          <Button 
-            variant="ghost" 
-            size="sm"
-            className="flex-1 text-xs font-bold h-8 uppercase tracking-widest bg-white/10 text-primary"
-          >
+          <Button variant="ghost" size="sm" className="flex-1 text-xs font-bold h-8 uppercase tracking-widest bg-white/10 text-primary">
             {language === 'ru' ? 'РЕГИСТРАЦИЯ' : 'REGISTER'}
           </Button>
         </div>
@@ -248,18 +236,15 @@ export default function RegisterPage() {
               <Button type="submit" className="w-full hero-gradient font-bold h-12" disabled={isLoading || isGoogleLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><Mail className="w-4 h-4 mr-2" /> {t.submitBtn}</>}
               </Button>
-
               <div className="flex items-center gap-4 w-full">
                 <div className="h-px bg-white/10 flex-1"></div>
                 <span className="text-[10px] text-muted-foreground font-bold uppercase">{t.orLabel}</span>
                 <div className="h-px bg-white/10 flex-1"></div>
               </div>
-
               <Button type="button" variant="outline" className="w-full font-bold border-white/10 hover:bg-white/5 h-11" onClick={handleGoogleLogin} disabled={isLoading || isGoogleLoading}>
                 {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Chrome className="mr-2 h-4 w-4 text-red-400" />}
                 {t.googleBtn}
               </Button>
-
               <p className="text-xs text-center text-muted-foreground mt-2">
                 {t.alreadyRegistered} <Link href="/auth/login" className="text-primary hover:underline">{t.loginLink}</Link>
               </p>
