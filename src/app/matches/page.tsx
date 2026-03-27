@@ -45,13 +45,13 @@ export default function MatchesPage() {
     }
   }, [user, isUserLoading, router]);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v3', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v4', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
-      collection(db, 'players_v3'),
+      collection(db, 'players_v4'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -157,7 +157,7 @@ export default function MatchesPage() {
     return <LoadingScreen />;
   }
 
-  const labels = {
+  const translations = {
     en: {
       title: "OPERATIONAL MATCHES",
       subtitle: "Tactical Schedule & History",
@@ -204,7 +204,7 @@ export default function MatchesPage() {
     }
   };
 
-  const t = labels[language as keyof typeof labels] || labels.ru;
+  const t = translations[language as keyof typeof translations] || translations.ru;
 
   const renderMatchRow = (match: any, dayIdx: number) => {
     const day = dayIdx + 1;

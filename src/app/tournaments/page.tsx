@@ -30,7 +30,7 @@ export default function TournamentsPage() {
   const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies', user.uid) : null, [db, user]);
   const { data: myLobby, isLoading: isLobbyLoading } = useDoc(myLobbyRef);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v3', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v4', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
@@ -148,6 +148,7 @@ export default function TournamentsPage() {
         {menu.map((item) => {
           const Content = (
             <Card 
+              key={item.label}
               className={cn(
                 "glass-card border-white/5 transition-all overflow-hidden",
                 item.active ? "hover:bg-white/5 cursor-pointer" : "opacity-60"
