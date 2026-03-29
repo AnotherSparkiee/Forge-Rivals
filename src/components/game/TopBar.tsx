@@ -4,7 +4,7 @@
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { Globe, Gem, Trophy, Radio, Mail } from 'lucide-react';
+import { Globe, Gem, Trophy, Radio, Mail, Bell } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -76,7 +76,7 @@ export function TopBar() {
             </p>
             <div className="flex items-center gap-2 mt-0.5">
               <p className="text-[8px] text-muted-foreground uppercase tracking-widest leading-tight flex items-center gap-1 opacity-70">
-                <Globe className="w-2 h-2" /> {league ? `${league.id}` : profile?.country || 'Sector'}
+                < Globe className="w-2 h-2" /> {league ? `${league.id}` : profile?.country || 'Sector'}
                 {isSyncing && (
                   <Radio className="w-2.5 h-2.5 text-accent animate-pulse ml-1" />
                 )}
@@ -91,6 +91,11 @@ export function TopBar() {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Notification Bell */}
+          <div className="w-8 h-8 rounded-full bg-secondary/50 border border-white/5 flex items-center justify-center transition-all hover:bg-white/5 cursor-pointer">
+            <Bell className="w-4 h-4 text-muted-foreground" />
+          </div>
+
           <Link href="/chats/private">
             <div className={cn(
               "w-8 h-8 rounded-full flex items-center justify-center transition-all relative",
