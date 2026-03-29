@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -11,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Chrome, Mail, ShieldCheck, Info, AlertTriangle, Terminal } from 'lucide-react';
+import { Loader2, Mail, ShieldCheck, Info, AlertCircle } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 import { sendVerificationEmail } from '@/app/actions/email';
@@ -26,7 +27,7 @@ export default function RegisterPage() {
   const [verificationCode, setVerificationCode] = useState('');
   const [generatedCode, setGeneratedCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isSimulated, setIsSimulated] = useState(false);
+  const [configError, setConfigError] = useState<string | null>(null);
   
   const auth = useAuth();
   const db = useFirestore();
@@ -39,13 +40,11 @@ export default function RegisterPage() {
     const savedCode = sessionStorage.getItem('reg_code');
     const savedEmail = sessionStorage.getItem('reg_email');
     const savedUsername = sessionStorage.getItem('reg_username');
-    const savedSim = sessionStorage.getItem('reg_sim') === 'true';
 
     if (savedStep === 'verify' && savedCode && savedEmail) {
       setStep('verify');
       setGeneratedCode(savedCode);
       setEmail(savedEmail);
-      setIsSimulated(savedSim);
       if (savedUsername) setUsername(savedUsername);
     }
   }, []);
@@ -54,15 +53,13 @@ export default function RegisterPage() {
     en: {
       title: "Initiate Profile",
       verifyTitle: "Security Clearance",
-      verifyDesc: "An access code has been generated for your email.",
+      verifyDesc: "A secure access code has been sent to your email.",
       codeLabel: "Verification Code",
       callsign: "Team Name",
       emailLabel: "Email Address",
       passLabel: "Access Key (Password)",
       submitBtn: "SEND ACCESS CODE",
       verifyBtn: "CONFIRM & INITIALIZE",
-      googleBtn: "SIGN UP WITH GOOGLE",
-      orLabel: "OR",
       alreadyRegistered: "Already registered?",
       loginLink: "Synchronize Link",
       successTitle: "Profile Initialized",
@@ -72,20 +69,18 @@ export default function RegisterPage() {
       usernameTaken: "This team name is already assigned.",
       codeSent: "Code Dispatched",
       codeSentDesc: "Check your inbox for the access key.",
-      simulatedNotice: "SYSTEM NOTICE: SMTP not configured. Code sent to server terminal logs."
+      smtpError: "System Error: SMTP is not configured. Please add SMTP_HOST, SMTP_USER, and SMTP_PASS to the .env file."
     },
     ru: {
       title: "Инициация профиля",
       verifyTitle: "Проверка безопасности",
-      verifyDesc: "Код доступа был сгенерирован для вашей почты.",
+      verifyDesc: "Защищенный код доступа был отправлен на вашу почту.",
       codeLabel: "Код подтверждения",
       callsign: "Название команды",
       emailLabel: "Почта (Email)",
       passLabel: "Ключ доступа (Пароль)",
       submitBtn: "ОТПРАВИТЬ КОД",
       verifyBtn: "ПОДТВЕРДИТЬ И СОЗДАТЬ",
-      googleBtn: "РЕГИСТРАЦИЯ ЧЕРЕЗ GOOGLE",
-      orLabel: "ИЛИ",
       alreadyRegistered: "Уже зарегистрированы?",
       loginLink: "Установить связь",
       successTitle: "Профиль инициализирован",
@@ -95,7 +90,7 @@ export default function RegisterPage() {
       usernameTaken: "Это название команды уже занято.",
       codeSent: "Код отправлен",
       codeSentDesc: "Проверьте входящие сообщения на вашей почте.",
-      simulatedNotice: "ВНИМАНИЕ: SMTP не настроен. Код отправлен в логи сервера (терминал)."
+      smtpError: "Ошибка системы: SMTP сервер не настроен. Добавьте SMTP_HOST, SMTP_USER и SMTP_PASS в файл .env."
     }
   };
 
@@ -104,8 +99,10 @@ export default function RegisterPage() {
   const handleInitialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setConfigError(null);
 
     try {
+      // 1. Проверка уникальности имени
       const usersRef = collection(db, 'players_v5');
       const q = query(usersRef, where('displayName', '==', username), limit(1));
       const querySnapshot = await getDocs(q);
@@ -114,25 +111,29 @@ export default function RegisterPage() {
         throw new Error(t.usernameTaken);
       }
 
+      // 2. Генерация кода и отправка
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       const result = await sendVerificationEmail(email, code);
       
       if (!result.success) {
-        throw new Error(result.message || "Не удалось отправить код.");
+        if (result.error === 'SMTP_NOT_CONFIGURED') {
+          setConfigError(t.smtpError);
+          throw new Error(result.message);
+        }
+        throw new Error(result.message || "Не удалось отправить письмо.");
       }
 
       setGeneratedCode(code);
-      setIsSimulated(!!result.isSimulated);
       
+      // Сохраняем состояние
       sessionStorage.setItem('reg_step', 'verify');
       sessionStorage.setItem('reg_code', code);
       sessionStorage.setItem('reg_email', email);
       sessionStorage.setItem('reg_username', username);
-      sessionStorage.setItem('reg_sim', result.isSimulated ? 'true' : 'false');
       
       toast({
         title: t.codeSent,
-        description: result.isSimulated ? t.simulatedNotice : t.codeSentDesc,
+        description: t.codeSentDesc,
       });
 
       setStep('verify');
@@ -216,6 +217,14 @@ export default function RegisterPage() {
         {step === 'info' ? (
           <form onSubmit={handleInitialSubmit}>
             <CardContent className="space-y-4">
+              {configError && (
+                <div className="bg-destructive/10 border border-destructive/20 p-3 rounded-lg flex items-start gap-2 mb-2">
+                  <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-destructive-foreground font-bold leading-tight uppercase">
+                    {configError}
+                  </p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="username">{t.callsign}</Label>
                 <Input id="username" placeholder="Название команды" value={username} onChange={(e) => setUsername(e.target.value)} required className="bg-secondary/50" />
@@ -253,23 +262,14 @@ export default function RegisterPage() {
                 />
               </div>
               
-              {isSimulated ? (
-                <div className="bg-amber-500/10 p-3 rounded-lg border border-amber-500/20 flex items-start gap-3 animate-pulse">
-                  <Terminal className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                  <p className="text-[9px] text-amber-200 uppercase font-bold leading-tight">
-                    {t.simulatedNotice}
-                  </p>
-                </div>
-              ) : (
-                <div className="bg-primary/5 p-3 rounded-lg border border-primary/10 flex items-start gap-3">
-                  <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <p className="text-[9px] text-muted-foreground uppercase font-bold leading-tight">
-                    {language === 'ru' 
-                      ? "ВНИМАНИЕ: Если письмо не приходит, проверьте папку «Спам»." 
-                      : "NOTICE: If you don't receive the email, check your Spam folder."}
-                  </p>
-                </div>
-              )}
+              <div className="bg-primary/5 p-3 rounded-lg border border-primary/10 flex items-start gap-3">
+                <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                <p className="text-[9px] text-muted-foreground uppercase font-bold leading-tight">
+                  {language === 'ru' 
+                    ? "ВНИМАНИЕ: Если письмо не приходит в течение 2-х минут, проверьте папку «Спам» или правильность настроек в .env." 
+                    : "NOTICE: If you don't receive the email within 2 minutes, check your Spam folder or .env settings."}
+                </p>
+              </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-3">
               <Button type="submit" className="w-full hero-gradient font-bold h-14 text-lg" disabled={isLoading}>
