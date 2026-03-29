@@ -10,8 +10,8 @@
  * In a real production app, this would use a service like Resend, SendGrid, or AWS SES.
  */
 export async function sendVerificationEmail(email: string, code: string) {
-  // LOGGING TO SERVER TERMINAL (Not visible to the user in the browser)
-  console.log(`
+  // LOGGING TO SERVER TERMINAL (Visible in the dashboard/terminal logs)
+  const logMessage = `
   ╔════════════════════════════════════════════════════════════╗
   ║                                                            ║
   ║   [MOBA TACTICS] EMAIL VERIFICATION SYSTEM                 ║
@@ -21,14 +21,15 @@ export async function sendVerificationEmail(email: string, code: string) {
   ║                                                            ║
   ║   YOUR CODE: ${code}                                        ║
   ║                                                            ║
-  ║   Please enter this code in the game terminal to verify.   ║
+  ║   STATUS: SIMULATED TRANSMISSION SUCCESSFUL                ║
+  ║   NOTE: This code is visible ONLY in the server logs.      ║
   ║                                                            ║
   ╚════════════════════════════════════════════════════════════╝
-  `);
+  `;
 
-  // To truly send an email, uncomment and configure a provider:
-  // const resend = new Resend(process.env.RESEND_API_KEY);
-  // await resend.emails.send({ ... });
+  console.log(logMessage);
+  // Using error console as well to ensure visibility in some log aggregators
+  console.error(`[VERIFICATION_CODE] for ${email}: ${code}`);
 
   return { success: true };
 }
