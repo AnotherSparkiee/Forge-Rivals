@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -12,7 +11,7 @@ import {
   BookOpen, Users, LayoutDashboard, Newspaper, Gift, Package, Heart,
   Coins, Lock, CheckCircle2, Sparkles, Award
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -37,7 +36,6 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<ProfileTab>('menu');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // FIXED: Updated collection from players_v4 to players_v5
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
@@ -237,14 +235,14 @@ export default function ProfilePage() {
                 <div className="p-2 rounded-lg bg-yellow-500/20"><span className="text-yellow-500 font-bold">€</span></div>
                 <div>
                   <p className="text-[9px] text-muted-foreground uppercase font-bold">{t.currency}</p>
-                  <p className="text-sm font-headline font-bold">{credits.toLocaleString()}</p>
+                  <p className="text-sm font-headline font-bold">{formatCurrency(credits)}</p>
                 </div>
               </div>
               <div className="bg-secondary/30 rounded-xl border border-white/5 p-4 flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-blue-500/20"><Gem className="w-4 h-4 text-blue-400" /></div>
                 <div>
                   <p className="text-[9px] text-muted-foreground uppercase font-bold">{t.crystals}</p>
-                  <p className="text-sm font-headline font-bold">{crystals.toLocaleString()}</p>
+                  <p className="text-sm font-headline font-bold">{formatCurrency(crystals || 0)}</p>
                 </div>
               </div>
             </div>
@@ -314,11 +312,11 @@ export default function ProfilePage() {
                   <div className="space-y-1 text-center">
                     <div className="flex items-center justify-center gap-1">
                       <Coins className={cn("w-2.5 h-2.5", isToday ? "text-yellow-500" : "text-muted-foreground")} />
-                      <span className="text-[9px] font-bold">{(reward.credits / 1000).toFixed(0)}k</span>
+                      <span className="text-[9px] font-bold">{formatCurrency(reward.credits)}</span>
                     </div>
                     <div className="flex items-center justify-center gap-1">
                       <Gem className={cn("w-2.5 h-2.5", isToday ? "text-accent" : "text-muted-foreground")} />
-                      <span className="text-[9px] font-bold">{reward.crystals}</span>
+                      <span className="text-[9px] font-bold">{formatCurrency(reward.crystals)}</span>
                     </div>
                   </div>
                   {isClaimed && <div className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-[1px] rounded-xl"><CheckCircle2 className="w-5 h-5 text-green-500" /></div>}

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
@@ -9,7 +8,7 @@ import { usePathname } from 'next/navigation';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { LEAGUES } from '@/app/lib/leagues-data';
 import { useEffect, useMemo } from 'react';
-import { cn } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
 
 export function TopBar() {
@@ -91,7 +90,6 @@ export function TopBar() {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Notification Bell */}
           <div className="w-8 h-8 rounded-full bg-secondary/50 border border-white/5 flex items-center justify-center transition-all hover:bg-white/5 cursor-pointer">
             <Bell className="w-4 h-4 text-muted-foreground" />
           </div>
@@ -113,14 +111,14 @@ export function TopBar() {
               <span className="text-yellow-500 text-[8px] font-bold italic">€</span>
             </div>
             <span className="text-[10px] font-headline font-bold text-primary">
-              {credits.toLocaleString()}
+              {formatCurrency(credits)}
             </span>
           </div>
           
           <div className="flex items-center gap-1.5 bg-accent/10 px-2 py-1 rounded-full border border-accent/20 shadow-[0_0_10px_rgba(var(--accent),0.05)]">
             <Gem className="w-3 h-3 text-accent" />
             <span className="text-[10px] font-headline font-bold text-accent">
-              {crystals || 0}
+              {formatCurrency(crystals || 0)}
             </span>
           </div>
         </div>
