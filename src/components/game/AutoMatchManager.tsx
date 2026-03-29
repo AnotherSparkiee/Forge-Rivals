@@ -34,13 +34,13 @@ export function AutoMatchManager() {
   
   const simulationRef = useRef(false);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v4', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
-      collection(db, 'players_v4'),
+      collection(db, 'players_v5'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -92,12 +92,6 @@ export function AutoMatchManager() {
       recordMatch(result.winner, result, targetDay, opponent.name || "Unknown Team", 'league', customPlayedAt);
       if (targetDay === seasonDay) { setCurrentResult({ ...result, day: targetDay, opponentName: opponent.name }); setShowResultDialog(true); }
     } catch (e: any) { console.error("Sim failed", e); } finally { setIsSimulating(false); simulationRef.current = false; setSyncing(false); }
-  };
-
-  const getDateForDay = (day: number) => {
-    if (!seasonStartDate) return "";
-    const date = new Date(seasonStartDate); date.setDate(date.getDate() + (day - 1));
-    return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
   };
 
   const t = { title: language === 'ru' ? 'ИТОГИ СЕЗОНА' : 'SEASON RESULTS', congrats: language === 'ru' ? 'СЕЗОН ЗАВЕРШЕН!' : 'SEASON COMPLETE!', pos: language === 'ru' ? 'Ваше место:' : 'Your Place:', pts: language === 'ru' ? 'Набрано очков:' : 'Points Scored:', promoted: language === 'ru' ? 'ПОВЫШЕНИЕ В КЛАССЕ!' : 'PROMOTED!', demoted: language === 'ru' ? 'ПОНИЖЕНИЕ В КЛАССЕ' : 'RELEGATED', stayed: language === 'ru' ? 'ПОЗИЦИЯ СОХРАНЕНА' : 'POSITION MAINTAINED', next: language === 'ru' ? 'СЛЕДУЮЩИЙ СЕЗОН' : 'NEXT SEASON' };

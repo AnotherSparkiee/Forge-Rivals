@@ -35,7 +35,7 @@ export default function GlobalChatPage() {
   const [selectedUser, setSelectedUser] = useState<{id: string, name: string} | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v4', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const chatQuery = useMemoFirebase(() => {

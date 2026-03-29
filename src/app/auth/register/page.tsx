@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Chrome, Mail, ShieldCheck } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
+import { sendVerificationEmail } from '@/app/actions/email';
 
 type RegisterStep = 'info' | 'verify';
 
@@ -38,12 +39,12 @@ export default function RegisterPage() {
     en: {
       title: "Initiate Profile",
       verifyTitle: "Security Clearance",
-      verifyDesc: "A 6-digit access code has been generated for your email frequency.",
+      verifyDesc: "A 6-digit access code has been dispatched to your email frequency.",
       codeLabel: "Verification Code",
       callsign: "Team Name",
       emailLabel: "Email Address",
       passLabel: "Access Key (Password)",
-      submitBtn: "GENERATE CODE",
+      submitBtn: "REQUEST CODE",
       verifyBtn: "CONFIRM & INITIALIZE",
       googleBtn: "SIGN UP WITH GOOGLE",
       orLabel: "OR",
@@ -53,12 +54,14 @@ export default function RegisterPage() {
       successDesc: "Welcome to the league, Commander. Prepare for deployment.",
       errorTitle: "Registration Failed",
       invalidCode: "Invalid verification code. Access denied.",
-      usernameTaken: "This team name is already assigned to another commander."
+      usernameTaken: "This team name is already assigned to another commander.",
+      codeSent: "Code Dispatched",
+      codeSentDesc: "Check your email inbox for the transmission."
     },
     ru: {
       title: "Инициация профиля",
       verifyTitle: "Проверка безопасности",
-      verifyDesc: "6-значный код доступа был сгенерирован для вашей почты.",
+      verifyDesc: "6-значный код доступа был отправлен на вашу электронную почту.",
       codeLabel: "Код подтверждения",
       callsign: "Название команды",
       emailLabel: "Почта (Email)",
@@ -73,7 +76,9 @@ export default function RegisterPage() {
       successDesc: "Добро пожаловать в лигу, Командир. Приготовьтесь к развертыванию.",
       errorTitle: "Ошибка регистрации",
       invalidCode: "Неверный код подтверждения. Доступ отклонен.",
-      usernameTaken: "Это название команды уже занято другим командиром."
+      usernameTaken: "Это название команды уже занято другим командиром.",
+      codeSent: "Код отправлен",
+      codeSentDesc: "Проверьте входящие сообщения на вашей почте."
     }
   };
 
@@ -84,7 +89,8 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const usersRef = collection(db, 'players_v4');
+      // 1. Check if username is taken in players_v5
+      const usersRef = collection(db, 'players_v5');
       const q = query(usersRef, where('displayName', '==', username), limit(1));
       const querySnapshot = await getDocs(q);
       
@@ -92,14 +98,16 @@ export default function RegisterPage() {
         throw new Error(t.usernameTaken);
       }
 
+      // 2. Generate code and "send" it via server action
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       setGeneratedCode(code);
       
-      console.log(`[SIMULATED EMAIL] To: ${email}, Code: ${code}`);
+      // CALL SERVER ACTION (This will log to the SERVER console, not client)
+      await sendVerificationEmail(email, code);
       
       toast({
-        title: language === 'ru' ? "Код отправлен" : "Code Sent",
-        description: language === 'ru' ? `Ваш код доступа: ${code}` : `Your access code: ${code}`,
+        title: t.codeSent,
+        description: t.codeSentDesc,
       });
 
       setStep('verify');
@@ -141,7 +149,8 @@ export default function RegisterPage() {
         groupId: 1,
       };
 
-      await setDoc(doc(db, 'players_v4', user.uid), profileData);
+      // Store in players_v5
+      await setDoc(doc(db, 'players_v5', user.uid), profileData);
 
       toast({ title: t.successTitle, description: t.successDesc });
       router.push('/setup');
@@ -159,7 +168,7 @@ export default function RegisterPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      const userProfileRef = doc(db, 'players_v4', user.uid);
+      const userProfileRef = doc(db, 'players_v5', user.uid);
       const userSnap = await getDoc(userProfileRef);
 
       if (!userSnap.exists()) {

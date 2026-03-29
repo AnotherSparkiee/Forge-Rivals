@@ -62,7 +62,7 @@ export default function SetupPage() {
 
     setIsUpdating(true);
     try {
-      const usersCol = collection(db, 'players_v4');
+      const usersCol = collection(db, 'players_v5');
       let targetLevel = 9; 
       
       const leagueQuery = query(
@@ -78,7 +78,7 @@ export default function SetupPage() {
       const { seasonDay, seasonStartDate } = getGlobalSeasonInfo();
       const inheritedStats = calculateInheritedStats(selectedLeagueId, targetLevel, targetGroup, seasonDay);
 
-      const profileRef = doc(db, 'players_v4', user.uid);
+      const profileRef = doc(db, 'players_v5', user.uid);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       
       const updateData = {

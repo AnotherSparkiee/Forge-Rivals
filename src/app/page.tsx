@@ -33,13 +33,13 @@ export default function Home() {
   const [countdown, setCountdown] = useState<string>('');
   const [activeFriendly, setActiveFriendly] = useState<any | null>(null);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v4', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
-      collection(db, 'players_v4'),
+      collection(db, 'players_v5'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)

@@ -30,7 +30,7 @@ export default function TournamentsPage() {
   const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies', user.uid) : null, [db, user]);
   const { data: myLobby, isLoading: isLobbyLoading } = useDoc(myLobbyRef);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v4', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {

@@ -18,13 +18,13 @@ export function TopBar() {
   const { credits, crystals, syncStats, isSyncing, points } = useGameState();
   const db = useFirestore();
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v4', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId || !user?.uid) return null;
     return query(
-      collection(db, 'players_v4'),
+      collection(db, 'players_v5'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)

@@ -75,7 +75,7 @@
   "firestore": {
     "structure": [
       {
-        "path": "/players_v4/{userId}",
+        "path": "/players_v5/{userId}",
         "definition": { "entityName": "UserProfile" }
       },
       {
