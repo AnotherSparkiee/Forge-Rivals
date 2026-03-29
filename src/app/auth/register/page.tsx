@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Chrome, Mail, ShieldCheck, Info, AlertCircle, Terminal } from 'lucide-react';
+import { Loader2, Chrome, Mail, ShieldCheck, Info } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 import { sendVerificationEmail } from '@/app/actions/email';
@@ -26,7 +26,6 @@ export default function RegisterPage() {
   const [verificationCode, setVerificationCode] = useState('');
   const [generatedCode, setGeneratedCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isSimulated, setIsSimulated] = useState(false);
   
   const auth = useAuth();
   const db = useFirestore();
@@ -34,7 +33,7 @@ export default function RegisterPage() {
   const { toast } = useToast();
   const { language, isLoaded } = useGameState();
 
-  // Load saved state if available to prevent loss on refresh
+  // Загрузка состояния при обновлении
   useEffect(() => {
     const savedStep = sessionStorage.getItem('reg_step');
     const savedCode = sessionStorage.getItem('reg_code');
@@ -53,12 +52,12 @@ export default function RegisterPage() {
     en: {
       title: "Initiate Profile",
       verifyTitle: "Security Clearance",
-      verifyDesc: "A 6-digit access code has been dispatched to your email address.",
+      verifyDesc: "A 6-digit access code has been sent to your email address.",
       codeLabel: "Verification Code",
       callsign: "Team Name",
       emailLabel: "Email Address",
       passLabel: "Access Key (Password)",
-      submitBtn: "REQUEST CODE",
+      submitBtn: "SEND CODE TO EMAIL",
       verifyBtn: "CONFIRM & INITIALIZE",
       googleBtn: "SIGN UP WITH GOOGLE",
       orLabel: "OR",
@@ -66,14 +65,12 @@ export default function RegisterPage() {
       loginLink: "Synchronize Link",
       successTitle: "Profile Initialized",
       successDesc: "Welcome to the league, Commander.",
-      errorTitle: "Registration Failed",
+      errorTitle: "Operation Failed",
       invalidCode: "Invalid verification code. Access denied.",
       usernameTaken: "This team name is already assigned.",
-      codeSent: "Code Dispatched",
-      codeSentDesc: "Check your inbox (and spam folder) for the key.",
-      simulatedTitle: "Development Mode",
-      simulatedDesc: "SMTP not configured. Code has been sent to the server terminal.",
-      sendFailed: "Failed to transmit code. Please contact HQ."
+      codeSent: "Email Dispatched",
+      codeSentDesc: "Check your inbox for the access key.",
+      sendFailed: "Failed to send email. Check SMTP settings."
     },
     ru: {
       title: "Инициация профиля",
@@ -83,7 +80,7 @@ export default function RegisterPage() {
       callsign: "Название команды",
       emailLabel: "Почта (Email)",
       passLabel: "Ключ доступа (Пароль)",
-      submitBtn: "ОТПРАВИТЬ КОД",
+      submitBtn: "ОТПРАВИТЬ КОД НА ПОЧТУ",
       verifyBtn: "ПОДТВЕРДИТЬ И СОЗДАТЬ",
       googleBtn: "РЕГИСТРАЦИЯ ЧЕРЕЗ GOOGLE",
       orLabel: "ИЛИ",
@@ -91,14 +88,12 @@ export default function RegisterPage() {
       loginLink: "Установить связь",
       successTitle: "Профиль инициализирован",
       successDesc: "Добро пожаловать в лигу, Командир.",
-      errorTitle: "Ошибка регистрации",
+      errorTitle: "Ошибка операции",
       invalidCode: "Неверный код подтверждения.",
       usernameTaken: "Это название команды уже занято.",
       codeSent: "Код отправлен",
-      codeSentDesc: "Проверьте входящие (и папку спам) на вашей почте.",
-      simulatedTitle: "Режим отладки",
-      simulatedDesc: "SMTP не настроен. Код отправлен в терминал сервера.",
-      sendFailed: "Не удалось отправить код. Свяжитесь со штабом."
+      codeSentDesc: "Проверьте входящие сообщения на вашей почте.",
+      sendFailed: "Не удалось отправить письмо. Проверьте настройки SMTP."
     }
   };
 
@@ -109,7 +104,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // 1. Check if username is taken in players_v5
+      // 1. Проверка уникальности имени
       const usersRef = collection(db, 'players_v5');
       const q = query(usersRef, where('displayName', '==', username), limit(1));
       const querySnapshot = await getDocs(q);
@@ -118,29 +113,27 @@ export default function RegisterPage() {
         throw new Error(t.usernameTaken);
       }
 
-      // 2. Generate code
+      // 2. Генерация кода
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       
-      // 3. CALL SERVER ACTION
+      // 3. Отправка реального Email
       const result = await sendVerificationEmail(email, code);
       
       if (!result.success) {
-        throw new Error(t.sendFailed);
+        throw new Error(result.message || t.sendFailed);
       }
 
       setGeneratedCode(code);
-      setIsSimulated(!!result.isSimulated);
       
-      // Save progress to session storage
+      // Сохранение прогресса
       sessionStorage.setItem('reg_step', 'verify');
       sessionStorage.setItem('reg_code', code);
       sessionStorage.setItem('reg_email', email);
       sessionStorage.setItem('reg_username', username);
       
       toast({
-        title: result.isSimulated ? t.simulatedTitle : t.codeSent,
-        description: result.isSimulated ? t.simulatedDesc : t.codeSentDesc,
-        variant: result.isSimulated ? "default" : "default",
+        title: t.codeSent,
+        description: t.codeSentDesc,
       });
 
       setStep('verify');
@@ -184,7 +177,6 @@ export default function RegisterPage() {
 
       await setDoc(doc(db, 'players_v5', user.uid), profileData);
 
-      // Clear session storage
       sessionStorage.removeItem('reg_step');
       sessionStorage.removeItem('reg_code');
       sessionStorage.removeItem('reg_email');
@@ -236,15 +228,15 @@ export default function RegisterPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="username">{t.callsign}</Label>
-                <Input id="username" placeholder="Team X" value={username} onChange={(e) => setUsername(e.target.value)} required className="bg-secondary/50" />
+                <Input id="username" placeholder="Название вашей команды" value={username} onChange={(e) => setUsername(e.target.value)} required className="bg-secondary/50" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">{t.emailLabel}</Label>
-                <Input id="email" type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="bg-secondary/50" />
+                <Input id="email" type="email" placeholder="example@mail.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="bg-secondary/50" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">{t.passLabel}</Label>
-                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="bg-secondary/50" />
+                <Input id="password" type="password" placeholder="Минимум 6 символов" value={password} onChange={(e) => setPassword(e.target.value)} required className="bg-secondary/50" />
               </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-4">
@@ -280,30 +272,21 @@ export default function RegisterPage() {
                 />
               </div>
               
-              {isSimulated ? (
-                <div className="bg-yellow-500/10 p-3 rounded-lg border border-yellow-500/20 flex items-start gap-3">
-                  <Terminal className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
-                  <p className="text-[9px] text-yellow-200 uppercase font-bold leading-tight">
-                    {t.simulatedTitle}: {t.simulatedDesc}
-                  </p>
-                </div>
-              ) : (
-                <div className="bg-primary/5 p-3 rounded-lg border border-primary/10 flex items-start gap-3">
-                  <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <p className="text-[9px] text-muted-foreground uppercase font-bold leading-tight">
-                    {language === 'ru' 
-                      ? "ВНИМАНИЕ: Если письмо не приходит, проверьте папку «Спам»." 
-                      : "NOTICE: If you do not receive the email, check your Spam folder."}
-                  </p>
-                </div>
-              )}
+              <div className="bg-primary/5 p-3 rounded-lg border border-primary/10 flex items-start gap-3">
+                <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                <p className="text-[9px] text-muted-foreground uppercase font-bold leading-tight">
+                  {language === 'ru' 
+                    ? "ВНИМАНИЕ: Если письмо не приходит в течение минуты, проверьте папку «Спам»." 
+                    : "NOTICE: If you don't receive the email within a minute, check your Spam folder."}
+                </p>
+              </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-3">
               <Button type="submit" className="w-full hero-gradient font-bold h-14 text-lg" disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <><ShieldCheck className="w-5 h-5 mr-2" /> {t.verifyBtn}</>}
               </Button>
               <Button type="button" variant="ghost" className="text-xs text-muted-foreground uppercase font-bold" onClick={handleBack} disabled={isLoading}>
-                {language === 'ru' ? 'ВЕРНУТЬСЯ НАЗАД' : 'BACK TO INFO'}
+                {language === 'ru' ? 'ИЗМЕНИТЬ ДАННЫЕ' : 'CHANGE INFO'}
               </Button>
             </CardFooter>
           </form>
