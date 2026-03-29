@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -7,7 +6,7 @@ import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@
 import { useGameState } from '@/app/lib/store';
 import { 
   ChevronLeft, Swords, Search, ShieldAlert, 
-  User, Zap, Loader2, Target
+  User, Zap, Loader2, Target, Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,15 +24,31 @@ export default function OpenFriendliesPage() {
   const { toast } = useToast();
   const { language, isLoaded } = useGameState();
   const [isChallenging, setIsChallenging] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  // Update "now" periodically to trigger re-filtering of expired lobbies
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   const lobbiesQuery = useMemoFirebase(() => {
     return query(collection(db, 'friendly_lobbies'), where('status', '==', 'searching'));
   }, [db]);
 
-  const { data: lobbies, isLoading: isLobbiesLoading } = useCollection(lobbiesQuery);
+  const { data: rawLobbies, isLoading: isLobbiesLoading } = useCollection(lobbiesQuery);
   
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
+
+  // Filter out lobbies older than 60 seconds
+  const lobbies = useMemo(() => {
+    if (!rawLobbies) return [];
+    return rawLobbies.filter(lobby => {
+      const createdAt = lobby.updatedAt?.toMillis() || now;
+      return now - createdAt < 60000;
+    });
+  }, [rawLobbies, now]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -55,7 +70,8 @@ export default function OpenFriendliesPage() {
       wait: "WAITING...",
       selfRequest: "This is your request",
       toastSent: "Challenge Sent",
-      toastSentDesc: "Manager is reviewing your request. Stand by for response."
+      toastSentDesc: "Manager is reviewing your request. Stand by for response.",
+      expiresIn: "Expires in"
     },
     ru: {
       title: "ОТКРЫТЫЕ МАТЧИ",
@@ -66,7 +82,8 @@ export default function OpenFriendliesPage() {
       wait: "ОЖИДАНИЕ...",
       selfRequest: "Это ваша заявка",
       toastSent: "Вызов отправлен",
-      toastSentDesc: "Менеджер рассматривает ваш запрос. Ожидайте ответа."
+      toastSentDesc: "Менеджер рассматривает ваш запрос. Ожидайте ответа.",
+      expiresIn: "Истечет через"
     }
   };
 
@@ -113,43 +130,53 @@ export default function OpenFriendliesPage() {
 
       {lobbies && lobbies.length > 0 ? (
         <div className="space-y-3">
-          {lobbies.map((lobby) => (
-            <Card key={lobby.id} className={cn(
-              "glass-card border-white/5 overflow-hidden transition-all",
-              lobby.hostId === user.uid && "opacity-60 grayscale border-primary/20"
-            )}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-secondary/50 flex items-center justify-center border border-white/10 shadow-inner">
-                    <User className="w-6 h-6 text-muted-foreground" />
+          {lobbies.map((lobby) => {
+            const createdAt = lobby.updatedAt?.toMillis() || now;
+            const secondsLeft = Math.max(0, Math.floor((60000 - (now - createdAt)) / 1000));
+            
+            return (
+              <Card key={lobby.id} className={cn(
+                "glass-card border-white/5 overflow-hidden transition-all",
+                lobby.hostId === user.uid && "opacity-60 grayscale border-primary/20"
+              )}>
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className="w-12 h-12 rounded-full bg-secondary/50 flex items-center justify-center border border-white/10 shadow-inner shrink-0">
+                      <User className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                    <div className="truncate">
+                      <h3 className="text-sm font-bold uppercase tracking-tight flex items-center gap-2 truncate">
+                        {lobby.hostName}
+                        {lobby.hostId === user.uid && <Badge variant="outline" className="text-[7px] py-0 border-primary text-primary">YOU</Badge>}
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[9px] text-accent font-bold uppercase tracking-widest flex items-center gap-1">
+                          <Target className="w-3 h-3" /> Training
+                        </p>
+                        <span className="text-[8px] font-mono text-muted-foreground flex items-center gap-1">
+                          <Clock className="w-2.5 h-2.5" /> {secondsLeft}s
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-bold uppercase tracking-tight flex items-center gap-2">
-                      {lobby.hostName}
-                      {lobby.hostId === user.uid && <Badge variant="outline" className="text-[7px] py-0 border-primary text-primary">YOU</Badge>}
-                    </h3>
-                    <p className="text-[9px] text-accent font-bold uppercase tracking-widest flex items-center gap-1">
-                      <Target className="w-3 h-3" /> Tactical Training
-                    </p>
-                  </div>
-                </div>
 
-                {lobby.hostId === user.uid ? (
-                  <span className="text-[8px] font-black text-muted-foreground uppercase">{t.selfRequest}</span>
-                ) : (
-                  <Button 
-                    size="sm" 
-                    className="hero-gradient font-bold text-[10px] h-9 px-4"
-                    disabled={!!isChallenging}
-                    onClick={() => handleChallenge(lobby.id, lobby.hostName)}
-                  >
-                    {isChallenging === lobby.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Swords className="w-3 h-3 mr-2" />}
-                    {t.challenge}
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                  {lobby.hostId === user.uid ? (
+                    <span className="text-[8px] font-black text-muted-foreground uppercase">{t.selfRequest}</span>
+                  ) : (
+                    <Button 
+                      size="sm" 
+                      className="hero-gradient font-bold text-[10px] h-9 px-4 shrink-0"
+                      disabled={!!isChallenging || secondsLeft <= 0}
+                      onClick={() => handleChallenge(lobby.id, lobby.hostName)}
+                    >
+                      {isChallenging === lobby.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Swords className="w-3 h-3 mr-2" />}
+                      {t.challenge}
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">

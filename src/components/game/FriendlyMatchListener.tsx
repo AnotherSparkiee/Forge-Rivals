@@ -8,23 +8,18 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription 
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Swords, Loader2, XCircle, ShieldCheck } from 'lucide-react';
+import { Swords, Loader2, XCircle, ShieldCheck, Clock } from 'lucide-react';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { INITIAL_HEROES } from '@/app/lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
 
 const MATCH_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+const LOBBY_EXPIRATION_MS = 60 * 1000; // 1 minute for "searching" status
 
-// Helper to remove undefined properties before Firestore write
 function sanitizeForFirestore(obj: any) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-/**
- * Handles friendly match logic in the background.
- * Shows Accept/Decline modal for Host.
- * Auto-completes matches when time is up.
- */
 export function FriendlyMatchListener() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
@@ -35,7 +30,6 @@ export function FriendlyMatchListener() {
   const [challengeResult, setChallengeResult] = useState<any | null>(null);
   const [isProcessing, setIsActionLoading] = useState(false);
   
-  // Track processed matches to avoid double-recording
   const processedMatches = useRef<Set<string>>(new Set());
 
   // 1. Listen for challenges or active matches as Host
@@ -71,14 +65,31 @@ export function FriendlyMatchListener() {
     return () => unsubscribe();
   }, [user, isUserLoading, db]);
 
-  // 3. Background Completion Logic
+  // 3. Expiration and Completion Logic
   useEffect(() => {
     const data = activeLobby || challengeResult;
     if (!data || !user) return;
 
     const isHost = data.hostId === user.uid;
 
-    // Auto-clear rejected
+    // A. Handle Expiration for "searching" status (1 minute rule)
+    if (data.status === 'searching' && isHost) {
+      const createdAt = data.updatedAt?.toMillis() || Date.now();
+      const checkExpiration = () => {
+        if (Date.now() - createdAt > LOBBY_EXPIRATION_MS) {
+          deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
+          toast({
+            title: language === 'ru' ? "Заявка истекла" : "Request Expired",
+            description: language === 'ru' ? "Никто не принял ваш вызов в течение минуты." : "No one accepted your challenge within a minute.",
+            variant: "destructive"
+          });
+        }
+      };
+      const expirationTimer = setInterval(checkExpiration, 5000);
+      return () => clearInterval(expirationTimer);
+    }
+
+    // B. Auto-clear rejected
     if (data.status === 'rejected') {
       if (!isHost) {
         toast({
@@ -93,7 +104,7 @@ export function FriendlyMatchListener() {
       return;
     }
 
-    // Auto-record accepted when time is up
+    // C. Auto-record accepted when time is up
     if (data.status === 'accepted' && data.matchResult) {
       if (processedMatches.current.has(data.id)) return;
 
@@ -107,7 +118,6 @@ export function FriendlyMatchListener() {
           processedMatches.current.add(data.id);
 
           const result = data.matchResult;
-          // Challenger needs flipped scores for their history
           const finalResult = isHost ? result : {
             ...result,
             scoreA: result.scoreB,
@@ -123,7 +133,6 @@ export function FriendlyMatchListener() {
             description: language === 'ru' ? `Товарищеская игра против ${opponentName} окончена.` : `Friendly match vs ${opponentName} finished.`,
           });
 
-          // Only Host deletes the record to prevent race conditions
           if (isHost) {
             setTimeout(() => {
               deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
@@ -131,11 +140,6 @@ export function FriendlyMatchListener() {
           }
         }
       };
-
-      if (Date.now() - acceptedAt > 60 * 60 * 1000) {
-        if (isHost) deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
-        return;
-      }
 
       const timer = setInterval(checkAndComplete, 10000);
       checkAndComplete();
