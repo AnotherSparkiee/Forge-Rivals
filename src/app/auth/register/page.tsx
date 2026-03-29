@@ -1,18 +1,17 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useFirestore } from '@/firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, fetchSignInMethodsForEmail } from 'firebase/auth';
 import { doc, setDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Mail, ShieldCheck, Info, AlertCircle } from 'lucide-react';
+import { Loader2, Mail, ShieldCheck, Info, AlertCircle, Terminal } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 import { sendVerificationEmail } from '@/app/actions/email';
@@ -27,7 +26,7 @@ export default function RegisterPage() {
   const [verificationCode, setVerificationCode] = useState('');
   const [generatedCode, setGeneratedCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [configError, setConfigError] = useState<string | null>(null);
+  const [isSimulated, setIsSimulated] = useState(false);
   
   const auth = useAuth();
   const db = useFirestore();
@@ -40,12 +39,14 @@ export default function RegisterPage() {
     const savedCode = sessionStorage.getItem('reg_code');
     const savedEmail = sessionStorage.getItem('reg_email');
     const savedUsername = sessionStorage.getItem('reg_username');
+    const savedSim = sessionStorage.getItem('reg_sim');
 
     if (savedStep === 'verify' && savedCode && savedEmail) {
       setStep('verify');
       setGeneratedCode(savedCode);
       setEmail(savedEmail);
       if (savedUsername) setUsername(savedUsername);
+      if (savedSim === 'true') setIsSimulated(true);
     }
   }, []);
 
@@ -67,9 +68,11 @@ export default function RegisterPage() {
       errorTitle: "Operation Failed",
       invalidCode: "Invalid verification code.",
       usernameTaken: "This team name is already assigned.",
+      emailTaken: "Email already associated with a profile.",
       codeSent: "Code Dispatched",
       codeSentDesc: "Check your inbox for the access key.",
-      smtpError: "System Error: SMTP is not configured. Please add SMTP_HOST, SMTP_USER, and SMTP_PASS to the .env file."
+      simAlert: "NOTICE: SMTP not configured. Code sent to server logs (Terminal).",
+      weakPassword: "Password must be at least 6 characters."
     },
     ru: {
       title: "Инициация профиля",
@@ -88,9 +91,11 @@ export default function RegisterPage() {
       errorTitle: "Ошибка операции",
       invalidCode: "Неверный код подтверждения.",
       usernameTaken: "Это название команды уже занято.",
+      emailTaken: "Этот Email уже используется другим менеджером.",
       codeSent: "Код отправлен",
       codeSentDesc: "Проверьте входящие сообщения на вашей почте.",
-      smtpError: "Ошибка системы: SMTP сервер не настроен. Добавьте SMTP_HOST, SMTP_USER и SMTP_PASS в файл .env."
+      simAlert: "ВНИМАНИЕ: SMTP не настроен. Код отправлен в логи сервера (терминал).",
+      weakPassword: "Пароль должен содержать минимум 6 символов."
     }
   };
 
@@ -98,11 +103,15 @@ export default function RegisterPage() {
 
   const handleInitialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password.length < 6) {
+      toast({ variant: "destructive", title: t.errorTitle, description: t.weakPassword });
+      return;
+    }
+
     setIsLoading(true);
-    setConfigError(null);
 
     try {
-      // 1. Проверка уникальности имени
+      // 1. Проверка уникальности имени в Firestore (players_v5)
       const usersRef = collection(db, 'players_v5');
       const q = query(usersRef, where('displayName', '==', username), limit(1));
       const querySnapshot = await getDocs(q);
@@ -115,25 +124,19 @@ export default function RegisterPage() {
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       const result = await sendVerificationEmail(email, code);
       
-      if (!result.success) {
-        if (result.error === 'SMTP_NOT_CONFIGURED') {
-          setConfigError(t.smtpError);
-          throw new Error(result.message);
-        }
-        throw new Error(result.message || "Не удалось отправить письмо.");
-      }
-
       setGeneratedCode(code);
+      setIsSimulated(!!result.isSimulated);
       
       // Сохраняем состояние
       sessionStorage.setItem('reg_step', 'verify');
       sessionStorage.setItem('reg_code', code);
       sessionStorage.setItem('reg_email', email);
       sessionStorage.setItem('reg_username', username);
+      sessionStorage.setItem('reg_sim', result.isSimulated ? 'true' : 'false');
       
       toast({
         title: t.codeSent,
-        description: t.codeSentDesc,
+        description: result.isSimulated ? t.simAlert : t.codeSentDesc,
       });
 
       setStep('verify');
@@ -173,6 +176,11 @@ export default function RegisterPage() {
         leagueLevel: 9,
         divisionSubId: 1,
         groupId: 1,
+        rank: 1000,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        points: 0
       };
 
       await setDoc(doc(db, 'players_v5', user.uid), profileData);
@@ -181,7 +189,9 @@ export default function RegisterPage() {
       toast({ title: t.successTitle, description: t.successDesc });
       router.push('/setup');
     } catch (error: any) {
-      toast({ variant: "destructive", title: t.errorTitle, description: error.message });
+      let msg = error.message;
+      if (error.code === 'auth/email-already-in-use') msg = t.emailTaken;
+      toast({ variant: "destructive", title: t.errorTitle, description: msg });
     } finally {
       setIsLoading(false);
     }
@@ -217,14 +227,6 @@ export default function RegisterPage() {
         {step === 'info' ? (
           <form onSubmit={handleInitialSubmit}>
             <CardContent className="space-y-4">
-              {configError && (
-                <div className="bg-destructive/10 border border-destructive/20 p-3 rounded-lg flex items-start gap-2 mb-2">
-                  <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
-                  <p className="text-[10px] text-destructive-foreground font-bold leading-tight uppercase">
-                    {configError}
-                  </p>
-                </div>
-              )}
               <div className="space-y-2">
                 <Label htmlFor="username">{t.callsign}</Label>
                 <Input id="username" placeholder="Название команды" value={username} onChange={(e) => setUsername(e.target.value)} required className="bg-secondary/50" />
@@ -250,6 +252,15 @@ export default function RegisterPage() {
         ) : (
           <form onSubmit={handleVerifyAndRegister}>
             <CardContent className="space-y-6 py-6">
+              {isSimulated && (
+                <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg flex items-start gap-3">
+                  <Terminal className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-amber-200 font-bold leading-tight uppercase">
+                    {t.simAlert}
+                  </p>
+                </div>
+              )}
+              
               <div className="space-y-3">
                 <Label htmlFor="code" className="text-center block uppercase tracking-widest text-primary font-black">{t.codeLabel}</Label>
                 <Input 
@@ -266,8 +277,8 @@ export default function RegisterPage() {
                 <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                 <p className="text-[9px] text-muted-foreground uppercase font-bold leading-tight">
                   {language === 'ru' 
-                    ? "ВНИМАНИЕ: Если письмо не приходит в течение 2-х минут, проверьте папку «Спам» или правильность настроек в .env." 
-                    : "NOTICE: If you don't receive the email within 2 minutes, check your Spam folder or .env settings."}
+                    ? "ВНИМАНИЕ: Если письмо не приходит, проверьте папку «Спам» или терминал сервера (в режиме отладки)." 
+                    : "NOTICE: If you don't receive the email, check your Spam folder or Server Terminal (in Debug mode)."}
                 </p>
               </div>
             </CardContent>

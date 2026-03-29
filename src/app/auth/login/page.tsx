@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -12,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Chrome, HelpCircle } from 'lucide-react';
+import { Loader2, Chrome, HelpCircle, AlertCircle } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 import {
@@ -57,6 +56,7 @@ export default function LoginPage() {
       successDesc: "Welcome back to the Command Center.",
       errorTitle: "Access Denied",
       userNotFound: "Team name not found. Please check spelling or use email.",
+      invalidCredentials: "Invalid login or access key. Please verify your data.",
       forgotTitle: "Recover Access",
       forgotDesc: "Enter the email linked to your profile to receive a reset transmission.",
       forgotPlaceholder: "commander@example.com",
@@ -80,6 +80,7 @@ export default function LoginPage() {
       successDesc: "Добро пожаловать в Командный Центр.",
       errorTitle: "Доступ запрещен",
       userNotFound: "Команда не найдена. Проверьте написание или используйте почту.",
+      invalidCredentials: "Неверный логин или пароль. Проверьте правильность ввода.",
       forgotTitle: "Восстановление доступа",
       forgotDesc: "Введите почту вашего профиля для получения ссылки на сброс пароля.",
       forgotPlaceholder: "commander@example.com",
@@ -98,6 +99,7 @@ export default function LoginPage() {
     let emailToUse = identifier;
 
     try {
+      // Если введен не email, ищем привязанную почту по названию команды
       if (!identifier.includes('@')) {
         const usersRef = collection(db, 'players_v5');
         const q = query(usersRef, where('displayName', '==', identifier), limit(1));
@@ -116,7 +118,11 @@ export default function LoginPage() {
       toast({ title: t.successTitle, description: t.successDesc });
       router.push('/');
     } catch (error: any) {
-      toast({ variant: "destructive", title: t.errorTitle, description: error.message });
+      let errorMessage = error.message;
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+        errorMessage = t.invalidCredentials;
+      }
+      toast({ variant: "destructive", title: t.errorTitle, description: errorMessage });
     } finally {
       setIsLoading(false);
     }
@@ -146,6 +152,11 @@ export default function LoginPage() {
           leagueLevel: 9,
           divisionSubId: 1,
           groupId: 1,
+          rank: 1000,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          points: 0
         };
         await setDoc(userProfileRef, profileData);
         router.push('/setup');

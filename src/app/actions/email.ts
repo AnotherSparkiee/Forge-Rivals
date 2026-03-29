@@ -1,10 +1,7 @@
-
 'use server';
 
 /**
- * @fileOverview Серверное действие для реальной отправки писем через SMTP.
- * 
- * Требует настройки SMTP_HOST, SMTP_PORT, SMTP_USER и SMTP_PASS в файле .env.
+ * @fileOverview Серверное действие для отправки писем через SMTP с поддержкой режима отладки.
  */
 
 export async function sendVerificationEmail(email: string, code: string) {
@@ -13,24 +10,28 @@ export async function sendVerificationEmail(email: string, code: string) {
   const SMTP_USER = process.env.SMTP_USER;
   const SMTP_PASS = process.env.SMTP_PASS;
 
-  // Проверка конфигурации
+  // Если SMTP не настроен, переходим в режим симуляции (для разработки)
   if (!SMTP_USER || !SMTP_PASS || !SMTP_HOST) {
-    console.error('❌ [EMAIL_ERROR] SMTP credentials are not configured in .env');
+    console.error('-----------------------------------------');
+    console.error('⚠️ [SMTP_NOT_CONFIGURED] Отправка почты невозможна.');
+    console.error(`📧 ДЛЯ ПОЛЬЗОВАТЕЛЯ: ${email}`);
+    console.error(`🔑 КОД ПОДТВЕРЖДЕНИЯ: ${code}`);
+    console.error('-----------------------------------------');
+    
     return { 
-      success: false, 
-      error: 'SMTP_NOT_CONFIGURED', 
-      message: 'Сервер почты не настроен. Пожалуйста, добавьте SMTP_HOST, SMTP_USER и SMTP_PASS в файл .env.' 
+      success: true, 
+      isSimulated: true,
+      message: 'SMTP не настроен. Код отправлен в логи сервера (терминал).' 
     };
   }
 
   try {
-    // Используем динамический импорт для избежания проблем с компиляцией на стороне клиента
     const nodemailer = (await import('nodemailer')).default;
 
     const transporter = nodemailer.createTransport({
       host: SMTP_HOST,
       port: SMTP_PORT,
-      secure: SMTP_PORT === 465, // true для порта 465, false для других
+      secure: SMTP_PORT === 465,
       auth: {
         user: SMTP_USER,
         pass: SMTP_PASS,
@@ -61,13 +62,15 @@ export async function sendVerificationEmail(email: string, code: string) {
 
     await transporter.sendMail(mailOptions);
     console.log(`✅ [EMAIL_SUCCESS] Verification code sent to ${email}`);
-    return { success: true };
+    return { success: true, isSimulated: false };
   } catch (error: any) {
     console.error('❌ [EMAIL_ERROR] SMTP Error:', error);
+    // При ошибке SMTP выводим код в логи, чтобы не блокировать игрока
+    console.error(`⚠️ ПАДЕНИЕ SMTP. КОД ДЛЯ ${email}: ${code}`);
     return { 
-      success: false, 
-      error: 'TRANSMISSION_FAILED', 
-      message: error.message || 'Ошибка почтового сервера. Проверьте правильность пароля и настроек SMTP.'
+      success: true, 
+      isSimulated: true, 
+      message: 'Ошибка почтового сервера. Код отправлен в логи терминала.' 
     };
   }
 }
