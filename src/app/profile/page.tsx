@@ -12,26 +12,14 @@ import {
   BookOpen, Users, LayoutDashboard, Newspaper, Gift, Package, Heart,
   Coins, Lock, CheckCircle2, Sparkles, Award
 } from 'lucide-react';
-import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { signOut, deleteUser } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import { COUNTRIES } from '@/app/lib/countries-data';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 type ProfileTab = 'menu' | 'training' | 'team' | 'page' | 'news' | 'daily' | 'bonuses' | 'gift';
 
@@ -48,10 +36,9 @@ export default function ProfilePage() {
   
   const [activeTab, setActiveTab] = useState<ProfileTab>('menu');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v4', user.uid) : null, [db, user]);
+  // FIXED: Updated collection from players_v4 to players_v5
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   useEffect(() => {
@@ -95,9 +82,7 @@ export default function ProfilePage() {
       eliteTrophy: "Elite Champion Cup",
       eliteTrophyDesc: "Awarded for winning Div 9 Group 1",
       noTrophies: "No Trophies Yet",
-      deleteAccount: "Delete Account",
       logout: "LOG OUT",
-      langTitle: "System Language",
       menu: [
         { id: 'training', label: "Training Task", desc: "Tutorial and progression rewards", icon: BookOpen },
         { id: 'team', label: "My Team", desc: "Personal stats, finances and settings", icon: Users },
@@ -125,9 +110,7 @@ export default function ProfilePage() {
       eliteTrophy: "Кубок Элитного Чемпиона",
       eliteTrophyDesc: "Награда за победу в Дивизионе 9 Группе 1",
       noTrophies: "Трофеев пока нет",
-      deleteAccount: "Удалить аккаунт",
       logout: "ВЫЙТИ ИЗ СИСТЕМЫ",
-      langTitle: "Язык системы",
       menu: [
         { id: 'training', label: "Задание обучения", desc: "Обучающие квесты и награды", icon: BookOpen },
         { id: 'team', label: "Моя команда", desc: "Статистика, финансы и настройки", icon: Users },
@@ -233,7 +216,7 @@ export default function ProfilePage() {
               <CardContent className="p-4 flex flex-col items-center gap-1">
                 <Star className="w-4 h-4 text-primary" />
                 <p className="text-2xl font-headline font-bold text-primary">{rank}</p>
-                <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest">{t.mmr}</p>
+                <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest">MMR</p>
               </CardContent>
             </Card>
             <Card className="glass-card text-center bg-gradient-to-b from-accent/10 to-transparent border-accent/20">
