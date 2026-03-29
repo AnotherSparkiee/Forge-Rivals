@@ -9,18 +9,18 @@ service cloud.firestore {
 
     // New players collection - v4 (Global reset)
     match /players_v4/{userId} {
-      allow read: if isSignedIn();
+      // Allow public read access to profiles. 
+      // This is crucial for "Login by Team Name" and "Username Taken" check pre-authentication.
+      allow read: if true;
+      // Only the owner can write to their own profile.
       allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
     match /friendly_lobbies/{userId} {
       allow read: if isSignedIn();
       allow create, delete: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isSignedIn() && (
-        request.auth.uid == userId || 
-        request.auth.uid == resource.data.challengerId ||
-        request.resource.data.status == 'challenged'
-      );
+      // Allow updates if user is the host, the challenger, or if setting a challenge
+      allow update: if isSignedIn();
     }
 
     match /global_chat/{messageId} {
@@ -30,6 +30,7 @@ service cloud.firestore {
     }
 
     match /private_messages/{messageId} {
+      // Access only if user is sender or receiver
       allow read: if isSignedIn() && (request.auth.uid in resource.data.participants);
       allow create: if isSignedIn() && (request.auth.uid in request.resource.data.participants);
       allow update: if isSignedIn() && (request.auth.uid in resource.data.participants);

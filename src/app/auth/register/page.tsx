@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { doc, setDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, setDoc, collection, query, where, getDocs, limit, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -160,9 +160,9 @@ export default function RegisterPage() {
       const user = result.user;
 
       const userProfileRef = doc(db, 'players_v4', user.uid);
-      const userSnap = await getDocs(query(collection(db, 'players_v4'), where('id', '==', user.uid), limit(1)));
+      const userSnap = await getDoc(userProfileRef);
 
-      if (userSnap.empty) {
+      if (!userSnap.exists()) {
         const profileData = {
           id: user.uid,
           displayName: user.displayName || `Manager_${user.uid.slice(0, 5)}`,
@@ -180,7 +180,12 @@ export default function RegisterPage() {
         await setDoc(userProfileRef, profileData);
         router.push('/setup');
       } else {
-        router.push('/');
+        const data = userSnap.data();
+        if (data?.selectedLeagueId && data?.country) {
+          router.push('/');
+        } else {
+          router.push('/setup');
+        }
       }
     } catch (error: any) {
       toast({ variant: "destructive", title: t.errorTitle, description: error.message });
