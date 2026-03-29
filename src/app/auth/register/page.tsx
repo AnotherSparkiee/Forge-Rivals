@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Chrome, Mail, ShieldCheck, Info } from 'lucide-react';
+import { Loader2, Chrome, Mail, ShieldCheck, Info, AlertCircle } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 import { sendVerificationEmail } from '@/app/actions/email';
@@ -26,6 +26,7 @@ export default function RegisterPage() {
   const [verificationCode, setVerificationCode] = useState('');
   const [generatedCode, setGeneratedCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [smtpError, setSmtpError] = useState<string | null>(null);
   
   const auth = useAuth();
   const db = useFirestore();
@@ -70,7 +71,7 @@ export default function RegisterPage() {
       usernameTaken: "This team name is already assigned.",
       codeSent: "Email Dispatched",
       codeSentDesc: "Check your inbox for the access key.",
-      sendFailed: "Failed to send email. Check SMTP settings."
+      smtpConfigError: "System Error: SMTP is not configured. Add SMTP credentials to .env file."
     },
     ru: {
       title: "Инициация профиля",
@@ -93,7 +94,7 @@ export default function RegisterPage() {
       usernameTaken: "Это название команды уже занято.",
       codeSent: "Код отправлен",
       codeSentDesc: "Проверьте входящие сообщения на вашей почте.",
-      sendFailed: "Не удалось отправить письмо. Проверьте настройки SMTP."
+      smtpConfigError: "Ошибка системы: SMTP сервер не настроен. Добавьте SMTP_HOST, SMTP_USER и SMTP_PASS в файл .env."
     }
   };
 
@@ -102,9 +103,10 @@ export default function RegisterPage() {
   const handleInitialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setSmtpError(null);
 
     try {
-      // 1. Проверка уникальности имени
+      // 1. Проверка уникальности имени в новой коллекции v5
       const usersRef = collection(db, 'players_v5');
       const q = query(usersRef, where('displayName', '==', username), limit(1));
       const querySnapshot = await getDocs(q);
@@ -120,7 +122,11 @@ export default function RegisterPage() {
       const result = await sendVerificationEmail(email, code);
       
       if (!result.success) {
-        throw new Error(result.message || t.sendFailed);
+        if (result.error === 'SMTP_NOT_CONFIGURED') {
+          setSmtpError(t.smtpConfigError);
+          throw new Error(t.smtpConfigError);
+        }
+        throw new Error(result.message || "Не удалось отправить письмо.");
       }
 
       setGeneratedCode(code);
@@ -238,6 +244,15 @@ export default function RegisterPage() {
                 <Label htmlFor="password">{t.passLabel}</Label>
                 <Input id="password" type="password" placeholder="Минимум 6 символов" value={password} onChange={(e) => setPassword(e.target.value)} required className="bg-secondary/50" />
               </div>
+
+              {smtpError && (
+                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 flex items-start gap-3 animate-in fade-in zoom-in duration-300">
+                  <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                  <p className="text-[10px] font-bold text-destructive leading-tight uppercase">
+                    {smtpError}
+                  </p>
+                </div>
+              )}
             </CardContent>
             <CardFooter className="flex flex-col gap-4">
               <Button type="submit" className="w-full hero-gradient font-bold h-12" disabled={isLoading}>
