@@ -1,18 +1,17 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useFirestore } from '@/firebase';
-import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { doc, setDoc, collection, query, where, getDocs, limit, getDoc } from 'firebase/firestore';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Chrome, Mail, ShieldCheck, Info } from 'lucide-react';
+import { Loader2, Chrome, Mail, ShieldCheck, Info, AlertCircle } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 import { sendVerificationEmail } from '@/app/actions/email';
@@ -28,6 +27,7 @@ export default function RegisterPage() {
   const [generatedCode, setGeneratedCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
   
   const auth = useAuth();
   const db = useFirestore();
@@ -35,7 +35,7 @@ export default function RegisterPage() {
   const { toast } = useToast();
   const { language, isLoaded } = useGameState();
 
-  // Load saved state if available (prevents loss on refresh)
+  // Load saved state if available
   useEffect(() => {
     const savedStep = sessionStorage.getItem('reg_step');
     const savedCode = sessionStorage.getItem('reg_code');
@@ -54,7 +54,7 @@ export default function RegisterPage() {
     en: {
       title: "Initiate Profile",
       verifyTitle: "Security Clearance",
-      verifyDesc: "A 6-digit access code has been dispatched to your email frequency.",
+      verifyDesc: "A 6-digit access code has been dispatched to your email address.",
       codeLabel: "Verification Code",
       callsign: "Team Name",
       emailLabel: "Email Address",
@@ -71,17 +71,19 @@ export default function RegisterPage() {
       invalidCode: "Invalid verification code. Access denied.",
       usernameTaken: "This team name is already assigned.",
       codeSent: "Code Dispatched",
-      codeSentDesc: "Check your email (simulated in server logs)."
+      codeSentDesc: "Check your inbox (and spam folder) for the key.",
+      configError: "Mail Server Error: SMTP configuration missing.",
+      sendFailed: "Failed to transmit code. Please contact HQ."
     },
     ru: {
       title: "Инициация профиля",
       verifyTitle: "Проверка безопасности",
-      verifyDesc: "6-значный код доступа был отправлен на вашу почту.",
+      verifyDesc: "6-значный код доступа был отправлен на вашу электронную почту.",
       codeLabel: "Код подтверждения",
       callsign: "Название команды",
       emailLabel: "Почта (Email)",
       passLabel: "Ключ доступа (Пароль)",
-      submitBtn: "ПОЛУЧИТЬ КОД",
+      submitBtn: "ОТПРАВИТЬ КОД",
       verifyBtn: "ПОДТВЕРДИТЬ И СОЗДАТЬ",
       googleBtn: "РЕГИСТРАЦИЯ ЧЕРЕЗ GOOGLE",
       orLabel: "ИЛИ",
@@ -93,7 +95,9 @@ export default function RegisterPage() {
       invalidCode: "Неверный код подтверждения.",
       usernameTaken: "Это название команды уже занято.",
       codeSent: "Код отправлен",
-      codeSentDesc: "Проверьте почту (симуляция в логах сервера)."
+      codeSentDesc: "Проверьте входящие (и папку спам) на вашей почте.",
+      configError: "Ошибка почты: SMTP сервер не настроен.",
+      sendFailed: "Не удалось отправить код. Свяжитесь со штабом."
     }
   };
 
@@ -102,6 +106,7 @@ export default function RegisterPage() {
   const handleInitialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setEmailError(null);
 
     try {
       // 1. Check if username is taken in players_v5
@@ -115,6 +120,19 @@ export default function RegisterPage() {
 
       // 2. Generate code
       const code = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // 3. CALL SERVER ACTION
+      const result = await sendVerificationEmail(email, code);
+      
+      if (!result.success) {
+        if (result.error === 'SMTP_CONFIG_MISSING') {
+          setEmailError(t.configError);
+          throw new Error(t.configError);
+        } else {
+          throw new Error(t.sendFailed);
+        }
+      }
+
       setGeneratedCode(code);
       
       // Save progress to session storage
@@ -122,9 +140,6 @@ export default function RegisterPage() {
       sessionStorage.setItem('reg_code', code);
       sessionStorage.setItem('reg_email', email);
       sessionStorage.setItem('reg_username', username);
-      
-      // 3. CALL SERVER ACTION
-      await sendVerificationEmail(email, code);
       
       toast({
         title: t.codeSent,
@@ -234,6 +249,13 @@ export default function RegisterPage() {
                 <Label htmlFor="password">{t.passLabel}</Label>
                 <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="bg-secondary/50" />
               </div>
+
+              {emailError && (
+                <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-lg flex items-start gap-3 animate-in fade-in zoom-in duration-300">
+                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-red-200 uppercase font-bold leading-tight">{emailError}</p>
+                </div>
+              )}
             </CardContent>
             <CardFooter className="flex flex-col gap-4">
               <Button type="submit" className="w-full hero-gradient font-bold h-12" disabled={isLoading || isGoogleLoading}>
@@ -272,8 +294,8 @@ export default function RegisterPage() {
                 <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                 <p className="text-[9px] text-muted-foreground uppercase font-bold leading-tight">
                   {language === 'ru' 
-                    ? "ВНИМАНИЕ: В режиме прототипа код отправляется в системный журнал сервера (терминал)." 
-                    : "NOTICE: In prototype mode, the code is sent to the server's system log (terminal)."}
+                    ? "ВНИМАНИЕ: Если письмо не приходит, проверьте папку «Спам»." 
+                    : "NOTICE: If you do not receive the email, check your Spam folder."}
                 </p>
               </div>
             </CardContent>
