@@ -60,6 +60,9 @@ export function TopBar() {
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
   const league = profile?.selectedLeagueId ? LEAGUES.find(l => l.id === profile.selectedLeagueId) : null;
 
+  // Базовый стиль для всех элементов справа (иконки и баланс)
+  const itemBaseClass = "h-8 flex items-center justify-center transition-all border shadow-[0_0_10px_rgba(0,0,0,0.1)]";
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-white/10 h-14 flex items-center">
       <div className="w-full max-lg mx-auto px-4 flex items-center justify-between gap-4">
@@ -89,15 +92,21 @@ export function TopBar() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <div className="w-8 h-8 rounded-full bg-secondary/50 border border-white/5 flex items-center justify-center transition-all hover:bg-white/5 cursor-pointer">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Иконка Уведомлений */}
+          <div className={cn(
+            itemBaseClass,
+            "w-8 rounded-full bg-secondary/50 border-white/5 hover:bg-white/5 cursor-pointer"
+          )}>
             <Bell className="w-4 h-4 text-muted-foreground" />
           </div>
 
+          {/* Иконка Сообщений */}
           <Link href="/chats/private">
             <div className={cn(
-              "w-8 h-8 rounded-full flex items-center justify-center transition-all relative",
-              hasUnread ? "bg-accent/20 border border-accent/50 animate-pulse" : "bg-secondary/50 border border-white/5"
+              itemBaseClass,
+              "w-8 rounded-full relative",
+              hasUnread ? "bg-accent/20 border-accent/50 animate-pulse" : "bg-secondary/50 border-white/5 hover:bg-white/5"
             )}>
               <Mail className={cn("w-4 h-4", hasUnread ? "text-accent" : "text-muted-foreground")} />
               {hasUnread && (
@@ -106,8 +115,12 @@ export function TopBar() {
             </div>
           </Link>
 
-          <div className="flex items-center gap-1.5 bg-primary/10 px-2 py-1 rounded-full border border-primary/20 shadow-[0_0_10px_rgba(var(--primary),0.05)]">
-            <div className="w-3.5 h-3.5 rounded-full bg-yellow-500/20 flex items-center justify-center">
+          {/* Баланс Евро */}
+          <div className={cn(
+            itemBaseClass,
+            "px-2.5 rounded-full bg-primary/10 border-primary/20"
+          )}>
+            <div className="w-3.5 h-3.5 rounded-full bg-yellow-500/20 flex items-center justify-center mr-1.5">
               <span className="text-yellow-500 text-[8px] font-bold italic">€</span>
             </div>
             <span className="text-[10px] font-headline font-bold text-primary">
@@ -115,8 +128,12 @@ export function TopBar() {
             </span>
           </div>
           
-          <div className="flex items-center gap-1.5 bg-accent/10 px-2 py-1 rounded-full border border-accent/20 shadow-[0_0_10px_rgba(var(--accent),0.05)]">
-            <Gem className="w-3 h-3 text-accent" />
+          {/* Баланс Кристаллов */}
+          <div className={cn(
+            itemBaseClass,
+            "px-2.5 rounded-full bg-accent/10 border-accent/20"
+          )}>
+            <Gem className="w-3.5 h-3.5 text-accent mr-1.5" />
             <span className="text-[10px] font-headline font-bold text-accent">
               {formatCurrency(crystals || 0)}
             </span>
