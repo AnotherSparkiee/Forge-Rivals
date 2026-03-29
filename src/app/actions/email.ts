@@ -1,76 +1,11 @@
 'use server';
 
 /**
- * @fileOverview Серверное действие для отправки писем через SMTP с поддержкой режима отладки.
+ * @fileOverview Серверное действие для отправки писем (отключено, так как подтверждение больше не требуется).
  */
 
 export async function sendVerificationEmail(email: string, code: string) {
-  const SMTP_HOST = process.env.SMTP_HOST;
-  const SMTP_PORT = Number(process.env.SMTP_PORT) || 465;
-  const SMTP_USER = process.env.SMTP_USER;
-  const SMTP_PASS = process.env.SMTP_PASS;
-
-  // Если SMTP не настроен, переходим в режим симуляции (для разработки)
-  if (!SMTP_USER || !SMTP_PASS || !SMTP_HOST) {
-    console.error('-----------------------------------------');
-    console.error('⚠️ [SMTP_NOT_CONFIGURED] Отправка почты невозможна.');
-    console.error(`📧 ДЛЯ ПОЛЬЗОВАТЕЛЯ: ${email}`);
-    console.error(`🔑 КОД ПОДТВЕРЖДЕНИЯ: ${code}`);
-    console.error('-----------------------------------------');
-    
-    return { 
-      success: true, 
-      isSimulated: true,
-      message: 'SMTP не настроен. Код отправлен в логи сервера (терминал).' 
-    };
-  }
-
-  try {
-    const nodemailer = (await import('nodemailer')).default;
-
-    const transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: SMTP_PORT === 465,
-      auth: {
-        user: SMTP_USER,
-        pass: SMTP_PASS,
-      },
-    });
-
-    const mailOptions = {
-      from: `"MOBA Tactics HQ" <${SMTP_USER}>`,
-      to: email,
-      subject: 'Код доступа - Инициализация профиля',
-      text: `Ваш код подтверждения: ${code}. Добро пожаловать в лигу, Командир.`,
-      html: `
-        <div style="font-family: sans-serif; background-color: #0a0e14; color: #ffffff; padding: 40px; border-radius: 16px; max-width: 500px; margin: 20px auto; border: 1px solid #1e293b;">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #3b82f6; font-size: 28px; font-weight: 800; margin: 0;">MOBA TACTICS</h1>
-            <p style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 2px;">Протокол безопасности</p>
-          </div>
-          <div style="padding: 20px; background-color: rgba(30, 41, 59, 0.5); border-radius: 12px; text-align: center;">
-            <p style="font-size: 14px; color: #e2e8f0; margin-bottom: 25px;">Используйте следующий ключ для активации вашего профиля менеджера:</p>
-            <div style="background-color: #0f172a; border: 2px solid #3b82f6; border-radius: 12px; padding: 20px;">
-              <span style="font-size: 42px; font-weight: 900; letter-spacing: 8px; color: #22d3ee;">${code}</span>
-            </div>
-            <p style="font-size: 10px; color: #64748b; margin-top: 25px; text-transform: uppercase;">Это автоматическое сообщение. Не отвечайте на него.</p>
-          </div>
-        </div>
-      `,
-    };
-
-    await transporter.sendMail(mailOptions);
-    console.log(`✅ [EMAIL_SUCCESS] Verification code sent to ${email}`);
-    return { success: true, isSimulated: false };
-  } catch (error: any) {
-    console.error('❌ [EMAIL_ERROR] SMTP Error:', error);
-    // При ошибке SMTP выводим код в логи, чтобы не блокировать игрока
-    console.error(`⚠️ ПАДЕНИЕ SMTP. КОД ДЛЯ ${email}: ${code}`);
-    return { 
-      success: true, 
-      isSimulated: true, 
-      message: 'Ошибка почтового сервера. Код отправлен в логи терминала.' 
-    };
-  }
+  // Функция оставлена для обратной совместимости, если где-то остались вызовы, 
+  // но теперь она ничего не делает.
+  return { success: true, isSimulated: true };
 }
