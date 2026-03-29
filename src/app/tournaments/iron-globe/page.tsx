@@ -1,16 +1,15 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import { useGameState } from '@/app/lib/store';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, updateDoc, setDoc } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { doc, updateDoc, collection, query, where } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   Trophy, Clock, Users, Coins, ChevronLeft, 
   ShieldCheck, Loader2, Star, Swords, Medal,
-  ArrowRight, CheckCircle2
+  ArrowRight, CheckCircle2, User, UserCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import { getMoscowTime } from '@/app/lib/time-utils';
@@ -18,9 +17,11 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
 
 const TOURNAMENT_FEE = 90000;
 const START_TIME = "21:05";
+const MAX_PARTICIPANTS = 16;
 
 export default function IronGlobePage() {
   const { user, isUserLoading } = useUser();
@@ -35,7 +36,16 @@ export default function IronGlobePage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
+  // Fetch all players registered for this tournament
+  const participantsQuery = useMemoFirebase(() => {
+    return query(collection(db, 'players_v5'), where('tournaments', 'array-contains', 'iron-globe'));
+  }, [db]);
+
+  const { data: participants, isLoading: isParticipantsLoading } = useCollection(participantsQuery);
+
   const isJoined = profile?.tournaments?.includes('iron-globe') || false;
+  const currentCount = participants?.length || 0;
+  const spotsLeft = Math.max(0, MAX_PARTICIPANTS - currentCount);
 
   useEffect(() => {
     const updateTime = () => {
@@ -71,6 +81,13 @@ export default function IronGlobePage() {
       });
       return;
     }
+    if (spotsLeft <= 0) {
+      toast({ 
+        title: language === 'ru' ? "Нет свободных мест" : "No spots left", 
+        variant: "destructive" 
+      });
+      return;
+    }
 
     setIsJoining(true);
     try {
@@ -91,19 +108,19 @@ export default function IronGlobePage() {
     }
   };
 
-  // Mock Tournament Logic
+  // Mock Tournament Logic for Live State
   const tournamentData = useMemo(() => {
     if (!isLive) return null;
     
-    // Stable random seed based on today's date
-    const date = new Date().toISOString().split('T')[0];
-    const botNames = ["AlphaBot", "ZetaUnit", "CyberLink", "VoidRunner", "SteelGear", "NexusPrime", "EchoTeam", "Quantum", "ShadowOps", "Blitz", "Titan", "Vanguard", "Rogue", "Omega", "Spectre"];
-    const teams = [{ id: user?.uid, name: profile?.displayName || "Player", isPlayer: true }, ...botNames.map((n, i) => ({ id: `bot-${i}`, name: n, isPlayer: false }))];
+    const realPlayers = participants?.map(p => ({ id: p.id, name: p.displayName || "Manager", isPlayer: true })) || [];
+    const botNeeded = Math.max(0, MAX_PARTICIPANTS - realPlayers.length);
+    const botNames = ["AlphaBot", "ZetaUnit", "CyberLink", "VoidRunner", "SteelGear", "NexusPrime", "EchoTeam", "Quantum", "ShadowOps", "Blitz", "Titan", "Vanguard", "Rogue", "Omega", "Spectre", "Ghost"];
     
-    // Shuffle teams
+    const bots = botNames.slice(0, botNeeded).map((n, i) => ({ id: `bot-${i}`, name: n, isPlayer: false }));
+    const teams = [...realPlayers, ...bots];
+    
     const shuffled = [...teams].sort(() => Math.random() - 0.5);
     
-    // 4 Groups of 4
     const groups = [
       shuffled.slice(0, 4),
       shuffled.slice(4, 8),
@@ -121,7 +138,7 @@ export default function IronGlobePage() {
     const qualifiers = groupResults.flatMap(g => [g[0], g[1]]);
 
     return { groups: groupResults, qualifiers };
-  }, [isLive, user?.uid, profile?.displayName]);
+  }, [isLive, participants]);
 
   const t = {
     title: language === 'ru' ? "ЧУГУННЫЙ ГЛОБУС" : "CAST IRON GLOBE",
@@ -134,8 +151,9 @@ export default function IronGlobePage() {
     startsIn: language === 'ru' ? "ДО НАЧАЛА:" : "STARTS IN:",
     groupStage: language === 'ru' ? "Групповой этап" : "Group Stage",
     playoffs: language === 'ru' ? "Плей-офф" : "Playoffs",
-    bracket: language === 'ru' ? "Сетка турнира" : "Bracket",
-    finalists: language === 'ru' ? "Финалисты" : "Finalists",
+    participants: language === 'ru' ? "Список участников" : "Participants List",
+    spotsLeft: language === 'ru' ? "Осталось мест" : "Spots left",
+    full: language === 'ru' ? "МЕСТ НЕТ" : "FULL",
     winner: language === 'ru' ? "ПОБЕДИТЕЛЬ" : "CHAMPION"
   };
 
@@ -153,8 +171,7 @@ export default function IronGlobePage() {
         </div>
       </header>
 
-      {/* Hero Tournament Card */}
-      <Card className="glass-card mb-8 border-primary/30 bg-primary/5 overflow-hidden">
+      <Card className="glass-card mb-6 border-primary/30 bg-primary/5 overflow-hidden">
         <CardContent className="p-0">
           <div className="p-6 text-center border-b border-white/5">
             <div className="w-20 h-20 rounded-full bg-secondary/50 border-2 border-primary mx-auto mb-4 flex items-center justify-center shadow-[0_0_20px_rgba(var(--primary),0.2)]">
@@ -189,20 +206,28 @@ export default function IronGlobePage() {
           </div>
 
           {!isLive && (
-            <div className="p-4">
+            <div className="p-4 space-y-4">
+              <div className="space-y-2">
+                <div className="flex justify-between text-[10px] font-bold uppercase">
+                  <span className="text-muted-foreground">{language === 'ru' ? 'Заполнено' : 'Filled'}</span>
+                  <span className="text-primary">{currentCount} / {MAX_PARTICIPANTS} {language === 'ru' ? 'мест' : 'spots'}</span>
+                </div>
+                <Progress value={(currentCount / MAX_PARTICIPANTS) * 100} className="h-1.5" />
+              </div>
+
               {isJoined ? (
-                <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3 flex items-center justify-center gap-2 text-green-400">
+                <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3 flex items-center justify-center gap-2 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.1)]">
                   <CheckCircle2 className="w-4 h-4" />
-                  <span className="text-xs font-bold uppercase">{t.joined}</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">{t.joined}</span>
                 </div>
               ) : (
                 <Button 
-                  className="w-full h-12 hero-gradient font-bold uppercase tracking-widest text-xs"
+                  className="w-full h-12 hero-gradient font-bold uppercase tracking-widest text-xs shadow-lg"
                   onClick={handleJoin}
-                  disabled={isJoining || credits < TOURNAMENT_FEE}
+                  disabled={isJoining || credits < TOURNAMENT_FEE || spotsLeft <= 0}
                 >
                   {isJoining ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Swords className="w-4 h-4 mr-2" />}
-                  {t.joinBtn}
+                  {spotsLeft <= 0 ? t.full : t.joinBtn}
                 </Button>
               )}
             </div>
@@ -210,8 +235,55 @@ export default function IronGlobePage() {
         </CardContent>
       </Card>
 
-      {/* Tournament Results Section */}
-      {isLive ? (
+      {!isLive ? (
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <h2 className="text-xs font-headline font-bold text-accent uppercase tracking-[0.2em] px-1 flex items-center gap-2">
+            <Users className="w-4 h-4" /> {t.participants}
+          </h2>
+          <Card className="glass-card border-white/5">
+            <CardContent className="p-0">
+              <div className="divide-y divide-white/5">
+                {isParticipantsLoading ? (
+                  <div className="p-10 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+                ) : participants && participants.length > 0 ? (
+                  participants.map((p, idx) => (
+                    <div key={p.id} className={cn("flex items-center justify-between p-4", p.id === user?.uid && "bg-primary/5")}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-secondary/50 flex items-center justify-center border border-white/10">
+                          {p.id === user?.uid ? <UserCheck className="w-4 h-4 text-primary" /> : <User className="w-4 h-4 text-muted-foreground" />}
+                        </div>
+                        <div>
+                          <p className={cn("text-xs font-bold uppercase", p.id === user?.uid ? "text-primary" : "text-foreground")}>
+                            {p.displayName || "Manager"}
+                          </p>
+                          <p className="text-[8px] text-muted-foreground uppercase font-bold tracking-tighter">
+                            {p.country || "International"} • DIV {p.leagueLevel || 9}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="text-[8px] border-white/10 opacity-50 font-mono">#{idx + 1}</Badge>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-10 text-center text-muted-foreground italic text-xs">
+                    {language === 'ru' ? 'Будь первым, кто вступит в бой!' : 'Be the first to join the battle!'}
+                  </div>
+                )}
+                
+                {/* Bot Placeholder visualization if not full */}
+                {spotsLeft > 0 && !isParticipantsLoading && (
+                  <div className="p-4 bg-secondary/10 flex items-center justify-center gap-2 opacity-30">
+                    <Star className="w-3 h-3" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest">
+                      {spotsLeft} {language === 'ru' ? 'СЛОТОВ ОСТАЛОСЬ' : 'SLOTS REMAINING'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
         <div className="space-y-6 animate-in fade-in duration-700">
           <Tabs defaultValue="groups" className="w-full">
             <TabsList className="w-full bg-secondary/50 grid grid-cols-2">
@@ -237,7 +309,7 @@ export default function IronGlobePage() {
                           <div className="flex items-center gap-3">
                             <span className="text-[10px] font-mono opacity-50">{tIdx + 1}</span>
                             <span className={cn("text-xs font-bold uppercase", team.isPlayer && "text-primary")}>
-                              {team.name} {team.isPlayer && "(YOU)"}
+                              {team.name} {team.isPlayer && team.id === user?.uid && "(YOU)"}
                             </span>
                           </div>
                           <div className="flex items-center gap-4 text-[10px] font-mono">
@@ -253,7 +325,6 @@ export default function IronGlobePage() {
             </TabsContent>
 
             <TabsContent value="playoffs" className="mt-4 space-y-6">
-              {/* Quarter Finals */}
               <div className="space-y-3">
                 <h3 className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
                   <Swords className="w-3 h-3" /> Quarter-Finals
@@ -261,19 +332,18 @@ export default function IronGlobePage() {
                 <div className="grid grid-cols-1 gap-2">
                   {[0, 1, 2, 3].map(i => (
                     <div key={i} className="bg-secondary/30 p-3 rounded-lg border border-white/5 flex items-center justify-between text-xs">
-                      <span className="font-bold opacity-80">{tournamentData?.qualifiers[i*2].name}</span>
+                      <span className="font-bold opacity-80 truncate max-w-[100px]">{tournamentData?.qualifiers[i*2].name}</span>
                       <div className="flex gap-2 font-black text-accent italic">
                         <span>{Math.floor(Math.random()*3)}</span>
                         <span className="opacity-20">:</span>
                         <span>{Math.floor(Math.random()*3)}</span>
                       </div>
-                      <span className="font-bold opacity-80">{tournamentData?.qualifiers[i*2+1].name}</span>
+                      <span className="font-bold opacity-80 truncate max-w-[100px]">{tournamentData?.qualifiers[i*2+1].name}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Final Winner Placeholder */}
               <div className="pt-6 border-t border-white/5">
                 <div className="bg-gradient-to-br from-yellow-500/20 to-transparent border border-yellow-500/30 rounded-2xl p-6 text-center">
                   <Medal className="w-12 h-12 text-yellow-500 mx-auto mb-2" />
@@ -285,20 +355,6 @@ export default function IronGlobePage() {
               </div>
             </TabsContent>
           </Tabs>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <Card className="bg-secondary/20 border-white/5">
-            <CardContent className="p-6 text-center space-y-4">
-              <Users className="w-12 h-12 text-muted-foreground/30 mx-auto" />
-              <div>
-                <h3 className="text-sm font-bold uppercase tracking-tight">System Initialization</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed mt-1 italic">
-                  "Tournament logic will execute precisely at 21:05 MSK. Teams will be assigned to groups A-D randomly."
-                </p>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       )}
     </div>
