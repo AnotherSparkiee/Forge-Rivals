@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Chrome, Mail, ShieldCheck, Info, AlertCircle } from 'lucide-react';
+import { Loader2, Chrome, Mail, ShieldCheck, Info, AlertCircle, Terminal } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 import { sendVerificationEmail } from '@/app/actions/email';
@@ -26,8 +26,7 @@ export default function RegisterPage() {
   const [verificationCode, setVerificationCode] = useState('');
   const [generatedCode, setGeneratedCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [emailError, setEmailError] = useState<string | null>(null);
+  const [isSimulated, setIsSimulated] = useState(false);
   
   const auth = useAuth();
   const db = useFirestore();
@@ -35,7 +34,7 @@ export default function RegisterPage() {
   const { toast } = useToast();
   const { language, isLoaded } = useGameState();
 
-  // Load saved state if available
+  // Load saved state if available to prevent loss on refresh
   useEffect(() => {
     const savedStep = sessionStorage.getItem('reg_step');
     const savedCode = sessionStorage.getItem('reg_code');
@@ -72,7 +71,8 @@ export default function RegisterPage() {
       usernameTaken: "This team name is already assigned.",
       codeSent: "Code Dispatched",
       codeSentDesc: "Check your inbox (and spam folder) for the key.",
-      configError: "Mail Server Error: SMTP configuration missing.",
+      simulatedTitle: "Development Mode",
+      simulatedDesc: "SMTP not configured. Code has been sent to the server terminal.",
       sendFailed: "Failed to transmit code. Please contact HQ."
     },
     ru: {
@@ -96,7 +96,8 @@ export default function RegisterPage() {
       usernameTaken: "Это название команды уже занято.",
       codeSent: "Код отправлен",
       codeSentDesc: "Проверьте входящие (и папку спам) на вашей почте.",
-      configError: "Ошибка почты: SMTP сервер не настроен.",
+      simulatedTitle: "Режим отладки",
+      simulatedDesc: "SMTP не настроен. Код отправлен в терминал сервера.",
       sendFailed: "Не удалось отправить код. Свяжитесь со штабом."
     }
   };
@@ -106,7 +107,6 @@ export default function RegisterPage() {
   const handleInitialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setEmailError(null);
 
     try {
       // 1. Check if username is taken in players_v5
@@ -125,15 +125,11 @@ export default function RegisterPage() {
       const result = await sendVerificationEmail(email, code);
       
       if (!result.success) {
-        if (result.error === 'SMTP_CONFIG_MISSING') {
-          setEmailError(t.configError);
-          throw new Error(t.configError);
-        } else {
-          throw new Error(t.sendFailed);
-        }
+        throw new Error(t.sendFailed);
       }
 
       setGeneratedCode(code);
+      setIsSimulated(!!result.isSimulated);
       
       // Save progress to session storage
       sessionStorage.setItem('reg_step', 'verify');
@@ -142,8 +138,9 @@ export default function RegisterPage() {
       sessionStorage.setItem('reg_username', username);
       
       toast({
-        title: t.codeSent,
-        description: t.codeSentDesc,
+        title: result.isSimulated ? t.simulatedTitle : t.codeSent,
+        description: result.isSimulated ? t.simulatedDesc : t.codeSentDesc,
+        variant: result.isSimulated ? "default" : "default",
       });
 
       setStep('verify');
@@ -249,16 +246,9 @@ export default function RegisterPage() {
                 <Label htmlFor="password">{t.passLabel}</Label>
                 <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="bg-secondary/50" />
               </div>
-
-              {emailError && (
-                <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-lg flex items-start gap-3 animate-in fade-in zoom-in duration-300">
-                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                  <p className="text-[10px] text-red-200 uppercase font-bold leading-tight">{emailError}</p>
-                </div>
-              )}
             </CardContent>
             <CardFooter className="flex flex-col gap-4">
-              <Button type="submit" className="w-full hero-gradient font-bold h-12" disabled={isLoading || isGoogleLoading}>
+              <Button type="submit" className="w-full hero-gradient font-bold h-12" disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><Mail className="w-4 h-4 mr-2" /> {t.submitBtn}</>}
               </Button>
               <div className="flex items-center gap-4 w-full">
@@ -266,7 +256,7 @@ export default function RegisterPage() {
                 <span className="text-[10px] text-muted-foreground font-bold uppercase">{t.orLabel}</span>
                 <div className="h-px bg-white/10 flex-1"></div>
               </div>
-              <Button type="button" variant="outline" className="w-full font-bold border-white/10 hover:bg-white/5 h-11" onClick={() => {}} disabled={isLoading || isGoogleLoading}>
+              <Button type="button" variant="outline" className="w-full font-bold border-white/10 hover:bg-white/5 h-11" onClick={() => {}} disabled={isLoading}>
                 <Chrome className="mr-2 h-4 w-4 text-red-400" />
                 {t.googleBtn}
               </Button>
@@ -290,14 +280,23 @@ export default function RegisterPage() {
                 />
               </div>
               
-              <div className="bg-primary/5 p-3 rounded-lg border border-primary/10 flex items-start gap-3">
-                <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                <p className="text-[9px] text-muted-foreground uppercase font-bold leading-tight">
-                  {language === 'ru' 
-                    ? "ВНИМАНИЕ: Если письмо не приходит, проверьте папку «Спам»." 
-                    : "NOTICE: If you do not receive the email, check your Spam folder."}
-                </p>
-              </div>
+              {isSimulated ? (
+                <div className="bg-yellow-500/10 p-3 rounded-lg border border-yellow-500/20 flex items-start gap-3">
+                  <Terminal className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
+                  <p className="text-[9px] text-yellow-200 uppercase font-bold leading-tight">
+                    {t.simulatedTitle}: {t.simulatedDesc}
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-primary/5 p-3 rounded-lg border border-primary/10 flex items-start gap-3">
+                  <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                  <p className="text-[9px] text-muted-foreground uppercase font-bold leading-tight">
+                    {language === 'ru' 
+                      ? "ВНИМАНИЕ: Если письмо не приходит, проверьте папку «Спам»." 
+                      : "NOTICE: If you do not receive the email, check your Spam folder."}
+                  </p>
+                </div>
+              )}
             </CardContent>
             <CardFooter className="flex flex-col gap-3">
               <Button type="submit" className="w-full hero-gradient font-bold h-14 text-lg" disabled={isLoading}>

@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Server actions for handling real email sending via SMTP.
+ * @fileOverview Server actions for handling real email sending via SMTP with fallback logic.
  */
 
 export async function sendVerificationEmail(email: string, code: string) {
@@ -11,16 +11,17 @@ export async function sendVerificationEmail(email: string, code: string) {
   const SMTP_USER = process.env.SMTP_USER;
   const SMTP_PASS = process.env.SMTP_PASS;
 
+  // If config is missing, we log to console and return a special success status to avoid blocking the user
   if (!SMTP_USER || !SMTP_PASS || !SMTP_HOST) {
-    console.error('ERROR: SMTP credentials missing in environment variables.');
-    // Fallback for development visibility in server logs
-    console.warn(`\n[ACTION REQUIRED] Add SMTP config to .env to send real emails.`);
-    console.warn(`[VERIFICATION_CODE_FOR_${email}]: ${code}\n`);
+    console.warn(`\n[SMTP_NOT_CONFIGURED] Email transmission bypassed.`);
+    console.warn(`[DESTINATION]: ${email}`);
+    console.warn(`[VERIFICATION_CODE]: ${code}`);
+    console.warn(`[ACTION]: Add SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS to .env for real delivery.\n`);
     
     return { 
-      success: false, 
-      error: 'SMTP_CONFIG_MISSING', 
-      message: 'Server mail configuration is incomplete.' 
+      success: true, 
+      isSimulated: true, 
+      message: 'Email simulation active. Check server logs.' 
     };
   }
 
@@ -65,7 +66,7 @@ export async function sendVerificationEmail(email: string, code: string) {
             </p>
           </div>
           
-          <div style="text-align: center; border-top: 1px solid #1e293b; pt: 20px;">
+          <div style="text-align: center; border-top: 1px solid #1e293b; padding-top: 20px;">
             <p style="font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 1px;">
               Sync established via Command Center
             </p>
@@ -76,9 +77,11 @@ export async function sendVerificationEmail(email: string, code: string) {
 
     await transporter.sendMail(mailOptions);
     console.log(`[EMAIL_SENT] Verification code dispatched to ${email}`);
-    return { success: true };
+    return { success: true, isSimulated: false };
   } catch (error: any) {
     console.error('CRITICAL: Email transmission failed:', error);
+    // Even if transmission fails, we log the code so the developer isn't stuck
+    console.warn(`[EMERGENCY_CODE_LOG]: ${code}`);
     return { 
       success: false, 
       error: 'TRANSMISSION_FAILED', 
