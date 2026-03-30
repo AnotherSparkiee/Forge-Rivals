@@ -122,8 +122,8 @@ export default function TournamentsPage() {
     },
     { label: t.open, desc: t.descOpen, icon: Search, active: true, href: '/tournaments/open-friendlies' },
     { label: t.tournaments, desc: language === 'ru' ? "Активные чемпионаты и кубки" : "Active championships", icon: Trophy, active: true, href: '/tournaments/open' },
+    { label: t.history, desc: language === 'ru' ? "Архив ваших выступлений" : "Archive of your battles", icon: History, active: true, href: '/tournaments/history' },
     { label: t.cw, desc: "Clan War coordination", icon: Swords, active: false },
-    { label: t.history, desc: "Past results", icon: History, active: false },
     { label: t.trial, desc: "Test against AI", icon: Gamepad2, active: false },
   ];
 

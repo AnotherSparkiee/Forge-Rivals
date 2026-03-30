@@ -19,7 +19,22 @@
         "divisionSubId": { "type": "number" },
         "groupId": { "type": "number" },
         "country": { "type": "string" },
-        "selectedLeagueId": { "type": "string" }
+        "selectedLeagueId": { "type": "string" },
+        "tournaments": { "type": "array", "items": { "type": "string" } },
+        "tournamentHistory": { 
+          "type": "array", 
+          "items": {
+            "type": "object",
+            "properties": {
+              "tournamentId": { "type": "string" },
+              "tournamentName": { "type": "string" },
+              "result": { "type": "string" },
+              "startDate": { "type": "string", "format": "date-time" },
+              "endDate": { "type": "string", "format": "date-time" },
+              "status": { "type": "string", "enum": ["completed", "abandoned", "eliminated"] }
+            }
+          }
+        }
       },
       "required": ["id", "displayName", "email", "inGameCurrency", "experiencePoints", "lastLoginDate", "createdAt", "ownedHeroIds"]
     },
