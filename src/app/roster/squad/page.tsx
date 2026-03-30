@@ -11,7 +11,8 @@ import {
   ChevronLeft, ChevronRight, UserPlus, X,
   ShieldCheck, Zap, Crosshair, HeartPulse,
   Star, Box, Undo2, Heart, Flag, Coins, Info,
-  TrendingUp, Eye, Target, ZapIcon, Brain, Map, Users, AlertCircle, Award
+  TrendingUp, Eye, Target, Brain, Map, Users, AlertCircle, Award,
+  Dumbbell
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -21,6 +22,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 
 export default function SquadPage() {
@@ -53,7 +55,7 @@ export default function SquadPage() {
       status: language === 'ru' ? "Статус" : "Status",
       healthy: language === 'ru' ? "Здоров" : "Healthy",
       injured: language === 'ru' ? "Травмирован" : "Injured",
-      stats: language === 'ru' ? "Характеристики" : "Professional Stats",
+      stats: language === 'ru' ? "Профессиональные данные" : "Professional Data",
       years: language === 'ru' ? "лет" : "yrs",
     },
     proStatsLabels: {
@@ -348,6 +350,11 @@ export default function SquadPage() {
         <DialogContent className="max-w-md p-0 overflow-hidden bg-card border-white/10 h-[90vh] flex flex-col">
           {profileHero && (
             <>
+              <DialogHeader className="sr-only">
+                <DialogTitle>{profileHero.name}</DialogTitle>
+                <DialogDescription>Detailed player profile and statistics</DialogDescription>
+              </DialogHeader>
+
               <div className="p-6 bg-gradient-to-br from-primary/20 via-card to-accent/10 border-b border-white/5 relative flex-shrink-0">
                 <div className="flex items-center gap-6">
                   <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-primary shadow-[0_0_25px_rgba(var(--primary),0.3)]">
@@ -426,9 +433,9 @@ export default function SquadPage() {
                         lastHitting: Target,
                         mapAwareness: Eye,
                         positioning: Map,
-                        reflexes: ZapIcon,
+                        reflexes: Zap,
                         manaManagement: Sparkles,
-                        objectiveControl: Swords,
+                        objectiveControl: Sword,
                         communication: Users,
                         tiltResistance: Brain,
                         versatility: TrendingUp,
