@@ -28,33 +28,30 @@ const REG_CLOSE_TIME = "20:50";
 const MAX_PARTICIPANTS = 16;
 
 /**
- * Deterministic helper to get tournament structure based on date and participants
+ * Deterministic helper to get tournament structure based on date and participants.
+ * Now supports incremental progress based on current time.
  */
-export function getDeterministicTournament(dateStr: string, participants: any[], userId: string, showResults: boolean = false) {
+export function getDeterministicTournament(
+  dateStr: string, 
+  participants: any[], 
+  userId: string, 
+  mskNow: Date, 
+  startTimeStr: string
+) {
   const realPlayers = participants?.map(p => ({ id: p.id, name: p.displayName || "Manager", isPlayer: true })) || [];
   const botNeeded = Math.max(0, MAX_PARTICIPANTS - realPlayers.length);
   
-  // Seed based on date to keep IDs stable for the day
   const dateSeed = dateStr.split('-').reduce((acc, v) => acc + parseInt(v), 0);
 
-  // Generate unique ID like bot4481
   const bots = Array.from({ length: botNeeded }).map((_, i) => {
-    // Deterministic unique ID for the bot
     const botIdNum = 4000 + (dateSeed % 500) + (i * 31);
     const botName = `bot${botIdNum}`;
-    
-    return { 
-      id: botName, 
-      name: botName, 
-      isPlayer: false 
-    };
+    return { id: botName, name: botName, isPlayer: false };
   });
   
-  // Sort by ID to have a base stable order
   const allTeams = [...realPlayers, ...bots].sort((a, b) => a.id.localeCompare(b.id));
   
-  // Shuffle groups based on date seed (very simple LCG-like)
-  const seed = dateStr.split('-').reduce((acc, v) => acc + parseInt(v), 0);
+  const seed = dateSeed;
   const shuffled = [...allTeams];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = (seed + i) % (i + 1);
@@ -63,26 +60,37 @@ export function getDeterministicTournament(dateStr: string, participants: any[],
 
   const groups = [ shuffled.slice(0, 4), shuffled.slice(4, 8), shuffled.slice(8, 12), shuffled.slice(12, 16) ];
   
-  // Find player's group and opponent
-  let myGroupIdx = -1;
-  let myOpponent = null;
+  // Calculate elapsed minutes since start
+  const [sh, sm] = startTimeStr.split(':').map(Number);
+  const startDate = new Date(mskNow);
+  startDate.setHours(sh, sm, 0, 0);
+  const diffMs = mskNow.getTime() - startDate.getTime();
+  const elapsedMins = Math.floor(diffMs / 60000);
 
-  const processedGroups = groups.map((group, idx) => {
-    const isMyGroup = group.some(t => t.id === userId);
-    if (isMyGroup) myGroupIdx = idx;
+  // Group Rounds: 1 round every 5 mins (total 15 mins)
+  const completedGroupRounds = Math.min(3, Math.max(0, Math.floor(elapsedMins / 5)));
+  const isPlayoffsVisible = elapsedMins >= 15;
 
+  const processedGroups = groups.map((group) => {
     const groupResult = group.map(t => {
-      if (!showResults) {
-        return { ...t, pts: 0, w: 0, d: 0, l: 0 };
+      let pts = 0, w = 0, d = 0, l = 0;
+      
+      // Points appear incrementally per completed round
+      for (let r = 1; r <= completedGroupRounds; r++) {
+        const roundSeed = (t.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0) + seed + r) % 10;
+        if (roundSeed < 4) { pts += 3; w++; }
+        else if (roundSeed < 7) { pts += 1; d++; }
+        else { l++; }
       }
-      // Deterministic points based on ID and date
-      const ptsSeed = (t.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0) + seed) % 10;
-      return { ...t, pts: ptsSeed, w: Math.floor(ptsSeed/3), d: ptsSeed % 3, l: Math.max(0, 3 - Math.floor(ptsSeed/3)) };
+
+      return { ...t, pts, w, d, l };
     }).sort((a, b) => b.pts - a.pts || a.id.localeCompare(b.id));
 
     return groupResult;
   });
 
+  let myOpponent = null;
+  const myGroupIdx = groups.findIndex(g => g.some(t => t.id === userId));
   if (myGroupIdx !== -1) {
     const myGroup = groups[myGroupIdx];
     const myIdx = myGroup.findIndex(t => t.id === userId);
@@ -92,7 +100,9 @@ export function getDeterministicTournament(dateStr: string, participants: any[],
   return { 
     groups: processedGroups, 
     qualifiers: processedGroups.flatMap(g => [g[0], g[1]]),
-    myOpponent
+    myOpponent,
+    completedGroupRounds,
+    isPlayoffsVisible
   };
 }
 
@@ -184,11 +194,9 @@ export default function IronGlobePage() {
 
   const tournamentData = useMemo(() => {
     if (!isRegClosed || !user) return null;
-    // CRITICAL: Results are only shown when the tournament HAS FINISHED
-    return getDeterministicTournament(getMoscowDateString(), participants || [], user.uid, hasFinished);
-  }, [isRegClosed, participants, user, hasFinished]);
+    return getDeterministicTournament(getMoscowDateString(), participants || [], user.uid, getMoscowTime(), START_TIME);
+  }, [isRegClosed, participants, user, countdown]); // Update memo when countdown ticks (every 1s)
 
-  // Record Active status immediately after registration ends
   useEffect(() => {
     if (isRegClosed && isJoined && !hasFinished && !activeRecordRef.current && userRef && profile) {
       const today = getMoscowDateString();
@@ -216,7 +224,6 @@ export default function IronGlobePage() {
     }
   }, [isRegClosed, isJoined, hasFinished, userRef, profile, language]);
 
-  // Finalize tournament: update active record to completed
   useEffect(() => {
     if (hasFinished && isJoined && !finalResultRef.current && userRef && profile && tournamentData) {
       finalResultRef.current = true;
@@ -442,7 +449,7 @@ export default function IronGlobePage() {
                 ))}
               </TabsContent>
               <TabsContent value="playoffs" className="mt-4">
-                {!isLive && !hasFinished ? (
+                {!tournamentData?.isPlayoffsVisible ? (
                   <div className="py-20 text-center opacity-40 uppercase text-[10px] font-bold tracking-widest">Awaiting Battle Start</div>
                 ) : (
                   <div className="space-y-4">

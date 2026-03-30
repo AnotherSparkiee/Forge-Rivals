@@ -102,7 +102,7 @@ export default function Home() {
       const finishTotal = 21 * 60 + 40;
       if (totalMins >= (20 * 60 + 50) && totalMins < finishTotal) {
         const isLive = totalMins >= startTotal;
-        const tour = getDeterministicTournament(dateStr, globeParticipants || [], user.uid, isLive);
+        const tour = getDeterministicTournament(dateStr, globeParticipants || [], user.uid, mskNow, "21:05");
         return {
           opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
           isFriendly: false, isTournament: true, isBasket: false,
@@ -118,7 +118,7 @@ export default function Home() {
       const finishTotal = 22 * 60 + 10;
       if (totalMins >= (21 * 60 + 20) && totalMins < finishTotal) {
         const isLive = totalMins >= startTotal;
-        const tour = getDeterministicTournament(dateStr, brickParticipants || [], user.uid, isLive);
+        const tour = getDeterministicTournament(dateStr, brickParticipants || [], user.uid, mskNow, "21:35");
         return {
           opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
           isFriendly: false, isTournament: true, isBasket: false,

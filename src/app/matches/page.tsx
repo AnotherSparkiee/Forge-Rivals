@@ -149,7 +149,7 @@ export default function MatchesPage() {
     if (profile?.tournaments?.includes('iron-globe')) {
       if (totalMins >= (20 * 60 + 50) && totalMins < (21 * 60 + 40)) {
         const isLive = totalMins >= (21 * 60 + 5);
-        const tour = getDeterministicTournament(dateStr, globeParticipants || [], user.uid, isLive);
+        const tour = getDeterministicTournament(dateStr, globeParticipants || [], user.uid, mskNow, "21:05");
         return {
           opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
           time: "21:05",
@@ -164,7 +164,7 @@ export default function MatchesPage() {
     if (profile?.tournaments?.includes('iron-brick')) {
       if (totalMins >= (21 * 60 + 20) && totalMins < (22 * 60 + 10)) {
         const isLive = totalMins >= (21 * 60 + 35);
-        const tour = getDeterministicTournament(dateStr, brickParticipants || [], user.uid, isLive);
+        const tour = getDeterministicTournament(dateStr, brickParticipants || [], user.uid, mskNow, "21:35");
         return {
           opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
           time: "21:35",
@@ -176,7 +176,7 @@ export default function MatchesPage() {
     }
 
     return null;
-  }, [isLoaded, profile, globeParticipants, brickParticipants, user, language]);
+  }, [isLoaded, profile, globeParticipants, brickParticipants, user, language, countdown]);
 
   // Priority 3: CW Basket
   const basketInfo = useMemo(() => {
@@ -222,12 +222,10 @@ export default function MatchesPage() {
   }, [isLoaded, profile, groupTeams, schedule, seasonDay, isTodayPlayed, league, user?.uid, tournamentInfo, basketInfo, friendlyInfo]);
 
   useEffect(() => {
-    if (activeTab !== 'next_opponent' || !nextMatchInfo) return;
-
     const interval = setInterval(() => {
       const mskNow = getMoscowTime();
       
-      if (nextMatchInfo.type === 'friendly') {
+      if (nextMatchInfo?.type === 'friendly') {
         const diff = ((nextMatchInfo as any).acceptedAt + 15 * 60 * 1000) - Date.now();
         if (diff <= 0) setCountdown('00:00:00');
         else {
@@ -238,7 +236,7 @@ export default function MatchesPage() {
         return;
       }
 
-      if (nextMatchInfo.type === 'basket') {
+      if (nextMatchInfo?.type === 'basket') {
         const diff = (nextMatchInfo as any).startTime - Date.now();
         if (diff <= 0) {
           setCountdown('00:00:00');
@@ -251,34 +249,38 @@ export default function MatchesPage() {
         return;
       }
 
-      const [hours, minutes] = nextMatchInfo.time.split(':').map(Number);
-      const targetDate = new Date(mskNow);
-      targetDate.setHours(hours, minutes, 0, 0);
-      
-      if (nextMatchInfo.type === 'league' && nextMatchInfo.isNextDay) {
-        if (mskNow.getTime() >= targetDate.getTime()) {
-          targetDate.setDate(targetDate.getDate() + 1);
+      if (nextMatchInfo?.time) {
+        const [hours, minutes] = nextMatchInfo.time.split(':').map(Number);
+        const targetDate = new Date(mskNow);
+        targetDate.setHours(hours, minutes, 0, 0);
+        
+        if (nextMatchInfo.type === 'league' && nextMatchInfo.isNextDay) {
+          if (mskNow.getTime() >= targetDate.getTime()) {
+            targetDate.setDate(targetDate.getDate() + 1);
+          }
+        } else {
+          if (mskNow.getTime() >= targetDate.getTime()) {
+            setCountdown('00:00:00');
+            return;
+          }
         }
-      } else {
-        if (mskNow.getTime() >= targetDate.getTime()) {
-          setCountdown('00:00:00');
-          return;
-        }
-      }
 
-      const diff = targetDate.getTime() - mskNow.getTime();
-      if (diff <= 0) {
-        setCountdown('00:00:00');
+        const diff = targetDate.getTime() - mskNow.getTime();
+        if (diff <= 0) {
+          setCountdown('00:00:00');
+        } else {
+          const h = Math.floor(diff / 3600000);
+          const m = Math.floor((diff % 3600000) / 60000);
+          const s = Math.floor((diff % 60000) / 1000);
+          setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+        }
       } else {
-        const h = Math.floor(diff / 3600000);
-        const m = Math.floor((diff % 3600000) / 60000);
-        const s = Math.floor((diff % 60000) / 1000);
-        setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+        setCountdown('');
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [activeTab, nextMatchInfo]);
+  }, [nextMatchInfo]);
 
   const getDateForDay = (day: number) => {
     if (!seasonStartDate) return "";
@@ -485,7 +487,7 @@ export default function MatchesPage() {
                       "text-3xl font-headline font-bold tabular-nums tracking-tighter",
                       isLive ? "text-green-400" : "text-primary"
                     )}>
-                      {isLive ? (isFriendly ? countdown || '00:00:00' : 'LIVE') : countdown || '00:00:00'}
+                      {isLive ? (isFriendly ? countdown || '00:00' : 'LIVE') : countdown || '00:00:00'}
                     </p>
                   </div>
                 </div>
