@@ -11,7 +11,7 @@ import {
   Trophy, Clock, Users, Coins, ChevronLeft, 
   ShieldCheck, Loader2, Star, Swords, Medal,
   ArrowRight, CheckCircle2, User, UserCheck, AlertCircle,
-  LogOut
+  LogOut, History as HistoryIcon
 } from 'lucide-react';
 import Link from 'next/link';
 import { getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
@@ -201,9 +201,11 @@ export default function IronGlobePage() {
       
       recordMatch(profile.displayName || "Manager", mockResult, 0, opponent?.name || "Tournament Rival", 'friendly', mskNow.toISOString());
 
+      const updatedTours = (profile.tournaments || []).filter((t: string) => t !== 'iron-globe');
+
       updateDoc(userRef, {
         tournamentHistory: arrayUnion(record),
-        tournaments: profile.tournaments.filter((t: string) => t !== 'iron-globe')
+        tournaments: updatedTours
       });
 
       toast({
@@ -250,9 +252,11 @@ export default function IronGlobePage() {
         status: 'abandoned'
       };
 
+      const updatedTours = (profile.tournaments || []).filter((t: string) => t !== 'iron-globe');
+
       await updateDoc(userRef!, {
         tournamentHistory: arrayUnion(record),
-        tournaments: profile.tournaments.filter((t: string) => t !== 'iron-globe')
+        tournaments: updatedTours
       });
 
       toast({
@@ -301,9 +305,16 @@ export default function IronGlobePage() {
             <Trophy className="w-16 h-16 text-yellow-500 mx-auto mb-4 animate-bounce" />
             <h2 className="text-2xl font-headline font-bold text-white uppercase">{t.results}</h2>
             <p className="text-xs text-muted-foreground mt-2 uppercase tracking-widest font-bold">Турнир успешно завершен</p>
-            <Link href="/tournaments/history" className="block mt-6">
-              <Button className="w-full hero-gradient font-bold uppercase text-[10px]">Смотреть историю</Button>
-            </Link>
+            <div className="grid grid-cols-1 gap-2 mt-6">
+              <Link href="/tournaments/history" className="block">
+                <Button className="w-full hero-gradient font-bold uppercase text-[10px] flex items-center justify-center gap-2">
+                  <HistoryIcon className="w-4 h-4" /> СМОТРЕТЬ ИСТОРИЮ
+                </Button>
+              </Link>
+              <Link href="/tournaments" className="block">
+                <Button variant="outline" className="w-full uppercase text-[10px] font-bold border-white/10">Вернуться в хаб</Button>
+              </Link>
+            </div>
           </Card>
         </div>
       ) : (
