@@ -116,8 +116,9 @@ export default function IronBrickPage() {
 
   const tournamentData = useMemo(() => {
     if (!isRegClosed || !user) return null;
-    return getDeterministicTournament(getMoscowDateString(), participants || [], user.uid, isLive);
-  }, [isRegClosed, participants, user, isLive]);
+    // CRITICAL: Points are only awarded AFTER the tournament matches are over
+    return getDeterministicTournament(getMoscowDateString(), participants || [], user.uid, hasFinished);
+  }, [isRegClosed, participants, user, hasFinished]);
 
   useEffect(() => {
     if (isRegClosed && isJoined && !hasFinished && !activeRecordRef.current && userRef && profile) {
@@ -371,7 +372,7 @@ export default function IronBrickPage() {
                 ))}
               </TabsContent>
               <TabsContent value="playoffs" className="mt-4">
-                {!isLive ? (
+                {!isLive && !hasFinished ? (
                   <div className="py-20 text-center opacity-40 uppercase text-[10px] font-bold tracking-widest">Awaiting Battle Start</div>
                 ) : (
                   <div className="space-y-4">

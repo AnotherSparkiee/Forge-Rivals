@@ -184,8 +184,9 @@ export default function IronGlobePage() {
 
   const tournamentData = useMemo(() => {
     if (!isRegClosed || !user) return null;
-    return getDeterministicTournament(getMoscowDateString(), participants || [], user.uid, isLive);
-  }, [isRegClosed, participants, user, isLive]);
+    // CRITICAL: Results are only shown when the tournament HAS FINISHED
+    return getDeterministicTournament(getMoscowDateString(), participants || [], user.uid, hasFinished);
+  }, [isRegClosed, participants, user, hasFinished]);
 
   // Record Active status immediately after registration ends
   useEffect(() => {
@@ -441,7 +442,7 @@ export default function IronGlobePage() {
                 ))}
               </TabsContent>
               <TabsContent value="playoffs" className="mt-4">
-                {!isLive ? (
+                {!isLive && !hasFinished ? (
                   <div className="py-20 text-center opacity-40 uppercase text-[10px] font-bold tracking-widest">Awaiting Battle Start</div>
                 ) : (
                   <div className="space-y-4">
