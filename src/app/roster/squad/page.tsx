@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -65,8 +66,8 @@ export default function SquadPage() {
     const heroId = lineup[slotKey];
     const hero = getHeroById(heroId);
     const isSub = slotKey === 'sub1' || slotKey === 'sub2';
+    const isSelected = selectingSlot === slotKey;
     
-    // For subs, if hero is assigned, show their native role icon. Otherwise show default sub icon.
     let roleInfo = t.roles[slotKey];
     if (isSub && hero) {
       const heroRoleData = t.heroRoles[hero.role as keyof typeof t.heroRoles];
@@ -78,19 +79,21 @@ export default function SquadPage() {
     return (
       <Card 
         key={slotKey}
+        onClick={() => setSelectingSlot(slotKey)}
         className={cn(
-          "glass-card border-white/5 overflow-hidden transition-all",
-          hero ? "bg-primary/5 border-primary/20 shadow-[0_0_15px_rgba(var(--primary),0.05)]" : "hover:border-white/20"
+          "glass-card border-white/5 overflow-hidden transition-all cursor-pointer active:scale-[0.98]",
+          hero ? "bg-primary/5 border-primary/10" : "hover:border-white/20",
+          isSelected && "ring-2 ring-primary border-primary shadow-[0_0_25px_rgba(var(--primary),0.3)] bg-primary/10"
         )}
       >
-        <CardContent className="p-3 flex items-center gap-4">
+        <CardContent className="p-3 flex items-center gap-4 relative">
           <div className="relative flex-shrink-0">
             <div className={cn(
-              "w-14 h-14 rounded-full border flex items-center justify-center bg-secondary/50",
+              "w-14 h-14 rounded-full border flex items-center justify-center bg-secondary/50 overflow-hidden",
               hero ? "border-primary/50" : "border-dashed border-muted"
             )}>
               {hero ? (
-                <img src={hero.image} alt={hero.name} className="w-full h-full object-cover rounded-full" />
+                <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
               ) : (
                 <roleInfo.icon className={cn("w-6 h-6", roleInfo.color)} />
               )}
@@ -105,40 +108,39 @@ export default function SquadPage() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
               <p className="text-[9px] uppercase font-black text-muted-foreground tracking-widest">{roleInfo.label}</p>
-              {hero && (
-                <div className="flex items-center gap-1 bg-accent/20 px-1.5 rounded text-accent font-mono font-bold text-[10px]">
-                  {t.overall} {hero.overallRating}
-                </div>
-              )}
             </div>
             <h3 className={cn("text-sm font-bold leading-tight break-words", !hero && "text-muted-foreground italic")}>
               {hero ? hero.name : t.emptySlot}
             </h3>
           </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {hero && (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  assignToRole(slotKey, null);
-                }}
-              >
-                <X className="w-4 h-4" />
-              </Button>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {hero ? (
+              <div className="flex flex-col items-center justify-center min-w-[50px] border-l border-white/5 pl-3">
+                <p className="text-[8px] font-black text-accent uppercase tracking-tighter mb-0.5">{t.overall}</p>
+                <span className="text-2xl font-headline font-bold text-accent italic leading-none drop-shadow-md">
+                  {hero.overallRating}
+                </span>
+              </div>
+            ) : (
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+                <Plus className="w-5 h-5 text-primary" />
+              </div>
             )}
-            <Button 
-              variant={hero ? "secondary" : "default"} 
-              size="sm" 
-              className="h-9 text-[10px] uppercase font-bold px-3"
-              onClick={() => setSelectingSlot(slotKey)}
-            >
-              {hero ? (language === 'ru' ? "СМЕНИТЬ" : "SWAP") : t.emptySlot}
-            </Button>
           </div>
+
+          {/* Quick Clear Button (Small X in corner) */}
+          {hero && !isSelected && (
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                assignToRole(slotKey, null);
+              }}
+              className="absolute top-1 right-1 p-1 text-muted-foreground/30 hover:text-destructive transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </CardContent>
       </Card>
     );
@@ -164,7 +166,6 @@ export default function SquadPage() {
           </div>
         </div>
         
-        {/* Team OVR Widget - Updated to Shield with Text Inside */}
         <div className="flex flex-col items-center justify-center min-w-[60px]">
           <p className="text-[10px] font-black text-primary tracking-widest uppercase leading-none mb-1">{t.teamOverall}</p>
           <div className="relative flex items-center justify-center group">
