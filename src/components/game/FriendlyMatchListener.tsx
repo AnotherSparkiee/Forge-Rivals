@@ -31,6 +31,9 @@ export function FriendlyMatchListener() {
   const [challengeResult, setChallengeResult] = useState<any | null>(null);
   const [isProcessing, setIsActionLoading] = useState(false);
   
+  // Guard for challenge modal to prevent multiple popups for the same request
+  const [showChallengeModal, setShowChallengeModal] = useState(false);
+  const handledChallengeIdRef = useRef<string | null>(null);
   const processedMatches = useRef<Set<string>>(new Set());
 
   // 1. Listen for challenges or active matches as Host
@@ -65,6 +68,20 @@ export function FriendlyMatchListener() {
     });
     return () => unsubscribe();
   }, [user, isUserLoading, db]);
+
+  // Challenge modal logic
+  useEffect(() => {
+    if (activeLobby?.status === 'challenged') {
+      const challengeId = activeLobby.updatedAt?.toMillis()?.toString() || 'init';
+      if (handledChallengeIdRef.current !== challengeId) {
+        setShowChallengeModal(true);
+        handledChallengeIdRef.current = challengeId;
+      }
+    } else if (activeLobby?.status !== 'challenged') {
+      setShowChallengeModal(false);
+      handledChallengeIdRef.current = null;
+    }
+  }, [activeLobby]);
 
   // 3. Expiration and Completion Logic
   useEffect(() => {
@@ -186,6 +203,7 @@ export function FriendlyMatchListener() {
       console.error(e);
     } finally {
       setIsActionLoading(false);
+      setShowChallengeModal(false);
     }
   };
 
@@ -197,9 +215,7 @@ export function FriendlyMatchListener() {
   };
 
   return (
-    <Dialog open={activeLobby?.status === 'challenged'} onOpenChange={(open) => {
-      if (!open && !isProcessing) setActiveLobby(null);
-    }}>
+    <Dialog open={showChallengeModal} onOpenChange={setShowChallengeModal}>
       <DialogContent className="max-w-xs bg-card border-white/10 p-6">
         <DialogHeader>
           <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 border border-primary/20">

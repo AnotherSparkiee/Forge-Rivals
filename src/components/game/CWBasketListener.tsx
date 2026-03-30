@@ -31,22 +31,29 @@ export function CWBasketListener() {
   const { toast } = useToast();
 
   const [showModal, setShowModal] = useState(false);
-  const [hasNotified, setHasNotified] = useState(false);
+  const notifiedMatchIdRef = useRef<string | null>(null);
   const isSimulatingRef = useRef(false);
 
   const myEntryRef = useMemoFirebase(() => user ? doc(db, 'cw_basket', user.uid) : null, [db, user]);
   const { data: myEntry } = useDoc(myEntryRef);
 
   useEffect(() => {
-    if (myEntry?.status === 'matched') {
-      // Notification modal
-      if (pathname !== '/tournaments/cw-basket' && !hasNotified) {
-        setShowModal(true);
-        setHasNotified(true);
+    if (myEntry?.status === 'matched' && myEntry.matchStartTime) {
+      const currentMatchId = myEntry.matchStartTime;
+
+      // Check if we already notified for THIS specific match
+      if (notifiedMatchIdRef.current !== currentMatchId) {
+        // Only show modal if we are NOT on the basket page
+        // If we are on the page, the user already sees the "Matched" status
+        if (pathname !== '/tournaments/cw-basket') {
+          setShowModal(true);
+        }
+        // Mark this match as "notified" so it doesn't pop up again on navigation or data sync
+        notifiedMatchIdRef.current = currentMatchId;
       }
 
       // Auto-simulation check
-      if (myEntry.matchStartTime && !isSimulatingRef.current) {
+      if (!isSimulatingRef.current) {
         const startTime = new Date(myEntry.matchStartTime).getTime();
         
         const checkAndSimulate = async () => {
@@ -94,11 +101,12 @@ export function CWBasketListener() {
         checkAndSimulate();
         return () => clearInterval(timer);
       }
-    } else {
+    } else if (myEntry?.status !== 'matched') {
+      // Reset notification ref when no match is active, allowing notifications for future matches
+      notifiedMatchIdRef.current = null;
       setShowModal(false);
-      setHasNotified(false);
     }
-  }, [myEntry, pathname, hasNotified, strategy, team, recordMatch, language, user, db, toast]);
+  }, [myEntry, pathname, strategy, team, recordMatch, language, user, db, toast]);
 
   const handleAcknowledge = () => {
     setShowModal(false);
