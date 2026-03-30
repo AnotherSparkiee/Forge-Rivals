@@ -105,6 +105,7 @@ export default function IronGlobePage() {
   const [isRegClosed, setIsRegClosed] = useState(false);
   const [hasFinished, setHasFinished] = useState(false);
   const notifiedRef = useRef(false);
+  const activeRecordRef = useRef(false);
   const finalResultRef = useRef(false);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
@@ -183,21 +184,41 @@ export default function IronGlobePage() {
     return getDeterministicTournament(getMoscowDateString(), participants || [], user.uid);
   }, [isRegClosed, participants, user]);
 
+  // Record Active status immediately after registration ends
+  useEffect(() => {
+    if (isRegClosed && isJoined && !hasFinished && !activeRecordRef.current && userRef && profile) {
+      const today = getMoscowDateString();
+      const alreadyHasActive = (profile.tournamentHistory || []).some(
+        (h: any) => h.tournamentId === 'iron-globe' && h.status === 'active' && h.startDate.includes(today)
+      );
+
+      if (!alreadyHasActive) {
+        activeRecordRef.current = true;
+        const mskNow = getMoscowTime();
+        const startTime = new Date(mskNow); startTime.setHours(21, 5, 0);
+        
+        const activeRecord = {
+          tournamentId: 'iron-globe',
+          tournamentName: language === 'ru' ? "Чугунный Глобус" : "Cast Iron Globe",
+          result: language === 'ru' ? "В процессе" : "In Progress",
+          startDate: startTime.toISOString(),
+          status: 'active'
+        };
+
+        updateDoc(userRef, {
+          tournamentHistory: arrayUnion(activeRecord)
+        }).catch(e => console.error("Failed to add active tour record", e));
+      }
+    }
+  }, [isRegClosed, isJoined, hasFinished, userRef, profile, language]);
+
+  // Finalize tournament: update active record to completed
   useEffect(() => {
     if (hasFinished && isJoined && !finalResultRef.current && userRef && profile && tournamentData) {
       finalResultRef.current = true;
       const mskNow = getMoscowTime();
-      const startTime = new Date(mskNow); startTime.setHours(21, 5, 0);
+      const today = getMoscowDateString();
       
-      const record = {
-        tournamentId: 'iron-globe',
-        tournamentName: language === 'ru' ? "Чугунный Глобус" : "Cast Iron Globe",
-        result: language === 'ru' ? "Завершено" : "Completed",
-        startDate: startTime.toISOString(),
-        endDate: mskNow.toISOString(),
-        status: 'completed'
-      };
-
       const opponent = tournamentData.myOpponent;
       const mockResult = {
         scoreA: 2, scoreB: 1,
@@ -208,10 +229,22 @@ export default function IronGlobePage() {
       
       recordMatch(profile.displayName || "Manager", mockResult, 0, opponent?.name || "Tournament Rival", 'tournament', mskNow.toISOString());
 
+      const updatedHistory = (profile.tournamentHistory || []).map((h: any) => {
+        if (h.tournamentId === 'iron-globe' && h.status === 'active' && h.startDate.includes(today)) {
+          return {
+            ...h,
+            status: 'completed',
+            endDate: mskNow.toISOString(),
+            result: language === 'ru' ? "Завершено" : "Completed"
+          };
+        }
+        return h;
+      });
+
       const updatedTours = (profile.tournaments || []).filter((t: string) => t !== 'iron-globe');
 
       updateDoc(userRef, {
-        tournamentHistory: arrayUnion(record),
+        tournamentHistory: updatedHistory,
         tournaments: updatedTours
       });
 
@@ -248,21 +281,27 @@ export default function IronGlobePage() {
     if (!user || !profile || !isJoined) return;
     try {
       const mskNow = getMoscowTime();
-      const startTime = new Date(mskNow); startTime.setHours(21, 5, 0);
+      const today = getMoscowDateString();
       
-      const record = {
-        tournamentId: 'iron-globe',
-        tournamentName: language === 'ru' ? "Чугунный Глобус" : "Cast Iron Globe",
-        result: language === 'ru' ? "DQ (Дезертирство)" : "DQ (Abandoned)",
-        startDate: startTime.toISOString(),
-        endDate: mskNow.toISOString(),
-        status: 'abandoned'
-      };
+      const updatedHistory = (profile.tournamentHistory || []).map((h: any) => {
+        if (h.tournamentId === 'iron-globe' && h.status === 'active' && h.startDate.includes(today)) {
+          return {
+            ...h,
+            status: 'abandoned',
+            endDate: mskNow.toISOString(),
+            result: language === 'ru' ? "DQ (Дезертирство)" : "DQ (Abandoned)"
+          };
+        }
+        return h;
+      });
+
+      // If it wasn't in history yet (e.g. before reg close), we don't necessarily add it as abandoned unless we want to
+      // But based on user request, it's in history after reg close.
 
       const updatedTours = (profile.tournaments || []).filter((t: string) => t !== 'iron-globe');
 
       await updateDoc(userRef!, {
-        tournamentHistory: arrayUnion(record),
+        tournamentHistory: updatedHistory,
         tournaments: updatedTours
       });
 

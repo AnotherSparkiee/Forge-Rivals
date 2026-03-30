@@ -6,7 +6,7 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, History, Trophy, Calendar, AlertCircle, Ban, Clock, ArrowRight } from 'lucide-react';
+import { ChevronLeft, History, Trophy, Calendar, AlertCircle, Ban, Clock, ArrowRight, Activity } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -30,6 +30,7 @@ export default function TournamentHistoryPage() {
     noHistoryDesc: language === 'ru' ? "Вы еще не завершили ни одного турнира." : "You haven't completed any tournaments yet.",
     dq: language === 'ru' ? "ДИСКВАЛИФИКАЦИЯ" : "DISQUALIFIED",
     finished: language === 'ru' ? "ЗАВЕРШЕНО" : "FINISHED",
+    active: language === 'ru' ? "АКТИВЕН" : "ACTIVE",
     start: language === 'ru' ? "НАЧАЛО" : "START",
     end: language === 'ru' ? "КОНЕЦ" : "END"
   };
@@ -54,31 +55,32 @@ export default function TournamentHistoryPage() {
         <div className="space-y-3">
           {history.map((record: any, idx: number) => {
             const isDQ = record.status === 'abandoned';
+            const isActive = record.status === 'active';
             const startDate = new Date(record.startDate);
-            const endDate = new Date(record.endDate);
+            const endDate = record.endDate ? new Date(record.endDate) : null;
             
             return (
               <Card key={idx} className={cn(
                 "glass-card border-white/5 overflow-hidden transition-all hover:bg-white/5",
-                isDQ ? "border-red-500/20 bg-red-500/5" : "border-primary/20 bg-primary/5"
+                isDQ ? "border-red-500/20 bg-red-500/5" : (isActive ? "border-primary/40 bg-primary/10" : "border-primary/20 bg-primary/5")
               )}>
                 <CardContent className="p-4">
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-3">
                       <div className={cn(
                         "p-2.5 rounded-xl border",
-                        isDQ ? "bg-red-500/20 border-red-500/30 text-red-400" : "bg-primary/20 border-primary/30 text-primary"
+                        isDQ ? "bg-red-500/20 border-red-500/30 text-red-400" : (isActive ? "bg-primary/30 border-primary/50 text-white animate-pulse" : "bg-primary/20 border-primary/30 text-primary")
                       )}>
-                        {isDQ ? <Ban className="w-5 h-5" /> : <Trophy className="w-5 h-5" />}
+                        {isDQ ? <Ban className="w-5 h-5" /> : (isActive ? <Activity className="w-5 h-5" /> : <Trophy className="w-5 h-5" />)}
                       </div>
                       <div>
                         <h3 className="text-sm font-bold uppercase leading-tight">{record.tournamentName}</h3>
                         <div className="flex items-center gap-2 mt-1">
                           <span className={cn(
                             "text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest",
-                            isDQ ? "bg-red-500/20 text-red-400" : "bg-accent/20 text-accent"
+                            isDQ ? "bg-red-500/20 text-red-400" : (isActive ? "bg-blue-500/40 text-white" : "bg-accent/20 text-accent")
                           )}>
-                            {isDQ ? t.dq : t.finished}
+                            {isDQ ? t.dq : (isActive ? t.active : t.finished)}
                           </span>
                           <span className="text-[8px] text-muted-foreground font-bold uppercase flex items-center gap-1">
                             <Calendar className="w-2 h-2" />
@@ -100,10 +102,10 @@ export default function TournamentHistoryPage() {
                     </div>
                     <div className="space-y-1 text-right">
                       <p className="text-[7px] uppercase text-muted-foreground font-black tracking-widest flex items-center gap-1 justify-end">
-                        {t.end} <ArrowRight className="w-2 h-2 text-primary" />
+                        {isActive ? (language === 'ru' ? 'В ЭФИРЕ' : 'LIVE') : t.end} {!isActive && <ArrowRight className="w-2 h-2 text-primary" />}
                       </p>
                       <p className="text-xs font-mono font-bold text-foreground">
-                        {endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {endDate ? endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                       </p>
                     </div>
                   </div>
