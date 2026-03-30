@@ -148,11 +148,12 @@ export default function MatchesPage() {
     // Check Globe
     if (profile?.tournaments?.includes('iron-globe')) {
       if (totalMins >= (20 * 60 + 50) && totalMins < (21 * 60 + 40)) {
-        const tour = getDeterministicTournament(dateStr, globeParticipants || [], user.uid);
+        const isLive = totalMins >= (21 * 60 + 5);
+        const tour = getDeterministicTournament(dateStr, globeParticipants || [], user.uid, isLive);
         return {
           opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
           time: "21:05",
-          isLive: totalMins >= (21 * 60 + 5),
+          isLive,
           type: 'tournament',
           tourName: language === 'ru' ? 'ЧУГУННЫЙ ГЛОБУС' : 'CAST IRON GLOBE'
         };
@@ -162,11 +163,12 @@ export default function MatchesPage() {
     // Check Brick
     if (profile?.tournaments?.includes('iron-brick')) {
       if (totalMins >= (21 * 60 + 20) && totalMins < (22 * 60 + 10)) {
-        const tour = getDeterministicTournament(dateStr, brickParticipants || [], user.uid);
+        const isLive = totalMins >= (21 * 60 + 35);
+        const tour = getDeterministicTournament(dateStr, brickParticipants || [], user.uid, isLive);
         return {
           opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
           time: "21:35",
-          isLive: totalMins >= (21 * 60 + 35),
+          isLive,
           type: 'tournament',
           tourName: language === 'ru' ? 'ЧУГУННЫЙ КИРПИЧ' : 'CAST IRON BRICK'
         };

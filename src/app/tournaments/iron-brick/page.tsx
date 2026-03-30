@@ -116,8 +116,8 @@ export default function IronBrickPage() {
 
   const tournamentData = useMemo(() => {
     if (!isRegClosed || !user) return null;
-    return getDeterministicTournament(getMoscowDateString(), participants || [], user.uid);
-  }, [isRegClosed, participants, user]);
+    return getDeterministicTournament(getMoscowDateString(), participants || [], user.uid, isLive);
+  }, [isRegClosed, participants, user, isLive]);
 
   useEffect(() => {
     if (isRegClosed && isJoined && !hasFinished && !activeRecordRef.current && userRef && profile) {

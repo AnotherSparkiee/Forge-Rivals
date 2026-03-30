@@ -101,11 +101,12 @@ export default function Home() {
       const startTotal = 21 * 60 + 5;
       const finishTotal = 21 * 60 + 40;
       if (totalMins >= (20 * 60 + 50) && totalMins < finishTotal) {
-        const tour = getDeterministicTournament(dateStr, globeParticipants || [], user.uid);
+        const isLive = totalMins >= startTotal;
+        const tour = getDeterministicTournament(dateStr, globeParticipants || [], user.uid, isLive);
         return {
           opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
           isFriendly: false, isTournament: true, isBasket: false,
-          isLive: totalMins >= startTotal,
+          isLive,
           time: "21:05", tourName: language === 'ru' ? 'ЧУГУННЫЙ ГЛОБУС' : 'CAST IRON GLOBE'
         };
       }
@@ -116,11 +117,12 @@ export default function Home() {
       const startTotal = 21 * 60 + 35;
       const finishTotal = 22 * 60 + 10;
       if (totalMins >= (21 * 60 + 20) && totalMins < finishTotal) {
-        const tour = getDeterministicTournament(dateStr, brickParticipants || [], user.uid);
+        const isLive = totalMins >= startTotal;
+        const tour = getDeterministicTournament(dateStr, brickParticipants || [], user.uid, isLive);
         return {
           opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
           isFriendly: false, isTournament: true, isBasket: false,
-          isLive: totalMins >= startTotal,
+          isLive,
           time: "21:35", tourName: language === 'ru' ? 'ЧУГУННЫЙ КИРПИЧ' : 'CAST IRON BRICK'
         };
       }

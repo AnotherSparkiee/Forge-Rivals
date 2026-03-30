@@ -30,7 +30,7 @@ const MAX_PARTICIPANTS = 16;
 /**
  * Deterministic helper to get tournament structure based on date and participants
  */
-export function getDeterministicTournament(dateStr: string, participants: any[], userId: string) {
+export function getDeterministicTournament(dateStr: string, participants: any[], userId: string, showResults: boolean = false) {
   const realPlayers = participants?.map(p => ({ id: p.id, name: p.displayName || "Manager", isPlayer: true })) || [];
   const botNeeded = Math.max(0, MAX_PARTICIPANTS - realPlayers.length);
   
@@ -72,10 +72,13 @@ export function getDeterministicTournament(dateStr: string, participants: any[],
     if (isMyGroup) myGroupIdx = idx;
 
     const groupResult = group.map(t => {
+      if (!showResults) {
+        return { ...t, pts: 0, w: 0, d: 0, l: 0 };
+      }
       // Deterministic points based on ID and date
       const ptsSeed = (t.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0) + seed) % 10;
       return { ...t, pts: ptsSeed, w: Math.floor(ptsSeed/3), d: ptsSeed % 3, l: Math.max(0, 3 - Math.floor(ptsSeed/3)) };
-    }).sort((a, b) => b.pts - a.pts);
+    }).sort((a, b) => b.pts - a.pts || a.id.localeCompare(b.id));
 
     return groupResult;
   });
@@ -181,8 +184,8 @@ export default function IronGlobePage() {
 
   const tournamentData = useMemo(() => {
     if (!isRegClosed || !user) return null;
-    return getDeterministicTournament(getMoscowDateString(), participants || [], user.uid);
-  }, [isRegClosed, participants, user]);
+    return getDeterministicTournament(getMoscowDateString(), participants || [], user.uid, isLive);
+  }, [isRegClosed, participants, user, isLive]);
 
   // Record Active status immediately after registration ends
   useEffect(() => {
