@@ -10,8 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   Trophy, Clock, Users, Coins, ChevronLeft, 
   ShieldCheck, Loader2, Star, Swords, Medal,
-  ArrowRight, CheckCircle2, User, UserCheck, AlertCircle,
-  LogOut, History as HistoryIcon
+  ArrowRight, CheckCircle2, User, History as HistoryIcon
 } from 'lucide-react';
 import Link from 'next/link';
 import { getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
@@ -20,7 +19,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { LEAGUES } from '@/app/lib/leagues-data';
 
 const TOURNAMENT_FEE = 90000;
 const START_TIME = "21:05";
@@ -29,7 +27,7 @@ const MAX_PARTICIPANTS = 16;
 
 /**
  * Deterministic helper to get tournament structure based on date and participants.
- * Now supports incremental progress based on current time.
+ * Supports incremental progress based on current time.
  */
 export function getDeterministicTournament(
   dateStr: string, 
@@ -67,7 +65,8 @@ export function getDeterministicTournament(
   const diffMs = mskNow.getTime() - startDate.getTime();
   const elapsedMins = Math.floor(diffMs / 60000);
 
-  // Group Rounds: 1 round every 5 mins (total 15 mins)
+  // Group Rounds: 1 round every 5 mins (total 15 mins for 3 matches per team)
+  // Points appear strictly after the match "ends" by time.
   const completedGroupRounds = Math.min(3, Math.max(0, Math.floor(elapsedMins / 5)));
   const isPlayoffsVisible = elapsedMins >= 15;
 
@@ -75,7 +74,7 @@ export function getDeterministicTournament(
     const groupResult = group.map(t => {
       let pts = 0, w = 0, d = 0, l = 0;
       
-      // Points appear incrementally per completed round
+      // Points appear incrementally per completed round based on time passing
       for (let r = 1; r <= completedGroupRounds; r++) {
         const roundSeed = (t.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0) + seed + r) % 10;
         if (roundSeed < 4) { pts += 3; w++; }
@@ -195,7 +194,7 @@ export default function IronGlobePage() {
   const tournamentData = useMemo(() => {
     if (!isRegClosed || !user) return null;
     return getDeterministicTournament(getMoscowDateString(), participants || [], user.uid, getMoscowTime(), START_TIME);
-  }, [isRegClosed, participants, user, countdown]); // Update memo when countdown ticks (every 1s)
+  }, [isRegClosed, participants, user, countdown]);
 
   useEffect(() => {
     if (isRegClosed && isJoined && !hasFinished && !activeRecordRef.current && userRef && profile) {
@@ -288,45 +287,9 @@ export default function IronGlobePage() {
     }
   };
 
-  const handleLeave = async () => {
-    if (!user || !profile || !isJoined) return;
-    try {
-      const mskNow = getMoscowTime();
-      const today = getMoscowDateString();
-      
-      const updatedHistory = (profile.tournamentHistory || []).map((h: any) => {
-        if (h.tournamentId === 'iron-globe' && h.status === 'active' && h.startDate.includes(today)) {
-          return {
-            ...h,
-            status: 'abandoned',
-            endDate: mskNow.toISOString(),
-            result: language === 'ru' ? "DQ (Дезертирство)" : "DQ (Abandoned)"
-          };
-        }
-        return h;
-      });
-
-      const updatedTours = (profile.tournaments || []).filter((t: string) => t !== 'iron-globe');
-
-      await updateDoc(userRef!, {
-        tournamentHistory: updatedHistory,
-        tournaments: updatedTours
-      });
-
-      toast({
-        variant: "destructive",
-        title: language === 'ru' ? "ВНИМАНИЕ: Вы покинули турнир" : "WARNING: You left the tournament",
-        description: language === 'ru' ? "Команда дисквалифицирована за отход от боя." : "Team disqualified for abandoning the field.",
-      });
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   const t = {
     title: language === 'ru' ? "ЧУГУННЫЙ ГЛОБУС" : "CHUGUNNY GLOBE",
     subtitle: language === 'ru' ? "Элитное соревнование 16-ти лучших" : "Elite 16-team competition",
-    leaveBtn: language === 'ru' ? "ПОКИНУТЬ ТУРНИР" : "LEAVE TOURNAMENT",
     results: language === 'ru' ? "ИТОГИ ТУРНИРА" : "TOURNAMENT RESULTS",
     participants: language === 'ru' ? "СПИСОК УЧАСТНИКОВ" : "PARTICIPANTS LIST",
     spots: language === 'ru' ? "мест занято" : "spots filled"
@@ -346,11 +309,6 @@ export default function IronGlobePage() {
             <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
           </div>
         </div>
-        {isJoined && isRegClosed && !hasFinished && (
-          <Button variant="outline" size="sm" className="border-red-500/20 text-red-400 text-[8px] font-black h-8 px-2" onClick={handleLeave}>
-            <LogOut className="w-3 h-3 mr-1" /> {t.leaveBtn}
-          </Button>
-        )}
       </header>
 
       {hasFinished ? (

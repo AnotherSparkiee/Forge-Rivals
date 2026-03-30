@@ -10,8 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   Trophy, Clock, Users, Coins, ChevronLeft, 
   ShieldCheck, Loader2, Star, Swords, Medal,
-  ArrowRight, CheckCircle2, User, UserCheck, AlertCircle,
-  LogOut, History as HistoryIcon
+  ArrowRight, CheckCircle2, User, History as HistoryIcon
 } from 'lucide-react';
 import Link from 'next/link';
 import { getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
@@ -210,45 +209,9 @@ export default function IronBrickPage() {
     }
   };
 
-  const handleLeave = async () => {
-    if (!user || !profile || !isJoined) return;
-    try {
-      const mskNow = getMoscowTime();
-      const today = getMoscowDateString();
-      
-      const updatedHistory = (profile.tournamentHistory || []).map((h: any) => {
-        if (h.tournamentId === TOUR_ID && h.status === 'active' && h.startDate.includes(today)) {
-          return {
-            ...h,
-            status: 'abandoned',
-            endDate: mskNow.toISOString(),
-            result: language === 'ru' ? "DQ (Дезертирство)" : "DQ (Abandoned)"
-          };
-        }
-        return h;
-      });
-
-      const updatedTours = (profile.tournaments || []).filter((t: string) => t !== TOUR_ID);
-
-      await updateDoc(userRef!, {
-        tournamentHistory: updatedHistory,
-        tournaments: updatedTours
-      });
-
-      toast({
-        variant: "destructive",
-        title: language === 'ru' ? "ВНИМАНИЕ: Вы покинули турнир" : "WARNING: You left the tournament",
-        description: language === 'ru' ? "Команда дисквалифицирована за отход от боя." : "Team disqualified for abandoning the field.",
-      });
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   const t = {
     title: language === 'ru' ? "ЧУГУННЫЙ КИРПИЧ" : "CHUGUNNY BRICK",
     subtitle: language === 'ru' ? "Элитное соревнование 16-ти лучших" : "Elite 16-team competition",
-    leaveBtn: language === 'ru' ? "ПОКИНУТЬ ТУРНИР" : "LEAVE TOURNAMENT",
     results: language === 'ru' ? "ИТОГИ ТУРНИРА" : "TOURNAMENT RESULTS",
     participants: language === 'ru' ? "СПИСОК УЧАСТНИКОВ" : "PARTICIPANTS LIST",
     spots: language === 'ru' ? "мест занято" : "spots filled"
@@ -268,11 +231,6 @@ export default function IronBrickPage() {
             <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
           </div>
         </div>
-        {isJoined && isRegClosed && !hasFinished && (
-          <Button variant="outline" size="sm" className="border-red-500/20 text-red-400 text-[8px] font-black h-8 px-2" onClick={handleLeave}>
-            <LogOut className="w-3 h-3 mr-1" /> {t.leaveBtn}
-          </Button>
-        )}
       </header>
 
       {hasFinished ? (
