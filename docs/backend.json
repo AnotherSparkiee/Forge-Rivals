@@ -53,6 +53,21 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       }
     },
+    "CWBasketEntry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CWBasketEntry",
+      "type": "object",
+      "description": "A request in the quick match basket.",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "status": { "type": "string", "enum": ["searching", "matched"] },
+        "matchedWithId": { "type": "string" },
+        "matchedWithName": { "type": "string" },
+        "matchStartTime": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
     "ChatMessage": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "ChatMessage",
@@ -96,6 +111,10 @@
       {
         "path": "/friendly_lobbies/{userId}",
         "definition": { "entityName": "FriendlyLobby" }
+      },
+      {
+        "path": "/cw_basket/{userId}",
+        "definition": { "entityName": "CWBasketEntry" }
       },
       {
         "path": "/global_chat/{messageId}",

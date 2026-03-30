@@ -9,18 +9,19 @@ service cloud.firestore {
 
     // Version 5 - Fresh reset with email verification
     match /players_v5/{userId} {
-      // Allow read for everyone to enable username checks, rankings, and chat display names
       allow read: if true;
-      // Only the authenticated owner can write to their own profile
       allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
     match /friendly_lobbies/{userId} {
-      // Allow searching for active matches
       allow read: if isSignedIn();
-      // Allow creation and deletion by the host
       allow create, delete: if isSignedIn() && request.auth.uid == userId;
-      // Allow updates (challenges/acceptances) by any signed-in user
+      allow update: if isSignedIn();
+    }
+
+    match /cw_basket/{userId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isSignedIn() && request.auth.uid == userId;
       allow update: if isSignedIn();
     }
 
@@ -31,20 +32,12 @@ service cloud.firestore {
     }
 
     match /private_messages/{messageId} {
-      // Crucial: allow read if the user is part of the participants array
-      // This supports both 'get' and 'list' queries with 'array-contains' filter
       allow read: if isSignedIn() && (request.auth.uid in resource.data.participants);
-      
-      // Allow creation if the current user is one of the participants
       allow create: if isSignedIn() && (request.auth.uid in request.resource.data.participants);
-      
-      // Allow updating (e.g., marking as read) if the user is a participant
-      allow update: if isSignedIn() && (request.auth.uid in resource.data.participants);
-      
+      allow update: if isSignedIn() && (request.auth.uid in request.resource.data.participants);
       allow delete: if false;
     }
 
-    // Default deny for all other paths
     match /{document=**} {
       allow read, write: if false;
     }

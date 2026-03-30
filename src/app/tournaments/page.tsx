@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { 
   Trophy, Medal, Swords, UserPlus, 
   Search, History, Gamepad2, ChevronLeft, 
-  ChevronRight, Loader2, XCircle
+  ChevronRight, Loader2, XCircle, ShoppingBasket
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -58,6 +58,7 @@ export default function TournamentsPage() {
       descSchedule: "Post a request for a friendly encounter",
       descCancel: "Withdraw your current match request",
       descOpen: "Find managers looking for practice",
+      descCW: "Quick random matchmaking system",
       toastPosted: "Request Posted",
       toastPostedDesc: "Your challenge is now visible in the lobby.",
       toastCancelled: "Request Withdrawn",
@@ -77,6 +78,7 @@ export default function TournamentsPage() {
       descSchedule: "Разместить заявку на проведение встречи",
       descCancel: "Удалить вашу текущую заявку из списка",
       descOpen: "Поиск менеджеров для тренировки",
+      descCW: "Система быстрого случайного подбора",
       toastPosted: "Заявка размещена",
       toastPostedDesc: "Ваш вызов теперь виден в списке открытых матчей.",
       toastCancelled: "Заявка отменена",
@@ -121,9 +123,9 @@ export default function TournamentsPage() {
       color: myLobby ? "text-red-400" : "text-primary"
     },
     { label: t.open, desc: t.descOpen, icon: Search, active: true, href: '/tournaments/open-friendlies' },
+    { label: t.cw, desc: t.descCW, icon: ShoppingBasket, active: true, href: '/tournaments/cw-basket' },
     { label: t.tournaments, desc: language === 'ru' ? "Активные чемпионаты и кубки" : "Active championships", icon: Trophy, active: true, href: '/tournaments/open' },
     { label: t.history, desc: language === 'ru' ? "Архив ваших выступлений" : "Archive of your battles", icon: History, active: true, href: '/tournaments/history' },
-    { label: t.cw, desc: "Clan War coordination", icon: Swords, active: false },
     { label: t.trial, desc: "Test against AI", icon: Gamepad2, active: false },
   ];
 
