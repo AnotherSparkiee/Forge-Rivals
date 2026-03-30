@@ -195,7 +195,7 @@ export default function IronGlobePage() {
       if (!alreadyHasActive) {
         activeRecordRef.current = true;
         const mskNow = getMoscowTime();
-        const startTime = new Date(mskNow); startTime.setHours(21, 5, 0);
+        const startTime = new Date(mskNow); startTime.setHours(21, 5, 0, 0);
         
         const activeRecord = {
           tournamentId: 'iron-globe',
@@ -295,9 +295,6 @@ export default function IronGlobePage() {
         return h;
       });
 
-      // If it wasn't in history yet (e.g. before reg close), we don't necessarily add it as abandoned unless we want to
-      // But based on user request, it's in history after reg close.
-
       const updatedTours = (profile.tournaments || []).filter((t: string) => t !== 'iron-globe');
 
       await updateDoc(userRef!, {
@@ -330,7 +327,7 @@ export default function IronGlobePage() {
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
       <header className="mb-6 flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Link href="/tournaments/open">
+          <Link href="/tournaments/history">
             <Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button>
           </Link>
           <div>

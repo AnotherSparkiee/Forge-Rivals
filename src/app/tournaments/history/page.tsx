@@ -13,6 +13,7 @@ import {
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { getMoscowTime } from '@/app/lib/time-utils';
 
 export default function TournamentHistoryPage() {
   const { user, isUserLoading } = useUser();
@@ -39,7 +40,29 @@ export default function TournamentHistoryPage() {
     viewLive: language === 'ru' ? "СМОТРЕТЬ" : "VIEW LIVE"
   };
 
-  const history = profile?.tournamentHistory || [];
+  // Logic to determine if a tournament should be displayed as ACTIVE even if not yet in DB history
+  const mskNow = getMoscowTime();
+  const isIronGlobeActiveTime = mskNow.getHours() > 20 || (mskNow.getHours() === 20 && mskNow.getMinutes() >= 50);
+  
+  const rawHistory = profile?.tournamentHistory || [];
+  let displayHistory = [...rawHistory];
+
+  // If user is registered for Iron Globe and registration is closed, ensure it shows up in history
+  if (profile?.tournaments?.includes('iron-globe') && isIronGlobeActiveTime) {
+    const alreadyHasActive = displayHistory.some(h => h.tournamentId === 'iron-globe' && h.status === 'active');
+    if (!alreadyHasActive) {
+      const startTime = new Date(mskNow);
+      startTime.setHours(21, 5, 0, 0);
+      
+      displayHistory.push({
+        tournamentId: 'iron-globe',
+        tournamentName: language === 'ru' ? "Чугунный Глобус" : "Cast Iron Globe",
+        result: language === 'ru' ? "В процессе" : "In Progress",
+        startDate: startTime.toISOString(),
+        status: 'active'
+      });
+    }
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
@@ -55,19 +78,18 @@ export default function TournamentHistoryPage() {
         </div>
       </header>
 
-      {history.length > 0 ? (
+      {displayHistory.length > 0 ? (
         <div className="space-y-3">
-          {history.map((record: any, idx: number) => {
+          {displayHistory.map((record: any, idx: number) => {
             const isDQ = record.status === 'abandoned';
             const isActive = record.status === 'active';
             const startDate = new Date(record.startDate);
             const endDate = record.endDate ? new Date(record.endDate) : null;
             
-            // Map tournamentId to specific page
             const href = record.tournamentId === 'iron-globe' ? '/tournaments/iron-globe' : '#';
             
             return (
-              <Link key={idx} href={href} className="block group">
+              <Link key={`${record.tournamentId}-${idx}`} href={href} className="block group">
                 <Card className={cn(
                   "glass-card border-white/5 overflow-hidden transition-all group-hover:bg-white/5",
                   isDQ ? "border-red-500/20 bg-red-500/5" : (isActive ? "border-primary/40 bg-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "border-primary/20 bg-primary/5")
