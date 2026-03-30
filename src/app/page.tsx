@@ -49,10 +49,15 @@ export default function Home() {
 
   const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
 
-  const tourParticipantsQuery = useMemoFirebase(() => {
+  const globeParticipantsQuery = useMemoFirebase(() => {
     return query(collection(db, 'players_v5'), where('tournaments', 'array-contains', 'iron-globe'));
   }, [db]);
-  const { data: tourParticipants } = useCollection(tourParticipantsQuery);
+  const { data: globeParticipants } = useCollection(globeParticipantsQuery);
+
+  const brickParticipantsQuery = useMemoFirebase(() => {
+    return query(collection(db, 'players_v5'), where('tournaments', 'array-contains', 'iron-brick'));
+  }, [db]);
+  const { data: brickParticipants } = useCollection(brickParticipantsQuery);
 
   // Listen for CW Basket matches
   const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket', user.uid) : null, [db, user]);
@@ -86,31 +91,43 @@ export default function Home() {
 
   // Determine if tournament is active and showing next opponent
   const tournamentNextMatch = useMemo(() => {
-    if (!isLoaded || !profile?.tournaments?.includes('iron-globe') || !user) return null;
+    if (!isLoaded || !user) return null;
     const mskNow = getMoscowTime();
     const dateStr = getMoscowDateString();
-    
-    const [ch, cm] = "20:50".split(':').map(Number);
-    const cutoff = new Date(mskNow); cutoff.setHours(ch, cm, 0, 0);
-    
-    const [fh, fm] = "21:35".split(':').map(Number);
-    const finish = new Date(mskNow); finish.setHours(fh, fm, 0, 0);
+    const totalMins = mskNow.getHours() * 60 + mskNow.getMinutes();
 
-    if (mskNow.getTime() >= cutoff.getTime() && mskNow.getTime() < finish.getTime()) {
-      const tour = getDeterministicTournament(dateStr, tourParticipants || [], user.uid);
-      const isLive = mskNow.getHours() === 21 && mskNow.getMinutes() >= 5;
-      
-      return {
-        opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
-        isFriendly: false,
-        isTournament: true,
-        isBasket: false,
-        isLive,
-        time: "21:05"
-      };
+    // Check Iron Globe
+    if (profile?.tournaments?.includes('iron-globe')) {
+      const startTotal = 21 * 60 + 5;
+      const finishTotal = 21 * 60 + 40;
+      if (totalMins >= (20 * 60 + 50) && totalMins < finishTotal) {
+        const tour = getDeterministicTournament(dateStr, globeParticipants || [], user.uid);
+        return {
+          opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
+          isFriendly: false, isTournament: true, isBasket: false,
+          isLive: totalMins >= startTotal,
+          time: "21:05", tourName: language === 'ru' ? 'ЧУГУННЫЙ ГЛОБУС' : 'CAST IRON GLOBE'
+        };
+      }
     }
+
+    // Check Iron Brick
+    if (profile?.tournaments?.includes('iron-brick')) {
+      const startTotal = 21 * 60 + 35;
+      const finishTotal = 22 * 60 + 10;
+      if (totalMins >= (21 * 60 + 20) && totalMins < finishTotal) {
+        const tour = getDeterministicTournament(dateStr, brickParticipants || [], user.uid);
+        return {
+          opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
+          isFriendly: false, isTournament: true, isBasket: false,
+          isLive: totalMins >= startTotal,
+          time: "21:35", tourName: language === 'ru' ? 'ЧУГУННЫЙ КИРПИЧ' : 'CAST IRON BRICK'
+        };
+      }
+    }
+
     return null;
-  }, [isLoaded, profile, tourParticipants, user]);
+  }, [isLoaded, profile, globeParticipants, brickParticipants, user, language]);
 
   const basketNextMatch = useMemo(() => {
     if (!basketEntry || basketEntry.status !== 'matched' || !basketEntry.matchStartTime) return null;
@@ -261,7 +278,7 @@ export default function Home() {
                     {displayMatchInfo.opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'}
                   </Badge>
                   <div className={cn("text-[10px] font-bold", (displayMatchInfo.isFriendly || displayMatchInfo.isLive || displayMatchInfo.isBasket) ? "text-green-400" : "text-accent")}>
-                    {displayMatchInfo.isTournament ? (language === 'ru' ? 'ЧУГУННЫЙ ГЛОБУС' : 'CAST IRON GLOBE') : 
+                    {displayMatchInfo.isTournament ? (displayMatchInfo.tourName || 'TOURNAMENT') : 
                      displayMatchInfo.isFriendly ? (language === 'ru' ? 'ТОВАРИЩЕСКИЙ МАТЧ' : 'FRIENDLY MATCH') : 
                      displayMatchInfo.isBasket ? (language === 'ru' ? 'МАТЧ КВ КОРЗИНЫ' : 'CW BASKET MATCH') :
                      `DIV ${leagueLevel}.${divisionSubId} | Day ${displayMatchInfo.day}`}

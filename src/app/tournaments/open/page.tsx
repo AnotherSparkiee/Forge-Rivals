@@ -16,9 +16,12 @@ export default function OpenTournamentsPage() {
   const mskNow = getMoscowTime();
   const currentHour = mskNow.getHours();
   const currentMin = mskNow.getMinutes();
+  const totalMins = currentHour * 60 + currentMin;
   
-  // Registration for Iron Globe closes at 20:50 MSK
-  const isIronGlobeClosed = currentHour > 20 || (currentHour === 20 && currentMin >= 50);
+  // Registration for Iron Globe closes at 20:50 MSK (1250 mins)
+  const isIronGlobeClosed = totalMins >= (20 * 60 + 50);
+  // Registration for Iron Brick closes at 21:20 MSK (1280 mins)
+  const isIronBrickClosed = totalMins >= (21 * 60 + 20);
 
   const t = {
     title: language === 'ru' ? "ОТКРЫТЫЕ ТУРНИРЫ" : "OPEN TOURNAMENTS",
@@ -35,10 +38,17 @@ export default function OpenTournamentsPage() {
         desc: language === 'ru' ? 'Престижный кубок для закаленных менеджеров.' : 'A prestigious cup for battle-hardened managers.',
         fee: 90000,
         startTime: '21:05',
-        regCloseTime: '20:50',
-        teams: 16,
         active: !isIronGlobeClosed,
         href: '/tournaments/iron-globe'
+      },
+      {
+        id: 'iron-brick',
+        name: language === 'ru' ? 'Чугунный Кирпич' : 'Cast Iron Brick',
+        desc: language === 'ru' ? 'Вечерний турнир для тех, кто не боится трудностей.' : 'Late evening tournament for those who fear no obstacles.',
+        fee: 90000,
+        startTime: '21:35',
+        active: !isIronBrickClosed,
+        href: '/tournaments/iron-brick'
       }
     ]
   };
@@ -95,7 +105,7 @@ export default function OpenTournamentsPage() {
                       <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1 flex items-center justify-center gap-1">
                         <Users className="w-2.5 h-2.5" /> {t.participants}
                       </p>
-                      <p className="text-xs font-bold">{tour.teams}</p>
+                      <p className="text-xs font-bold">16</p>
                     </div>
                   </div>
                 </CardContent>

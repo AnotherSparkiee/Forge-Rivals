@@ -75,10 +75,15 @@ export default function MatchesPage() {
   }, [db, user?.uid]);
   const { data: challengerLobbies } = useCollection(challengerLobbyQuery);
 
-  const tourParticipantsQuery = useMemoFirebase(() => {
+  const globeParticipantsQuery = useMemoFirebase(() => {
     return query(collection(db, 'players_v5'), where('tournaments', 'array-contains', 'iron-globe'));
   }, [db]);
-  const { data: tourParticipants } = useCollection(tourParticipantsQuery);
+  const { data: globeParticipants } = useCollection(globeParticipantsQuery);
+
+  const brickParticipantsQuery = useMemoFirebase(() => {
+    return query(collection(db, 'players_v5'), where('tournaments', 'array-contains', 'iron-brick'));
+  }, [db]);
+  const { data: brickParticipants } = useCollection(brickParticipantsQuery);
 
   const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket', user.uid) : null, [db, user]);
   const { data: basketEntry } = useDoc(myBasketRef);
@@ -135,24 +140,41 @@ export default function MatchesPage() {
 
   // Priority 2: Tournament
   const tournamentInfo = useMemo(() => {
-    if (!isLoaded || !profile?.tournaments?.includes('iron-globe') || !user) return null;
+    if (!isLoaded || !user) return null;
     const mskNow = getMoscowTime();
-    const [ch, cm] = "20:50".split(':').map(Number);
-    const cutoff = new Date(mskNow); cutoff.setHours(ch, cm, 0, 0);
-    const [fh, fm] = "21:35".split(':').map(Number);
-    const finish = new Date(mskNow); finish.setHours(fh, fm, 0, 0);
+    const dateStr = getMoscowDateString();
+    const totalMins = mskNow.getHours() * 60 + mskNow.getMinutes();
 
-    if (mskNow.getTime() >= cutoff.getTime() && mskNow.getTime() < finish.getTime()) {
-      const tour = getDeterministicTournament(getMoscowDateString(), tourParticipants || [], user.uid);
-      return {
-        opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
-        time: "21:05",
-        isLive: mskNow.getHours() === 21 && mskNow.getMinutes() >= 5,
-        type: 'tournament'
-      };
+    // Check Globe
+    if (profile?.tournaments?.includes('iron-globe')) {
+      if (totalMins >= (20 * 60 + 50) && totalMins < (21 * 60 + 40)) {
+        const tour = getDeterministicTournament(dateStr, globeParticipants || [], user.uid);
+        return {
+          opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
+          time: "21:05",
+          isLive: totalMins >= (21 * 60 + 5),
+          type: 'tournament',
+          tourName: language === 'ru' ? 'ЧУГУННЫЙ ГЛОБУС' : 'CAST IRON GLOBE'
+        };
+      }
     }
+
+    // Check Brick
+    if (profile?.tournaments?.includes('iron-brick')) {
+      if (totalMins >= (21 * 60 + 20) && totalMins < (22 * 60 + 10)) {
+        const tour = getDeterministicTournament(dateStr, brickParticipants || [], user.uid);
+        return {
+          opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
+          time: "21:35",
+          isLive: totalMins >= (21 * 60 + 35),
+          type: 'tournament',
+          tourName: language === 'ru' ? 'ЧУГУННЫЙ КИРПИЧ' : 'CAST IRON BRICK'
+        };
+      }
+    }
+
     return null;
-  }, [isLoaded, profile, tourParticipants, user]);
+  }, [isLoaded, profile, globeParticipants, brickParticipants, user, language]);
 
   // Priority 3: CW Basket
   const basketInfo = useMemo(() => {
@@ -451,7 +473,9 @@ export default function MatchesPage() {
               isLive && "border-green-500/30 bg-green-500/5"
             )}>
               <CardHeader className="text-center pb-2">
-                <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">Intelligence Report</CardTitle>
+                <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">
+                  {(nextMatchInfo as any).tourName || "Intelligence Report"}
+                </CardTitle>
                 <div className="flex flex-col items-center gap-2 mt-4">
                   <div className="bg-background/50 px-6 py-2 rounded-xl border border-white/5">
                     <p className="text-[10px] font-bold text-muted-foreground uppercase text-center mb-1">{isLive ? (isFriendly ? t.friendlyLive : t.tourLive) : t.startsIn}</p>

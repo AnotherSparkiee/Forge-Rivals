@@ -40,23 +40,38 @@ export default function TournamentHistoryPage() {
     viewLive: language === 'ru' ? "СМОТРЕТЬ" : "VIEW LIVE"
   };
 
-  // Logic to determine if a tournament should be displayed as ACTIVE even if not yet in DB history
   const mskNow = getMoscowTime();
-  const isIronGlobeActiveTime = mskNow.getHours() > 20 || (mskNow.getHours() === 20 && mskNow.getMinutes() >= 50);
+  const totalMins = mskNow.getHours() * 60 + mskNow.getMinutes();
+  
+  const isIronGlobeActiveTime = totalMins >= (20 * 60 + 50) && totalMins < (21 * 60 + 40);
+  const isIronBrickActiveTime = totalMins >= (21 * 60 + 20) && totalMins < (22 * 60 + 10);
   
   const rawHistory = profile?.tournamentHistory || [];
   let displayHistory = [...rawHistory];
 
-  // If user is registered for Iron Globe and registration is closed, ensure it shows up in history
+  // Auto-detect active Iron Globe
   if (profile?.tournaments?.includes('iron-globe') && isIronGlobeActiveTime) {
     const alreadyHasActive = displayHistory.some(h => h.tournamentId === 'iron-globe' && h.status === 'active');
     if (!alreadyHasActive) {
-      const startTime = new Date(mskNow);
-      startTime.setHours(21, 5, 0, 0);
-      
+      const startTime = new Date(mskNow); startTime.setHours(21, 5, 0, 0);
       displayHistory.push({
         tournamentId: 'iron-globe',
         tournamentName: language === 'ru' ? "Чугунный Глобус" : "Cast Iron Globe",
+        result: language === 'ru' ? "В процессе" : "In Progress",
+        startDate: startTime.toISOString(),
+        status: 'active'
+      });
+    }
+  }
+
+  // Auto-detect active Iron Brick
+  if (profile?.tournaments?.includes('iron-brick') && isIronBrickActiveTime) {
+    const alreadyHasActive = displayHistory.some(h => h.tournamentId === 'iron-brick' && h.status === 'active');
+    if (!alreadyHasActive) {
+      const startTime = new Date(mskNow); startTime.setHours(21, 35, 0, 0);
+      displayHistory.push({
+        tournamentId: 'iron-brick',
+        tournamentName: language === 'ru' ? "Чугунный Кирпич" : "Cast Iron Brick",
         result: language === 'ru' ? "В процессе" : "In Progress",
         startDate: startTime.toISOString(),
         status: 'active'
@@ -86,7 +101,8 @@ export default function TournamentHistoryPage() {
             const startDate = new Date(record.startDate);
             const endDate = record.endDate ? new Date(record.endDate) : null;
             
-            const href = record.tournamentId === 'iron-globe' ? '/tournaments/iron-globe' : '#';
+            const href = record.tournamentId === 'iron-globe' ? '/tournaments/iron-globe' : 
+                         (record.tournamentId === 'iron-brick' ? '/tournaments/iron-brick' : '#');
             
             return (
               <Link key={`${record.tournamentId}-${idx}`} href={href} className="block group">
