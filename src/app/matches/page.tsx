@@ -7,7 +7,7 @@ import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, CalendarDays, UserSearch, CalendarClock, 
   History, Calendar, CheckSquare, ChevronRight, Shield,
-  Clock, Swords
+  Clock, Swords, Trophy
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -61,6 +61,20 @@ export default function MatchesPage() {
 
   const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
 
+  // Active Friendly or Trial Match
+  const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies', user.uid) : null, [db, user]);
+  const { data: myLobby } = useDoc(myLobbyRef);
+
+  const challengerLobbyQuery = useMemoFirebase(() => {
+    if (!user?.uid) return null;
+    return query(
+      collection(db, 'friendly_lobbies'), 
+      where('challengerId', '==', user.uid), 
+      where('status', '==', 'accepted')
+    );
+  }, [db, user?.uid]);
+  const { data: challengerLobbies } = useCollection(challengerLobbyQuery);
+
   const tourParticipantsQuery = useMemoFirebase(() => {
     return query(collection(db, 'players_v5'), where('tournaments', 'array-contains', 'iron-globe'));
   }, [db]);
@@ -99,7 +113,27 @@ export default function MatchesPage() {
     return getSchedule(groupTeams);
   }, [groupTeams]);
 
-  // Sync tournament opponent
+  // Priority 1: Friendly or Trial
+  const friendlyInfo = useMemo(() => {
+    const activeLobby = (myLobby?.status === 'accepted') ? myLobby : (challengerLobbies?.[0]);
+    if (activeLobby && activeLobby.acceptedAt) {
+      const acceptedAt = activeLobby.acceptedAt.toMillis();
+      if (Date.now() < acceptedAt + (15 * 60 * 1000)) {
+        return {
+          opponent: { 
+            name: activeLobby.hostId === user?.uid ? activeLobby.challengerName : activeLobby.hostName, 
+            isPlayer: !activeLobby.isTrial 
+          },
+          time: new Date(acceptedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          type: 'friendly',
+          acceptedAt
+        };
+      }
+    }
+    return null;
+  }, [myLobby, challengerLobbies, user]);
+
+  // Priority 2: Tournament
   const tournamentInfo = useMemo(() => {
     if (!isLoaded || !profile?.tournaments?.includes('iron-globe') || !user) return null;
     const mskNow = getMoscowTime();
@@ -120,7 +154,7 @@ export default function MatchesPage() {
     return null;
   }, [isLoaded, profile, tourParticipants, user]);
 
-  // Sync basket match
+  // Priority 3: CW Basket
   const basketInfo = useMemo(() => {
     if (basketEntry?.status === 'matched' && basketEntry.matchStartTime) {
       const startTime = new Date(basketEntry.matchStartTime).getTime();
@@ -136,7 +170,9 @@ export default function MatchesPage() {
     return null;
   }, [basketEntry]);
 
+  // Final Priority: League or Mixed
   const nextMatchInfo = useMemo(() => {
+    if (friendlyInfo) return friendlyInfo;
     if (tournamentInfo) return tournamentInfo;
     if (basketInfo) return basketInfo;
     
@@ -159,7 +195,7 @@ export default function MatchesPage() {
       isNextDay: targetDay > seasonDay,
       type: 'league'
     };
-  }, [isLoaded, profile, groupTeams, schedule, seasonDay, isTodayPlayed, league, user?.uid, tournamentInfo, basketInfo]);
+  }, [isLoaded, profile, groupTeams, schedule, seasonDay, isTodayPlayed, league, user?.uid, tournamentInfo, basketInfo, friendlyInfo]);
 
   useEffect(() => {
     if (activeTab !== 'next_opponent' || !nextMatchInfo) return;
@@ -167,6 +203,17 @@ export default function MatchesPage() {
     const interval = setInterval(() => {
       const mskNow = getMoscowTime();
       
+      if (nextMatchInfo.type === 'friendly') {
+        const diff = ((nextMatchInfo as any).acceptedAt + 15 * 60 * 1000) - Date.now();
+        if (diff <= 0) setCountdown('00:00:00');
+        else {
+          const m = Math.floor(diff / 60000);
+          const s = Math.floor((diff % 60000) / 1000);
+          setCountdown(`00:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+        }
+        return;
+      }
+
       if (nextMatchInfo.type === 'basket') {
         const diff = (nextMatchInfo as any).startTime - Date.now();
         if (diff <= 0) {
@@ -236,6 +283,7 @@ export default function MatchesPage() {
       tomorrow: "TOMORROW",
       startsIn: "TIME UNTIL MATCH:",
       tourLive: "LIVE TOURNAMENT MATCH",
+      friendlyLive: "LIVE ENGAGEMENT",
       tabs: {
         next_opponent: { label: "Next Opponent", desc: "Detailed brief on your next rival", icon: UserSearch },
         my_future: { label: "My Future", desc: "Upcoming matches for your team", icon: CalendarClock },
@@ -259,6 +307,7 @@ export default function MatchesPage() {
       tomorrow: "ЗАВТРА",
       startsIn: "ДО МАТЧА ОСТАЛОСЬ:",
       tourLive: "ТУРНИРНЫЙ БОЙ В ЭФИРЕ",
+      friendlyLive: "ТЕКУЩИЙ МАТЧ",
       tabs: {
         next_opponent: { label: "Следующий соперник", desc: "Досье на ближайшего врага", icon: UserSearch },
         my_future: { label: "Свои будущие", desc: "Предстоящие игры команды", icon: CalendarClock },
@@ -390,7 +439,8 @@ export default function MatchesPage() {
         const opponent = nextMatchInfo.opponent;
         const isTour = nextMatchInfo.type === 'tournament';
         const isBasket = nextMatchInfo.type === 'basket';
-        const isLive = (nextMatchInfo as any).isLive;
+        const isFriendly = nextMatchInfo.type === 'friendly';
+        const isLive = (nextMatchInfo as any).isLive || isFriendly;
         
         return (
           <div className="space-y-6 animate-in fade-in duration-500">
@@ -404,12 +454,12 @@ export default function MatchesPage() {
                 <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">Intelligence Report</CardTitle>
                 <div className="flex flex-col items-center gap-2 mt-4">
                   <div className="bg-background/50 px-6 py-2 rounded-xl border border-white/5">
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase text-center mb-1">{isLive ? t.tourLive : t.startsIn}</p>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase text-center mb-1">{isLive ? (isFriendly ? t.friendlyLive : t.tourLive) : t.startsIn}</p>
                     <p className={cn(
                       "text-3xl font-headline font-bold tabular-nums tracking-tighter",
                       isLive ? "text-green-400" : "text-primary"
                     )}>
-                      {isLive ? 'LIVE' : countdown || '00:00:00'}
+                      {isLive ? (isFriendly ? countdown || '00:00:00' : 'LIVE') : countdown || '00:00:00'}
                     </p>
                   </div>
                 </div>
@@ -417,14 +467,14 @@ export default function MatchesPage() {
               <CardContent className="flex flex-col items-center space-y-4">
                 <div className={cn(
                   "w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 shadow-[0_0_15px_rgba(var(--accent),0.2)]",
-                  (isTour || isBasket) ? "border-accent" : "border-primary"
+                  (isTour || isBasket || isFriendly) ? "border-accent" : "border-primary"
                 )}>
-                  {isTour ? <Trophy className="w-10 h-10 text-accent" /> : (isBasket ? <Swords className="w-10 h-10 text-green-400" /> : <Shield className="w-10 h-10 text-primary" />)}
+                  {isTour ? <Trophy className="w-10 h-10 text-accent" /> : (isBasket || isFriendly ? <Swords className="w-10 h-10 text-green-400" /> : <Shield className="w-10 h-10 text-primary" />)}
                 </div>
                 <div className="text-center">
-                  <h3 className={cn("text-xl font-headline font-bold italic uppercase truncate max-w-[250px]", isBasket ? "text-green-400" : "text-primary")}>{opponent.name}</h3>
+                  <h3 className={cn("text-xl font-headline font-bold italic uppercase truncate max-w-[250px]", (isBasket || isFriendly) ? "text-green-400" : "text-primary")}>{opponent.name}</h3>
                   <Badge variant="secondary" className="mt-2 text-[10px]">
-                    {opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'} | {isTour ? 'TOURNAMENT' : (isBasket ? 'CW BASKET' : `DIV ${leagueLevel}.${divisionSubId}`)}
+                    {opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'} | {isTour ? 'TOURNAMENT' : (isBasket ? 'CW BASKET' : (isFriendly ? 'FRIENDLY MATCH' : `DIV ${leagueLevel}.${divisionSubId}`))}
                   </Badge>
                 </div>
                 
@@ -433,7 +483,7 @@ export default function MatchesPage() {
                     <Calendar className="w-3 h-3" /> {t.matchTime}
                   </p>
                   <p className="text-xl font-headline font-bold tracking-tight">
-                    {isBasket ? 'IN 15 MIN' : (isTour ? 'TODAY' : (nextMatchInfo.isNextDay ? t.tomorrow : t.today))} {isBasket ? '' : (nextMatchInfo.type === 'league' ? getDateForDay(nextMatchInfo.day) : '')} @ {nextMatchInfo.time}
+                    {(isBasket || isFriendly) ? 'IN 15 MIN' : (isTour ? 'TODAY' : (nextMatchInfo.isNextDay ? t.tomorrow : t.today))} {(isBasket || isFriendly) ? '' : (nextMatchInfo.type === 'league' ? getDateForDay(nextMatchInfo.day) : '')} @ {nextMatchInfo.time}
                   </p>
                 </div>
               </CardContent>

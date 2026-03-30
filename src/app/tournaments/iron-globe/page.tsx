@@ -206,7 +206,7 @@ export default function IronGlobePage() {
         heroPerformance: []
       };
       
-      recordMatch(profile.displayName || "Manager", mockResult, 0, opponent?.name || "Tournament Rival", 'friendly', mskNow.toISOString());
+      recordMatch(profile.displayName || "Manager", mockResult, 0, opponent?.name || "Tournament Rival", 'tournament', mskNow.toISOString());
 
       const updatedTours = (profile.tournaments || []).filter((t: string) => t !== 'iron-globe');
 
