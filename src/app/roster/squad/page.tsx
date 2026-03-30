@@ -117,7 +117,6 @@ export default function SquadPage() {
   };
 
   const handleSlotClick = (slotKey: LineupSlot) => {
-    // Only toggle selection if profile is NOT opening
     if (!profileHero) {
       setSelectingSlot(prev => prev === slotKey ? null : slotKey);
     }
@@ -345,7 +344,6 @@ export default function SquadPage() {
         )}
       </div>
 
-      {/* Player Profile Dialog */}
       <Dialog open={!!profileHero} onOpenChange={() => setProfileHero(null)}>
         <DialogContent className="max-w-md p-0 overflow-hidden bg-card border-white/10 h-[90vh] flex flex-col">
           {profileHero && (
@@ -359,7 +357,7 @@ export default function SquadPage() {
                     <div className="flex items-center gap-2 mb-1">
                       <h2 className="text-2xl font-headline font-bold uppercase text-white truncate leading-none">{profileHero.name}</h2>
                       <div className="w-6 h-6 rounded bg-secondary/50 flex items-center justify-center border border-white/10 shrink-0">
-                        <span className="text-xs">{profileHero.country.flag}</span>
+                        <span className="text-xs">{profileHero.country?.flag || '🏳️'}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -377,7 +375,7 @@ export default function SquadPage() {
                       </div>
                       <div className="text-left">
                         <p className="text-[8px] font-black text-muted-foreground uppercase">{t.profile.salary}</p>
-                        <p className="text-sm font-headline font-bold text-primary">€ {profileHero.salary.toLocaleString()}</p>
+                        <p className="text-sm font-headline font-bold text-primary">€ {(profileHero.salary || 0).toLocaleString()}</p>
                       </div>
                     </div>
                   </div>
@@ -385,7 +383,6 @@ export default function SquadPage() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-hide">
-                {/* Portfolio Section */}
                 <section>
                   <h3 className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                     <Info className="w-3.5 h-3.5" /> Portfolio
@@ -393,7 +390,7 @@ export default function SquadPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
                       <p className="text-[8px] font-black text-muted-foreground uppercase">{t.profile.age}</p>
-                      <p className="text-xs font-bold">{profileHero.age} {t.profile.years}</p>
+                      <p className="text-xs font-bold">{profileHero.age || 0} {t.profile.years}</p>
                     </div>
                     <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
                       <p className="text-[8px] font-black text-muted-foreground uppercase">{t.profile.status}</p>
@@ -405,27 +402,26 @@ export default function SquadPage() {
                     <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-2">
                       <div className="flex justify-between items-center">
                         <p className="text-[8px] font-black text-muted-foreground uppercase">{t.profile.form}</p>
-                        <p className="text-[9px] font-bold text-primary">{profileHero.form}%</p>
+                        <p className="text-[9px] font-bold text-primary">{profileHero.form || 0}%</p>
                       </div>
-                      <Progress value={profileHero.form} className="h-1" />
+                      <Progress value={profileHero.form || 0} className="h-1" />
                     </div>
                     <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-2">
                       <div className="flex justify-between items-center">
                         <p className="text-[8px] font-black text-muted-foreground uppercase">{t.profile.fatigue}</p>
-                        <p className="text-[9px] font-bold text-accent">{profileHero.fatigue}%</p>
+                        <p className="text-[9px] font-bold text-accent">{profileHero.fatigue || 0}%</p>
                       </div>
-                      <Progress value={profileHero.fatigue} className="h-1 bg-accent/20" />
+                      <Progress value={profileHero.fatigue || 0} className="h-1 bg-accent/20" />
                     </div>
                   </div>
                 </section>
 
-                {/* Characteristics Section */}
                 <section className="pb-6">
                   <h3 className="text-[10px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                     <Award className="w-3.5 h-3.5" /> {t.profile.stats}
                   </h3>
                   <div className="space-y-4">
-                    {Object.entries(profileHero.proStats).map(([key, value]) => {
+                    {profileHero.proStats && Object.entries(profileHero.proStats).map(([key, value]) => {
                       const icons: Record<string, any> = {
                         lastHitting: Target,
                         mapAwareness: Eye,
@@ -447,9 +443,9 @@ export default function SquadPage() {
                               <Icon className="w-3 h-3 text-muted-foreground" />
                               <span className="text-[10px] font-bold uppercase tracking-tight">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                             </div>
-                            <span className="text-[10px] font-mono font-bold text-primary">{value}</span>
+                            <span className="text-[10px] font-mono font-bold text-primary">{value as number}</span>
                           </div>
-                          <Progress value={value} className="h-1.5" />
+                          <Progress value={value as number} className="h-1.5" />
                         </div>
                       );
                     })}
