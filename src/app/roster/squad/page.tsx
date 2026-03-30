@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  Sword, Shield, Activity, Sparkles, Plus, 
-  Check, ChevronLeft, ChevronRight, User, UserPlus, X,
+  Sword, Shield, Sparkles, Plus, 
+  Check, ChevronLeft, ChevronRight, UserPlus, X,
   ShieldCheck, Zap, Crosshair, HeartPulse,
-  TrendingUp, Star, Users, Trophy, Box
+  Star, Box, Undo2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -21,14 +21,15 @@ export default function SquadPage() {
 
   const t = {
     title: language === 'ru' ? "АКТИВНЫЙ СОСТАВ" : "ACTIVE LINEUP",
-    subtitle: language === 'ru' ? "Прямое управление ростером без окон" : "Direct roster management without popups",
+    subtitle: language === 'ru' ? "Прямое управление ростером" : "Direct roster management",
     activeLabel: language === 'ru' ? "Основа (5)" : "Core (5)",
     subsLabel: language === 'ru' ? "Замены (2)" : "Subs (2)",
-    reserveLabel: language === 'ru' ? "Тактический резерв" : "Tactical Reserve",
     emptySlot: language === 'ru' ? "Назначить" : "Assign",
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     teamOverall: language === 'ru' ? "ОБЩ" : "OVR",
-    selectHero: language === 'ru' ? "Выберите героя ниже" : "Select hero below",
+    selectHero: language === 'ru' ? "Выберите замену" : "Select replacement",
+    availableHeroes: language === 'ru' ? "Доступные герои" : "Available Heroes",
+    cancel: language === 'ru' ? "ОТМЕНА" : "CANCEL",
     roles: {
       carry: { label: language === 'ru' ? "Керри" : "Carry", icon: Sword, color: "text-red-400" },
       mid: { label: language === 'ru' ? "Мидер" : "Midlaner", icon: Sparkles, color: "text-blue-400" },
@@ -49,7 +50,6 @@ export default function SquadPage() {
 
   const getHeroById = (id: string | null) => ownedHeroes.find(h => h.id === id);
 
-  // Calculate Team Overall
   const teamOvr = useMemo(() => {
     const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
     const activeHeroes = activeSlots.map(slot => getHeroById(lineup[slot])).filter(Boolean) as Hero[];
@@ -58,12 +58,13 @@ export default function SquadPage() {
     return Math.round(sum / 5);
   }, [lineup, ownedHeroes]);
 
+  const availableForSelection = useMemo(() => {
+    const assignedIds = Object.values(lineup).filter(id => id !== null);
+    return ownedHeroes.filter(h => !assignedIds.includes(h.id));
+  }, [ownedHeroes, lineup]);
+
   const handleSlotClick = (slotKey: LineupSlot) => {
-    if (selectingSlot === slotKey) {
-      setSelectingSlot(null);
-    } else {
-      setSelectingSlot(slotKey);
-    }
+    setSelectingSlot(prev => prev === slotKey ? null : slotKey);
   };
 
   const handleHeroAssign = (heroId: string) => {
@@ -125,7 +126,7 @@ export default function SquadPage() {
               )}>
                 {roleInfo.label}
               </p>
-              {isSelected && <Badge variant="outline" className="text-[6px] h-3 border-primary text-primary px-1 animate-pulse">ACTIVE</Badge>}
+              {isSelected && <Badge variant="outline" className="text-[6px] h-3 border-primary text-primary px-1 animate-pulse">EDITING</Badge>}
             </div>
             <h3 className={cn("text-xs font-bold leading-tight truncate", !hero && "text-muted-foreground italic")}>
               {hero ? hero.name : (isSelected ? t.selectHero : t.emptySlot)}
@@ -214,75 +215,69 @@ export default function SquadPage() {
           </div>
         </section>
 
-        <section className="space-y-3 pt-4 border-t border-white/5">
-          <div className="flex items-center justify-between px-1">
-            <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary flex items-center gap-2">
-              <Box className="w-3.5 h-3.5" /> {t.reserveLabel}
-            </h2>
-            <Badge variant="outline" className="text-[8px] opacity-50 uppercase">{ownedHeroes.length} {language === 'ru' ? 'ГЕРОЕВ' : 'HEROES'}</Badge>
-          </div>
-          
-          <div className="grid grid-cols-1 gap-2">
-            {ownedHeroes.map((hero) => {
-              const currentSlot = Object.keys(lineup).find(k => lineup[k as LineupSlot] === hero.id);
-              const isAssigned = !!currentSlot;
-              const isHeroSelectedForSwap = selectingSlot && lineup[selectingSlot] === hero.id;
-
-              return (
-                <Card 
-                  key={hero.id}
-                  className={cn(
-                    "glass-card border-white/5 transition-all overflow-hidden",
-                    selectingSlot ? "cursor-pointer hover:border-primary/50 active:scale-[0.98]" : "opacity-90",
-                    isAssigned && "bg-secondary/30",
-                    isHeroSelectedForSwap && "border-accent ring-1 ring-accent"
-                  )}
-                  onClick={() => selectingSlot && handleHeroAssign(hero.id)}
-                >
-                  <CardContent className="p-2 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted flex-shrink-0 relative">
-                      <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
-                      {isAssigned && (
-                        <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                          <Check className="w-5 h-5 text-primary drop-shadow-md" />
+        {/* Conditional Replacement List */}
+        {selectingSlot && (
+          <section className="space-y-3 pt-6 border-t border-primary/20 animate-in slide-in-from-bottom-4 duration-300">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <Box className="w-4 h-4 text-primary" />
+                <h2 className="text-sm font-bold uppercase tracking-tight text-primary">
+                  {t.availableHeroes}
+                </h2>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setSelectingSlot(null)}
+                className="h-7 text-[10px] font-bold text-muted-foreground hover:text-white"
+              >
+                <Undo2 className="w-3 h-3 mr-1" /> {t.cancel}
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-2">
+              {availableForSelection.length > 0 ? (
+                availableForSelection.map((hero) => (
+                  <Card 
+                    key={hero.id}
+                    className="glass-card border-white/10 hover:border-primary/50 transition-all overflow-hidden cursor-pointer active:scale-[0.98] bg-primary/5"
+                    onClick={() => handleHeroAssign(hero.id)}
+                  >
+                    <CardContent className="p-2 flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                        <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-[11px] truncate">{hero.name}</h4>
+                          <span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span>
                         </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-[11px] truncate">{hero.name}</h4>
-                        <span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span>
-                      </div>
-                      <div className="flex items-center gap-3 mt-0.5">
-                        <span className="text-[9px] font-bold text-accent flex items-center gap-1">
-                          <Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}
-                        </span>
-                        {isAssigned && (
-                          <span className="text-[7px] font-black text-primary uppercase bg-primary/10 px-1 rounded">
-                            {t.roles[currentSlot as LineupSlot].label}
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <span className="text-[9px] font-bold text-accent flex items-center gap-1">
+                            <Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}
                           </span>
-                        )}
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="flex items-center gap-2 pr-1">
-                      {selectingSlot ? (
+                      <div className="flex items-center gap-2 pr-1">
                         <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
                           <Plus className="w-3 h-3 text-primary" />
                         </div>
-                      ) : (
-                        <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center">
-                          <ChevronRight className="w-3 h-3 text-muted-foreground opacity-30" />
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </section>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <div className="py-8 text-center bg-secondary/10 rounded-xl border border-dashed border-white/5">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground italic">
+                    {language === 'ru' ? 'Нет доступных героев в резерве' : 'No available heroes in reserve'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );
