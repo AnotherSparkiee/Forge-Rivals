@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -158,7 +157,7 @@ export default function GlobalChatPage() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 space-y-4 scrollbar-hide pt-4 pb-20" ref={scrollRef}>
+      <div className="flex-1 overflow-y-auto space-y-1 scrollbar-hide pt-4 pb-24" ref={scrollRef}>
         {isChatLoading ? (
           <div className="h-full flex flex-col items-center justify-center space-y-4 opacity-50">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -168,33 +167,27 @@ export default function GlobalChatPage() {
           sortedMessages.map((msg) => {
             const isMe = msg.userId === user.uid;
             return (
-              <div key={msg.id} className={cn(
-                "flex flex-col max-w-[85%]",
-                isMe ? "ml-auto items-end" : "mr-auto items-start"
-              )}>
-                <div className="flex items-center gap-2 mb-1 px-1">
-                  {!isMe && (
-                    <button 
-                      onClick={() => setSelectedUser({ id: msg.userId, name: msg.userName })}
-                      className="text-[10px] font-black text-primary uppercase hover:underline active:scale-95 transition-all"
-                    >
-                      {msg.userName}
-                    </button>
-                  )}
-                  <span className="text-[8px] text-muted-foreground font-mono">
+              <div 
+                key={msg.id} 
+                onClick={() => setSelectedUser({ id: msg.userId, name: msg.userName })}
+                className={cn(
+                  "flex flex-col px-4 py-2 hover:bg-white/5 transition-colors cursor-pointer group active:bg-white/10",
+                  isMe ? "items-end" : "items-start"
+                )}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={cn(
+                    "text-[10px] font-black uppercase tracking-tight",
+                    isMe ? "text-accent" : "text-primary"
+                  )}>
+                    {isMe ? 'YOU' : msg.userName}
+                  </span>
+                  <span className="text-[8px] text-muted-foreground font-mono opacity-50">
                     {msg.createdAt ? new Date(msg.createdAt.toMillis()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                   </span>
-                  {isMe && (
-                    <button 
-                      onClick={() => setSelectedUser({ id: msg.userId, name: msg.userName })}
-                      className="text-[10px] font-black text-accent uppercase hover:underline active:scale-95 transition-all"
-                    >
-                      YOU
-                    </button>
-                  )}
                 </div>
                 <div className={cn(
-                  "px-4 py-2 rounded-2xl text-sm leading-relaxed border shadow-sm",
+                  "px-4 py-2 rounded-2xl text-sm leading-relaxed border shadow-sm max-w-[90%]",
                   isMe 
                     ? "bg-primary/10 border-primary/20 rounded-tr-none text-right" 
                     : "bg-secondary/50 border-white/5 rounded-tl-none text-left"
