@@ -34,13 +34,18 @@ export function getDeterministicTournament(dateStr: string, participants: any[],
   const realPlayers = participants?.map(p => ({ id: p.id, name: p.displayName || "Manager", isPlayer: true })) || [];
   const botNeeded = Math.max(0, MAX_PARTICIPANTS - realPlayers.length);
   
-  // Generate bot names similar to league bots: 🤖 [LEAGUE] Bot #[Index]
+  // Seed based on date to keep IDs stable for the day
+  const dateSeed = dateStr.split('-').reduce((acc, v) => acc + parseInt(v), 0);
+
+  // Generate unique ID like bot4481
   const bots = Array.from({ length: botNeeded }).map((_, i) => {
-    const leagueIdx = i % LEAGUES.length;
-    const leagueId = LEAGUES[leagueIdx].id;
+    // Deterministic unique ID for the bot
+    const botIdNum = 4000 + (dateSeed % 500) + (i * 31);
+    const botName = `bot${botIdNum}`;
+    
     return { 
-      id: `bot-${i}`, 
-      name: `🤖 ${leagueId} Bot #${i + 1}`, 
+      id: botName, 
+      name: botName, 
       isPlayer: false 
     };
   });

@@ -126,10 +126,14 @@ export function getMockGroupTeams(
   // 2. Fill remaining slots with bots
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   for (let i = 0; i < botsNeeded; i++) {
-    const botUniqueId = `${leagueId}_L${level}_G${group}_B${i}`;
+    // Generate a unique ID like bot4481
+    // Format: bot + level(1) + group(3) + index(1) = 5 digits
+    const botIdNum = (level * 1000) + (group * 10) + i + 1000;
+    const botName = `bot${botIdNum}`;
+    
     teams.push({
-      id: botUniqueId,
-      name: `🤖 ${leagueId} Bot #${level}-${group}-${i}`,
+      id: botName,
+      name: botName,
       wins: 0,
       draws: 0,
       losses: 0,
