@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -38,6 +39,9 @@ export default function OpenFriendliesPage() {
 
   const { data: rawLobbies, isLoading: isLobbiesLoading } = useCollection(lobbiesQuery);
   
+  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket', user.uid) : null, [db, user]);
+  const { data: myBasket } = useDoc(myBasketRef);
+
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
@@ -71,7 +75,9 @@ export default function OpenFriendliesPage() {
       selfRequest: "This is your request",
       toastSent: "Challenge Sent",
       toastSentDesc: "Manager is reviewing your request. Stand by for response.",
-      expiresIn: "Expires in"
+      expiresIn: "Expires in",
+      busy: "Operational Conflict",
+      busyDesc: "You are currently in CW Basket or have another scheduled match."
     },
     ru: {
       title: "ОТКРЫТЫЕ МАТЧИ",
@@ -83,7 +89,9 @@ export default function OpenFriendliesPage() {
       selfRequest: "Это ваша заявка",
       toastSent: "Вызов отправлен",
       toastSentDesc: "Менеджер рассматривает ваш запрос. Ожидайте ответа.",
-      expiresIn: "Истечет через"
+      expiresIn: "Истечет через",
+      busy: "Оперативный конфликт",
+      busyDesc: "Вы сейчас находитесь в КВ корзине или у вас уже запланирован другой матч."
     }
   };
 
@@ -91,6 +99,13 @@ export default function OpenFriendliesPage() {
 
   const handleChallenge = async (lobbyId: string, hostName: string) => {
     if (!user || !profile) return;
+    
+    // Check if I have anything in CW basket
+    if (myBasket) {
+      toast({ title: t.busy, description: t.busyDesc, variant: "destructive" });
+      return;
+    }
+
     setIsChallenging(lobbyId);
     try {
       const lobbyRef = doc(db, 'friendly_lobbies', lobbyId);

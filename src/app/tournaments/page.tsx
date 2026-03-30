@@ -18,17 +18,22 @@ import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
+import { INITIAL_HEROES } from '@/app/lib/moba-data';
 
 export default function TournamentsPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
-  const { language, isLoaded } = useGameState();
+  const { language, isLoaded, strategy, team } = useGameState();
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies', user.uid) : null, [db, user]);
   const { data: myLobby, isLoading: isLobbyLoading } = useDoc(myLobbyRef);
+
+  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket', user.uid) : null, [db, user]);
+  const { data: myBasket } = useDoc(myBasketRef);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
@@ -39,6 +44,8 @@ export default function TournamentsPage() {
     }
   }, [user, isUserLoading, router]);
 
+  const isBusy = useMemo(() => !!myLobby || !!myBasket, [myLobby, myBasket]);
+
   if (isUserLoading || !isLoaded || !user || isLobbyLoading) {
     return <LoadingScreen />;
   }
@@ -48,6 +55,8 @@ export default function TournamentsPage() {
       title: "TOURNAMENT HUB",
       subtitle: "Global Competitions & Friendly Matches",
       locked: "Locked",
+      busy: "Operational Conflict",
+      busyDesc: "Complete or cancel current engagement before starting a new one.",
       schedule: "Schedule Friendly",
       cancel: "Cancel Friendly Match",
       open: "Open Friendlies",
@@ -59,15 +68,20 @@ export default function TournamentsPage() {
       descCancel: "Withdraw your current match request",
       descOpen: "Find managers looking for practice",
       descCW: "Quick random matchmaking system",
+      descTrial: "Immediate training match with a bot (15m prep)",
       toastPosted: "Request Posted",
       toastPostedDesc: "Your challenge is now visible in the lobby.",
       toastCancelled: "Request Withdrawn",
-      toastCancelledDesc: "The lobby entry has been deleted."
+      toastCancelledDesc: "The lobby entry has been deleted.",
+      toastTrial: "Trial Scheduled",
+      toastTrialDesc: "Bot engagement begins in 15 minutes."
     },
     ru: {
       title: "ТУРНИРНЫЙ ХАБ",
       subtitle: "Глобальные соревнования и товарищеские игры",
       locked: "Закрыто",
+      busy: "Оперативный конфликт",
+      busyDesc: "Завершите или отмените текущую операцию перед началом новой.",
       schedule: "Назначить тов. Матч",
       cancel: "Отменить тов. Матч",
       open: "Открытые тов. Матчи",
@@ -79,17 +93,26 @@ export default function TournamentsPage() {
       descCancel: "Удалить вашу текущую заявку из списка",
       descOpen: "Поиск менеджеров для тренировки",
       descCW: "Система быстрого случайного подбора",
+      descTrial: "Мгновенный тренировочный бой с ботом (15 мин подгот.)",
       toastPosted: "Заявка размещена",
       toastPostedDesc: "Ваш вызов теперь виден в списке открытых матчей.",
       toastCancelled: "Заявка отменена",
-      toastCancelledDesc: "Ваша запись удалена из лобби."
+      toastCancelledDesc: "Ваша запись удалена из лобби.",
+      toastTrial: "Пробный матч назначен",
+      toastTrialDesc: "Бой с ботом начнется через 15 минут."
     }
   };
 
   const t = translations[language as keyof typeof translations] || translations.ru;
 
   const handleToggleLobby = async () => {
-    if (!user || !profile) return;
+    if (!user || !profile || isActionLoading) return;
+    
+    if (!myLobby && isBusy) {
+      toast({ title: t.busy, description: t.busyDesc, variant: "destructive" });
+      return;
+    }
+
     setIsActionLoading(true);
     try {
       if (myLobby) {
@@ -113,6 +136,50 @@ export default function TournamentsPage() {
     }
   };
 
+  const handleStartTrial = async () => {
+    if (!user || !profile || isActionLoading) return;
+    
+    if (isBusy) {
+      toast({ title: t.busy, description: t.busyDesc, variant: "destructive" });
+      return;
+    }
+
+    setIsActionLoading(true);
+    try {
+      const botId = `bot${Math.floor(Math.random() * 9000) + 1000}`;
+      
+      // Simulate result immediately but set start time in 15 mins
+      const result = await simulateMobaMatch({
+        teamA: { name: profile.displayName || "Manager", strategy, heroes: team },
+        teamB: { 
+          name: botId, 
+          strategy: "Standard Training", 
+          heroes: INITIAL_HEROES.slice(0, 5) 
+        },
+        includeRandomEvents: true,
+        isBo2: false
+      });
+
+      await setDoc(doc(db, 'friendly_lobbies', user.uid), {
+        hostId: user.uid,
+        hostName: profile.displayName || "Manager",
+        status: 'accepted',
+        challengerId: botId,
+        challengerName: botId,
+        matchResult: JSON.parse(JSON.stringify(result)),
+        acceptedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        isTrial: true
+      });
+
+      toast({ title: t.toastTrial, description: t.toastTrialDesc });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
   const menu = [
     { 
       label: myLobby ? t.cancel : t.schedule, 
@@ -126,7 +193,7 @@ export default function TournamentsPage() {
     { label: t.cw, desc: t.descCW, icon: ShoppingBasket, active: true, href: '/tournaments/cw-basket' },
     { label: t.tournaments, desc: language === 'ru' ? "Активные чемпионаты и кубки" : "Active championships", icon: Trophy, active: true, href: '/tournaments/open' },
     { label: t.history, desc: language === 'ru' ? "Архив ваших выступлений" : "Archive of your battles", icon: History, active: true, href: '/tournaments/history' },
-    { label: t.trial, desc: "Test against AI", icon: Gamepad2, active: false },
+    { label: t.trial, desc: t.descTrial, icon: Gamepad2, active: true, onClick: handleStartTrial, color: "text-accent" },
   ];
 
   return (

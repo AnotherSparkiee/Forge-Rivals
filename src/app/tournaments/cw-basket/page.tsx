@@ -29,6 +29,9 @@ export default function CWBasketPage() {
   const myEntryRef = useMemoFirebase(() => user ? doc(db, 'cw_basket', user.uid) : null, [db, user]);
   const { data: myEntry, isLoading: isEntryLoading } = useDoc(myEntryRef);
 
+  const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies', user.uid) : null, [db, user]);
+  const { data: myLobby } = useDoc(myLobbyRef);
+
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
@@ -37,6 +40,8 @@ export default function CWBasketPage() {
       router.push('/auth/login');
     }
   }, [user, isUserLoading, router]);
+
+  const isBusy = useMemo(() => !!myLobby && !myEntry, [myLobby, myEntry]);
 
   if (isUserLoading || !isLoaded || !user || isEntryLoading) {
     return <LoadingScreen />;
@@ -53,7 +58,9 @@ export default function CWBasketPage() {
       searching: "Scanning frequencies for active managers...",
       found: "Matching established. Preparing deployment.",
       toastFound: "Match Found!",
-      toastFoundDesc: "Your tactical engagement is being prepared."
+      toastFoundDesc: "Your tactical engagement is being prepared.",
+      busy: "Operational Conflict",
+      busyDesc: "You have a scheduled Friendly or Trial match. Complete it first."
     },
     ru: {
       title: "КВ КОРЗИНА",
@@ -65,7 +72,9 @@ export default function CWBasketPage() {
       searching: "Сканирование частот на наличие менеджеров...",
       found: "Связь установлена. Подготовка к развертыванию.",
       toastFound: "Соперник найден!",
-      toastFoundDesc: "Ваше тактическое сражение подготавливается."
+      toastFoundDesc: "Ваше тактическое сражение подготавливается.",
+      busy: "Оперативный конфликт",
+      busyDesc: "У вас уже назначен Дружеский или Пробный матч. Завершите его сначала."
     }
   };
 
@@ -73,6 +82,12 @@ export default function CWBasketPage() {
 
   const handleToggleSearch = async () => {
     if (!user || !profile || isActionLoading) return;
+
+    if (!myEntry && isBusy) {
+      toast({ title: t.busy, description: t.busyDesc, variant: "destructive" });
+      return;
+    }
+
     setIsActionLoading(true);
 
     try {

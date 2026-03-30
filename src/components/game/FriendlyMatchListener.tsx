@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -126,11 +127,11 @@ export function FriendlyMatchListener() {
           };
           
           const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
-          recordMatch(finalResult.winner, finalResult, 0, opponentName, 'friendly');
+          recordMatch(finalResult.winner, finalResult, 0, opponentName, data.isTrial ? 'friendly' : 'friendly');
           
           toast({
-            title: language === 'ru' ? "Матч завершен" : "Match Completed",
-            description: language === 'ru' ? `Товарищеская игра против ${opponentName} окончена.` : `Friendly match vs ${opponentName} finished.`,
+            title: language === 'ru' ? (data.isTrial ? "Тренировка завершена" : "Матч завершен") : (data.isTrial ? "Training Finished" : "Match Completed"),
+            description: language === 'ru' ? `Игра против ${opponentName} окончена.` : `Match vs ${opponentName} finished.`,
           });
 
           if (isHost) {
