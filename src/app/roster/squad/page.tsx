@@ -1,23 +1,34 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useGameState, LineupSlot } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { 
   Sword, Shield, Sparkles, Plus, 
-  Check, ChevronLeft, ChevronRight, UserPlus, X,
+  ChevronLeft, ChevronRight, UserPlus, X,
   ShieldCheck, Zap, Crosshair, HeartPulse,
-  Star, Box, Undo2
+  Star, Box, Undo2, Heart, Flag, Coins, Info,
+  TrendingUp, Eye, Target, ZapIcon, Brain, Map, Users, AlertCircle, Award
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
 import Link from 'next/link';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function SquadPage() {
   const { ownedHeroes, lineup, assignToRole, isLoaded, language } = useGameState();
   const [selectingSlot, setSelectingSlot] = useState<LineupSlot | null>(null);
+  const [profileHero, setProfileHero] = useState<Hero | null>(null);
+  
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
 
   const t = {
     title: language === 'ru' ? "АКТИВНЫЙ СОСТАВ" : "ACTIVE LINEUP",
@@ -30,6 +41,33 @@ export default function SquadPage() {
     selectHero: language === 'ru' ? "Выберите замену" : "Select replacement",
     availableHeroes: language === 'ru' ? "Доступные герои" : "Available Heroes",
     cancel: language === 'ru' ? "ОТМЕНА" : "CANCEL",
+    profile: {
+      title: language === 'ru' ? "ДОСЬЕ ИГРОКА" : "PLAYER DOSSIER",
+      age: language === 'ru' ? "Возраст" : "Age",
+      talent: language === 'ru' ? "Талант" : "Talent",
+      salary: language === 'ru' ? "Зарплата" : "Salary",
+      form: language === 'ru' ? "Форма" : "Form",
+      fatigue: language === 'ru' ? "Усталость" : "Fatigue",
+      inclination: language === 'ru' ? "Склонность" : "Inclination",
+      country: language === 'ru' ? "Страна" : "Country",
+      status: language === 'ru' ? "Статус" : "Status",
+      healthy: language === 'ru' ? "Здоров" : "Healthy",
+      injured: language === 'ru' ? "Травмирован" : "Injured",
+      stats: language === 'ru' ? "Характеристики" : "Professional Stats",
+      years: language === 'ru' ? "лет" : "yrs",
+    },
+    proStatsLabels: {
+      lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
+      mapAwareness: language === 'ru' ? "Контроль карты" : "Map Awareness",
+      positioning: language === 'ru' ? "Позиционка" : "Positioning",
+      reflexes: language === 'ru' ? "Рефлексы" : "Reflexes",
+      manaManagement: language === 'ru' ? "Менеджмент маны" : "Mana Management",
+      objectiveControl: language === 'ru' ? "Объекты" : "Objective Control",
+      communication: language === 'ru' ? "Коммуникация" : "Communication",
+      tiltResistance: language === 'ru' ? "Стрессоустойчивость" : "Tilt Resistance",
+      versatility: language === 'ru' ? "Универсальность" : "Versatility",
+      ganking: language === 'ru' ? "Ганкинг" : "Ganking",
+    },
     roles: {
       carry: { label: language === 'ru' ? "Керри" : "Carry", icon: Sword, color: "text-red-400" },
       mid: { label: language === 'ru' ? "Мидер" : "Midlaner", icon: Sparkles, color: "text-blue-400" },
@@ -63,8 +101,26 @@ export default function SquadPage() {
     return ownedHeroes.filter(h => !assignedIds.includes(h.id));
   }, [ownedHeroes, lineup]);
 
+  const handleStartPress = (hero: Hero | undefined) => {
+    if (!hero) return;
+    longPressTimer.current = setTimeout(() => {
+      setProfileHero(hero);
+      longPressTimer.current = null;
+    }, 500);
+  };
+
+  const handleEndPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
   const handleSlotClick = (slotKey: LineupSlot) => {
-    setSelectingSlot(prev => prev === slotKey ? null : slotKey);
+    // Only toggle selection if profile is NOT opening
+    if (!profileHero) {
+      setSelectingSlot(prev => prev === slotKey ? null : slotKey);
+    }
   };
 
   const handleHeroAssign = (heroId: string) => {
@@ -91,9 +147,14 @@ export default function SquadPage() {
     return (
       <Card 
         key={slotKey}
+        onMouseDown={() => handleStartPress(hero)}
+        onMouseUp={handleEndPress}
+        onMouseLeave={handleEndPress}
+        onTouchStart={() => handleStartPress(hero)}
+        onTouchEnd={handleEndPress}
         onClick={() => handleSlotClick(slotKey)}
         className={cn(
-          "glass-card border-white/5 overflow-hidden transition-all cursor-pointer active:scale-[0.98]",
+          "glass-card border-white/5 overflow-hidden transition-all cursor-pointer select-none",
           hero ? "bg-primary/5 border-primary/10" : "hover:border-white/20",
           isSelected && "ring-2 ring-primary border-primary shadow-[0_0_25px_rgba(var(--primary),0.4)] bg-primary/20 scale-[1.02] z-10"
         )}
@@ -215,7 +276,6 @@ export default function SquadPage() {
           </div>
         </section>
 
-        {/* Conditional Replacement List */}
         {selectingSlot && (
           <section className="space-y-3 pt-6 border-t border-primary/20 animate-in slide-in-from-bottom-4 duration-300">
             <div className="flex items-center justify-between px-1">
@@ -240,6 +300,11 @@ export default function SquadPage() {
                 availableForSelection.map((hero) => (
                   <Card 
                     key={hero.id}
+                    onMouseDown={() => handleStartPress(hero)}
+                    onMouseUp={handleEndPress}
+                    onMouseLeave={handleEndPress}
+                    onTouchStart={() => handleStartPress(hero)}
+                    onTouchEnd={handleEndPress}
                     className="glass-card border-white/10 hover:border-primary/50 transition-all overflow-hidden cursor-pointer active:scale-[0.98] bg-primary/5"
                     onClick={() => handleHeroAssign(hero.id)}
                   >
@@ -279,6 +344,128 @@ export default function SquadPage() {
           </section>
         )}
       </div>
+
+      {/* Player Profile Dialog */}
+      <Dialog open={!!profileHero} onOpenChange={() => setProfileHero(null)}>
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-card border-white/10 h-[90vh] flex flex-col">
+          {profileHero && (
+            <>
+              <div className="p-6 bg-gradient-to-br from-primary/20 via-card to-accent/10 border-b border-white/5 relative flex-shrink-0">
+                <div className="flex items-center gap-6">
+                  <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-primary shadow-[0_0_25px_rgba(var(--primary),0.3)]">
+                    <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h2 className="text-2xl font-headline font-bold uppercase text-white truncate leading-none">{profileHero.name}</h2>
+                      <div className="w-6 h-6 rounded bg-secondary/50 flex items-center justify-center border border-white/10 shrink-0">
+                        <span className="text-xs">{profileHero.country.flag}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase">{profileHero.role}</Badge>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star key={i} className={cn("w-3 h-3", i < profileHero.talent ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground")} />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center gap-4">
+                      <div className="text-center bg-background/40 p-1.5 rounded-lg border border-white/5 min-w-[50px]">
+                        <p className="text-[7px] font-black text-muted-foreground uppercase">{t.overall}</p>
+                        <p className="text-lg font-headline font-bold text-accent italic leading-none">{profileHero.overallRating}</p>
+                      </div>
+                      <div className="text-left">
+                        <p className="text-[8px] font-black text-muted-foreground uppercase">{t.profile.salary}</p>
+                        <p className="text-sm font-headline font-bold text-primary">€ {profileHero.salary.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-hide">
+                {/* Portfolio Section */}
+                <section>
+                  <h3 className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                    <Info className="w-3.5 h-3.5" /> Portfolio
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
+                      <p className="text-[8px] font-black text-muted-foreground uppercase">{t.profile.age}</p>
+                      <p className="text-xs font-bold">{profileHero.age} {t.profile.years}</p>
+                    </div>
+                    <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
+                      <p className="text-[8px] font-black text-muted-foreground uppercase">{t.profile.status}</p>
+                      <p className={cn("text-xs font-bold flex items-center gap-1", profileHero.isInjured ? "text-red-400" : "text-green-400")}>
+                        {profileHero.isInjured ? <AlertCircle className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
+                        {profileHero.isInjured ? t.profile.injured : t.profile.healthy}
+                      </p>
+                    </div>
+                    <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <p className="text-[8px] font-black text-muted-foreground uppercase">{t.profile.form}</p>
+                        <p className="text-[9px] font-bold text-primary">{profileHero.form}%</p>
+                      </div>
+                      <Progress value={profileHero.form} className="h-1" />
+                    </div>
+                    <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <p className="text-[8px] font-black text-muted-foreground uppercase">{t.profile.fatigue}</p>
+                        <p className="text-[9px] font-bold text-accent">{profileHero.fatigue}%</p>
+                      </div>
+                      <Progress value={profileHero.fatigue} className="h-1 bg-accent/20" />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Characteristics Section */}
+                <section className="pb-6">
+                  <h3 className="text-[10px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                    <Award className="w-3.5 h-3.5" /> {t.profile.stats}
+                  </h3>
+                  <div className="space-y-4">
+                    {Object.entries(profileHero.proStats).map(([key, value]) => {
+                      const icons: Record<string, any> = {
+                        lastHitting: Target,
+                        mapAwareness: Eye,
+                        positioning: Map,
+                        reflexes: ZapIcon,
+                        manaManagement: Sparkles,
+                        objectiveControl: Swords,
+                        communication: Users,
+                        tiltResistance: Brain,
+                        versatility: TrendingUp,
+                        ganking: Crosshair,
+                      };
+                      const Icon = icons[key] || Info;
+                      
+                      return (
+                        <div key={key} className="space-y-1.5">
+                          <div className="flex justify-between items-center px-1">
+                            <div className="flex items-center gap-2">
+                              <Icon className="w-3 h-3 text-muted-foreground" />
+                              <span className="text-[10px] font-bold uppercase tracking-tight">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                            </div>
+                            <span className="text-[10px] font-mono font-bold text-primary">{value}</span>
+                          </div>
+                          <Progress value={value} className="h-1.5" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              </div>
+
+              <div className="p-4 bg-secondary/20 border-t border-white/5 flex-shrink-0">
+                <Button variant="outline" className="w-full h-12 uppercase font-black text-[10px] border-white/10" onClick={() => setProfileHero(null)}>
+                  {language === 'ru' ? 'ЗАКРЫТЬ ДОСЬЕ' : 'CLOSE DOSSIER'}
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

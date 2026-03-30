@@ -16,6 +16,27 @@ export interface Hero {
   image: string;
   description: string;
   price: number;
+  // Extended Portfolio Data
+  age: number;
+  talent: number; // 1-5
+  salary: number;
+  form: number; // 0-100
+  fatigue: number; // 0-100
+  country: { code: string; name: string; flag: string };
+  isInjured: boolean;
+  // 10 Professional Characteristics
+  proStats: {
+    lastHitting: number;
+    mapAwareness: number;
+    positioning: number;
+    reflexes: number;
+    manaManagement: number;
+    objectiveControl: number;
+    communication: number;
+    tiltResistance: number;
+    versatility: number;
+    ganking: number;
+  };
 }
 
 export const INITIAL_HEROES: Hero[] = [
@@ -28,7 +49,18 @@ export const INITIAL_HEROES: Hero[] = [
     abilitiesFocus: 'Defensive',
     image: 'https://picsum.photos/seed/tank1/400/600',
     description: 'An unbreakable shield on the battlefield.',
-    price: 0
+    price: 0,
+    age: 24,
+    talent: 4,
+    salary: 4500,
+    form: 85,
+    fatigue: 12,
+    country: { code: 'DE', name: 'Germany', flag: '🇩🇪' },
+    isInjured: false,
+    proStats: {
+      lastHitting: 45, mapAwareness: 88, positioning: 92, reflexes: 60, manaManagement: 55,
+      objectiveControl: 80, communication: 95, tiltResistance: 98, versatility: 70, ganking: 40
+    }
   },
   {
     id: 'h2',
@@ -39,7 +71,18 @@ export const INITIAL_HEROES: Hero[] = [
     abilitiesFocus: 'Aggressive',
     image: 'https://picsum.photos/seed/carry1/400/600',
     description: 'Deals massive physical damage from afar.',
-    price: 0
+    price: 0,
+    age: 19,
+    talent: 5,
+    salary: 8200,
+    form: 92,
+    fatigue: 25,
+    country: { code: 'KR', name: 'South Korea', flag: '🇰🇷' },
+    isInjured: false,
+    proStats: {
+      lastHitting: 98, mapAwareness: 75, positioning: 85, reflexes: 95, manaManagement: 70,
+      objectiveControl: 65, communication: 60, tiltResistance: 75, versatility: 80, ganking: 50
+    }
   },
   {
     id: 'h3',
@@ -50,7 +93,18 @@ export const INITIAL_HEROES: Hero[] = [
     abilitiesFocus: 'Burst Damage',
     image: 'https://picsum.photos/seed/mage1/400/600',
     description: 'Masters of spells and map control.',
-    price: 0
+    price: 0,
+    age: 21,
+    talent: 4,
+    salary: 6100,
+    form: 78,
+    fatigue: 18,
+    country: { code: 'CN', name: 'China', flag: '🇨🇳' },
+    isInjured: false,
+    proStats: {
+      lastHitting: 88, mapAwareness: 92, positioning: 80, reflexes: 82, manaManagement: 95,
+      objectiveControl: 85, communication: 88, tiltResistance: 80, versatility: 85, ganking: 75
+    }
   },
   {
     id: 'h4',
@@ -61,7 +115,18 @@ export const INITIAL_HEROES: Hero[] = [
     abilitiesFocus: 'Utility',
     image: 'https://picsum.photos/seed/jungle1/400/600',
     description: 'Strikes from the shadows when least expected.',
-    price: 0
+    price: 0,
+    age: 23,
+    talent: 3,
+    salary: 3800,
+    form: 82,
+    fatigue: 35,
+    country: { code: 'RU', name: 'Russia', flag: '🇷🇺' },
+    isInjured: false,
+    proStats: {
+      lastHitting: 60, mapAwareness: 85, positioning: 75, reflexes: 88, manaManagement: 65,
+      objectiveControl: 90, communication: 70, tiltResistance: 85, versatility: 75, ganking: 98
+    }
   },
   {
     id: 'h5',
@@ -72,7 +137,18 @@ export const INITIAL_HEROES: Hero[] = [
     abilitiesFocus: 'Sustain',
     image: 'https://picsum.photos/seed/support1/400/600',
     description: 'Keeps the team alive and empowered.',
-    price: 0
+    price: 0,
+    age: 20,
+    talent: 4,
+    salary: 4200,
+    form: 88,
+    fatigue: 10,
+    country: { code: 'UA', name: 'Ukraine', flag: '🇺🇦' },
+    isInjured: false,
+    proStats: {
+      lastHitting: 40, mapAwareness: 95, positioning: 90, reflexes: 75, manaManagement: 85,
+      objectiveControl: 80, communication: 98, tiltResistance: 95, versatility: 90, ganking: 60
+    }
   },
   {
     id: 'h_sub1',
@@ -83,7 +159,18 @@ export const INITIAL_HEROES: Hero[] = [
     abilitiesFocus: 'Burst Damage',
     image: 'https://picsum.photos/seed/sub1/400/600',
     description: 'A versatile substitute with high damage potential.',
-    price: 0
+    price: 0,
+    age: 22,
+    talent: 3,
+    salary: 3100,
+    form: 70,
+    fatigue: 5,
+    country: { code: 'BR', name: 'Brazil', flag: '🇧🇷' },
+    isInjured: false,
+    proStats: {
+      lastHitting: 82, mapAwareness: 65, positioning: 70, reflexes: 85, manaManagement: 60,
+      objectiveControl: 60, communication: 75, tiltResistance: 80, versatility: 85, ganking: 70
+    }
   },
   {
     id: 'h_sub2',
@@ -94,7 +181,18 @@ export const INITIAL_HEROES: Hero[] = [
     abilitiesFocus: 'Sustain',
     image: 'https://picsum.photos/seed/sub2/400/600',
     description: 'Provides reliable backup defense when needed.',
-    price: 0
+    price: 0,
+    age: 26,
+    talent: 3,
+    salary: 2900,
+    form: 75,
+    fatigue: 0,
+    country: { code: 'TR', name: 'Turkey', flag: '🇹🇷' },
+    isInjured: false,
+    proStats: {
+      lastHitting: 50, mapAwareness: 80, positioning: 85, reflexes: 55, manaManagement: 50,
+      objectiveControl: 75, communication: 85, tiltResistance: 90, versatility: 65, ganking: 30
+    }
   }
 ];
 
@@ -108,7 +206,18 @@ export const SHOP_HEROES: Hero[] = [
     abilitiesFocus: 'Crowd Control',
     image: 'https://picsum.photos/seed/frost/400/600',
     description: 'Freezes enemies in their tracks.',
-    price: 1000
+    price: 1000,
+    age: 22,
+    talent: 5,
+    salary: 12000,
+    form: 95,
+    fatigue: 40,
+    country: { code: 'ES', name: 'Spain', flag: '🇪🇸' },
+    isInjured: false,
+    proStats: {
+      lastHitting: 92, mapAwareness: 95, positioning: 88, reflexes: 85, manaManagement: 98,
+      objectiveControl: 90, communication: 85, tiltResistance: 88, versatility: 92, ganking: 80
+    }
   },
   {
     id: 'h7',
@@ -119,6 +228,17 @@ export const SHOP_HEROES: Hero[] = [
     abilitiesFocus: 'Unstoppable',
     image: 'https://picsum.photos/seed/colossus/400/600',
     description: 'A literal mountain that moves.',
-    price: 1500
+    price: 1500,
+    age: 28,
+    talent: 5,
+    salary: 15000,
+    form: 98,
+    fatigue: 15,
+    country: { code: 'KZ', name: 'Kazakhstan', flag: '🇰🇿' },
+    isInjured: false,
+    proStats: {
+      lastHitting: 55, mapAwareness: 90, positioning: 98, reflexes: 65, manaManagement: 60,
+      objectiveControl: 95, communication: 92, tiltResistance: 100, versatility: 75, ganking: 45
+    }
   }
 ];
