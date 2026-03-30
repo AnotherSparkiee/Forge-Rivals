@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -8,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   Sword, Shield, Activity, Sparkles, Plus, 
-  Check, ChevronLeft, User, UserPlus, X,
+  Check, ChevronLeft, ChevronRight, User, UserPlus, X,
   ShieldCheck, Zap, Crosshair, HeartPulse,
   TrendingUp, Star, Users, Trophy, Box
 } from 'lucide-react';
