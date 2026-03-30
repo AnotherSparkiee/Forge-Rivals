@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { LEAGUES } from '@/app/lib/leagues-data';
 
 const TOURNAMENT_FEE = 90000;
 const START_TIME = "21:05";
@@ -32,8 +33,17 @@ const MAX_PARTICIPANTS = 16;
 export function getDeterministicTournament(dateStr: string, participants: any[], userId: string) {
   const realPlayers = participants?.map(p => ({ id: p.id, name: p.displayName || "Manager", isPlayer: true })) || [];
   const botNeeded = Math.max(0, MAX_PARTICIPANTS - realPlayers.length);
-  const botNames = ["AlphaBot", "ZetaUnit", "CyberLink", "VoidRunner", "SteelGear", "NexusPrime", "EchoTeam", "Quantum", "ShadowOps", "Blitz", "Titan", "Vanguard", "Rogue", "Omega", "Spectre", "Ghost"];
-  const bots = botNames.slice(0, botNeeded).map((n, i) => ({ id: `bot-${i}`, name: n, isPlayer: false }));
+  
+  // Generate bot names similar to league bots: 🤖 [LEAGUE] Bot #[Index]
+  const bots = Array.from({ length: botNeeded }).map((_, i) => {
+    const leagueIdx = i % LEAGUES.length;
+    const leagueId = LEAGUES[leagueIdx].id;
+    return { 
+      id: `bot-${i}`, 
+      name: `🤖 ${leagueId} Bot #${i + 1}`, 
+      isPlayer: false 
+    };
+  });
   
   // Sort by ID to have a base stable order
   const allTeams = [...realPlayers, ...bots].sort((a, b) => a.id.localeCompare(b.id));
@@ -65,12 +75,9 @@ export function getDeterministicTournament(dateStr: string, participants: any[],
     return groupResult;
   });
 
-  // Simple logic: in group stage (4 teams), you'd have 3 matches. 
-  // Let's just pick one stable opponent for the "Next Opponent" preview.
   if (myGroupIdx !== -1) {
     const myGroup = groups[myGroupIdx];
     const myIdx = myGroup.findIndex(t => t.id === userId);
-    // Opponent is simply the next one in the circular array
     myOpponent = myGroup[(myIdx + 1) % 4];
   }
 
@@ -104,11 +111,8 @@ export default function IronGlobePage() {
 
   const { data: participants, isLoading: isParticipantsLoading } = useCollection(participantsQuery);
 
-  // Check if joined TODAY
   const isJoined = useMemo(() => {
     if (!profile?.tournaments?.includes('iron-globe')) return false;
-    // We assume the user doc has a registration date or we just trust the reset logic
-    // For now, let's assume if it's there, it's valid, but we will clear it at end of tournament
     return true;
   }, [profile]);
 
@@ -174,7 +178,6 @@ export default function IronGlobePage() {
     return getDeterministicTournament(getMoscowDateString(), participants || [], user.uid);
   }, [isRegClosed, participants, user]);
 
-  // Record history when tournament finishes
   useEffect(() => {
     if (hasFinished && isJoined && !finalResultRef.current && userRef && profile && tournamentData) {
       finalResultRef.current = true;
@@ -190,10 +193,9 @@ export default function IronGlobePage() {
         status: 'completed'
       };
 
-      // Also record as a Match for the "Matches" history
       const opponent = tournamentData.myOpponent;
       const mockResult = {
-        scoreA: 2, scoreB: 1, // Deterministic mock
+        scoreA: 2, scoreB: 1,
         matchSummary: "Intense tournament battle.",
         teamStats: { teamA: { kills: 25, towersDestroyed: 11 }, teamB: { kills: 20, towersDestroyed: 8 } },
         heroPerformance: []
@@ -270,7 +272,7 @@ export default function IronGlobePage() {
   };
 
   const t = {
-    title: language === 'ru' ? "ЧУГУННЫЙ ГЛОБУС" : "CAST IRON GLOBE",
+    title: language === 'ru' ? "ЧУГУННЫЙ ГЛОБУС" : "CHUGUNNY GLOBE",
     subtitle: language === 'ru' ? "Элитное соревнование 16-ти лучших" : "Elite 16-team competition",
     leaveBtn: language === 'ru' ? "ПОКИНУТЬ ТУРНИР" : "LEAVE TOURNAMENT",
     results: language === 'ru' ? "ИТОГИ ТУРНИРА" : "TOURNAMENT RESULTS",
