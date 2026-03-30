@@ -8,7 +8,7 @@ import { useGameState } from './lib/store';
 import { 
   Users, Trophy, Zap, Clock,
   UserSearch, ShieldAlert, Medal, User, Swords, ChevronRight,
-  CalendarDays, PlayCircle, Loader2, MessageSquare
+  CalendarDays, PlayCircle, Loader2, MessageSquare, UsersRound
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -185,7 +185,16 @@ export default function Home() {
       interSeason: "Inter-season", interSeasonDesc: "Calculating new hierarchies.", preSeason: "Pre-season Readiness", preSeasonDesc: "Matches resume soon.", 
       startsIn: (displayMatchInfo?.isFriendly || displayMatchInfo?.isBasket) ? "REMAINING TIME:" : "TIME UNTIL MATCH:",
       tourLive: "TOURNAMENT LIVE",
-      menu: [ { label: 'Roster', href: '/roster', icon: Users, desc: 'Manage lineup' }, { label: 'Training', href: '/training', icon: Zap, desc: 'Improve infrastructure' }, { label: 'Rankings', href: '/rankings', icon: Trophy, desc: 'View tables' }, { label: 'Matches', href: '/matches', icon: CalendarDays, desc: 'Schedule' }, { label: 'Tournaments', href: '/tournaments', icon: Medal, desc: 'Global events' }, { label: 'Chats', href: '/chats', icon: MessageSquare, desc: 'Comms' }, { label: 'Profile', href: '/profile', icon: User, desc: 'Settings' } ]
+      menu: [ 
+        { label: 'Roster', href: '/roster', icon: Users, desc: 'Manage lineup' }, 
+        { label: 'Training', href: '/training', icon: Zap, desc: 'Improve infrastructure' }, 
+        { label: 'Rankings', href: '/rankings', icon: Trophy, desc: 'View tables' }, 
+        { label: 'Matches', href: '/matches', icon: CalendarDays, desc: 'Schedule' }, 
+        { label: 'Tournaments', href: '/tournaments', icon: Medal, desc: 'Global events' }, 
+        { label: 'Chats', href: '/chats', icon: MessageSquare, desc: 'Comms' },
+        { label: 'Managers', href: '/managers', icon: UsersRound, desc: 'Community hub' },
+        { label: 'Profile', href: '/profile', icon: User, desc: 'Settings' } 
+      ]
     },
     ru: { 
       nextMatch: displayMatchInfo?.isFriendly ? "Текущий матч" : (displayMatchInfo?.isTournament ? "Турнирный бой" : (displayMatchInfo?.isBasket ? "Бой из КВ корзины" : "Следующий матч")), 
@@ -193,7 +202,16 @@ export default function Home() {
       interSeason: "Межсезонье", interSeasonDesc: "Формирование новых групп.", preSeason: "Подготовка к лиге", preSeasonDesc: "Первая игра начнется завтра.", 
       startsIn: (displayMatchInfo?.isFriendly || displayMatchInfo?.isBasket) ? "ВРЕМЯ ДО КОНЦА:" : "ДО МАТЧА ОСТАЛОСЬ:",
       tourLive: "ТУРНИР В ЭФИРЕ",
-      menu: [ { label: 'Ростер', href: '/roster', icon: Users, desc: 'Состав команды' }, { label: 'Инфраструктура', href: '/training', icon: Zap, desc: 'Улучшение базы' }, { label: 'Таблицы', href: '/rankings', icon: Trophy, desc: 'Рейтинги' }, { label: 'Матчи', href: '/matches', icon: CalendarDays, desc: 'Расписание' }, { label: 'Турниры', href: '/tournaments', icon: Medal, desc: 'События' }, { label: 'Чаты', href: '/chats', icon: MessageSquare, desc: 'Связь' }, { label: 'Профиль', href: '/profile', icon: User, desc: 'Настройки' } ]
+      menu: [ 
+        { label: 'Ростер', href: '/roster', icon: Users, desc: 'Состав команды' }, 
+        { label: 'Инфраструктура', href: '/training', icon: Zap, desc: 'Улучшение базы' }, 
+        { label: 'Таблицы', href: '/rankings', icon: Trophy, desc: 'Рейтинги' }, 
+        { label: 'Матчи', href: '/matches', icon: CalendarDays, desc: 'Расписание' }, 
+        { label: 'Турниры', href: '/tournaments', icon: Medal, desc: 'События' }, 
+        { label: 'Чаты', href: '/chats', icon: MessageSquare, desc: 'Связь' }, 
+        { label: 'Менеджеры', href: '/managers', icon: UsersRound, desc: 'Сообщество' },
+        { label: 'Профиль', href: '/profile', icon: User, desc: 'Настройки' } 
+      ]
     }
   };
 
