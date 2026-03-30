@@ -19,6 +19,7 @@ import { doc, collection, query, where } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '../lib/leagues-data';
 import { getMoscowDateString, getMoscowTime } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { getDeterministicTournament } from '../tournaments/iron-globe/page';
 
 type MatchTab = 
   | 'menu'
@@ -60,6 +61,11 @@ export default function MatchesPage() {
 
   const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
 
+  const tourParticipantsQuery = useMemoFirebase(() => {
+    return query(collection(db, 'players_v5'), where('tournaments', 'array-contains', 'iron-globe'));
+  }, [db]);
+  const { data: tourParticipants } = useCollection(tourParticipantsQuery);
+
   const league = useMemo(() => {
     return LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0];
   }, [profile?.selectedLeagueId]);
@@ -90,7 +96,29 @@ export default function MatchesPage() {
     return getSchedule(groupTeams);
   }, [groupTeams]);
 
+  // Sync tournament opponent
+  const tournamentInfo = useMemo(() => {
+    if (!isLoaded || !profile?.tournaments?.includes('iron-globe') || !user) return null;
+    const mskNow = getMoscowTime();
+    const [ch, cm] = "20:50".split(':').map(Number);
+    const cutoff = new Date(mskNow); cutoff.setHours(ch, cm, 0, 0);
+    const [fh, fm] = "21:35".split(':').map(Number);
+    const finish = new Date(mskNow); finish.setHours(fh, fm, 0, 0);
+
+    if (mskNow.getTime() >= cutoff.getTime() && mskNow.getTime() < finish.getTime()) {
+      const tour = getDeterministicTournament(getMoscowDateString(), tourParticipants || [], user.uid);
+      return {
+        opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
+        time: "21:05",
+        isLive: mskNow.getHours() === 21 && mskNow.getMinutes() >= 5,
+        type: 'tournament'
+      };
+    }
+    return null;
+  }, [isLoaded, profile, tourParticipants, user]);
+
   const nextMatchInfo = useMemo(() => {
+    if (tournamentInfo) return tournamentInfo;
     if (!isLoaded || !profile || !groupTeams.length || !schedule.length) return null;
     
     const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
@@ -107,9 +135,10 @@ export default function MatchesPage() {
       opponent,
       day: targetDay,
       time: league.startTime,
-      isNextDay: targetDay > seasonDay
+      isNextDay: targetDay > seasonDay,
+      type: 'league'
     };
-  }, [isLoaded, profile, groupTeams, schedule, seasonDay, isTodayPlayed, league, user?.uid]);
+  }, [isLoaded, profile, groupTeams, schedule, seasonDay, isTodayPlayed, league, user?.uid, tournamentInfo]);
 
   useEffect(() => {
     if (activeTab !== 'next_opponent' || !nextMatchInfo) return;
@@ -121,7 +150,7 @@ export default function MatchesPage() {
       const targetDate = new Date(mskNow);
       targetDate.setHours(hours, minutes, 0, 0);
       
-      if (nextMatchInfo.isNextDay) {
+      if (nextMatchInfo.type === 'league' && nextMatchInfo.isNextDay) {
         if (mskNow.getTime() >= targetDate.getTime()) {
           targetDate.setDate(targetDate.getDate() + 1);
         }
@@ -172,6 +201,7 @@ export default function MatchesPage() {
       today: "TODAY",
       tomorrow: "TOMORROW",
       startsIn: "TIME UNTIL MATCH:",
+      tourLive: "LIVE TOURNAMENT MATCH",
       tabs: {
         next_opponent: { label: "Next Opponent", desc: "Detailed brief on your next rival", icon: UserSearch },
         my_future: { label: "My Future", desc: "Upcoming matches for your team", icon: CalendarClock },
@@ -194,6 +224,7 @@ export default function MatchesPage() {
       today: "СЕГОДНЯ",
       tomorrow: "ЗАВТРА",
       startsIn: "ДО МАТЧА ОСТАЛОСЬ:",
+      tourLive: "ТУРНИРНЫЙ БОЙ В ЭФИРЕ",
       tabs: {
         next_opponent: { label: "Следующий соперник", desc: "Досье на ближайшего врага", icon: UserSearch },
         my_future: { label: "Свои будущие", desc: "Предстоящие игры команды", icon: CalendarClock },
@@ -287,7 +318,7 @@ export default function MatchesPage() {
           <div className="flex flex-col items-center w-16 flex-shrink-0 border-r border-white/5 pr-2">
             <span className="text-[10px] font-mono font-bold text-accent whitespace-nowrap">{dateStr}</span>
             <span className="text-[7px] uppercase font-black text-muted-foreground text-center leading-none mt-1">
-              {match.type === 'league' ? `DAY ${match.day}` : 'FRIENDLY'}
+              {match.type === 'league' ? `DAY ${match.day}` : (match.type === 'tournament' ? 'TOURN' : 'FRIENDLY')}
             </span>
           </div>
           <div className="flex-1 flex items-center justify-between gap-1 min-w-0 px-2">
@@ -324,28 +355,42 @@ export default function MatchesPage() {
         
         const opponent = nextMatchInfo.opponent;
         const startHour = nextMatchInfo.time;
-        const matchDate = getDateForDay(nextMatchInfo.day);
+        const matchDate = nextMatchInfo.type === 'league' ? getDateForDay(nextMatchInfo.day) : getMoscowDateString();
+        const isTour = nextMatchInfo.type === 'tournament';
+        const isLive = (nextMatchInfo as any).isLive;
         
         return (
           <div className="space-y-6 animate-in fade-in duration-500">
-            <Card className="glass-card border-primary/20 bg-primary/5">
+            <Card className={cn(
+              "glass-card border-primary/20 bg-primary/5",
+              isTour && "border-accent/30 bg-accent/5",
+              isLive && "border-green-500/30 bg-green-500/5"
+            )}>
               <CardHeader className="text-center pb-2">
                 <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">Intelligence Report</CardTitle>
                 <div className="flex flex-col items-center gap-2 mt-4">
                   <div className="bg-background/50 px-6 py-2 rounded-xl border border-white/5">
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase text-center mb-1">{t.startsIn}</p>
-                    <p className="text-3xl font-headline font-bold text-primary tabular-nums tracking-tighter">{countdown || '00:00:00'}</p>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase text-center mb-1">{isLive ? t.tourLive : t.startsIn}</p>
+                    <p className={cn(
+                      "text-3xl font-headline font-bold tabular-nums tracking-tighter",
+                      isLive ? "text-green-400" : "text-primary"
+                    )}>
+                      {isLive ? 'LIVE' : countdown || '00:00:00'}
+                    </p>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="flex flex-col items-center space-y-4">
-                <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 border-accent shadow-[0_0_15px_rgba(var(--accent),0.2)]">
-                  {opponent.isPlayer ? <CalendarClock className="w-10 h-10 text-accent" /> : <Shield className="w-10 h-10 text-accent" />}
+                <div className={cn(
+                  "w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 shadow-[0_0_15px_rgba(var(--accent),0.2)]",
+                  isTour ? "border-accent" : "border-primary"
+                )}>
+                  {isTour ? <Trophy className="w-10 h-10 text-accent" /> : <Shield className="w-10 h-10 text-primary" />}
                 </div>
                 <div className="text-center">
                   <h3 className="text-xl font-headline font-bold text-primary italic uppercase truncate max-w-[250px]">{opponent.name}</h3>
                   <Badge variant="secondary" className="mt-2 text-[10px]">
-                    {opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'} | DIV {leagueLevel}.{divisionSubId}
+                    {opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'} | {isTour ? 'TOURNAMENT' : `DIV ${leagueLevel}.${divisionSubId}`}
                   </Badge>
                 </div>
                 
@@ -354,20 +399,22 @@ export default function MatchesPage() {
                     <Calendar className="w-3 h-3" /> {t.matchTime}
                   </p>
                   <p className="text-xl font-headline font-bold tracking-tight">
-                    {nextMatchInfo.isNextDay ? t.tomorrow : t.today} {matchDate} @ {startHour}
+                    {isTour ? 'TODAY' : (nextMatchInfo.isNextDay ? t.tomorrow : t.today)} {matchDate} @ {startHour}
                   </p>
                 </div>
 
-                <div className="w-full grid grid-cols-2 gap-3 pt-4 border-t border-white/5">
-                   <div className="text-center">
-                     <p className="text-[8px] uppercase text-muted-foreground font-bold">W-D-L</p>
-                     <p className="text-sm font-bold">{opponent.wins}-{opponent.draws}-{opponent.losses}</p>
-                   </div>
-                   <div className="text-center">
-                     <p className="text-[10px] uppercase text-muted-foreground font-bold">Points</p>
-                     <p className="text-sm font-bold text-accent">{opponent.points}</p>
-                   </div>
-                </div>
+                {!isTour && (
+                  <div className="w-full grid grid-cols-2 gap-3 pt-4 border-t border-white/5">
+                    <div className="text-center">
+                      <p className="text-[8px] uppercase text-muted-foreground font-bold">W-D-L</p>
+                      <p className="text-sm font-bold">{opponent.wins || 0}-{opponent.draws || 0}-{opponent.losses || 0}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[10px] uppercase text-muted-foreground font-bold">Points</p>
+                      <p className="text-sm font-bold text-accent">{opponent.points || 0}</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

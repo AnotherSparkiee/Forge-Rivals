@@ -14,7 +14,7 @@ import {
   LogOut
 } from 'lucide-react';
 import Link from 'next/link';
-import { getMoscowTime } from '@/app/lib/time-utils';
+import { getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -26,10 +26,65 @@ const START_TIME = "21:05";
 const REG_CLOSE_TIME = "20:50"; 
 const MAX_PARTICIPANTS = 16;
 
+/**
+ * Deterministic helper to get tournament structure based on date and participants
+ */
+export function getDeterministicTournament(dateStr: string, participants: any[], userId: string) {
+  const realPlayers = participants?.map(p => ({ id: p.id, name: p.displayName || "Manager", isPlayer: true })) || [];
+  const botNeeded = Math.max(0, MAX_PARTICIPANTS - realPlayers.length);
+  const botNames = ["AlphaBot", "ZetaUnit", "CyberLink", "VoidRunner", "SteelGear", "NexusPrime", "EchoTeam", "Quantum", "ShadowOps", "Blitz", "Titan", "Vanguard", "Rogue", "Omega", "Spectre", "Ghost"];
+  const bots = botNames.slice(0, botNeeded).map((n, i) => ({ id: `bot-${i}`, name: n, isPlayer: false }));
+  
+  // Sort by ID to have a base stable order
+  const allTeams = [...realPlayers, ...bots].sort((a, b) => a.id.localeCompare(b.id));
+  
+  // Shuffle groups based on date seed (very simple LCG-like)
+  const seed = dateStr.split('-').reduce((acc, v) => acc + parseInt(v), 0);
+  const shuffled = [...allTeams];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = (seed + i) % (i + 1);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  const groups = [ shuffled.slice(0, 4), shuffled.slice(4, 8), shuffled.slice(8, 12), shuffled.slice(12, 16) ];
+  
+  // Find player's group and opponent
+  let myGroupIdx = -1;
+  let myOpponent = null;
+
+  const processedGroups = groups.map((group, idx) => {
+    const isMyGroup = group.some(t => t.id === userId);
+    if (isMyGroup) myGroupIdx = idx;
+
+    const groupResult = group.map(t => {
+      // Deterministic points based on ID and date
+      const ptsSeed = (t.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0) + seed) % 10;
+      return { ...t, pts: ptsSeed, w: Math.floor(ptsSeed/3), d: ptsSeed % 3, l: Math.max(0, 3 - Math.floor(ptsSeed/3)) };
+    }).sort((a, b) => b.pts - a.pts);
+
+    return groupResult;
+  });
+
+  // Simple logic: in group stage (4 teams), you'd have 3 matches. 
+  // Let's just pick one stable opponent for the "Next Opponent" preview.
+  if (myGroupIdx !== -1) {
+    const myGroup = groups[myGroupIdx];
+    const myIdx = myGroup.findIndex(t => t.id === userId);
+    // Opponent is simply the next one in the circular array
+    myOpponent = myGroup[(myIdx + 1) % 4];
+  }
+
+  return { 
+    groups: processedGroups, 
+    qualifiers: processedGroups.flatMap(g => [g[0], g[1]]),
+    myOpponent
+  };
+}
+
 export default function IronGlobePage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
-  const { credits, addCredits, language, isLoaded } = useGameState();
+  const { credits, addCredits, language, isLoaded, recordMatch } = useGameState();
   const { toast } = useToast();
   
   const [isJoining, setIsJoining] = useState(false);
@@ -49,7 +104,14 @@ export default function IronGlobePage() {
 
   const { data: participants, isLoading: isParticipantsLoading } = useCollection(participantsQuery);
 
-  const isJoined = profile?.tournaments?.includes('iron-globe') || false;
+  // Check if joined TODAY
+  const isJoined = useMemo(() => {
+    if (!profile?.tournaments?.includes('iron-globe')) return false;
+    // We assume the user doc has a registration date or we just trust the reset logic
+    // For now, let's assume if it's there, it's valid, but we will clear it at end of tournament
+    return true;
+  }, [profile]);
+
   const currentCount = participants?.length || 0;
   const spotsLeft = Math.max(0, MAX_PARTICIPANTS - currentCount);
 
@@ -65,7 +127,7 @@ export default function IronGlobePage() {
       closeTarget.setHours(ch, cm, 0, 0);
 
       const finishTarget = new Date(startTarget);
-      finishTarget.setMinutes(finishTarget.getMinutes() + 30); // Assume tournament lasts 30 mins
+      finishTarget.setMinutes(finishTarget.getMinutes() + 35); 
 
       if (mskNow.getTime() >= finishTarget.getTime()) {
         setHasFinished(true);
@@ -107,9 +169,14 @@ export default function IronGlobePage() {
     return () => clearInterval(timer);
   }, [isJoined, language, toast]);
 
+  const tournamentData = useMemo(() => {
+    if (!isRegClosed || !user) return null;
+    return getDeterministicTournament(getMoscowDateString(), participants || [], user.uid);
+  }, [isRegClosed, participants, user]);
+
   // Record history when tournament finishes
   useEffect(() => {
-    if (hasFinished && isJoined && !finalResultRef.current && userRef) {
+    if (hasFinished && isJoined && !finalResultRef.current && userRef && profile && tournamentData) {
       finalResultRef.current = true;
       const mskNow = getMoscowTime();
       const startTime = new Date(mskNow); startTime.setHours(21, 5, 0);
@@ -123,6 +190,17 @@ export default function IronGlobePage() {
         status: 'completed'
       };
 
+      // Also record as a Match for the "Matches" history
+      const opponent = tournamentData.myOpponent;
+      const mockResult = {
+        scoreA: 2, scoreB: 1, // Deterministic mock
+        matchSummary: "Intense tournament battle.",
+        teamStats: { teamA: { kills: 25, towersDestroyed: 11 }, teamB: { kills: 20, towersDestroyed: 8 } },
+        heroPerformance: []
+      };
+      
+      recordMatch(profile.displayName || "Manager", mockResult, 0, opponent?.name || "Tournament Rival", 'friendly', mskNow.toISOString());
+
       updateDoc(userRef, {
         tournamentHistory: arrayUnion(record),
         tournaments: profile.tournaments.filter((t: string) => t !== 'iron-globe')
@@ -133,7 +211,7 @@ export default function IronGlobePage() {
         description: language === 'ru' ? "Итоги сохранены в историю." : "Results saved to history.",
       });
     }
-  }, [hasFinished, isJoined, userRef, profile, language, toast]);
+  }, [hasFinished, isJoined, userRef, profile, language, toast, recordMatch, tournamentData]);
 
   const handleJoin = async () => {
     if (!user || !profile || isJoining) return;
@@ -187,27 +265,16 @@ export default function IronGlobePage() {
     }
   };
 
-  const tournamentData = useMemo(() => {
-    if (!isRegClosed) return null;
-    const realPlayers = participants?.map(p => ({ id: p.id, name: p.displayName || "Manager", isPlayer: true })) || [];
-    const botNeeded = Math.max(0, MAX_PARTICIPANTS - realPlayers.length);
-    const botNames = ["AlphaBot", "ZetaUnit", "CyberLink", "VoidRunner", "SteelGear", "NexusPrime", "EchoTeam", "Quantum", "ShadowOps", "Blitz", "Titan", "Vanguard", "Rogue", "Omega", "Spectre", "Ghost"];
-    const bots = botNames.slice(0, botNeeded).map((n, i) => ({ id: `bot-${i}`, name: n, isPlayer: false }));
-    const teams = [...realPlayers, ...bots].sort((a, b) => a.id.localeCompare(b.id));
-    const groups = [ teams.slice(0, 4), teams.slice(4, 8), teams.slice(8, 12), teams.slice(12, 16) ];
-    const groupResults = groups.map(group => group.map(t => {
-      const pts = (isLive || hasFinished) ? Math.floor(Math.random() * 10) : 0;
-      return { ...t, pts, w: Math.floor(pts/3), d: pts % 3, l: Math.max(0, 3 - Math.floor(pts/3)) };
-    }).sort((a, b) => b.pts - a.pts));
-    return { groups: groupResults, qualifiers: groupResults.flatMap(g => [g[0], g[1]]) };
-  }, [isRegClosed, isLive, hasFinished, participants]);
-
   const t = {
     title: language === 'ru' ? "ЧУГУННЫЙ ГЛОБУС" : "CAST IRON GLOBE",
     subtitle: language === 'ru' ? "Элитное соревнование 16-ти лучших" : "Elite 16-team competition",
     leaveBtn: language === 'ru' ? "ПОКИНУТЬ ТУРНИР" : "LEAVE TOURNAMENT",
-    results: language === 'ru' ? "ИТОГИ ТУРНИРА" : "TOURNAMENT RESULTS"
+    results: language === 'ru' ? "ИТОГИ ТУРНИРА" : "TOURNAMENT RESULTS",
+    participants: language === 'ru' ? "СПИСОК УЧАСТНИКОВ" : "PARTICIPANTS LIST",
+    spots: language === 'ru' ? "мест занято" : "spots filled"
   };
+
+  if (isParticipantsLoading || isUserLoading) return <Loader2 className="w-8 h-8 animate-spin mx-auto mt-20" />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
@@ -253,20 +320,45 @@ export default function IronGlobePage() {
                 <p className="text-[10px] font-bold text-muted-foreground uppercase">{isLive ? 'BATTLE TIME' : 'STARTS IN'}</p>
                 <p className="text-4xl font-headline font-bold text-primary">{countdown}</p>
               </div>
-              {!isRegClosed && !isJoined && (
-                <div className="p-4">
-                  <Button className="w-full h-12 hero-gradient font-bold" onClick={handleJoin} disabled={isJoining || credits < TOURNAMENT_FEE}>
-                    {isJoining ? <Loader2 className="animate-spin mr-2" /> : <Swords className="w-4 h-4 mr-2" />} REGISTER
-                  </Button>
-                </div>
-              )}
-              {isJoined && !isRegClosed && (
-                <div className="p-4 bg-green-500/10 text-green-400 text-center text-xs font-bold uppercase tracking-widest border-t border-green-500/20">
-                  <CheckCircle2 className="w-4 h-4 inline mr-2" /> REGISTERED
+              
+              {!isRegClosed && (
+                <div className="p-4 bg-secondary/20">
+                  <div className="flex justify-between text-[8px] font-bold uppercase mb-1">
+                    <span>{t.participants}</span>
+                    <span>{currentCount} / {MAX_PARTICIPANTS} {t.spots}</span>
+                  </div>
+                  <Progress value={(currentCount / MAX_PARTICIPANTS) * 100} className="h-1 mb-4" />
+                  
+                  {!isJoined ? (
+                    <Button className="w-full h-12 hero-gradient font-bold" onClick={handleJoin} disabled={isJoining || credits < TOURNAMENT_FEE || currentCount >= MAX_PARTICIPANTS}>
+                      {isJoining ? <Loader2 className="animate-spin mr-2" /> : <Swords className="w-4 h-4 mr-2" />} REGISTER ({TOURNAMENT_FEE.toLocaleString()} €)
+                    </Button>
+                  ) : (
+                    <div className="p-3 bg-green-500/10 text-green-400 text-center text-xs font-bold uppercase tracking-widest border border-green-500/20 rounded-xl">
+                      <CheckCircle2 className="w-4 h-4 inline mr-2" /> REGISTERED
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
           </Card>
+
+          {!isRegClosed && (
+            <section className="space-y-3">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-accent px-1">{t.participants}</h2>
+              <div className="grid grid-cols-1 gap-2">
+                {participants?.map((p) => (
+                  <div key={p.id} className={cn("flex items-center gap-3 p-3 rounded-xl border border-white/5 bg-secondary/20", p.id === user?.uid && "border-primary/30 bg-primary/5")}>
+                    <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center border border-white/10">
+                      <User className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <span className="text-xs font-bold uppercase">{p.displayName}</span>
+                    {p.id === user?.uid && <Badge className="ml-auto text-[7px] uppercase">YOU</Badge>}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {isRegClosed && (
             <Tabs defaultValue="groups" className="w-full">
