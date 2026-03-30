@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -94,26 +93,74 @@ export function AutoMatchManager() {
     } catch (e: any) { console.error("Sim failed", e); } finally { setIsSimulating(false); simulationRef.current = false; setSyncing(false); }
   };
 
-  const t = { title: language === 'ru' ? 'ИТОГИ СЕЗОНА' : 'SEASON RESULTS', congrats: language === 'ru' ? 'СЕЗОН ЗАВЕРШЕН!' : 'SEASON COMPLETE!', pos: language === 'ru' ? 'Ваше место:' : 'Your Place:', pts: language === 'ru' ? 'Набрано очков:' : 'Points Scored:', promoted: language === 'ru' ? 'ПОВЫШЕНИЕ В КЛАССЕ!' : 'PROMOTED!', demoted: language === 'ru' ? 'ПОНИЖЕНИЕ В КЛАССЕ' : 'RELEGATED', stayed: language === 'ru' ? 'ПОЗИЦИЯ СОХРАНЕНА' : 'POSITION MAINTAINED', next: language === 'ru' ? 'СЛЕДУЮЩИЙ СЕЗОН' : 'NEXT SEASON' };
+  const t = { 
+    title: language === 'ru' ? 'ИТОГИ СЕЗОНА' : 'SEASON RESULTS', 
+    congrats: language === 'ru' ? 'СЕЗОН ЗАВЕРШЕН!' : 'SEASON COMPLETE!', 
+    pos: language === 'ru' ? 'Ваше место:' : 'Your Place:', 
+    pts: language === 'ru' ? 'Набрано очков:' : 'Points Scored:', 
+    promoted: language === 'ru' ? 'ПОВЫШЕНИЕ В КЛАССЕ!' : 'PROMOTED!', 
+    demoted: language === 'ru' ? 'ПОНИЖЕНИЕ В КЛАССЕ' : 'RELEGATED', 
+    stayed: language === 'ru' ? 'ПОЗИЦИЯ СОХРАНЕНА' : 'POSITION MAINTAINED', 
+    next: language === 'ru' ? 'СЛЕДУЮЩИЙ СЕЗОН' : 'NEXT SEASON',
+    matchSummary: language === 'ru' ? 'Обзор матча' : 'Match Summary'
+  };
 
   return (
-    <><Dialog open={showResultDialog} onOpenChange={(open) => { setShowResultDialog(open); if (!open && currentResult) markMatchAsSeen(currentResult.day); }}>
+    <>
+      <Dialog open={showResultDialog} onOpenChange={(open) => { setShowResultDialog(open); if (!open && currentResult) markMatchAsSeen(currentResult.day); }}>
         <DialogContent className="max-w-md p-0 overflow-hidden bg-background border-white/5">
           <div className={cn("p-6 text-center border-b", currentResult?.scoreA > currentResult?.scoreB ? "bg-primary/10 border-primary/20" : "bg-accent/10 border-accent/20")}>
             <Trophy className="w-16 h-16 mx-auto mb-3 text-primary" />
-            <h2 className="text-3xl font-headline font-bold mb-1 uppercase">{currentResult?.scoreA > currentResult?.scoreB ? (language === 'ru' ? 'ПОБЕДА' : 'VICTORY') : (language === 'ru' ? 'МАТЧ ОКОНЧЕН' : 'MATCH OVER')}</h2>
-            <div className="flex items-center justify-center gap-4 text-2xl font-headline font-bold mt-2"><span>{currentResult?.scoreA}</span><span className="opacity-30">:</span><span>{currentResult?.scoreB}</span></div>
+            <DialogTitle className="text-3xl font-headline font-bold mb-1 uppercase">
+              {currentResult?.scoreA > currentResult?.scoreB ? (language === 'ru' ? 'ПОБЕДА' : 'VICTORY') : (language === 'ru' ? 'МАТЧ ОКОНЧЕН' : 'MATCH OVER')}
+            </DialogTitle>
+            <DialogDescription className="sr-only">{t.matchSummary}</DialogDescription>
+            <div className="flex items-center justify-center gap-4 text-2xl font-headline font-bold mt-2">
+              <span>{currentResult?.scoreA}</span>
+              <span className="opacity-30">:</span>
+              <span>{currentResult?.scoreB}</span>
+            </div>
           </div>
-          <div className="p-6 space-y-6"><p className="text-sm leading-relaxed text-muted-foreground italic">"{currentResult?.matchSummary}"</p></div>
-          <DialogFooter className="p-4 bg-secondary/20"><Button onClick={() => setShowResultDialog(false)} className="w-full font-bold uppercase text-[10px] h-12">ЗАКРЫТЬ</Button></DialogFooter>
+          <div className="p-6 space-y-6">
+            <p className="text-sm leading-relaxed text-muted-foreground italic">"{currentResult?.matchSummary}"</p>
+          </div>
+          <DialogFooter className="p-4 bg-secondary/20">
+            <Button onClick={() => setShowResultDialog(false)} className="w-full font-bold uppercase text-[10px] h-12">
+              {language === 'ru' ? 'ЗАКРЫТЬ' : 'CLOSE'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
+
       <Dialog open={!!seasonResults} onOpenChange={(open) => !open && dismissSeasonResults()}>
         <DialogContent className="max-w-md p-0 overflow-hidden bg-background border-white/10 shadow-2xl">
-          <div className="p-8 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5"><div className="mx-auto w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary">{seasonResults?.promoted ? <ArrowUpCircle className="w-10 h-10 text-primary animate-bounce" /> : <MinusCircle className="w-10 h-10 text-accent" />}</div><DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-primary">{t.congrats}</DialogTitle></div>
-          <div className="p-8 space-y-6"><div className="grid grid-cols-2 gap-4"><div className="bg-secondary/30 p-4 rounded-xl border border-white/5 text-center"><p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">{t.pos}</p><p className="text-3xl font-headline font-bold text-accent">{seasonResults?.lastRank}</p></div><div className="bg-secondary/30 p-4 rounded-xl border border-white/5 text-center"><p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">{t.pts}</p><p className="text-3xl font-headline font-bold text-primary">{seasonResults?.lastPoints}</p></div></div><div className={cn("p-6 rounded-xl border-2 text-center", seasonResults?.promoted ? "bg-primary/10 border-primary/30" : "bg-accent/10 border-accent/30")}><h3 className="text-xl font-headline font-bold uppercase">{seasonResults?.promoted ? t.promoted : t.stayed}</h3></div></div>
-          <DialogFooter className="p-6 bg-secondary/20 border-t border-white/5"><Button className="w-full h-14 hero-gradient font-bold uppercase text-xs" onClick={dismissSeasonResults}>{t.next}</Button></DialogFooter>
+          <div className="p-8 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
+            <div className="mx-auto w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary">
+              {seasonResults?.promoted ? <ArrowUpCircle className="w-10 h-10 text-primary animate-bounce" /> : <MinusCircle className="w-10 h-10 text-accent" />}
+            </div>
+            <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-primary">{t.congrats}</DialogTitle>
+            <DialogDescription className="sr-only">{t.title}</DialogDescription>
+          </div>
+          <div className="p-8 space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-secondary/30 p-4 rounded-xl border border-white/5 text-center">
+                <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">{t.pos}</p>
+                <p className="text-3xl font-headline font-bold text-accent">{seasonResults?.lastRank}</p>
+              </div>
+              <div className="bg-secondary/30 p-4 rounded-xl border border-white/5 text-center">
+                <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">{t.pts}</p>
+                <p className="text-3xl font-headline font-bold text-primary">{seasonResults?.lastPoints}</p>
+              </div>
+            </div>
+            <div className={cn("p-6 rounded-xl border-2 text-center", seasonResults?.promoted ? "bg-primary/10 border-primary/30" : "bg-accent/10 border-accent/30")}>
+              <h3 className="text-xl font-headline font-bold uppercase">{seasonResults?.promoted ? t.promoted : t.stayed}</h3>
+            </div>
+          </div>
+          <DialogFooter className="p-6 bg-secondary/20 border-t border-white/5">
+            <Button className="w-full h-14 hero-gradient font-bold uppercase text-xs" onClick={dismissSeasonResults}>{t.next}</Button>
+          </DialogFooter>
         </DialogContent>
-      </Dialog></>
+      </Dialog>
+    </>
   );
 }
