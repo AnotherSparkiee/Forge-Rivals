@@ -65,7 +65,7 @@ export interface MatchResultEntry {
   id: string; 
   day: number; 
   seasonNumber?: number;
-  type: 'league' | 'friendly';
+  type: 'league' | 'friendly' | 'tournament' | 'basket';
   opponentName: string;
   winner: string;
   scoreA: number;
@@ -235,7 +235,7 @@ interface GameStateContextType extends GameState {
   startCapacityExpansion: (seats: number, cost: number, hours: number) => boolean;
   checkConstructions: () => void;
   setLanguage: (lang: 'en' | 'ru') => void;
-  recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: 'league' | 'friendly', customPlayedAt?: string) => void;
+  recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string) => void;
   markMatchAsSeen: (day: number) => void;
   claimReward: (creditsReward: number, crystalsReward: number) => void;
   syncStats: (groupPlayers: any[]) => void;
@@ -622,7 +622,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: 'league' | 'friendly', customPlayedAt?: string) => {
+  const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string) => {
     const scoreA = result.scoreA || 0;
     const scoreB = result.scoreB || 0;
     let creditsEarned = 50; let rankChange = -15;

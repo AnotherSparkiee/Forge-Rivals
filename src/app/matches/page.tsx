@@ -66,6 +66,9 @@ export default function MatchesPage() {
   }, [db]);
   const { data: tourParticipants } = useCollection(tourParticipantsQuery);
 
+  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket', user.uid) : null, [db, user]);
+  const { data: basketEntry } = useDoc(myBasketRef);
+
   const league = useMemo(() => {
     return LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0];
   }, [profile?.selectedLeagueId]);
@@ -117,8 +120,26 @@ export default function MatchesPage() {
     return null;
   }, [isLoaded, profile, tourParticipants, user]);
 
+  // Sync basket match
+  const basketInfo = useMemo(() => {
+    if (basketEntry?.status === 'matched' && basketEntry.matchStartTime) {
+      const startTime = new Date(basketEntry.matchStartTime).getTime();
+      if (Date.now() < startTime) {
+        return {
+          opponent: { name: basketEntry.matchedWithName, isPlayer: true },
+          time: new Date(startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          type: 'basket',
+          startTime
+        };
+      }
+    }
+    return null;
+  }, [basketEntry]);
+
   const nextMatchInfo = useMemo(() => {
     if (tournamentInfo) return tournamentInfo;
+    if (basketInfo) return basketInfo;
+    
     if (!isLoaded || !profile || !groupTeams.length || !schedule.length) return null;
     
     const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
@@ -138,15 +159,28 @@ export default function MatchesPage() {
       isNextDay: targetDay > seasonDay,
       type: 'league'
     };
-  }, [isLoaded, profile, groupTeams, schedule, seasonDay, isTodayPlayed, league, user?.uid, tournamentInfo]);
+  }, [isLoaded, profile, groupTeams, schedule, seasonDay, isTodayPlayed, league, user?.uid, tournamentInfo, basketInfo]);
 
   useEffect(() => {
     if (activeTab !== 'next_opponent' || !nextMatchInfo) return;
 
     const interval = setInterval(() => {
       const mskNow = getMoscowTime();
-      const [hours, minutes] = nextMatchInfo.time.split(':').map(Number);
       
+      if (nextMatchInfo.type === 'basket') {
+        const diff = (nextMatchInfo as any).startTime - Date.now();
+        if (diff <= 0) {
+          setCountdown('00:00:00');
+        } else {
+          const h = Math.floor(diff / 3600000);
+          const m = Math.floor((diff % 3600000) / 60000);
+          const s = Math.floor((diff % 60000) / 1000);
+          setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+        }
+        return;
+      }
+
+      const [hours, minutes] = nextMatchInfo.time.split(':').map(Number);
       const targetDate = new Date(mskNow);
       targetDate.setHours(hours, minutes, 0, 0);
       
@@ -318,7 +352,7 @@ export default function MatchesPage() {
           <div className="flex flex-col items-center w-16 flex-shrink-0 border-r border-white/5 pr-2">
             <span className="text-[10px] font-mono font-bold text-accent whitespace-nowrap">{dateStr}</span>
             <span className="text-[7px] uppercase font-black text-muted-foreground text-center leading-none mt-1">
-              {match.type === 'league' ? `DAY ${match.day}` : (match.type === 'tournament' ? 'TOURN' : 'FRIENDLY')}
+              {match.type === 'league' ? `DAY ${match.day}` : (match.type === 'tournament' ? 'TOURN' : (match.type === 'basket' ? 'BASKET' : 'FRIENDLY'))}
             </span>
           </div>
           <div className="flex-1 flex items-center justify-between gap-1 min-w-0 px-2">
@@ -354,9 +388,8 @@ export default function MatchesPage() {
         if (!nextMatchInfo) return <p className="text-center py-10 text-muted-foreground uppercase text-xs">Season Finished or Pre-season</p>;
         
         const opponent = nextMatchInfo.opponent;
-        const startHour = nextMatchInfo.time;
-        const matchDate = nextMatchInfo.type === 'league' ? getDateForDay(nextMatchInfo.day) : getMoscowDateString();
         const isTour = nextMatchInfo.type === 'tournament';
+        const isBasket = nextMatchInfo.type === 'basket';
         const isLive = (nextMatchInfo as any).isLive;
         
         return (
@@ -364,6 +397,7 @@ export default function MatchesPage() {
             <Card className={cn(
               "glass-card border-primary/20 bg-primary/5",
               isTour && "border-accent/30 bg-accent/5",
+              isBasket && "border-green-500/30 bg-green-500/5",
               isLive && "border-green-500/30 bg-green-500/5"
             )}>
               <CardHeader className="text-center pb-2">
@@ -383,14 +417,14 @@ export default function MatchesPage() {
               <CardContent className="flex flex-col items-center space-y-4">
                 <div className={cn(
                   "w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 shadow-[0_0_15px_rgba(var(--accent),0.2)]",
-                  isTour ? "border-accent" : "border-primary"
+                  (isTour || isBasket) ? "border-accent" : "border-primary"
                 )}>
-                  {isTour ? <Trophy className="w-10 h-10 text-accent" /> : <Shield className="w-10 h-10 text-primary" />}
+                  {isTour ? <Trophy className="w-10 h-10 text-accent" /> : (isBasket ? <Swords className="w-10 h-10 text-green-400" /> : <Shield className="w-10 h-10 text-primary" />)}
                 </div>
                 <div className="text-center">
-                  <h3 className="text-xl font-headline font-bold text-primary italic uppercase truncate max-w-[250px]">{opponent.name}</h3>
+                  <h3 className={cn("text-xl font-headline font-bold italic uppercase truncate max-w-[250px]", isBasket ? "text-green-400" : "text-primary")}>{opponent.name}</h3>
                   <Badge variant="secondary" className="mt-2 text-[10px]">
-                    {opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'} | {isTour ? 'TOURNAMENT' : `DIV ${leagueLevel}.${divisionSubId}`}
+                    {opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'} | {isTour ? 'TOURNAMENT' : (isBasket ? 'CW BASKET' : `DIV ${leagueLevel}.${divisionSubId}`)}
                   </Badge>
                 </div>
                 
@@ -399,22 +433,9 @@ export default function MatchesPage() {
                     <Calendar className="w-3 h-3" /> {t.matchTime}
                   </p>
                   <p className="text-xl font-headline font-bold tracking-tight">
-                    {isTour ? 'TODAY' : (nextMatchInfo.isNextDay ? t.tomorrow : t.today)} {matchDate} @ {startHour}
+                    {isBasket ? 'IN 15 MIN' : (isTour ? 'TODAY' : (nextMatchInfo.isNextDay ? t.tomorrow : t.today))} {isBasket ? '' : (nextMatchInfo.type === 'league' ? getDateForDay(nextMatchInfo.day) : '')} @ {nextMatchInfo.time}
                   </p>
                 </div>
-
-                {!isTour && (
-                  <div className="w-full grid grid-cols-2 gap-3 pt-4 border-t border-white/5">
-                    <div className="text-center">
-                      <p className="text-[8px] uppercase text-muted-foreground font-bold">W-D-L</p>
-                      <p className="text-sm font-bold">{opponent.wins || 0}-{opponent.draws || 0}-{opponent.losses || 0}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[10px] uppercase text-muted-foreground font-bold">Points</p>
-                      <p className="text-sm font-bold text-accent">{opponent.points || 0}</p>
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </Card>
           </div>

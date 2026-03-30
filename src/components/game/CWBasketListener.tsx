@@ -1,10 +1,10 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from '@/components/ui/dialog';
@@ -12,38 +12,93 @@ import { Button } from '@/components/ui/button';
 import { Swords, Loader2, Timer, Zap, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePathname } from 'next/navigation';
+import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
+import { INITIAL_HEROES } from '@/app/lib/moba-data';
+
+function sanitizeForFirestore(obj: any) {
+  return JSON.parse(JSON.stringify(obj));
+}
 
 /**
  * Global listener for CW Basket results.
- * Shows a modal when a match is found, regardless of where the user is in the app.
+ * Shows a modal when a match is found and handles auto-simulation when time is up.
  */
 export function CWBasketListener() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const pathname = usePathname();
-  const { language } = useGameState();
+  const { language, strategy, team, recordMatch } = useGameState();
   const { toast } = useToast();
 
   const [showModal, setShowModal] = useState(false);
   const [hasNotified, setHasNotified] = useState(false);
+  const isSimulatingRef = useRef(false);
 
   const myEntryRef = useMemoFirebase(() => user ? doc(db, 'cw_basket', user.uid) : null, [db, user]);
   const { data: myEntry } = useDoc(myEntryRef);
 
   useEffect(() => {
     if (myEntry?.status === 'matched') {
-      // Don't show modal if we are already on the CW basket page (it has its own UI)
-      if (pathname === '/tournaments/cw-basket') return;
-      
-      if (!hasNotified) {
+      // Notification modal
+      if (pathname !== '/tournaments/cw-basket' && !hasNotified) {
         setShowModal(true);
         setHasNotified(true);
+      }
+
+      // Auto-simulation check
+      if (myEntry.matchStartTime && !isSimulatingRef.current) {
+        const startTime = new Date(myEntry.matchStartTime).getTime();
+        
+        const checkAndSimulate = async () => {
+          if (Date.now() >= startTime && !isSimulatingRef.current) {
+            isSimulatingRef.current = true;
+            try {
+              // Simulate Match
+              const result = await simulateMobaMatch({
+                teamA: { name: myEntry.userName || "My Team", strategy, heroes: team },
+                teamB: { 
+                  name: myEntry.matchedWithName || "Rival Manager", 
+                  strategy: "Balanced Play", 
+                  heroes: INITIAL_HEROES.slice(0, 5) 
+                },
+                includeRandomEvents: true,
+                isBo2: false
+              });
+
+              // Record Match
+              recordMatch(
+                result.winner, 
+                sanitizeForFirestore(result), 
+                0, 
+                myEntry.matchedWithName, 
+                'basket',
+                new Date().toISOString()
+              );
+
+              toast({
+                title: language === 'ru' ? "КВ матч завершен" : "CW match finished",
+                description: language === 'ru' ? `Результаты боя против ${myEntry.matchedWithName} сохранены.` : `Battle results vs ${myEntry.matchedWithName} archived.`,
+              });
+
+              // Clean up entry
+              await deleteDoc(doc(db, 'cw_basket', user!.uid));
+            } catch (e) {
+              console.error("CW Auto-sim failed", e);
+            } finally {
+              isSimulatingRef.current = false;
+            }
+          }
+        };
+
+        const timer = setInterval(checkAndSimulate, 10000);
+        checkAndSimulate();
+        return () => clearInterval(timer);
       }
     } else {
       setShowModal(false);
       setHasNotified(false);
     }
-  }, [myEntry, pathname, hasNotified]);
+  }, [myEntry, pathname, hasNotified, strategy, team, recordMatch, language, user, db, toast]);
 
   const handleAcknowledge = () => {
     setShowModal(false);
