@@ -50,6 +50,17 @@ export function AutoMatchManager() {
 
   const { data: groupPlayers } = useCollection(groupQuery);
 
+  // Get ALL real players in the same league for Cup deterministic mapping
+  const allLeaguePlayersQuery = useMemoFirebase(() => {
+    if (!profile?.selectedLeagueId) return null;
+    return query(
+      collection(db, 'players_v5'),
+      where('selectedLeagueId', '==', profile.selectedLeagueId)
+    );
+  }, [db, profile?.selectedLeagueId]);
+
+  const { data: allLeaguePlayers } = useCollection(allLeaguePlayersQuery);
+
   // 1. Regular League Simulation
   useEffect(() => {
     if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !simulationRef.current && !isUserLoading && profile?.selectedLeagueId && groupPlayers && user) {
@@ -68,24 +79,24 @@ export function AutoMatchManager() {
     }
   }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, isSimulating]);
 
-  // 2. Pyramid Cup Simulation (Daily Knockout)
+  // 2. Pyramid Cup Simulation (Daily Knockout) - Using REAL participants
   useEffect(() => {
-    if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !cupSimulationRef.current && !isUserLoading && profile?.selectedLeagueId && user) {
+    if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !cupSimulationRef.current && !isUserLoading && profile?.selectedLeagueId && user && allLeaguePlayers) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
       const leagueTime = league?.startTime || '23:00';
       const cupTime = getPyramidCupTime(leagueTime);
       
       const catchUpCup = async () => {
         for (let d = 1; d <= seasonDay; d++) {
-          // Check if already played this day's cup match in this season
+          // Check if already played this day's cup match
           const hasPlayedDayCup = matchHistory.some(m => m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber);
           if (hasPlayedDayCup) continue;
 
-          // Check if eliminated in any PREVIOUS day of THIS season
+          // Check if eliminated previously
           const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
           if (wasEliminated) break;
 
-          // If it's a past day OR today's cup time has passed
+          // Trigger if past day OR today's time has passed
           if (d < seasonDay || isMatchDue(cupTime, lastCupMatchDate)) {
             await triggerCupMatch(cupTime, d);
             break;
@@ -94,7 +105,7 @@ export function AutoMatchManager() {
       };
       catchUpCup();
     }
-  }, [isLoaded, profile, lastCupMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, isSimulating]);
+  }, [isLoaded, profile, lastCupMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, isSimulating, allLeaguePlayers]);
 
   const triggerAutoMatch = async (matchTime: string, targetDay: number) => {
     if (!groupPlayers || !user || !profile || simulationRef.current) return;
@@ -125,27 +136,50 @@ export function AutoMatchManager() {
   };
 
   const triggerCupMatch = async (matchTime: string, targetDay: number) => {
-    if (!user || !profile || cupSimulationRef.current) return;
+    if (!user || !profile || !allLeaguePlayers || cupSimulationRef.current) return;
     cupSimulationRef.current = true; setIsSimulating(true); setSyncing(true);
     try {
-      const opponentName = `CupRival_${Math.floor(Math.random() * 10000)}`;
-      const result = await simulateMobaMatch({
-        teamA: { name: profile.displayName || "My Team", strategy, heroes: team },
-        teamB: { name: opponentName, strategy: "Cup Aggression", heroes: INITIAL_HEROES.slice(0, 5) },
-        includeRandomEvents: true, isBo2: false
-      });
+      // Deterministic opponent selection from the league pool
+      const sortedPlayers = [...allLeaguePlayers].sort((a, b) => a.id.localeCompare(b.id));
+      const myIdx = sortedPlayers.findIndex(p => p.id === user.uid);
       
-      let customPlayedAt = undefined;
-      if (targetDay < seasonDay && seasonStartDate) {
-        const d = new Date(seasonStartDate); d.setDate(d.getDate() + (targetDay - 1));
-        const [h, m] = matchTime.split(':').map(Number); d.setHours(h, m, 0, 0); 
-        customPlayedAt = d.toISOString();
-      }
+      const step = Math.pow(2, targetDay - 1);
+      const opponentIdx = myIdx ^ step;
+      const realOpponent = sortedPlayers[opponentIdx];
 
-      recordMatch(result.winner, result, targetDay, opponentName, 'tournament', customPlayedAt);
-      if (targetDay === seasonDay) { 
-        setCurrentResult({ ...result, day: targetDay, opponentName, isCup: true }); 
-        setShowResultDialog(true); 
+      if (!realOpponent) {
+        // BYE: Automatic win if no real participant in this bracket slot
+        const byeResult = {
+          winner: profile.displayName || "Manager",
+          scoreA: 2, scoreB: 0,
+          matchSummary: language === 'ru' ? "Техническая победа: соперник не обнаружен." : "Bye: No real participant secured for this stage.",
+          teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
+          heroPerformance: []
+        };
+        recordMatch(byeResult.winner, byeResult, targetDay, "No Rival", 'tournament');
+        if (targetDay === seasonDay) { 
+          setCurrentResult({ ...byeResult, day: targetDay, opponentName: "---", isCup: true }); 
+          setShowResultDialog(true); 
+        }
+      } else {
+        const result = await simulateMobaMatch({
+          teamA: { name: profile.displayName || "My Team", strategy, heroes: team },
+          teamB: { name: realOpponent.displayName || "Rival Manager", strategy: "Cup Aggression", heroes: INITIAL_HEROES.slice(0, 5) },
+          includeRandomEvents: true, isBo2: false
+        });
+        
+        let customPlayedAt = undefined;
+        if (targetDay < seasonDay && seasonStartDate) {
+          const d = new Date(seasonStartDate); d.setDate(d.getDate() + (targetDay - 1));
+          const [h, m] = matchTime.split(':').map(Number); d.setHours(h, m, 0, 0); 
+          customPlayedAt = d.toISOString();
+        }
+
+        recordMatch(result.winner, result, targetDay, realOpponent.displayName || "Rival Manager", 'tournament', customPlayedAt);
+        if (targetDay === seasonDay) { 
+          setCurrentResult({ ...result, day: targetDay, opponentName: realOpponent.displayName, isCup: true }); 
+          setShowResultDialog(true); 
+        }
       }
     } catch (e: any) {
       console.error("Cup Sim failed", e);

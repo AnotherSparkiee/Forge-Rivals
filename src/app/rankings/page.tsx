@@ -65,6 +65,17 @@ export default function RankingsPage() {
 
   const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
 
+  // New query to get ALL players in the same league for the Cup
+  const allLeaguePlayersQuery = useMemoFirebase(() => {
+    if (!profile?.selectedLeagueId) return null;
+    return query(
+      collection(db, 'players_v5'),
+      where('selectedLeagueId', '==', profile.selectedLeagueId)
+    );
+  }, [db, profile?.selectedLeagueId]);
+
+  const { data: allLeaguePlayers, isLoading: isLeaguePlayersLoading } = useCollection(allLeaguePlayersQuery);
+
   const league = useMemo(() => {
     return LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0];
   }, [profile?.selectedLeagueId]);
@@ -98,20 +109,40 @@ export default function RankingsPage() {
     return [...teams].sort((a, b) => b.points - a.points || (b.wins - a.wins));
   }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, isTodayPlayed, rank, user?.uid]);
 
-  // Deterministic Cup Bracket pairs for the user's "local" neighborhood
+  // Deterministic Cup Bracket pairs using ONLY real participants from this league
   const cupPairs = useMemo(() => {
-    if (!user || !isLoaded) return [];
-    const seed = (seasonNumber || 1) * 1000 + (seasonDay || 1);
-    const pairs = [];
+    if (!user || !isLoaded || !allLeaguePlayers) return [];
     
-    // 4 matches (8 teams) to show a nice local grid
+    // 1. Sort all players in league deterministically
+    const sortedPlayers = [...allLeaguePlayers].sort((a, b) => a.id.localeCompare(b.id));
+    const myIndex = sortedPlayers.findIndex(p => p.id === user.uid);
+    if (myIndex === -1) return [];
+
+    const pairs = [];
+    const d = seasonDay || 1;
+    const step = Math.pow(2, d - 1);
+    
+    // To show a local neighborhood of 4 matches (8 teams)
+    // We find the block of 8 teams the user belongs to at the current stage
+    const blockSize = step * 8;
+    const blockStart = Math.floor(myIndex / blockSize) * blockSize;
+
     for (let i = 0; i < 4; i++) {
-      const isUserMatch = i === 0;
-      const homeName = isUserMatch ? (profile?.displayName || "My Team") : `Manager_${(seed + i * 13) % 9999}`;
-      const awayName = isUserMatch ? `CupRival_${(seed + 77) % 9999}` : `Rival_${(seed + i * 29) % 9999}`;
+      // Each match in the current round consists of two blocks of size 'step'
+      const matchIndexInBlock = i;
+      const teamA_idx = blockStart + (matchIndexInBlock * 2 * step);
+      const teamB_idx = teamA_idx + step;
+
+      const playerA = sortedPlayers[teamA_idx];
+      const playerB = sortedPlayers[teamB_idx];
+
+      const homeName = playerA ? (playerA.displayName || "Manager") : "---";
+      const awayName = playerB ? (playerB.displayName || "Manager") : "---";
       
-      // Check if user already played this day's cup match
-      const historicalMatch = matchHistory.find(m => m.day === seasonDay && m.type === 'tournament' && m.seasonNumber === seasonNumber);
+      const isUserMatch = (myIndex >= teamA_idx && myIndex < teamA_idx + step) || 
+                          (myIndex >= teamB_idx && myIndex < teamB_idx + step);
+
+      const historicalMatch = matchHistory.find(m => m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber);
       const isPlayed = isUserMatch && !!historicalMatch;
       
       pairs.push({
@@ -121,11 +152,11 @@ export default function RankingsPage() {
         isUser: isUserMatch,
         isPlayed,
         result: isPlayed ? `${historicalMatch.scoreA}:${historicalMatch.scoreB}` : null,
-        winner: isPlayed ? historicalMatch.winner : null
+        winner: isPlayed ? historicalMatch.winner : (playerA && !playerB ? playerA.displayName : null)
       });
     }
     return pairs;
-  }, [user, isLoaded, profile, seasonNumber, seasonDay, matchHistory]);
+  }, [user, isLoaded, allLeaguePlayers, seasonNumber, seasonDay, matchHistory]);
 
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
@@ -157,7 +188,7 @@ export default function RankingsPage() {
       eliminated: "ELIMINATED",
       roundLabel: "Current Stage",
       bracketTitle: "Local Tournament Grid",
-      bracketDesc: "Pairings for the current operational stage",
+      bracketDesc: "Real league participants only",
       waitingMatch: "AWAITING DEPLOYMENT",
       matchTime: "Match Start",
       rounds: [
@@ -200,7 +231,7 @@ export default function RankingsPage() {
       eliminated: "ВЫБЫЛ",
       roundLabel: "Текущая стадия",
       bracketTitle: "Сетка вашего сектора",
-      bracketDesc: "Пары соперников на текущем этапе",
+      bracketDesc: "Только реальные участники лиги",
       waitingMatch: "ОЖИДАНИЕ БОЯ",
       matchTime: "Начало матча",
       rounds: [
@@ -336,69 +367,80 @@ export default function RankingsPage() {
               </h3>
               
               <div className="space-y-3 relative">
-                {/* Connector lines visual (abstract) */}
-                <div className="absolute left-1/2 top-4 bottom-4 w-px bg-white/5 -translate-x-1/2 hidden md:block" />
-                
-                {cupPairs.map((pair) => (
-                  <Card key={pair.id} className={cn(
-                    "glass-card border-white/5 overflow-hidden transition-all",
-                    pair.isUser && "border-primary/30 ring-1 ring-primary/10 bg-primary/5"
-                  )}>
-                    <CardContent className="p-0">
-                      <div className="flex items-center justify-between p-3 gap-2">
-                        <div className="flex-1 min-w-0 space-y-2">
-                          {/* Home Team */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className={cn("w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0", pair.isUser && "bg-primary animate-pulse")} />
-                              <span className={cn("text-[10px] font-bold uppercase truncate", pair.isUser && "text-primary")}>{pair.home}</span>
-                              {pair.isUser && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary text-primary-foreground font-black">YOU</Badge>}
+                {isLeaguePlayersLoading ? (
+                  <div className="py-10 text-center opacity-50">
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+                  </div>
+                ) : cupPairs.length > 0 ? (
+                  cupPairs.map((pair) => (
+                    <Card key={pair.id} className={cn(
+                      "glass-card border-white/5 overflow-hidden transition-all",
+                      pair.isUser && "border-primary/30 ring-1 ring-primary/10 bg-primary/5"
+                    )}>
+                      <CardContent className="p-0">
+                        <div className="flex items-center justify-between p-3 gap-2">
+                          <div className="flex-1 min-w-0 space-y-2">
+                            {/* Home Team */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className={cn("w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0", pair.isUser && "bg-primary animate-pulse")} />
+                                <span className={cn("text-[10px] font-bold uppercase truncate", pair.isUser && "text-primary")}>{pair.home}</span>
+                                {pair.isUser && pair.home !== "---" && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary text-primary-foreground font-black">YOU</Badge>}
+                              </div>
+                              {pair.isPlayed && <span className="text-xs font-headline font-black text-white">{pair.result?.split(':')[0]}</span>}
                             </div>
-                            {pair.isPlayed && <span className="text-xs font-headline font-black text-white">{pair.result?.split(':')[0]}</span>}
-                          </div>
-                          
-                          {/* VS Separator */}
-                          <div className="flex items-center gap-2 px-1 opacity-20">
-                            <div className="h-px flex-1 bg-white" />
-                            <span className="text-[7px] font-black uppercase">VS</span>
-                            <div className="h-px flex-1 bg-white" />
+                            
+                            {/* VS Separator */}
+                            <div className="flex items-center gap-2 px-1 opacity-20">
+                              <div className="h-px flex-1 bg-white" />
+                              <span className="text-[7px] font-black uppercase">VS</span>
+                              <div className="h-px flex-1 bg-white" />
+                            </div>
+
+                            {/* Away Team */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className={cn("w-1.5 h-1.5 rounded-full bg-red-400 shrink-0")} />
+                                <span className={cn("text-[10px] font-bold uppercase truncate opacity-80")}>{pair.away}</span>
+                              </div>
+                              {pair.isPlayed && <span className="text-xs font-headline font-black text-white">{pair.result?.split(':')[1]}</span>}
+                            </div>
                           </div>
 
-                          {/* Away Team */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-                              <span className="text-[10px] font-bold uppercase truncate opacity-80">{pair.away}</span>
-                            </div>
-                            {pair.isPlayed && <span className="text-xs font-headline font-black text-white">{pair.result?.split(':')[1]}</span>}
+                          {/* Match Status / Time */}
+                          <div className="w-20 flex flex-col items-center justify-center border-l border-white/5 pl-2 gap-1 text-center shrink-0">
+                            {pair.isPlayed ? (
+                              <>
+                                <CheckCircle2 className="w-4 h-4 text-green-400" />
+                                <span className="text-[7px] font-black uppercase text-green-400">FINISH</span>
+                              </>
+                            ) : pair.home === "---" || pair.away === "---" ? (
+                              <>
+                                <CheckCircle2 className="w-4 h-4 text-blue-400" />
+                                <span className="text-[7px] font-black uppercase text-blue-400">BYE</span>
+                              </>
+                            ) : (
+                              <>
+                                <Timer className="w-4 h-4 text-accent animate-pulse" />
+                                <span className="text-[7px] font-black uppercase text-accent leading-none">{t.waitingMatch}</span>
+                                <span className="text-[8px] font-mono font-bold text-primary mt-0.5">{cupTime}</span>
+                              </>
+                            )}
                           </div>
                         </div>
-
-                        {/* Match Status / Time */}
-                        <div className="w-20 flex flex-col items-center justify-center border-l border-white/5 pl-2 gap-1 text-center shrink-0">
-                          {pair.isPlayed ? (
-                            <>
-                              <CheckCircle2 className="w-4 h-4 text-green-400" />
-                              <span className="text-[7px] font-black uppercase text-green-400">FINISH</span>
-                            </>
-                          ) : (
-                            <>
-                              <Timer className="w-4 h-4 text-accent animate-pulse" />
-                              <span className="text-[7px] font-black uppercase text-accent leading-none">{t.waitingMatch}</span>
-                              <span className="text-[8px] font-mono font-bold text-primary mt-0.5">{cupTime}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : (
+                  <div className="py-10 text-center opacity-40 uppercase text-[10px] font-bold tracking-widest">
+                    Synchronizing participants...
+                  </div>
+                )}
               </div>
 
               <div className="mt-6 p-4 bg-secondary/20 rounded-xl border border-dashed border-white/10 text-center">
                 <p className="text-[8px] uppercase font-bold text-muted-foreground tracking-widest leading-relaxed">
-                  Next pairing will be recalculated upon completion of the current operational stage. 
-                  Synchronize with League HQ at {cupTime} MSK daily.
+                  {t.bracketDesc}. {cupTime} MSK daily.
                 </p>
               </div>
             </div>
