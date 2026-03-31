@@ -94,7 +94,7 @@ export function AutoMatchManager() {
           const hasPlayedDayCup = matchHistory.some(m => m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber);
           if (hasPlayedDayCup) continue;
 
-          const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
+          const wasEliminated = matchHistory.some(m => m.tournamentId === 'pyramid-cup' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
           if (wasEliminated) break;
 
           if (d < seasonDay || isMatchDue(cupTime, lastCupMatchDate)) {
@@ -183,17 +183,17 @@ export function AutoMatchManager() {
       const myIdx = participants.findIndex(p => p.id === user.uid);
       if (myIdx === -1) throw new Error("User not in cup participants");
 
+      // Opponent finding in binary tree round targetDay
       const step = Math.pow(2, targetDay - 1);
       const opponentIdx = myIdx ^ step;
       const opponent = participants[opponentIdx];
 
       let opponentName = opponent ? opponent.name : "BYE";
       
-      // If it's a BYE, handle immediate auto-win without simulation
       if (opponentName === "BYE") {
         const byeResult = {
           scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
-          matchSummary: "Deployment successful. Opponent failed to materialize in this sector. Tactical victory achieved via BYE.",
+          matchSummary: "Opponent failed to materialize. Tactical victory via BYE.",
           teamStats: { teamA: { kills: 0, towersDestroyed: 11 }, teamB: { kills: 0, towersDestroyed: 0 } },
           heroPerformance: []
         };
@@ -201,6 +201,7 @@ export function AutoMatchManager() {
         return;
       }
 
+      // Simulation with 16k scale context
       const result = await simulateMobaMatch({
         teamA: { name: profile.displayName || "My Team", strategy, heroes: team },
         teamB: { 

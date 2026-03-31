@@ -34,17 +34,17 @@ type RankingTab =
 /**
  * Generates the full list of 16,384 participants for the global cup.
  * Includes all 4,088 teams from the 9-division pyramid and 12,296 qualifier bots.
+ * Stability is key: we sort by ID before shuffling.
  */
 export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: number) {
   const allPyramidTeams: any[] = [];
   
-  // 1. Collect all teams from the 511 pyramid groups
+  // 1. Collect all teams from the 511 pyramid groups (Fixed structure)
   for (let lvl = 1; lvl <= 9; lvl++) {
     const groupsInDiv = Math.pow(2, lvl - 1);
     for (let g = 1; g <= groupsInDiv; g++) {
       const realInGroup = realPlayers.filter(p => Number(p.leagueLevel) === lvl && Number(p.groupId) === g);
       
-      // We need 8 teams per group
       const groupTeams = [];
       // Add real players first
       realInGroup.forEach(p => {
@@ -75,7 +75,10 @@ export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: numbe
 
   const fullList = [...allPyramidTeams, ...qualifierBots];
 
-  // 3. Deterministic Shuffle based on season
+  // 3. Sort by ID to ensure the list is always in the same order before shuffling
+  fullList.sort((a, b) => a.id.localeCompare(b.id));
+
+  // 4. Deterministic Shuffle based on season
   const seed = seasonNumber * 999;
   const shuffled = [...fullList];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -182,30 +185,39 @@ export default function RankingsPage() {
 
     const pairs = [];
     const d = seasonDay || 1;
+    
+    // Step for current round pairing: 2^(d-1)
     const step = Math.pow(2, d - 1);
-    const blockSize = step * 8; 
-    const blockStart = Math.floor(myIndex / blockSize) * blockSize;
+    
+    // We want to show a block of 8 indices that contain the user
+    // A block of 8 participants at the current round's hierarchy
+    // This is complex to visualize perfectly in 1D, so we show the user's branch
+    const sectorSize = step * 8; 
+    const sectorStart = Math.floor(myIndex / sectorSize) * sectorSize;
 
     for (let i = 0; i < 4; i++) {
-      const slotA_idx = blockStart + (i * 2 * step);
-      const slotB_idx = slotA_idx + step;
+      // Each match in the current round consists of two blocks of size 'step'
+      // Slot A starts at sectorStart + i * 2 * step
+      const slotA_start = sectorStart + (i * 2 * step);
+      const slotB_start = slotA_start + step;
       
-      const playerA = participants[slotA_idx];
-      const playerB = participants[slotB_idx];
+      const playerA = participants[slotA_start];
+      const playerB = participants[slotB_start];
       
       const homeName = playerA ? playerA.name : "BYE";
       const awayName = playerB ? playerB.name : "BYE";
       
-      const isUserMatch = (myIndex >= slotA_idx && myIndex < slotA_idx + step) || 
-                          (myIndex >= slotB_idx && myIndex < slotB_idx + step);
+      // Is this the user's specific match?
+      const isUserMatch = (myIndex >= slotA_start && myIndex < slotA_start + step) || 
+                          (myIndex >= slotB_start && myIndex < slotB_start + step);
       
       const historicalMatch = matchHistory.find(m => m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber);
       const isPlayed = isUserMatch && !!historicalMatch;
       
       pairs.push({
         id: `pair-${i}`,
-        home: homeName,
-        away: awayName,
+        home: isUserMatch && (myIndex >= slotA_start && myIndex < slotA_start + step) ? (profile?.displayName || playerA.name) : homeName,
+        away: isUserMatch && (myIndex >= slotB_start && myIndex < slotB_start + step) ? (profile?.displayName || playerB.name) : awayName,
         isUser: isUserMatch,
         isPlayed,
         result: isPlayed ? `${historicalMatch.scoreA}:${historicalMatch.scoreB}` : null,
@@ -213,7 +225,7 @@ export default function RankingsPage() {
       });
     }
     return pairs;
-  }, [user, isLoaded, allLeaguePlayers, seasonNumber, seasonDay, matchHistory]);
+  }, [user, isLoaded, allLeaguePlayers, seasonNumber, seasonDay, matchHistory, profile?.displayName]);
 
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
@@ -446,7 +458,7 @@ export default function RankingsPage() {
                               <div className="flex items-center gap-2 min-w-0">
                                 <div className={cn("w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0", pair.isUser && "bg-primary animate-pulse")} />
                                 <span className={cn("text-[10px] font-bold uppercase truncate", pair.isUser && "text-primary")}>{pair.home}</span>
-                                {pair.isUser && !pair.home.startsWith('bot_') && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary text-primary-foreground font-black">YOU</Badge>}
+                                {pair.isUser && pair.home === profile?.displayName && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary text-primary-foreground font-black">YOU</Badge>}
                               </div>
                               {pair.isPlayed && <span className="text-xs font-headline font-black text-white">{pair.result?.split(':')[0]}</span>}
                             </div>
@@ -459,6 +471,7 @@ export default function RankingsPage() {
                               <div className="flex items-center gap-2 min-w-0">
                                 <div className={cn("w-1.5 h-1.5 rounded-full bg-red-400 shrink-0")} />
                                 <span className={cn("text-[10px] font-bold uppercase truncate opacity-80")}>{pair.away}</span>
+                                {pair.isUser && pair.away === profile?.displayName && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary text-primary-foreground font-black">YOU</Badge>}
                               </div>
                               {pair.isPlayed && <span className="text-xs font-headline font-black text-white">{pair.result?.split(':')[1]}</span>}
                             </div>
