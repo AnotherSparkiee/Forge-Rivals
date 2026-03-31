@@ -107,7 +107,6 @@ export default function RankingsPage() {
     if (!isLoaded || !profile || !groupPlayers) return [];
     const completedDays = isTodayPlayed ? seasonDay : Math.max(0, seasonDay - 1);
     
-    // getMockGroupTeams already applies points/wins sorting
     return getMockGroupTeams(
       rank, 
       profile.displayName || "My Team", 
@@ -150,8 +149,8 @@ export default function RankingsPage() {
       const playerA = shuffled[slotA_idx];
       const playerB = shuffled[slotB_idx];
       
-      const homeName = playerA ? (playerA.displayName || "Manager") : "---";
-      const awayName = playerB ? (playerB.displayName || "Manager") : "---";
+      let homeName = playerA ? (playerA.displayName || "Manager") : `bot_cup_${slotA_idx + seed % 1000}`;
+      let awayName = playerB ? (playerB.displayName || "Manager") : `bot_cup_${slotB_idx + seed % 1000}`;
       
       const isUserMatch = (myIndex >= slotA_idx && myIndex < slotA_idx + step) || 
                           (myIndex >= slotB_idx && myIndex < slotB_idx + step);
@@ -166,7 +165,7 @@ export default function RankingsPage() {
         isUser: isUserMatch,
         isPlayed,
         result: isPlayed ? `${historicalMatch.scoreA}:${historicalMatch.scoreB}` : null,
-        winner: isPlayed ? historicalMatch.winner : (playerA && !playerB ? playerA.displayName : null)
+        winner: isPlayed ? historicalMatch.winner : null
       });
     }
     return pairs;
@@ -202,7 +201,7 @@ export default function RankingsPage() {
       eliminated: "ELIMINATED",
       roundLabel: "Current Stage",
       bracketTitle: "Global Draw: Your Sector",
-      bracketDesc: "Real league participants only",
+      bracketDesc: "Real managers and league bots",
       waitingMatch: "AWAITING DEPLOYMENT",
       matchTime: "Match Start",
       rounds: [
@@ -245,7 +244,7 @@ export default function RankingsPage() {
       eliminated: "ВЫБЫЛ",
       roundLabel: "Текущая стадия",
       bracketTitle: "Жеребьевка: Ваш сектор",
-      bracketDesc: "Только реальные участники лиги",
+      bracketDesc: "Реальные менеджеры и боты лиги",
       waitingMatch: "ОЖИДАНИЕ БОЯ",
       matchTime: "Начало матча",
       rounds: [
@@ -400,7 +399,7 @@ export default function RankingsPage() {
                               <div className="flex items-center gap-2 min-w-0">
                                 <div className={cn("w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0", pair.isUser && "bg-primary animate-pulse")} />
                                 <span className={cn("text-[10px] font-bold uppercase truncate", pair.isUser && "text-primary")}>{pair.home}</span>
-                                {pair.isUser && pair.home !== "---" && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary text-primary-foreground font-black">YOU</Badge>}
+                                {pair.isUser && !pair.home.startsWith('bot_') && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary text-primary-foreground font-black">YOU</Badge>}
                               </div>
                               {pair.isPlayed && <span className="text-xs font-headline font-black text-white">{pair.result?.split(':')[0]}</span>}
                             </div>
@@ -420,8 +419,6 @@ export default function RankingsPage() {
                           <div className="w-20 flex flex-col items-center justify-center border-l border-white/5 pl-2 gap-1 text-center shrink-0">
                             {pair.isPlayed ? (
                               <><CheckCircle2 className="w-4 h-4 text-green-400" /><span className="text-[7px] font-black uppercase text-green-400">FINISH</span></>
-                            ) : pair.home === "---" || pair.away === "---" ? (
-                              <><CheckCircle2 className="w-4 h-4 text-blue-400" /><span className="text-[7px] font-black uppercase text-blue-400">BYE</span></>
                             ) : (
                               <><Timer className="w-4 h-4 text-accent animate-pulse" /><span className="text-[7px] font-black uppercase text-accent leading-none">{t.waitingMatch}</span><span className="text-[8px] font-mono font-bold text-primary mt-0.5">{cupTime}</span></>
                             )}
