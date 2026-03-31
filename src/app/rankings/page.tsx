@@ -7,7 +7,8 @@ import { useGameState } from '../lib/store';
 import { 
   Trophy, Medal, ChevronLeft, Award, 
   Users, Shield, Star, Swords, ChevronRight,
-  LayoutDashboard, Loader2, Clock, Calendar
+  LayoutDashboard, Loader2, Clock, Calendar,
+  LayoutGrid, Search
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -39,6 +40,8 @@ export default function RankingsPage() {
   const db = useFirestore();
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
+  const [selectedPyramidDiv, setSelectedPyramidDiv] = useState<number | null>(null);
+  const [viewingGroup, setViewingGroup] = useState<{ div: number, group: number } | null>(null);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -60,6 +63,19 @@ export default function RankingsPage() {
   }, [db, profile?.selectedLeagueId, profile?.leagueLevel, profile?.groupId]);
 
   const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
+
+  // Global search for players in viewing group
+  const viewingGroupQuery = useMemoFirebase(() => {
+    if (!viewingGroup || !profile?.selectedLeagueId) return null;
+    return query(
+      collection(db, 'players_v5'),
+      where('selectedLeagueId', '==', profile.selectedLeagueId),
+      where('leagueLevel', '==', viewingGroup.div),
+      where('groupId', '==', viewingGroup.group)
+    );
+  }, [db, profile?.selectedLeagueId, viewingGroup]);
+
+  const { data: viewingGroupPlayers } = useCollection(viewingGroupQuery);
 
   const league = useMemo(() => {
     return LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0];
@@ -89,6 +105,25 @@ export default function RankingsPage() {
     return [...teams].sort((a, b) => b.points - a.points || (b.wins - a.wins));
   }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, isTodayPlayed, rank, user?.uid]);
 
+  const otherGroupRankings = useMemo(() => {
+    if (!viewingGroup || !profile) return [];
+    const completedDays = isTodayPlayed ? seasonDay : seasonDay - 1;
+    
+    const teams = getMockGroupTeams(
+      1000, 
+      "Other Team", 
+      viewingGroup.div, 
+      1, 
+      viewingGroup.group, 
+      profile.selectedLeagueId || "ALPHA",
+      viewingGroupPlayers || [],
+      undefined,
+      Math.max(0, completedDays)
+    );
+    
+    return [...teams].sort((a, b) => b.points - a.points || (b.wins - a.wins));
+  }, [viewingGroup, viewingGroupPlayers, profile, isTodayPlayed, seasonDay]);
+
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
@@ -107,6 +142,12 @@ export default function RankingsPage() {
       current_season: "Active Season",
       season_value: "Season 1",
       bo2_format: `Bo2 Format (${league.startTime} daily)`,
+      pyramidTitle: "Pyramid Structure",
+      pyramidDesc: "Hierarchy of the MU League",
+      backToDivs: "Back to Divisions",
+      backToGroups: "Back to Pyramid",
+      groupLabel: "Group",
+      myPos: "YOU ARE HERE",
       tabs: {
         my_league: { label: "My League", desc: "Current group rankings", icon: Trophy },
         champions_cup: { label: "Champions Cup", desc: "Top tier elite", icon: Award },
@@ -129,6 +170,12 @@ export default function RankingsPage() {
       current_season: "Текущий сезон",
       season_value: "Сезон 1",
       bo2_format: `Формат Bo2 (Ежедневно ${league.startTime})`,
+      pyramidTitle: "Структура Пирамиды",
+      pyramidDesc: "Иерархия лиги MU",
+      backToDivs: "К списку дивизионов",
+      backToGroups: "Назад в пирамиду",
+      groupLabel: "Группа",
+      myPos: "ВЫ ЗДЕСЬ",
       tabs: {
         my_league: { label: "Своя лига", desc: "Рейтинг вашей группы", icon: Trophy },
         champions_cup: { label: "Кубок чемпионов", desc: "Элитный турнир", icon: Award },
@@ -168,6 +215,107 @@ export default function RankingsPage() {
       })}
     </div>
   );
+
+  const renderPyramid = () => {
+    if (viewingGroup) {
+      return (
+        <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
+          <div className="flex items-center justify-between px-1">
+            <Button variant="ghost" size="sm" onClick={() => setViewingGroup(null)} className="h-8 text-[10px] font-bold uppercase text-primary">
+              <ChevronLeft className="w-3 h-3 mr-1" /> {t.backToGroups}
+            </Button>
+            <Badge className="bg-accent text-accent-foreground text-[10px] font-black">
+              DIV {viewingGroup.div} | GROUP {viewingGroup.group}
+            </Badge>
+          </div>
+          {renderRankingTable(otherGroupRankings)}
+        </div>
+      );
+    }
+
+    if (selectedPyramidDiv) {
+      const groupCount = Math.pow(2, selectedPyramidDiv - 1);
+      return (
+        <div className="space-y-6 animate-in fade-in duration-500">
+          <div className="flex items-center justify-between px-1">
+            <Button variant="ghost" size="sm" onClick={() => setSelectedPyramidDiv(null)} className="h-8 text-[10px] font-bold uppercase text-primary">
+              <ChevronLeft className="w-3 h-3 mr-1" /> {t.backToDivs}
+            </Button>
+            <h2 className="text-sm font-headline font-bold uppercase text-accent">{t.div_label} {selectedPyramidDiv}</h2>
+          </div>
+          
+          <div className="grid grid-cols-4 gap-2">
+            {Array.from({ length: groupCount }).map((_, i) => {
+              const gNum = i + 1;
+              const isMine = leagueLevel === selectedPyramidDiv && groupId === gNum;
+              return (
+                <Card 
+                  key={gNum} 
+                  className={cn(
+                    "border-white/5 cursor-pointer transition-all hover:scale-105 active:scale-95",
+                    isMine ? "bg-primary/20 border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.2)]" : "bg-secondary/30"
+                  )}
+                  onClick={() => setViewingGroup({ div: selectedPyramidDiv, group: gNum })}
+                >
+                  <CardContent className="p-3 text-center">
+                    <p className={cn("text-[10px] font-black uppercase tracking-tighter", isMine ? "text-primary" : "text-muted-foreground")}>#{gNum}</p>
+                    {isMine && <div className="text-[6px] font-black text-primary mt-1 leading-none">{t.myPos}</div>}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3 animate-in fade-in duration-500">
+        <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 mb-4 text-center">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-primary flex items-center justify-center gap-2">
+            <LayoutGrid className="w-4 h-4" /> {t.pyramidTitle}
+          </h2>
+          <p className="text-[9px] text-muted-foreground mt-1 uppercase font-bold">{t.pyramidDesc}</p>
+        </div>
+
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((div) => {
+          const groupCount = Math.pow(2, div - 1);
+          const isMyDiv = leagueLevel === div;
+          return (
+            <Card 
+              key={div} 
+              className={cn(
+                "glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all",
+                isMyDiv && "border-primary/30 bg-primary/5"
+              )}
+              onClick={() => setSelectedPyramidDiv(div)}
+            >
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={cn(
+                    "w-10 h-10 rounded-lg flex items-center justify-center font-headline font-bold text-lg",
+                    isMyDiv ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "bg-secondary/50 text-muted-foreground"
+                  )}>
+                    {div}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold uppercase">{t.div_label} {div}</h3>
+                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">
+                      {groupCount} {language === 'ru' ? 'ГРУПП' : 'GROUPS'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isMyDiv && <Badge className="text-[7px] uppercase font-black bg-primary text-primary-foreground">{t.myPos}</Badge>}
+                  <ChevronRight className="w-4 h-4 text-muted-foreground opacity-50" />
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  };
 
   if (activeTab === 'menu') {
     return (
@@ -221,10 +369,18 @@ export default function RankingsPage() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-20">
       <header className="mb-6 flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}><ChevronLeft className="w-6 h-6" /></Button>
+        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => {
+          if (viewingGroup) setViewingGroup(null);
+          else if (selectedPyramidDiv) setSelectedPyramidDiv(null);
+          else setActiveTab('menu');
+        }}>
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
         <div className="flex-1">
           <h1 className="text-xl font-headline font-bold uppercase">{t.tabs[activeTab as keyof typeof t.tabs].label}</h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">Global Rankings | {t.div_label} {leagueLevel}.{divisionSubId}</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">
+            {activeTab === 'my_pyramid' ? 'MU LEAGUE 19:00 MSK' : `Global Rankings | ${t.div_label} ${leagueLevel}.${divisionSubId}`}
+          </p>
         </div>
       </header>
 
@@ -247,7 +403,9 @@ export default function RankingsPage() {
         </div>
       )}
 
-      {activeTab !== 'menu' && activeTab !== 'my_league' && (
+      {activeTab === 'my_pyramid' && renderPyramid()}
+
+      {activeTab !== 'menu' && activeTab !== 'my_league' && activeTab !== 'my_pyramid' && (
         <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
           <Shield className="w-12 h-12 text-primary opacity-50" />
           <p className="text-xs text-muted-foreground uppercase tracking-widest">Access Restricted to Top Tier</p>
