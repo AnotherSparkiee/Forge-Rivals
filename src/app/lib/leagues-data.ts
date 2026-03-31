@@ -175,7 +175,8 @@ export function getMockGroupTeams(
     }
   }
 
-  return finalTeams;
+  // 4. Final SORTING for display: Points DESC, then Wins DESC
+  return finalTeams.sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name));
 }
 
 export function applyResult(home: any, away: any, hScore: number, aScore: number) {

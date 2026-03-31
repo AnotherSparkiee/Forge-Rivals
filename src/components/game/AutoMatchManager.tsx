@@ -79,7 +79,7 @@ export function AutoMatchManager() {
     }
   }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, isSimulating]);
 
-  // 2. Pyramid Cup Simulation (Daily Knockout) - Using REAL participants
+  // 2. Pyramid Cup Simulation (Daily Knockout) - Using REAL participants Draw
   useEffect(() => {
     if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !cupSimulationRef.current && !isUserLoading && profile?.selectedLeagueId && user && allLeaguePlayers) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
@@ -88,15 +88,12 @@ export function AutoMatchManager() {
       
       const catchUpCup = async () => {
         for (let d = 1; d <= seasonDay; d++) {
-          // Check if already played this day's cup match
           const hasPlayedDayCup = matchHistory.some(m => m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber);
           if (hasPlayedDayCup) continue;
 
-          // Check if eliminated previously
           const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
           if (wasEliminated) break;
 
-          // Trigger if past day OR today's time has passed
           if (d < seasonDay || isMatchDue(cupTime, lastCupMatchDate)) {
             await triggerCupMatch(cupTime, d);
             break;
@@ -139,16 +136,22 @@ export function AutoMatchManager() {
     if (!user || !profile || !allLeaguePlayers || cupSimulationRef.current) return;
     cupSimulationRef.current = true; setIsSimulating(true); setSyncing(true);
     try {
-      // Deterministic opponent selection from the league pool
+      // Global Draw matching Round-by-Round
       const sortedPlayers = [...allLeaguePlayers].sort((a, b) => a.id.localeCompare(b.id));
-      const myIdx = sortedPlayers.findIndex(p => p.id === user.uid);
-      
+      const seed = seasonNumber * 777;
+      const shuffled = [...sortedPlayers];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = (seed + i) % (i + 1);
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+
+      const myIdx = shuffled.findIndex(p => p.id === user.uid);
       const step = Math.pow(2, targetDay - 1);
       const opponentIdx = myIdx ^ step;
-      const realOpponent = sortedPlayers[opponentIdx];
+      const realOpponent = shuffled[opponentIdx];
 
       if (!realOpponent) {
-        // BYE: Automatic win if no real participant in this bracket slot
+        // BYE: Automatic win
         const byeResult = {
           winner: profile.displayName || "Manager",
           scoreA: 2, scoreB: 0,

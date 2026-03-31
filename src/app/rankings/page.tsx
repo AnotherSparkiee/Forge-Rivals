@@ -107,7 +107,8 @@ export default function RankingsPage() {
     if (!isLoaded || !profile || !groupPlayers) return [];
     const completedDays = isTodayPlayed ? seasonDay : Math.max(0, seasonDay - 1);
     
-    const teams = getMockGroupTeams(
+    // getMockGroupTeams already applies points/wins sorting
+    return getMockGroupTeams(
       rank, 
       profile.displayName || "My Team", 
       leagueLevel, 
@@ -118,34 +119,46 @@ export default function RankingsPage() {
       user?.uid,
       Math.max(0, completedDays)
     );
-    
-    return [...teams].sort((a, b) => b.points - a.points || (b.wins - a.wins));
   }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, isTodayPlayed, rank, user?.uid]);
 
   const cupPairs = useMemo(() => {
     if (!user || !isLoaded || !allLeaguePlayers) return [];
+    
+    // Global Draw: Deterministic shuffle based on seasonNumber
     const sortedPlayers = [...allLeaguePlayers].sort((a, b) => a.id.localeCompare(b.id));
-    const myIndex = sortedPlayers.findIndex(p => p.id === user.uid);
+    const seed = seasonNumber * 777;
+    const shuffled = [...sortedPlayers];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = (seed + i) % (i + 1);
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    const myIndex = shuffled.findIndex(p => p.id === user.uid);
     if (myIndex === -1) return [];
 
     const pairs = [];
     const d = seasonDay || 1;
+    // In our 14-day cycle, user at i in round d plays someone in distance 2^(d-1)
     const step = Math.pow(2, d - 1);
-    const blockSize = step * 8;
+    const blockSize = step * 8; // Viewing 4 pairs (8 slots)
     const blockStart = Math.floor(myIndex / blockSize) * blockSize;
 
     for (let i = 0; i < 4; i++) {
-      const matchIndexInBlock = i;
-      const teamA_idx = blockStart + (matchIndexInBlock * 2 * step);
-      const teamB_idx = teamA_idx + step;
-      const playerA = sortedPlayers[teamA_idx];
-      const playerB = sortedPlayers[teamB_idx];
+      const slotA_idx = blockStart + (i * 2 * step);
+      const slotB_idx = slotA_idx + step;
+      
+      const playerA = shuffled[slotA_idx];
+      const playerB = shuffled[slotB_idx];
+      
       const homeName = playerA ? (playerA.displayName || "Manager") : "---";
       const awayName = playerB ? (playerB.displayName || "Manager") : "---";
-      const isUserMatch = (myIndex >= teamA_idx && myIndex < teamA_idx + step) || 
-                          (myIndex >= teamB_idx && myIndex < teamB_idx + step);
+      
+      const isUserMatch = (myIndex >= slotA_idx && myIndex < slotA_idx + step) || 
+                          (myIndex >= slotB_idx && myIndex < slotB_idx + step);
+      
       const historicalMatch = matchHistory.find(m => m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber);
       const isPlayed = isUserMatch && !!historicalMatch;
+      
       pairs.push({
         id: `pair-${i}`,
         home: homeName,
@@ -175,7 +188,7 @@ export default function RankingsPage() {
       div_label: "Division",
       season_label: "Season Day",
       current_season: "Active Season",
-      season_value: "Season 1",
+      season_value: `Season ${seasonNumber}`,
       bo2_format: `Bo2 Format (${league.startTime} daily)`,
       pyramidTitle: "Pyramid Structure",
       pyramidDesc: "Global Hierarchy of MU League",
@@ -188,15 +201,15 @@ export default function RankingsPage() {
       inCup: "ACTIVE IN CUP",
       eliminated: "ELIMINATED",
       roundLabel: "Current Stage",
-      bracketTitle: "Local Tournament Grid",
+      bracketTitle: "Global Draw: Your Sector",
       bracketDesc: "Real league participants only",
       waitingMatch: "AWAITING DEPLOYMENT",
       matchTime: "Match Start",
       rounds: [
         "1/8192 Round", "1/4096 Round", "1/2048 Round", "1/1024 Round", 
         "1/512 Round", "1/256 Round", "1/128 Round", "1/64 Round", 
-        "1/32 Round", "1/16 Round", "Quarter-Finals", "Semi-Finals", 
-        "Grand Final", "Season Wrap-up"
+        "1/32 Round", "1/16 Round", "1/8 Round", "Quarter-Finals", 
+        "Semi-Finals", "Grand Final"
       ],
       tabs: {
         my_league: { label: "My League", desc: "Current group rankings", icon: Trophy },
@@ -218,7 +231,7 @@ export default function RankingsPage() {
       div_label: "Дивизион",
       season_label: "День сезона",
       current_season: "Текущий сезон",
-      season_value: "Сезон 1",
+      season_value: `Сезон ${seasonNumber}`,
       bo2_format: `Формат Bo2 (Ежедневно ${league.startTime})`,
       pyramidTitle: "Структура Пирамиды",
       pyramidDesc: "Глобальная иерархия лиги MU",
@@ -231,15 +244,15 @@ export default function RankingsPage() {
       inCup: "В ИГРЕ",
       eliminated: "ВЫБЫЛ",
       roundLabel: "Текущая стадия",
-      bracketTitle: "Сетка вашего сектора",
+      bracketTitle: "Жеребьевка: Ваш сектор",
       bracketDesc: "Только реальные участники лиги",
       waitingMatch: "ОЖИДАНИЕ БОЯ",
       matchTime: "Начало матча",
       rounds: [
         "Раунд 1/8192", "Раунд 1/4096", "Раунд 1/2048", "Раунд 1/1024", 
         "Раунд 1/512", "Раунд 1/256", "Раунд 1/128", "1/64 финала", 
-        "1/32 финала", "1/16 финала", "Четвертьфинал", "Полуфинал", 
-        "Гранд Финал", "Итоги сезона"
+        "1/32 финала", "1/16 финала", "1/8 финала", "Четвертьфинал", 
+        "Полуфинал", "Гранд Финал"
       ],
       tabs: {
         my_league: { label: "Своя лига", desc: "Рейтинг вашей группы", icon: Trophy },
@@ -549,7 +562,7 @@ export default function RankingsPage() {
               <Card className="glass-card bg-accent/5 border-accent/10">
                 <CardContent className="p-4 flex items-center gap-4">
                   <div className="p-2 rounded-lg bg-accent/20"><Trophy className="w-5 h-5 text-accent" /></div>
-                  <div><p className="text-[9px] uppercase text-muted-foreground font-black tracking-widest">{t.current_season}</p><p className="text-xl font-headline font-black italic text-accent">{t.season_value}</p></div>
+                  <div><p className="text-[9px] uppercase text-muted-foreground font-black tracking-widest">{t.current_season}</p><p className="text-sm font-headline font-black italic text-accent">{t.season_value}</p></div>
                 </CardContent>
               </Card>
             </div>
