@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Trophy, Skull, Crosshair, Swords, Loader2, ArrowUpCircle, ArrowDownCircle, MinusCircle, Star, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getGlobalCupParticipants } from '@/app/rankings/page';
 
 export function AutoMatchManager() {
   const { 
@@ -73,7 +74,6 @@ export function AutoMatchManager() {
 
           if (d < seasonDay || isMatchDue(matchTime, lastLeagueMatchDate)) {
             await triggerAutoMatch(matchTime, d);
-            // Trigger one at a time to avoid parallel write conflicts
             break; 
           }
         }
@@ -82,7 +82,7 @@ export function AutoMatchManager() {
     }
   }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, isSimulating]);
 
-  // 2. Pyramid Cup Simulation (Daily Knockout)
+  // 2. Pyramid Cup Simulation (Daily Knockout - Massive 16k Scale)
   useEffect(() => {
     if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !cupSimulationRef.current && !isUserLoading && profile?.selectedLeagueId && user && allLeaguePlayers) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
@@ -94,11 +94,9 @@ export function AutoMatchManager() {
           const hasPlayedDayCup = matchHistory.some(m => m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber);
           if (hasPlayedDayCup) continue;
 
-          // Check if eliminated in previous rounds
           const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
           if (wasEliminated) break;
 
-          // If day passed OR match is due today
           if (d < seasonDay || isMatchDue(cupTime, lastCupMatchDate)) {
             await triggerCupMatch(cupTime, d);
             break;
@@ -181,38 +179,33 @@ export function AutoMatchManager() {
     setSyncing(true);
     
     try {
-      // Deterministic Global Draw
-      const sortedPlayers = [...allLeaguePlayers].sort((a, b) => a.id.localeCompare(b.id));
-      const seed = seasonNumber * 777;
-      const shuffled = [...sortedPlayers];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = (seed + i) % (i + 1);
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
+      const participants = getGlobalCupParticipants(allLeaguePlayers, seasonNumber);
+      const myIdx = participants.findIndex(p => p.id === user.uid);
+      if (myIdx === -1) throw new Error("User not in cup participants");
 
-      const myIdx = shuffled.findIndex(p => p.id === user.uid);
       const step = Math.pow(2, targetDay - 1);
       const opponentIdx = myIdx ^ step;
-      const realOpponent = shuffled[opponentIdx];
+      const opponent = participants[opponentIdx];
 
-      let opponentName = "Unknown Rival";
-      let opponentStrategy = "Cup Aggression";
-      let isBot = false;
-
-      if (!realOpponent) {
-        // Use a bot if no real participant is in this slot
-        isBot = true;
-        const botSeed = targetDay * 13 + myIdx * 7 + seasonNumber;
-        opponentName = `bot_elite_${botSeed % 9999}`;
-      } else {
-        opponentName = realOpponent.displayName || "Rival Manager";
+      let opponentName = opponent ? opponent.name : "BYE";
+      
+      // If it's a BYE, handle immediate auto-win without simulation
+      if (opponentName === "BYE") {
+        const byeResult = {
+          scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
+          matchSummary: "Deployment successful. Opponent failed to materialize in this sector. Tactical victory achieved via BYE.",
+          teamStats: { teamA: { kills: 0, towersDestroyed: 11 }, teamB: { kills: 0, towersDestroyed: 0 } },
+          heroPerformance: []
+        };
+        recordMatch(byeResult.winner, byeResult, targetDay, "BYE", 'tournament');
+        return;
       }
 
       const result = await simulateMobaMatch({
         teamA: { name: profile.displayName || "My Team", strategy, heroes: team },
         teamB: { 
           name: opponentName, 
-          strategy: opponentStrategy, 
+          strategy: "Tournament Execution", 
           heroes: INITIAL_HEROES.slice(0, 5) 
         },
         includeRandomEvents: true,

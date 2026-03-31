@@ -31,6 +31,61 @@ type RankingTab =
   | 'pyramid_cup' 
   | 'friendly';
 
+/**
+ * Generates the full list of 16,384 participants for the global cup.
+ * Includes all 4,088 teams from the 9-division pyramid and 12,296 qualifier bots.
+ */
+export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: number) {
+  const allPyramidTeams: any[] = [];
+  
+  // 1. Collect all teams from the 511 pyramid groups
+  for (let lvl = 1; lvl <= 9; lvl++) {
+    const groupsInDiv = Math.pow(2, lvl - 1);
+    for (let g = 1; g <= groupsInDiv; g++) {
+      const realInGroup = realPlayers.filter(p => Number(p.leagueLevel) === lvl && Number(p.groupId) === g);
+      
+      // We need 8 teams per group
+      const groupTeams = [];
+      // Add real players first
+      realInGroup.forEach(p => {
+        if (p.displayName && p.displayName !== "Unknown Commander") {
+          groupTeams.push({ id: p.id, name: p.displayName, isPlayer: true });
+        }
+      });
+      
+      // Fill with standard group bots
+      const botsNeeded = Math.max(0, 8 - groupTeams.length);
+      for (let i = 0; i < botsNeeded; i++) {
+        const botIdNum = (lvl * 1000) + (g * 10) + i + 1000;
+        groupTeams.push({ id: `bot${botIdNum}`, name: `bot${botIdNum}`, isPlayer: false });
+      }
+      
+      allPyramidTeams.push(...groupTeams.slice(0, 8));
+    }
+  }
+
+  // 2. Fill the remaining slots up to 16,384 (2^14) with Qualifier Bots
+  const TOTAL_SLOTS = 16384;
+  const qualifiersNeeded = TOTAL_SLOTS - allPyramidTeams.length;
+  const qualifierBots = Array.from({ length: qualifiersNeeded }).map((_, i) => ({
+    id: `qual_bot_${i + 10000}`,
+    name: `qual_bot_${i + 10000}`,
+    isPlayer: false
+  }));
+
+  const fullList = [...allPyramidTeams, ...qualifierBots];
+
+  // 3. Deterministic Shuffle based on season
+  const seed = seasonNumber * 999;
+  const shuffled = [...fullList];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = (seed + i) % (i + 1);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  return shuffled;
+}
+
 export default function RankingsPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
@@ -53,7 +108,6 @@ export default function RankingsPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
-  // Query for current group players
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
@@ -66,7 +120,6 @@ export default function RankingsPage() {
 
   const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
 
-  // Query for ANY group being viewed in pyramid
   const viewingGroupPlayersQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId || !viewingGroup) return null;
     return query(
@@ -123,34 +176,25 @@ export default function RankingsPage() {
   const cupPairs = useMemo(() => {
     if (!user || !isLoaded || !allLeaguePlayers) return [];
     
-    // Global Draw: Deterministic shuffle based on seasonNumber
-    const sortedPlayers = [...allLeaguePlayers].sort((a, b) => a.id.localeCompare(b.id));
-    const seed = seasonNumber * 777;
-    const shuffled = [...sortedPlayers];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = (seed + i) % (i + 1);
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-
-    const myIndex = shuffled.findIndex(p => p.id === user.uid);
+    const participants = getGlobalCupParticipants(allLeaguePlayers, seasonNumber);
+    const myIndex = participants.findIndex(p => p.id === user.uid);
     if (myIndex === -1) return [];
 
     const pairs = [];
     const d = seasonDay || 1;
-    // In our 14-day cycle, user at i in round d plays someone in distance 2^(d-1)
     const step = Math.pow(2, d - 1);
-    const blockSize = step * 8; // Viewing 4 pairs (8 slots)
+    const blockSize = step * 8; 
     const blockStart = Math.floor(myIndex / blockSize) * blockSize;
 
     for (let i = 0; i < 4; i++) {
       const slotA_idx = blockStart + (i * 2 * step);
       const slotB_idx = slotA_idx + step;
       
-      const playerA = shuffled[slotA_idx];
-      const playerB = shuffled[slotB_idx];
+      const playerA = participants[slotA_idx];
+      const playerB = participants[slotB_idx];
       
-      let homeName = playerA ? (playerA.displayName || "Manager") : `bot_cup_${slotA_idx + seed % 1000}`;
-      let awayName = playerB ? (playerB.displayName || "Manager") : `bot_cup_${slotB_idx + seed % 1000}`;
+      const homeName = playerA ? playerA.name : "BYE";
+      const awayName = playerB ? playerB.name : "BYE";
       
       const isUserMatch = (myIndex >= slotA_idx && myIndex < slotA_idx + step) || 
                           (myIndex >= slotB_idx && myIndex < slotB_idx + step);
@@ -201,7 +245,7 @@ export default function RankingsPage() {
       eliminated: "ELIMINATED",
       roundLabel: "Current Stage",
       bracketTitle: "Global Draw: Your Sector",
-      bracketDesc: "Real managers and league bots",
+      bracketDesc: "16,384 teams participating",
       waitingMatch: "AWAITING DEPLOYMENT",
       matchTime: "Match Start",
       rounds: [
@@ -244,7 +288,7 @@ export default function RankingsPage() {
       eliminated: "ВЫБЫЛ",
       roundLabel: "Текущая стадия",
       bracketTitle: "Жеребьевка: Ваш сектор",
-      bracketDesc: "Реальные менеджеры и боты лиги",
+      bracketDesc: "16 384 команды в сетке",
       waitingMatch: "ОЖИДАНИЕ БОЯ",
       matchTime: "Начало матча",
       rounds: [
@@ -380,6 +424,9 @@ export default function RankingsPage() {
               <h3 className="text-xs font-black uppercase tracking-[0.2em] text-accent px-1 flex items-center gap-2">
                 <LayoutGrid className="w-4 h-4" /> {t.bracketTitle}
               </h3>
+              <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest px-1 -mt-2 opacity-60">
+                {t.bracketDesc}
+              </p>
               
               <div className="space-y-3 relative">
                 {isLeaguePlayersLoading ? (
