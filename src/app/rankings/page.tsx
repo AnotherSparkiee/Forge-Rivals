@@ -8,7 +8,8 @@ import {
   Trophy, Medal, ChevronLeft, Award, 
   Users, Shield, Star, Swords, ChevronRight,
   LayoutDashboard, Loader2, Clock, Calendar,
-  LayoutGrid, Search, Radio, Target, Zap, ShieldAlert, AlertTriangle
+  LayoutGrid, Search, Radio, Target, Zap, ShieldAlert, AlertTriangle,
+  CheckCircle2, Timer
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -97,6 +98,35 @@ export default function RankingsPage() {
     return [...teams].sort((a, b) => b.points - a.points || (b.wins - a.wins));
   }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, isTodayPlayed, rank, user?.uid]);
 
+  // Deterministic Cup Bracket pairs for the user's "local" neighborhood
+  const cupPairs = useMemo(() => {
+    if (!user || !isLoaded) return [];
+    const seed = (seasonNumber || 1) * 1000 + (seasonDay || 1);
+    const pairs = [];
+    
+    // 4 matches (8 teams) to show a nice local grid
+    for (let i = 0; i < 4; i++) {
+      const isUserMatch = i === 0;
+      const homeName = isUserMatch ? (profile?.displayName || "My Team") : `Manager_${(seed + i * 13) % 9999}`;
+      const awayName = isUserMatch ? `CupRival_${(seed + 77) % 9999}` : `Rival_${(seed + i * 29) % 9999}`;
+      
+      // Check if user already played this day's cup match
+      const historicalMatch = matchHistory.find(m => m.day === seasonDay && m.type === 'tournament' && m.seasonNumber === seasonNumber);
+      const isPlayed = isUserMatch && !!historicalMatch;
+      
+      pairs.push({
+        id: `pair-${i}`,
+        home: homeName,
+        away: awayName,
+        isUser: isUserMatch,
+        isPlayed,
+        result: isPlayed ? `${historicalMatch.scoreA}:${historicalMatch.scoreB}` : null,
+        winner: isPlayed ? historicalMatch.winner : null
+      });
+    }
+    return pairs;
+  }, [user, isLoaded, profile, seasonNumber, seasonDay, matchHistory]);
+
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
@@ -126,6 +156,10 @@ export default function RankingsPage() {
       inCup: "ACTIVE IN CUP",
       eliminated: "ELIMINATED",
       roundLabel: "Current Stage",
+      bracketTitle: "Local Tournament Grid",
+      bracketDesc: "Pairings for the current operational stage",
+      waitingMatch: "AWAITING DEPLOYMENT",
+      matchTime: "Match Start",
       rounds: [
         "1/8192 Round", "1/4096 Round", "1/2048 Round", "1/1024 Round", 
         "1/512 Round", "1/256 Round", "1/128 Round", "1/64 Round", 
@@ -165,6 +199,10 @@ export default function RankingsPage() {
       inCup: "В ИГРЕ",
       eliminated: "ВЫБЫЛ",
       roundLabel: "Текущая стадия",
+      bracketTitle: "Сетка вашего сектора",
+      bracketDesc: "Пары соперников на текущем этапе",
+      waitingMatch: "ОЖИДАНИЕ БОЯ",
+      matchTime: "Начало матча",
       rounds: [
         "Раунд 1/8192", "Раунд 1/4096", "Раунд 1/2048", "Раунд 1/1024", 
         "Раунд 1/512", "Раунд 1/256", "Раунд 1/128", "1/64 финала", 
@@ -184,7 +222,6 @@ export default function RankingsPage() {
 
   const t = labels[language as keyof typeof labels] || labels.ru;
 
-  // Use daily stages for 14 rounds
   const currentRoundIdx = Math.min(t.rounds.length - 1, Math.max(0, seasonDay - 1));
   const cupTime = getPyramidCupTime(league.startTime);
 
@@ -258,7 +295,7 @@ export default function RankingsPage() {
 
       case 'pyramid_cup':
         return (
-          <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 pb-10">
             <Card className="glass-card bg-gradient-to-br from-accent/10 to-transparent border-accent/20 overflow-hidden">
               <CardContent className="p-6 flex flex-col items-center text-center">
                 <div className="relative mb-4">
@@ -283,10 +320,10 @@ export default function RankingsPage() {
                 <div className="w-full grid grid-cols-2 gap-3 mt-8">
                   <div className="bg-background/50 p-3 rounded-xl border border-white/5">
                     <p className="text-[8px] text-muted-foreground uppercase font-bold mb-1">{t.roundLabel}</p>
-                    <p className="text-xs font-bold text-accent uppercase">{t.rounds[currentRoundIdx]}</p>
+                    <p className="text-xs font-bold text-accent uppercase truncate">{t.rounds[currentRoundIdx]}</p>
                   </div>
                   <div className="bg-background/50 p-3 rounded-xl border border-white/5">
-                    <p className="text-[8px] text-muted-foreground uppercase font-bold mb-1">Match Time</p>
+                    <p className="text-[8px] text-muted-foreground uppercase font-bold mb-1">{t.matchTime}</p>
                     <p className="text-xs font-bold text-primary">{cupTime} MSK</p>
                   </div>
                 </div>
@@ -294,10 +331,75 @@ export default function RankingsPage() {
             </Card>
 
             <div className="space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-accent px-1">Tournament Bracket</h3>
-              <div className="p-10 text-center opacity-30 flex flex-col items-center gap-4">
-                <LayoutGrid className="w-12 h-12 text-muted-foreground" />
-                <p className="text-[10px] uppercase font-bold tracking-widest max-w-[200px]">Bracket rendering reserved for finalized qualifiers.</p>
+              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-accent px-1 flex items-center gap-2">
+                <LayoutGrid className="w-4 h-4" /> {t.bracketTitle}
+              </h3>
+              
+              <div className="space-y-3 relative">
+                {/* Connector lines visual (abstract) */}
+                <div className="absolute left-1/2 top-4 bottom-4 w-px bg-white/5 -translate-x-1/2 hidden md:block" />
+                
+                {cupPairs.map((pair) => (
+                  <Card key={pair.id} className={cn(
+                    "glass-card border-white/5 overflow-hidden transition-all",
+                    pair.isUser && "border-primary/30 ring-1 ring-primary/10 bg-primary/5"
+                  )}>
+                    <CardContent className="p-0">
+                      <div className="flex items-center justify-between p-3 gap-2">
+                        <div className="flex-1 min-w-0 space-y-2">
+                          {/* Home Team */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className={cn("w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0", pair.isUser && "bg-primary animate-pulse")} />
+                              <span className={cn("text-[10px] font-bold uppercase truncate", pair.isUser && "text-primary")}>{pair.home}</span>
+                              {pair.isUser && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary text-primary-foreground font-black">YOU</Badge>}
+                            </div>
+                            {pair.isPlayed && <span className="text-xs font-headline font-black text-white">{pair.result?.split(':')[0]}</span>}
+                          </div>
+                          
+                          {/* VS Separator */}
+                          <div className="flex items-center gap-2 px-1 opacity-20">
+                            <div className="h-px flex-1 bg-white" />
+                            <span className="text-[7px] font-black uppercase">VS</span>
+                            <div className="h-px flex-1 bg-white" />
+                          </div>
+
+                          {/* Away Team */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                              <span className="text-[10px] font-bold uppercase truncate opacity-80">{pair.away}</span>
+                            </div>
+                            {pair.isPlayed && <span className="text-xs font-headline font-black text-white">{pair.result?.split(':')[1]}</span>}
+                          </div>
+                        </div>
+
+                        {/* Match Status / Time */}
+                        <div className="w-20 flex flex-col items-center justify-center border-l border-white/5 pl-2 gap-1 text-center shrink-0">
+                          {pair.isPlayed ? (
+                            <>
+                              <CheckCircle2 className="w-4 h-4 text-green-400" />
+                              <span className="text-[7px] font-black uppercase text-green-400">FINISH</span>
+                            </>
+                          ) : (
+                            <>
+                              <Timer className="w-4 h-4 text-accent animate-pulse" />
+                              <span className="text-[7px] font-black uppercase text-accent leading-none">{t.waitingMatch}</span>
+                              <span className="text-[8px] font-mono font-bold text-primary mt-0.5">{cupTime}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              <div className="mt-6 p-4 bg-secondary/20 rounded-xl border border-dashed border-white/10 text-center">
+                <p className="text-[8px] uppercase font-bold text-muted-foreground tracking-widest leading-relaxed">
+                  Next pairing will be recalculated upon completion of the current operational stage. 
+                  Synchronize with League HQ at {cupTime} MSK daily.
+                </p>
               </div>
             </div>
           </div>
