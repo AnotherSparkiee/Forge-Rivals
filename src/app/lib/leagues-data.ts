@@ -1,3 +1,4 @@
+
 export interface LeagueGroup {
   id: string;
   name: string;
@@ -112,8 +113,7 @@ export function getMockGroupTeams(
   sortedRealPlayers.forEach(p => {
     const isMe = p.id === currentPlayerId;
     
-    // BUG FIX: Filter out players with empty names or default "Unknown Commander" string.
-    // Such incomplete profiles are treated as non-existent and will be replaced by bots.
+    // Filter out players with empty names or default "Unknown Commander" string.
     const hasValidName = p.displayName && p.displayName.trim().length > 0 && p.displayName !== "Unknown Commander";
 
     if (hasValidName || isMe) {
@@ -133,7 +133,7 @@ export function getMockGroupTeams(
   // 2. Fill remaining slots with bots to maintain TEAMS_PER_GROUP (8)
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   for (let i = 0; i < botsNeeded; i++) {
-    const botIdNum = (level * 1000) + (group * 10) + i + 1000;
+    const botIdNum = (Number(level) * 1000) + (Number(group) * 10) + i + 1000;
     const botName = `bot${botIdNum}`;
     
     teams.push({
@@ -148,12 +148,15 @@ export function getMockGroupTeams(
     });
   }
 
+  // Ensure we don't exceed 8 teams (strict cap for league stability)
+  const finalTeams = teams.slice(0, TEAMS_PER_GROUP);
+
   // Final sort by ID for deterministic cross-client scheduling
-  teams.sort((a, b) => a.id.localeCompare(b.id));
+  finalTeams.sort((a, b) => a.id.localeCompare(b.id));
 
   // 3. Simulate matches strictly up to upToDay
   if (upToDay > 0) {
-    const seasonSchedule = getSchedule(teams);
+    const seasonSchedule = getSchedule(finalTeams);
     const limit = Math.min(upToDay, SEASON_DURATION_DAYS);
 
     for (let d = 1; d <= limit; d++) {
@@ -161,8 +164,8 @@ export function getMockGroupTeams(
       if (!matches) continue;
 
       matches.forEach((m: any) => {
-        const home = teams.find(t => t.id === m.home.id);
-        const away = teams.find(t => t.id === m.away.id);
+        const home = finalTeams.find(t => t.id === m.home.id);
+        const away = finalTeams.find(t => t.id === m.away.id);
         
         if (!home || !away) return;
 
@@ -172,7 +175,7 @@ export function getMockGroupTeams(
     }
   }
 
-  return teams;
+  return finalTeams;
 }
 
 export function applyResult(home: any, away: any, hScore: number, aScore: number) {

@@ -53,19 +53,32 @@ export default function RankingsPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
+  // Query for current group players
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
       collection(db, 'players_v5'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
-      where('leagueLevel', '==', profile.leagueLevel),
-      where('groupId', '==', profile.groupId)
+      where('leagueLevel', '==', Number(profile.leagueLevel)),
+      where('groupId', '==', Number(profile.groupId))
     );
   }, [db, profile?.selectedLeagueId, profile?.leagueLevel, profile?.groupId]);
 
   const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
 
-  // New query to get ALL players in the same league for the Cup
+  // Query for ANY group being viewed in pyramid
+  const viewingGroupPlayersQuery = useMemoFirebase(() => {
+    if (!profile?.selectedLeagueId || !viewingGroup) return null;
+    return query(
+      collection(db, 'players_v5'),
+      where('selectedLeagueId', '==', profile.selectedLeagueId),
+      where('leagueLevel', '==', Number(viewingGroup.div)),
+      where('groupId', '==', Number(viewingGroup.group))
+    );
+  }, [db, profile?.selectedLeagueId, viewingGroup]);
+
+  const { data: viewingGroupPlayers, isLoading: isViewingGroupLoading } = useCollection(viewingGroupPlayersQuery);
+
   const allLeaguePlayersQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
@@ -109,11 +122,8 @@ export default function RankingsPage() {
     return [...teams].sort((a, b) => b.points - a.points || (b.wins - a.wins));
   }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, isTodayPlayed, rank, user?.uid]);
 
-  // Deterministic Cup Bracket pairs using ONLY real participants from this league
   const cupPairs = useMemo(() => {
     if (!user || !isLoaded || !allLeaguePlayers) return [];
-    
-    // 1. Sort all players in league deterministically
     const sortedPlayers = [...allLeaguePlayers].sort((a, b) => a.id.localeCompare(b.id));
     const myIndex = sortedPlayers.findIndex(p => p.id === user.uid);
     if (myIndex === -1) return [];
@@ -121,30 +131,21 @@ export default function RankingsPage() {
     const pairs = [];
     const d = seasonDay || 1;
     const step = Math.pow(2, d - 1);
-    
-    // To show a local neighborhood of 4 matches (8 teams)
-    // We find the block of 8 teams the user belongs to at the current stage
     const blockSize = step * 8;
     const blockStart = Math.floor(myIndex / blockSize) * blockSize;
 
     for (let i = 0; i < 4; i++) {
-      // Each match in the current round consists of two blocks of size 'step'
       const matchIndexInBlock = i;
       const teamA_idx = blockStart + (matchIndexInBlock * 2 * step);
       const teamB_idx = teamA_idx + step;
-
       const playerA = sortedPlayers[teamA_idx];
       const playerB = sortedPlayers[teamB_idx];
-
       const homeName = playerA ? (playerA.displayName || "Manager") : "---";
       const awayName = playerB ? (playerB.displayName || "Manager") : "---";
-      
       const isUserMatch = (myIndex >= teamA_idx && myIndex < teamA_idx + step) || 
                           (myIndex >= teamB_idx && myIndex < teamB_idx + step);
-
       const historicalMatch = matchHistory.find(m => m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber);
       const isPlayed = isUserMatch && !!historicalMatch;
-      
       pairs.push({
         id: `pair-${i}`,
         home: homeName,
@@ -320,7 +321,9 @@ export default function RankingsPage() {
                 </Badge>
               </CardContent>
             </Card>
-            {renderRankingTable(myLeagueRankings)}
+            {isGroupLoading ? (
+              <div className="py-20 text-center opacity-50"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
+            ) : renderRankingTable(myLeagueRankings)}
           </div>
         );
 
@@ -380,7 +383,6 @@ export default function RankingsPage() {
                       <CardContent className="p-0">
                         <div className="flex items-center justify-between p-3 gap-2">
                           <div className="flex-1 min-w-0 space-y-2">
-                            {/* Home Team */}
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2 min-w-0">
                                 <div className={cn("w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0", pair.isUser && "bg-primary animate-pulse")} />
@@ -389,15 +391,11 @@ export default function RankingsPage() {
                               </div>
                               {pair.isPlayed && <span className="text-xs font-headline font-black text-white">{pair.result?.split(':')[0]}</span>}
                             </div>
-                            
-                            {/* VS Separator */}
                             <div className="flex items-center gap-2 px-1 opacity-20">
                               <div className="h-px flex-1 bg-white" />
                               <span className="text-[7px] font-black uppercase">VS</span>
                               <div className="h-px flex-1 bg-white" />
                             </div>
-
-                            {/* Away Team */}
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2 min-w-0">
                                 <div className={cn("w-1.5 h-1.5 rounded-full bg-red-400 shrink-0")} />
@@ -406,25 +404,13 @@ export default function RankingsPage() {
                               {pair.isPlayed && <span className="text-xs font-headline font-black text-white">{pair.result?.split(':')[1]}</span>}
                             </div>
                           </div>
-
-                          {/* Match Status / Time */}
                           <div className="w-20 flex flex-col items-center justify-center border-l border-white/5 pl-2 gap-1 text-center shrink-0">
                             {pair.isPlayed ? (
-                              <>
-                                <CheckCircle2 className="w-4 h-4 text-green-400" />
-                                <span className="text-[7px] font-black uppercase text-green-400">FINISH</span>
-                              </>
+                              <><CheckCircle2 className="w-4 h-4 text-green-400" /><span className="text-[7px] font-black uppercase text-green-400">FINISH</span></>
                             ) : pair.home === "---" || pair.away === "---" ? (
-                              <>
-                                <CheckCircle2 className="w-4 h-4 text-blue-400" />
-                                <span className="text-[7px] font-black uppercase text-blue-400">BYE</span>
-                              </>
+                              <><CheckCircle2 className="w-4 h-4 text-blue-400" /><span className="text-[7px] font-black uppercase text-blue-400">BYE</span></>
                             ) : (
-                              <>
-                                <Timer className="w-4 h-4 text-accent animate-pulse" />
-                                <span className="text-[7px] font-black uppercase text-accent leading-none">{t.waitingMatch}</span>
-                                <span className="text-[8px] font-mono font-bold text-primary mt-0.5">{cupTime}</span>
-                              </>
+                              <><Timer className="w-4 h-4 text-accent animate-pulse" /><span className="text-[7px] font-black uppercase text-accent leading-none">{t.waitingMatch}</span><span className="text-[8px] font-mono font-bold text-primary mt-0.5">{cupTime}</span></>
                             )}
                           </div>
                         </div>
@@ -432,16 +418,8 @@ export default function RankingsPage() {
                     </Card>
                   ))
                 ) : (
-                  <div className="py-10 text-center opacity-40 uppercase text-[10px] font-bold tracking-widest">
-                    Synchronizing participants...
-                  </div>
+                  <div className="py-10 text-center opacity-40 uppercase text-[10px] font-bold tracking-widest">Synchronizing participants...</div>
                 )}
-              </div>
-
-              <div className="mt-6 p-4 bg-secondary/20 rounded-xl border border-dashed border-white/10 text-center">
-                <p className="text-[8px] uppercase font-bold text-muted-foreground tracking-widest leading-relaxed">
-                  {t.bracketDesc}. {cupTime} MSK daily.
-                </p>
               </div>
             </div>
           </div>
@@ -455,11 +433,25 @@ export default function RankingsPage() {
                 <Button variant="ghost" size="sm" onClick={() => setViewingGroup(null)} className="h-8 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10">
                   <ChevronLeft className="w-3 h-3 mr-1" /> {t.backToGroups}
                 </Button>
-                <Badge className="bg-accent text-accent-foreground text-[10px] font-black tracking-widest">
+                <Badge className="bg-accent text-accent-foreground text-[10px] font-black tracking-widest uppercase">
                   DIV {viewingGroup.div} | GROUP {viewingGroup.group}
                 </Badge>
               </div>
-              {renderRankingTable(getMockGroupTeams(1000, "Other Team", viewingGroup.div, 1, viewingGroup.group, profile?.selectedLeagueId || "ALPHA", [], undefined, isTodayPlayed ? seasonDay : Math.max(0, seasonDay - 1)))}
+              {isViewingGroupLoading ? (
+                <div className="py-20 text-center opacity-50"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
+              ) : (
+                renderRankingTable(getMockGroupTeams(
+                  1000, 
+                  profile?.displayName || "Manager", 
+                  viewingGroup.div, 
+                  1, 
+                  viewingGroup.group, 
+                  profile?.selectedLeagueId || "ALPHA", 
+                  viewingGroupPlayers || [], 
+                  user?.uid, 
+                  isTodayPlayed ? seasonDay : Math.max(0, seasonDay - 1)
+                ))
+              )}
             </div>
           );
         }
@@ -522,20 +514,7 @@ export default function RankingsPage() {
           </div>
         );
 
-      default:
-        return (
-          <div className="flex flex-col items-center justify-center py-20 text-center space-y-6 opacity-40">
-            <div className="w-24 h-24 rounded-full border-2 border-dashed border-primary flex items-center justify-center">
-              <ShieldAlert className="w-12 h-12 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-lg font-headline font-black uppercase tracking-tight">Security Clearance Required</h2>
-              <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mt-2 px-10 leading-relaxed">
-                This terminal is reserved for Top Tier operations. Complete your current season to request access.
-              </p>
-            </div>
-          </div>
-        );
+      default: return null;
     }
   };
 
