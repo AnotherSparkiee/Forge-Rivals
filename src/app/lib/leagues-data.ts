@@ -107,20 +107,27 @@ export function getMockGroupTeams(
   
   // 1. Add all real players from Firestore
   const playersList = Array.isArray(realPlayers) ? realPlayers : [];
+  // Sort players by ID for stable scheduling
   const sortedRealPlayers = [...playersList].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
   
   sortedRealPlayers.forEach(p => {
     const isMe = p.id === currentPlayerId;
-    teams.push({
-      id: p.id,
-      name: isMe ? (playerName || p.displayName || "My Team") : (p.displayName || "Unknown Commander"),
-      wins: 0,
-      draws: 0,
-      losses: 0,
-      points: 0,
-      isPlayer: true,
-      isMe: isMe
-    });
+    
+    // FIX: Only add as a real player if they have a display name (completed setup)
+    // Players without a name (Unknown Commander) are effectively skipped here
+    // and will be replaced by a bot in step 2.
+    if (p.displayName || isMe) {
+      teams.push({
+        id: p.id,
+        name: isMe ? (playerName || p.displayName || "My Team") : p.displayName,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        points: 0,
+        isPlayer: true,
+        isMe: isMe
+      });
+    }
   });
 
   // 2. Fill remaining slots with bots
@@ -143,7 +150,7 @@ export function getMockGroupTeams(
     });
   }
 
-  // Sort teams by ID for stable scheduling
+  // Final sort of the 8 teams by ID for stable scheduling across all clients
   teams.sort((a, b) => a.id.localeCompare(b.id));
 
   // 3. Simulate matches strictly up to upToDay
