@@ -96,6 +96,7 @@ interface GameState {
   selectedLeagueId: string | null;
   country: string | null;
   lastLeagueMatchDate: string | null;
+  lastCupMatchDate: string | null;
   lastSeenMatchDay: number;
   seasonDay: number;
   seasonNumber: number;
@@ -201,6 +202,7 @@ const DEFAULT_STATE: GameState = {
   selectedLeagueId: null,
   country: null,
   lastLeagueMatchDate: null,
+  lastCupMatchDate: null,
   lastSeenMatchDay: 0,
   seasonDay: 0,
   seasonNumber: 0,
@@ -309,6 +311,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             country: profileData.country ?? s.country ?? null,
             lastSeenMatchDay: profileData.lastSeenMatchDay ?? s.lastSeenMatchDay ?? 0,
             lastLeagueMatchDate: profileData.lastLeagueMatchDate ?? s.lastLeagueMatchDate ?? null,
+            lastCupMatchDate: profileData.lastCupMatchDate ?? s.lastCupMatchDate ?? null,
             matchHistory: history,
             seasonStartDate: globalStart,
             seasonDay: globalDay,
@@ -390,6 +393,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         wins: 0, draws: 0, losses: 0, points: 0,
         lastProcessedSeason: globalSeason,
         lastLeagueMatchDate: null,
+        lastCupMatchDate: null,
         lastSeenMatchDay: 0,
         seasonResults: results,
         hasEliteTrophy: awardedTrophy || state.hasEliteTrophy
@@ -643,9 +647,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       };
       if (type === 'league') matchEntry.seasonNumber = s.seasonNumber;
       const todayStr = getMoscowDateString();
-      const newState = { ...s, credits: s.credits + creditsEarned, rank: s.rank + rankChange, matchHistory: [matchEntry, ...s.matchHistory].slice(0, 500), lastLeagueMatchDate: type === 'league' && matchDay === s.seasonDay ? todayStr : s.lastLeagueMatchDate };
+      const newState = { ...s, credits: s.credits + creditsEarned, rank: s.rank + rankChange, matchHistory: [matchEntry, ...s.matchHistory].slice(0, 500), 
+        lastLeagueMatchDate: type === 'league' && matchDay === s.seasonDay ? todayStr : s.lastLeagueMatchDate,
+        lastCupMatchDate: type === 'tournament' ? todayStr : s.lastCupMatchDate
+      };
       if (user) {
-        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, rank: newState.rank, lastLeagueMatchDate: newState.lastLeagueMatchDate ?? null, matchHistory: newState.matchHistory }, { merge: true });
+        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { 
+          inGameCurrency: newState.credits, 
+          rank: newState.rank, 
+          lastLeagueMatchDate: newState.lastLeagueMatchDate ?? null, 
+          lastCupMatchDate: newState.lastCupMatchDate ?? null,
+          matchHistory: newState.matchHistory 
+        }, { merge: true });
       }
       return newState;
     });

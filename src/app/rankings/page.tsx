@@ -8,7 +8,7 @@ import {
   Trophy, Medal, ChevronLeft, Award, 
   Users, Shield, Star, Swords, ChevronRight,
   LayoutDashboard, Loader2, Clock, Calendar,
-  LayoutGrid, Search, Radio
+  LayoutGrid, Search, Radio, Target, Zap, ShieldAlert, AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ import { getMockGroupTeams, LEAGUES } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { getMoscowDateString } from '../lib/time-utils';
+import { getMoscowDateString, getPyramidCupTime } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 type RankingTab = 
@@ -35,7 +35,7 @@ export default function RankingsPage() {
   const router = useRouter();
   const { 
     rank, leagueLevel, divisionSubId, groupId, isLoaded, language, 
-    lastLeagueMatchDate, seasonDay, isSyncing
+    lastLeagueMatchDate, seasonDay, seasonNumber, isSyncing, matchHistory
   } = useGameState();
   const db = useFirestore();
   
@@ -64,19 +64,6 @@ export default function RankingsPage() {
 
   const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
 
-  // Global search for players in viewing group
-  const viewingGroupQuery = useMemoFirebase(() => {
-    if (!viewingGroup || !profile?.selectedLeagueId) return null;
-    return query(
-      collection(db, 'players_v5'),
-      where('selectedLeagueId', '==', profile.selectedLeagueId),
-      where('leagueLevel', '==', viewingGroup.div),
-      where('groupId', '==', viewingGroup.group)
-    );
-  }, [db, profile?.selectedLeagueId, viewingGroup]);
-
-  const { data: viewingGroupPlayers } = useCollection(viewingGroupQuery);
-
   const league = useMemo(() => {
     return LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0];
   }, [profile?.selectedLeagueId]);
@@ -85,6 +72,11 @@ export default function RankingsPage() {
     const todayStr = getMoscowDateString();
     return lastLeagueMatchDate === todayStr;
   }, [lastLeagueMatchDate]);
+
+  const cupEliminationDay = useMemo(() => {
+    const lostMatch = matchHistory.find(m => m.type === 'tournament' && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
+    return lostMatch ? lostMatch.day : null;
+  }, [matchHistory, seasonNumber]);
 
   const myLeagueRankings = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return [];
@@ -99,30 +91,11 @@ export default function RankingsPage() {
       profile.selectedLeagueId || "ALPHA",
       groupPlayers,
       user?.uid,
-      completedDays
+      Math.max(0, completedDays)
     );
     
     return [...teams].sort((a, b) => b.points - a.points || (b.wins - a.wins));
   }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, isTodayPlayed, rank, user?.uid]);
-
-  const otherGroupRankings = useMemo(() => {
-    if (!viewingGroup || !profile) return [];
-    const completedDays = isTodayPlayed ? seasonDay : Math.max(0, seasonDay - 1);
-    
-    const teams = getMockGroupTeams(
-      1000, 
-      "Other Team", 
-      viewingGroup.div, 
-      1, 
-      viewingGroup.group, 
-      profile.selectedLeagueId || "ALPHA",
-      viewingGroupPlayers || [],
-      undefined,
-      completedDays
-    );
-    
-    return [...teams].sort((a, b) => b.points - a.points || (b.wins - a.wins));
-  }, [viewingGroup, viewingGroupPlayers, profile, isTodayPlayed, seasonDay]);
 
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
@@ -149,12 +122,17 @@ export default function RankingsPage() {
       groupLabel: "Group",
       myPos: "YOU ARE HERE",
       realManager: "USER",
+      cupStatus: "Cup Status",
+      inCup: "ACTIVE IN CUP",
+      eliminated: "ELIMINATED",
+      roundLabel: "Current Stage",
+      rounds: ["Qualifiers", "Round of 64", "Round of 32", "Round of 16", "Quarter-Finals", "Semi-Finals", "Grand Final"],
       tabs: {
         my_league: { label: "My League", desc: "Current group rankings", icon: Trophy },
         champions_cup: { label: "Champions Cup", desc: "Top tier elite", icon: Award },
         masters_cup: { label: "Masters Cup", desc: "Pro division cup", icon: Star },
         my_pyramid: { label: "My Pyramid", desc: "Global live hierarchy", icon: LayoutDashboard },
-        pyramid_cup: { label: "Pyramid Cup", desc: "Inter-division KO", icon: Swords },
+        pyramid_cup: { label: "Pyramid Cup", desc: "Daily knockout rounds", icon: Target },
         friendly: { label: "Friendly", desc: "Training matches", icon: Users }
       }
     },
@@ -178,18 +156,26 @@ export default function RankingsPage() {
       groupLabel: "Группа",
       myPos: "ВЫ ЗДЕСЬ",
       realManager: "МЕНЕДЖЕР",
+      cupStatus: "Статус в кубке",
+      inCup: "В ИГРЕ",
+      eliminated: "ВЫБЫЛ",
+      roundLabel: "Текущая стадия",
+      rounds: ["Квалификация", "1/64 финала", "1/32 финала", "1/16 финала", "Четвертьфинал", "Полуфинал", "Гранд Финал"],
       tabs: {
         my_league: { label: "Своя лига", desc: "Рейтинг вашей группы", icon: Trophy },
         champions_cup: { label: "Кубок чемпионов", desc: "Элитный турнир", icon: Award },
         masters_cup: { label: "Кубок Мастеров", desc: "Профессиональный кубок", icon: Star },
         my_pyramid: { label: "Своя пирамида", desc: "Обзор живой иерархии", icon: LayoutDashboard },
-        pyramid_cup: { label: "Кубок пирамиды", desc: "Плей-офф лиги", icon: Swords },
+        pyramid_cup: { label: "Кубок пирамиды", desc: "Ежедневный турнир на вылет", icon: Target },
         friendly: { label: "Товарищеский", desc: "Тренировочные игры", icon: Users }
       }
     }
   };
 
   const t = labels[language as keyof typeof labels] || labels.ru;
+
+  const currentRoundIdx = Math.min(t.rounds.length - 1, Math.max(0, Math.floor((seasonDay - 1) / 2)));
+  const cupTime = getPyramidCupTime(league.startTime);
 
   const renderRankingTable = (rankingsData: any[]) => (
     <div className="space-y-2 animate-in fade-in duration-300">
@@ -234,114 +220,168 @@ export default function RankingsPage() {
     </div>
   );
 
-  const renderPyramid = () => {
-    if (viewingGroup) {
-      return (
-        <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500 pb-10">
-          <div className="flex items-center justify-between px-1">
-            <Button variant="ghost" size="sm" onClick={() => setViewingGroup(null)} className="h-8 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10">
-              <ChevronLeft className="w-3 h-3 mr-1" /> {t.backToGroups}
-            </Button>
-            <Badge className="bg-accent text-accent-foreground text-[10px] font-black tracking-widest">
-              DIV {viewingGroup.div} | GROUP {viewingGroup.group}
-            </Badge>
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'my_league':
+        return (
+          <div className="space-y-6">
+            <Card className="bg-secondary/30 border-white/5 shadow-xl">
+              <CardContent className="p-5 flex justify-between items-center">
+                <div className="flex flex-col">
+                  <span className="text-[10px] uppercase font-black text-accent tracking-[0.2em]">{t.bo2_format}</span>
+                  <span className="text-xs font-mono font-bold text-primary flex items-center gap-2 mt-2 bg-primary/10 px-2 py-1 rounded-md w-fit">
+                    <Clock className="w-3.5 h-3.5" /> {league.startTime} MSK
+                  </span>
+                </div>
+                <Badge variant="outline" className={cn(
+                  "text-[10px] font-black px-3 py-1 border-white/10 uppercase tracking-widest", 
+                  isTodayPlayed ? "bg-green-500/20 border-green-500/30 text-green-400" : "bg-primary/10 text-primary border-primary/20"
+                )}>
+                  {seasonDay === 0 ? t.upcoming : (isTodayPlayed ? t.completed : t.waiting)}
+                </Badge>
+              </CardContent>
+            </Card>
+            {renderRankingTable(myLeagueRankings)}
           </div>
-          {renderRankingTable(otherGroupRankings)}
-        </div>
-      );
-    }
+        );
 
-    if (selectedPyramidDiv) {
-      const groupCount = Math.pow(2, selectedPyramidDiv - 1);
-      return (
-        <div className="space-y-6 animate-in fade-in duration-500 pb-10">
-          <div className="flex items-center justify-between px-1">
-            <Button variant="ghost" size="sm" onClick={() => setSelectedPyramidDiv(null)} className="h-8 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10">
-              <ChevronLeft className="w-3 h-3 mr-1" /> {t.backToDivs}
-            </Button>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-headline font-bold uppercase text-accent">{t.div_label} {selectedPyramidDiv}</h2>
-              <Badge variant="outline" className="text-[8px] border-white/10">{groupCount} GROUPS</Badge>
+      case 'pyramid_cup':
+        return (
+          <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+            <Card className="glass-card bg-gradient-to-br from-accent/10 to-transparent border-accent/20 overflow-hidden">
+              <CardContent className="p-6 flex flex-col items-center text-center">
+                <div className="relative mb-4">
+                  <div className="w-20 h-20 rounded-full bg-secondary/50 border-2 border-accent flex items-center justify-center shadow-[0_0_20px_rgba(var(--accent),0.2)]">
+                    <Target className={cn("w-10 h-10 text-accent", !cupEliminationDay && "animate-pulse")} />
+                  </div>
+                  {!cupEliminationDay && (
+                    <div className="absolute -top-1 -right-1">
+                      <Zap className="w-6 h-6 text-yellow-500 fill-yellow-500 animate-bounce" />
+                    </div>
+                  )}
+                </div>
+                
+                <h2 className="text-2xl font-headline font-bold uppercase tracking-tight text-white">{t.tabs.pyramid_cup.label}</h2>
+                <div className="flex items-center gap-2 mt-2">
+                  <Badge className={cn("uppercase text-[8px] font-black", cupEliminationDay ? "bg-destructive text-white" : "bg-green-500 text-white")}>
+                    {cupEliminationDay ? `${t.eliminated} (DAY ${cupEliminationDay})` : t.inCup}
+                  </Badge>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold">Season {seasonNumber}</span>
+                </div>
+
+                <div className="w-full grid grid-cols-2 gap-3 mt-8">
+                  <div className="bg-background/50 p-3 rounded-xl border border-white/5">
+                    <p className="text-[8px] text-muted-foreground uppercase font-bold mb-1">{t.roundLabel}</p>
+                    <p className="text-xs font-bold text-accent uppercase">{t.rounds[currentRoundIdx]}</p>
+                  </div>
+                  <div className="bg-background/50 p-3 rounded-xl border border-white/5">
+                    <p className="text-[8px] text-muted-foreground uppercase font-bold mb-1">Match Time</p>
+                    <p className="text-xs font-bold text-primary">{cupTime} MSK</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-4">
+              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-accent px-1">Tournament Bracket</h3>
+              <div className="p-10 text-center opacity-30 flex flex-col items-center gap-4">
+                <LayoutGrid className="w-12 h-12 text-muted-foreground" />
+                <p className="text-[10px] uppercase font-bold tracking-widest max-w-[200px]">Bracket rendering reserved for finalized qualifiers.</p>
+              </div>
             </div>
           </div>
-          
-          <div className="grid grid-cols-4 gap-2">
-            {Array.from({ length: groupCount }).map((_, i) => {
-              const gNum = i + 1;
-              const isMine = leagueLevel === selectedPyramidDiv && groupId === gNum;
+        );
+
+      case 'my_pyramid':
+        if (viewingGroup) {
+          return (
+            <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500 pb-10">
+              <div className="flex items-center justify-between px-1">
+                <Button variant="ghost" size="sm" onClick={() => setViewingGroup(null)} className="h-8 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10">
+                  <ChevronLeft className="w-3 h-3 mr-1" /> {t.backToGroups}
+                </Button>
+                <Badge className="bg-accent text-accent-foreground text-[10px] font-black tracking-widest">
+                  DIV {viewingGroup.div} | GROUP {viewingGroup.group}
+                </Badge>
+              </div>
+              {renderRankingTable(getMockGroupTeams(1000, "Other Team", viewingGroup.div, 1, viewingGroup.group, profile?.selectedLeagueId || "ALPHA", [], undefined, isTodayPlayed ? seasonDay : Math.max(0, seasonDay - 1)))}
+            </div>
+          );
+        }
+
+        if (selectedPyramidDiv) {
+          const groupCount = Math.pow(2, selectedPyramidDiv - 1);
+          return (
+            <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+              <div className="flex items-center justify-between px-1">
+                <Button variant="ghost" size="sm" onClick={() => setSelectedPyramidDiv(null)} className="h-8 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10">
+                  <ChevronLeft className="w-3 h-3 mr-1" /> {t.backToDivs}
+                </Button>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-headline font-bold uppercase text-accent">{t.div_label} {selectedPyramidDiv}</h2>
+                  <Badge variant="outline" className="text-[8px] border-white/10">{groupCount} GROUPS</Badge>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {Array.from({ length: groupCount }).map((_, i) => {
+                  const gNum = i + 1;
+                  const isMine = leagueLevel === selectedPyramidDiv && groupId === gNum;
+                  return (
+                    <Card key={gNum} className={cn("border-white/5 cursor-pointer transition-all hover:scale-105 active:scale-95 overflow-hidden", isMine ? "bg-primary/20 border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.2)]" : "bg-secondary/30 hover:border-white/20")} onClick={() => setViewingGroup({ div: selectedPyramidDiv, group: gNum })}>
+                      <CardContent className="p-3 text-center relative">
+                        <p className={cn("text-[10px] font-black uppercase tracking-tighter", isMine ? "text-primary" : "text-muted-foreground/60")}>#{gNum}</p>
+                        {isMine && <div className="text-[6px] font-black text-primary mt-1 leading-none animate-pulse">{t.myPos}</div>}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-3 animate-in fade-in duration-500 pb-10">
+            <div className="p-5 bg-gradient-to-br from-primary/10 via-card to-accent/5 rounded-2xl border border-white/5 mb-6 text-center shadow-xl">
+              <h2 className="text-sm font-headline font-black uppercase tracking-[0.2em] text-primary flex items-center justify-center gap-3"><LayoutGrid className="w-5 h-5" /> {t.pyramidTitle}</h2>
+              <p className="text-[9px] text-muted-foreground mt-2 uppercase font-black tracking-widest opacity-60">{t.pyramidDesc}</p>
+            </div>
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((div) => {
+              const groupCount = Math.pow(2, div - 1);
+              const isMyDiv = leagueLevel === div;
               return (
-                <Card 
-                  key={gNum} 
-                  className={cn(
-                    "border-white/5 cursor-pointer transition-all hover:scale-105 active:scale-95 overflow-hidden",
-                    isMine ? "bg-primary/20 border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.2)]" : "bg-secondary/30 hover:border-white/20"
-                  )}
-                  onClick={() => setViewingGroup({ div: selectedPyramidDiv, group: gNum })}
-                >
-                  <CardContent className="p-3 text-center relative">
-                    <p className={cn("text-[10px] font-black uppercase tracking-tighter", isMine ? "text-primary" : "text-muted-foreground/60")}>#{gNum}</p>
-                    {isMine && <div className="text-[6px] font-black text-primary mt-1 leading-none animate-pulse">{t.myPos}</div>}
+                <Card key={div} className={cn("glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all group", isMyDiv && "border-primary/30 bg-primary/5 ring-1 ring-primary/20")} onClick={() => setSelectedPyramidDiv(div)}>
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center font-headline font-black text-xl transition-all", isMyDiv ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 rotate-3" : "bg-secondary/50 text-muted-foreground/40 group-hover:text-primary")}>{div}</div>
+                      <div>
+                        <h3 className="text-sm font-black uppercase tracking-tight">{t.div_label} {div}</h3>
+                        <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest mt-1 opacity-50">{groupCount} GROUPS</p>
+                      </div>
+                    </div>
+                    {isMyDiv && <Badge className="text-[8px] uppercase font-black bg-primary text-primary-foreground animate-pulse">{t.myPos}</Badge>}
                   </CardContent>
                 </Card>
               );
             })}
           </div>
-        </div>
-      );
+        );
+
+      default:
+        return (
+          <div className="flex flex-col items-center justify-center py-20 text-center space-y-6 opacity-40">
+            <div className="w-24 h-24 rounded-full border-2 border-dashed border-primary flex items-center justify-center">
+              <ShieldAlert className="w-12 h-12 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-lg font-headline font-black uppercase tracking-tight">Security Clearance Required</h2>
+              <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mt-2 px-10 leading-relaxed">
+                This terminal is reserved for Top Tier operations. Complete your current season to request access.
+              </p>
+            </div>
+          </div>
+        );
     }
-
-    return (
-      <div className="space-y-3 animate-in fade-in duration-500 pb-10">
-        <div className="p-5 bg-gradient-to-br from-primary/10 via-card to-accent/5 rounded-2xl border border-white/5 mb-6 text-center shadow-xl">
-          <h2 className="text-sm font-headline font-black uppercase tracking-[0.2em] text-primary flex items-center justify-center gap-3">
-            <LayoutGrid className="w-5 h-5" /> {t.pyramidTitle}
-          </h2>
-          <p className="text-[9px] text-muted-foreground mt-2 uppercase font-black tracking-widest opacity-60">{t.pyramidDesc}</p>
-        </div>
-
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((div) => {
-          const groupCount = Math.pow(2, div - 1);
-          const isMyDiv = leagueLevel === div;
-          return (
-            <Card 
-              key={div} 
-              className={cn(
-                "glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all group",
-                isMyDiv && "border-primary/30 bg-primary/5 ring-1 ring-primary/20"
-              )}
-              onClick={() => setSelectedPyramidDiv(div)}
-            >
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={cn(
-                    "w-12 h-12 rounded-xl flex items-center justify-center font-headline font-black text-xl transition-all",
-                    isMyDiv ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 rotate-3" : "bg-secondary/50 text-muted-foreground/40 group-hover:text-primary"
-                  )}>
-                    {div}
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-black uppercase tracking-tight">{t.div_label} {div}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest opacity-50">
-                        {groupCount} {language === 'ru' ? 'ГРУПП' : 'GROUPS'}
-                      </p>
-                      <div className="h-1 w-1 rounded-full bg-white/10"></div>
-                      <p className="text-[9px] text-accent font-black uppercase tracking-widest">
-                        {groupCount * 8} SLOTS
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  {isMyDiv && <Badge className="text-[8px] uppercase font-black bg-primary text-primary-foreground animate-pulse">{t.myPos}</Badge>}
-                  <ChevronRight className="w-5 h-5 text-muted-foreground opacity-30 group-hover:opacity-100 transition-opacity" />
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-    );
   };
 
   if (activeTab === 'menu') {
@@ -423,43 +463,7 @@ export default function RankingsPage() {
         </div>
       </header>
 
-      {activeTab === 'my_league' && (
-        <div className="space-y-6">
-          <Card className="bg-secondary/30 border-white/5 shadow-xl">
-            <CardContent className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-[10px] uppercase font-black text-accent tracking-[0.2em]">{t.bo2_format}</span>
-                <span className="text-xs font-mono font-bold text-primary flex items-center gap-2 mt-2 bg-primary/10 px-2 py-1 rounded-md w-fit">
-                  <Clock className="w-3.5 h-3.5" /> {league.startTime} MSK
-                </span>
-              </div>
-              <Badge variant="outline" className={cn(
-                "text-[10px] font-black px-3 py-1 border-white/10 uppercase tracking-widest", 
-                isTodayPlayed ? "bg-green-500/20 border-green-500/30 text-green-400" : "bg-primary/10 text-primary border-primary/20"
-              )}>
-                {seasonDay === 0 ? t.upcoming : (isTodayPlayed ? t.completed : t.waiting)}
-              </Badge>
-            </CardContent>
-          </Card>
-          {renderRankingTable(myLeagueRankings)}
-        </div>
-      )}
-
-      {activeTab === 'my_pyramid' && renderPyramid()}
-
-      {activeTab !== 'menu' && activeTab !== 'my_league' && activeTab !== 'my_pyramid' && (
-        <div className="flex flex-col items-center justify-center py-20 text-center space-y-6 opacity-40">
-          <div className="w-24 h-24 rounded-full border-2 border-dashed border-primary flex items-center justify-center">
-            <Shield className="w-12 h-12 text-primary" />
-          </div>
-          <div>
-            <h2 className="text-lg font-headline font-black uppercase tracking-tight">Security Clearance Required</h2>
-            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mt-2 px-10 leading-relaxed">
-              This terminal is reserved for Top Tier operations. Complete your current season to request access.
-            </p>
-          </div>
-        </div>
-      )}
+      {renderContent()}
     </div>
   );
 }

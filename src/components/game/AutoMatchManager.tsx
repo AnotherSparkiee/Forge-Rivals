@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { isMatchDue, getMoscowDateString, getGlobalSeasonInfo } from '@/app/lib/time-utils';
+import { isMatchDue, getMoscowDateString, getGlobalSeasonInfo, getPyramidCupTime } from '@/app/lib/time-utils';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '@/app/lib/leagues-data';
 import { INITIAL_HEROES } from '@/app/lib/moba-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
@@ -14,13 +15,13 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Skull, Crosshair, Swords, Loader2, ArrowUpCircle, ArrowDownCircle, MinusCircle, Star } from 'lucide-react';
+import { Trophy, Skull, Crosshair, Swords, Loader2, ArrowUpCircle, ArrowDownCircle, MinusCircle, Star, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function AutoMatchManager() {
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, 
-    seasonDay, seasonNumber, lastLeagueMatchDate, recordMatch, team, strategy, rank, seasonStartDate,
+    seasonDay, seasonNumber, lastLeagueMatchDate, lastCupMatchDate, recordMatch, team, strategy, rank, seasonStartDate,
     markMatchAsSeen, matchHistory, seasonResults, dismissSeasonResults, setSyncing
   } = useGameState();
   const { user, isUserLoading } = useUser();
@@ -32,6 +33,7 @@ export function AutoMatchManager() {
   const [currentResult, setCurrentResult] = useState<any | null>(null);
   
   const simulationRef = useRef(false);
+  const cupSimulationRef = useRef(false);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
@@ -48,6 +50,7 @@ export function AutoMatchManager() {
 
   const { data: groupPlayers } = useCollection(groupQuery);
 
+  // 1. Regular League Simulation
   useEffect(() => {
     if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !simulationRef.current && !isUserLoading && profile?.selectedLeagueId && groupPlayers && user) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
@@ -64,6 +67,25 @@ export function AutoMatchManager() {
       catchUp();
     }
   }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, isSimulating]);
+
+  // 2. Pyramid Cup Simulation (Knockout)
+  useEffect(() => {
+    if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !cupSimulationRef.current && !isUserLoading && profile?.selectedLeagueId && user) {
+      const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
+      const leagueTime = league?.startTime || '23:00';
+      const cupTime = getPyramidCupTime(leagueTime);
+      
+      const todayStr = getMoscowDateString();
+      const hasPlayedTodayCup = lastCupMatchDate === todayStr;
+      
+      // Check if eliminated earlier in the season
+      const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < seasonDay && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
+
+      if (!hasPlayedTodayCup && !wasEliminated && isMatchDue(cupTime, lastCupMatchDate)) {
+        triggerCupMatch(cupTime, seasonDay);
+      }
+    }
+  }, [isLoaded, profile, lastCupMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, isSimulating]);
 
   const triggerAutoMatch = async (matchTime: string, targetDay: number) => {
     if (!groupPlayers || !user || !profile || simulationRef.current) return;
@@ -89,8 +111,29 @@ export function AutoMatchManager() {
         const [h, m] = matchTime.split(':').map(Number); d.setHours(h, m, 0, 0); customPlayedAt = d.toISOString();
       }
       recordMatch(result.winner, result, targetDay, opponent.name || "Unknown Team", 'league', customPlayedAt);
-      if (targetDay === seasonDay) { setCurrentResult({ ...result, day: targetDay, opponentName: opponent.name }); setShowResultDialog(true); }
+      if (targetDay === seasonDay) { setCurrentResult({ ...result, day: targetDay, opponentName: opponent.name, isCup: false }); setShowResultDialog(true); }
     } catch (e: any) { console.error("Sim failed", e); } finally { setIsSimulating(false); simulationRef.current = false; setSyncing(false); }
+  };
+
+  const triggerCupMatch = async (matchTime: string, targetDay: number) => {
+    if (!user || !profile || cupSimulationRef.current) return;
+    cupSimulationRef.current = true; setIsSimulating(true); setSyncing(true);
+    try {
+      const opponentName = `CupRival_${Math.floor(Math.random() * 10000)}`;
+      const result = await simulateMobaMatch({
+        teamA: { name: profile.displayName || "My Team", strategy, heroes: team },
+        teamB: { name: opponentName, strategy: "Cup Aggression", heroes: INITIAL_HEROES.slice(0, 5) },
+        includeRandomEvents: true, isBo2: false
+      });
+      
+      recordMatch(result.winner, result, targetDay, opponentName, 'tournament');
+      setCurrentResult({ ...result, day: targetDay, opponentName, isCup: true });
+      setShowResultDialog(true);
+    } catch (e: any) {
+      console.error("Cup Sim failed", e);
+    } finally {
+      setIsSimulating(false); cupSimulationRef.current = false; setSyncing(false);
+    }
   };
 
   const t = { 
@@ -102,24 +145,30 @@ export function AutoMatchManager() {
     demoted: language === 'ru' ? 'ПОНИЖЕНИЕ В КЛАССЕ' : 'RELEGATED', 
     stayed: language === 'ru' ? 'ПОЗИЦИЯ СОХРАНЕНА' : 'POSITION MAINTAINED', 
     next: language === 'ru' ? 'СЛЕДУЮЩИЙ СЕЗОН' : 'NEXT SEASON',
-    matchSummary: language === 'ru' ? 'Обзор матча' : 'Match Summary'
+    matchSummary: language === 'ru' ? 'Обзор матча' : 'Match Summary',
+    cupTitle: language === 'ru' ? 'КУБОК ПИРАМИДЫ' : 'PYRAMID CUP',
+    victory: language === 'ru' ? 'ПОБЕДА' : 'VICTORY',
+    defeat: language === 'ru' ? 'ВЫЛЕТ' : 'ELIMINATED'
   };
 
   return (
     <>
-      <Dialog open={showResultDialog} onOpenChange={(open) => { setShowResultDialog(open); if (!open && currentResult) markMatchAsSeen(currentResult.day); }}>
+      <Dialog open={showResultDialog} onOpenChange={(open) => { setShowResultDialog(open); if (!open && currentResult && !currentResult.isCup) markMatchAsSeen(currentResult.day); }}>
         <DialogContent className="max-w-md p-0 overflow-hidden bg-background border-white/5">
           <div className={cn("p-6 text-center border-b", currentResult?.scoreA > currentResult?.scoreB ? "bg-primary/10 border-primary/20" : "bg-accent/10 border-accent/20")}>
-            <Trophy className="w-16 h-16 mx-auto mb-3 text-primary" />
+            {currentResult?.isCup ? <Target className="w-16 h-16 mx-auto mb-3 text-accent" /> : <Trophy className="w-16 h-16 mx-auto mb-3 text-primary" />}
             <DialogTitle className="text-3xl font-headline font-bold mb-1 uppercase">
-              {currentResult?.scoreA > currentResult?.scoreB ? (language === 'ru' ? 'ПОБЕДА' : 'VICTORY') : (language === 'ru' ? 'МАТЧ ОКОНЧЕН' : 'MATCH OVER')}
+              {currentResult?.isCup ? t.cupTitle : (currentResult?.scoreA > currentResult?.scoreB ? t.victory : (language === 'ru' ? 'МАТЧ ОКОНЧЕН' : 'MATCH OVER'))}
             </DialogTitle>
             <DialogDescription className="sr-only">{t.matchSummary}</DialogDescription>
             <div className="flex items-center justify-center gap-4 text-2xl font-headline font-bold mt-2">
-              <span>{currentResult?.scoreA}</span>
+              <span className={cn(currentResult?.scoreA > currentResult?.scoreB && "text-primary")}>{currentResult?.scoreA}</span>
               <span className="opacity-30">:</span>
-              <span>{currentResult?.scoreB}</span>
+              <span className={cn(currentResult?.scoreB > currentResult?.scoreA && "text-red-400")}>{currentResult?.scoreB}</span>
             </div>
+            {currentResult?.isCup && currentResult?.scoreA < currentResult?.scoreB && (
+              <p className="text-xs text-red-400 font-black mt-2 uppercase tracking-widest">{t.defeat}</p>
+            )}
           </div>
           <div className="p-6 space-y-6">
             <p className="text-sm leading-relaxed text-muted-foreground italic">"{currentResult?.matchSummary}"</p>

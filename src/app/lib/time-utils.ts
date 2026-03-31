@@ -80,3 +80,12 @@ export function isMatchDue(startTimeStr: string, lastMatchDateStr: string | null
 
   return false;
 }
+
+/**
+ * Calculates the Pyramid Cup match time (League Start + 12 hours)
+ */
+export function getPyramidCupTime(leagueStartTime: string): string {
+  const [h, m] = leagueStartTime.split(':').map(Number);
+  const cupHour = (h + 12) % 24;
+  return `${String(cupHour).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`;
+}

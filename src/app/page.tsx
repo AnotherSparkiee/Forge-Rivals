@@ -8,7 +8,7 @@ import { useGameState } from './lib/store';
 import { 
   Users, Trophy, Zap, Clock,
   UserSearch, ShieldAlert, Medal, User, Swords, ChevronRight,
-  CalendarDays, PlayCircle, Loader2, MessageSquare, UsersRound
+  CalendarDays, PlayCircle, Loader2, MessageSquare, UsersRound, Target
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { doc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, LEAGUES } from './lib/leagues-data';
-import { getMoscowDateString, getMoscowTime } from './lib/time-utils';
+import { getMoscowDateString, getMoscowTime, getPyramidCupTime } from './lib/time-utils';
 import { cn } from '@/lib/utils';
 import { getDeterministicTournament } from './tournaments/iron-globe/page';
 
@@ -27,8 +27,8 @@ export default function Home() {
   const db = useFirestore();
   const { 
     rank, leagueLevel, divisionSubId, groupId, 
-    language, isLoaded, lastLeagueMatchDate, seasonDay,
-    matchHistory, lastSeenMatchDay, strategy, team
+    language, isLoaded, lastLeagueMatchDate, lastCupMatchDate, seasonDay,
+    matchHistory, lastSeenMatchDay, strategy, team, seasonNumber
   } = useGameState();
 
   const [countdown, setCountdown] = useState<string>('');
@@ -59,7 +59,6 @@ export default function Home() {
   }, [db]);
   const { data: brickParticipants } = useCollection(brickParticipantsQuery);
 
-  // Listen for CW Basket matches
   const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket', user.uid) : null, [db, user]);
   const { data: basketEntry } = useDoc(myBasketRef);
 
@@ -88,63 +87,25 @@ export default function Home() {
   }, [user, isUserLoading, db]);
 
   const isTodayPlayed = useMemo(() => lastLeagueMatchDate === getMoscowDateString(), [lastLeagueMatchDate]);
+  const isCupPlayedToday = useMemo(() => lastCupMatchDate === getMoscowDateString(), [lastCupMatchDate]);
 
-  // Determine if tournament is active and showing next opponent
-  const tournamentNextMatch = useMemo(() => {
-    if (!isLoaded || !user) return null;
-    const mskNow = getMoscowTime();
-    const dateStr = getMoscowDateString();
-    const totalMins = mskNow.getHours() * 60 + mskNow.getMinutes();
-
-    // Check Iron Globe
-    if (profile?.tournaments?.includes('iron-globe')) {
-      const startTotal = 21 * 60 + 5;
-      const finishTotal = 21 * 60 + 40;
-      if (totalMins >= (20 * 60 + 50) && totalMins < finishTotal) {
-        const isLive = totalMins >= startTotal;
-        const tour = getDeterministicTournament(dateStr, globeParticipants || [], user.uid, mskNow, "21:05");
-        return {
-          opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
-          isFriendly: false, isTournament: true, isBasket: false,
-          isLive,
-          time: "21:05", tourName: language === 'ru' ? 'ЧУГУННЫЙ ГЛОБУС' : 'CAST IRON GLOBE'
-        };
-      }
-    }
-
-    // Check Iron Brick
-    if (profile?.tournaments?.includes('iron-brick')) {
-      const startTotal = 21 * 60 + 35;
-      const finishTotal = 22 * 60 + 10;
-      if (totalMins >= (21 * 60 + 20) && totalMins < finishTotal) {
-        const isLive = totalMins >= startTotal;
-        const tour = getDeterministicTournament(dateStr, brickParticipants || [], user.uid, mskNow, "21:35");
-        return {
-          opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
-          isFriendly: false, isTournament: true, isBasket: false,
-          isLive,
-          time: "21:35", tourName: language === 'ru' ? 'ЧУГУННЫЙ КИРПИЧ' : 'CAST IRON BRICK'
-        };
-      }
-    }
-
-    return null;
-  }, [isLoaded, profile, globeParticipants, brickParticipants, user, language]);
-
-  const basketNextMatch = useMemo(() => {
-    if (!basketEntry || basketEntry.status !== 'matched' || !basketEntry.matchStartTime) return null;
-    const startTime = new Date(basketEntry.matchStartTime).getTime();
-    if (Date.now() >= startTime) return null;
-
-    return {
-      opponent: { name: basketEntry.matchedWithName, isPlayer: true },
-      isFriendly: false,
-      isTournament: false,
-      isBasket: true,
-      isLive: false,
-      startTime
+  // Priority 1: Pyramid Cup (Closest knockout)
+  const cupNextMatch = useMemo(() => {
+    if (!isLoaded || !profile || seasonDay > 14) return null;
+    const leagueInfo = LEAGUES.find(l => l.id === profile.selectedLeagueId) || LEAGUES[0];
+    const cupTime = getPyramidCupTime(leagueInfo.startTime);
+    const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
+    
+    if (wasEliminated) return null;
+    
+    return { 
+      opponent: { name: "Tournament Rival", isPlayer: false },
+      time: cupTime,
+      isNextDay: isCupPlayedToday,
+      isCup: true,
+      label: language === 'ru' ? 'КУБОК ПИРАМИДЫ' : 'PYRAMID CUP'
     };
-  }, [basketEntry]);
+  }, [isLoaded, profile, seasonDay, matchHistory, seasonNumber, isCupPlayedToday, language]);
 
   const leagueNextMatch = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers || seasonDay > 14) return null;
@@ -154,37 +115,74 @@ export default function Home() {
     const schedule = getSchedule(getMockGroupTeams(rank, profile.displayName || "My Team", leagueLevel, divisionSubId, groupId, profile.selectedLeagueId || "ALPHA", groupPlayers, user?.uid, 0));
     const myMatch = schedule[targetDay - 1]?.find((m: any) => m.home.id === user?.uid || m.away.id === user?.uid);
     if (!myMatch) return null;
-    return { opponent: myMatch.home.id === user?.uid ? myMatch.away : myMatch.home, day: targetDay, time: league.startTime, isNextDay: targetDay > seasonDay, isFriendly: false, isTournament: false, isBasket: false };
+    return { opponent: myMatch.home.id === user?.uid ? myMatch.away : myMatch.home, day: targetDay, time: league.startTime, isNextDay: targetDay > seasonDay, isCup: false };
   }, [isLoaded, profile, groupPlayers, seasonDay, isTodayPlayed, rank, leagueLevel, divisionSubId, groupId, user?.uid]);
 
-  const friendlyMatchInfo = useMemo(() => {
-    if (!activeFriendly || !user) return null;
-    const acceptedAt = activeFriendly.acceptedAt?.toMillis() || Date.now();
-    if (Date.now() - acceptedAt > 15.5 * 60 * 1000) return null;
-    return { opponent: { name: activeFriendly.hostId === user.uid ? activeFriendly.challengerName : activeFriendly.hostName, isPlayer: true }, day: 0, isFriendly: true, isTournament: false, isBasket: false, acceptedAt };
-  }, [activeFriendly, user]);
+  // Order of priority: Friendly > Tournament > Basket > (Cup vs League based on time)
+  const tournamentNextMatch = useMemo(() => {
+    if (!isLoaded || !user) return null;
+    const mskNow = getMoscowTime();
+    const dateStr = getMoscowDateString();
+    const totalMins = mskNow.getHours() * 60 + mskNow.getMinutes();
 
-  // Order of priority: Friendly > Tournament > Basket > League
-  const displayMatchInfo = friendlyMatchInfo || tournamentNextMatch || basketNextMatch || leagueNextMatch;
+    if (profile?.tournaments?.includes('iron-globe')) {
+      const startTotal = 21 * 60 + 5;
+      if (totalMins >= (20 * 60 + 50) && totalMins < (21 * 60 + 40)) {
+        const tour = getDeterministicTournament(dateStr, globeParticipants || [], user.uid, mskNow, "21:05");
+        return { opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false }, isLive: totalMins >= startTotal, time: "21:05", tourName: language === 'ru' ? 'ЧУГУННЫЙ ГЛОБУС' : 'CAST IRON GLOBE' };
+      }
+    }
+    if (profile?.tournaments?.includes('iron-brick')) {
+      const startTotal = 21 * 60 + 35;
+      if (totalMins >= (21 * 60 + 20) && totalMins < (22 * 60 + 10)) {
+        const tour = getDeterministicTournament(dateStr, brickParticipants || [], user.uid, mskNow, "21:35");
+        return { opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false }, isLive: totalMins >= startTotal, time: "21:35", tourName: language === 'ru' ? 'ЧУГУННЫЙ КИРПИЧ' : 'CAST IRON BRICK' };
+      }
+    }
+    return null;
+  }, [isLoaded, profile, globeParticipants, brickParticipants, user, language]);
+
+  const displayMatchInfo = useMemo(() => {
+    if (activeFriendly) {
+      const acceptedAt = activeFriendly.acceptedAt?.toMillis() || Date.now();
+      return { opponent: { name: activeFriendly.hostId === user?.uid ? activeFriendly.challengerName : activeFriendly.hostName, isPlayer: true }, isFriendly: true, acceptedAt };
+    }
+    if (tournamentNextMatch) return { ...tournamentNextMatch, isTournament: true };
+    if (basketEntry?.status === 'matched') return { opponent: { name: basketEntry.matchedWithName, isPlayer: true }, isBasket: true, startTime: new Date(basketEntry.matchStartTime).getTime() };
+    
+    // Choose between League and Cup based on which is sooner
+    if (cupNextMatch && leagueNextMatch) {
+      const mskNow = getMoscowTime();
+      const getMs = (time: string, nextDay: boolean) => {
+        const [h, m] = time.split(':').map(Number);
+        const d = new Date(mskNow); d.setHours(h, m, 0, 0);
+        if (nextDay) d.setDate(d.getDate() + 1);
+        return d.getTime();
+      };
+      const cupMs = getMs(cupNextMatch.time, cupNextMatch.isNextDay);
+      const leagueMs = getMs(leagueNextMatch.time, leagueNextMatch.isNextDay);
+      return cupMs < leagueMs ? cupNextMatch : leagueNextMatch;
+    }
+    
+    return leagueNextMatch || cupNextMatch;
+  }, [activeFriendly, tournamentNextMatch, basketEntry, cupNextMatch, leagueNextMatch, user]);
 
   useEffect(() => {
     if (!displayMatchInfo) return;
     const interval = setInterval(() => {
-      if (displayMatchInfo.isFriendly) {
-        const diff = ((displayMatchInfo as any).acceptedAt + 15 * 60 * 1000) - Date.now();
-        if (diff <= 0) setCountdown('00:00');
-        else setCountdown(`${String(Math.floor(diff / 60000)).padStart(2, '0')}:${String(Math.floor((diff % 60000) / 1000)).padStart(2, '0')}`);
-      } else if (displayMatchInfo.isBasket) {
-        const diff = (displayMatchInfo as any).startTime - Date.now();
-        if (diff <= 0) setCountdown('00:00');
-        else setCountdown(`${String(Math.floor(diff / 60000)).padStart(2, '0')}:${String(Math.floor((diff % 60000) / 1000)).padStart(2, '0')}`);
+      const info = displayMatchInfo as any;
+      if (info.isFriendly) {
+        const diff = (info.acceptedAt + 15 * 60 * 1000) - Date.now();
+        setCountdown(diff <= 0 ? '00:00' : `${String(Math.floor(diff / 60000)).padStart(2, '0')}:${String(Math.floor((diff % 60000) / 1000)).padStart(2, '0')}`);
+      } else if (info.isBasket) {
+        const diff = info.startTime - Date.now();
+        setCountdown(diff <= 0 ? '00:00' : `${String(Math.floor(diff / 60000)).padStart(2, '0')}:${String(Math.floor((diff % 60000) / 1000)).padStart(2, '0')}`);
       } else {
         const mskNow = getMoscowTime();
-        const info = displayMatchInfo as any;
         if (!info.time) return;
         const [h, m] = info.time.split(':').map(Number);
         const targetDate = new Date(mskNow); targetDate.setHours(h, m, 0, 0);
-        if (info.isNextDay && mskNow.getTime() >= targetDate.getTime()) targetDate.setDate(targetDate.getDate() + 1);
+        if (info.isNextDay) targetDate.setDate(targetDate.getDate() + 1);
         const diff = targetDate.getTime() - mskNow.getTime();
         if (diff <= 0) setCountdown('00:00:00');
         else setCountdown(`${String(Math.floor(diff / 3600000)).padStart(2, '0')}:${String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0')}:${String(Math.floor((diff % 60000) / 1000)).padStart(2, '0')}`);
@@ -199,11 +197,11 @@ export default function Home() {
 
   const translations = {
     en: { 
-      nextMatch: displayMatchInfo?.isFriendly ? "Live Friendly" : (displayMatchInfo?.isTournament ? "Tournament Battle" : (displayMatchInfo?.isBasket ? "CW Basket Engagement" : "Next Engagement")), 
+      nextMatch: (displayMatchInfo as any)?.isFriendly ? "Live Friendly" : ((displayMatchInfo as any)?.isTournament ? "Tournament Battle" : ((displayMatchInfo as any)?.isBasket ? "CW Basket Engagement" : ((displayMatchInfo as any)?.isCup ? "Pyramid Cup Round" : "Next Engagement"))), 
       vs: "VS", today: "TODAY", tomorrow: "TOMORROW", battleBtn: "MATCH REVIEW", navTitle: "Navigation Terminals", 
       interSeason: "Inter-season", interSeasonDesc: "Calculating new hierarchies.", preSeason: "Pre-season Readiness", preSeasonDesc: "Matches resume soon.", 
-      startsIn: (displayMatchInfo?.isFriendly || displayMatchInfo?.isBasket) ? "REMAINING TIME:" : "TIME UNTIL MATCH:",
-      tourLive: "TOURNAMENT LIVE",
+      startsIn: ((displayMatchInfo as any)?.isFriendly || (displayMatchInfo as any)?.isBasket) ? "REMAINING TIME:" : "TIME UNTIL MATCH:",
+      tourLive: "LIVE ENGAGEMENT",
       menu: [ 
         { label: 'Roster', href: '/roster', icon: Users, desc: 'Manage lineup' }, 
         { label: 'Training', href: '/training', icon: Zap, desc: 'Improve infrastructure' }, 
@@ -216,11 +214,11 @@ export default function Home() {
       ]
     },
     ru: { 
-      nextMatch: displayMatchInfo?.isFriendly ? "Текущий матч" : (displayMatchInfo?.isTournament ? "Турнирный бой" : (displayMatchInfo?.isBasket ? "Бой из КВ корзины" : "Следующий матч")), 
+      nextMatch: (displayMatchInfo as any)?.isFriendly ? "Текущий матч" : ((displayMatchInfo as any)?.isTournament ? "Турнирный бой" : ((displayMatchInfo as any)?.isBasket ? "Бой из КВ корзины" : ((displayMatchInfo as any)?.isCup ? "Раунд Кубка Пирамиды" : "Следующий матч"))), 
       vs: "ПРОТИВ", today: "СЕГОДНЯ", tomorrow: "ЗАВТРА", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Тактические Терминалы", 
       interSeason: "Межсезонье", interSeasonDesc: "Формирование новых групп.", preSeason: "Подготовка к лиге", preSeasonDesc: "Первая игра начнется завтра.", 
-      startsIn: (displayMatchInfo?.isFriendly || displayMatchInfo?.isBasket) ? "ВРЕМЯ ДО КОНЦА:" : "ДО МАТЧА ОСТАЛОСЬ:",
-      tourLive: "ТУРНИР В ЭФИРЕ",
+      startsIn: ((displayMatchInfo as any)?.isFriendly || (displayMatchInfo as any)?.isBasket) ? "ВРЕМЯ ДО КОНЦА:" : "ДО МАТЧА ОСТАЛОСЬ:",
+      tourLive: "В ЭФИРЕ",
       menu: [ 
         { label: 'Ростер', href: '/roster', icon: Users, desc: 'Состав команды' }, 
         { label: 'Инфраструктура', href: '/training', icon: Zap, desc: 'Улучшение базы' }, 
@@ -240,7 +238,7 @@ export default function Home() {
     <div className="max-w-md mx-auto px-4 pt-8 pb-12">
       <header className="mb-6">
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
-          {displayMatchInfo?.isFriendly || displayMatchInfo?.isLive || displayMatchInfo?.isBasket ? <PlayCircle className="w-6 h-6 text-green-400 animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />}
+          {(displayMatchInfo as any)?.isFriendly || (displayMatchInfo as any)?.isLive || (displayMatchInfo as any)?.isBasket ? <PlayCircle className="w-6 h-6 text-green-400 animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />}
           {t.nextMatch}
         </h1>
       </header>
@@ -249,41 +247,42 @@ export default function Home() {
         {displayMatchInfo ? (
           <Card className={cn(
             "glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden", 
-            (displayMatchInfo.isFriendly || displayMatchInfo.isLive || displayMatchInfo.isBasket) && "border-green-500/30 bg-green-500/5",
-            displayMatchInfo.isTournament && !displayMatchInfo.isLive && "border-accent/30 bg-accent/5"
+            ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) && "border-green-500/30 bg-green-500/5",
+            (displayMatchInfo as any).isCup && "border-accent/30 bg-accent/5"
           )}>
             <CardContent className="p-0">
               <div className="p-4 border-b border-white/5 flex items-center justify-center">
                 <div className="flex flex-col items-center">
-                  <span className={cn("text-[10px] font-bold uppercase tracking-tighter mb-1", (displayMatchInfo.isFriendly || displayMatchInfo.isLive || displayMatchInfo.isBasket) ? "text-green-400" : "text-accent")}>
-                    {displayMatchInfo.isLive ? t.tourLive : t.startsIn}
+                  <span className={cn("text-[10px] font-bold uppercase tracking-tighter mb-1", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-accent")}>
+                    {(displayMatchInfo as any).isLive ? t.tourLive : t.startsIn}
                   </span>
-                  <span className={cn("text-4xl font-headline font-bold tabular-nums tracking-tighter", (displayMatchInfo.isFriendly || displayMatchInfo.isLive || displayMatchInfo.isBasket) ? "text-green-400" : "text-primary")}>
-                    {displayMatchInfo.isLive ? 'LIVE' : countdown || '00:00:00'}
+                  <span className={cn("text-4xl font-headline font-bold tabular-nums tracking-tighter", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-primary")}>
+                    {(displayMatchInfo as any).isLive ? 'LIVE' : countdown || '00:00:00'}
                   </span>
                 </div>
               </div>
               <div className="p-6 flex flex-col items-center text-center">
                 <div className="relative mb-4">
-                  <div className={cn("w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2", (displayMatchInfo.isFriendly || displayMatchInfo.isLive || displayMatchInfo.isBasket) ? "border-green-500" : "border-accent")}>
-                    <User className={cn("w-10 h-10", (displayMatchInfo.isFriendly || displayMatchInfo.isLive || displayMatchInfo.isBasket) ? "text-green-400" : "text-accent")} />
+                  <div className={cn("w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "border-green-500" : "border-accent")}>
+                    {(displayMatchInfo as any).isCup ? <Target className="w-10 h-10 text-accent" /> : <User className={cn("w-10 h-10", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-accent")} />}
                   </div>
                   <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1.5 border border-white/10">
-                    <Swords className={cn("w-4 h-4", (displayMatchInfo.isFriendly || displayMatchInfo.isLive || displayMatchInfo.isBasket) ? "text-green-400" : "text-primary")} />
+                    <Swords className={cn("w-4 h-4", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-primary")} />
                   </div>
                 </div>
-                <h3 className={cn("text-xl font-headline font-bold italic uppercase truncate w-full px-4", (displayMatchInfo.isFriendly || displayMatchInfo.isLive || displayMatchInfo.isBasket) ? "text-green-400" : "text-primary")}>
-                  {displayMatchInfo.opponent.name}
+                <h3 className={cn("text-xl font-headline font-bold italic uppercase truncate w-full px-4", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-primary")}>
+                  {(displayMatchInfo as any).opponent.name}
                 </h3>
                 <div className="flex items-center gap-2 mt-2">
                   <Badge variant="secondary" className="text-[8px] uppercase tracking-tighter">
-                    {displayMatchInfo.opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'}
+                    {(displayMatchInfo as any).opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'}
                   </Badge>
-                  <div className={cn("text-[10px] font-bold", (displayMatchInfo.isFriendly || displayMatchInfo.isLive || displayMatchInfo.isBasket) ? "text-green-400" : "text-accent")}>
-                    {displayMatchInfo.isTournament ? (displayMatchInfo.tourName || 'TOURNAMENT') : 
-                     displayMatchInfo.isFriendly ? (language === 'ru' ? 'ТОВАРИЩЕСКИЙ МАТЧ' : 'FRIENDLY MATCH') : 
-                     displayMatchInfo.isBasket ? (language === 'ru' ? 'МАТЧ КВ КОРЗИНЫ' : 'CW BASKET MATCH') :
-                     `DIV ${leagueLevel}.${divisionSubId} | Day ${displayMatchInfo.day}`}
+                  <div className={cn("text-[10px] font-bold", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-accent")}>
+                    {(displayMatchInfo as any).isCup ? (displayMatchInfo as any).label : 
+                     (displayMatchInfo as any).tourName || 
+                     ((displayMatchInfo as any).isFriendly ? (language === 'ru' ? 'ТОВАРИЩЕСКИЙ МАТЧ' : 'FRIENDLY MATCH') : 
+                     ((displayMatchInfo as any).isBasket ? (language === 'ru' ? 'МАТЧ КВ КОРЗИНЫ' : 'CW BASKET MATCH') :
+                     `DIV ${leagueLevel}.${divisionSubId} | Day ${(displayMatchInfo as any).day}`))}
                   </div>
                 </div>
               </div>
