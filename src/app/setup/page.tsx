@@ -69,10 +69,13 @@ export default function SetupPage() {
       const usersCol = collection(db, 'players_v5');
       
       // LIVE LEAGUE LOGIC:
-      // New players always start at the bottom of the pyramid (Division 9)
-      const targetLevel = 9; 
+      // Randomly assign a starting division between 1 and 9 as requested
+      const targetLevel = Math.floor(Math.random() * 9) + 1;
       
-      // 1. Find how many real players are already in this league/division
+      // Max groups in this division based on power-of-2 pyramid (1, 2, 4, 8, 16, 32, 64, 128, 256)
+      const maxGroupsInDiv = Math.pow(2, targetLevel - 1);
+      
+      // 1. Find how many real players are already in this specific league/division
       const leagueQuery = query(
         usersCol, 
         where('selectedLeagueId', '==', selectedLeagueId),
@@ -82,9 +85,11 @@ export default function SetupPage() {
       const playerCount = leagueSnap.size;
       
       // 2. Assign group sequentially (8 players per group)
-      // Division 9 can have up to 256 groups in a standard power-of-2 pyramid
       let targetGroup = Math.floor(playerCount / TEAMS_PER_GROUP) + 1;
-      if (targetGroup > 256) targetGroup = 1; // Overflow protection, restart from group 1 or extend base
+      
+      // Overflow protection: if all groups in this division are full, place in the last group 
+      // (though in a real scenario we'd expand the pyramid)
+      if (targetGroup > maxGroupsInDiv) targetGroup = maxGroupsInDiv;
 
       const { seasonDay, seasonStartDate } = getGlobalSeasonInfo();
       const inheritedStats = calculateInheritedStats(selectedLeagueId, targetLevel, targetGroup, seasonDay);
@@ -105,7 +110,7 @@ export default function SetupPage() {
         points: Number(inheritedStats.points || 0),
         setupDate: new Date().toISOString(),
         seasonStartDate: seasonStartDate || new Date().toISOString(),
-        lastProcessedSeason: 0 // Will be synced by TopBar/AutoMatchManager
+        lastProcessedSeason: 0
       };
       
       await setDoc(profileRef, updateData, { merge: true });
