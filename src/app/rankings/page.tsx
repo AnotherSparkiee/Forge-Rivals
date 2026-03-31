@@ -9,11 +9,12 @@ import {
   Users, Shield, Star, Swords, ChevronRight,
   LayoutDashboard, Loader2, Clock, Calendar,
   LayoutGrid, Search, Radio, Target, Zap, ShieldAlert, AlertTriangle,
-  CheckCircle2, Timer
+  CheckCircle2, Timer, Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import { getMockGroupTeams, LEAGUES } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
@@ -94,13 +95,16 @@ export default function RankingsPage() {
   const router = useRouter();
   const { 
     rank, leagueLevel, divisionSubId, groupId, isLoaded, language, 
-    lastLeagueMatchDate, seasonDay, seasonNumber, isSyncing, matchHistory
+    lastLeagueMatchDate, seasonDay, seasonNumber, isSyncing, matchHistory,
+    seasonStartDate
   } = useGameState();
   const db = useFirestore();
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
   const [selectedPyramidDiv, setSelectedPyramidDiv] = useState<number | null>(null);
   const [viewingGroup, setViewingGroup] = useState<{ div: number, group: number } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedRound, setSelectedRound] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -176,56 +180,54 @@ export default function RankingsPage() {
     );
   }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, isTodayPlayed, rank, user?.uid]);
 
+  const cupParticipants = useMemo(() => {
+    if (!isLoaded || !allLeaguePlayers) return [];
+    return getGlobalCupParticipants(allLeaguePlayers, seasonNumber);
+  }, [isLoaded, allLeaguePlayers, seasonNumber]);
+
   const cupPairs = useMemo(() => {
-    if (!user || !isLoaded || !allLeaguePlayers) return [];
+    if (!user || !isLoaded || cupParticipants.length === 0) return [];
     
-    const participants = getGlobalCupParticipants(allLeaguePlayers, seasonNumber);
-    const myIndex = participants.findIndex(p => p.id === user.uid);
-    if (myIndex === -1) return [];
+    // Determine whose sector to show
+    let targetIndex = cupParticipants.findIndex(p => p.id === user.uid);
+    if (searchQuery.trim().length > 2) {
+      const foundIdx = cupParticipants.findIndex(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      if (foundIdx !== -1) targetIndex = foundIdx;
+    }
+
+    if (targetIndex === -1) return [];
 
     const pairs = [];
     const d = seasonDay || 1;
-    
-    // Step for current round pairing: 2^(d-1)
     const step = Math.pow(2, d - 1);
-    
-    // We want to show a block of 8 indices that contain the user
-    // A block of 8 participants at the current round's hierarchy
-    // This is complex to visualize perfectly in 1D, so we show the user's branch
     const sectorSize = step * 8; 
-    const sectorStart = Math.floor(myIndex / sectorSize) * sectorSize;
+    const sectorStart = Math.floor(targetIndex / sectorSize) * sectorSize;
 
     for (let i = 0; i < 4; i++) {
-      // Each match in the current round consists of two blocks of size 'step'
-      // Slot A starts at sectorStart + i * 2 * step
       const slotA_start = sectorStart + (i * 2 * step);
       const slotB_start = slotA_start + step;
       
-      const playerA = participants[slotA_start];
-      const playerB = participants[slotB_start];
+      const playerA = cupParticipants[slotA_start];
+      const playerB = cupParticipants[slotB_start];
       
-      const homeName = playerA ? playerA.name : "BYE";
-      const awayName = playerB ? playerB.name : "BYE";
+      const isTargetMatch = (targetIndex >= slotA_start && targetIndex < slotA_start + step) || 
+                            (targetIndex >= slotB_start && targetIndex < slotB_start + step);
       
-      // Is this the user's specific match?
-      const isUserMatch = (myIndex >= slotA_start && myIndex < slotA_start + step) || 
-                          (myIndex >= slotB_start && myIndex < slotB_start + step);
-      
-      const historicalMatch = matchHistory.find(m => m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber);
-      const isPlayed = isUserMatch && !!historicalMatch;
+      // Check results ONLY if it's the user's specific match (from history)
+      const historicalMatch = (isTargetMatch && cupParticipants[targetIndex].id === user.uid) ? 
+        matchHistory.find(m => m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber) : null;
       
       pairs.push({
         id: `pair-${i}`,
-        home: isUserMatch && (myIndex >= slotA_start && myIndex < slotA_start + step) ? (profile?.displayName || playerA.name) : homeName,
-        away: isUserMatch && (myIndex >= slotB_start && myIndex < slotB_start + step) ? (profile?.displayName || playerB.name) : awayName,
-        isUser: isUserMatch,
-        isPlayed,
-        result: isPlayed ? `${historicalMatch.scoreA}:${historicalMatch.scoreB}` : null,
-        winner: isPlayed ? historicalMatch.winner : null
+        home: playerA?.name || "BYE",
+        away: playerB?.name || "BYE",
+        isTarget: isTargetMatch,
+        isPlayed: !!historicalMatch,
+        result: historicalMatch ? `${historicalMatch.scoreA}:${historicalMatch.scoreB}` : null,
       });
     }
     return pairs;
-  }, [user, isLoaded, allLeaguePlayers, seasonNumber, seasonDay, matchHistory, profile?.displayName]);
+  }, [user, isLoaded, cupParticipants, seasonNumber, seasonDay, matchHistory, searchQuery]);
 
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
@@ -256,10 +258,13 @@ export default function RankingsPage() {
       inCup: "ACTIVE IN CUP",
       eliminated: "ELIMINATED",
       roundLabel: "Current Stage",
-      bracketTitle: "Global Draw: Your Sector",
-      bracketDesc: "16,384 teams participating",
-      waitingMatch: "AWAITING DEPLOYMENT",
+      bracketTitle: "Global Bracket Search",
+      bracketDesc: "Browse matches of all 16,384 participants",
+      waitingMatch: "AWAITING",
       matchTime: "Match Start",
+      remainingTeams: "Teams remaining",
+      searchPlaceholder: "Search manager or bot name...",
+      viewSchedule: "View Schedule",
       rounds: [
         "1/8192 Round", "1/4096 Round", "1/2048 Round", "1/1024 Round", 
         "1/512 Round", "1/256 Round", "1/128 Round", "1/64 Round", 
@@ -299,10 +304,13 @@ export default function RankingsPage() {
       inCup: "В ИГРЕ",
       eliminated: "ВЫБЫЛ",
       roundLabel: "Текущая стадия",
-      bracketTitle: "Жеребьевка: Ваш сектор",
-      bracketDesc: "16 384 команды в сетке",
-      waitingMatch: "ОЖИДАНИЕ БОЯ",
+      bracketTitle: "Поиск по турнирной сетке",
+      bracketDesc: "Просмотр пар всех 16 384 участников",
+      waitingMatch: "ОЖИДАНИЕ",
       matchTime: "Начало матча",
+      remainingTeams: "Команд в игре",
+      searchPlaceholder: "Поиск менеджера или бота...",
+      viewSchedule: "Посмотреть расписание",
       rounds: [
         "Раунд 1/8192", "Раунд 1/4096", "Раунд 1/2048", "Раунд 1/1024", 
         "Раунд 1/512", "Раунд 1/256", "Раунд 1/128", "1/64 финала", 
@@ -324,6 +332,13 @@ export default function RankingsPage() {
 
   const currentRoundIdx = Math.min(t.rounds.length - 1, Math.max(0, seasonDay - 1));
   const cupTime = getPyramidCupTime(league.startTime);
+
+  const getRoundDate = (day: number) => {
+    if (!seasonStartDate) return "";
+    const date = new Date(seasonStartDate);
+    date.setDate(date.getDate() + (day - 1));
+    return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+  };
 
   const renderRankingTable = (rankingsData: any[]) => (
     <div className="space-y-2 animate-in fade-in duration-300">
@@ -425,20 +440,50 @@ export default function RankingsPage() {
                     <p className="text-xs font-bold text-accent uppercase truncate">{t.rounds[currentRoundIdx]}</p>
                   </div>
                   <div className="bg-background/50 p-3 rounded-xl border border-white/5">
-                    <p className="text-[8px] text-muted-foreground uppercase font-bold mb-1">{t.matchTime}</p>
-                    <p className="text-xs font-bold text-primary">{cupTime} MSK</p>
+                    <p className="text-[8px] text-muted-foreground uppercase font-bold mb-1">{t.remainingTeams}</p>
+                    <p className="text-xs font-bold text-primary">{Math.pow(2, 14 - (seasonDay - 1))}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             <div className="space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-accent px-1 flex items-center gap-2">
-                <LayoutGrid className="w-4 h-4" /> {t.bracketTitle}
-              </h3>
-              <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest px-1 -mt-2 opacity-60">
-                {t.bracketDesc}
-              </p>
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-accent flex items-center gap-2">
+                  <Search className="w-4 h-4" /> {t.bracketTitle}
+                </h3>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedRound(r => r === null ? currentRoundIdx : null)} className="h-7 text-[8px] font-black uppercase border border-white/5">
+                  <Calendar className="w-3 h-3 mr-1" /> {t.viewSchedule}
+                </Button>
+              </div>
+
+              <div className="px-1">
+                <Input 
+                  placeholder={t.searchPlaceholder}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="bg-secondary/50 border-white/10 h-10 text-xs focus-visible:ring-accent"
+                />
+              </div>
+
+              {selectedRound !== null && (
+                <div className="grid grid-cols-2 gap-2 animate-in fade-in duration-300 pb-4">
+                  {t.rounds.map((roundName, idx) => (
+                    <Card 
+                      key={idx} 
+                      className={cn(
+                        "p-2 border-white/5 cursor-pointer transition-all",
+                        idx === currentRoundIdx ? "bg-accent/10 border-accent/30" : "bg-secondary/20 hover:bg-white/5",
+                        idx < currentRoundIdx && "opacity-50"
+                      )}
+                      onClick={() => setSelectedRound(idx)}
+                    >
+                      <p className="text-[7px] uppercase font-black text-muted-foreground mb-0.5">{getRoundDate(idx + 1)}</p>
+                      <p className="text-[9px] font-bold uppercase truncate">{roundName}</p>
+                    </Card>
+                  ))}
+                </div>
+              )}
               
               <div className="space-y-3 relative">
                 {isLeaguePlayersLoading ? (
@@ -449,16 +494,16 @@ export default function RankingsPage() {
                   cupPairs.map((pair) => (
                     <Card key={pair.id} className={cn(
                       "glass-card border-white/5 overflow-hidden transition-all",
-                      pair.isUser && "border-primary/30 ring-1 ring-primary/10 bg-primary/5"
+                      pair.isTarget && "border-accent/30 ring-1 ring-accent/10 bg-accent/5"
                     )}>
                       <CardContent className="p-0">
                         <div className="flex items-center justify-between p-3 gap-2">
                           <div className="flex-1 min-w-0 space-y-2">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2 min-w-0">
-                                <div className={cn("w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0", pair.isUser && "bg-primary animate-pulse")} />
-                                <span className={cn("text-[10px] font-bold uppercase truncate", pair.isUser && "text-primary")}>{pair.home}</span>
-                                {pair.isUser && pair.home === profile?.displayName && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary text-primary-foreground font-black">YOU</Badge>}
+                                <div className={cn("w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0", pair.isTarget && "bg-accent animate-pulse")} />
+                                <span className={cn("text-[10px] font-bold uppercase truncate", pair.isTarget && "text-accent")}>{pair.home}</span>
+                                {pair.home === profile?.displayName && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary text-primary-foreground font-black">YOU</Badge>}
                               </div>
                               {pair.isPlayed && <span className="text-xs font-headline font-black text-white">{pair.result?.split(':')[0]}</span>}
                             </div>
@@ -471,7 +516,7 @@ export default function RankingsPage() {
                               <div className="flex items-center gap-2 min-w-0">
                                 <div className={cn("w-1.5 h-1.5 rounded-full bg-red-400 shrink-0")} />
                                 <span className={cn("text-[10px] font-bold uppercase truncate opacity-80")}>{pair.away}</span>
-                                {pair.isUser && pair.away === profile?.displayName && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary text-primary-foreground font-black">YOU</Badge>}
+                                {pair.away === profile?.displayName && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary text-primary-foreground font-black">YOU</Badge>}
                               </div>
                               {pair.isPlayed && <span className="text-xs font-headline font-black text-white">{pair.result?.split(':')[1]}</span>}
                             </div>
@@ -488,7 +533,10 @@ export default function RankingsPage() {
                     </Card>
                   ))
                 ) : (
-                  <div className="py-10 text-center opacity-40 uppercase text-[10px] font-bold tracking-widest">Synchronizing participants...</div>
+                  <div className="py-10 text-center opacity-40 uppercase text-[10px] font-bold tracking-widest flex flex-col items-center gap-2">
+                    <ShieldAlert className="w-8 h-8 opacity-20" />
+                    No managers found matching query
+                  </div>
                 )}
               </div>
             </div>
