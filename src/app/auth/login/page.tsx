@@ -99,7 +99,6 @@ export default function LoginPage() {
     let emailToUse = identifier;
 
     try {
-      // Если введен не email, ищем привязанную почту по названию команды
       if (!identifier.includes('@')) {
         const usersRef = collection(db, 'players_v5');
         const q = query(usersRef, where('displayName', '==', identifier), limit(1));
@@ -139,6 +138,7 @@ export default function LoginPage() {
       const userSnap = await getDoc(userProfileRef);
 
       if (!userSnap.exists()) {
+        // BUG PREVENTION: Always ensure a valid displayName exists for Google users.
         const profileData = {
           id: user.uid,
           displayName: user.displayName || `Manager_${user.uid.slice(0, 5)}`,
@@ -162,6 +162,11 @@ export default function LoginPage() {
         router.push('/setup');
       } else {
         const data = userSnap.data();
+        // BUG PREVENTION: If for some reason displayName is missing in existing doc, fix it.
+        if (!data?.displayName) {
+          await setDoc(userProfileRef, { displayName: user.displayName || `Manager_${user.uid.slice(0, 5)}` }, { merge: true });
+        }
+        
         if (data?.selectedLeagueId && data?.country) {
           router.push('/');
         } else {

@@ -105,18 +105,18 @@ export function getMockGroupTeams(
 ) {
   const teams: any[] = [];
   
-  // 1. Add all real players from Firestore
+  // 1. Add valid real players from Firestore
   const playersList = Array.isArray(realPlayers) ? realPlayers : [];
-  // Sort players by ID for stable scheduling
   const sortedRealPlayers = [...playersList].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
   
   sortedRealPlayers.forEach(p => {
     const isMe = p.id === currentPlayerId;
     
-    // FIX: Only add as a real player if they have a display name (completed setup)
-    // Players without a name (Unknown Commander) are effectively skipped here
-    // and will be replaced by a bot in step 2.
-    if (p.displayName || isMe) {
+    // BUG FIX: Filter out players with empty names or default "Unknown Commander" string.
+    // Such incomplete profiles are treated as non-existent and will be replaced by bots.
+    const hasValidName = p.displayName && p.displayName.trim().length > 0 && p.displayName !== "Unknown Commander";
+
+    if (hasValidName || isMe) {
       teams.push({
         id: p.id,
         name: isMe ? (playerName || p.displayName || "My Team") : p.displayName,
@@ -130,11 +130,9 @@ export function getMockGroupTeams(
     }
   });
 
-  // 2. Fill remaining slots with bots
+  // 2. Fill remaining slots with bots to maintain TEAMS_PER_GROUP (8)
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   for (let i = 0; i < botsNeeded; i++) {
-    // Generate a unique ID like bot4481
-    // Format: bot + level(1) + group(3) + index(1) = 5 digits
     const botIdNum = (level * 1000) + (group * 10) + i + 1000;
     const botName = `bot${botIdNum}`;
     
@@ -150,7 +148,7 @@ export function getMockGroupTeams(
     });
   }
 
-  // Final sort of the 8 teams by ID for stable scheduling across all clients
+  // Final sort by ID for deterministic cross-client scheduling
   teams.sort((a, b) => a.id.localeCompare(b.id));
 
   // 3. Simulate matches strictly up to upToDay

@@ -40,6 +40,7 @@ export default function RegisterPage() {
       successDesc: "Welcome to the league, Commander.",
       errorTitle: "Operation Failed",
       usernameTaken: "This team name is already assigned.",
+      usernameInvalid: "Please enter a valid Team Name.",
       emailTaken: "Email already associated with a profile.",
       weakPassword: "Password must be at least 6 characters."
     },
@@ -56,6 +57,7 @@ export default function RegisterPage() {
       successDesc: "Добро пожаловать в лигу, Командир.",
       errorTitle: "Ошибка операции",
       usernameTaken: "Это название команды уже занято.",
+      usernameInvalid: "Пожалуйста, введите корректное название команды.",
       emailTaken: "Этот Email уже используется другим менеджером.",
       weakPassword: "Пароль должен содержать минимум 6 символов."
     }
@@ -66,6 +68,12 @@ export default function RegisterPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // BUG PREVENTION: Strict validation for empty or invalid usernames
+    if (!username.trim() || username.length < 2) {
+      toast({ variant: "destructive", title: t.errorTitle, description: t.usernameInvalid });
+      return;
+    }
+
     if (password.length < 6) {
       toast({ variant: "destructive", title: t.errorTitle, description: t.weakPassword });
       return;
@@ -76,7 +84,7 @@ export default function RegisterPage() {
     try {
       // 1. Проверка уникальности имени в Firestore (players_v5)
       const usersRef = collection(db, 'players_v5');
-      const q = query(usersRef, where('displayName', '==', username), limit(1));
+      const q = query(usersRef, where('displayName', '==', username.trim()), limit(1));
       const querySnapshot = await getDocs(q);
       
       if (!querySnapshot.empty) {
@@ -90,7 +98,7 @@ export default function RegisterPage() {
       // 3. Создание профиля в Firestore
       const profileData = {
         id: user.uid,
-        displayName: username,
+        displayName: username.trim(),
         email: email,
         inGameCurrency: 10000000,
         crystals: 0,
