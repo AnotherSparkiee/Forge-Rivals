@@ -126,7 +126,12 @@ export default function RankingsPage() {
       inCup: "ACTIVE IN CUP",
       eliminated: "ELIMINATED",
       roundLabel: "Current Stage",
-      rounds: ["Qualifiers", "Round of 64", "Round of 32", "Round of 16", "Quarter-Finals", "Semi-Finals", "Grand Final"],
+      rounds: [
+        "1/8192 Round", "1/4096 Round", "1/2048 Round", "1/1024 Round", 
+        "1/512 Round", "1/256 Round", "1/128 Round", "1/64 Round", 
+        "1/32 Round", "1/16 Round", "Quarter-Finals", "Semi-Finals", 
+        "Grand Final", "Season Wrap-up"
+      ],
       tabs: {
         my_league: { label: "My League", desc: "Current group rankings", icon: Trophy },
         champions_cup: { label: "Champions Cup", desc: "Top tier elite", icon: Award },
@@ -160,7 +165,12 @@ export default function RankingsPage() {
       inCup: "В ИГРЕ",
       eliminated: "ВЫБЫЛ",
       roundLabel: "Текущая стадия",
-      rounds: ["Квалификация", "1/64 финала", "1/32 финала", "1/16 финала", "Четвертьфинал", "Полуфинал", "Гранд Финал"],
+      rounds: [
+        "Раунд 1/8192", "Раунд 1/4096", "Раунд 1/2048", "Раунд 1/1024", 
+        "Раунд 1/512", "Раунд 1/256", "Раунд 1/128", "1/64 финала", 
+        "1/32 финала", "1/16 финала", "Четвертьфинал", "Полуфинал", 
+        "Гранд Финал", "Итоги сезона"
+      ],
       tabs: {
         my_league: { label: "Своя лига", desc: "Рейтинг вашей группы", icon: Trophy },
         champions_cup: { label: "Кубок чемпионов", desc: "Элитный турнир", icon: Award },
@@ -174,7 +184,8 @@ export default function RankingsPage() {
 
   const t = labels[language as keyof typeof labels] || labels.ru;
 
-  const currentRoundIdx = Math.min(t.rounds.length - 1, Math.max(0, Math.floor((seasonDay - 1) / 2)));
+  // Use daily stages for 14 rounds
+  const currentRoundIdx = Math.min(t.rounds.length - 1, Math.max(0, seasonDay - 1));
   const cupTime = getPyramidCupTime(league.startTime);
 
   const renderRankingTable = (rankingsData: any[]) => (

@@ -68,22 +68,31 @@ export function AutoMatchManager() {
     }
   }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, isSimulating]);
 
-  // 2. Pyramid Cup Simulation (Knockout)
+  // 2. Pyramid Cup Simulation (Daily Knockout)
   useEffect(() => {
     if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !cupSimulationRef.current && !isUserLoading && profile?.selectedLeagueId && user) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
       const leagueTime = league?.startTime || '23:00';
       const cupTime = getPyramidCupTime(leagueTime);
       
-      const todayStr = getMoscowDateString();
-      const hasPlayedTodayCup = lastCupMatchDate === todayStr;
-      
-      // Check if eliminated earlier in the season
-      const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < seasonDay && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
+      const catchUpCup = async () => {
+        for (let d = 1; d <= seasonDay; d++) {
+          // Check if already played this day's cup match in this season
+          const hasPlayedDayCup = matchHistory.some(m => m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber);
+          if (hasPlayedDayCup) continue;
 
-      if (!hasPlayedTodayCup && !wasEliminated && isMatchDue(cupTime, lastCupMatchDate)) {
-        triggerCupMatch(cupTime, seasonDay);
-      }
+          // Check if eliminated in any PREVIOUS day of THIS season
+          const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
+          if (wasEliminated) break;
+
+          // If it's a past day OR today's cup time has passed
+          if (d < seasonDay || isMatchDue(cupTime, lastCupMatchDate)) {
+            await triggerCupMatch(cupTime, d);
+            break;
+          }
+        }
+      };
+      catchUpCup();
     }
   }, [isLoaded, profile, lastCupMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, isSimulating]);
 
@@ -126,9 +135,18 @@ export function AutoMatchManager() {
         includeRandomEvents: true, isBo2: false
       });
       
-      recordMatch(result.winner, result, targetDay, opponentName, 'tournament');
-      setCurrentResult({ ...result, day: targetDay, opponentName, isCup: true });
-      setShowResultDialog(true);
+      let customPlayedAt = undefined;
+      if (targetDay < seasonDay && seasonStartDate) {
+        const d = new Date(seasonStartDate); d.setDate(d.getDate() + (targetDay - 1));
+        const [h, m] = matchTime.split(':').map(Number); d.setHours(h, m, 0, 0); 
+        customPlayedAt = d.toISOString();
+      }
+
+      recordMatch(result.winner, result, targetDay, opponentName, 'tournament', customPlayedAt);
+      if (targetDay === seasonDay) { 
+        setCurrentResult({ ...result, day: targetDay, opponentName, isCup: true }); 
+        setShowResultDialog(true); 
+      }
     } catch (e: any) {
       console.error("Cup Sim failed", e);
     } finally {

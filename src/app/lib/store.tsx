@@ -645,7 +645,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         heroPerformance: sanitizeForFirestore(result.heroPerformance || []),
         playedAt: customPlayedAt || new Date().toISOString()
       };
-      if (type === 'league') matchEntry.seasonNumber = s.seasonNumber;
+      // Record season number for both league and tournament (Cup)
+      if (type === 'league' || type === 'tournament') matchEntry.seasonNumber = s.seasonNumber;
+      
       const todayStr = getMoscowDateString();
       const newState = { ...s, credits: s.credits + creditsEarned, rank: s.rank + rankChange, matchHistory: [matchEntry, ...s.matchHistory].slice(0, 500), 
         lastLeagueMatchDate: type === 'league' && matchDay === s.seasonDay ? todayStr : s.lastLeagueMatchDate,
