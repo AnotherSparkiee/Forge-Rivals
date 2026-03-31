@@ -66,30 +66,13 @@ export default function SetupPage() {
 
     setIsUpdating(true);
     try {
-      const usersCol = collection(db, 'players_v5');
-      
-      // LIVE LEAGUE LOGIC:
-      // Randomly assign a starting division between 1 and 9 as requested
+      // 1. Рандомный выбор дивизиона от 1 до 9
       const targetLevel = Math.floor(Math.random() * 9) + 1;
       
-      // Max groups in this division based on power-of-2 pyramid (1, 2, 4, 8, 16, 32, 64, 128, 256)
+      // 2. Рандомный выбор группы внутри этого дивизиона
+      // В пирамиде количество групп = 2^(level - 1)
       const maxGroupsInDiv = Math.pow(2, targetLevel - 1);
-      
-      // 1. Find how many real players are already in this specific league/division
-      const leagueQuery = query(
-        usersCol, 
-        where('selectedLeagueId', '==', selectedLeagueId),
-        where('leagueLevel', '==', targetLevel)
-      );
-      const leagueSnap = await getDocs(leagueQuery);
-      const playerCount = leagueSnap.size;
-      
-      // 2. Assign group sequentially (8 players per group)
-      let targetGroup = Math.floor(playerCount / TEAMS_PER_GROUP) + 1;
-      
-      // Overflow protection: if all groups in this division are full, place in the last group 
-      // (though in a real scenario we'd expand the pyramid)
-      if (targetGroup > maxGroupsInDiv) targetGroup = maxGroupsInDiv;
+      const targetGroup = Math.floor(Math.random() * maxGroupsInDiv) + 1;
 
       const { seasonDay, seasonStartDate } = getGlobalSeasonInfo();
       const inheritedStats = calculateInheritedStats(selectedLeagueId, targetLevel, targetGroup, seasonDay);
