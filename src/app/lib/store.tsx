@@ -4,8 +4,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Hero, INITIAL_HEROES } from './moba-data';
 import { getMoscowTime, getMoscowDateString, isMatchDue, getGlobalSeasonInfo } from './time-utils';
-import { useUser, useFirestore } from '@/firebase';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { getMockGroupTeams, LEAGUES } from './leagues-data';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2';
@@ -385,7 +385,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       });
 
       const profileRef = doc(db, 'players_v5', user.uid);
-      setDoc(profileRef, {
+      setDocumentNonBlocking(profileRef, {
         leagueLevel: newLevel,
         wins: 0, draws: 0, losses: 0, points: 0,
         lastProcessedSeason: globalSeason,
@@ -393,7 +393,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         lastSeenMatchDay: 0,
         seasonResults: results,
         hasEliteTrophy: awardedTrophy || state.hasEliteTrophy
-      }, { merge: true }).catch(() => {});
+      }, { merge: true });
 
       return; 
     }
@@ -414,13 +414,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
     if (state.wins !== myTeam.wins || state.points !== myTeam.points || state.lastProcessedSeason !== globalSeason) {
       const profileRef = doc(db, 'players_v5', user.uid);
-      setDoc(profileRef, {
+      setDocumentNonBlocking(profileRef, {
         wins: Number(myTeam.wins || 0),
         draws: Number(myTeam.draws || 0),
         losses: Number(myTeam.losses || 0),
         points: Number(myTeam.points || 0),
         lastProcessedSeason: globalSeason 
-      }, { merge: true }).catch(() => {});
+      }, { merge: true });
     }
   }, [state.selectedLeagueId, state.seasonDay, state.lastLeagueMatchDate, state.rank, state.leagueLevel, state.divisionSubId, state.groupId, state.lastProcessedSeason, state.hasEliteTrophy, user, db]);
 
@@ -429,7 +429,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const newCredits = s.credits + amount;
       if (user) {
         const profileRef = doc(db, 'players_v5', user.uid);
-        setDoc(profileRef, { inGameCurrency: newCredits }, { merge: true });
+        setDocumentNonBlocking(profileRef, { inGameCurrency: newCredits }, { merge: true });
       }
       return { ...s, credits: newCredits };
     });
@@ -440,7 +440,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const newCrystals = s.crystals + amount;
       if (user) {
         const profileRef = doc(db, 'players_v5', user.uid);
-        setDoc(profileRef, { crystals: newCrystals }, { merge: true });
+        setDocumentNonBlocking(profileRef, { crystals: newCrystals }, { merge: true });
       }
       return { ...s, crystals: newCrystals };
     });
@@ -455,7 +455,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const nextRewardDay = s.rewardDay >= 30 ? 1 : s.rewardDay + 1;
       if (user) {
         const profileRef = doc(db, 'players_v5', user.uid);
-        setDoc(profileRef, { inGameCurrency: newCredits, crystals: newCrystals, lastRewardClaimDate: today, rewardDay: nextRewardDay }, { merge: true });
+        setDocumentNonBlocking(profileRef, { inGameCurrency: newCredits, crystals: newCrystals, lastRewardClaimDate: today, rewardDay: nextRewardDay }, { merge: true });
       }
       return { ...s, credits: newCredits, crystals: newCrystals, lastRewardClaimDate: today, rewardDay: nextRewardDay };
     });
@@ -476,7 +476,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const newCredits = s.credits - cost;
         if (user) {
           const profileRef = doc(db, 'players_v5', user.uid);
-          setDoc(profileRef, { inGameCurrency: newCredits, arena: sanitizeForFirestore({ ...s.arena, constructionStarts: { ...s.arena.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
+          setDocumentNonBlocking(profileRef, { inGameCurrency: newCredits, arena: sanitizeForFirestore({ ...s.arena, constructionStarts: { ...s.arena.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
         }
         return { ...s, credits: newCredits, arena: { ...s.arena, constructionStarts: { ...s.arena.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, [facility]: finishTime.toISOString() } } };
       }
@@ -496,7 +496,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const newCredits = s.credits - cost;
         if (user) {
           const profileRef = doc(db, 'players_v5', user.uid);
-          setDoc(profileRef, { inGameCurrency: newCredits, hq: sanitizeForFirestore({ ...s.hq, constructionStarts: { ...s.hq.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.hq.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
+          setDocumentNonBlocking(profileRef, { inGameCurrency: newCredits, hq: sanitizeForFirestore({ ...s.hq, constructionStarts: { ...s.hq.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.hq.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
         }
         return { ...s, credits: newCredits, hq: { ...s.hq, constructionStarts: { ...s.hq.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.hq.constructionFinishes, [facility]: finishTime.toISOString() } } };
       }
@@ -516,7 +516,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const newCredits = s.credits - cost;
         if (user) {
           const profileRef = doc(db, 'players_v5', user.uid);
-          setDoc(profileRef, { inGameCurrency: newCredits, bootcamp: sanitizeForFirestore({ ...s.bootcamp, constructionStarts: { ...s.bootcamp.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.bootcamp.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
+          setDocumentNonBlocking(profileRef, { inGameCurrency: newCredits, bootcamp: sanitizeForFirestore({ ...s.bootcamp, constructionStarts: { ...s.bootcamp.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.bootcamp.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
         }
         return { ...s, credits: newCredits, bootcamp: { ...s.bootcamp, constructionStarts: { ...s.bootcamp.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.bootcamp.constructionFinishes, [facility]: finishTime.toISOString() } } };
       }
@@ -536,7 +536,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const newCredits = s.credits - cost;
         if (user) {
           const profileRef = doc(db, 'players_v5', user.uid);
-          setDoc(profileRef, { inGameCurrency: newCredits, academy: sanitizeForFirestore({ ...s.academy, constructionStarts: { ...s.academy.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.academy.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
+          setDocumentNonBlocking(profileRef, { inGameCurrency: newCredits, academy: sanitizeForFirestore({ ...s.academy, constructionStarts: { ...s.academy.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.academy.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
         }
         return { ...s, credits: newCredits, academy: { ...s.academy, constructionStarts: { ...s.academy.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.academy.constructionFinishes, [facility]: finishTime.toISOString() } } };
       }
@@ -556,7 +556,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const newCredits = s.credits - cost;
         if (user) {
           const profileRef = doc(db, 'players_v5', user.uid);
-          setDoc(profileRef, { inGameCurrency: newCredits, medical: sanitizeForFirestore({ ...s.medical, constructionStarts: { ...s.medical.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.medical.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
+          setDocumentNonBlocking(profileRef, { inGameCurrency: newCredits, medical: sanitizeForFirestore({ ...s.medical, constructionStarts: { ...s.medical.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.medical.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
         }
         return { ...s, credits: newCredits, medical: { ...s.medical, constructionStarts: { ...s.medical.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.medical.constructionFinishes, [facility]: finishTime.toISOString() } } };
       }
@@ -575,7 +575,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const newCredits = s.credits - cost;
         if (user) {
           const profileRef = doc(db, 'players_v5', user.uid);
-          setDoc(profileRef, { inGameCurrency: newCredits, arena: sanitizeForFirestore({ ...s.arena, pendingCapacitySeats: seats, constructionStarts: { ...s.arena.constructionStarts, capacity: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, capacity: finishTime.toISOString() } }) }, { merge: true });
+          setDocumentNonBlocking(profileRef, { inGameCurrency: newCredits, arena: sanitizeForFirestore({ ...s.arena, pendingCapacitySeats: seats, constructionStarts: { ...s.arena.constructionStarts, capacity: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, capacity: finishTime.toISOString() } }) }, { merge: true });
         }
         return { ...s, credits: newCredits, arena: { ...s.arena, pendingCapacitySeats: seats, constructionStarts: { ...s.arena.constructionStarts, capacity: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, capacity: finishTime.toISOString() } } };
       }
@@ -645,7 +645,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const todayStr = getMoscowDateString();
       const newState = { ...s, credits: s.credits + creditsEarned, rank: s.rank + rankChange, matchHistory: [matchEntry, ...s.matchHistory].slice(0, 500), lastLeagueMatchDate: type === 'league' && matchDay === s.seasonDay ? todayStr : s.lastLeagueMatchDate };
       if (user) {
-        setDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, rank: newState.rank, lastLeagueMatchDate: newState.lastLeagueMatchDate ?? null, matchHistory: newState.matchHistory }, { merge: true });
+        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, rank: newState.rank, lastLeagueMatchDate: newState.lastLeagueMatchDate ?? null, matchHistory: newState.matchHistory }, { merge: true });
       }
       return newState;
     });
@@ -654,14 +654,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const markMatchAsSeen = useCallback((day: number) => {
     setState(s => {
       if (day <= s.lastSeenMatchDay) return s;
-      if (user) setDoc(doc(db, 'players_v5', user.uid), { lastSeenMatchDay: day }, { merge: true });
+      if (user) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { lastSeenMatchDay: day }, { merge: true });
       return { ...s, lastSeenMatchDay: day };
     });
   }, [user, db]);
 
   const dismissSeasonResults = useCallback(() => {
     setState(s => ({ ...s, seasonResults: null }));
-    if (user) setDoc(doc(db, 'players_v5', user.uid), { seasonResults: null }, { merge: true });
+    if (user) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { seasonResults: null }, { merge: true });
   }, [user, db]);
 
   const setSyncing = useCallback((val: boolean) => setState(s => ({ ...s, isSyncing: val })), []);

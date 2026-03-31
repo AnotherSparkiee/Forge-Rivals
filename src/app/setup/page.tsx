@@ -3,8 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore } from '@/firebase';
-import { doc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
+import { doc, collection, getDocs, query, where } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LEAGUES, TEAMS_PER_GROUP, getMockGroupTeams } from '@/app/lib/leagues-data';
@@ -14,6 +14,8 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useGameState } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
@@ -96,7 +98,8 @@ export default function SetupPage() {
         lastProcessedSeason: 0
       };
       
-      await setDoc(profileRef, updateData, { merge: true });
+      // Non-blocking write with contextual error emission
+      setDocumentNonBlocking(profileRef, updateData, { merge: true });
       
       toast({
         title: "Profile Synchronized",
@@ -104,11 +107,11 @@ export default function SetupPage() {
       });
       router.push('/');
     } catch (error: any) {
-      console.error("Setup error:", error);
+      console.error("Setup sequence fail:", error);
       toast({
         variant: "destructive",
         title: "Transmission Error",
-        description: "Failed to initialize operational profile.",
+        description: "Failed to initiate operational profile.",
       });
     } finally {
       setIsUpdating(false);

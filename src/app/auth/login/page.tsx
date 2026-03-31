@@ -1,17 +1,18 @@
+
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth, useFirestore } from '@/firebase';
+import { useAuth, useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
-import { collection, query, where, getDocs, limit, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, doc, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Chrome, HelpCircle, AlertCircle } from 'lucide-react';
+import { Loader2, Chrome, HelpCircle } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 import {
@@ -22,6 +23,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('');
@@ -102,14 +105,25 @@ export default function LoginPage() {
       if (!identifier.includes('@')) {
         const usersRef = collection(db, 'players_v5');
         const q = query(usersRef, where('displayName', '==', identifier), limit(1));
-        const querySnapshot = await getDocs(q);
         
-        if (querySnapshot.empty) {
-          throw new Error(t.userNotFound);
+        try {
+          const querySnapshot = await getDocs(q);
+          if (querySnapshot.empty) {
+            throw new Error(t.userNotFound);
+          }
+          const userData = querySnapshot.docs[0].data();
+          emailToUse = userData.email;
+        } catch (serverError: any) {
+          if (serverError.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+              path: 'players_v5',
+              operation: 'list',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            return;
+          }
+          throw serverError;
         }
-        
-        const userData = querySnapshot.docs[0].data();
-        emailToUse = userData.email;
       }
 
       await signInWithEmailAndPassword(auth, emailToUse, password);
@@ -135,10 +149,23 @@ export default function LoginPage() {
       const user = result.user;
 
       const userProfileRef = doc(db, 'players_v5', user.uid);
-      const userSnap = await getDoc(userProfileRef);
+      
+      let userSnap;
+      try {
+        userSnap = await getDoc(userProfileRef);
+      } catch (serverError: any) {
+        if (serverError.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: userProfileRef.path,
+            operation: 'get',
+          });
+          errorEmitter.emit('permission-error', permissionError);
+          return;
+        }
+        throw serverError;
+      }
 
       if (!userSnap.exists()) {
-        // BUG PREVENTION: Always ensure a valid displayName exists for Google users.
         const profileData = {
           id: user.uid,
           displayName: user.displayName || `Manager_${user.uid.slice(0, 5)}`,
@@ -158,13 +185,12 @@ export default function LoginPage() {
           losses: 0,
           points: 0
         };
-        await setDoc(userProfileRef, profileData);
+        setDocumentNonBlocking(userProfileRef, profileData, {});
         router.push('/setup');
       } else {
         const data = userSnap.data();
-        // BUG PREVENTION: If for some reason displayName is missing in existing doc, fix it.
         if (!data?.displayName) {
-          await setDoc(userProfileRef, { displayName: user.displayName || `Manager_${user.uid.slice(0, 5)}` }, { merge: true });
+          setDocumentNonBlocking(userProfileRef, { displayName: user.displayName || `Manager_${user.uid.slice(0, 5)}` }, { merge: true });
         }
         
         if (data?.selectedLeagueId && data?.country) {
