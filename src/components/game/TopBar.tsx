@@ -66,14 +66,16 @@ export function TopBar() {
         
         {/* Left: Team Identity */}
         <div className="flex items-center gap-1.5 flex-shrink-0 min-w-0">
-          <span className="text-lg" role="img" aria-label="flag">
+          <span className="text-base" role="img" aria-label="flag">
             {userCountry?.flag || '🏳️'}
           </span>
           <div className="flex items-center gap-1 min-w-0">
-            <span className="text-[11px] font-black text-primary uppercase tracking-tighter whitespace-nowrap overflow-hidden text-ellipsis">
+            <span className="text-[10px] font-black text-primary uppercase tracking-tighter whitespace-nowrap overflow-hidden text-ellipsis">
               {profile?.displayName || 'Syncing...'}
             </span>
-            <Radio className={cn("w-3 h-3 text-accent shrink-0", isSyncing && "animate-pulse")} />
+            {isSyncing && (
+              <Radio className="w-3 h-3 text-accent shrink-0 animate-pulse" />
+            )}
           </div>
         </div>
 
