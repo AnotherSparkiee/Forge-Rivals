@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Trophy, Skull, Crosshair, Swords, Loader2, ArrowUpCircle, ArrowDownCircle, MinusCircle, Star, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getGlobalCupParticipants } from '@/app/lib/cup-utils';
+import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant } from '@/app/lib/cup-utils';
 
 export function AutoMatchManager() {
   const { 
@@ -35,6 +35,7 @@ export function AutoMatchManager() {
   
   const simulationRef = useRef(false);
   const cupSimulationRef = useRef(false);
+  const winnersCache = useRef<Map<string, CupParticipant | null>>(new Map());
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
@@ -180,13 +181,16 @@ export function AutoMatchManager() {
     
     try {
       const participants = getGlobalCupParticipants(allLeaguePlayers, seasonNumber);
-      const myIdx = participants.findIndex(p => p.id === user.uid);
+      const myIdx = participants.findIndex(p => p?.id === user.uid);
       if (myIdx === -1) throw new Error("User not in cup participants");
 
+      // Calculate opponent for current round using tournament tree logic
+      winnersCache.current.clear();
       const step = Math.pow(2, targetDay - 1);
-      const opponentIdx = myIdx ^ step;
-      const opponent = participants[opponentIdx];
-
+      const myBranchStart = Math.floor(myIdx / step) * step;
+      const oppBranchStart = myBranchStart ^ step;
+      
+      const opponent = getWinnerOfBranch(participants, targetDay - 1, oppBranchStart, winnersCache.current);
       let opponentName = opponent ? opponent.name : "BYE";
       
       if (opponentName === "BYE") {

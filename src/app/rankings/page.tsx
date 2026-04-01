@@ -68,12 +68,12 @@ export default function RankingsPage() {
   const league = useMemo(() => LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0], [profile?.selectedLeagueId]);
   const isTodayPlayed = useMemo(() => lastLeagueMatchDate === getMoscowDateString(), [lastLeagueMatchDate]);
 
+  const winnersCache = useRef<Map<string, CupParticipant | null>>(new Map());
+
   const cupParticipants = useMemo(() => {
     if (!isLoaded || !allLeaguePlayers) return [];
     return getGlobalCupParticipants(allLeaguePlayers, seasonNumber);
   }, [isLoaded, allLeaguePlayers, seasonNumber]);
-
-  const winnersCache = useRef<Map<string, CupParticipant>>(new Map());
 
   const currentRoundIdx = Math.min(13, Math.max(0, seasonDay - 1));
   const activeRoundToShow = selectedRound !== null ? selectedRound : currentRoundIdx;
@@ -91,28 +91,24 @@ export default function RankingsPage() {
     for (let m = 0; m < totalMatches; m++) {
       const matchStartIdx = m * participantsPerMatch;
       const h = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx, winnersCache.current);
-      const a = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx + step, winnersCache.current);
+      const a = getWinnerOfBranch(cupParticipants, round - 1, startIndex + step, winnersCache.current);
       
-      if (!h || !a) continue;
+      if (!h && !a) continue; // Skip empty matches
 
-      const isMyMatch = h.id === user?.uid || a.id === user?.uid;
+      const isMyMatch = h?.id === user?.uid || a?.id === user?.uid;
       const isPlayed = round <= currentRoundIdx || (round === currentRoundIdx + 1 && isTodayPlayed);
       
-      const [scoreH, scoreA] = isPlayed ? [1, 1] : [0, 0]; // Visual only, real results from history
-
       const matchData = {
         id: `match-${round}-${m}`,
         home: h,
         away: a,
         isPlayed,
-        scoreH,
-        scoreA,
         isMyMatch
       };
 
       if (searchQuery.trim().length > 2) {
-        if (h.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-            a.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+        if (h?.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+            a?.name.toLowerCase().includes(searchQuery.toLowerCase())) {
           matches.push(matchData);
         }
       } else {
@@ -120,7 +116,6 @@ export default function RankingsPage() {
       }
     }
     
-    // Sort matches to put user's match first
     return matches.sort((a, b) => (a.isMyMatch ? -1 : b.isMyMatch ? 1 : 0));
   }, [cupParticipants, activeRoundToShow, searchQuery, user?.uid, currentRoundIdx, isTodayPlayed]);
 
@@ -144,8 +139,7 @@ export default function RankingsPage() {
       searchPlaceholder: "Search team...",
       remainingTeams: "Teams remaining",
       roundLabel: "Tournament Stage",
-      statusInGame: "ACTIVE IN CUP",
-      statusOut: "ELIMINATED",
+      bye: "BYE / TECHNICAL WIN",
       tabs: {
         my_league: { label: "My League", desc: "Group standings", icon: Trophy },
         my_pyramid: { label: "My Pyramid", desc: "Live global hierarchy", icon: LayoutDashboard },
@@ -164,8 +158,7 @@ export default function RankingsPage() {
       searchPlaceholder: "Поиск по названию...",
       remainingTeams: "Команд в игре",
       roundLabel: "Стадия турнира",
-      statusInGame: "В ИГРЕ",
-      statusOut: "ВЫБЫЛ",
+      bye: "ТЕХ. ПОБЕДА (BYE)",
       tabs: {
         my_league: { label: "Своя лига", desc: "Рейтинг группы", icon: Trophy },
         my_pyramid: { label: "Своя пирамида", desc: "Глобальная иерархия", icon: LayoutDashboard },
@@ -304,16 +297,20 @@ export default function RankingsPage() {
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 min-w-0">
                               <div className={cn("w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0", pair.isMyMatch && "animate-pulse")} />
-                              <span className={cn("text-[10px] font-bold uppercase truncate", pair.isMyMatch && pair.home.id === user?.uid && "text-accent")}>{pair.home.name}</span>
-                              {pair.home.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
+                              <span className={cn("text-[10px] font-bold uppercase truncate", pair.isMyMatch && pair.home?.id === user?.uid && "text-accent")}>
+                                {pair.home?.name || t.bye}
+                              </span>
+                              {pair.home?.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
                             </div>
                           </div>
                           <div className="flex items-center gap-2 px-1 opacity-20"><div className="h-px flex-1 bg-white" /><span className="text-[7px] font-black uppercase">VS</span><div className="h-px flex-1 bg-white" /></div>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 min-w-0">
                               <div className={cn("w-1.5 h-1.5 rounded-full bg-red-400 shrink-0")} />
-                              <span className={cn("text-[10px] font-bold uppercase truncate opacity-80", pair.isMyMatch && pair.away.id === user?.uid && "text-accent")}>{pair.away.name}</span>
-                              {pair.away.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
+                              <span className={cn("text-[10px] font-bold uppercase truncate opacity-80", pair.isMyMatch && pair.away?.id === user?.uid && "text-accent")}>
+                                {pair.away?.name || t.bye}
+                              </span>
+                              {pair.away?.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
                             </div>
                           </div>
                         </div>

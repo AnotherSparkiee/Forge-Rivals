@@ -1,4 +1,3 @@
-
 import { getMatchResult } from './leagues-data';
 
 export interface CupParticipant {
@@ -8,13 +7,15 @@ export interface CupParticipant {
 }
 
 /**
- * Generates the full list of 16,384 participants for the global cup.
- * Uses 4088 teams from the pyramid groups and fills the rest with qualification bots.
+ * Generates the full list of participants for the global cup.
+ * Strictly uses only participants from the league (real players + group bots).
+ * Fills the 16,384 grid with these participants and nulls (BYES).
  */
-export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: number): CupParticipant[] {
+export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: number): (CupParticipant | null)[] {
   const allPyramidTeams: CupParticipant[] = [];
   
   // 1. Build foundation from 511 groups (8 teams each = 4088)
+  // These are the ONLY valid participants for the league's cup.
   for (let lvl = 1; lvl <= 9; lvl++) {
     const groupsInDiv = Math.pow(2, lvl - 1);
     for (let g = 1; g <= groupsInDiv; g++) {
@@ -36,49 +37,58 @@ export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: numbe
     }
   }
 
-  // 2. Fill to 16,384 slots with Qualifier Bots
+  // 2. Fill to 16,384 slots with nulls instead of generated bots.
+  // This results in "Byes" (technical wins) in early rounds.
   const TOTAL_SLOTS = 16384;
-  const qualifiersNeeded = TOTAL_SLOTS - allPyramidTeams.length;
+  const fullList: (CupParticipant | null)[] = Array(TOTAL_SLOTS).fill(null);
   
-  const qualifierBots = Array.from({ length: qualifiersNeeded }).map((_, i) => ({
-    id: `qual_bot_${i + 10000}`,
-    name: `qual_bot_${i + 10000}`,
-    isPlayer: false
-  }));
+  // Fill the first 4088 slots with our league teams
+  allPyramidTeams.forEach((team, i) => {
+    fullList[i] = team;
+  });
 
-  const fullList = [...allPyramidTeams, ...qualifierBots];
-  fullList.sort((a, b) => a.id.localeCompare(b.id));
-
-  // 3. Deterministic shuffle per season
+  // 3. Deterministic shuffle per season to distribute Byes and teams
   const seed = seasonNumber * 999;
-  const shuffled = [...fullList];
-  for (let i = shuffled.length - 1; i > 0; i--) {
+  for (let i = fullList.length - 1; i > 0; i--) {
     const j = (seed + i) % (i + 1);
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    [fullList[i], fullList[j]] = [fullList[j], fullList[i]];
   }
 
-  return shuffled;
+  return fullList;
 }
 
 /**
  * Recursively determines the winner of a specific branch in the tournament tree.
+ * Correctly handles technical wins (if one side is null).
  */
 export function getWinnerOfBranch(
-  participants: CupParticipant[], 
+  participants: (CupParticipant | null)[], 
   round: number, 
   startIndex: number, 
-  cache: Map<string, CupParticipant>
-): CupParticipant {
+  cache: Map<string, CupParticipant | null>
+): CupParticipant | null {
   const key = `${startIndex}-${round}`;
   if (cache.has(key)) return cache.get(key)!;
   
-  if (round === 0) return participants[startIndex];
+  if (round === 0) return participants[startIndex] || null;
   
   const step = Math.pow(2, round - 1);
   const h = getWinnerOfBranch(participants, round - 1, startIndex, cache);
   const a = getWinnerOfBranch(participants, round - 1, startIndex + step, cache);
   
-  if (!h || !a) return h || a;
+  // Bye logic
+  if (!h && !a) {
+    cache.set(key, null);
+    return null;
+  }
+  if (!h) {
+    cache.set(key, a);
+    return a;
+  }
+  if (!a) {
+    cache.set(key, h);
+    return h;
+  }
 
   const [scoreH, scoreA] = getMatchResult(h.id, a.id, round);
   const winner = scoreH >= scoreA ? h : a; 
