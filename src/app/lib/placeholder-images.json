@@ -3,8 +3,8 @@
   "placeholderImages": [
     {
       "id": "hero-tank",
-      "description": "German professional e-sports player portrait",
-      "imageUrl": "https://picsum.photos/seed/german-pro/400/600",
+      "description": "German professional e-sports player portrait v2",
+      "imageUrl": "https://picsum.photos/seed/de-pro-gamer-v2/400/600",
       "imageHint": "gamer portrait"
     },
     {
