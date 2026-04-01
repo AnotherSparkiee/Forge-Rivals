@@ -65,22 +65,20 @@ export function TopBar() {
       <div className="w-full max-w-lg mx-auto px-4 flex items-center justify-between gap-4">
         
         {/* Left: Team Identity */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-xl" role="img" aria-label="flag">
+        <div className="flex items-center gap-1.5 flex-shrink-0 min-w-0">
+          <span className="text-lg" role="img" aria-label="flag">
             {userCountry?.flag || '🏳️'}
           </span>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-black text-primary uppercase tracking-tighter whitespace-nowrap">
+          <div className="flex items-center gap-1 min-w-0">
+            <span className="text-[11px] font-black text-primary uppercase tracking-tighter whitespace-nowrap overflow-hidden text-ellipsis">
               {profile?.displayName || 'Syncing...'}
             </span>
-            {isSyncing && (
-              <Radio className="w-3.5 h-3.5 text-accent animate-pulse" />
-            )}
+            <Radio className={cn("w-3 h-3 text-accent shrink-0", isSyncing && "animate-pulse")} />
           </div>
         </div>
 
         {/* Right: Tools & Balances */}
-        <div className="flex items-center gap-1.5 flex-shrink-0 overflow-x-auto scrollbar-hide">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           {/* Home Icon */}
           <Link href="/">
             <div className={cn(
