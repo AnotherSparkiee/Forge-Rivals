@@ -105,13 +105,15 @@ export default function SquadPage() {
 
   const handleStartPress = (hero: Hero | undefined) => {
     if (!hero) return;
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    
     longPressTimer.current = setTimeout(() => {
       setProfileHero(hero);
       longPressTimer.current = null;
-    }, 500);
+    }, 600); // 600ms long press delay
   };
 
-  const handleEndPress = () => {
+  const handleCancelPress = () => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
@@ -119,6 +121,7 @@ export default function SquadPage() {
   };
 
   const handleSlotClick = (slotKey: LineupSlot) => {
+    // Only handle selection click if we are not opening a profile
     if (!profileHero) {
       setSelectingSlot(prev => prev === slotKey ? null : slotKey);
     }
@@ -149,10 +152,11 @@ export default function SquadPage() {
       <Card 
         key={slotKey}
         onMouseDown={() => handleStartPress(hero)}
-        onMouseUp={handleEndPress}
-        onMouseLeave={handleEndPress}
+        onMouseUp={handleCancelPress}
+        onMouseLeave={handleCancelPress}
         onTouchStart={() => handleStartPress(hero)}
-        onTouchEnd={handleEndPress}
+        onTouchEnd={handleCancelPress}
+        onTouchMove={handleCancelPress} // Cancel long press if user starts scrolling
         onClick={() => handleSlotClick(slotKey)}
         className={cn(
           "glass-card border-white/5 overflow-hidden transition-all cursor-pointer select-none",
@@ -302,10 +306,11 @@ export default function SquadPage() {
                   <Card 
                     key={hero.id}
                     onMouseDown={() => handleStartPress(hero)}
-                    onMouseUp={handleEndPress}
-                    onMouseLeave={handleEndPress}
+                    onMouseUp={handleCancelPress}
+                    onMouseLeave={handleCancelPress}
                     onTouchStart={() => handleStartPress(hero)}
-                    onTouchEnd={handleEndPress}
+                    onTouchEnd={handleCancelPress}
+                    onTouchMove={handleCancelPress}
                     className="glass-card border-white/10 hover:border-primary/50 transition-all overflow-hidden cursor-pointer active:scale-[0.98] bg-primary/5"
                     onClick={() => handleHeroAssign(hero.id)}
                   >
