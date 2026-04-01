@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -16,79 +17,28 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
-import { getMockGroupTeams, LEAGUES, getMatchResult } from '../lib/leagues-data';
+import { getMockGroupTeams, LEAGUES } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
 import { getMoscowDateString, getPyramidCupTime } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant } from '../lib/cup-utils';
 
 type RankingTab = 
   | 'menu'
   | 'my_league' 
-  | 'champions_cup' 
-  | 'masters_cup' 
   | 'my_pyramid' 
-  | 'pyramid_cup' 
-  | 'friendly';
+  | 'pyramid_cup';
 
 const MATCHES_PER_PAGE = 20;
-
-/**
- * Generates the full list of 16,384 participants for the global cup.
- */
-export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: number) {
-  const allPyramidTeams: any[] = [];
-  // Build foundation from existing pyramid groups (511 groups * 8 teams = 4088)
-  for (let lvl = 1; lvl <= 9; lvl++) {
-    const groupsInDiv = Math.pow(2, lvl - 1);
-    for (let g = 1; g <= groupsInDiv; g++) {
-      const realInGroup = realPlayers.filter(p => Number(p.leagueLevel) === lvl && Number(p.groupId) === g);
-      const groupTeams = [];
-      realInGroup.forEach(p => {
-        if (p.displayName && p.displayName !== "Unknown Commander") {
-          groupTeams.push({ id: p.id, name: p.displayName, isPlayer: true });
-        }
-      });
-      const botsNeeded = Math.max(0, 8 - groupTeams.length);
-      for (let i = 0; i < botsNeeded; i++) {
-        const botIdNum = (lvl * 1000) + (g * 10) + i + 1000;
-        groupTeams.push({ id: `bot${botIdNum}`, name: `bot${botIdNum}`, isPlayer: false });
-      }
-      allPyramidTeams.push(...groupTeams.slice(0, 8));
-    }
-  }
-
-  const TOTAL_SLOTS = 16384;
-  const qualifiersNeeded = TOTAL_SLOTS - allPyramidTeams.length;
-  
-  // Fill the rest with Qualifier Bots
-  const qualifierBots = Array.from({ length: qualifiersNeeded }).map((_, i) => ({
-    id: `qual_bot_${i + 10000}`,
-    name: `qual_bot_${i + 10000}`,
-    isPlayer: false
-  }));
-
-  const fullList = [...allPyramidTeams, ...qualifierBots];
-  fullList.sort((a, b) => a.id.localeCompare(b.id));
-
-  // Deterministic shuffle
-  const seed = seasonNumber * 999;
-  const shuffled = [...fullList];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = (seed + i) % (i + 1);
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-
-  return shuffled;
-}
 
 export default function RankingsPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { 
     rank, leagueLevel, divisionSubId, groupId, isLoaded, language, 
-    lastLeagueMatchDate, seasonDay, seasonNumber, isSyncing, matchHistory
+    lastLeagueMatchDate, seasonDay, seasonNumber
   } = useGameState();
   const db = useFirestore();
   
@@ -123,26 +73,7 @@ export default function RankingsPage() {
     return getGlobalCupParticipants(allLeaguePlayers, seasonNumber);
   }, [isLoaded, allLeaguePlayers, seasonNumber]);
 
-  // Winner cache to speed up recursion
-  const winnersCache = useRef<Map<string, any>>(new Map());
-
-  const getWinnerOfBranch = (startIndex: number, round: number): any => {
-    const key = `${startIndex}-${round}`;
-    if (winnersCache.current.has(key)) return winnersCache.current.get(key);
-    
-    if (round === 0) return cupParticipants[startIndex];
-    
-    const step = Math.pow(2, round - 1);
-    const h = getWinnerOfBranch(startIndex, round - 1);
-    const a = getWinnerOfBranch(startIndex + step, round - 1);
-    
-    // Deterministic match result for bots/others
-    const [scoreH, scoreA] = getMatchResult(h.id, a.id, round);
-    const winner = scoreH >= scoreA ? h : a; 
-    
-    winnersCache.current.set(key, winner);
-    return winner;
-  };
+  const winnersCache = useRef<Map<string, CupParticipant>>(new Map());
 
   const currentRoundIdx = Math.min(13, Math.max(0, seasonDay - 1));
   const activeRoundToShow = selectedRound !== null ? selectedRound : currentRoundIdx;
@@ -151,22 +82,23 @@ export default function RankingsPage() {
     if (cupParticipants.length === 0) return [];
     winnersCache.current.clear();
     
-    const round = activeRoundToShow + 1; // 1-indexed
-    const step = Math.pow(2, round - 1);
+    const round = activeRoundToShow + 1;
     const participantsPerMatch = Math.pow(2, round);
     const totalMatches = 16384 / participantsPerMatch;
+    const step = Math.pow(2, round - 1);
     
     const matches = [];
     for (let m = 0; m < totalMatches; m++) {
       const matchStartIdx = m * participantsPerMatch;
-      const h = getWinnerOfBranch(matchStartIdx, round - 1);
-      const a = getWinnerOfBranch(matchStartIdx + step, round - 1);
+      const h = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx, winnersCache.current);
+      const a = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx + step, winnersCache.current);
       
       if (!h || !a) continue;
 
       const isMyMatch = h.id === user?.uid || a.id === user?.uid;
-      const [scoreH, scoreA] = getMatchResult(h.id, a.id, round);
       const isPlayed = round <= currentRoundIdx || (round === currentRoundIdx + 1 && isTodayPlayed);
+      
+      const [scoreH, scoreA] = isPlayed ? [1, 1] : [0, 0]; // Visual only, real results from history
 
       const matchData = {
         id: `match-${round}-${m}`,
@@ -187,7 +119,9 @@ export default function RankingsPage() {
         matches.push(matchData);
       }
     }
-    return matches;
+    
+    // Sort matches to put user's match first
+    return matches.sort((a, b) => (a.isMyMatch ? -1 : b.isMyMatch ? 1 : 0));
   }, [cupParticipants, activeRoundToShow, searchQuery, user?.uid, currentRoundIdx, isTodayPlayed]);
 
   const paginatedMatches = useMemo(() => {
@@ -332,7 +266,6 @@ export default function RankingsPage() {
                   <Swords className="w-4 h-4" /> {t.bracketTitle}
                 </h3>
                 
-                {/* Round Switcher */}
                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                   {t.rounds.map((r, i) => (
                     <Button 
@@ -374,16 +307,14 @@ export default function RankingsPage() {
                               <span className={cn("text-[10px] font-bold uppercase truncate", pair.isMyMatch && pair.home.id === user?.uid && "text-accent")}>{pair.home.name}</span>
                               {pair.home.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
                             </div>
-                            {pair.isPlayed && <span className="text-xs font-headline font-black text-white">{pair.scoreH}</span>}
                           </div>
                           <div className="flex items-center gap-2 px-1 opacity-20"><div className="h-px flex-1 bg-white" /><span className="text-[7px] font-black uppercase">VS</span><div className="h-px flex-1 bg-white" /></div>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 min-w-0">
-                              <div className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                              <div className={cn("w-1.5 h-1.5 rounded-full bg-red-400 shrink-0")} />
                               <span className={cn("text-[10px] font-bold uppercase truncate opacity-80", pair.isMyMatch && pair.away.id === user?.uid && "text-accent")}>{pair.away.name}</span>
                               {pair.away.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
                             </div>
-                            {pair.isPlayed && <span className="text-xs font-headline font-black text-white">{pair.scoreA}</span>}
                           </div>
                         </div>
                         <div className="w-20 flex flex-col items-center justify-center border-l border-white/5 pl-2 gap-1 text-center shrink-0">
@@ -397,7 +328,6 @@ export default function RankingsPage() {
                     </Card>
                   ))}
 
-                  {/* Pagination Controls */}
                   {totalPages > 1 && (
                     <div className="flex items-center justify-center gap-2 pt-4">
                       <Button variant="ghost" size="icon" disabled={cupPage === 0} onClick={() => setCupPage(0)} className="h-8 w-8"><ChevronsLeft className="w-4 h-4" /></Button>

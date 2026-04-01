@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Trophy, Skull, Crosshair, Swords, Loader2, ArrowUpCircle, ArrowDownCircle, MinusCircle, Star, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getGlobalCupParticipants } from '@/app/rankings/page';
+import { getGlobalCupParticipants } from '@/app/lib/cup-utils';
 
 export function AutoMatchManager() {
   const { 
@@ -82,7 +82,7 @@ export function AutoMatchManager() {
     }
   }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, isSimulating]);
 
-  // 2. Pyramid Cup Simulation (Daily Knockout - Massive 16k Scale)
+  // 2. Pyramid Cup Simulation
   useEffect(() => {
     if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !cupSimulationRef.current && !isUserLoading && profile?.selectedLeagueId && user && allLeaguePlayers) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
@@ -94,7 +94,7 @@ export function AutoMatchManager() {
           const hasPlayedDayCup = matchHistory.some(m => m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber);
           if (hasPlayedDayCup) continue;
 
-          const wasEliminated = matchHistory.some(m => m.tournamentId === 'pyramid-cup' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
+          const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
           if (wasEliminated) break;
 
           if (d < seasonDay || isMatchDue(cupTime, lastCupMatchDate)) {
@@ -183,7 +183,6 @@ export function AutoMatchManager() {
       const myIdx = participants.findIndex(p => p.id === user.uid);
       if (myIdx === -1) throw new Error("User not in cup participants");
 
-      // Opponent finding in binary tree round targetDay
       const step = Math.pow(2, targetDay - 1);
       const opponentIdx = myIdx ^ step;
       const opponent = participants[opponentIdx];
@@ -201,7 +200,6 @@ export function AutoMatchManager() {
         return;
       }
 
-      // Simulation with 16k scale context
       const result = await simulateMobaMatch({
         teamA: { name: profile.displayName || "My Team", strategy, heroes: team },
         teamB: { 
