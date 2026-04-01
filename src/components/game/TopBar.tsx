@@ -62,15 +62,15 @@ export function TopBar() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-white/10 h-14 flex items-center">
-      <div className="w-full max-w-lg mx-auto px-4 flex items-center justify-between">
+      <div className="w-full max-w-lg mx-auto px-4 flex items-center justify-between gap-4">
         
         {/* Left: Team Identity */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-xl" role="img" aria-label="flag">
             {userCountry?.flag || '🏳️'}
           </span>
           <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-black text-primary uppercase tracking-tighter truncate max-w-[120px]">
+            <span className="text-[13px] font-black text-primary uppercase tracking-tighter whitespace-nowrap">
               {profile?.displayName || 'Syncing...'}
             </span>
             {isSyncing && (
@@ -80,7 +80,7 @@ export function TopBar() {
         </div>
 
         {/* Right: Tools & Balances */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-shrink-0 overflow-x-auto scrollbar-hide">
           {/* Home Icon */}
           <Link href="/">
             <div className={cn(
