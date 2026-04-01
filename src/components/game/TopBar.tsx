@@ -3,7 +3,7 @@
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { Gem, Mail, Bell } from 'lucide-react';
+import { Gem, Mail, Bell, Home } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -61,6 +61,17 @@ export function TopBar() {
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-white/10 h-14 flex items-center">
       <div className="w-full max-w-lg mx-auto px-4 flex items-center justify-end gap-1.5">
         
+        {/* Home Icon */}
+        <Link href="/">
+          <div className={cn(
+            itemBaseClass,
+            "w-8 rounded-full bg-secondary/50 border-white/5 hover:bg-white/5 cursor-pointer",
+            pathname === '/' && "bg-primary/10 border-primary/30 text-primary"
+          )}>
+            <Home className={cn("w-4 h-4", pathname === '/' ? "text-primary" : "text-muted-foreground")} />
+          </div>
+        </Link>
+
         {/* Notifications Icon */}
         <div className={cn(
           itemBaseClass,
