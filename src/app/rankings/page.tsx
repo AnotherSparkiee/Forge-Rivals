@@ -215,11 +215,9 @@ export default function RankingsPage() {
   };
 
   const getMatchSummary = (match: any) => {
-    // If it's my match, try to find the real AI summary from history
     const historical = matchHistory.find(m => m.type === 'tournament' && m.day === match.round && m.seasonNumber === seasonNumber);
     if (historical) return historical.matchSummary;
 
-    // Deterministic summary for others
     const summaries = [
       "Superior map control allowed for a decisive victory.",
       "The mid-lane dominance paved the way for late-game scaling.",
@@ -367,6 +365,7 @@ export default function RankingsPage() {
                               <span className={cn("text-[10px] font-bold uppercase truncate", pair.isMyMatch && pair.home?.id === user?.uid && "text-accent")}>
                                 {pair.home?.name || t.bye}
                               </span>
+                              {pair.home && <Badge variant="outline" className="text-[6px] h-3 px-1 py-0 border-white/10 opacity-60">DIV {pair.home.level}</Badge>}
                               {pair.home?.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
                             </div>
                           </div>
@@ -377,6 +376,7 @@ export default function RankingsPage() {
                               <span className={cn("text-[10px] font-bold uppercase truncate opacity-80", pair.isMyMatch && pair.away?.id === user?.uid && "text-accent")}>
                                 {pair.away?.name || t.bye}
                               </span>
+                              {pair.away && <Badge variant="outline" className="text-[6px] h-3 px-1 py-0 border-white/10 opacity-60">DIV {pair.away.level}</Badge>}
                               {pair.away?.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
                             </div>
                           </div>
