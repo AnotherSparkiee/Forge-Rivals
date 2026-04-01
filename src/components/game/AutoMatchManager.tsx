@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Trophy, Skull, Crosshair, Swords, Loader2, ArrowUpCircle, ArrowDownCircle, MinusCircle, Star, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant } from '@/app/lib/cup-utils';
+import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant, getEntryRound } from '@/app/lib/cup-utils';
 
 export function AutoMatchManager() {
   const { 
@@ -185,31 +185,51 @@ export function AutoMatchManager() {
       const myIdx = participants.findIndex(p => p?.id === user.uid);
       if (myIdx === -1) throw new Error("User not in cup participants");
 
+      // Check if user has entered the tournament yet
+      const entryRound = getEntryRound(profile.leagueLevel);
+      if (targetDay <= entryRound) {
+        // Just record a progression (seeded)
+        const seededResult = {
+          scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
+          matchSummary: "Seeded progression. No match required for this round.",
+          teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
+          heroPerformance: []
+        };
+        recordMatch(seededResult.winner, seededResult, targetDay, "SEEDED", 'tournament');
+        setIsSimulating(false);
+        cupSimulationRef.current = false;
+        setSyncing(false);
+        return;
+      }
+
       winnersCache.current.clear();
       const step = Math.pow(2, targetDay - 1);
       const myBranchStart = Math.floor(myIdx / step) * step;
       const oppBranchStart = myBranchStart ^ step;
       
       const opponent = getWinnerOfBranch(participants, targetDay - 1, oppBranchStart, winnersCache.current);
-      let opponentName = opponent ? opponent.name : "BYE";
       
-      if (opponentName === "BYE") {
-        const byeResult = {
+      // If no real opponent in the branch yet, it's an automatic progression (but shouldn't happen with entry logic)
+      if (!opponent) {
+        const waitResult = {
           scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
-          matchSummary: "Opponent failed to materialize. Tactical victory via BYE.",
-          teamStats: { teamA: { kills: 0, towersDestroyed: 11 }, teamB: { kills: 0, towersDestroyed: 0 } },
+          matchSummary: "Waiting for qualifiers. Automatic progression.",
+          teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
           heroPerformance: []
         };
-        recordMatch(byeResult.winner, byeResult, targetDay, "BYE", 'tournament');
+        recordMatch(waitResult.winner, waitResult, targetDay, "WAITING", 'tournament');
+        setIsSimulating(false);
+        cupSimulationRef.current = false;
+        setSyncing(false);
         return;
       }
 
-      const [forcedA, forcedB] = getMatchResult(user.uid, opponent?.id || "bot", targetDay, true);
+      const [forcedA, forcedB] = getMatchResult(user.uid, opponent.id, targetDay, true);
 
       const result = await simulateMobaMatch({
         teamA: { name: profile.displayName || "My Team", strategy, heroes: team },
         teamB: { 
-          name: opponentName, 
+          name: opponent.name, 
           strategy: "Tournament Execution", 
           heroes: INITIAL_HEROES.slice(0, 5) 
         },
@@ -229,10 +249,10 @@ export function AutoMatchManager() {
         customPlayedAt = d.toISOString();
       }
 
-      recordMatch(result.winner, result, targetDay, opponentName, 'tournament', customPlayedAt);
+      recordMatch(result.winner, result, targetDay, opponent.name, 'tournament', customPlayedAt);
       
       if (targetDay === seasonDay) { 
-        setCurrentResult({ ...result, day: targetDay, opponentName, isCup: true }); 
+        setCurrentResult({ ...result, day: targetDay, opponentName: opponent.name, isCup: true }); 
         setShowResultDialog(true); 
       }
     } catch (e: any) {

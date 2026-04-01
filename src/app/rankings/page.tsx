@@ -8,10 +8,10 @@ import {
   Trophy, Medal, ChevronLeft, Award, 
   Users, Shield, Star, Swords, ChevronRight,
   LayoutDashboard, Loader2, Clock, Calendar,
-  LayoutGrid, Search, Radio, Target, Zap, ShieldAlert,
+  Search, Radio, Target, Zap, ShieldAlert,
   CheckCircle2, Timer, ChevronsLeft, ChevronsRight,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
-  Skull, Crosshair, FileText
+  Skull, Crosshair, FileText, ArrowRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,7 @@ import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@
 import { doc, collection, query, where } from 'firebase/firestore';
 import { getMoscowDateString, getPyramidCupTime } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant } from '../lib/cup-utils';
+import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant, getEntryRound } from '../lib/cup-utils';
 import {
   Dialog,
   DialogContent,
@@ -103,14 +103,27 @@ export default function RankingsPage() {
       const h = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx, winnersCache.current);
       const a = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx + step, winnersCache.current);
       
-      if (!h && !a) continue; // Skip empty matches
+      if (!h && !a) continue;
 
       const isMyMatch = h?.id === user?.uid || a?.id === user?.uid;
+      
+      // Determine if this is a REAL match or just a seeded progression
+      // A real match happens if BOTH teams have reached their entry round
+      const hEntry = h ? getEntryRound(h.level) : 99;
+      const aEntry = a ? getEntryRound(a.level) : 99;
+      const isRealMatch = round > hEntry && round > aEntry;
+      
+      // If it's not a real match, only show if one team is "advancing"
+      if (!isRealMatch && (!h || !a)) {
+         // Skip showing lone seeded teams unless it's the user's branch
+         if (!isMyMatch && searchQuery.length < 3) continue;
+      }
+
       const isPlayed = round <= currentRoundIdx || (round === currentRoundIdx + 1 && isTodayPlayed);
       
       let sH = 0;
       let sA = 0;
-      if (isPlayed && h && a) {
+      if (isPlayed && isRealMatch && h && a) {
         [sH, sA] = getMatchResult(h.id, a.id, round, true);
       } else if (isPlayed && h && !a) {
         sH = 2; sA = 0;
@@ -124,6 +137,7 @@ export default function RankingsPage() {
         away: a,
         isPlayed,
         isMyMatch,
+        isRealMatch,
         scoreH: sH,
         scoreA: sA,
         round
@@ -160,13 +174,13 @@ export default function RankingsPage() {
       ],
       bracketTitle: "Global Bracket Review",
       searchPlaceholder: "Search team...",
-      remainingTeams: "Teams remaining",
+      remainingTeams: "Teams in game",
       roundLabel: "Tournament Stage",
-      bye: "BYE / TECHNICAL WIN",
+      seeded: "SEEDED / WAITING",
       reportTitle: "MATCH DOSSIER",
       reportDesc: "Tactical data reconstruction for",
       summary: "Strategic Summary",
-      noByeReport: "Technical wins do not have tactical reports.",
+      noRealReport: "Seeded progressions do not have tactical reports.",
       close: "CLOSE REPORT",
       victory: "VICTORY",
       defeat: "DEFEAT",
@@ -189,11 +203,11 @@ export default function RankingsPage() {
       searchPlaceholder: "Поиск по названию...",
       remainingTeams: "Команд в игре",
       roundLabel: "Стадия турнира",
-      bye: "ТЕХ. ПОБЕДА (BYE)",
+      seeded: "ПОСЕВ / ОЖИДАНИЕ",
       reportTitle: "ОТЧЕТ О МАТЧЕ",
       reportDesc: "Реконструкция тактических данных для",
       summary: "Сводка стратегий",
-      noByeReport: "Технические победы не содержат тактических отчетов.",
+      noRealReport: "Стадии посева не содержат тактических отчетов.",
       close: "ЗАКРЫТЬ ОТЧЕТ",
       victory: "ПОБЕДА",
       defeat: "ПОРАЖЕНИЕ",
@@ -210,7 +224,7 @@ export default function RankingsPage() {
   const cupTime = getPyramidCupTime(league.startTime);
 
   const handleOpenReport = (match: any) => {
-    if (!match.isPlayed) return;
+    if (!match.isPlayed || !match.isRealMatch) return;
     setViewingMatch(match);
   };
 
@@ -353,7 +367,7 @@ export default function RankingsPage() {
                       className={cn(
                         "glass-card border-white/5 overflow-hidden transition-all group",
                         pair.isMyMatch && "border-accent/30 ring-1 ring-accent/10 bg-accent/5",
-                        pair.isPlayed && "cursor-pointer hover:bg-white/5"
+                        pair.isPlayed && pair.isRealMatch && "cursor-pointer hover:bg-white/5"
                       )}
                       onClick={() => handleOpenReport(pair)}
                     >
@@ -363,18 +377,24 @@ export default function RankingsPage() {
                             <div className="flex items-center gap-2 min-w-0">
                               <div className={cn("w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0", pair.isMyMatch && "animate-pulse")} />
                               <span className={cn("text-[10px] font-bold uppercase truncate", pair.isMyMatch && pair.home?.id === user?.uid && "text-accent")}>
-                                {pair.home?.name || t.bye}
+                                {pair.home ? pair.home.name : t.seeded}
                               </span>
                               {pair.home && <Badge variant="outline" className="text-[6px] h-3 px-1 py-0 border-white/10 opacity-60">DIV {pair.home.level}</Badge>}
                               {pair.home?.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 px-1 opacity-20"><div className="h-px flex-1 bg-white" /><span className="text-[7px] font-black uppercase">VS</span><div className="h-px flex-1 bg-white" /></div>
+                          
+                          {pair.isRealMatch ? (
+                            <div className="flex items-center gap-2 px-1 opacity-20"><div className="h-px flex-1 bg-white" /><span className="text-[7px] font-black uppercase">VS</span><div className="h-px flex-1 bg-white" /></div>
+                          ) : (
+                            <div className="flex items-center gap-2 px-1 opacity-10"><div className="h-px flex-1 border-t border-dashed border-white" /></div>
+                          )}
+
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 min-w-0">
                               <div className={cn("w-1.5 h-1.5 rounded-full bg-red-400 shrink-0")} />
                               <span className={cn("text-[10px] font-bold uppercase truncate opacity-80", pair.isMyMatch && pair.away?.id === user?.uid && "text-accent")}>
-                                {pair.away?.name || t.bye}
+                                {pair.away ? pair.away.name : t.seeded}
                               </span>
                               {pair.away && <Badge variant="outline" className="text-[6px] h-3 px-1 py-0 border-white/10 opacity-60">DIV {pair.away.level}</Badge>}
                               {pair.away?.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
@@ -382,7 +402,7 @@ export default function RankingsPage() {
                           </div>
                         </div>
                         <div className="w-24 flex flex-col items-center justify-center border-l border-white/5 pl-2 gap-1 text-center shrink-0">
-                          {pair.isPlayed ? (
+                          {pair.isPlayed && pair.isRealMatch ? (
                             <div className="flex flex-col items-center gap-1">
                               <div className="flex items-center gap-1.5 text-lg font-headline font-black italic">
                                 <span className={cn(pair.scoreH > pair.scoreA ? "text-primary" : "text-muted-foreground")}>{pair.scoreH}</span>
@@ -393,6 +413,11 @@ export default function RankingsPage() {
                                 <FileText className="w-2.5 h-2.5 text-accent" />
                                 <span className="text-[7px] font-black uppercase text-accent">REPORT</span>
                               </div>
+                            </div>
+                          ) : !pair.isRealMatch ? (
+                            <div className="flex flex-col items-center opacity-40">
+                              <Zap className="w-4 h-4 text-muted-foreground" />
+                              <span className="text-[6px] font-black uppercase mt-1">SEEDED ENTRY</span>
                             </div>
                           ) : (
                             <><Timer className="w-4 h-4 text-accent animate-pulse" /><span className="text-[7px] font-black uppercase text-accent leading-none">WAITING</span><span className="text-[8px] font-mono font-bold text-primary mt-0.5">{cupTime}</span></>
@@ -536,20 +561,20 @@ export default function RankingsPage() {
                 
                 <div className="flex items-center justify-center gap-6 mt-6">
                   <div className="text-right flex-1 min-w-0">
-                    <p className={cn("text-xs font-bold uppercase truncate", viewingMatch.scoreH > viewingMatch.scoreA ? "text-primary" : "text-muted-foreground")}>{viewingMatch.home?.name || t.bye}</p>
+                    <p className={cn("text-xs font-bold uppercase truncate", viewingMatch.scoreH > viewingMatch.scoreA ? "text-primary" : "text-muted-foreground")}>{viewingMatch.home?.name || t.seeded}</p>
                     <p className="text-3xl font-headline font-black italic">{viewingMatch.scoreH}</p>
                   </div>
                   <div className="text-2xl font-headline font-bold opacity-20">:</div>
                   <div className="text-left flex-1 min-w-0">
-                    <p className={cn("text-xs font-bold uppercase truncate", viewingMatch.scoreA > viewingMatch.scoreH ? "text-primary" : "text-muted-foreground")}>{viewingMatch.away?.name || t.bye}</p>
+                    <p className={cn("text-xs font-bold uppercase truncate", viewingMatch.scoreA > viewingMatch.scoreH ? "text-primary" : "text-muted-foreground")}>{viewingMatch.away?.name || t.seeded}</p>
                     <p className="text-3xl font-headline font-black italic">{viewingMatch.scoreA}</p>
                   </div>
                 </div>
               </div>
 
               <div className="p-6 space-y-6">
-                {!viewingMatch.home || !viewingMatch.away ? (
-                  <p className="text-xs text-center text-muted-foreground italic">{t.noByeReport}</p>
+                {!viewingMatch.isRealMatch ? (
+                  <p className="text-xs text-center text-muted-foreground italic">{t.noRealReport}</p>
                 ) : (
                   <>
                     <div className="space-y-2">

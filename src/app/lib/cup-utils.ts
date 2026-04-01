@@ -9,14 +9,24 @@ export interface CupParticipant {
 }
 
 /**
+ * Calculates which round a division starts their tournament.
+ * Div 9 starts at Round 0 (Day 1).
+ * Div 1 starts at Round 8 (Day 9).
+ */
+export function getEntryRound(level: number): number {
+  return Math.max(0, 9 - level);
+}
+
+/**
  * Generates the full list of participants for the global cup.
- * Strictly uses only participants from the league (real players + group bots).
- * Places teams from higher divisions first (Priority Seeding).
+ * Uses strict Power-of-2 spacing to ensure high-division teams skip early rounds.
  */
 export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: number): (CupParticipant | null)[] {
-  const allPyramidTeams: CupParticipant[] = [];
+  const TOTAL_SLOTS = 16384;
+  const fullList: (CupParticipant | null)[] = Array(TOTAL_SLOTS).fill(null);
   
-  // 1. Build foundation from 511 groups, strictly ordered by level 1 -> 9
+  // Collect all teams from the pyramid (511 groups * 8 teams = 4088 teams)
+  const allTeams: CupParticipant[] = [];
   for (let lvl = 1; lvl <= 9; lvl++) {
     const groupsInDiv = Math.pow(2, lvl - 1);
     for (let g = 1; g <= groupsInDiv; g++) {
@@ -34,37 +44,46 @@ export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: numbe
         const botIdNum = (lvl * 1000) + (g * 10) + i + 1000;
         groupTeams.push({ id: `bot${botIdNum}`, name: `bot${botIdNum}`, isPlayer: false, level: lvl });
       }
-      allPyramidTeams.push(...groupTeams.slice(0, 8));
+      allTeams.push(...groupTeams.slice(0, 8));
     }
   }
 
-  const TOTAL_SLOTS = 16384;
-  const fullList: (CupParticipant | null)[] = Array(TOTAL_SLOTS).fill(null);
-  
-  // 2. Priority Seeding Logic:
-  // We place teams in even indices (0, 2, 4...) to spread them out.
-  // Since allPyramidTeams is sorted by level, Div 1 teams will be at the very beginning of the match list.
-  // They will face BYEs (nulls) in the first round if the grid is not full.
-  allPyramidTeams.forEach((team, i) => {
-    if (i < TOTAL_SLOTS / 2) {
-      // Place team in even slot. Its opponent at i*2 + 1 will be null (BYE)
-      fullList[i * 2] = team;
-    } else if (i < TOTAL_SLOTS) {
-      // If we exceed 8192 teams, start filling odd slots (unlikely with current 4088 team cap)
-      fullList[(i - 8192) * 2 + 1] = team;
+  // Deterministic Shuffle based on season
+  const seed = seasonNumber;
+  const shuffledTeams = [...allTeams].sort((a, b) => a.id.localeCompare(b.id));
+  for (let i = shuffledTeams.length - 1; i > 0; i--) {
+    const j = (seed + i) % (i + 1);
+    [shuffledTeams[i], shuffledTeams[j]] = [shuffledTeams[j], shuffledTeams[i]];
+  }
+
+  /**
+   * SEEDING LOGIC:
+   * We place teams in the 16384 grid based on their entry round.
+   * Div 9 (Level 9) enters Round 0: Step 2 (8192 possible positions)
+   * Div 1 (Level 1) enters Round 8: Step 256 (64 possible positions)
+   */
+  const usedIndices = new Set<number>();
+
+  shuffledTeams.forEach((team) => {
+    const entryRound = getEntryRound(team.level);
+    const step = Math.pow(2, entryRound + 1);
+    
+    // Find first available slot matching the step requirement
+    for (let i = 0; i < TOTAL_SLOTS; i += step) {
+      if (!usedIndices.has(i)) {
+        fullList[i] = team;
+        usedIndices.add(i);
+        break;
+      }
     }
   });
-
-  // No global shuffle here to preserve Division Priority as requested.
-  // Instead, we can do a deterministic per-season small shuffle within groups if needed, 
-  // but the current requirement is strictly level-based priority.
 
   return fullList;
 }
 
 /**
  * Recursively determines the winner of a specific branch in the tournament tree.
- * Uses Bo3 (Best of 3) logic for the Cup.
+ * Teams only "exist" in the tree once they reach their entry round.
  */
 export function getWinnerOfBranch(
   participants: (CupParticipant | null)[], 
@@ -85,16 +104,25 @@ export function getWinnerOfBranch(
     cache.set(key, null);
     return null;
   }
-  if (!h) {
-    cache.set(key, a);
-    return a;
-  }
-  if (!a) {
-    cache.set(key, h);
+  
+  // If only one team exists, they win by default (Progression without match)
+  if (!h) { cache.set(key, a); return a; }
+  if (!a) { cache.set(key, h); return h; }
+
+  // MATCH LOGIC:
+  // Both must have reached the current round according to their division seed
+  const hEntry = getEntryRound(h.level);
+  const aEntry = getEntryRound(a.level);
+
+  // A real match only happens if we are at or past the entry round for BOTH
+  // Otherwise, the seeded team just waits/advances
+  if (round <= hEntry && round <= aEntry) {
+    // Both are seeded/waiting, just return one (they don't meet yet)
+    cache.set(key, h); 
     return h;
   }
 
-  // Use Bo3 for Cup: Results are strictly 2:0, 2:1, 1:2, 0:2
+  // If we are here, at least one team has "entered" the bracket and they finally meet
   const [scoreH, scoreA] = getMatchResult(h.id, a.id, round, true);
   const winner = scoreH > scoreA ? h : a; 
   
