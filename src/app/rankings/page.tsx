@@ -9,20 +9,29 @@ import {
   LayoutDashboard, Loader2, Clock, Calendar,
   LayoutGrid, Search, Radio, Target, Zap, ShieldAlert,
   CheckCircle2, Timer, ChevronsLeft, ChevronsRight,
-  ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon
+  ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
+  Skull, Crosshair, FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
-import { getMockGroupTeams, LEAGUES } from '../lib/leagues-data';
+import { getMockGroupTeams, LEAGUES, getMatchResult } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
 import { getMoscowDateString, getPyramidCupTime } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant } from '../lib/cup-utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 type RankingTab = 
   | 'menu'
@@ -37,7 +46,7 @@ export default function RankingsPage() {
   const router = useRouter();
   const { 
     rank, leagueLevel, divisionSubId, groupId, isLoaded, language, 
-    lastLeagueMatchDate, seasonDay, seasonNumber
+    lastLeagueMatchDate, seasonDay, seasonNumber, matchHistory
   } = useGameState();
   const db = useFirestore();
   
@@ -47,6 +56,7 @@ export default function RankingsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [cupPage, setCupPage] = useState(0);
+  const [viewingMatch, setViewingMatch] = useState<any | null>(null);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -97,12 +107,25 @@ export default function RankingsPage() {
       const isMyMatch = h?.id === user?.uid || a?.id === user?.uid;
       const isPlayed = round <= currentRoundIdx || (round === currentRoundIdx + 1 && isTodayPlayed);
       
+      let sH = 0;
+      let sA = 0;
+      if (isPlayed && h && a) {
+        [sH, sA] = getMatchResult(h.id, a.id, round);
+      } else if (isPlayed && h && !a) {
+        sH = 2; sA = 0;
+      } else if (isPlayed && !h && a) {
+        sH = 0; sA = 2;
+      }
+
       const matchData = {
         id: `match-${round}-${m}`,
         home: h,
         away: a,
         isPlayed,
-        isMyMatch
+        isMyMatch,
+        scoreH: sH,
+        scoreA: sA,
+        round
       };
 
       if (searchQuery.trim().length > 2) {
@@ -139,6 +162,14 @@ export default function RankingsPage() {
       remainingTeams: "Teams remaining",
       roundLabel: "Tournament Stage",
       bye: "BYE / TECHNICAL WIN",
+      reportTitle: "MATCH DOSSIER",
+      reportDesc: "Tactical data reconstruction for",
+      summary: "Strategic Summary",
+      noByeReport: "Technical wins do not have tactical reports.",
+      close: "CLOSE REPORT",
+      victory: "VICTORY",
+      defeat: "DEFEAT",
+      draw: "DRAW",
       tabs: {
         my_league: { label: "My League", desc: "Group standings", icon: Trophy },
         my_pyramid: { label: "My Pyramid", desc: "Live global hierarchy", icon: LayoutDashboard },
@@ -158,6 +189,14 @@ export default function RankingsPage() {
       remainingTeams: "Команд в игре",
       roundLabel: "Стадия турнира",
       bye: "ТЕХ. ПОБЕДА (BYE)",
+      reportTitle: "ОТЧЕТ О МАТЧЕ",
+      reportDesc: "Реконструкция тактических данных для",
+      summary: "Сводка стратегий",
+      noByeReport: "Технические победы не содержат тактических отчетов.",
+      close: "ЗАКРЫТЬ ОТЧЕТ",
+      victory: "ПОБЕДА",
+      defeat: "ПОРАЖЕНИЕ",
+      draw: "НИЧЬЯ",
       tabs: {
         my_league: { label: "Своя лига", desc: "Рейтинг группы", icon: Trophy },
         my_pyramid: { label: "Своя пирамида", desc: "Глобальная иерархия", icon: LayoutDashboard },
@@ -168,6 +207,29 @@ export default function RankingsPage() {
 
   const t = labels[language as keyof typeof labels] || labels.ru;
   const cupTime = getPyramidCupTime(league.startTime);
+
+  const handleOpenReport = (match: any) => {
+    if (!match.isPlayed) return;
+    setViewingMatch(match);
+  };
+
+  const getMatchSummary = (match: any) => {
+    // If it's my match, try to find the real AI summary from history
+    const historical = matchHistory.find(m => m.type === 'tournament' && m.day === match.round && m.seasonNumber === seasonNumber);
+    if (historical) return historical.matchSummary;
+
+    // Deterministic summary for others
+    const summaries = [
+      "Superior map control allowed for a decisive victory.",
+      "The mid-lane dominance paved the way for late-game scaling.",
+      "Crucial dragon steals turned the tide of the engagement.",
+      "A series of well-coordinated ganks caught the opposition off-guard.",
+      "Defensive positioning and objective focus secured the result.",
+      "Aggressive early game pressure led to an unstoppable snowball."
+    ];
+    const seed = match.home?.id.length + match.away?.id.length + match.round;
+    return summaries[seed % summaries.length];
+  };
 
   if (isUserLoading || !isLoaded || !user) return <LoadingScreen />;
 
@@ -220,7 +282,7 @@ export default function RankingsPage() {
             </Card>
             {isLeaguePlayersLoading ? (
               <div className="py-20 text-center opacity-50"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
-            ) : renderRankingTable(getMockGroupTeams(rank, profile?.displayName || "My Team", leagueLevel, divisionSubId, groupId, profile?.selectedLeagueId || "ALPHA", allLeaguePlayers?.filter(p => p.leagueLevel === leagueLevel && p.groupId === groupId) || [], user?.uid, isTodayPlayed ? seasonDay : Math.max(0, seasonDay - 1)))}
+            ) : renderRankingTable(getMockGroupTeams(rank, profile?.displayName || "My Team", leagueLevel, divisionSubId, groupId, profile?.selectedLeagueId || "ALPHA", allLeaguePlayers?.filter(p => Number(p.leagueLevel) === leagueLevel && Number(p.groupId) === groupId) || [], user?.uid, isTodayPlayed ? seasonDay : Math.max(0, seasonDay - 1)))}
           </div>
         );
 
@@ -287,10 +349,15 @@ export default function RankingsPage() {
               ) : (
                 <div className="space-y-3">
                   {paginatedMatches.map((pair) => (
-                    <Card key={pair.id} className={cn(
-                      "glass-card border-white/5 overflow-hidden transition-all",
-                      pair.isMyMatch && "border-accent/30 ring-1 ring-accent/10 bg-accent/5"
-                    )}>
+                    <Card 
+                      key={pair.id} 
+                      className={cn(
+                        "glass-card border-white/5 overflow-hidden transition-all group",
+                        pair.isMyMatch && "border-accent/30 ring-1 ring-accent/10 bg-accent/5",
+                        pair.isPlayed && "cursor-pointer hover:bg-white/5"
+                      )}
+                      onClick={() => handleOpenReport(pair)}
+                    >
                       <CardContent className="p-3 flex items-center justify-between gap-4">
                         <div className="flex-1 min-w-0 space-y-2">
                           <div className="flex items-center justify-between">
@@ -313,9 +380,19 @@ export default function RankingsPage() {
                             </div>
                           </div>
                         </div>
-                        <div className="w-20 flex flex-col items-center justify-center border-l border-white/5 pl-2 gap-1 text-center shrink-0">
+                        <div className="w-24 flex flex-col items-center justify-center border-l border-white/5 pl-2 gap-1 text-center shrink-0">
                           {pair.isPlayed ? (
-                            <><CheckCircle2 className="w-4 h-4 text-green-400" /><span className="text-[7px] font-black uppercase text-green-400">FINISH</span></>
+                            <div className="flex flex-col items-center gap-1">
+                              <div className="flex items-center gap-1.5 text-lg font-headline font-black italic">
+                                <span className={cn(pair.scoreH > pair.scoreA ? "text-primary" : "text-muted-foreground")}>{pair.scoreH}</span>
+                                <span className="text-[10px] text-muted-foreground opacity-30">:</span>
+                                <span className={cn(pair.scoreA > pair.scoreH ? "text-primary" : "text-muted-foreground")}>{pair.scoreA}</span>
+                              </div>
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <FileText className="w-2.5 h-2.5 text-accent" />
+                                <span className="text-[7px] font-black uppercase text-accent">REPORT</span>
+                              </div>
+                            </div>
                           ) : (
                             <><Timer className="w-4 h-4 text-accent animate-pulse" /><span className="text-[7px] font-black uppercase text-accent leading-none">WAITING</span><span className="text-[8px] font-mono font-bold text-primary mt-0.5">{cupTime}</span></>
                           )}
@@ -354,7 +431,7 @@ export default function RankingsPage() {
               {isLeaguePlayersLoading ? (
                 <div className="py-20 text-center opacity-50"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
               ) : (
-                renderRankingTable(getMockGroupTeams(1000, "Manager", viewingGroup.div, 1, viewingGroup.group, profile?.selectedLeagueId || "ALPHA", allLeaguePlayers?.filter(p => p.leagueLevel === viewingGroup.div && p.groupId === viewingGroup.group) || [], user?.uid, isTodayPlayed ? seasonDay : Math.max(0, seasonDay - 1)))
+                renderRankingTable(getMockGroupTeams(1000, "Manager", viewingGroup.div, 1, viewingGroup.group, profile?.selectedLeagueId || "ALPHA", allLeaguePlayers?.filter(p => Number(p.leagueLevel) === viewingGroup.div && Number(p.groupId) === viewingGroup.group) || [], user?.uid, isTodayPlayed ? seasonDay : Math.max(0, seasonDay - 1)))
               )}
             </div>
           );
@@ -437,6 +514,84 @@ export default function RankingsPage() {
         <div className="flex-1"><h1 className="text-xl font-headline font-black uppercase tracking-tight">{t.tabs[activeTab as keyof typeof t.tabs].label}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest opacity-50">OPERATIONAL DATA | DIV {leagueLevel}.{divisionSubId}</p></div>
       </header>
       {renderContent()}
+
+      <Dialog open={!!viewingMatch} onOpenChange={() => setViewingMatch(null)}>
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-background border-white/10 shadow-2xl">
+          {viewingMatch && (
+            <>
+              <div className={cn(
+                "p-8 text-center border-b border-white/5",
+                viewingMatch.scoreH > viewingMatch.scoreA ? "bg-primary/10" : (viewingMatch.scoreH === viewingMatch.scoreA ? "bg-accent/10" : "bg-destructive/10")
+              )}>
+                <div className="mx-auto w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary shadow-[0_0_20px_rgba(var(--primary),0.3)]">
+                  <Trophy className="w-8 h-8 text-primary" />
+                </div>
+                <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white">
+                  {viewingMatch.scoreH > viewingMatch.scoreA ? t.victory : (viewingMatch.scoreH === viewingMatch.scoreA ? t.draw : t.defeat)}
+                </DialogTitle>
+                <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">
+                  {t.reportDesc} {t.rounds[viewingMatch.round - 1]}
+                </DialogDescription>
+                
+                <div className="flex items-center justify-center gap-6 mt-6">
+                  <div className="text-right flex-1 min-w-0">
+                    <p className={cn("text-xs font-bold uppercase truncate", viewingMatch.scoreH > viewingMatch.scoreA ? "text-primary" : "text-muted-foreground")}>{viewingMatch.home?.name || t.bye}</p>
+                    <p className="text-3xl font-headline font-black italic">{viewingMatch.scoreH}</p>
+                  </div>
+                  <div className="text-2xl font-headline font-bold opacity-20">:</div>
+                  <div className="text-left flex-1 min-w-0">
+                    <p className={cn("text-xs font-bold uppercase truncate", viewingMatch.scoreA > viewingMatch.scoreH ? "text-primary" : "text-muted-foreground")}>{viewingMatch.away?.name || t.bye}</p>
+                    <p className="text-3xl font-headline font-black italic">{viewingMatch.scoreA}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {!viewingMatch.home || !viewingMatch.away ? (
+                  <p className="text-xs text-center text-muted-foreground italic">{t.noByeReport}</p>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <h3 className="text-[10px] font-black text-accent uppercase tracking-widest flex items-center gap-2">
+                        <FileText className="w-3 h-3" /> {t.summary}
+                      </h3>
+                      <p className="text-sm leading-relaxed text-muted-foreground italic bg-secondary/20 p-4 rounded-xl border border-white/5">
+                        "{getMatchSummary(viewingMatch)}"
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <Card className="bg-secondary/20 border-white/5">
+                        <CardContent className="p-4 flex flex-col items-center">
+                          <Skull className="w-5 h-5 text-red-400 mb-2" />
+                          <span className="text-xl font-bold">{15 + (viewingMatch.scoreH * 5)}</span>
+                          <span className="text-[8px] text-muted-foreground uppercase font-bold">Kills</span>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-secondary/20 border-white/5">
+                        <CardContent className="p-4 flex flex-col items-center">
+                          <Crosshair className="w-5 h-5 text-blue-400 mb-2" />
+                          <span className="text-xl font-bold">{viewingMatch.scoreH === 2 ? 11 : 7}</span>
+                          <span className="text-[8px] text-muted-foreground uppercase font-bold">Towers</span>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5">
+                <Button 
+                  className="w-full h-12 hero-gradient font-bold uppercase text-xs tracking-widest" 
+                  onClick={() => setViewingMatch(null)}
+                >
+                  {t.close}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
