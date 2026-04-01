@@ -274,6 +274,21 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        
+        // MIGRATION: Force sync hero images from hardcoded data to local storage
+        if (parsed.ownedHeroes) {
+          parsed.ownedHeroes = parsed.ownedHeroes.map((h: any) => {
+            const fresh = INITIAL_HEROES.find(fh => fh.id === h.id);
+            return fresh ? { ...h, image: fresh.image } : h;
+          });
+        }
+        if (parsed.team) {
+          parsed.team = parsed.team.map((h: any) => {
+            const fresh = INITIAL_HEROES.find(fh => fh.id === h.id);
+            return fresh ? { ...h, image: fresh.image } : h;
+          });
+        }
+
         setState(s => ({ ...s, ...parsed }));
       } catch (e) {
         console.warn("Failed to parse local storage state", e);
