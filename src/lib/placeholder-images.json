@@ -35,6 +35,12 @@
       "description": "Brazilian professional player portrait v1",
       "imageUrl": "https://i.postimg.cc/Z5906yvS/br-1.jpg",
       "imageHint": "brazilian gamer"
+    },
+    {
+      "id": "hero-sub-tr",
+      "description": "Turkish professional player portrait v1",
+      "imageUrl": "https://i.postimg.cc/MHvbRpyd/tr-1.jpg",
+      "imageHint": "turkish gamer"
     }
   ]
 }

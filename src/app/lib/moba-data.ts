@@ -180,7 +180,7 @@ export const INITIAL_HEROES: Hero[] = [
     baseStats: { attack: 45, defense: 85, health: 1400, abilityPower: 5, speed: 290 },
     overallRating: 31,
     abilitiesFocus: 'Sustain',
-    image: 'https://i.postimg.cc/Z5906yvS/br-1.jpg',
+    image: 'https://i.postimg.cc/MHvbRpyd/tr-1.jpg',
     description: 'Provides reliable backup defense when needed.',
     price: 0,
     age: 26,
