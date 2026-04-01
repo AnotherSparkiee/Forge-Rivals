@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Chrome, HelpCircle } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
+import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import {
   Dialog,
   DialogContent,
@@ -166,6 +167,7 @@ export default function LoginPage() {
       }
 
       if (!userSnap.exists()) {
+        const uniqueSquad = getRandomStartingSquad();
         const profileData = {
           id: user.uid,
           displayName: user.displayName || `Manager_${user.uid.slice(0, 5)}`,
@@ -175,7 +177,8 @@ export default function LoginPage() {
           experiencePoints: 0,
           lastLoginDate: new Date().toISOString(),
           createdAt: new Date().toISOString(),
-          ownedHeroIds: ['h1', 'h2', 'h3', 'h4', 'h5', 'h_sub1', 'h_sub2'],
+          ownedHeroes: uniqueSquad,
+          ownedHeroIds: uniqueSquad.map(h => h.id),
           leagueLevel: 9,
           divisionSubId: 1,
           groupId: 1,

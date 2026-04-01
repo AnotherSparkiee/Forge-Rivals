@@ -11,10 +11,12 @@
         "displayName": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "inGameCurrency": { "type": "number" },
+        "crystals": { "type": "number" },
         "experiencePoints": { "type": "number" },
         "lastLoginDate": { "type": "string", "format": "date-time" },
         "createdAt": { "type": "string", "format": "date-time" },
         "ownedHeroIds": { "type": "array", "items": { "type": "string" } },
+        "ownedHeroes": { "type": "array", "items": { "type": "object" } },
         "leagueLevel": { "type": "number" },
         "divisionSubId": { "type": "number" },
         "groupId": { "type": "number" },
@@ -31,7 +33,7 @@
               "result": { "type": "string" },
               "startDate": { "type": "string", "format": "date-time" },
               "endDate": { "type": "string", "format": "date-time" },
-              "status": { "type": "string", "enum": ["completed", "abandoned", "eliminated"] }
+              "status": { "type": "string", "enum": ["completed", "abandoned", "eliminated", "active"] }
             }
           }
         }

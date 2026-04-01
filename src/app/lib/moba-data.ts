@@ -17,15 +17,13 @@ export interface Hero {
   image: string;
   description: string;
   price: number;
-  // Extended Portfolio Data
   age: number;
-  talent: number; // 1-5
+  talent: number; 
   salary: number;
-  form: number; // 0-100
-  fatigue: number; // 0-100
+  form: number; 
+  fatigue: number; 
   country: { code: string; name: string; flag: string };
   isInjured: boolean;
-  // 10 Professional Characteristics
   proStats: {
     lastHitting: number;
     mapAwareness: number;
@@ -40,6 +38,83 @@ export interface Hero {
   };
 }
 
+const COUNTRY_PHOTOS: Record<string, { flag: string, name: string, url: string }> = {
+  'DE': { flag: '🇩🇪', name: 'Germany', url: 'https://i.postimg.cc/PPS3QFFM/de-1.jpg' },
+  'CN': { flag: '🇨🇳', name: 'China', url: 'https://i.postimg.cc/wvzKxSYS/1755011442109.jpg' },
+  'RU': { flag: '🇷🇺', name: 'Russia', url: 'https://i.postimg.cc/mg3yfqj5/rus-2.jpg' },
+  'UA': { flag: '🇺🇦', name: 'Ukraine', url: 'https://i.postimg.cc/X7fs4pYn/ua-1.jpg' },
+  'KR': { flag: '🇰🇷', name: 'South Korea', url: 'https://i.postimg.cc/43mv7dsH/kr-1.jpg' },
+  'BR': { flag: '🇧🇷', name: 'Brazil', url: 'https://i.postimg.cc/Z5906yvS/br-1.jpg' },
+  'TR': { flag: '🇹🇷', name: 'Turkey', url: 'https://i.postimg.cc/MHvbRpyd/tr-1.jpg' }
+};
+
+const HERO_NAMES = [
+  "Shadow", "Nova", "Cipher", "Apex", "Viper", "Echo", "Ghost", "Raptor", 
+  "Titan", "Oracle", "Zenith", "Blaze", "Frost", "Static", "Wraith", 
+  "Hunter", "Siren", "Falcon", "Grim", "Pulse", "Onyx", "Rogue", "Aero",
+  "Blast", "Drift", "Flux", "Glint", "Haze", "Jolt", "Kite", "Lume", "Mist"
+];
+
+function getRandomStat(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+export function generateUniqueHero(role: Role, index: number): Hero {
+  const codes = Object.keys(COUNTRY_PHOTOS);
+  const code = codes[Math.floor(Math.random() * codes.length)];
+  const country = COUNTRY_PHOTOS[code];
+  const name = `${HERO_NAMES[Math.floor(Math.random() * HERO_NAMES.length)]} ${index + 1}`;
+  
+  const baseStats = {
+    attack: role === 'Carry' || role === 'Jungler' ? getRandomStat(70, 95) : getRandomStat(20, 50),
+    defense: role === 'Tank' ? getRandomStat(80, 100) : getRandomStat(20, 50),
+    health: role === 'Tank' ? getRandomStat(1400, 1800) : getRandomStat(700, 1000),
+    abilityPower: role === 'Midlaner' || role === 'Support' ? getRandomStat(60, 110) : getRandomStat(0, 30),
+    speed: getRandomStat(250, 360)
+  };
+
+  const proStats = {
+    lastHitting: getRandomStat(40, 98),
+    mapAwareness: getRandomStat(40, 98),
+    positioning: getRandomStat(40, 98),
+    reflexes: getRandomStat(40, 98),
+    manaManagement: getRandomStat(40, 98),
+    objectiveControl: getRandomStat(40, 98),
+    communication: getRandomStat(40, 98),
+    tiltResistance: getRandomStat(40, 98),
+    versatility: getRandomStat(40, 98),
+    ganking: getRandomStat(40, 98),
+  };
+
+  const overall = Math.round(Object.values(proStats).reduce((a, b) => a + b, 0) / 10 * 0.4 + (baseStats.attack + baseStats.defense) / 4);
+
+  return {
+    id: `hero_${Date.now()}_${index}`,
+    name,
+    role,
+    baseStats,
+    overallRating: overall,
+    abilitiesFocus: 'Balanced',
+    image: country.url,
+    description: `A unique talent from ${country.name}.`,
+    price: 0,
+    age: getRandomStat(17, 28),
+    talent: getRandomStat(3, 5),
+    salary: getRandomStat(2000, 8000),
+    form: getRandomStat(70, 95),
+    fatigue: 0,
+    country: { code, name: country.name, flag: country.flag },
+    isInjured: false,
+    proStats
+  };
+}
+
+export function getRandomStartingSquad(): Hero[] {
+  const roles: Role[] = ['Tank', 'Carry', 'Midlaner', 'Jungler', 'Support', 'Carry', 'Tank'];
+  return roles.map((role, i) => generateUniqueHero(role, i));
+}
+
+// Fallback initial heroes for existing sessions
 export const INITIAL_HEROES: Hero[] = [
   {
     id: 'h1',

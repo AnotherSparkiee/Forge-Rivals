@@ -274,21 +274,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        
-        // MIGRATION: Force sync hero images from hardcoded data to local storage
-        if (parsed.ownedHeroes) {
-          parsed.ownedHeroes = parsed.ownedHeroes.map((h: any) => {
-            const fresh = INITIAL_HEROES.find(fh => fh.id === h.id);
-            return fresh ? { ...h, image: fresh.image } : h;
-          });
-        }
-        if (parsed.team) {
-          parsed.team = parsed.team.map((h: any) => {
-            const fresh = INITIAL_HEROES.find(fh => fh.id === h.id);
-            return fresh ? { ...h, image: fresh.image } : h;
-          });
-        }
-
         setState(s => ({ ...s, ...parsed }));
       } catch (e) {
         console.warn("Failed to parse local storage state", e);
@@ -310,11 +295,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         setState(s => {
           const { seasonDay: globalDay, seasonNumber: globalSeason, seasonStartDate: globalStart } = getGlobalSeasonInfo();
           const history = profileData.matchHistory || s.matchHistory || [];
+          
+          // Use ownedHeroes from cloud if they exist (for randomized squad persistence)
+          const cloudHeroes = profileData.ownedHeroes || s.ownedHeroes;
 
           return {
             ...s,
             credits: profileData.inGameCurrency ?? s.credits ?? 0,
             crystals: profileData.crystals ?? s.crystals ?? 0,
+            ownedHeroes: cloudHeroes,
             wins: profileData.wins ?? s.wins ?? 0,
             draws: profileData.draws ?? s.draws ?? 0,
             losses: profileData.losses ?? s.losses ?? 0,
@@ -660,7 +649,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         heroPerformance: sanitizeForFirestore(result.heroPerformance || []),
         playedAt: customPlayedAt || new Date().toISOString()
       };
-      // Record season number for both league and tournament (Cup)
       if (type === 'league' || type === 'tournament') matchEntry.seasonNumber = s.seasonNumber;
       
       const todayStr = getMoscowDateString();

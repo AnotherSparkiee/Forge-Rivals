@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -13,6 +14,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, UserPlus } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
+import { getRandomStartingSquad } from '@/app/lib/moba-data';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -68,7 +70,6 @@ export default function RegisterPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // BUG PREVENTION: Strict validation for empty or invalid usernames
     if (!username.trim() || username.length < 2) {
       toast({ variant: "destructive", title: t.errorTitle, description: t.usernameInvalid });
       return;
@@ -82,7 +83,6 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // 1. Проверка уникальности имени в Firestore (players_v5)
       const usersRef = collection(db, 'players_v5');
       const q = query(usersRef, where('displayName', '==', username.trim()), limit(1));
       const querySnapshot = await getDocs(q);
@@ -91,11 +91,12 @@ export default function RegisterPage() {
         throw new Error(t.usernameTaken);
       }
 
-      // 2. Создание пользователя в Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // 3. Создание профиля в Firestore
+      // Generate randomized squad for the new user
+      const uniqueSquad = getRandomStartingSquad();
+
       const profileData = {
         id: user.uid,
         displayName: username.trim(),
@@ -105,7 +106,8 @@ export default function RegisterPage() {
         experiencePoints: 0,
         lastLoginDate: new Date().toISOString(),
         createdAt: new Date().toISOString(),
-        ownedHeroIds: ['h1', 'h2', 'h3', 'h4', 'h5', 'h_sub1', 'h_sub2'],
+        ownedHeroes: uniqueSquad,
+        ownedHeroIds: uniqueSquad.map(h => h.id),
         leagueLevel: 9,
         divisionSubId: 1,
         groupId: 1,
