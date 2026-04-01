@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -110,7 +111,7 @@ export default function RankingsPage() {
       let sH = 0;
       let sA = 0;
       if (isPlayed && h && a) {
-        [sH, sA] = getMatchResult(h.id, a.id, round);
+        [sH, sA] = getMatchResult(h.id, a.id, round, true);
       } else if (isPlayed && h && !a) {
         sH = 2; sA = 0;
       } else if (isPlayed && !h && a) {
@@ -227,7 +228,7 @@ export default function RankingsPage() {
       "Defensive positioning and objective focus secured the result.",
       "Aggressive early game pressure led to an unstoppable snowball."
     ];
-    const seed = match.home?.id.length + match.away?.id.length + match.round;
+    const seed = (match.home?.id.length || 0) + (match.away?.id.length || 0) + match.round;
     return summaries[seed % summaries.length];
   };
 
@@ -255,7 +256,7 @@ export default function RankingsPage() {
               {entry.isPlayer && !entry.isMe && <Badge variant="outline" className="text-[7px] h-4 px-1.5 border-accent/40 text-accent font-black bg-accent/5">USER</Badge>}
             </span>
           </div>
-          <div className="w-16 text-center text-[9px] font-mono font-bold opacity-50">{entry.wins}-{entry.draws}-{entry.losses}</div>
+          <div className="w-16 text-center text-[9px] font-mono font-bold opacity-50">{entry.wins}-{entry.draws || 0}-{entry.losses}</div>
           <div className="w-10 text-right"><p className={cn("text-sm font-headline font-black italic", entry.points > 0 ? "text-accent" : "text-muted-foreground")}>{entry.points}</p></div>
         </div>
       ))}
@@ -564,7 +565,7 @@ export default function RankingsPage() {
                       <Card className="bg-secondary/20 border-white/5">
                         <CardContent className="p-4 flex flex-col items-center">
                           <Skull className="w-5 h-5 text-red-400 mb-2" />
-                          <span className="text-xl font-bold">{15 + (viewingMatch.scoreH * 5)}</span>
+                          <span className="text-xl font-bold">{10 * (viewingMatch.scoreH + viewingMatch.scoreA) + (viewingMatch.scoreH * 5)}</span>
                           <span className="text-[8px] text-muted-foreground uppercase font-bold">Kills</span>
                         </CardContent>
                       </Card>

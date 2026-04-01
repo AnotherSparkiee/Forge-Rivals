@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A MOBA match simulation AI agent.
@@ -47,6 +48,7 @@ const SimulateMobaMatchInputSchema = z.object({
       'Whether to include random in-game events that can influence the match outcome.'
     ),
   isBo2: z.boolean().default(true).describe('Whether this is a Best of 2 series (result MUST be 2:0, 1:1, or 0:2).'),
+  isBo3: z.boolean().default(false).describe('Whether this is a Best of 3 series (result MUST be 2:0, 2:1, 1:2, or 0:2). No Draws allowed.'),
   scoreA: z.number().optional().describe('Force score for Team A.'),
   scoreB: z.number().optional().describe('Force score for Team B.'),
 });
@@ -83,13 +85,13 @@ const HeroMatchPerformanceSchema = z
   .describe('Detailed performance statistics for a single hero in the match.');
 
 const SimulateMobaMatchOutputSchema = z.object({
-  winner: z.string().describe('The name of the winning team (or "Draw").'),
-  scoreA: z.number().describe('Score for Team A (strictly 2, 1, or 0).'),
-  scoreB: z.number().describe('Score for Team B (strictly 2, 1, or 0).'),
+  winner: z.string().describe('The name of the winning team.'),
+  scoreA: z.number().describe('Score for Team A.'),
+  scoreB: z.number().describe('Score for Team B.'),
   matchSummary: z
     .string()
     .describe(
-      'A narrative summary of the match, highlighting key moments and reasons for victory/defeat/draw.'
+      'A narrative summary of the match, highlighting key moments and reasons for victory/defeat.'
     ),
   teamStats: z
     .object({
@@ -109,15 +111,36 @@ export type SimulateMobaMatchOutput = z.infer<
  * Procedural fallback for match simulation when AI quota is exhausted.
  */
 function generateFallbackSimulation(input: SimulateMobaMatchInput): SimulateMobaMatchOutput {
-  const scoreA = input.scoreA !== undefined ? input.scoreA : (Math.random() > 0.5 ? 2 : 0);
-  const scoreB = input.scoreB !== undefined ? input.scoreB : (scoreA === 2 ? 0 : (scoreA === 1 ? 1 : 2));
+  let scoreA = 0;
+  let scoreB = 0;
+
+  if (input.scoreA !== undefined && input.scoreB !== undefined) {
+    scoreA = input.scoreA;
+    scoreB = input.scoreB;
+  } else if (input.isBo3) {
+    // Bo3 logic: random 2:0 or 2:1
+    const winA = Math.random() > 0.5;
+    const cleanSheet = Math.random() > 0.6;
+    if (winA) {
+      scoreA = 2;
+      scoreB = cleanSheet ? 0 : 1;
+    } else {
+      scoreB = 2;
+      scoreA = cleanSheet ? 0 : 1;
+    }
+  } else {
+    // Bo2 logic
+    scoreA = Math.random() > 0.5 ? 2 : 0;
+    scoreB = scoreA === 2 ? 0 : (scoreA === 1 ? 1 : 2);
+  }
   
   const winner = scoreA > scoreB ? input.teamA.name : (scoreA < scoreB ? input.teamB.name : "Draw");
+  const gamesPlayed = scoreA + scoreB;
   
   const genTeamStats = (score: number, opponentScore: number) => ({
-    kills: 10 + Math.floor(Math.random() * 15) + (score * 5),
-    deaths: 10 + Math.floor(Math.random() * 15) + (opponentScore * 5),
-    assists: 20 + Math.floor(Math.random() * 20),
+    kills: (10 * gamesPlayed) + Math.floor(Math.random() * 15) + (score * 5),
+    deaths: (10 * gamesPlayed) + Math.floor(Math.random() * 15) + (opponentScore * 5),
+    assists: (20 * gamesPlayed) + Math.floor(Math.random() * 20),
     towersDestroyed: score === 2 ? 11 : (score === 1 ? 7 : Math.floor(Math.random() * 5)),
     objectivesTaken: score >= 1 ? ["Dragon", "Tower"] : ["Tower"]
   });
@@ -128,12 +151,12 @@ function generateFallbackSimulation(input: SimulateMobaMatchInput): SimulateMoba
       heroPerformance.push({
         heroName: h.name,
         teamName: teamName,
-        kills: Math.floor(Math.random() * 8),
-        deaths: Math.floor(Math.random() * 6),
-        assists: Math.floor(Math.random() * 12),
-        damageDealt: 15000 + Math.floor(Math.random() * 30000),
-        damageTaken: 10000 + Math.floor(Math.random() * 40000),
-        healingDone: h.role === 'Support' ? 5000 + Math.floor(Math.random() * 10000) : 0
+        kills: Math.floor(Math.random() * (8 * gamesPlayed)),
+        deaths: Math.floor(Math.random() * (6 * gamesPlayed)),
+        assists: Math.floor(Math.random() * (12 * gamesPlayed)),
+        damageDealt: 15000 + Math.floor(Math.random() * 30000 * gamesPlayed),
+        damageTaken: 10000 + Math.floor(Math.random() * 40000 * gamesPlayed),
+        healingDone: h.role === 'Support' ? 5000 + Math.floor(Math.random() * 10000 * gamesPlayed) : 0
       });
     });
   };
@@ -145,7 +168,7 @@ function generateFallbackSimulation(input: SimulateMobaMatchInput): SimulateMoba
     winner,
     scoreA,
     scoreB,
-    matchSummary: `The engagement between ${input.teamA.name} and ${input.teamB.name} was decided by superior tactical positioning. Key map objectives were traded, but ultimately the execution of ${winner === "Draw" ? "both teams" : winner} led to this result. (Tactical Fallback Protocol Active)`,
+    matchSummary: `The engagement between ${input.teamA.name} and ${input.teamB.name} was decided by superior tactical positioning. Format: ${input.isBo3 ? "Bo3" : "Bo2"}. (Tactical Fallback Protocol Active)`,
     teamStats: {
       teamA: genTeamStats(scoreA, scoreB),
       teamB: genTeamStats(scoreB, scoreA)
@@ -170,9 +193,17 @@ const prompt = ai.definePrompt({
   name: 'simulateMobaMatchPrompt',
   input: {schema: SimulateMobaMatchInputSchema},
   output: {schema: SimulateMobaMatchOutputSchema},
-  prompt: `You are an expert MOBA match simulator. Your task is to simulate a match between two teams in a Best of 2 (Bo2) format.
+  prompt: `You are an expert MOBA match simulator. 
 
-Consider the following input for Team A:
+{{#if isBo3}}
+Tournament Format: Best of 3 (Bo3). The first team to win 2 maps wins the match.
+Result MUST be one of: 2-0, 2-1, 1-2, 0-2. NO DRAWS.
+{{else}}
+Tournament Format: Best of 2 (Bo2).
+Result MUST be one of: 2-0, 1-1, 0-2.
+{{/if}}
+
+Consider Team A:
 Team Name: {{{teamA.name}}}
 Team Strategy: {{{teamA.strategy}}}
 Team Heroes:
@@ -181,7 +212,7 @@ Team Heroes:
   Role: {{{role}}}
 {{/each}}
 
-Consider the following input for Team B:
+Consider Team B:
 Team Name: {{{teamB.name}}}
 Team Strategy: {{{teamB.strategy}}}
 Team Heroes:
@@ -193,11 +224,6 @@ Team Heroes:
 {{#if scoreA}}
 CRITICAL REQUIREMENT: The final score MUST be strictly Team A: {{{scoreA}}} - Team B: {{{scoreB}}}.
 Generate a match narrative and statistics that lead to this exact outcome.
-{{else}}
-You MUST return a score of strictly 2-0, 1-1, or 0-2.
-- 2-0: Team A wins both maps.
-- 1-1: Draw, each team wins one map.
-- 0-2: Team B wins both maps.
 {{/if}}
 
 Provide a detailed narrative match summary and precise statistics for both teams and individual heroes based on the required outcome.`,

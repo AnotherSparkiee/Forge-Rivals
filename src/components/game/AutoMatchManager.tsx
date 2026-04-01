@@ -62,7 +62,7 @@ export function AutoMatchManager() {
 
   const { data: allLeaguePlayers } = useCollection(allLeaguePlayersQuery);
 
-  // 1. Regular League Simulation
+  // 1. Regular League Simulation (Bo2)
   useEffect(() => {
     if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !simulationRef.current && !isUserLoading && profile?.selectedLeagueId && groupPlayers && user) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
@@ -83,7 +83,7 @@ export function AutoMatchManager() {
     }
   }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, isSimulating]);
 
-  // 2. Pyramid Cup Simulation
+  // 2. Pyramid Cup Simulation (Bo3)
   useEffect(() => {
     if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !cupSimulationRef.current && !isUserLoading && profile?.selectedLeagueId && user && allLeaguePlayers) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
@@ -122,7 +122,7 @@ export function AutoMatchManager() {
       if (!todayMatch) throw new Error("No match scheduled");
       
       const opponent = todayMatch.home.id === user.uid ? todayMatch.away : todayMatch.home;
-      const [detScoreA, detScoreB] = getMatchResult(todayMatch.home.id, todayMatch.away.id, targetDay);
+      const [detScoreA, detScoreB] = getMatchResult(todayMatch.home.id, todayMatch.away.id, targetDay, false);
       
       const forcedScoreA = todayMatch.home.id === user.uid ? detScoreA : detScoreB;
       const forcedScoreB = todayMatch.away.id === user.uid ? detScoreA : detScoreB;
@@ -144,7 +144,8 @@ export function AutoMatchManager() {
           })) 
         },
         includeRandomEvents: true, 
-        isBo2: true, 
+        isBo2: true,
+        isBo3: false, 
         scoreA: forcedScoreA, 
         scoreB: forcedScoreB
       });
@@ -184,7 +185,6 @@ export function AutoMatchManager() {
       const myIdx = participants.findIndex(p => p?.id === user.uid);
       if (myIdx === -1) throw new Error("User not in cup participants");
 
-      // Calculate opponent for current round using tournament tree logic
       winnersCache.current.clear();
       const step = Math.pow(2, targetDay - 1);
       const myBranchStart = Math.floor(myIdx / step) * step;
@@ -204,6 +204,8 @@ export function AutoMatchManager() {
         return;
       }
 
+      const [forcedA, forcedB] = getMatchResult(user.uid, opponent?.id || "bot", targetDay, true);
+
       const result = await simulateMobaMatch({
         teamA: { name: profile.displayName || "My Team", strategy, heroes: team },
         teamB: { 
@@ -212,7 +214,10 @@ export function AutoMatchManager() {
           heroes: INITIAL_HEROES.slice(0, 5) 
         },
         includeRandomEvents: true,
-        isBo2: false
+        isBo2: false,
+        isBo3: true,
+        scoreA: forcedA,
+        scoreB: forcedB
       });
       
       let customPlayedAt = undefined;

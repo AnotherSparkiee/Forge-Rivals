@@ -1,3 +1,4 @@
+
 import { getMatchResult } from './leagues-data';
 
 export interface CupParticipant {
@@ -15,7 +16,6 @@ export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: numbe
   const allPyramidTeams: CupParticipant[] = [];
   
   // 1. Build foundation from 511 groups (8 teams each = 4088)
-  // These are the ONLY valid participants for the league's cup.
   for (let lvl = 1; lvl <= 9; lvl++) {
     const groupsInDiv = Math.pow(2, lvl - 1);
     for (let g = 1; g <= groupsInDiv; g++) {
@@ -37,17 +37,13 @@ export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: numbe
     }
   }
 
-  // 2. Fill to 16,384 slots with nulls instead of generated bots.
-  // This results in "Byes" (technical wins) in early rounds.
   const TOTAL_SLOTS = 16384;
   const fullList: (CupParticipant | null)[] = Array(TOTAL_SLOTS).fill(null);
   
-  // Fill the first 4088 slots with our league teams
   allPyramidTeams.forEach((team, i) => {
     fullList[i] = team;
   });
 
-  // 3. Deterministic shuffle per season to distribute Byes and teams
   const seed = seasonNumber * 999;
   for (let i = fullList.length - 1; i > 0; i--) {
     const j = (seed + i) % (i + 1);
@@ -59,7 +55,7 @@ export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: numbe
 
 /**
  * Recursively determines the winner of a specific branch in the tournament tree.
- * Correctly handles technical wins (if one side is null).
+ * Uses Bo3 (Best of 3) logic for the Cup.
  */
 export function getWinnerOfBranch(
   participants: (CupParticipant | null)[], 
@@ -76,7 +72,6 @@ export function getWinnerOfBranch(
   const h = getWinnerOfBranch(participants, round - 1, startIndex, cache);
   const a = getWinnerOfBranch(participants, round - 1, startIndex + step, cache);
   
-  // Bye logic
   if (!h && !a) {
     cache.set(key, null);
     return null;
@@ -90,8 +85,9 @@ export function getWinnerOfBranch(
     return h;
   }
 
-  const [scoreH, scoreA] = getMatchResult(h.id, a.id, round);
-  const winner = scoreH >= scoreA ? h : a; 
+  // Use Bo3 for Cup
+  const [scoreH, scoreA] = getMatchResult(h.id, a.id, round, true);
+  const winner = scoreH > scoreA ? h : a; 
   
   cache.set(key, winner);
   return winner;

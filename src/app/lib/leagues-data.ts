@@ -40,17 +40,26 @@ export const LEAGUES: LeagueOption[] = [
 
 /**
  * Deterministic match result based on team IDs and day.
- * Returns score strictly as [2, 0] (Win), [1, 1] (Draw), or [0, 2] (Loss)
+ * Supports Bo2 (League) and Bo3 (Cup)
  */
-export function getMatchResult(homeId: string, awayId: string, day: number): [number, number] {
+export function getMatchResult(homeId: string, awayId: string, day: number, isBo3: boolean = false): [number, number] {
   const hId = homeId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const aId = awayId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const seed = (hId * 13) + (aId * 37) + (day * 7);
   const val = seed % 100;
   
-  if (val < 40) return [2, 0]; 
-  if (val < 70) return [1, 1]; 
-  return [0, 2]; 
+  if (isBo3) {
+    // Bo3 (Cup): 2:0, 2:1, 1:2, 0:2. No Draws.
+    if (val < 30) return [2, 0]; 
+    if (val < 50) return [2, 1]; 
+    if (val < 70) return [1, 2]; 
+    return [0, 2];
+  } else {
+    // Bo2 (League): 2:0, 1:1, 0:2
+    if (val < 40) return [2, 0]; 
+    if (val < 70) return [1, 1]; 
+    return [0, 2]; 
+  }
 }
 
 export function getSchedule(teams: any[]) {
@@ -169,7 +178,7 @@ export function getMockGroupTeams(
         
         if (!home || !away) return;
 
-        const [hScore, aScore] = getMatchResult(home.id, away.id, d);
+        const [hScore, aScore] = getMatchResult(home.id, away.id, d, false);
         applyResult(home, away, hScore, aScore);
       });
     }
@@ -180,16 +189,16 @@ export function getMockGroupTeams(
 }
 
 export function applyResult(home: any, away: any, hScore: number, aScore: number) {
-  if (hScore === 2 && aScore === 0) {
+  if (hScore > aScore) {
     home.wins++;
     home.points += 3;
     away.losses++;
-  } else if (hScore === 1 && aScore === 1) {
+  } else if (hScore === aScore) {
     home.draws++;
     home.points += 1;
     away.draws++;
     away.points += 1;
-  } else if (aScore === 2 && hScore === 0) {
+  } else if (aScore > hScore) {
     away.wins++;
     away.points += 3;
     home.losses++;
