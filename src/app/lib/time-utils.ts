@@ -82,10 +82,9 @@ export function isMatchDue(startTimeStr: string, lastMatchDateStr: string | null
 }
 
 /**
- * Calculates the Pyramid Cup match time (League Start + 12 hours)
+ * Calculates the Pyramid Cup match time (Fixed at 07:00 MSK for all)
  */
-export function getPyramidCupTime(leagueStartTime: string): string {
-  const [h, m] = leagueStartTime.split(':').map(Number);
-  const cupHour = (h + 12) % 24;
-  return `${String(cupHour).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`;
+export function getPyramidCupTime(leagueStartTime?: string): string {
+  // Disregard leagueStartTime, user requested fixed 07:00 finish for Cup
+  return "07:00";
 }

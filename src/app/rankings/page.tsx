@@ -22,7 +22,7 @@ import { getMockGroupTeams, LEAGUES, getMatchResult } from '../lib/leagues-data'
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { getMoscowDateString, getPyramidCupTime } from '../lib/time-utils';
+import { getMoscowDateString, getPyramidCupTime, getMoscowTime } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant, getEntryRound } from '../lib/cup-utils';
 import {
@@ -77,8 +77,7 @@ export default function RankingsPage() {
 
   const league = useMemo(() => LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0], [profile?.selectedLeagueId]);
   const isTodayPlayed = useMemo(() => lastLeagueMatchDate === getMoscowDateString(), [lastLeagueMatchDate]);
-  const isCupTodayPlayed = useMemo(() => lastCupMatchDate === getMoscowDateString(), [lastCupMatchDate]);
-
+  
   const winnersCache = useRef<Map<string, CupParticipant | null>>(new Map());
 
   const cupParticipants = useMemo(() => {
@@ -86,12 +85,14 @@ export default function RankingsPage() {
     return getGlobalCupParticipants(allLeaguePlayers, seasonNumber);
   }, [isLoaded, allLeaguePlayers, seasonNumber]);
 
-  // Determine current day for results
+  // Cup specific logic: Results are final after 07:00 MSK
   const effectiveDayForCup = useMemo(() => {
-    return isCupTodayPlayed ? seasonDay : Math.max(0, seasonDay - 1);
-  }, [seasonDay, isCupTodayPlayed]);
+    const mskNow = getMoscowTime();
+    const isCupPassedToday = mskNow.getHours() >= 7;
+    return isCupPassedToday ? seasonDay : Math.max(0, seasonDay - 1);
+  }, [seasonDay]);
 
-  const activeRoundToShow = selectedRound !== null ? selectedRound : Math.min(13, seasonDay === 0 ? 0 : seasonDay - 1);
+  const activeRoundToShow = selectedRound !== null ? selectedRound : Math.min(13, effectiveDayForCup === 0 ? 0 : effectiveDayForCup - 1);
 
   const cupMatches = useMemo(() => {
     if (cupParticipants.length === 0) return [];
@@ -105,20 +106,16 @@ export default function RankingsPage() {
     const matches = [];
     for (let m = 0; m < totalMatches; m++) {
       const matchStartIdx = m * participantsPerMatch;
-      // We look for winners of the PREVIOUS round to see who is playing in THIS round
       const h = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx, winnersCache.current, effectiveDayForCup);
       const a = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx + step, winnersCache.current, effectiveDayForCup);
       
-      // If even participants are unknown (TBD), and it's not a round 1, we still show the pair as TBD
       if (!h && !a && round > 1) {
-        // Skip showing completely empty branches unless it's a very high round or searching
         if (searchQuery.length < 3 && round < 8) continue;
       }
 
       const isMyMatch = h?.id === user?.uid || a?.id === user?.uid;
       const isPlayed = round <= effectiveDayForCup;
       
-      // Check if it's a real match or seeding
       let isRealMatch = false;
       if (h && a) {
         const hEntry = getEntryRound(h.level);
@@ -182,7 +179,7 @@ export default function RankingsPage() {
       remainingTeams: "Teams in game",
       roundLabel: "Tournament Stage",
       seeded: "SEEDED / WAITING",
-      tbd: "TBD (AWATING ROUND)",
+      tbd: "TBD (AWAITING ROUND)",
       reportTitle: "MATCH DOSSIER",
       reportDesc: "Tactical data reconstruction for",
       summary: "Strategic Summary",
@@ -228,7 +225,7 @@ export default function RankingsPage() {
   };
 
   const t = labels[language as keyof typeof labels] || labels.ru;
-  const cupTime = getPyramidCupTime(league.startTime);
+  const cupTime = "07:00"; // Fixed Cup time
 
   const handleOpenReport = (match: any) => {
     if (!match.isPlayed || !match.isRealMatch) return;
@@ -342,7 +339,7 @@ export default function RankingsPage() {
                 
                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                   {t.rounds.map((r, i) => {
-                    const isFuture = i > effectiveDayForCup;
+                    const isFuture = i > (effectiveDayForCup === 0 ? 0 : effectiveDayForCup - 1);
                     return (
                       <Button 
                         key={i} 

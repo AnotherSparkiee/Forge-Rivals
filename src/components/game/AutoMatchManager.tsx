@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { isMatchDue, getMoscowDateString, getGlobalSeasonInfo, getPyramidCupTime } from '@/app/lib/time-utils';
+import { isMatchDue, getMoscowDateString, getGlobalSeasonInfo, getPyramidCupTime, getMoscowTime } from '@/app/lib/time-utils';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '@/app/lib/leagues-data';
 import { INITIAL_HEROES } from '@/app/lib/moba-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
@@ -83,12 +83,10 @@ export function AutoMatchManager() {
     }
   }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, isSimulating]);
 
-  // 2. Pyramid Cup Simulation (Bo3)
+  // 2. Pyramid Cup Simulation (Bo3) - Fixed to 07:00 MSK
   useEffect(() => {
     if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !cupSimulationRef.current && !isUserLoading && profile?.selectedLeagueId && user && allLeaguePlayers) {
-      const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
-      const leagueTime = league?.startTime || '23:00';
-      const cupTime = getPyramidCupTime(leagueTime);
+      const cupTime = "07:00"; 
       
       const catchUpCup = async () => {
         for (let d = 1; d <= seasonDay; d++) {
@@ -185,10 +183,8 @@ export function AutoMatchManager() {
       const myIdx = participants.findIndex(p => p?.id === user.uid);
       if (myIdx === -1) throw new Error("User not in cup participants");
 
-      // Check if user has entered the tournament yet
       const entryRound = getEntryRound(profile.leagueLevel);
       if (targetDay <= entryRound) {
-        // Just record a progression (seeded)
         const seededResult = {
           scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
           matchSummary: "Seeded progression. No match required for this round.",
@@ -202,16 +198,19 @@ export function AutoMatchManager() {
         return;
       }
 
+      // Results strictly after 07:00 MSK
+      const mskNow = getMoscowTime();
+      const effectiveLimit = mskNow.getHours() >= 7 ? seasonDay : Math.max(0, seasonDay - 1);
+      
       winnersCache.current.clear();
       const step = Math.pow(2, targetDay - 1);
       const myBranchStart = Math.floor(myIdx / step) * step;
       const oppBranchStart = myBranchStart ^ step;
       
-      // We need winners of the previous round to determine today's opponent
+      // We determine today's opponent based on yesterday's winners
       const opponent = getWinnerOfBranch(participants, targetDay - 1, oppBranchStart, winnersCache.current, targetDay - 1);
       
       if (!opponent) {
-        // Automatic progression due to empty branch or TBD
         const waitResult = {
           scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
           matchSummary: "Waiting for qualifiers. Automatic progression.",
