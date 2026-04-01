@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -169,9 +168,9 @@ export default function RankingsPage() {
     en: {
       title: "TOURNAMENT TABLES",
       rounds: [
-        "1/8192 Round", "1/4096 Round", "1/2048 Round", "1/1024 Round", 
-        "1/512 Round", "1/256 Round", "1/128 Round", "1/64 Round", 
-        "1/32 Round", "1/16 Round", "1/8 Round", "Quarter-Finals", 
+        "Round 1", "Round 2", "Round 3", "Round 4", 
+        "Round 5", "Round 6", "Round 7", "Round 8", 
+        "Round 9", "Round 10", "Round 11", "Quarter-Finals", 
         "Semi-Finals", "Grand Final"
       ],
       bracketTitle: "Global Bracket Review",
@@ -197,9 +196,9 @@ export default function RankingsPage() {
     ru: {
       title: "ТУРНИРНЫЕ ТАБЛИЦЫ",
       rounds: [
-        "Раунд 1/8192", "Раунд 1/4096", "Раунд 1/2048", "Раунд 1/1024", 
-        "Раунд 1/512", "Раунд 1/256", "Раунд 1/128", "1/64 финала", 
-        "1/32 финала", "1/16 финала", "1/8 финала", "Четвертьфинал", 
+        "Раунд 1", "Раунд 2", "Раунд 3", "Раунд 4", 
+        "Раунд 5", "Раунд 6", "Раунд 7", "Раунд 8", 
+        "Раунд 9", "Раунд 10", "Раунд 11", "Четвертьфинал", 
         "Полуфинал", "Гранд Финал"
       ],
       bracketTitle: "Обзор всех пар турнира",
