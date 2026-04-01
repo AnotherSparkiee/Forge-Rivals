@@ -65,17 +65,17 @@ export function BottomNav() {
         </div>
 
         {/* Center: Team Identity + Server Time */}
-        <div className="flex flex-col items-center justify-center gap-1.5">
-           {/* Identity Line */}
-           <div className="flex items-center gap-1.5 max-w-[140px] px-2 py-0.5 rounded-full bg-primary/5 border border-primary/10">
-             <span className="text-xs" role="img" aria-label="flag">
+        <div className="flex flex-col items-center justify-center gap-1">
+           {/* Identity Line - Cleaned up and enlarged */}
+           <div className="flex items-center gap-2 mb-0.5">
+             <span className="text-sm" role="img" aria-label="flag">
                {userCountry?.flag || '🏳️'}
              </span>
-             <span className="text-[9px] font-black text-primary uppercase truncate tracking-tighter">
+             <span className="text-[11px] font-black text-primary uppercase tracking-tighter">
                {profile?.displayName || 'Syncing...'}
              </span>
              {isSyncing && (
-               <Radio className="w-2 h-2 text-accent animate-pulse" />
+               <Radio className="w-2.5 h-2.5 text-accent animate-pulse" />
              )}
            </div>
 
