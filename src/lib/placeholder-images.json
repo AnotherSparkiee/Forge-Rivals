@@ -29,6 +29,12 @@
       "description": "Ukrainian professional player portrait v1",
       "imageUrl": "https://i.postimg.cc/X7fs4pYn/ua-1.jpg",
       "imageHint": "priestess light"
+    },
+    {
+      "id": "hero-sub-br",
+      "description": "Brazilian professional player portrait v1",
+      "imageUrl": "https://i.postimg.cc/Z5906yvS/br-1.jpg",
+      "imageHint": "brazilian gamer"
     }
   ]
 }

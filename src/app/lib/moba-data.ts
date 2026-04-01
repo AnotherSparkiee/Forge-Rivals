@@ -158,7 +158,7 @@ export const INITIAL_HEROES: Hero[] = [
     baseStats: { attack: 78, defense: 35, health: 850, abilityPower: 15, speed: 330 },
     overallRating: 33,
     abilitiesFocus: 'Burst Damage',
-    image: 'https://picsum.photos/seed/sub1/400/600',
+    image: 'https://i.postimg.cc/Z5906yvS/br-1.jpg',
     description: 'A versatile substitute with high damage potential.',
     price: 0,
     age: 22,
