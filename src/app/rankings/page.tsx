@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -91,7 +90,7 @@ export default function RankingsPage() {
     for (let m = 0; m < totalMatches; m++) {
       const matchStartIdx = m * participantsPerMatch;
       const h = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx, winnersCache.current);
-      const a = getWinnerOfBranch(cupParticipants, round - 1, startIndex + step, winnersCache.current);
+      const a = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx + step, winnersCache.current);
       
       if (!h && !a) continue; // Skip empty matches
 
