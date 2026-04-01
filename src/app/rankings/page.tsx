@@ -47,7 +47,7 @@ export default function RankingsPage() {
   const router = useRouter();
   const { 
     rank, leagueLevel, divisionSubId, groupId, isLoaded, language, 
-    lastLeagueMatchDate, seasonDay, seasonNumber, matchHistory
+    lastLeagueMatchDate, lastCupMatchDate, seasonDay, seasonNumber, matchHistory
   } = useGameState();
   const db = useFirestore();
   
@@ -77,6 +77,7 @@ export default function RankingsPage() {
 
   const league = useMemo(() => LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0], [profile?.selectedLeagueId]);
   const isTodayPlayed = useMemo(() => lastLeagueMatchDate === getMoscowDateString(), [lastLeagueMatchDate]);
+  const isCupTodayPlayed = useMemo(() => lastCupMatchDate === getMoscowDateString(), [lastCupMatchDate]);
 
   const winnersCache = useRef<Map<string, CupParticipant | null>>(new Map());
 
@@ -85,8 +86,12 @@ export default function RankingsPage() {
     return getGlobalCupParticipants(allLeaguePlayers, seasonNumber);
   }, [isLoaded, allLeaguePlayers, seasonNumber]);
 
-  const currentRoundIdx = Math.min(13, Math.max(0, seasonDay - 1));
-  const activeRoundToShow = selectedRound !== null ? selectedRound : currentRoundIdx;
+  // Determine current day for results
+  const effectiveDayForCup = useMemo(() => {
+    return isCupTodayPlayed ? seasonDay : Math.max(0, seasonDay - 1);
+  }, [seasonDay, isCupTodayPlayed]);
+
+  const activeRoundToShow = selectedRound !== null ? selectedRound : Math.min(13, seasonDay === 0 ? 0 : seasonDay - 1);
 
   const cupMatches = useMemo(() => {
     if (cupParticipants.length === 0) return [];
@@ -100,27 +105,27 @@ export default function RankingsPage() {
     const matches = [];
     for (let m = 0; m < totalMatches; m++) {
       const matchStartIdx = m * participantsPerMatch;
-      const h = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx, winnersCache.current);
-      const a = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx + step, winnersCache.current);
+      // We look for winners of the PREVIOUS round to see who is playing in THIS round
+      const h = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx, winnersCache.current, effectiveDayForCup);
+      const a = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx + step, winnersCache.current, effectiveDayForCup);
       
-      if (!h && !a) continue;
-
-      const isMyMatch = h?.id === user?.uid || a?.id === user?.uid;
-      
-      // Determine if this is a REAL match or just a seeded progression
-      // A real match happens if BOTH teams have reached their entry round
-      const hEntry = h ? getEntryRound(h.level) : 99;
-      const aEntry = a ? getEntryRound(a.level) : 99;
-      const isRealMatch = round > hEntry && round > aEntry;
-      
-      // If it's not a real match, only show if one team is "advancing"
-      if (!isRealMatch && (!h || !a)) {
-         // Skip showing lone seeded teams unless it's the user's branch
-         if (!isMyMatch && searchQuery.length < 3) continue;
+      // If even participants are unknown (TBD), and it's not a round 1, we still show the pair as TBD
+      if (!h && !a && round > 1) {
+        // Skip showing completely empty branches unless it's a very high round or searching
+        if (searchQuery.length < 3 && round < 8) continue;
       }
 
-      const isPlayed = round <= currentRoundIdx || (round === currentRoundIdx + 1 && isTodayPlayed);
+      const isMyMatch = h?.id === user?.uid || a?.id === user?.uid;
+      const isPlayed = round <= effectiveDayForCup;
       
+      // Check if it's a real match or seeding
+      let isRealMatch = false;
+      if (h && a) {
+        const hEntry = getEntryRound(h.level);
+        const aEntry = getEntryRound(a.level);
+        isRealMatch = round > hEntry && round > aEntry;
+      }
+
       let sH = 0;
       let sA = 0;
       if (isPlayed && isRealMatch && h && a) {
@@ -154,7 +159,7 @@ export default function RankingsPage() {
     }
     
     return matches.sort((a, b) => (a.isMyMatch ? -1 : b.isMyMatch ? 1 : 0));
-  }, [cupParticipants, activeRoundToShow, searchQuery, user?.uid, currentRoundIdx, isTodayPlayed]);
+  }, [cupParticipants, activeRoundToShow, searchQuery, user?.uid, effectiveDayForCup]);
 
   const paginatedMatches = useMemo(() => {
     const start = cupPage * MATCHES_PER_PAGE;
@@ -177,6 +182,7 @@ export default function RankingsPage() {
       remainingTeams: "Teams in game",
       roundLabel: "Tournament Stage",
       seeded: "SEEDED / WAITING",
+      tbd: "TBD (AWATING ROUND)",
       reportTitle: "MATCH DOSSIER",
       reportDesc: "Tactical data reconstruction for",
       summary: "Strategic Summary",
@@ -204,6 +210,7 @@ export default function RankingsPage() {
       remainingTeams: "Команд в игре",
       roundLabel: "Стадия турнира",
       seeded: "ПОСЕВ / ОЖИДАНИЕ",
+      tbd: "TBD (ОЖИДАНИЕ РАУНДА)",
       reportTitle: "ОТЧЕТ О МАТЧЕ",
       reportDesc: "Реконструкция тактических данных для",
       summary: "Сводка стратегий",
@@ -334,19 +341,23 @@ export default function RankingsPage() {
                 </h3>
                 
                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                  {t.rounds.map((r, i) => (
-                    <Button 
-                      key={i} 
-                      variant="outline" 
-                      onClick={() => { setSelectedRound(i); setCupPage(0); }}
-                      className={cn(
-                        "h-8 px-3 text-[8px] font-black uppercase whitespace-nowrap border-white/5",
-                        activeRoundToShow === i ? "bg-accent text-accent-foreground border-accent" : "bg-secondary/30 text-muted-foreground"
-                      )}
-                    >
-                      {r}
-                    </Button>
-                  ))}
+                  {t.rounds.map((r, i) => {
+                    const isFuture = i > effectiveDayForCup;
+                    return (
+                      <Button 
+                        key={i} 
+                        variant="outline" 
+                        onClick={() => { setSelectedRound(i); setCupPage(0); }}
+                        className={cn(
+                          "h-8 px-3 text-[8px] font-black uppercase whitespace-nowrap border-white/5",
+                          activeRoundToShow === i ? "bg-accent text-accent-foreground border-accent" : "bg-secondary/30 text-muted-foreground",
+                          isFuture && "opacity-50 grayscale"
+                        )}
+                      >
+                        {r}
+                      </Button>
+                    );
+                  })}
                 </div>
 
                 <Input 
@@ -375,9 +386,9 @@ export default function RankingsPage() {
                         <div className="flex-1 min-w-0 space-y-2">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 min-w-0">
-                              <div className={cn("w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0", pair.isMyMatch && "animate-pulse")} />
-                              <span className={cn("text-[10px] font-bold uppercase truncate", pair.isMyMatch && pair.home?.id === user?.uid && "text-accent")}>
-                                {pair.home ? pair.home.name : t.seeded}
+                              <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", pair.home ? "bg-blue-400" : "bg-muted-foreground/30", pair.isMyMatch && pair.home?.id === user?.uid && "animate-pulse")} />
+                              <span className={cn("text-[10px] font-bold uppercase truncate", pair.isMyMatch && pair.home?.id === user?.uid ? "text-accent" : (pair.home ? "text-white" : "text-muted-foreground/40"))}>
+                                {pair.home ? pair.home.name : t.tbd}
                               </span>
                               {pair.home && <Badge variant="outline" className="text-[6px] h-3 px-1 py-0 border-white/10 opacity-60">DIV {pair.home.level}</Badge>}
                               {pair.home?.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
@@ -392,9 +403,9 @@ export default function RankingsPage() {
 
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 min-w-0">
-                              <div className={cn("w-1.5 h-1.5 rounded-full bg-red-400 shrink-0")} />
-                              <span className={cn("text-[10px] font-bold uppercase truncate opacity-80", pair.isMyMatch && pair.away?.id === user?.uid && "text-accent")}>
-                                {pair.away ? pair.away.name : t.seeded}
+                              <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", pair.away ? "bg-red-400" : "bg-muted-foreground/30")} />
+                              <span className={cn("text-[10px] font-bold uppercase truncate opacity-80", pair.isMyMatch && pair.away?.id === user?.uid ? "text-accent" : (pair.away ? "text-white" : "text-muted-foreground/40"))}>
+                                {pair.away ? pair.away.name : t.tbd}
                               </span>
                               {pair.away && <Badge variant="outline" className="text-[6px] h-3 px-1 py-0 border-white/10 opacity-60">DIV {pair.away.level}</Badge>}
                               {pair.away?.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
@@ -402,7 +413,7 @@ export default function RankingsPage() {
                           </div>
                         </div>
                         <div className="w-24 flex flex-col items-center justify-center border-l border-white/5 pl-2 gap-1 text-center shrink-0">
-                          {pair.isPlayed && pair.isRealMatch ? (
+                          {pair.isPlayed && pair.isRealMatch && pair.home && pair.away ? (
                             <div className="flex flex-col items-center gap-1">
                               <div className="flex items-center gap-1.5 text-lg font-headline font-black italic">
                                 <span className={cn(pair.scoreH > pair.scoreA ? "text-primary" : "text-muted-foreground")}>{pair.scoreH}</span>
@@ -414,7 +425,7 @@ export default function RankingsPage() {
                                 <span className="text-[7px] font-black uppercase text-accent">REPORT</span>
                               </div>
                             </div>
-                          ) : !pair.isRealMatch ? (
+                          ) : (pair.isPlayed && (pair.home || pair.away)) ? (
                             <div className="flex flex-col items-center opacity-40">
                               <Zap className="w-4 h-4 text-muted-foreground" />
                               <span className="text-[6px] font-black uppercase mt-1">SEEDED ENTRY</span>

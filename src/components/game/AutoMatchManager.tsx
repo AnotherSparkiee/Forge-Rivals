@@ -207,10 +207,11 @@ export function AutoMatchManager() {
       const myBranchStart = Math.floor(myIdx / step) * step;
       const oppBranchStart = myBranchStart ^ step;
       
-      const opponent = getWinnerOfBranch(participants, targetDay - 1, oppBranchStart, winnersCache.current);
+      // We need winners of the previous round to determine today's opponent
+      const opponent = getWinnerOfBranch(participants, targetDay - 1, oppBranchStart, winnersCache.current, targetDay - 1);
       
-      // If no real opponent in the branch yet, it's an automatic progression (but shouldn't happen with entry logic)
       if (!opponent) {
+        // Automatic progression due to empty branch or TBD
         const waitResult = {
           scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
           matchSummary: "Waiting for qualifiers. Automatic progression.",

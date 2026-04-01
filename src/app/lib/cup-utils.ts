@@ -19,13 +19,11 @@ export function getEntryRound(level: number): number {
 
 /**
  * Generates the full list of participants for the global cup.
- * Uses strict Power-of-2 spacing to ensure high-division teams skip early rounds.
  */
 export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: number): (CupParticipant | null)[] {
   const TOTAL_SLOTS = 16384;
   const fullList: (CupParticipant | null)[] = Array(TOTAL_SLOTS).fill(null);
   
-  // Collect all teams from the pyramid (511 groups * 8 teams = 4088 teams)
   const allTeams: CupParticipant[] = [];
   for (let lvl = 1; lvl <= 9; lvl++) {
     const groupsInDiv = Math.pow(2, lvl - 1);
@@ -48,7 +46,7 @@ export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: numbe
     }
   }
 
-  // Deterministic Shuffle based on season
+  // Deterministic Seed based on season
   const seed = seasonNumber;
   const shuffledTeams = [...allTeams].sort((a, b) => a.id.localeCompare(b.id));
   for (let i = shuffledTeams.length - 1; i > 0; i--) {
@@ -56,19 +54,10 @@ export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: numbe
     [shuffledTeams[i], shuffledTeams[j]] = [shuffledTeams[j], shuffledTeams[i]];
   }
 
-  /**
-   * SEEDING LOGIC:
-   * We place teams in the 16384 grid based on their entry round.
-   * Div 9 (Level 9) enters Round 0: Step 2 (8192 possible positions)
-   * Div 1 (Level 1) enters Round 8: Step 256 (64 possible positions)
-   */
   const usedIndices = new Set<number>();
-
   shuffledTeams.forEach((team) => {
     const entryRound = getEntryRound(team.level);
     const step = Math.pow(2, entryRound + 1);
-    
-    // Find first available slot matching the step requirement
     for (let i = 0; i < TOTAL_SLOTS; i += step) {
       if (!usedIndices.has(i)) {
         fullList[i] = team;
@@ -83,46 +72,46 @@ export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: numbe
 
 /**
  * Recursively determines the winner of a specific branch in the tournament tree.
- * Teams only "exist" in the tree once they reach their entry round.
+ * Respects the currentDay limit to prevent showing future results.
  */
 export function getWinnerOfBranch(
   participants: (CupParticipant | null)[], 
   round: number, 
   startIndex: number, 
-  cache: Map<string, CupParticipant | null>
+  cache: Map<string, CupParticipant | null>,
+  limitDay: number // Results only known up to this day
 ): CupParticipant | null {
   const key = `${startIndex}-${round}`;
   if (cache.has(key)) return cache.get(key)!;
   
   if (round === 0) return participants[startIndex] || null;
   
+  // A winner of round R is only known if limitDay >= R
+  if (round > limitDay) return null;
+  
   const step = Math.pow(2, round - 1);
-  const h = getWinnerOfBranch(participants, round - 1, startIndex, cache);
-  const a = getWinnerOfBranch(participants, round - 1, startIndex + step, cache);
+  const h = getWinnerOfBranch(participants, round - 1, startIndex, cache, limitDay);
+  const a = getWinnerOfBranch(participants, round - 1, startIndex + step, cache, limitDay);
   
   if (!h && !a) {
     cache.set(key, null);
     return null;
   }
   
-  // If only one team exists, they win by default (Progression without match)
   if (!h) { cache.set(key, a); return a; }
   if (!a) { cache.set(key, h); return h; }
 
-  // MATCH LOGIC:
-  // Both must have reached the current round according to their division seed
   const hEntry = getEntryRound(h.level);
   const aEntry = getEntryRound(a.level);
 
-  // A real match only happens if we are at or past the entry round for BOTH
-  // Otherwise, the seeded team just waits/advances
+  // If both teams are still in their seeding phase, they both "advance"
+  // but only return one as the branch representative.
   if (round <= hEntry && round <= aEntry) {
-    // Both are seeded/waiting, just return one (they don't meet yet)
     cache.set(key, h); 
     return h;
   }
 
-  // If we are here, at least one team has "entered" the bracket and they finally meet
+  // Real match
   const [scoreH, scoreA] = getMatchResult(h.id, a.id, round, true);
   const winner = scoreH > scoreA ? h : a; 
   
