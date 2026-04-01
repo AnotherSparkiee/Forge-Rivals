@@ -92,7 +92,7 @@ export const INITIAL_HEROES: Hero[] = [
     baseStats: { attack: 25, defense: 25, health: 850, abilityPower: 95, speed: 310 },
     overallRating: 36,
     abilitiesFocus: 'Burst Damage',
-    image: 'https://picsum.photos/seed/mage1/400/600',
+    image: 'https://i.postimg.cc/wvzKxSYS/1755011442109.jpg',
     description: 'Masters of spells and map control.',
     price: 0,
     age: 21,
