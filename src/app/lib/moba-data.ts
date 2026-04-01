@@ -70,7 +70,7 @@ export const INITIAL_HEROES: Hero[] = [
     baseStats: { attack: 85, defense: 30, health: 800, abilityPower: 20, speed: 340 },
     overallRating: 38,
     abilitiesFocus: 'Aggressive',
-    image: 'https://picsum.photos/seed/carry1/400/600',
+    image: 'https://i.postimg.cc/43mv7dsH/kr-1.jpg',
     description: 'Deals massive physical damage from afar.',
     price: 0,
     age: 19,

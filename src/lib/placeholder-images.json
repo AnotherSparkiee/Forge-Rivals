@@ -8,9 +8,9 @@
     },
     {
       "id": "hero-carry",
-      "description": "A swift archer with glowing arrows",
-      "imageUrl": "https://picsum.photos/seed/carry1/400/600",
-      "imageHint": "fantasy archer"
+      "description": "Korean professional player portrait v1",
+      "imageUrl": "https://i.postimg.cc/43mv7dsH/kr-1.jpg",
+      "imageHint": "carry gamer"
     },
     {
       "id": "hero-mage",
@@ -26,8 +26,8 @@
     },
     {
       "id": "hero-support",
-      "description": "A celestial priestess with a staff",
-      "imageUrl": "https://picsum.photos/seed/support1/400/600",
+      "description": "Ukrainian professional player portrait v1",
+      "imageUrl": "https://i.postimg.cc/X7fs4pYn/ua-1.jpg",
       "imageHint": "priestess light"
     }
   ]
