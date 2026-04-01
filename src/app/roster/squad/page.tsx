@@ -15,7 +15,7 @@ import {
   Dumbbell
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Hero } from '../../lib/moba-data';
+import { Hero } from '../../moba-data';
 import Link from 'next/link';
 import {
   Dialog,
@@ -163,7 +163,7 @@ export default function SquadPage() {
         <CardContent className="p-3 flex items-center gap-4 relative">
           <div className="relative flex-shrink-0">
             <div className={cn(
-              "w-12 h-12 rounded-full border flex items-center justify-center bg-secondary/50 overflow-hidden transition-all",
+              "w-12 h-12 rounded-xl border flex items-center justify-center bg-secondary/50 overflow-hidden transition-all",
               hero ? "border-primary/50" : "border-dashed border-muted",
               isSelected && "border-primary"
             )}>
@@ -310,7 +310,7 @@ export default function SquadPage() {
                     onClick={() => handleHeroAssign(hero.id)}
                   >
                     <CardContent className="p-2 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-muted flex-shrink-0">
                         <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
                       </div>
                       
