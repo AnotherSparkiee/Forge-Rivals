@@ -168,6 +168,17 @@ export default function LoginPage() {
 
       if (!userSnap.exists()) {
         const uniqueSquad = getRandomStartingSquad();
+        
+        const initialLineup = {
+          offlane: uniqueSquad[0].id,
+          carry: uniqueSquad[1].id,
+          mid: uniqueSquad[2].id,
+          support: uniqueSquad[3].id,
+          full_support: uniqueSquad[4].id,
+          sub1: uniqueSquad[5].id,
+          sub2: uniqueSquad[6].id
+        };
+
         const profileData = {
           id: user.uid,
           displayName: user.displayName || `Manager_${user.uid.slice(0, 5)}`,
@@ -179,6 +190,7 @@ export default function LoginPage() {
           createdAt: new Date().toISOString(),
           ownedHeroes: uniqueSquad,
           ownedHeroIds: uniqueSquad.map(h => h.id),
+          lineup: initialLineup,
           leagueLevel: 9,
           divisionSubId: 1,
           groupId: 1,

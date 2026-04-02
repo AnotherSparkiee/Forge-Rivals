@@ -59,31 +59,40 @@ function getRandomStat(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-export function generateUniqueHero(role: Role, index: number): Hero {
+export function generateUniqueHero(role: Role, index: number, isStarter: boolean = false): Hero {
   const codes = Object.keys(COUNTRY_PHOTOS);
   const code = codes[Math.floor(Math.random() * codes.length)];
   const country = COUNTRY_PHOTOS[code];
   const name = `${HERO_NAMES[Math.floor(Math.random() * HERO_NAMES.length)]} ${index + 1}`;
   
+  // Adjusted ranges for starters to hit 29-38 overall rating
   const baseStats = {
-    attack: role === 'Carry' || role === 'Jungler' ? getRandomStat(70, 95) : getRandomStat(20, 50),
-    defense: role === 'Tank' ? getRandomStat(80, 100) : getRandomStat(20, 50),
-    health: role === 'Tank' ? getRandomStat(1400, 1800) : getRandomStat(700, 1000),
-    abilityPower: role === 'Midlaner' || role === 'Support' ? getRandomStat(60, 110) : getRandomStat(0, 30),
+    attack: role === 'Carry' || role === 'Jungler' 
+      ? getRandomStat(isStarter ? 55 : 70, isStarter ? 75 : 95) 
+      : getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 50),
+    defense: role === 'Tank' 
+      ? getRandomStat(isStarter ? 65 : 80, isStarter ? 85 : 100) 
+      : getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 50),
+    health: role === 'Tank' 
+      ? getRandomStat(isStarter ? 1100 : 1400, isStarter ? 1400 : 1800) 
+      : getRandomStat(isStarter ? 600 : 700, isStarter ? 850 : 1000),
+    abilityPower: role === 'Midlaner' || role === 'Support' 
+      ? getRandomStat(isStarter ? 55 : 60, isStarter ? 85 : 110) 
+      : getRandomStat(0, 30),
     speed: getRandomStat(250, 360)
   };
 
   const proStats = {
-    lastHitting: getRandomStat(40, 98),
-    mapAwareness: getRandomStat(40, 98),
-    positioning: getRandomStat(40, 98),
-    reflexes: getRandomStat(40, 98),
-    manaManagement: getRandomStat(40, 98),
-    objectiveControl: getRandomStat(40, 98),
-    communication: getRandomStat(40, 98),
-    tiltResistance: getRandomStat(40, 98),
-    versatility: getRandomStat(40, 98),
-    ganking: getRandomStat(40, 98),
+    lastHitting: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
+    mapAwareness: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
+    positioning: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
+    reflexes: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
+    manaManagement: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
+    objectiveControl: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
+    communication: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
+    tiltResistance: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
+    versatility: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
+    ganking: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
   };
 
   const overall = Math.round(Object.values(proStats).reduce((a, b) => a + b, 0) / 10 * 0.4 + (baseStats.attack + baseStats.defense) / 4);
@@ -99,7 +108,7 @@ export function generateUniqueHero(role: Role, index: number): Hero {
     description: `A unique talent from ${country.name}.`,
     price: 0,
     age: getRandomStat(17, 28),
-    talent: getRandomStat(3, 5),
+    talent: isStarter ? getRandomStat(3, 4) : getRandomStat(3, 5),
     salary: getRandomStat(2000, 8000),
     form: getRandomStat(70, 95),
     fatigue: 0,
@@ -110,8 +119,9 @@ export function generateUniqueHero(role: Role, index: number): Hero {
 }
 
 export function getRandomStartingSquad(): Hero[] {
+  // Ordered to match lineup slots: 5 active, 2 subs
   const roles: Role[] = ['Tank', 'Carry', 'Midlaner', 'Jungler', 'Support', 'Carry', 'Tank'];
-  return roles.map((role, i) => generateUniqueHero(role, i));
+  return roles.map((role, i) => generateUniqueHero(role, i, true));
 }
 
 // Fallback initial heroes for existing sessions

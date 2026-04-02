@@ -94,8 +94,20 @@ export default function RegisterPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Generate randomized squad for the new user
+      // Generate randomized squad for the new user (Targets 29-38 team rating)
       const uniqueSquad = getRandomStartingSquad();
+      
+      // Auto-assign heroes to lineup slots based on their order in uniqueSquad
+      // getRandomStartingSquad returns roles in specific order for this purpose
+      const initialLineup = {
+        offlane: uniqueSquad[0].id,      // Tank
+        carry: uniqueSquad[1].id,        // Carry
+        mid: uniqueSquad[2].id,          // Midlaner
+        support: uniqueSquad[3].id,      // Jungler (Pos 4)
+        full_support: uniqueSquad[4].id, // Support (Pos 5)
+        sub1: uniqueSquad[5].id,         // Extra Carry
+        sub2: uniqueSquad[6].id          // Extra Tank
+      };
 
       const profileData = {
         id: user.uid,
@@ -108,6 +120,7 @@ export default function RegisterPage() {
         createdAt: new Date().toISOString(),
         ownedHeroes: uniqueSquad,
         ownedHeroIds: uniqueSquad.map(h => h.id),
+        lineup: initialLineup,
         leagueLevel: 9,
         divisionSubId: 1,
         groupId: 1,
