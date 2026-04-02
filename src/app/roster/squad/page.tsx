@@ -412,6 +412,7 @@ export default function SquadPage() {
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto scrollbar-hide">
+                  {/* Header part starts here - it scrolls with the rest */}
                   <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 border-b border-white/5 flex flex-col items-center text-center gap-4">
                     <div className="relative">
                       <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-[0_0_30px_rgba(var(--primary),0.3)] bg-secondary/50">
@@ -481,7 +482,9 @@ export default function SquadPage() {
                       </h3>
                       <div className="space-y-5">
                         {Object.entries(profileHero.proStats).map(([key, value]) => {
+                          // Defensive check for proTalents existence
                           const talent = profileHero.proTalents ? (profileHero.proTalents as any)[key] : 3.0;
+                          
                           const icons: Record<string, any> = {
                             lastHitting: Target,
                             mapAwareness: Eye,

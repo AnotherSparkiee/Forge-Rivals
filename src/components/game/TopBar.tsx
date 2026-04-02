@@ -70,7 +70,7 @@ export function TopBar() {
             <span className="text-[10px]" role="img" aria-label="flag">
               {userCountry?.flag || '🏳️'}
             </span>
-            <span className="text-[9px] font-black text-primary uppercase tracking-tight whitespace-nowrap truncate max-w-[100px]">
+            <span className="text-[9px] font-black text-primary uppercase tracking-tight whitespace-nowrap truncate max-w-[120px]">
               {profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
             </span>
           </div>
