@@ -179,7 +179,7 @@ export default function PrivateMessagesPage() {
         </Button>
         <div>
           <h1 className="text-lg font-headline font-bold uppercase tracking-tighter leading-none">
-            {selectedChatId ? selectedChatName : t.title}
+            {t.title}
           </h1>
           <p className="text-muted-foreground text-[8px] uppercase tracking-widest mt-1">
             {selectedChatId ? `ID: ${selectedChatId.slice(0, 8)}` : t.subtitle}
@@ -255,10 +255,15 @@ export default function PrivateMessagesPage() {
                   isMe ? "ml-auto items-end" : "mr-auto items-start"
                 )}>
                   <div className="flex items-center gap-2 mb-1 px-1">
-                    <span className="text-[8px] text-muted-foreground font-mono">
+                    <span className={cn(
+                      "text-[10px] font-black uppercase tracking-tight",
+                      isMe ? "text-accent" : "text-primary"
+                    )}>
+                      {isMe ? t.you : msg.senderName}
+                    </span>
+                    <span className="text-[8px] text-muted-foreground font-mono opacity-50">
                       {msg.createdAt ? new Date(msg.createdAt.toMillis?.() || 0).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                     </span>
-                    {isMe && <span className="text-[8px] font-black text-accent uppercase">{t.you}</span>}
                   </div>
                   <div className={cn(
                     "px-4 py-2 rounded-2xl text-sm leading-relaxed border shadow-sm",
