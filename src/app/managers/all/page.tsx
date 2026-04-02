@@ -26,11 +26,12 @@ export default function AllManagersPage() {
   const { language, isLoaded } = useGameState();
   const [search, setSearch] = useState('');
 
+  // Сортировка по возрастанию даты: от старых к новым
   const managersQuery = useMemoFirebase(() => {
     return query(
       collection(db, 'players_v5'),
-      orderBy('createdAt', 'desc'),
-      limit(100)
+      orderBy('createdAt', 'asc'),
+      limit(200)
     );
   }, [db]);
 
