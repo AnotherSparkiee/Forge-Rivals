@@ -1,4 +1,3 @@
-
 export type Role = 'Tank' | 'Carry' | 'Support' | 'Midlaner' | 'Jungler';
 
 export interface Hero {

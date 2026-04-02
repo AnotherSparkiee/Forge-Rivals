@@ -48,7 +48,7 @@ export default function SquadPage() {
     profile: {
       title: language === 'ru' ? "ДОСЬЕ ИГРОКА" : "PLAYER DOSSIER",
       age: language === 'ru' ? "Возраст" : "Age",
-      talent: language === 'ru' ? "Талант" : "Talent",
+      talent: language === 'ru' ? "Пределы таланта" : "Talent Limits",
       salary: language === 'ru' ? "Зарплата" : "Salary",
       form: language === 'ru' ? "Форма" : "Form",
       fatigue: language === 'ru' ? "Усталость" : "Fatigue",
@@ -56,7 +56,7 @@ export default function SquadPage() {
       status: language === 'ru' ? "Статус" : "Status",
       healthy: language === 'ru' ? "Здоров" : "Healthy",
       injured: language === 'ru' ? "Травмирован" : "Injured",
-      stats: language === 'ru' ? "Профессиональные данные" : "Professional Data",
+      stats: language === 'ru' ? "Текущие навыки" : "Current Skills",
       years: language === 'ru' ? "лет" : "yrs",
     },
     proStatsLabels: {
@@ -395,7 +395,7 @@ export default function SquadPage() {
 
                 {/* Unified Scrolling Container */}
                 <div className="flex-1 overflow-y-auto scrollbar-hide pb-32">
-                  {/* Header info - Now inside scroll area */}
+                  {/* Header info - Scrolling part */}
                   <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 border-b border-white/5 flex flex-col items-center text-center gap-4">
                     <div className="relative">
                       <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-[0_0_30px_rgba(var(--primary),0.3)] bg-secondary/50">
@@ -432,6 +432,7 @@ export default function SquadPage() {
 
                   {/* Body Content */}
                   <div className="p-4 space-y-8">
+                    {/* Status Section */}
                     <section>
                       <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                         <Info className="w-3.5 h-3.5" /> BIOMETRICS & STATUS
@@ -465,6 +466,24 @@ export default function SquadPage() {
                       </div>
                     </section>
 
+                    {/* Talent Limits Section */}
+                    <section>
+                      <h3 className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                        <Sparkles className="w-3.5 h-3.5" /> {t.profile.talent}
+                      </h3>
+                      <div className="bg-secondary/20 p-4 rounded-xl border border-yellow-500/20 flex flex-col items-center gap-3">
+                        <div className="flex gap-1">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star key={i} className={cn("w-6 h-6", i < profileHero.talent ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground/20")} />
+                          ))}
+                        </div>
+                        <p className="text-[9px] text-center text-muted-foreground uppercase font-bold max-w-[200px] leading-relaxed">
+                          {language === 'ru' ? 'Этот предел определяет максимально возможный уровень развития навыков игрока.' : 'This limit defines the maximum possible level of the player\'s skill development.'}
+                        </p>
+                      </div>
+                    </section>
+
+                    {/* Pro Skills Section */}
                     <section>
                       <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                         <Award className="w-3.5 h-3.5" /> {t.profile.stats}
