@@ -4,7 +4,7 @@ import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@
 import { useGameState } from '@/app/lib/store';
 import { doc, collection, query, where } from 'firebase/firestore';
 import { Gem, Mail, Home, Radio } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+import { usePathname } from 'next/pathnames';
 import { useEffect, useMemo } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { COUNTRIES } from '@/app/lib/countries-data';
@@ -65,8 +65,8 @@ export function TopBar() {
       <div className="w-full max-w-lg mx-auto px-4 flex items-center justify-between gap-2">
         
         {/* Left: Team Identity & Connection */}
-        <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
-          <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-1.5">
             <span className="text-xs" role="img" aria-label="flag">
               {userCountry?.flag || '🏳️'}
             </span>
@@ -81,7 +81,6 @@ export function TopBar() {
 
         {/* Right: Tools & Balances */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* Home Icon */}
           <Link href="/">
             <div className={cn(
               itemBaseClass,
@@ -92,7 +91,6 @@ export function TopBar() {
             </div>
           </Link>
 
-          {/* Private Messages Icon */}
           <Link href="/chats/private">
             <div className={cn(
               itemBaseClass,
@@ -106,7 +104,6 @@ export function TopBar() {
             </div>
           </Link>
 
-          {/* Credits Balance */}
           <div className={cn(
             itemBaseClass,
             "px-2 rounded-full bg-primary/10 border-primary/20"
@@ -119,7 +116,6 @@ export function TopBar() {
             </span>
           </div>
           
-          {/* Crystals Balance */}
           <div className={cn(
             itemBaseClass,
             "px-2 rounded-full bg-accent/10 border-accent/20"

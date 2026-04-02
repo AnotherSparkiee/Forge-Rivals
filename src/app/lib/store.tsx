@@ -344,6 +344,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }, [state, isLoaded, getStorageKey, user]);
 
+  const setSyncing = useCallback((val: boolean) => {
+    setState(s => ({ ...s, isSyncing: val }));
+  }, []);
+
   const syncStats = useCallback((groupPlayers: any[]) => {
     if (!state.selectedLeagueId || !state.seasonDay || !user) return;
 
@@ -622,7 +626,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(s => {
       const newLineup = { ...s.lineup };
       if (heroId) {
-        // Exchange/Move logic: if hero is already assigned to a different slot, clear that slot
         Object.keys(newLineup).forEach(k => { 
           if (newLineup[k as LineupSlot] === heroId) newLineup[k as LineupSlot] = null; 
         });
@@ -694,8 +697,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(s => ({ ...s, seasonResults: null }));
     if (user) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { seasonResults: null }, { merge: true });
   }, [user, db]);
-
-  const setSyncing = useCallback((val: boolean) => setState(s => ({ ...s, isSyncing: val })), []);
 
   return (
     <GameStateContext.Provider value={{

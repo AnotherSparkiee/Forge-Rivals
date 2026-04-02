@@ -99,10 +99,9 @@ export default function SquadPage() {
   }, [lineup, ownedHeroes]);
 
   const availableForSelection = useMemo(() => {
-    // Show all owned heroes to allow swapping positions
-    const currentHeroId = selectingSlot ? lineup[selectingSlot] : null;
-    return ownedHeroes.filter(h => h.id !== currentHeroId);
-  }, [ownedHeroes, lineup, selectingSlot]);
+    // Show ALL owned heroes to allow swapping between slots
+    return ownedHeroes;
+  }, [ownedHeroes]);
 
   const handleStartPress = (hero: Hero | undefined) => {
     if (!hero) return;
@@ -121,8 +120,8 @@ export default function SquadPage() {
     }
   };
 
-  // NEW: Scroll protection - if finger moves, cancel the long press
   const handleTouchMove = () => {
+    // Protect from opening dossier during scroll
     handleCancelPress();
   };
 

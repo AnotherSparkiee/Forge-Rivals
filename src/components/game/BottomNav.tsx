@@ -8,10 +8,6 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-/**
- * Tactical Bottom Navigation Bar
- * Optimized for MOBA Tactics Online
- */
 export function BottomNav() {
   const router = useRouter();
   const pathname = usePathname();
