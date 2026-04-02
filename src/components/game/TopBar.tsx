@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { doc, collection, query, where } from 'firebase/firestore';
 import { Gem, Mail, Home, Radio } from 'lucide-react';
-import { usePathname } from 'next/pathnames';
+import { usePathname } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { COUNTRIES } from '@/app/lib/countries-data';
@@ -62,20 +63,20 @@ export function TopBar() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-white/10 h-14 flex items-center">
-      <div className="w-full max-w-lg mx-auto px-4 flex items-center justify-between gap-2">
+      <div className="w-full max-w-lg mx-auto px-4 flex items-center justify-between gap-4">
         
         {/* Left: Team Identity & Connection */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs" role="img" aria-label="flag">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-[10px]" role="img" aria-label="flag">
               {userCountry?.flag || '🏳️'}
             </span>
-            <span className="text-[10px] font-black text-primary uppercase tracking-tight whitespace-nowrap">
+            <span className="text-[9px] font-black text-primary uppercase tracking-tight whitespace-nowrap overflow-hidden">
               {profile?.displayName || 'SYNCING...'}
             </span>
           </div>
           {isSyncing && (
-            <Radio className="w-3.5 h-3.5 text-accent shrink-0 animate-pulse" />
+            <Radio className="w-3 h-3 text-accent shrink-0 animate-pulse" />
           )}
         </div>
 

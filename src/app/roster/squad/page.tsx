@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
@@ -10,12 +11,11 @@ import {
   Sword, Shield, Sparkles, Plus, 
   ChevronLeft, ChevronRight, UserPlus, X,
   ShieldCheck, Zap, Crosshair, HeartPulse,
-  Star, Box, Undo2, Heart, Flag, Coins, Info,
-  TrendingUp, Eye, Target, Brain, Map, Users, AlertCircle, Award,
-  Dumbbell
+  Star, Box, Undo2, Flag, Info,
+  TrendingUp, Eye, Target, Brain, Map, Users, AlertCircle, Award
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Hero } from '../../moba-data';
+import { Hero } from '../../lib/moba-data';
 import Link from 'next/link';
 import {
   Dialog,
@@ -40,8 +40,8 @@ export default function SquadPage() {
     emptySlot: language === 'ru' ? "Назначить" : "Assign",
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     teamOverall: language === 'ru' ? "ОБЩ" : "OVR",
-    selectHero: language === 'ru' ? "Выберите замену" : "Select replacement",
-    availableHeroes: language === 'ru' ? "Доступные герои" : "Available Heroes",
+    selectHero: language === 'ru' ? "Выберите игрока" : "Select player",
+    availableHeroes: language === 'ru' ? "Ваши герои" : "Your Heroes",
     assigned: language === 'ru' ? "ЗАНЯТ" : "ASSIGNED",
     cancel: language === 'ru' ? "ОТМЕНА" : "CANCEL",
     profile: {
@@ -98,11 +98,6 @@ export default function SquadPage() {
     return Math.round(sum / activeHeroes.length);
   }, [lineup, ownedHeroes]);
 
-  const availableForSelection = useMemo(() => {
-    // Show ALL owned heroes to allow swapping between slots
-    return ownedHeroes;
-  }, [ownedHeroes]);
-
   const handleStartPress = (hero: Hero | undefined) => {
     if (!hero) return;
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
@@ -121,7 +116,6 @@ export default function SquadPage() {
   };
 
   const handleTouchMove = () => {
-    // Protect from opening dossier during scroll
     handleCancelPress();
   };
 
@@ -305,67 +299,60 @@ export default function SquadPage() {
             </div>
             
             <div className="grid grid-cols-1 gap-2">
-              {availableForSelection.length > 0 ? (
-                availableForSelection.map((hero) => {
-                  const currentRoleKey = Object.keys(lineup).find(k => lineup[k as LineupSlot] === hero.id) as LineupSlot | undefined;
-                  const isAssigned = !!currentRoleKey;
+              {ownedHeroes.map((hero) => {
+                const currentRoleKey = Object.keys(lineup).find(k => lineup[k as LineupSlot] === hero.id) as LineupSlot | undefined;
+                const isAssignedToThisSlot = hero.id === lineup[selectingSlot];
+                const isAssignedElsewhere = !!currentRoleKey && currentRoleKey !== selectingSlot;
 
-                  return (
-                    <Card 
-                      key={hero.id}
-                      onMouseDown={() => handleStartPress(hero)}
-                      onMouseUp={handleCancelPress}
-                      onMouseLeave={handleCancelPress}
-                      onTouchStart={() => handleStartPress(hero)}
-                      onTouchEnd={handleCancelPress}
-                      onTouchMove={handleTouchMove}
-                      className={cn(
-                        "glass-card border-white/10 hover:border-primary/50 transition-all overflow-hidden cursor-pointer active:scale-[0.98]",
-                        isAssigned ? "bg-accent/5 border-accent/20" : "bg-primary/5"
-                      )}
-                      onClick={() => handleHeroAssign(hero.id)}
-                    >
-                      <CardContent className="p-2 flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-muted flex-shrink-0">
-                          <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
+                return (
+                  <Card 
+                    key={hero.id}
+                    onMouseDown={() => handleStartPress(hero)}
+                    onMouseUp={handleCancelPress}
+                    onMouseLeave={handleCancelPress}
+                    onTouchStart={() => handleStartPress(hero)}
+                    onTouchEnd={handleCancelPress}
+                    onTouchMove={handleTouchMove}
+                    className={cn(
+                      "glass-card border-white/10 hover:border-primary/50 transition-all overflow-hidden cursor-pointer active:scale-[0.98]",
+                      isAssignedToThisSlot ? "ring-1 ring-primary bg-primary/10" : (isAssignedElsewhere ? "bg-accent/5 border-accent/20" : "bg-primary/5")
+                    )}
+                    onClick={() => handleHeroAssign(hero.id)}
+                  >
+                    <CardContent className="p-2 flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-muted flex-shrink-0">
+                        <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-[11px] truncate">{hero.name}</h4>
+                          <span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span>
                         </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-bold text-[11px] truncate">{hero.name}</h4>
-                            <span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span>
-                          </div>
-                          <div className="flex items-center gap-3 mt-0.5">
-                            <span className="text-[9px] font-bold text-accent flex items-center gap-1">
-                              <Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}
-                            </span>
-                            {isAssigned && (
-                              <Badge className="bg-accent/20 text-accent text-[6px] h-3 px-1 border-none font-black uppercase">
-                                {t.assigned}: {t.roles[currentRoleKey].label}
-                              </Badge>
-                            )}
-                          </div>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <span className="text-[9px] font-bold text-accent flex items-center gap-1">
+                            <Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}
+                          </span>
+                          {isAssignedElsewhere && (
+                            <Badge className="bg-accent/20 text-accent text-[6px] h-3 px-1 border-none font-black uppercase">
+                              {t.assigned}: {t.roles[currentRoleKey].label}
+                            </Badge>
+                          )}
                         </div>
+                      </div>
 
-                        <div className="flex items-center gap-2 pr-1">
-                          <div className={cn(
-                            "w-6 h-6 rounded-full flex items-center justify-center border",
-                            isAssigned ? "bg-accent/10 border-accent/20 text-accent" : "bg-primary/10 border-primary/20 text-primary"
-                          )}>
-                            {isAssigned ? <ChevronRight className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-                          </div>
+                      <div className="flex items-center gap-2 pr-1">
+                        <div className={cn(
+                          "w-6 h-6 rounded-full flex items-center justify-center border",
+                          isAssignedElsewhere ? "bg-accent/10 border-accent/20 text-accent" : "bg-primary/10 border-primary/20 text-primary"
+                        )}>
+                          {isAssignedElsewhere ? <ChevronRight className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
                         </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })
-              ) : (
-                <div className="py-8 text-center bg-secondary/10 rounded-xl border border-dashed border-white/5">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground italic">
-                    No heroes in roster
-                  </p>
-                </div>
-              )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </section>
         )}
