@@ -13,13 +13,36 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
 
 export default function SynergyPage() {
+  const { user, isUserLoading } = useUser();
+  const db = useFirestore();
   const { matchHistory, language, isLoaded } = useGameState();
 
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
+  const { data: profile } = useDoc(userRef);
+
   const officialMatches = useMemo(() => {
-    return matchHistory.filter(m => m.type === 'league' || m.type === 'tournament');
-  }, [matchHistory]);
+    if (!profile) return [];
+    
+    const regDate = profile.createdAt ? new Date(profile.createdAt).getTime() : 0;
+
+    return matchHistory.filter(m => {
+      // 1. Only official types
+      const isOfficial = m.type === 'league' || m.type === 'tournament';
+      
+      // 2. Only matches after registration (real games)
+      const playedDate = m.playedAt ? new Date(m.playedAt).getTime() : 0;
+      const isPostRegistration = playedDate >= regDate;
+
+      // 3. Exclude technical/seeded entries where team didn't actually play
+      const isRealMatch = m.opponentName !== 'SEEDED' && m.opponentName !== 'WAITING';
+
+      return isOfficial && isPostRegistration && isRealMatch;
+    });
+  }, [matchHistory, profile]);
 
   const matchCount = officialMatches.length;
   
@@ -30,13 +53,13 @@ export default function SynergyPage() {
     title: language === 'ru' ? "СЫГРАННОСТЬ" : "TEAM SYNERGY",
     subtitle: language === 'ru' ? "Протокол командного взаимодействия" : "Tactical cohesion protocol",
     mainCard: language === 'ru' ? "УРОВЕНЬ СВЯЗИ ОСНОВЫ" : "CORE COHESION LEVEL",
-    officialOnly: language === 'ru' ? "Учитываются только 5 основных игроков" : "Only core 5 players considered",
+    officialOnly: language === 'ru' ? "Учитываются только реальные игры после регистрации" : "Only real games post-registration considered",
     league: language === 'ru' ? "Матчи Лиги" : "League Matches",
     cup: language === 'ru' ? "Матчи Кубка" : "Cup Matches",
     total: language === 'ru' ? "Всего оф. игр" : "Total Official Games",
     desc: language === 'ru' 
-      ? "Сыгранность рассчитывается на основе совместных официальных выступлений основной пятерки. Тренировки и товарищеские матчи не влияют на этот показатель."
-      : "Synergy is calculated based on official appearances of the core five. Training and friendlies do not influence this metric.",
+      ? "Сыгранность рассчитывается на основе совместных выступлений основной пятерки с момента создания клуба. Технические победы и товарищеские матчи не учитываются."
+      : "Synergy is calculated based on core five appearances since club formation. Technical wins and friendlies do not influence this metric.",
     levels: [
       { min: 0, games: 0, label: language === 'ru' ? "Начальный" : "Initial", color: "text-muted-foreground" },
       { min: 10, games: 5, label: language === 'ru' ? "Низкий" : "Low", color: "text-red-400" },
@@ -48,7 +71,7 @@ export default function SynergyPage() {
 
   const currentLevel = [...t.levels].reverse().find(l => synergyScore >= l.min) || t.levels[0];
 
-  if (!isLoaded) return <LoadingScreen />;
+  if (!isLoaded || isUserLoading) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
