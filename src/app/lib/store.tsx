@@ -246,6 +246,8 @@ interface GameStateContextType extends GameState {
   dismissSeasonResults: () => void;
   setSyncing: (val: boolean) => void;
   setTrainingFocus: (heroId: string, skillKey: string | null) => void;
+  startDailyHeroTraining: (heroId: string, skillKey: string) => void;
+  claimDailyHeroTraining: (heroId: string) => void;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
@@ -672,6 +674,41 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, [user, db]);
 
+  const startDailyHeroTraining = useCallback((heroId: string, skillKey: string) => {
+    setState(s => {
+      const finishTime = new Date(Date.now() + 24 * 3600000).toISOString();
+      const updatedHeroes = s.ownedHeroes.map(h => h.id === heroId ? { ...h, dailyTrainingFocus: skillKey, dailyTrainingFinishTime: finishTime } : h);
+      if (user) {
+        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedHeroes) }, { merge: true });
+      }
+      return { ...s, ownedHeroes: updatedHeroes };
+    });
+  }, [user, db]);
+
+  const claimDailyHeroTraining = useCallback((heroId: string) => {
+    setState(s => {
+      const updatedHeroes = s.ownedHeroes.map(hero => {
+        if (hero.id === heroId && hero.dailyTrainingFocus) {
+          const skillKey = hero.dailyTrainingFocus;
+          const currentVal = (hero.proStats as any)[skillKey] || 0;
+          const talentLimit = (hero.proTalents ? (hero.proTalents as any)[skillKey] || 3.0 : 3.0) * 20;
+          
+          if (currentVal < talentLimit) {
+            const gain = Math.floor(Math.random() * (5 - 3 + 1)) + 3; // +3-5 points
+            const newVal = Math.min(talentLimit, currentVal + gain);
+            return { ...hero, proStats: { ...hero.proStats, [skillKey]: newVal }, dailyTrainingFocus: null, dailyTrainingFinishTime: null };
+          }
+          return { ...hero, dailyTrainingFocus: null, dailyTrainingFinishTime: null };
+        }
+        return hero;
+      });
+      if (user) {
+        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedHeroes) }, { merge: true });
+      }
+      return { ...s, ownedHeroes: updatedHeroes };
+    });
+  }, [user, db]);
+
   const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string) => {
     const scoreA = result.scoreA || 0;
     const scoreB = result.scoreB || 0;
@@ -749,7 +786,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   return (
     <GameStateContext.Provider value={{
-      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus
+      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining
     }}>
       {children}
     </GameStateContext.Provider>

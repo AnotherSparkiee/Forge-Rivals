@@ -23,6 +23,8 @@ export interface Hero {
   country: { code: string; name: string; flag: string };
   isInjured: boolean;
   trainingFocus?: string | null;
+  dailyTrainingFocus?: string | null;
+  dailyTrainingFinishTime?: string | null;
   // Current skill levels (0-100)
   proStats: {
     lastHitting: number;
@@ -147,6 +149,8 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     country: { code, name: country.name, flag: country.flag },
     isInjured: false,
     trainingFocus: null,
+    dailyTrainingFocus: null,
+    dailyTrainingFinishTime: null,
     proStats,
     proTalents
   };
@@ -175,6 +179,8 @@ export const INITIAL_HEROES: Hero[] = [
     country: { code: 'DE', name: 'Germany', flag: '🇩🇪' },
     isInjured: false,
     trainingFocus: null,
+    dailyTrainingFocus: null,
+    dailyTrainingFinishTime: null,
     proStats: {
       lastHitting: 45, mapAwareness: 88, positioning: 92, reflexes: 60, manaManagement: 55,
       objectiveControl: 80, communication: 95, tiltResistance: 98, versatility: 70, ganking: 40
@@ -201,6 +207,8 @@ export const INITIAL_HEROES: Hero[] = [
     country: { code: 'KR', name: 'South Korea', flag: '🇰🇷' },
     isInjured: false,
     trainingFocus: null,
+    dailyTrainingFocus: null,
+    dailyTrainingFinishTime: null,
     proStats: {
       lastHitting: 98, mapAwareness: 75, positioning: 85, reflexes: 95, manaManagement: 70,
       objectiveControl: 65, communication: 60, tiltResistance: 75, versatility: 80, ganking: 50
