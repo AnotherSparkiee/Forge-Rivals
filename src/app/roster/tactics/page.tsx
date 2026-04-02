@@ -189,17 +189,17 @@ export default function TacticsPage() {
             </p>
           </CardContent>
         </Card>
-      </div>
 
-      {/* SAVE BUTTON */}
-      <div className="fixed bottom-24 left-0 right-0 px-4 z-40 max-w-md mx-auto">
-        <Button 
-          onClick={handleSave}
-          className="w-full h-14 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl shadow-primary/30 active:scale-95 transition-all"
-        >
-          <Save className="w-4 h-4 mr-2" />
-          {t.save}
-        </Button>
+        {/* SAVE BUTTON - NOW IN THE CONTENT FLOW */}
+        <div className="pt-4">
+          <Button 
+            onClick={handleSave}
+            className="w-full h-14 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl shadow-primary/30 active:scale-95 transition-all"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            {t.save}
+          </Button>
+        </div>
       </div>
     </div>
   );
