@@ -245,6 +245,7 @@ interface GameStateContextType extends GameState {
   syncStats: (groupPlayers: any[]) => void;
   dismissSeasonResults: () => void;
   setSyncing: (val: boolean) => void;
+  setTrainingFocus: (heroId: string, skillKey: string | null) => void;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
@@ -661,6 +662,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, [user, db]);
 
+  const setTrainingFocus = useCallback((heroId: string, skillKey: string | null) => {
+    setState(s => {
+      const updatedHeroes = s.ownedHeroes.map(h => h.id === heroId ? { ...h, trainingFocus: skillKey } : h);
+      if (user) {
+        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedHeroes) }, { merge: true });
+      }
+      return { ...s, ownedHeroes: updatedHeroes };
+    });
+  }, [user, db]);
+
   const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string) => {
     const scoreA = result.scoreA || 0;
     const scoreB = result.scoreB || 0;
@@ -672,6 +683,24 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
     setState(s => {
       if (type === 'league' && s.matchHistory.some(m => m.day === matchDay && m.type === 'league' && m.seasonNumber === s.seasonNumber)) return s;
+      
+      // Calculate XP for training
+      const xpRange = (type === 'league' || type === 'tournament') ? { min: 2, max: 4 } : { min: 1, max: 1 };
+      const updatedHeroes = s.ownedHeroes.map(hero => {
+        const isHeroActive = Object.values(s.lineup).includes(hero.id);
+        if (isHeroActive && hero.trainingFocus) {
+          const skillKey = hero.trainingFocus;
+          const currentVal = (hero.proStats as any)[skillKey] || 0;
+          const talentLimit = ((hero.proTalents as any)[skillKey] || 0) * 20;
+          if (currentVal < talentLimit) {
+            const gain = Math.floor(Math.random() * (xpRange.max - xpRange.min + 1)) + xpRange.min;
+            const newVal = Math.min(talentLimit, currentVal + gain);
+            return { ...hero, proStats: { ...hero.proStats, [skillKey]: newVal } };
+          }
+        }
+        return hero;
+      });
+
       const matchEntry: MatchResultEntry = {
         id: `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         day: matchDay, type, opponentName, winner, scoreA, scoreB,
@@ -686,6 +715,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const newState = { ...s, credits: s.credits + creditsEarned, rank: s.rank + rankChange, matchHistory: [matchEntry, ...s.matchHistory].slice(0, 500), 
         lastLeagueMatchDate: type === 'league' && matchDay === s.seasonDay ? todayStr : s.lastLeagueMatchDate,
         lastCupMatchDate: type === 'tournament' ? todayStr : s.lastCupMatchDate,
+        ownedHeroes: updatedHeroes,
         isSyncing: true
       };
       if (user) {
@@ -694,7 +724,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           rank: newState.rank, 
           lastLeagueMatchDate: newState.lastLeagueMatchDate ?? null, 
           lastCupMatchDate: newState.lastCupMatchDate ?? null,
-          matchHistory: newState.matchHistory 
+          matchHistory: newState.matchHistory,
+          ownedHeroes: sanitizeForFirestore(updatedHeroes)
         }, { merge: true });
         setTimeout(() => setState(prev => ({ ...prev, isSyncing: false })), 1500);
       }
@@ -717,7 +748,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   return (
     <GameStateContext.Provider value={{
-      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing
+      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus
     }}>
       {children}
     </GameStateContext.Provider>
