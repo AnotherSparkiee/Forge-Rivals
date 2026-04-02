@@ -691,7 +691,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         if (isHeroActive && hero.trainingFocus) {
           const skillKey = hero.trainingFocus;
           const currentVal = (hero.proStats as any)[skillKey] || 0;
-          const talentLimit = ((hero.proTalents as any)[skillKey] || 0) * 20;
+          // Added safety check for proTalents
+          const talentLimit = (hero.proTalents ? (hero.proTalents as any)[skillKey] || 3.0 : 3.0) * 20;
           if (currentVal < talentLimit) {
             const gain = Math.floor(Math.random() * (xpRange.max - xpRange.min + 1)) + xpRange.min;
             const newVal = Math.min(talentLimit, currentVal + gain);
