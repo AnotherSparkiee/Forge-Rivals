@@ -481,7 +481,7 @@ export default function SquadPage() {
                       </h3>
                       <div className="space-y-5">
                         {Object.entries(profileHero.proStats).map(([key, value]) => {
-                          const talent = (profileHero.proTalents as any)[key] || 3.0;
+                          const talent = profileHero.proTalents ? (profileHero.proTalents as any)[key] : 3.0;
                           const icons: Record<string, any> = {
                             lastHitting: Target,
                             mapAwareness: Eye,
