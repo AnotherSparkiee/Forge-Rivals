@@ -39,7 +39,7 @@ export default function RosterPage() {
       menu: [
         { label: 'Squad', desc: 'Manage your active hero lineup', icon: Users, href: '/roster/squad', active: true },
         { label: 'Team Synergy', desc: 'Cohesion based on official matches', icon: LinkIcon, href: '/roster/synergy', active: true },
-        { label: 'Tactics', desc: 'Strategic positioning and roles', icon: Swords, active: false },
+        { label: 'Tactics', desc: 'Strategic positioning and roles', icon: Swords, href: '/roster/tactics', active: true },
         { label: 'Training', desc: 'Long-term development programs', icon: Dumbbell, active: false },
         { label: 'Daily Training', desc: '24-hour intensive cycle', icon: Clock, active: false },
         { label: 'Contracts', desc: 'Financial agreements and tenure', icon: Scroll, active: false },
@@ -54,7 +54,7 @@ export default function RosterPage() {
       menu: [
         { label: 'Состав', desc: 'Управление активным составом', icon: Users, href: '/roster/squad', active: true },
         { label: 'Сыгранность состава', desc: 'Взаимодействие в официальных играх', icon: LinkIcon, href: '/roster/synergy', active: true },
-        { label: 'Тактика', desc: 'Стратегические роли и позиции', icon: Swords, active: false },
+        { label: 'Тактика', desc: 'Стратегические роли и позиции', icon: Swords, href: '/roster/tactics', active: true },
         { label: 'Тренировки', desc: 'Долгосрочные программы развития', icon: Dumbbell, active: false },
         { label: 'Тренировка за сутки', desc: '24-часовой цикл подготовки', icon: Clock, active: false },
         { label: 'Контракты', desc: 'Финансовые соглашения и сроки', icon: Scroll, active: false },

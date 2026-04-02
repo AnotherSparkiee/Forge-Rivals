@@ -82,6 +82,7 @@ interface GameState {
   team: Hero[];
   lineup: Record<LineupSlot, string | null>;
   strategy: string;
+  lineSettings: { carry: string; mid: string; offlane: string };
   rank: number;
   matchHistory: MatchResultEntry[];
   language: 'en' | 'ru';
@@ -188,6 +189,7 @@ const DEFAULT_STATE: GameState = {
     sub2: null,
   },
   strategy: 'Balanced Play',
+  lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' },
   rank: 1000,
   matchHistory: [],
   language: 'ru',
@@ -228,6 +230,7 @@ interface GameStateContextType extends GameState {
   addCredits: (amount: number) => void;
   addCrystals: (amount: number) => void;
   assignToRole: (slot: LineupSlot, heroId: string | null) => void;
+  updateTactics: (strategy: string, lineSettings: { carry: string; mid: string; offlane: string }) => void;
   startArenaConstruction: (facility: any, cost: number) => boolean;
   startHQConstruction: (facility: any, cost: number) => boolean;
   startBootcampConstruction: (facility: any, cost: number) => boolean;
@@ -302,6 +305,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             crystals: profileData.crystals ?? s.crystals ?? 0,
             ownedHeroes: cloudHeroes,
             lineup: profileData.lineup || s.lineup,
+            strategy: profileData.strategy || s.strategy,
+            lineSettings: profileData.lineSettings || s.lineSettings,
             wins: profileData.wins ?? s.wins ?? 0,
             draws: profileData.draws ?? s.draws ?? 0,
             losses: profileData.losses ?? s.losses ?? 0,
@@ -645,6 +650,17 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, [user, db]);
 
+  const updateTactics = useCallback((strategy: string, lineSettings: { carry: string; mid: string; offlane: string }) => {
+    setState(s => {
+      const newState = { ...s, strategy, lineSettings, isSyncing: true };
+      if (user) {
+        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { strategy, lineSettings }, { merge: true });
+        setTimeout(() => setState(prev => ({ ...prev, isSyncing: false })), 1000);
+      }
+      return newState;
+    });
+  }, [user, db]);
+
   const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string) => {
     const scoreA = result.scoreA || 0;
     const scoreB = result.scoreB || 0;
@@ -701,7 +717,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   return (
     <GameStateContext.Provider value={{
-      ...state, isLoaded, addCredits, addCrystals, assignToRole, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing
+      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing
     }}>
       {children}
     </GameStateContext.Provider>
