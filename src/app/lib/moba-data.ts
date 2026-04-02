@@ -95,14 +95,17 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     ganking: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
   };
 
-  const overall = Math.round(Object.values(proStats).reduce((a, b) => a + b, 0) / 10 * 0.4 + (baseStats.attack + baseStats.defense) / 4);
+  // Balance calculation to ensure 29-38 rating for starters
+  const proSum = Object.values(proStats).reduce((a, b) => a + b, 0);
+  const basePower = (baseStats.attack + (baseStats.defense / 2) + (baseStats.abilityPower / 2)) / 5;
+  const overall = Math.round((proSum / 10) * 0.4 + basePower * 0.6);
 
   return {
-    id: `hero_${Date.now()}_${index}`,
+    id: `hero_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
     name,
     role,
     baseStats,
-    overallRating: overall,
+    overallRating: isStarter ? Math.min(38, Math.max(29, overall)) : overall,
     abilitiesFocus: 'Balanced',
     image: country.url,
     description: `A unique talent from ${country.name}.`,
@@ -119,7 +122,7 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
 }
 
 export function getRandomStartingSquad(): Hero[] {
-  // Ordered to match lineup slots: 5 active, 2 subs
+  // Ordered to match lineup slots: 5 active (different roles), 2 subs
   const roles: Role[] = ['Tank', 'Carry', 'Midlaner', 'Jungler', 'Support', 'Carry', 'Tank'];
   return roles.map((role, i) => generateUniqueHero(role, i, true));
 }
@@ -278,53 +281,6 @@ export const INITIAL_HEROES: Hero[] = [
     proStats: {
       lastHitting: 50, mapAwareness: 80, positioning: 85, reflexes: 55, manaManagement: 50,
       objectiveControl: 75, communication: 85, tiltResistance: 90, versatility: 65, ganking: 30
-    }
-  }
-];
-
-export const SHOP_HEROES: Hero[] = [
-  {
-    id: 'h6',
-    name: 'Frost Queen',
-    role: 'Midlaner',
-    baseStats: { attack: 20, defense: 30, health: 800, abilityPower: 110, speed: 300 },
-    overallRating: 45,
-    abilitiesFocus: 'Crowd Control',
-    image: 'https://picsum.photos/seed/frost/400/600',
-    description: 'Freezes enemies in their tracks.',
-    price: 1000,
-    age: 22,
-    talent: 5,
-    salary: 12000,
-    form: 95,
-    fatigue: 40,
-    country: { code: 'ES', name: 'Spain', flag: '🇪🇸' },
-    isInjured: false,
-    proStats: {
-      lastHitting: 92, mapAwareness: 95, positioning: 88, reflexes: 85, manaManagement: 98,
-      objectiveControl: 90, communication: 85, tiltResistance: 88, versatility: 92, ganking: 80
-    }
-  },
-  {
-    id: 'h7',
-    name: 'Colossus',
-    role: 'Tank',
-    baseStats: { attack: 50, defense: 100, health: 1800, abilityPower: 0, speed: 250 },
-    overallRating: 52,
-    abilitiesFocus: 'Unstoppable',
-    image: 'https://picsum.photos/seed/colossus/400/600',
-    description: 'A literal mountain that moves.',
-    price: 1500,
-    age: 28,
-    talent: 5,
-    salary: 15000,
-    form: 98,
-    fatigue: 15,
-    country: { code: 'KZ', name: 'Kazakhstan', flag: '🇰🇿' },
-    isInjured: false,
-    proStats: {
-      lastHitting: 55, mapAwareness: 90, positioning: 98, reflexes: 65, manaManagement: 60,
-      objectiveControl: 95, communication: 92, tiltResistance: 100, versatility: 75, ganking: 45
     }
   }
 ];

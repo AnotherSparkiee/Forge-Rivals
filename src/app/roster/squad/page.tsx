@@ -88,7 +88,7 @@ export default function SquadPage() {
     }
   };
 
-  // Roles allowed for each slot
+  // Roles allowed for each slot (Strict Enforcement)
   const roleMapping: Record<LineupSlot, string[]> = {
     carry: ['Carry'],
     mid: ['Midlaner'],
@@ -126,11 +126,13 @@ export default function SquadPage() {
   };
 
   const handleTouchMove = () => {
+    // PROTECT SCROLL: If the user moves their finger, they are scrolling, not long-pressing.
     handleCancelPress();
   };
 
   const handleSlotClick = (slotKey: LineupSlot) => {
-    if (longPressTimer.current || !profileHero) {
+    // Only open selector if we didn't just long-press or if portfolio is closed
+    if (!profileHero) {
       setSelectingSlot(prev => prev === slotKey ? null : slotKey);
     }
   };
@@ -148,6 +150,7 @@ export default function SquadPage() {
   const filteredHeroes = useMemo(() => {
     if (!selectingSlot) return ownedHeroes;
     const allowedRoles = roleMapping[selectingSlot];
+    // In strict mode, we filter by role but show all heroes (including those already assigned elsewhere)
     return ownedHeroes.filter(h => allowedRoles.includes(h.role));
   }, [selectingSlot, ownedHeroes]);
 
@@ -384,7 +387,7 @@ export default function SquadPage() {
       </div>
 
       <Dialog open={!!profileHero} onOpenChange={() => setProfileHero(null)}>
-        <DialogContent className="max-w-md p-0 overflow-hidden bg-card border-white/10 h-[90vh] flex flex-col">
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-card border-white/10 h-[90vh] flex flex-col shadow-2xl">
           {profileHero && (
             <>
               <DialogHeader className="sr-only">
@@ -392,9 +395,10 @@ export default function SquadPage() {
                 <DialogDescription>Detailed player profile and statistics</DialogDescription>
               </DialogHeader>
 
+              {/* Dossier Header - Refined */}
               <div className="p-6 bg-gradient-to-br from-primary/20 via-card to-accent/10 border-b border-white/5 relative flex-shrink-0">
                 <div className="flex items-center gap-6">
-                  <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-primary shadow-[0_0_25px_rgba(var(--primary),0.3)]">
+                  <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-primary shadow-[0_0_25px_rgba(var(--primary),0.3)] bg-secondary/50">
                     <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -426,6 +430,7 @@ export default function SquadPage() {
                 </div>
               </div>
 
+              {/* Dossier Body - Fixed Layout */}
               <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-hide">
                 <section>
                   <h3 className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
@@ -497,6 +502,7 @@ export default function SquadPage() {
                 </section>
               </div>
 
+              {/* Dossier Footer - Clean */}
               <div className="p-4 bg-secondary/20 border-t border-white/5 flex-shrink-0">
                 <Button variant="outline" className="w-full h-12 uppercase font-black text-[10px] border-white/10" onClick={() => setProfileHero(null)}>
                   {language === 'ru' ? 'ЗАКРЫТЬ ДОСЬЕ' : 'CLOSE DOSSIER'}

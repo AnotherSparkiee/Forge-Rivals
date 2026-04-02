@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -94,11 +93,10 @@ export default function RegisterPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Generate randomized squad for the new user (Targets 29-38 team rating)
+      // Generate randomized balanced squad (targets 29-38 team rating)
       const uniqueSquad = getRandomStartingSquad();
       
-      // Auto-assign heroes to lineup slots based on their order in uniqueSquad
-      // getRandomStartingSquad returns roles in specific order for this purpose
+      // Auto-assign heroes based on roles
       const initialLineup = {
         offlane: uniqueSquad[0].id,      // Tank
         carry: uniqueSquad[1].id,        // Carry
