@@ -3,7 +3,7 @@
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { Gem, Mail, Bell, Home, Radio } from 'lucide-react';
+import { Gem, Mail, Home, Radio } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -62,21 +62,21 @@ export function TopBar() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-white/10 h-14 flex items-center">
-      <div className="w-full max-w-lg mx-auto px-4 flex items-center justify-between gap-4">
+      <div className="w-full max-w-lg mx-auto px-4 flex items-center justify-between gap-2">
         
-        {/* Left: Team Identity */}
-        <div className="flex items-center gap-1.5 flex-shrink-0 min-w-0">
-          <span className="text-base" role="img" aria-label="flag">
-            {userCountry?.flag || '🏳️'}
-          </span>
-          <div className="flex items-center gap-1 min-w-0">
-            <span className="text-[10px] font-black text-primary uppercase tracking-tighter whitespace-nowrap overflow-hidden text-ellipsis">
-              {profile?.displayName || 'Syncing...'}
+        {/* Left: Team Identity & Connection */}
+        <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-xs" role="img" aria-label="flag">
+              {userCountry?.flag || '🏳️'}
             </span>
-            {isSyncing && (
-              <Radio className="w-3 h-3 text-accent shrink-0 animate-pulse" />
-            )}
+            <span className="text-[10px] font-black text-primary uppercase tracking-tight whitespace-nowrap">
+              {profile?.displayName || 'SYNCING...'}
+            </span>
           </div>
+          {isSyncing && (
+            <Radio className="w-3.5 h-3.5 text-accent shrink-0 animate-pulse" />
+          )}
         </div>
 
         {/* Right: Tools & Balances */}
@@ -91,14 +91,6 @@ export function TopBar() {
               <Home className={cn("w-4 h-4", pathname === '/' ? "text-primary" : "text-muted-foreground")} />
             </div>
           </Link>
-
-          {/* Notifications Icon */}
-          <div className={cn(
-            itemBaseClass,
-            "w-8 rounded-full bg-secondary/50 border-white/5 hover:bg-white/5 cursor-pointer"
-          )}>
-            <Bell className="w-4 h-4 text-muted-foreground" />
-          </div>
 
           {/* Private Messages Icon */}
           <Link href="/chats/private">
@@ -117,12 +109,12 @@ export function TopBar() {
           {/* Credits Balance */}
           <div className={cn(
             itemBaseClass,
-            "px-2.5 rounded-full bg-primary/10 border-primary/20"
+            "px-2 rounded-full bg-primary/10 border-primary/20"
           )}>
-            <div className="w-3.5 h-3.5 rounded-full bg-yellow-500/20 flex items-center justify-center mr-1.5">
-              <span className="text-yellow-500 text-[8px] font-bold italic">€</span>
+            <div className="w-3 h-3 rounded-full bg-yellow-500/20 flex items-center justify-center mr-1">
+              <span className="text-yellow-500 text-[7px] font-bold italic">€</span>
             </div>
-            <span className="text-[10px] font-headline font-bold text-primary">
+            <span className="text-[9px] font-headline font-bold text-primary">
               {formatCurrency(credits)}
             </span>
           </div>
@@ -130,10 +122,10 @@ export function TopBar() {
           {/* Crystals Balance */}
           <div className={cn(
             itemBaseClass,
-            "px-2.5 rounded-full bg-accent/10 border-accent/20"
+            "px-2 rounded-full bg-accent/10 border-accent/20"
           )}>
-            <Gem className="w-3.5 h-3.5 text-accent mr-1.5" />
-            <span className="text-[10px] font-headline font-bold text-accent">
+            <Gem className="w-3 h-3 text-accent mr-1" />
+            <span className="text-[9px] font-headline font-bold text-accent">
               {formatCurrency(crystals || 0)}
             </span>
           </div>

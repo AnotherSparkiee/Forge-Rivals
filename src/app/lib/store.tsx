@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
@@ -295,8 +294,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         setState(s => {
           const { seasonDay: globalDay, seasonNumber: globalSeason, seasonStartDate: globalStart } = getGlobalSeasonInfo();
           const history = profileData.matchHistory || s.matchHistory || [];
-          
-          // Use ownedHeroes from cloud if they exist (for randomized squad persistence)
           const cloudHeroes = profileData.ownedHeroes || s.ownedHeroes;
 
           return {
@@ -620,15 +617,29 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setLanguage = useCallback((lang: 'en' | 'ru') => setState(s => ({ ...s, language: lang })), []);
+  
   const assignToRole = useCallback((slot: LineupSlot, heroId: string | null) => {
     setState(s => {
       const newLineup = { ...s.lineup };
-      if (heroId) Object.keys(newLineup).forEach(k => { if (newLineup[k as LineupSlot] === heroId) newLineup[k as LineupSlot] = null; });
+      if (heroId) {
+        // Exchange/Move logic: if hero is already assigned to a different slot, clear that slot
+        Object.keys(newLineup).forEach(k => { 
+          if (newLineup[k as LineupSlot] === heroId) newLineup[k as LineupSlot] = null; 
+        });
+      }
       newLineup[slot] = heroId;
       const uniqueHeroIds = Array.from(new Set(Object.values(newLineup).filter(id => id !== null)));
-      return { ...s, lineup: newLineup, team: s.ownedHeroes.filter(h => uniqueHeroIds.includes(h.id)) };
+      
+      const newState = { ...s, lineup: newLineup, team: s.ownedHeroes.filter(h => uniqueHeroIds.includes(h.id)), isSyncing: true };
+      
+      if (user) {
+        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { lineup: newLineup }, { merge: true });
+        setTimeout(() => setState(prev => ({ ...prev, isSyncing: false })), 1000);
+      }
+      
+      return newState;
     });
-  }, []);
+  }, [user, db]);
 
   const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string) => {
     const scoreA = result.scoreA || 0;
@@ -654,7 +665,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const todayStr = getMoscowDateString();
       const newState = { ...s, credits: s.credits + creditsEarned, rank: s.rank + rankChange, matchHistory: [matchEntry, ...s.matchHistory].slice(0, 500), 
         lastLeagueMatchDate: type === 'league' && matchDay === s.seasonDay ? todayStr : s.lastLeagueMatchDate,
-        lastCupMatchDate: type === 'tournament' ? todayStr : s.lastCupMatchDate
+        lastCupMatchDate: type === 'tournament' ? todayStr : s.lastCupMatchDate,
+        isSyncing: true
       };
       if (user) {
         setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { 
@@ -664,6 +676,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           lastCupMatchDate: newState.lastCupMatchDate ?? null,
           matchHistory: newState.matchHistory 
         }, { merge: true });
+        setTimeout(() => setState(prev => ({ ...prev, isSyncing: false })), 1500);
       }
       return newState;
     });

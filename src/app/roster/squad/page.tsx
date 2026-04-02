@@ -51,7 +51,6 @@ export default function SquadPage() {
       salary: language === 'ru' ? "Зарплата" : "Salary",
       form: language === 'ru' ? "Форма" : "Form",
       fatigue: language === 'ru' ? "Усталость" : "Fatigue",
-      inclination: language === 'ru' ? "Склонность" : "Inclination",
       country: language === 'ru' ? "Страна" : "Country",
       status: language === 'ru' ? "Статус" : "Status",
       healthy: language === 'ru' ? "Здоров" : "Healthy",
@@ -96,11 +95,11 @@ export default function SquadPage() {
     const activeHeroes = activeSlots.map(slot => getHeroById(lineup[slot])).filter(Boolean) as Hero[];
     if (activeHeroes.length === 0) return 0;
     const sum = activeHeroes.reduce((acc, h) => acc + h.overallRating, 0);
-    return Math.round(sum / 5);
+    return Math.round(sum / activeHeroes.length);
   }, [lineup, ownedHeroes]);
 
-  // Updated logic: show ALL owned heroes, but hide the one currently in THIS slot
   const availableForSelection = useMemo(() => {
+    // Show all owned heroes to allow swapping positions
     const currentHeroId = selectingSlot ? lineup[selectingSlot] : null;
     return ownedHeroes.filter(h => h.id !== currentHeroId);
   }, [ownedHeroes, lineup, selectingSlot]);
@@ -120,6 +119,11 @@ export default function SquadPage() {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
+  };
+
+  // NEW: Scroll protection - if finger moves, cancel the long press
+  const handleTouchMove = () => {
+    handleCancelPress();
   };
 
   const handleSlotClick = (slotKey: LineupSlot) => {
@@ -157,7 +161,7 @@ export default function SquadPage() {
         onMouseLeave={handleCancelPress}
         onTouchStart={() => handleStartPress(hero)}
         onTouchEnd={handleCancelPress}
-        onTouchMove={handleCancelPress}
+        onTouchMove={handleTouchMove}
         onClick={() => handleSlotClick(slotKey)}
         className={cn(
           "glass-card border-white/5 overflow-hidden transition-all cursor-pointer select-none",
@@ -315,7 +319,7 @@ export default function SquadPage() {
                       onMouseLeave={handleCancelPress}
                       onTouchStart={() => handleStartPress(hero)}
                       onTouchEnd={handleCancelPress}
-                      onTouchMove={handleCancelPress}
+                      onTouchMove={handleTouchMove}
                       className={cn(
                         "glass-card border-white/10 hover:border-primary/50 transition-all overflow-hidden cursor-pointer active:scale-[0.98]",
                         isAssigned ? "bg-accent/5 border-accent/20" : "bg-primary/5"
@@ -359,7 +363,7 @@ export default function SquadPage() {
               ) : (
                 <div className="py-8 text-center bg-secondary/10 rounded-xl border border-dashed border-white/5">
                   <p className="text-[10px] uppercase font-bold text-muted-foreground italic">
-                    {language === 'ru' ? 'Нет других героев в базе' : 'No other heroes in the database'}
+                    No heroes in roster
                   </p>
                 </div>
               )}

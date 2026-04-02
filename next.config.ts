@@ -1,8 +1,9 @@
-
-import type {NextConfig} from 'next';
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  /* Включаем статический экспорт */
+  output: 'export', 
+  
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -10,6 +11,8 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
+    /* Для статического экспорта нужно отключить стандартную оптимизацию картинок Next.js */
+    unoptimized: true, 
     remotePatterns: [
       {
         protocol: 'https',

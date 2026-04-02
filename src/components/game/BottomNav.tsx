@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * Tactical Bottom Navigation Bar
- * Layout: [Accept] --- [Time] --- [Back]
+ * Optimized for MOBA Tactics Online
  */
 export function BottomNav() {
   const router = useRouter();
@@ -40,7 +40,7 @@ export function BottomNav() {
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-t border-white/10 h-20 flex items-center shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
       <div className="w-full max-w-lg mx-auto px-4 grid grid-cols-3 items-center">
         
-        {/* Left: Accept Button */}
+        {/* Left: Action Button */}
         <div className="flex justify-start">
           <Button 
             variant="ghost" 
@@ -54,7 +54,7 @@ export function BottomNav() {
           </Button>
         </div>
 
-        {/* Center: Server Time */}
+        {/* Center: Server Time Terminal */}
         <div className="flex flex-col items-center justify-center">
            <div className="px-3 py-1 bg-accent/5 rounded border border-accent/10 shadow-[0_0_15px_rgba(var(--accent),0.05)]">
              <p className="text-[11px] font-mono font-bold text-accent whitespace-nowrap tabular-nums tracking-tight leading-none">
@@ -63,7 +63,7 @@ export function BottomNav() {
            </div>
         </div>
 
-        {/* Right: Back Button */}
+        {/* Right: Navigation Back */}
         <div className="flex justify-end">
           <Button 
             variant="ghost" 
