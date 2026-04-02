@@ -56,7 +56,7 @@ export default function SquadPage() {
       status: language === 'ru' ? "Статус" : "Status",
       healthy: language === 'ru' ? "Здоров" : "Healthy",
       injured: language === 'ru' ? "Травмирован" : "Injured",
-      stats: language === 'ru' ? "Текущие навыки" : "Current Skills",
+      stats: language === 'ru' ? "Навыки и таланты" : "Skills & Talents",
       years: language === 'ru' ? "лет" : "yrs",
     },
     proStatsLabels: {
@@ -251,6 +251,24 @@ export default function SquadPage() {
     );
   };
 
+  const renderStars = (rating: number) => {
+    return (
+      <div className="flex items-center gap-0.5">
+        {Array.from({ length: 5 }).map((_, i) => {
+          const fill = Math.min(Math.max(rating - i, 0), 1);
+          return (
+            <div key={i} className="relative w-2.5 h-2.5">
+              <Star className="absolute inset-0 w-2.5 h-2.5 text-muted-foreground/20" />
+              <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
+                <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   if (!isLoaded) return null;
 
   return (
@@ -393,9 +411,7 @@ export default function SquadPage() {
                   <DialogDescription>Detailed player profile and statistics</DialogDescription>
                 </DialogHeader>
 
-                {/* Unified Scrolling Container */}
-                <div className="flex-1 overflow-y-auto scrollbar-hide pb-32">
-                  {/* Header info - Scrolling part */}
+                <div className="flex-1 overflow-y-auto scrollbar-hide">
                   <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 border-b border-white/5 flex flex-col items-center text-center gap-4">
                     <div className="relative">
                       <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-[0_0_30px_rgba(var(--primary),0.3)] bg-secondary/50">
@@ -410,11 +426,6 @@ export default function SquadPage() {
                       <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h2>
                       <div className="flex items-center justify-center gap-2">
                         <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
-                        <div className="flex items-center gap-0.5">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star key={i} className={cn("w-3.5 h-3.5", i < profileHero.talent ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground/30")} />
-                          ))}
-                        </div>
                       </div>
                     </div>
 
@@ -430,9 +441,7 @@ export default function SquadPage() {
                     </div>
                   </div>
 
-                  {/* Body Content */}
-                  <div className="p-4 space-y-8">
-                    {/* Status Section */}
+                  <div className="p-4 space-y-8 pb-32">
                     <section>
                       <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                         <Info className="w-3.5 h-3.5" /> BIOMETRICS & STATUS
@@ -466,30 +475,13 @@ export default function SquadPage() {
                       </div>
                     </section>
 
-                    {/* Talent Limits Section */}
-                    <section>
-                      <h3 className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                        <Sparkles className="w-3.5 h-3.5" /> {t.profile.talent}
-                      </h3>
-                      <div className="bg-secondary/20 p-4 rounded-xl border border-yellow-500/20 flex flex-col items-center gap-3">
-                        <div className="flex gap-1">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star key={i} className={cn("w-6 h-6", i < profileHero.talent ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground/20")} />
-                          ))}
-                        </div>
-                        <p className="text-[9px] text-center text-muted-foreground uppercase font-bold max-w-[200px] leading-relaxed">
-                          {language === 'ru' ? 'Этот предел определяет максимально возможный уровень развития навыков игрока.' : 'This limit defines the maximum possible level of the player\'s skill development.'}
-                        </p>
-                      </div>
-                    </section>
-
-                    {/* Pro Skills Section */}
                     <section>
                       <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                         <Award className="w-3.5 h-3.5" /> {t.profile.stats}
                       </h3>
-                      <div className="grid grid-cols-1 gap-4">
-                        {profileHero.proStats && Object.entries(profileHero.proStats).map(([key, value]) => {
+                      <div className="space-y-5">
+                        {Object.entries(profileHero.proStats).map(([key, value]) => {
+                          const talent = (profileHero.proTalents as any)[key] || 3.0;
                           const icons: Record<string, any> = {
                             lastHitting: Target,
                             mapAwareness: Eye,
@@ -505,15 +497,18 @@ export default function SquadPage() {
                           const Icon = icons[key] || Info;
                           
                           return (
-                            <div key={key} className="space-y-1.5">
+                            <div key={key} className="space-y-2 bg-secondary/10 p-3 rounded-xl border border-white/5">
                               <div className="flex justify-between items-center px-0.5">
                                 <div className="flex items-center gap-2">
                                   <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
                                   <span className="text-[10px] font-bold uppercase tracking-widest">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                                 </div>
-                                <span className="text-[10px] font-mono font-bold text-primary">{value as number}</span>
+                                <div className="flex flex-col items-end">
+                                  <span className="text-[10px] font-mono font-bold text-primary">{value} / 100</span>
+                                  {renderStars(talent)}
+                                </div>
                               </div>
-                              <Progress value={value as number} className="h-1.5 rounded-full bg-secondary/40" />
+                              <Progress value={value} className="h-1 rounded-full bg-secondary/40" />
                             </div>
                           );
                         })}
@@ -522,7 +517,6 @@ export default function SquadPage() {
                   </div>
                 </div>
 
-                {/* Fixed Footer for closure */}
                 <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-12 flex-shrink-0 z-[110]">
                   <Button 
                     className="w-full h-14 hero-gradient font-black text-[11px] tracking-[0.2em] shadow-xl rounded-xl active:scale-95 transition-transform uppercase" 

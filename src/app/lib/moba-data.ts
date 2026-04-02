@@ -17,13 +17,26 @@ export interface Hero {
   description: string;
   price: number;
   age: number;
-  talent: number; 
   salary: number;
   form: number; 
   fatigue: number; 
   country: { code: string; name: string; flag: string };
   isInjured: boolean;
+  // Current skill levels (0-100)
   proStats: {
+    lastHitting: number;
+    mapAwareness: number;
+    positioning: number;
+    reflexes: number;
+    manaManagement: number;
+    objectiveControl: number;
+    communication: number;
+    tiltResistance: number;
+    versatility: number;
+    ganking: number;
+  };
+  // Talent limits for each skill (1-5 stars)
+  proTalents: {
     lastHitting: number;
     mapAwareness: number;
     positioning: number;
@@ -58,13 +71,17 @@ function getRandomStat(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function getRandomTalent() {
+  // Returns a value between 2.0 and 5.0 in steps of 0.5
+  return (Math.floor(Math.random() * 7) + 4) / 2;
+}
+
 export function generateUniqueHero(role: Role, index: number, isStarter: boolean = false): Hero {
   const codes = Object.keys(COUNTRY_PHOTOS);
   const code = codes[Math.floor(Math.random() * codes.length)];
   const country = COUNTRY_PHOTOS[code];
   const name = `${HERO_NAMES[Math.floor(Math.random() * HERO_NAMES.length)]} ${index + 1}`;
   
-  // Adjusted ranges for starters to hit 29-38 overall rating
   const baseStats = {
     attack: role === 'Carry' || role === 'Jungler' 
       ? getRandomStat(isStarter ? 55 : 70, isStarter ? 75 : 95) 
@@ -94,6 +111,19 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     ganking: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
   };
 
+  const proTalents = {
+    lastHitting: getRandomTalent(),
+    mapAwareness: getRandomTalent(),
+    positioning: getRandomTalent(),
+    reflexes: getRandomTalent(),
+    manaManagement: getRandomTalent(),
+    objectiveControl: getRandomTalent(),
+    communication: getRandomTalent(),
+    tiltResistance: getRandomTalent(),
+    versatility: getRandomTalent(),
+    ganking: getRandomTalent(),
+  };
+
   // Balance calculation to ensure 29-38 rating for starters
   const proSum = Object.values(proStats).reduce((a, b) => a + b, 0);
   const basePower = (baseStats.attack + (baseStats.defense / 2) + (baseStats.abilityPower / 2)) / 5;
@@ -110,23 +140,21 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     description: `A unique talent from ${country.name}.`,
     price: 0,
     age: getRandomStat(17, 28),
-    talent: isStarter ? getRandomStat(3, 4) : getRandomStat(3, 5),
     salary: getRandomStat(2000, 8000),
     form: getRandomStat(70, 95),
     fatigue: 0,
     country: { code, name: country.name, flag: country.flag },
     isInjured: false,
-    proStats
+    proStats,
+    proTalents
   };
 }
 
 export function getRandomStartingSquad(): Hero[] {
-  // Ordered to match lineup slots: 5 active (different roles), 2 subs
   const roles: Role[] = ['Tank', 'Carry', 'Midlaner', 'Jungler', 'Support', 'Carry', 'Tank'];
   return roles.map((role, i) => generateUniqueHero(role, i, true));
 }
 
-// Fallback initial heroes for existing sessions
 export const INITIAL_HEROES: Hero[] = [
   {
     id: 'h1',
@@ -139,7 +167,6 @@ export const INITIAL_HEROES: Hero[] = [
     description: 'An unbreakable shield on the battlefield.',
     price: 0,
     age: 24,
-    talent: 4,
     salary: 4500,
     form: 85,
     fatigue: 12,
@@ -148,6 +175,10 @@ export const INITIAL_HEROES: Hero[] = [
     proStats: {
       lastHitting: 45, mapAwareness: 88, positioning: 92, reflexes: 60, manaManagement: 55,
       objectiveControl: 80, communication: 95, tiltResistance: 98, versatility: 70, ganking: 40
+    },
+    proTalents: {
+      lastHitting: 3.5, mapAwareness: 4.5, positioning: 5.0, reflexes: 3.5, manaManagement: 3.0,
+      objectiveControl: 4.0, communication: 5.0, tiltResistance: 5.0, versatility: 4.0, ganking: 3.0
     }
   },
   {
@@ -161,7 +192,6 @@ export const INITIAL_HEROES: Hero[] = [
     description: 'Deals massive physical damage from afar.',
     price: 0,
     age: 19,
-    talent: 5,
     salary: 8200,
     form: 92,
     fatigue: 25,
@@ -170,116 +200,10 @@ export const INITIAL_HEROES: Hero[] = [
     proStats: {
       lastHitting: 98, mapAwareness: 75, positioning: 85, reflexes: 95, manaManagement: 70,
       objectiveControl: 65, communication: 60, tiltResistance: 75, versatility: 80, ganking: 50
-    }
-  },
-  {
-    id: 'h3',
-    name: 'Arcane Weaver',
-    role: 'Midlaner',
-    baseStats: { attack: 25, defense: 25, health: 850, abilityPower: 95, speed: 310 },
-    overallRating: 36,
-    abilitiesFocus: 'Burst Damage',
-    image: 'https://i.postimg.cc/wvzKxSYS/1755011442109.jpg',
-    description: 'Masters of spells and map control.',
-    price: 0,
-    age: 21,
-    talent: 4,
-    salary: 6100,
-    form: 78,
-    fatigue: 18,
-    country: { code: 'CN', name: 'China', flag: '🇨🇳' },
-    isInjured: false,
-    proStats: {
-      lastHitting: 88, mapAwareness: 92, positioning: 80, reflexes: 82, manaManagement: 95,
-      objectiveControl: 85, communication: 88, tiltResistance: 80, versatility: 85, ganking: 75
-    }
-  },
-  {
-    id: 'h4',
-    name: 'Shadow Stalker',
-    role: 'Jungler',
-    baseStats: { attack: 75, defense: 45, health: 950, abilityPower: 40, speed: 360 },
-    overallRating: 32,
-    abilitiesFocus: 'Utility',
-    image: 'https://i.postimg.cc/mg3yfqj5/rus-2.jpg',
-    description: 'Strikes from the shadows when least expected.',
-    price: 0,
-    age: 23,
-    talent: 3,
-    salary: 3800,
-    form: 82,
-    fatigue: 35,
-    country: { code: 'RU', name: 'Russia', flag: '🇷🇺' },
-    isInjured: false,
-    proStats: {
-      lastHitting: 60, mapAwareness: 85, positioning: 75, reflexes: 88, manaManagement: 65,
-      objectiveControl: 90, communication: 70, tiltResistance: 85, versatility: 75, ganking: 98
-    }
-  },
-  {
-    id: 'h5',
-    name: 'Aura Bloom',
-    role: 'Support',
-    baseStats: { attack: 30, defense: 50, health: 1000, abilityPower: 60, speed: 320 },
-    overallRating: 29,
-    abilitiesFocus: 'Sustain',
-    image: 'https://i.postimg.cc/X7fs4pYn/ua-1.jpg',
-    description: 'Keeps the team alive and empowered.',
-    price: 0,
-    age: 20,
-    talent: 4,
-    salary: 4200,
-    form: 88,
-    fatigue: 10,
-    country: { code: 'UA', name: 'Ukraine', flag: '🇺🇦' },
-    isInjured: false,
-    proStats: {
-      lastHitting: 40, mapAwareness: 95, positioning: 90, reflexes: 75, manaManagement: 85,
-      objectiveControl: 80, communication: 98, tiltResistance: 95, versatility: 90, ganking: 60
-    }
-  },
-  {
-    id: 'h_sub1',
-    name: 'Crimson Blade',
-    role: 'Carry',
-    baseStats: { attack: 78, defense: 35, health: 850, abilityPower: 15, speed: 330 },
-    overallRating: 33,
-    abilitiesFocus: 'Burst Damage',
-    image: 'https://i.postimg.cc/Z5906yvS/br-1.jpg',
-    description: 'A versatile substitute with high damage potential.',
-    price: 0,
-    age: 22,
-    talent: 3,
-    salary: 3100,
-    form: 70,
-    fatigue: 5,
-    country: { code: 'BR', name: 'Brazil', flag: '🇧🇷' },
-    isInjured: false,
-    proStats: {
-      lastHitting: 82, mapAwareness: 65, positioning: 70, reflexes: 85, manaManagement: 60,
-      objectiveControl: 60, communication: 75, tiltResistance: 80, versatility: 85, ganking: 70
-    }
-  },
-  {
-    id: 'h_sub2',
-    name: 'Earthen Guard',
-    role: 'Tank',
-    baseStats: { attack: 45, defense: 85, health: 1400, abilityPower: 5, speed: 290 },
-    overallRating: 31,
-    abilitiesFocus: 'Sustain',
-    image: 'https://i.postimg.cc/MHvbRpyd/tr-1.jpg',
-    description: 'Provides reliable backup defense when needed.',
-    price: 0,
-    age: 26,
-    talent: 3,
-    salary: 2900,
-    form: 75,
-    fatigue: 0,
-    country: { code: 'TR', name: 'Turkey', flag: '🇹🇷' },
-    isInjured: false,
-    proStats: {
-      lastHitting: 50, mapAwareness: 80, positioning: 85, reflexes: 55, manaManagement: 50,
-      objectiveControl: 75, communication: 85, tiltResistance: 90, versatility: 65, ganking: 30
+    },
+    proTalents: {
+      lastHitting: 5.0, mapAwareness: 4.0, positioning: 4.5, reflexes: 5.0, manaManagement: 4.0,
+      objectiveControl: 3.5, communication: 3.5, tiltResistance: 4.0, versatility: 4.0, ganking: 3.0
     }
   }
 ];
