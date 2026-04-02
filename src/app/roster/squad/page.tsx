@@ -385,7 +385,7 @@ export default function SquadPage() {
 
       <Dialog open={!!profileHero} onOpenChange={() => setProfileHero(null)}>
         <DialogPortal>
-          <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none flex flex-col rounded-none sm:rounded-none overflow-hidden outline-none animate-in fade-in zoom-in duration-300">
+          <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none flex flex-col rounded-none sm:rounded-none overflow-hidden outline-none translate-x-0 translate-y-0 top-0 left-0 animate-in fade-in zoom-in duration-300">
             {profileHero && (
               <>
                 <DialogHeader className="sr-only">
