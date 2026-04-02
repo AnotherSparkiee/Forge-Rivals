@@ -37,7 +37,7 @@ export default function ManagersHubPage() {
       subtitle: "Operational Personnel Network",
       locked: "Locked",
       menu: [
-        { label: 'All Managers', desc: 'Find and view other club commanders', icon: Globe, active: false },
+        { label: 'All Managers', desc: 'Find and view other club commanders', icon: Globe, active: true, href: '/managers/all' },
         { label: 'Friends', desc: 'Your trusted network of managers', icon: UserCheck, active: false },
         { label: 'Friend News', desc: 'Recent activity from your contacts', icon: Newspaper, active: false },
         { label: 'Blacklist', desc: 'Banned and restricted managers', icon: Ban, active: false },
@@ -50,7 +50,7 @@ export default function ManagersHubPage() {
       subtitle: "Сеть оперативного персонала",
       locked: "Закрыто",
       menu: [
-        { label: 'Все менеджеры', desc: 'Поиск и просмотр других командиров', icon: Globe, active: false },
+        { label: 'Все менеджеры', desc: 'Поиск и просмотр других командиров', icon: Globe, active: true, href: '/managers/all' },
         { label: 'Друзья', desc: 'Ваша сеть доверенных менеджеров', icon: UserCheck, active: false },
         { label: 'Новости друзей', desc: 'Активность ваших контактов', icon: Newspaper, active: false },
         { label: 'Черный список', desc: 'Заблокированные менеджеры', icon: Ban, active: false },
@@ -77,8 +77,8 @@ export default function ManagersHubPage() {
       </header>
 
       <div className="space-y-2">
-        {t.menu.map((item) => (
-          <div key={item.label} className={cn("block", !item.active && "cursor-not-allowed")}>
+        {t.menu.map((item) => {
+          const content = (
             <Card 
               className={cn(
                 "glass-card border-white/5 transition-all",
@@ -111,8 +111,22 @@ export default function ManagersHubPage() {
                 )}
               </CardContent>
             </Card>
-          </div>
-        ))}
+          );
+
+          if (item.active && item.href) {
+            return (
+              <Link key={item.label} href={item.href} className="block">
+                {content}
+              </Link>
+            );
+          }
+
+          return (
+            <div key={item.label} className={cn("block", !item.active && "cursor-not-allowed")}>
+              {content}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
