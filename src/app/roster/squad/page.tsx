@@ -10,7 +10,7 @@ import {
   Sword, Shield, Sparkles, Plus, 
   ChevronLeft, ChevronRight, UserPlus, X,
   ShieldCheck, Zap, Crosshair, HeartPulse,
-  Star, Box, Undo2, Flag, Info,
+  Star, Box, Undo2, Info,
   TrendingUp, Eye, Target, Brain, Map, Users, AlertCircle, Award
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -43,6 +43,7 @@ export default function SquadPage() {
     availableHeroes: language === 'ru' ? "Ваши герои" : "Your Heroes",
     assigned: language === 'ru' ? "ЗАНЯТ" : "ASSIGNED",
     cancel: language === 'ru' ? "ОТМЕНА" : "CANCEL",
+    wrongRole: language === 'ru' ? "Неподходящая роль" : "Invalid Role",
     profile: {
       title: language === 'ru' ? "ДОСЬЕ ИГРОКА" : "PLAYER DOSSIER",
       age: language === 'ru' ? "Возраст" : "Age",
@@ -73,8 +74,8 @@ export default function SquadPage() {
       carry: { label: language === 'ru' ? "Керри" : "Carry", icon: Sword, color: "text-red-400" },
       mid: { label: language === 'ru' ? "Мидер" : "Midlaner", icon: Sparkles, color: "text-blue-400" },
       offlane: { label: language === 'ru' ? "Оффлейнер" : "Offlaner", icon: Shield, color: "text-orange-400" },
-      support: { label: language === 'ru' ? "Поддержка" : "Support", icon: Zap, color: "text-yellow-400" },
-      full_support: { label: language === 'ru' ? "Полная поддержка" : "Full Support", icon: HeartPulse, color: "text-green-400" },
+      support: { label: language === 'ru' ? "Четверка" : "Support", icon: Zap, color: "text-yellow-400" },
+      full_support: { label: language === 'ru' ? "Пятерка" : "Full Support", icon: HeartPulse, color: "text-green-400" },
       sub1: { label: language === 'ru' ? "Запасной 1" : "Sub 1", icon: UserPlus, color: "text-muted-foreground" },
       sub2: { label: language === 'ru' ? "Запасной 2" : "Sub 2", icon: UserPlus, color: "text-muted-foreground" },
     },
@@ -85,6 +86,17 @@ export default function SquadPage() {
       'Jungler': { icon: Crosshair, color: "text-purple-400" },
       'Support': { icon: Zap, color: "text-yellow-400" },
     }
+  };
+
+  // Roles allowed for each slot
+  const roleMapping: Record<LineupSlot, string[]> = {
+    carry: ['Carry'],
+    mid: ['Midlaner'],
+    offlane: ['Tank'],
+    support: ['Jungler'],
+    full_support: ['Support'],
+    sub1: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'],
+    sub2: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'],
   };
 
   const getHeroById = (id: string | null) => ownedHeroes.find(h => h.id === id);
@@ -118,18 +130,26 @@ export default function SquadPage() {
   };
 
   const handleSlotClick = (slotKey: LineupSlot) => {
-    // Only open selector if we didn't just trigger a long press
     if (longPressTimer.current || !profileHero) {
       setSelectingSlot(prev => prev === slotKey ? null : slotKey);
     }
   };
 
-  const handleHeroAssign = (heroId: string) => {
+  const handleHeroAssign = (hero: Hero) => {
     if (selectingSlot) {
-      assignToRole(selectingSlot, heroId);
-      setSelectingSlot(null);
+      const allowedRoles = roleMapping[selectingSlot];
+      if (allowedRoles.includes(hero.role)) {
+        assignToRole(selectingSlot, hero.id);
+        setSelectingSlot(null);
+      }
     }
   };
+
+  const filteredHeroes = useMemo(() => {
+    if (!selectingSlot) return ownedHeroes;
+    const allowedRoles = roleMapping[selectingSlot];
+    return ownedHeroes.filter(h => allowedRoles.includes(h.role));
+  }, [selectingSlot, ownedHeroes]);
 
   const renderSlot = (slotKey: LineupSlot) => {
     const heroId = lineup[slotKey];
@@ -298,60 +318,66 @@ export default function SquadPage() {
             </div>
             
             <div className="grid grid-cols-1 gap-2">
-              {ownedHeroes.map((hero) => {
-                const currentRoleKey = Object.keys(lineup).find(k => lineup[k as LineupSlot] === hero.id) as LineupSlot | undefined;
-                const isAssignedToThisSlot = hero.id === lineup[selectingSlot];
-                const isAssignedElsewhere = !!currentRoleKey && currentRoleKey !== selectingSlot;
+              {filteredHeroes.length > 0 ? (
+                filteredHeroes.map((hero) => {
+                  const currentRoleKey = Object.keys(lineup).find(k => lineup[k as LineupSlot] === hero.id) as LineupSlot | undefined;
+                  const isAssignedToThisSlot = hero.id === lineup[selectingSlot];
+                  const isAssignedElsewhere = !!currentRoleKey && currentRoleKey !== selectingSlot;
 
-                return (
-                  <Card 
-                    key={hero.id}
-                    onMouseDown={() => handleStartPress(hero)}
-                    onMouseUp={handleCancelPress}
-                    onMouseLeave={handleCancelPress}
-                    onTouchStart={() => handleStartPress(hero)}
-                    onTouchEnd={handleCancelPress}
-                    onTouchMove={handleTouchMove}
-                    className={cn(
-                      "glass-card border-white/10 hover:border-primary/50 transition-all overflow-hidden cursor-pointer active:scale-[0.98]",
-                      isAssignedToThisSlot ? "ring-1 ring-primary bg-primary/10" : (isAssignedElsewhere ? "bg-accent/5 border-accent/20" : "bg-primary/5")
-                    )}
-                    onClick={() => handleHeroAssign(hero.id)}
-                  >
-                    <CardContent className="p-2 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-muted flex-shrink-0">
-                        <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-[11px] truncate">{hero.name}</h4>
-                          <span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span>
+                  return (
+                    <Card 
+                      key={hero.id}
+                      onMouseDown={() => handleStartPress(hero)}
+                      onMouseUp={handleCancelPress}
+                      onMouseLeave={handleCancelPress}
+                      onTouchStart={() => handleStartPress(hero)}
+                      onTouchEnd={handleCancelPress}
+                      onTouchMove={handleTouchMove}
+                      className={cn(
+                        "glass-card border-white/10 hover:border-primary/50 transition-all overflow-hidden cursor-pointer active:scale-[0.98]",
+                        isAssignedToThisSlot ? "ring-1 ring-primary bg-primary/10" : (isAssignedElsewhere ? "bg-accent/5 border-accent/20" : "bg-primary/5")
+                      )}
+                      onClick={() => handleHeroAssign(hero)}
+                    >
+                      <CardContent className="p-2 flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-muted flex-shrink-0">
+                          <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
                         </div>
-                        <div className="flex items-center gap-3 mt-0.5">
-                          <span className="text-[9px] font-bold text-accent flex items-center gap-1">
-                            <Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}
-                          </span>
-                          {isAssignedElsewhere && (
-                            <Badge className="bg-accent/20 text-accent text-[6px] h-3 px-1 border-none font-black uppercase">
-                              {t.assigned}: {t.roles[currentRoleKey].label}
-                            </Badge>
-                          )}
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-[11px] truncate">{hero.name}</h4>
+                            <span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <span className="text-[9px] font-bold text-accent flex items-center gap-1">
+                              <Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}
+                            </span>
+                            {isAssignedElsewhere && (
+                              <Badge className="bg-accent/20 text-accent text-[6px] h-3 px-1 border-none font-black uppercase">
+                                {t.assigned}: {t.roles[currentRoleKey].label}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center gap-2 pr-1">
-                        <div className={cn(
-                          "w-6 h-6 rounded-full flex items-center justify-center border",
-                          isAssignedElsewhere ? "bg-accent/10 border-accent/20 text-accent" : "bg-primary/10 border-primary/20 text-primary"
-                        )}>
-                          {isAssignedElsewhere ? <ChevronRight className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                        <div className="flex items-center gap-2 pr-1">
+                          <div className={cn(
+                            "w-6 h-6 rounded-full flex items-center justify-center border",
+                            isAssignedElsewhere ? "bg-accent/10 border-accent/20 text-accent" : "bg-primary/10 border-primary/20 text-primary"
+                          )}>
+                            {isAssignedElsewhere ? <ChevronRight className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                          </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              ) : (
+                <div className="py-8 text-center bg-secondary/20 rounded-xl border border-dashed border-white/10">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground">{t.wrongRole}</p>
+                </div>
+              )}
             </div>
           </section>
         )}
