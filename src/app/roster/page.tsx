@@ -38,7 +38,7 @@ export default function RosterPage() {
       locked: "Locked",
       menu: [
         { label: 'Squad', desc: 'Manage your active hero lineup', icon: Users, href: '/roster/squad', active: true },
-        { label: 'Team Synergy', desc: 'Cohesion and chemical bonds', icon: LinkIcon, active: false },
+        { label: 'Team Synergy', desc: 'Cohesion based on official matches', icon: LinkIcon, href: '/roster/synergy', active: true },
         { label: 'Tactics', desc: 'Strategic positioning and roles', icon: Swords, active: false },
         { label: 'Training', desc: 'Long-term development programs', icon: Dumbbell, active: false },
         { label: 'Daily Training', desc: '24-hour intensive cycle', icon: Clock, active: false },
@@ -53,7 +53,7 @@ export default function RosterPage() {
       locked: "Закрыто",
       menu: [
         { label: 'Состав', desc: 'Управление активным составом', icon: Users, href: '/roster/squad', active: true },
-        { label: 'Сыгранность состава', desc: 'Командное взаимодействие', icon: LinkIcon, active: false },
+        { label: 'Сыгранность состава', desc: 'Взаимодействие в официальных играх', icon: LinkIcon, href: '/roster/synergy', active: true },
         { label: 'Тактика', desc: 'Стратегические роли и позиции', icon: Swords, active: false },
         { label: 'Тренировки', desc: 'Долгосрочные программы развития', icon: Dumbbell, active: false },
         { label: 'Тренировка за сутки', desc: '24-часовой цикл подготовки', icon: Clock, active: false },
@@ -96,7 +96,7 @@ export default function RosterPage() {
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="p-2 rounded-lg bg-secondary/50">
-                    <item.icon className="w-5 h-5 text-primary" />
+                    <item.icon className={cn("w-5 h-5", item.active ? "text-primary" : "text-muted-foreground")} />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold uppercase">{item.label}</h3>
