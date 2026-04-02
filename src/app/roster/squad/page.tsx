@@ -88,7 +88,6 @@ export default function SquadPage() {
     }
   };
 
-  // Roles allowed for each slot (Strict Enforcement)
   const roleMapping: Record<LineupSlot, string[]> = {
     carry: ['Carry'],
     mid: ['Midlaner'],
@@ -126,12 +125,10 @@ export default function SquadPage() {
   };
 
   const handleTouchMove = () => {
-    // PROTECT SCROLL: If the user moves their finger, they are scrolling, not long-pressing.
     handleCancelPress();
   };
 
   const handleSlotClick = (slotKey: LineupSlot) => {
-    // Only open selector if we didn't just long-press or if portfolio is closed
     if (!profileHero) {
       setSelectingSlot(prev => prev === slotKey ? null : slotKey);
     }
@@ -150,7 +147,6 @@ export default function SquadPage() {
   const filteredHeroes = useMemo(() => {
     if (!selectingSlot) return ownedHeroes;
     const allowedRoles = roleMapping[selectingSlot];
-    // In strict mode, we filter by role but show all heroes (including those already assigned elsewhere)
     return ownedHeroes.filter(h => allowedRoles.includes(h.role));
   }, [selectingSlot, ownedHeroes]);
 
@@ -387,7 +383,7 @@ export default function SquadPage() {
       </div>
 
       <Dialog open={!!profileHero} onOpenChange={() => setProfileHero(null)}>
-        <DialogContent className="max-w-md p-0 overflow-hidden bg-card border-white/10 h-[90vh] flex flex-col shadow-2xl">
+        <DialogContent className="fixed inset-0 z-[100] max-w-none w-screen h-screen m-0 p-0 overflow-hidden bg-background border-none flex flex-col rounded-none animate-in fade-in zoom-in duration-300">
           {profileHero && (
             <>
               <DialogHeader className="sr-only">
@@ -395,81 +391,83 @@ export default function SquadPage() {
                 <DialogDescription>Detailed player profile and statistics</DialogDescription>
               </DialogHeader>
 
-              {/* Dossier Header - Refined */}
-              <div className="p-6 bg-gradient-to-br from-primary/20 via-card to-accent/10 border-b border-white/5 relative flex-shrink-0">
-                <div className="flex items-center gap-6">
-                  <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-primary shadow-[0_0_25px_rgba(var(--primary),0.3)] bg-secondary/50">
-                    <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h2 className="text-2xl font-headline font-bold uppercase text-white truncate leading-none">{profileHero.name}</h2>
-                      <div className="w-6 h-6 rounded bg-secondary/50 flex items-center justify-center border border-white/10 shrink-0">
-                        <span className="text-xs">{profileHero.country?.flag || '🏳️'}</span>
-                      </div>
+              {/* Dossier Header - Full Screen Style */}
+              <div className="p-8 pt-12 bg-gradient-to-br from-primary/30 via-background to-accent/10 border-b border-white/5 relative flex-shrink-0">
+                <div className="flex flex-col items-center text-center gap-6">
+                  <div className="relative">
+                    <div className="w-32 h-32 rounded-3xl overflow-hidden border-2 border-primary shadow-[0_0_40px_rgba(var(--primary),0.4)] bg-secondary/50">
+                      <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase">{profileHero.role}</Badge>
+                    <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-background border border-white/10 flex items-center justify-center shadow-2xl">
+                      <span className="text-xl">{profileHero.country?.flag || '🏳️'}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h2 className="text-3xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h2>
+                    <div className="flex items-center justify-center gap-3">
+                      <Badge className="bg-primary text-primary-foreground text-xs font-black uppercase px-3 h-6">{profileHero.role}</Badge>
                       <div className="flex items-center gap-1">
                         {Array.from({ length: 5 }).map((_, i) => (
-                          <Star key={i} className={cn("w-3 h-3", i < profileHero.talent ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground")} />
+                          <Star key={i} className={cn("w-4 h-4", i < profileHero.talent ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground/30")} />
                         ))}
                       </div>
                     </div>
-                    <div className="mt-3 flex items-center gap-4">
-                      <div className="text-center bg-background/40 p-1.5 rounded-lg border border-white/5 min-w-[50px]">
-                        <p className="text-[7px] font-black text-muted-foreground uppercase">{t.overall}</p>
-                        <p className="text-lg font-headline font-bold text-accent italic leading-none">{profileHero.overallRating}</p>
-                      </div>
-                      <div className="text-left">
-                        <p className="text-[8px] font-black text-muted-foreground uppercase">{t.profile.salary}</p>
-                        <p className="text-sm font-headline font-bold text-primary">€ {(profileHero.salary || 0).toLocaleString()}</p>
-                      </div>
+                  </div>
+
+                  <div className="w-full grid grid-cols-2 gap-4 max-w-xs mx-auto">
+                    <div className="bg-background/60 p-3 rounded-2xl border border-white/10 shadow-inner">
+                      <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">{t.overall}</p>
+                      <p className="text-2xl font-headline font-bold text-accent italic leading-none">{profileHero.overallRating}</p>
+                    </div>
+                    <div className="bg-background/60 p-3 rounded-2xl border border-white/10 shadow-inner">
+                      <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">{t.profile.salary}</p>
+                      <p className="text-base font-headline font-bold text-primary">€ {(profileHero.salary || 0).toLocaleString()}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Dossier Body - Fixed Layout */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-hide">
+              {/* Dossier Body - Scrollable */}
+              <div className="flex-1 overflow-y-auto p-8 space-y-10 scrollbar-hide pb-32">
                 <section>
-                  <h3 className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                    <Info className="w-3.5 h-3.5" /> Portfolio
+                  <h3 className="text-[10px] font-black text-primary uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
+                    <Info className="w-4 h-4" /> BIOMETRICS & STATUS
                   </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
-                      <p className="text-[8px] font-black text-muted-foreground uppercase">{t.profile.age}</p>
-                      <p className="text-xs font-bold">{profileHero.age || 0} {t.profile.years}</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-secondary/20 p-4 rounded-2xl border border-white/5 space-y-1">
+                      <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.age}</p>
+                      <p className="text-sm font-bold">{profileHero.age || 0} {t.profile.years}</p>
                     </div>
-                    <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
-                      <p className="text-[8px] font-black text-muted-foreground uppercase">{t.profile.status}</p>
-                      <p className={cn("text-xs font-bold flex items-center gap-1", profileHero.isInjured ? "text-red-400" : "text-green-400")}>
-                        {profileHero.isInjured ? <AlertCircle className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
+                    <div className="bg-secondary/20 p-4 rounded-2xl border border-white/5 space-y-1">
+                      <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.status}</p>
+                      <p className={cn("text-sm font-bold flex items-center gap-2", profileHero.isInjured ? "text-red-400" : "text-green-400")}>
+                        {profileHero.isInjured ? <AlertCircle className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
                         {profileHero.isInjured ? t.profile.injured : t.profile.healthy}
                       </p>
                     </div>
-                    <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-2">
+                    <div className="bg-secondary/20 p-4 rounded-2xl border border-white/5 space-y-3">
                       <div className="flex justify-between items-center">
-                        <p className="text-[8px] font-black text-muted-foreground uppercase">{t.profile.form}</p>
-                        <p className="text-[9px] font-bold text-primary">{profileHero.form || 0}%</p>
+                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.form}</p>
+                        <p className="text-xs font-bold text-primary">{profileHero.form || 0}%</p>
                       </div>
-                      <Progress value={profileHero.form || 0} className="h-1" />
+                      <Progress value={profileHero.form || 0} className="h-1.5" />
                     </div>
-                    <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-2">
+                    <div className="bg-secondary/20 p-4 rounded-2xl border border-white/5 space-y-3">
                       <div className="flex justify-between items-center">
-                        <p className="text-[8px] font-black text-muted-foreground uppercase">{t.profile.fatigue}</p>
-                        <p className="text-[9px] font-bold text-accent">{profileHero.fatigue || 0}%</p>
+                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.fatigue}</p>
+                        <p className="text-xs font-bold text-accent">{profileHero.fatigue || 0}%</p>
                       </div>
-                      <Progress value={profileHero.fatigue || 0} className="h-1 bg-accent/20" />
+                      <Progress value={profileHero.fatigue || 0} className="h-1.5 bg-accent/20" />
                     </div>
                   </div>
                 </section>
 
-                <section className="pb-6">
-                  <h3 className="text-[10px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                    <Award className="w-3.5 h-3.5" /> {t.profile.stats}
+                <section>
+                  <h3 className="text-[10px] font-black text-accent uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
+                    <Award className="w-4 h-4" /> {t.profile.stats}
                   </h3>
-                  <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-6">
                     {profileHero.proStats && Object.entries(profileHero.proStats).map(([key, value]) => {
                       const icons: Record<string, any> = {
                         lastHitting: Target,
@@ -486,15 +484,15 @@ export default function SquadPage() {
                       const Icon = icons[key] || Info;
                       
                       return (
-                        <div key={key} className="space-y-1.5">
+                        <div key={key} className="space-y-2">
                           <div className="flex justify-between items-center px-1">
-                            <div className="flex items-center gap-2">
-                              <Icon className="w-3 h-3 text-muted-foreground" />
-                              <span className="text-[10px] font-bold uppercase tracking-tight">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                            <div className="flex items-center gap-3">
+                              <Icon className="w-4 h-4 text-muted-foreground/60" />
+                              <span className="text-[11px] font-bold uppercase tracking-widest">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                             </div>
-                            <span className="text-[10px] font-mono font-bold text-primary">{value as number}</span>
+                            <span className="text-xs font-mono font-bold text-primary">{value as number}</span>
                           </div>
-                          <Progress value={value as number} className="h-1.5" />
+                          <Progress value={value as number} className="h-2 rounded-full bg-secondary/40" />
                         </div>
                       );
                     })}
@@ -502,9 +500,12 @@ export default function SquadPage() {
                 </section>
               </div>
 
-              {/* Dossier Footer - Clean */}
-              <div className="p-4 bg-secondary/20 border-t border-white/5 flex-shrink-0">
-                <Button variant="outline" className="w-full h-12 uppercase font-black text-[10px] border-white/10" onClick={() => setProfileHero(null)}>
+              {/* Dossier Footer - Fixed Navigation */}
+              <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-background via-background to-transparent pt-12 flex-shrink-0">
+                <Button 
+                  className="w-full h-16 hero-gradient font-black text-xs tracking-[0.3em] shadow-2xl shadow-primary/30 rounded-2xl active:scale-95 transition-transform" 
+                  onClick={() => setProfileHero(null)}
+                >
                   {language === 'ru' ? 'ЗАКРЫТЬ ДОСЬЕ' : 'CLOSE DOSSIER'}
                 </Button>
               </div>
