@@ -70,7 +70,7 @@ export function TopBar() {
             <span className="text-[10px]" role="img" aria-label="flag">
               {userCountry?.flag || '🏳️'}
             </span>
-            <span className="text-[9px] font-black text-primary uppercase tracking-tight whitespace-nowrap">
+            <span className="text-[9px] font-black text-primary uppercase tracking-tight whitespace-nowrap truncate max-w-[100px]">
               {profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
             </span>
           </div>
@@ -94,8 +94,8 @@ export function TopBar() {
           <Link href="/chats/private">
             <div className={cn(
               itemBaseClass,
-              "w-8 rounded-full relative",
-              hasUnread ? "bg-accent/20 border-accent/50 animate-pulse" : "bg-secondary/50 border-white/5 hover:bg-white/5"
+              "w-8 rounded-full relative bg-secondary/50 border-white/5 hover:bg-white/5",
+              hasUnread && "bg-accent/20 border-accent/50 animate-pulse"
             )}>
               <Mail className={cn("w-4 h-4", hasUnread ? "text-accent" : "text-muted-foreground")} />
               {hasUnread && (

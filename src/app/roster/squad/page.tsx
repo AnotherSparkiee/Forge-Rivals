@@ -393,11 +393,12 @@ export default function SquadPage() {
                   <DialogDescription>Detailed player profile and statistics</DialogDescription>
                 </DialogHeader>
 
-                {/* Compact Dossier Header */}
-                <div className="p-4 pt-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 border-b border-white/5 relative flex-shrink-0">
-                  <div className="flex flex-col items-center text-center gap-4">
+                {/* Unified Scrolling Container */}
+                <div className="flex-1 overflow-y-auto scrollbar-hide pb-32">
+                  {/* Header info - Now inside scroll area */}
+                  <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 border-b border-white/5 flex flex-col items-center text-center gap-4">
                     <div className="relative">
-                      <div className="w-20 h-20 rounded-2xl overflow-hidden border border-primary/50 shadow-[0_0_30px_rgba(var(--primary),0.3)] bg-secondary/50">
+                      <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-[0_0_30px_rgba(var(--primary),0.3)] bg-secondary/50">
                         <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
                       </div>
                       <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl">
@@ -406,106 +407,106 @@ export default function SquadPage() {
                     </div>
                     
                     <div className="space-y-1">
-                      <h2 className="text-xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h2>
+                      <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h2>
                       <div className="flex items-center justify-center gap-2">
                         <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
                         <div className="flex items-center gap-0.5">
                           {Array.from({ length: 5 }).map((_, i) => (
-                            <Star key={i} className={cn("w-3 h-3", i < profileHero.talent ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground/30")} />
+                            <Star key={i} className={cn("w-3.5 h-3.5", i < profileHero.talent ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground/30")} />
                           ))}
                         </div>
                       </div>
                     </div>
 
-                    <div className="w-full grid grid-cols-2 gap-3 max-w-[280px] mx-auto">
-                      <div className="bg-background/40 p-2 rounded-xl border border-white/10">
-                        <p className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p>
-                        <p className="text-lg font-headline font-bold text-accent italic leading-none">{profileHero.overallRating}</p>
+                    <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto">
+                      <div className="bg-background/40 p-3 rounded-xl border border-white/10">
+                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p>
+                        <p className="text-xl font-headline font-bold text-accent italic leading-none">{profileHero.overallRating}</p>
                       </div>
-                      <div className="bg-background/40 p-2 rounded-xl border border-white/10">
-                        <p className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.salary}</p>
+                      <div className="bg-background/40 p-3 rounded-xl border border-white/10">
+                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.salary}</p>
                         <p className="text-sm font-headline font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</p>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Dossier Body */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-8 scrollbar-hide pb-24">
-                  <section>
-                    <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80">
-                      <Info className="w-3 h-3" /> BIOMETRICS & STATUS
-                    </h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
-                        <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.age}</p>
-                        <p className="text-xs font-bold">{profileHero.age || 0} {t.profile.years}</p>
-                      </div>
-                      <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
-                        <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.status}</p>
-                        <p className={cn("text-[10px] font-bold flex items-center gap-1.5", profileHero.isInjured ? "text-red-400" : "text-green-400")}>
-                          {profileHero.isInjured ? <AlertCircle className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
-                          {profileHero.isInjured ? t.profile.injured : t.profile.healthy}
-                        </p>
-                      </div>
-                      <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.form}</p>
-                          <p className="text-[9px] font-bold text-primary">{profileHero.form || 0}%</p>
+                  {/* Body Content */}
+                  <div className="p-4 space-y-8">
+                    <section>
+                      <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                        <Info className="w-3.5 h-3.5" /> BIOMETRICS & STATUS
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
+                          <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.age}</p>
+                          <p className="text-xs font-bold">{profileHero.age || 0} {t.profile.years}</p>
                         </div>
-                        <Progress value={profileHero.form || 0} className="h-1" />
-                      </div>
-                      <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.fatigue}</p>
-                          <p className="text-[9px] font-bold text-accent">{profileHero.fatigue || 0}%</p>
+                        <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
+                          <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.status}</p>
+                          <p className={cn("text-[10px] font-bold flex items-center gap-1.5", profileHero.isInjured ? "text-red-400" : "text-green-400")}>
+                            {profileHero.isInjured ? <AlertCircle className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
+                            {profileHero.isInjured ? t.profile.injured : t.profile.healthy}
+                          </p>
                         </div>
-                        <Progress value={profileHero.fatigue || 0} className="h-1 bg-accent/20" />
-                      </div>
-                    </div>
-                  </section>
-
-                  <section>
-                    <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80">
-                      <Award className="w-3 h-3" /> {t.profile.stats}
-                    </h3>
-                    <div className="grid grid-cols-1 gap-4">
-                      {profileHero.proStats && Object.entries(profileHero.proStats).map(([key, value]) => {
-                        const icons: Record<string, any> = {
-                          lastHitting: Target,
-                          mapAwareness: Eye,
-                          positioning: Map,
-                          reflexes: Zap,
-                          manaManagement: Sparkles,
-                          objectiveControl: Sword,
-                          communication: Users,
-                          tiltResistance: Brain,
-                          versatility: TrendingUp,
-                          ganking: Crosshair,
-                        };
-                        const Icon = icons[key] || Info;
-                        
-                        return (
-                          <div key={key} className="space-y-1.5">
-                            <div className="flex justify-between items-center px-0.5">
-                              <div className="flex items-center gap-2">
-                                <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
-                                <span className="text-[10px] font-bold uppercase tracking-widest">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
-                              </div>
-                              <span className="text-[10px] font-mono font-bold text-primary">{value as number}</span>
-                            </div>
-                            <Progress value={value as number} className="h-1.5 rounded-full bg-secondary/40" />
+                        <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-2">
+                          <div className="flex justify-between items-center">
+                            <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.form}</p>
+                            <p className="text-[9px] font-bold text-primary">{profileHero.form || 0}%</p>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </section>
+                          <Progress value={profileHero.form || 0} className="h-1" />
+                        </div>
+                        <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-2">
+                          <div className="flex justify-between items-center">
+                            <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.fatigue}</p>
+                            <p className="text-[9px] font-bold text-accent">{profileHero.fatigue || 0}%</p>
+                          </div>
+                          <Progress value={profileHero.fatigue || 0} className="h-1 bg-accent/20" />
+                        </div>
+                      </div>
+                    </section>
+
+                    <section>
+                      <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                        <Award className="w-3.5 h-3.5" /> {t.profile.stats}
+                      </h3>
+                      <div className="grid grid-cols-1 gap-4">
+                        {profileHero.proStats && Object.entries(profileHero.proStats).map(([key, value]) => {
+                          const icons: Record<string, any> = {
+                            lastHitting: Target,
+                            mapAwareness: Eye,
+                            positioning: Map,
+                            reflexes: Zap,
+                            manaManagement: Sparkles,
+                            objectiveControl: Sword,
+                            communication: Users,
+                            tiltResistance: Brain,
+                            versatility: TrendingUp,
+                            ganking: Crosshair,
+                          };
+                          const Icon = icons[key] || Info;
+                          
+                          return (
+                            <div key={key} className="space-y-1.5">
+                              <div className="flex justify-between items-center px-0.5">
+                                <div className="flex items-center gap-2">
+                                  <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
+                                  <span className="text-[10px] font-bold uppercase tracking-widest">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                                </div>
+                                <span className="text-[10px] font-mono font-bold text-primary">{value as number}</span>
+                              </div>
+                              <Progress value={value as number} className="h-1.5 rounded-full bg-secondary/40" />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  </div>
                 </div>
 
-                {/* Compact Dossier Footer */}
-                <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-8 flex-shrink-0">
+                {/* Fixed Footer for closure */}
+                <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-12 flex-shrink-0 z-[110]">
                   <Button 
-                    className="w-full h-12 hero-gradient font-black text-[10px] tracking-[0.2em] shadow-xl rounded-xl active:scale-95 transition-transform" 
+                    className="w-full h-14 hero-gradient font-black text-[11px] tracking-[0.2em] shadow-xl rounded-xl active:scale-95 transition-transform uppercase" 
                     onClick={() => setProfileHero(null)}
                   >
                     {language === 'ru' ? 'ЗАКРЫТЬ ДОСЬЕ' : 'CLOSE DOSSIER'}
