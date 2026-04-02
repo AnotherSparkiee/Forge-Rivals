@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -42,7 +43,7 @@ export default function RosterPage() {
         { label: 'Tactics', desc: 'Strategic positioning and roles', icon: Swords, href: '/roster/tactics', active: true },
         { label: 'Training', desc: 'Select skills to improve after matches', icon: Dumbbell, href: '/roster/training', active: true },
         { label: 'Daily Training', desc: '24-hour intensive cycle', icon: Clock, href: '/roster/daily-training', active: true },
-        { label: 'Contracts', desc: 'Financial agreements and tenure', icon: Scroll, active: false },
+        { label: 'Contracts', desc: 'Financial agreements and tenure', icon: Scroll, href: '/roster/contracts', active: true },
         { label: 'Player Stats', desc: 'Individual performance metrics', icon: BarChart3, active: false },
         { label: 'Recover Fatigue', desc: 'Instant stamina restoration', icon: HeartPulse, active: false },
       ]
@@ -57,7 +58,7 @@ export default function RosterPage() {
         { label: 'Тактика', desc: 'Стратегические роли и позиции', icon: Swords, href: '/roster/tactics', active: true },
         { label: 'Тренировки', desc: 'Выбор навыков для прокачки после игр', icon: Dumbbell, href: '/roster/training', active: true },
         { label: 'Тренировка за сутки', desc: '24-часовой цикл подготовки', icon: Clock, href: '/roster/daily-training', active: true },
-        { label: 'Контракты', desc: 'Финансовые соглашения и сроки', icon: Scroll, active: false },
+        { label: 'Контракты', desc: 'Финансовые соглашения и сроки', icon: Scroll, href: '/roster/contracts', active: true },
         { label: 'Статистика игроков', desc: 'Индивидуальные метрики игроков', icon: BarChart3, active: false },
         { label: 'Снять усталость', desc: 'Мгновенное восстановление выносливости', icon: HeartPulse, active: false },
       ]

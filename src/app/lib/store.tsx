@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
@@ -248,6 +249,8 @@ interface GameStateContextType extends GameState {
   setTrainingFocus: (heroId: string, skillKey: string | null) => void;
   startDailyHeroTraining: (heroId: string, skillKey: string) => void;
   claimDailyHeroTraining: (heroId: string) => void;
+  updateHero: (heroId: string, updates: Partial<Hero>, creditCost?: number, crystalCost?: number) => void;
+  removeHero: (heroId: string, sellCreditAmount?: number) => void;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
@@ -709,6 +712,44 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, [user, db]);
 
+  const updateHero = useCallback((heroId: string, updates: Partial<Hero>, creditCost = 0, crystalCost = 0) => {
+    setState(s => {
+      if (s.credits < creditCost || s.crystals < crystalCost) return s;
+      const updatedHeroes = s.ownedHeroes.map(h => h.id === heroId ? { ...h, ...updates } : h);
+      const newCredits = s.credits - creditCost;
+      const newCrystals = s.crystals - crystalCost;
+      
+      if (user) {
+        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { 
+          ownedHeroes: sanitizeForFirestore(updatedHeroes),
+          inGameCurrency: newCredits,
+          crystals: newCrystals
+        }, { merge: true });
+      }
+      return { ...s, ownedHeroes: updatedHeroes, credits: newCredits, crystals: newCrystals };
+    });
+  }, [user, db]);
+
+  const removeHero = useCallback((heroId: string, sellCreditAmount = 0) => {
+    setState(s => {
+      const updatedHeroes = s.ownedHeroes.filter(h => h.id !== heroId);
+      const newLineup = { ...s.lineup };
+      Object.keys(newLineup).forEach(k => {
+        if (newLineup[k as LineupSlot] === heroId) newLineup[k as LineupSlot] = null;
+      });
+      const newCredits = s.credits + sellCreditAmount;
+
+      if (user) {
+        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { 
+          ownedHeroes: sanitizeForFirestore(updatedHeroes),
+          lineup: newLineup,
+          inGameCurrency: newCredits
+        }, { merge: true });
+      }
+      return { ...s, ownedHeroes: updatedHeroes, lineup: newLineup, credits: newCredits };
+    });
+  }, [user, db]);
+
   const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string) => {
     const scoreA = result.scoreA || 0;
     const scoreB = result.scoreB || 0;
@@ -786,7 +827,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   return (
     <GameStateContext.Provider value={{
-      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining
+      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, removeHero
     }}>
       {children}
     </GameStateContext.Provider>
