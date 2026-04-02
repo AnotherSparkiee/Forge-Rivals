@@ -1,24 +1,37 @@
+'use client';
+
+import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { firebaseConfig } from "./config";
+
+/**
+ * Returns initialized Firebase services.
+ */
+function getSdks(app: FirebaseApp) {
+  return {
+    firebaseApp: app,
+    auth: getAuth(app),
+    firestore: getFirestore(app),
+  };
+}
+
+/**
+ * Main initialization function for the client side.
+ */
 export function initializeFirebase() {
-  // 1. Если приложение уже есть, просто возвращаем SDK
   if (getApps().length > 0) {
     return getSdks(getApp());
   }
 
-  let firebaseApp;
-  
-  // 2. Сначала пробуем конфиг (для разработки в IDX это надежнее)
-  try {
-    if (firebaseConfig && Object.keys(firebaseConfig).length > 0) {
-      firebaseApp = initializeApp(firebaseConfig);
-    } else {
-      // Если конфиг пустой, пробуем авто-инициализацию
-      firebaseApp = initializeApp();
-    }
-  } catch (e) {
-    console.error("Firebase initialization failed:", e);
-    // Последний шанс — достать уже созданное, если упало на повторе
-    firebaseApp = getApp();
-  }
-
-  return getSdks(firebaseApp);
+  const app = initializeApp(firebaseConfig);
+  return getSdks(app);
 }
+
+// Export all providers and hooks from centralized locations
+export * from './provider';
+export * from './client-provider';
+export * from './firestore/use-collection';
+export * from './firestore/use-doc';
+export * from './non-blocking-updates';
+export * from './non-blocking-login';

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
@@ -14,7 +13,7 @@ import Link from 'next/link';
 export function TopBar() {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
-  const { credits, crystals, syncStats, isSyncing } = useGameState();
+  const { credits, crystals, syncStats, isSyncing, language } = useGameState();
   const db = useFirestore();
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
@@ -63,20 +62,20 @@ export function TopBar() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-white/10 h-14 flex items-center">
-      <div className="w-full max-w-lg mx-auto px-4 flex items-center justify-between gap-4">
+      <div className="w-full max-w-lg mx-auto px-4 flex items-center justify-between gap-2">
         
         {/* Left: Team Identity & Connection */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-[10px]" role="img" aria-label="flag">
+            <span className="text-xs" role="img" aria-label="flag">
               {userCountry?.flag || '🏳️'}
             </span>
             <span className="text-[9px] font-black text-primary uppercase tracking-tight whitespace-nowrap overflow-hidden">
-              {profile?.displayName || 'SYNCING...'}
+              {profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
             </span>
           </div>
           {isSyncing && (
-            <Radio className="w-3 h-3 text-accent shrink-0 animate-pulse" />
+            <Radio className="w-3.5 h-3.5 text-accent shrink-0 animate-pulse" />
           )}
         </div>
 

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
@@ -98,16 +97,6 @@ export default function SquadPage() {
     return Math.round(sum / activeHeroes.length);
   }, [lineup, ownedHeroes]);
 
-  const handleStartPress = (hero: Hero | undefined) => {
-    if (!hero) return;
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    
-    longPressTimer.current = setTimeout(() => {
-      setProfileHero(hero);
-      longPressTimer.current = null;
-    }, 600);
-  };
-
   const handleCancelPress = () => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
@@ -115,12 +104,22 @@ export default function SquadPage() {
     }
   };
 
+  const handleStartPress = (hero: Hero | undefined) => {
+    if (!hero) return;
+    handleCancelPress();
+    longPressTimer.current = setTimeout(() => {
+      setProfileHero(hero);
+      longPressTimer.current = null;
+    }, 600);
+  };
+
   const handleTouchMove = () => {
     handleCancelPress();
   };
 
   const handleSlotClick = (slotKey: LineupSlot) => {
-    if (!profileHero) {
+    // Only open selector if we didn't just trigger a long press
+    if (longPressTimer.current || !profileHero) {
       setSelectingSlot(prev => prev === slotKey ? null : slotKey);
     }
   };
