@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -17,20 +18,21 @@ import { usePathname } from 'next/navigation';
  * Displays a calendar of bonuses that improve each day.
  */
 export function DailyRewardManager() {
-  const { isLoaded, language, lastRewardClaimDate, rewardDay, claimReward } = useGameState();
+  const { isLoaded, language, lastRewardClaimDate, rewardDay, claimReward, selectedLeagueId } = useGameState();
   const [showReward, setShowReward] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
     // Only show reward on the main dashboard page after registration/setup
-    if (isLoaded && pathname === '/') {
+    // Added check for selectedLeagueId to ensure user is fully registered
+    if (isLoaded && pathname === '/' && !!selectedLeagueId) {
       const today = getMoscowDateString();
       if (lastRewardClaimDate !== today) {
         const timer = setTimeout(() => setShowReward(true), 1500);
         return () => clearTimeout(timer);
       }
     }
-  }, [isLoaded, lastRewardClaimDate, pathname]);
+  }, [isLoaded, lastRewardClaimDate, pathname, selectedLeagueId]);
 
   // Generate 30 days of rewards
   const calendarRewards = useMemo(() => {
@@ -58,6 +60,9 @@ export function DailyRewardManager() {
     upcoming: language === 'ru' ? "СКОРО" : "UPCOMING",
     today: language === 'ru' ? "СЕГОДНЯ" : "TODAY",
   };
+
+  // Do not render anything if the user hasn't completed setup
+  if (!selectedLeagueId) return null;
 
   return (
     <Dialog open={showReward} onOpenChange={setShowReward}>
