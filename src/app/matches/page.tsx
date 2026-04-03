@@ -7,7 +7,7 @@ import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, CalendarDays, UserSearch, CalendarClock, 
   History, Calendar, CheckSquare, ChevronRight, Shield,
-  Clock, Swords, Trophy
+  Clock, Swords, Trophy, EyeOff
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,7 @@ export default function MatchesPage() {
   const router = useRouter();
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, seasonDay, rank, 
-    lastLeagueMatchDate, matchHistory, seasonStartDate
+    lastLeagueMatchDate, lastSeenMatchDay, matchHistory, seasonStartDate
   } = useGameState();
   const db = useFirestore();
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
@@ -310,6 +310,7 @@ export default function MatchesPage() {
       startsIn: "TIME UNTIL MATCH:",
       tourLive: "LIVE TOURNAMENT MATCH",
       friendlyLive: "LIVE ENGAGEMENT",
+      hiddenScore: "HIDDEN",
       tabs: {
         next_opponent: { label: "Next Opponent", desc: "Detailed brief on your next rival", icon: UserSearch },
         my_future: { label: "My Future", desc: "Upcoming matches for your team", icon: CalendarClock },
@@ -334,6 +335,7 @@ export default function MatchesPage() {
       startsIn: "ДО МАТЧА ОСТАЛОСЬ:",
       tourLive: "ТУРНИРНЫЙ БОЙ В ЭФИРЕ",
       friendlyLive: "ТЕКУЩИЙ МАТЧ",
+      hiddenScore: "СКРЫТО",
       tabs: {
         next_opponent: { label: "Следующий соперник", desc: "Досье на ближайшего врага", icon: UserSearch },
         my_future: { label: "Свои будущие", desc: "Предстоящие игры команды", icon: CalendarClock },
@@ -349,6 +351,7 @@ export default function MatchesPage() {
   const renderMatchRow = (match: any, dayIdx: number) => {
     const day = dayIdx + 1;
     const isPlayed = seasonDay > 0 && (day < seasonDay || (day === seasonDay && isTodayPlayed));
+    const isSeen = day <= lastSeenMatchDay;
     const startHour = league.startTime;
     const matchDate = getDateForDay(day);
 
@@ -382,11 +385,18 @@ export default function MatchesPage() {
           </div>
           <div className="flex flex-col items-center px-2 min-w-[70px]">
             {isPlayed ? (
-              <div className="flex items-center gap-1.5">
-                <span className="text-base font-headline font-bold">{hScore}</span>
-                <span className="text-muted-foreground text-[10px]">:</span>
-                <span className="text-base font-headline font-bold">{aScore}</span>
-              </div>
+              isSeen || (match.home.id !== user.uid && match.away.id !== user.uid) ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-base font-headline font-bold">{hScore}</span>
+                  <span className="text-muted-foreground text-[10px]">:</span>
+                  <span className="text-base font-headline font-bold">{aScore}</span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-0.5 opacity-50">
+                  <EyeOff className="w-3 h-3 text-muted-foreground" />
+                  <span className="text-[7px] font-black uppercase text-muted-foreground tracking-tighter">{t.hiddenScore}</span>
+                </div>
+              )
             ) : (
               <div className="flex flex-col items-center gap-0.5">
                 <Badge variant="outline" className="text-[7px] px-1 py-0 uppercase border-accent/20 text-accent leading-none">{t.vs}</Badge>
@@ -407,6 +417,7 @@ export default function MatchesPage() {
   const renderHistoryRow = (match: any, index: number) => {
     const isWin = (match.scoreA > match.scoreB);
     const isDraw = (match.scoreA === match.scoreB);
+    const isSeen = match.day <= lastSeenMatchDay;
     
     let dateStr = "??.??";
     try {
@@ -435,15 +446,22 @@ export default function MatchesPage() {
               {profile?.displayName || 'My Team'}
             </div>
             <div className="flex flex-col items-center px-4">
-              <div className="flex items-center gap-1.5">
-                <span className={cn("text-base font-headline font-bold", isWin ? "text-primary" : isDraw ? "text-accent" : "text-destructive")}>
-                  {match.scoreA}
-                </span>
-                <span className="text-muted-foreground text-[10px]">:</span>
-                <span className={cn("text-base font-headline font-bold")}>
-                  {match.scoreB}
-                </span>
-              </div>
+              {isSeen || match.type !== 'league' ? (
+                <div className="flex items-center gap-1.5">
+                  <span className={cn("text-base font-headline font-bold", isWin ? "text-primary" : isDraw ? "text-accent" : "text-destructive")}>
+                    {match.scoreA}
+                  </span>
+                  <span className="text-muted-foreground text-[10px]">:</span>
+                  <span className={cn("text-base font-headline font-bold")}>
+                    {match.scoreB}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-0.5 opacity-50">
+                  <EyeOff className="w-3 h-3 text-muted-foreground" />
+                  <span className="text-[7px] font-black uppercase text-muted-foreground">{t.hiddenScore}</span>
+                </div>
+              )}
             </div>
             <div className="flex-1 text-left text-[10px] font-bold uppercase truncate">
               {match.opponentName || 'Unknown Team'}
