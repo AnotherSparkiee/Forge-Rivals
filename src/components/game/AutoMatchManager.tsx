@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
@@ -70,57 +70,14 @@ export function AutoMatchManager() {
 
   const { data: allLeaguePlayers } = useCollection(allLeaguePlayersQuery);
 
-  useEffect(() => {
-    if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !simulationRef.current && !isUserLoading && profile?.selectedLeagueId && groupPlayers && user) {
-      const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
-      const matchTime = league?.startTime || '23:00';
-      
-      const catchUp = async () => {
-        for (let d = 1; d <= seasonDay; d++) {
-          const detId = `league_${seasonNumber}_${d}`;
-          const existingMatch = matchHistory.find(m => m.id === detId);
-          
-          // Re-simulate if match is technical placeholder (WAITING) or legacy (no preview)
-          const isIncomplete = existingMatch && (existingMatch.preview === undefined || existingMatch.opponentName === 'WAITING');
-          if (existingMatch && !isIncomplete) continue;
-
-          if (d < seasonDay || isMatchDue(matchTime, lastLeagueMatchDate)) {
-            await triggerAutoMatch(matchTime, d, detId);
-            break; 
-          }
-        }
-      };
-      catchUp();
-    }
-  }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user]);
-
-  useEffect(() => {
-    if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !cupSimulationRef.current && !isUserLoading && profile?.selectedLeagueId && user && allLeaguePlayers && allLeaguePlayers.length > 0) {
-      const cupTime = "07:00"; 
-      
-      const catchUpCup = async () => {
-        for (let d = 1; d <= seasonDay; d++) {
-          const detId = `cup_${seasonNumber}_${d}`;
-          const existingMatch = matchHistory.find(m => m.id === detId);
-          
-          const isIncomplete = existingMatch && (existingMatch.preview === undefined || existingMatch.opponentName === 'WAITING');
-          if (existingMatch && !isIncomplete) continue;
-
-          const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
-          if (wasEliminated) break;
-
-          if (d < seasonDay || isMatchDue(cupTime, lastCupMatchDate)) {
-            await triggerCupMatch(cupTime, d, detId);
-            break;
-          }
-        }
-      };
-      catchUpCup();
-    }
-  }, [isLoaded, profile, lastCupMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, allLeaguePlayers]);
-
   const triggerAutoMatch = async (matchTime: string, targetDay: number, detId: string) => {
     if (!groupPlayers || !user || !profile || simulationRef.current) return;
+    
+    // Check if simulation is actually needed
+    const existingMatch = matchHistory.find(m => m.id === detId);
+    const isIncomplete = existingMatch && (existingMatch.preview === undefined || existingMatch.opponentName === 'WAITING');
+    if (existingMatch && !isIncomplete) return;
+
     simulationRef.current = true;
     setIsSimulating(true);
     setSyncing(true);
@@ -187,6 +144,11 @@ export function AutoMatchManager() {
 
   const triggerCupMatch = async (matchTime: string, targetDay: number, detId: string) => {
     if (!user || !profile || !allLeaguePlayers || cupSimulationRef.current) return;
+    
+    const existingMatch = matchHistory.find(m => m.id === detId);
+    const isIncomplete = existingMatch && (existingMatch.preview === undefined || existingMatch.opponentName === 'WAITING');
+    if (existingMatch && !isIncomplete) return;
+
     cupSimulationRef.current = true;
     setIsSimulating(true);
     setSyncing(true);
@@ -208,9 +170,6 @@ export function AutoMatchManager() {
           postMatch: null
         };
         recordMatch(seededResult.winner, seededResult, targetDay, "SEEDED", 'tournament', undefined, detId);
-        setIsSimulating(false);
-        cupSimulationRef.current = false;
-        setSyncing(false);
         return;
       }
 
@@ -231,9 +190,6 @@ export function AutoMatchManager() {
           postMatch: null
         };
         recordMatch(waitResult.winner, waitResult, targetDay, "WAITING", 'tournament', undefined, detId);
-        setIsSimulating(false);
-        cupSimulationRef.current = false;
-        setSyncing(false);
         return;
       }
 
@@ -286,6 +242,52 @@ export function AutoMatchManager() {
       setSyncing(false);
     }
   };
+
+  useEffect(() => {
+    if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !isUserLoading && profile?.selectedLeagueId && groupPlayers && user) {
+      const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
+      const matchTime = league?.startTime || '23:00';
+      
+      const catchUp = async () => {
+        for (let d = 1; d <= seasonDay; d++) {
+          const detId = `league_${seasonNumber}_${d}`;
+          const existingMatch = matchHistory.find(m => m.id === detId);
+          const isIncomplete = existingMatch && (existingMatch.preview === undefined || existingMatch.opponentName === 'WAITING');
+          
+          if (!existingMatch || isIncomplete) {
+            if (d < seasonDay || isMatchDue(matchTime, lastLeagueMatchDate)) {
+              await triggerAutoMatch(matchTime, d, detId);
+            }
+          }
+        }
+      };
+      catchUp();
+    }
+  }, [isLoaded, profile?.selectedLeagueId, lastLeagueMatchDate, isUserLoading, seasonDay, seasonNumber, user]);
+
+  useEffect(() => {
+    if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !isUserLoading && profile?.selectedLeagueId && user && allLeaguePlayers && allLeaguePlayers.length > 0) {
+      const cupTime = "07:00"; 
+      
+      const catchUpCup = async () => {
+        for (let d = 1; d <= seasonDay; d++) {
+          const detId = `cup_${seasonNumber}_${d}`;
+          const existingMatch = matchHistory.find(m => m.id === detId);
+          const isIncomplete = existingMatch && (existingMatch.preview === undefined || existingMatch.opponentName === 'WAITING');
+
+          const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
+          if (wasEliminated) break;
+
+          if (!existingMatch || isIncomplete) {
+            if (d < seasonDay || isMatchDue(cupTime, lastCupMatchDate)) {
+              await triggerCupMatch(cupTime, d, detId);
+            }
+          }
+        }
+      };
+      catchUpCup();
+    }
+  }, [isLoaded, profile?.selectedLeagueId, lastCupMatchDate, isUserLoading, seasonDay, seasonNumber, user]);
 
   const handleGoToReport = () => {
     setShowResultDialog(false);

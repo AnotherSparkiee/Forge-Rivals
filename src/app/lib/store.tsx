@@ -800,11 +800,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const matchId = customId || `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const existingIdx = s.matchHistory.findIndex(m => m.id === matchId);
       
-      // Technical results logic: if opponent is WAITING or SEEDED, we allow later overwrite with full data
-      const isTechnical = existingIdx !== -1 && (s.matchHistory[existingIdx].opponentName === 'WAITING' || s.matchHistory[existingIdx].opponentName === 'SEEDED');
-      const isLegacy = existingIdx !== -1 && s.matchHistory[existingIdx].preview === undefined;
+      if (existingIdx !== -1) {
+        const existing = s.matchHistory[existingIdx];
+        const isTechnical = existing.opponentName === 'WAITING' || existing.opponentName === 'SEEDED';
+        const isLegacy = existing.preview === undefined;
 
-      if (existingIdx !== -1 && !isLegacy && !isTechnical && opponentName !== 'WAITING' && opponentName !== 'SEEDED') return s;
+        // If we already have a complete match with same ID, and opponent matches, skip update to prevent recursion
+        if (!isLegacy && !isTechnical && existing.opponentName === opponentName) return s;
+        // If technical status is same, also skip to prevent loops
+        if (isTechnical && existing.opponentName === opponentName) return s;
+      }
 
       const xpRange = (type === 'league' || type === 'tournament') ? { min: 2, max: 4 } : { min: 1, max: 1 };
       const updatedHeroes = s.ownedHeroes.map(hero => {
@@ -859,7 +864,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
 
     if (user && finalNewState) {
-      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { 
+      const profileRef = doc(db, 'players_v5', user.uid);
+      setDocumentNonBlocking(profileRef, { 
         inGameCurrency: finalNewState.credits, 
         rank: finalNewState.rank, 
         lastLeagueMatchDate: finalNewState.lastLeagueMatchDate ?? null, 
