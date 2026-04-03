@@ -11,7 +11,7 @@ import {
   ChevronLeft, User, Check, 
   Swords, Activity, Map, ArrowRight, TrendingUp,
   ShieldCheck, Brain, Zap, Target, FileText,
-  Users, Signal, EyeOff, Loader2
+  Users, Signal, EyeOff, Loader2, Calendar, MapPin
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -104,7 +104,17 @@ function MatchContent() {
       duration: "Duration",
       mvp: "Unit MVP",
       orv: "AVG OVR",
-      legacyMsg: "Legacy Match Data: Detailed Analysis Unavailable"
+      legacyMsg: "Legacy Match Data: Detailed Analysis Unavailable",
+      home: "Home",
+      away: "Away",
+      arena: "Arena",
+      spectators: "Spectators",
+      tournamentTypes: {
+        league: "PRO LEAGUE",
+        tournament: "PYRAMID CUP",
+        friendly: "FRIENDLY MATCH",
+        basket: "CW BASKET"
+      }
     },
     ru: {
       reportTitle: "ТАКТИЧЕСКИЙ ОТЧЕТ ПОСЛЕ БОЯ",
@@ -123,7 +133,17 @@ function MatchContent() {
       duration: "Длительность",
       mvp: "MVP отряда",
       orv: "Средний OVR",
-      legacyMsg: "Устаревшие данные: Полный отчет недоступен"
+      legacyMsg: "Устаревшие данные: Полный отчет недоступен",
+      home: "Дома",
+      away: "В гостях",
+      arena: "Арена",
+      spectators: "Зрители",
+      tournamentTypes: {
+        league: "ПРОФ. ЛИГА",
+        tournament: "КУБОК ПИРАМИДЫ",
+        friendly: "ТОВ. МАТЧ",
+        basket: "КВ КОРЗИНА"
+      }
     }
   };
 
@@ -138,8 +158,81 @@ function MatchContent() {
       </div>
     );
 
+    const tourLabel = t.tournamentTypes[currentResult?.type as keyof typeof t.tournamentTypes] || currentResult?.type?.toUpperCase();
+    const playedDate = currentResult?.playedAt ? new Date(currentResult.playedAt).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' }) : '--';
+    
+    // Calculate realistic spectators based on arena capacity
+    const arenaCapacity = profile?.arena?.capacity || 5000;
+    const spectators = Math.floor(arenaCapacity * (0.85 + Math.random() * 0.15));
+
     return (
       <div className="space-y-6 animate-in fade-in duration-500">
+        {/* Match Identity Bar */}
+        <div className="bg-secondary/30 rounded-xl border border-white/5 p-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-3.5 h-3.5 text-primary" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{playedDate}</span>
+          </div>
+          <Badge variant="outline" className="border-primary/30 text-primary text-[8px] font-black uppercase tracking-widest px-2">
+            {tourLabel}
+          </Badge>
+        </div>
+
+        {/* Main Teams Presentation */}
+        <Card className="glass-card border-white/10 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden">
+          <CardContent className="p-0">
+            <div className="grid grid-cols-2 divide-x divide-white/5">
+              <div className="p-6 flex flex-col items-center gap-3 text-center">
+                <div className="relative">
+                  <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-primary/30 flex items-center justify-center shadow-xl">
+                    <span className="text-3xl">{myFlag}</span>
+                  </div>
+                  <Badge className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[7px] font-black uppercase px-2 h-4 border-none">
+                    {t.home}
+                  </Badge>
+                </div>
+                <h3 className="text-xs font-headline font-bold uppercase tracking-tight text-white mt-1">
+                  {profile?.displayName || "MY TEAM"}
+                </h3>
+              </div>
+
+              <div className="p-6 flex flex-col items-center gap-3 text-center">
+                <div className="relative">
+                  <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center shadow-xl">
+                    <span className="text-3xl">🏳️</span>
+                  </div>
+                  <Badge variant="outline" className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-background border-white/20 text-muted-foreground text-[7px] font-black uppercase px-2 h-4">
+                    {t.away}
+                  </Badge>
+                </div>
+                <h3 className="text-xs font-headline font-bold uppercase tracking-tight text-white mt-1">
+                  {currentResult?.opponentName}
+                </h3>
+              </div>
+            </div>
+
+            {/* Arena & Fans Footer */}
+            <div className="bg-black/40 border-t border-white/5 p-3 flex items-center justify-around">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-3 h-3 text-accent" />
+                <div>
+                  <p className="text-[7px] font-black text-muted-foreground uppercase">{t.arena}</p>
+                  <p className="text-[9px] font-bold text-accent uppercase">Operational HQ</p>
+                </div>
+              </div>
+              <div className="h-6 w-px bg-white/5"></div>
+              <div className="flex items-center gap-2">
+                <Users className="w-3 h-3 text-primary" />
+                <div>
+                  <p className="text-[7px] font-black text-muted-foreground uppercase">{t.spectators}</p>
+                  <p className="text-[9px] font-bold text-primary tabular-nums">{spectators.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Analytical Stats */}
         <div className="grid grid-cols-2 gap-4">
           <Card className="bg-primary/5 border-primary/20 p-4 text-center">
             <p className="text-[10px] uppercase font-black text-muted-foreground mb-1">{t.orv}</p>
