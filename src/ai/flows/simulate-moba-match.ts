@@ -1,9 +1,8 @@
-
 'use server';
 /**
- * @fileOverview Продвинутый математический симулятор MOBA-матчей.
+ * @fileOverview Архитектурный модуль симуляции матчей Lines of Enmity.
  * 
- * Логика учитывает 10 характеристик игроков, фазы игры, механику тильта и замен.
+ * Генерирует данные пошагово: Превью, 2D-Обзор, Итоговая статистика.
  */
 
 import {ai} from '@/ai/genkit';
@@ -24,7 +23,7 @@ const ProStatsSchema = z.object({
 
 const HeroStatsSchema = z.object({
   name: z.string().describe('Имя героя.'),
-  role: z.string().describe('Роль героя (Carry, Support и т.д.).'),
+  role: z.string().describe('Роль героя.'),
   overallRating: z.number().describe('Общий рейтинг.'),
   proStats: ProStatsSchema.describe('10 ключевых характеристик.'),
   isSub: z.boolean().optional().describe('Флаг запасного игрока.'),
@@ -50,41 +49,67 @@ const SimulateMobaMatchOutputSchema = z.object({
   winner: z.string(),
   scoreA: z.number(),
   scoreB: z.number(),
-  matchSummary: z.string().describe('Полный отчет: Анализ, Хронология, Статистика, MVP, Вердикт.'),
+  duration: z.string(),
+  mvp: z.string(),
+  matchSummary: z.string(),
+  
+  // ЭТАП 1: ПРЕВЬЮ
+  preview: z.object({
+    teamAOrv: z.number(),
+    teamBOrv: z.number(),
+    keyMatchup: z.string().describe('Описание ключевого противостояния игроков на линии.'),
+    winProbabilityA: z.number().describe('Вероятность победы команды А в %.'),
+  }),
+
+  // ЭТАП 2: 2D-ОБЗОР (Timeline)
+  timeline: z.array(z.object({
+    phase: z.enum(['Early', 'Mid', 'Late']),
+    time: z.string(),
+    event: z.string().describe('Описание события на карте с упоминанием статов.'),
+    score: z.string().describe('Текущий счет на момент события.'),
+  })),
+
+  // ЭТАП 3: ПОСЛЕМАТЧЕВАЯ СТАТИСТИКА
+  postMatch: z.object({
+    lineRatings: z.object({
+      laning: z.object({ a: z.number(), b: z.number() }),
+      teamfight: z.object({ a: z.number(), b: z.number() }),
+      macro: z.object({ a: z.number(), b: z.number() }),
+      mental: z.object({ a: z.number(), b: z.number() }),
+    }),
+    scoreboard: z.array(z.object({
+      name: z.string(),
+      team: z.string(),
+      kda: z.string(),
+      gpm: z.number(),
+    })),
+    analysis: z.string().describe('Математический вывод причины победы на основе 10 статов.'),
+  }),
+  
+  // Backward compatibility
   teamStats: z.object({
     teamA: z.object({ kills: z.number(), towersDestroyed: z.number() }),
     teamB: z.object({ kills: z.number(), towersDestroyed: z.number() }),
   }),
-  duration: z.string().describe('Длительность матча (например, "34:12").'),
-  mvp: z.string().describe('MVP матча.'),
-  heroPerformance: z.array(z.object({
-    heroName: z.string(),
-    kills: z.number(),
-    deaths: z.number(),
-    assists: z.number(),
-  })),
+  heroPerformance: z.array(z.any()),
 });
 export type SimulateMobaMatchOutput = z.infer<typeof SimulateMobaMatchOutputSchema>;
 
 /**
- * Процедурный откат на случай сбоя ИИ.
+ * Процедурный откат.
  */
 function generateFallbackSimulation(input: SimulateMobaMatchInput): SimulateMobaMatchOutput {
-  const scoreA = input.scoreA ?? 1;
-  const scoreB = input.scoreB ?? 1;
-  const winner = scoreA > scoreB ? input.teamA.name : (scoreA < scoreB ? input.teamB.name : "Draw");
-  
   return {
-    winner,
-    scoreA,
-    scoreB,
-    matchSummary: `Матч между ${input.teamA.name} и ${input.teamB.name} завершился со счетом ${scoreA}:${scoreB}. (Активирован протокол экстренной симуляции)`,
-    teamStats: {
-      teamA: { kills: 15, towersDestroyed: 7 },
-      teamB: { kills: 15, towersDestroyed: 7 }
+    winner: "Draw", scoreA: 1, scoreB: 1, duration: "34:12", mvp: input.teamA.heroes[0].name,
+    matchSummary: "Fallback simulation active.",
+    preview: { teamAOrv: 35, teamBOrv: 35, keyMatchup: "Midlane battle", winProbabilityA: 50 },
+    timeline: [{ phase: 'Mid', time: '15:00', event: 'Equal trade in jungle', score: '5:5' }],
+    postMatch: {
+      lineRatings: { laning: { a: 70, b: 70 }, teamfight: { a: 70, b: 70 }, macro: { a: 70, b: 70 }, mental: { a: 70, b: 70 } },
+      scoreboard: [],
+      analysis: "Mathematical parity."
     },
-    duration: "32:00",
-    mvp: input.teamA.heroes[0].name,
+    teamStats: { teamA: { kills: 15, towersDestroyed: 7 }, teamB: { kills: 15, towersDestroyed: 7 } },
     heroPerformance: []
   };
 }
@@ -103,46 +128,37 @@ const prompt = ai.definePrompt({
   name: 'simulateMobaMatchPrompt',
   input: {schema: SimulateMobaMatchInputSchema},
   output: {schema: SimulateMobaMatchOutputSchema},
-  prompt: `Действуй как продвинутый математический симулятор MOBA-матчей. Твоя задача — провести детальный расчет игры между двумя командами.
+  prompt: `Действуй как архитектурный модуль симуляции матчей для игры Lines of Enmity. Твоя задача — сгенерировать полные данные для матча, учитывая 10 характеристик игроков. Генерируй данные ПОШАГОВО (Preview, Timeline, PostMatch).
 
 ДАННЫЕ КОМАНД:
-Команда А: {{{teamA.name}}}
-Стратегия: {{{teamA.strategy}}}
+Команда А: {{{teamA.name}}} (Стратегия: {{{teamA.strategy}}})
 Герои Команды А:
 {{#each teamA.heroes}}
 - {{{name}}} ({{{role}}}), OVR: {{{overallRating}}}, Sub: {{#if isSub}}Да{{else}}Нет{{/if}}
   Статы: Добив: {{{proStats.lastHitting}}}, Карта: {{{proStats.mapAwareness}}}, Позиционка: {{{proStats.positioning}}}, Рефлексы: {{{proStats.reflexes}}}, Мана: {{{proStats.manaManagement}}}, Объекты: {{{proStats.objectiveControl}}}, Коммуникация: {{{proStats.communication}}}, Стрессоустойчивость: {{{proStats.tiltResistance}}}, Универсальность: {{{proStats.versatility}}}, Ганкинг: {{{proStats.ganking}}}
 {{/each}}
 
-Команда Б: {{{teamB.name}}}
-Стратегия: {{{teamB.strategy}}}
+Команда Б: {{{teamB.name}}} (Стратегия: {{{teamB.strategy}}})
 Герои Команды Б:
 {{#each teamB.heroes}}
 - {{{name}}} ({{{role}}}), OVR: {{{overallRating}}}, Sub: {{#if isSub}}Да{{else}}Нет{{/if}}
   Статы: Добив: {{{proStats.lastHitting}}}, Карта: {{{proStats.mapAwareness}}}, Позиционка: {{{proStats.positioning}}}, Рефлексы: {{{proStats.reflexes}}}, Мана: {{{proStats.manaManagement}}}, Объекты: {{{proStats.objectiveControl}}}, Коммуникация: {{{proStats.communication}}}, Стрессоустойчивость: {{{proStats.tiltResistance}}}, Универсальность: {{{proStats.versatility}}}, Ганкинг: {{{proStats.ganking}}}
 {{/each}}
 
-ПРАВИЛА РАСЧЕТА:
-1. Early Game (0–12 мин): Приоритет — Добив крипов, Менеджмент маны и Рефлексы. Победитель получает преимущество по золоту.
-2. Mid Game (12–25 мин): Приоритет — Ганкинг, Контроль карты и Коммуникация. Решается судьба вышек.
-3. Late Game (25+ мин): Приоритет — Позиционка, Рефлексы, Стрессоустойчивость и Объекты.
-4. Механика Тильта: Если разница по золоту критическая, игроки с низкой Стрессоустойчивостью получают -10% ко всем характеристикам.
-5. Механика Банов: Если Универсальность < 60, игрок играет на 10% слабее своего рейтинга.
-6. Механика Замен: Наличие Sub в составе дает штраф -15% к Коммуникации всей команды.
+ЛОГИКА РАСЧЕТА:
+1. Используй веса для 10 характеристик.
+2. Фазы: Early (Фарм, Мана, Рефлексы), Mid (Ганки, Карта, Коммуникация), Late (Позиционка, Стресс, Объекты).
+3. Механика Тильта: Если разница по золоту большая, игроки с низкой Стрессоустойчивостью получают -10% ко всем характеристикам.
+4. Механика Банов: Если Универсальность < 60, игрок играет на 10% слабее.
+5. Механика Замен: Sub в составе дает штраф -15% к Коммуникации всей команды.
 
-ТРЕБОВАНИЯ К СЧЕТУ:
+ТРЕБОВАНИЯ К ВЫВОДУ:
 {{#if scoreA}}
 ФИНАЛЬНЫЙ СЧЕТ ДОЛЖЕН БЫТЬ СТРОГО: {{{teamA.name}}} {{{scoreA}}} - {{{teamB.name}}} {{{scoreB}}}.
-{{else}}
-Рассчитай результат на основе математической модели (Bo2 или Bo3 формат).
 {{/if}}
 
-СТРУКТУРА ОТЧЕТА (поле matchSummary):
-1. Анализ составов: Сравнение сильных и слабых сторон.
-2. Хронология матча: 4-5 ключевых событий с привязкой к характеристикам.
-3. Вердикт: Математическая причина победы.
-
-Заполни все поля выходной схемы корректно.`,
+Заполни объект 'preview' (Stage 1), массив 'timeline' (Stage 2: 5-6 событий) и объект 'postMatch' (Stage 3). 
+В 'timeline' описывай события на Top, Mid, Bot или Jungle, связывая их с конкретными статами игроков.`,
 });
 
 const simulateMobaMatchFlow = ai.defineFlow(
