@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -44,7 +45,7 @@ export default function RosterPage() {
         { label: 'Daily Training', desc: '24-hour intensive cycle', icon: Clock, href: '/roster/daily-training', active: true },
         { label: 'Contracts', desc: 'Financial agreements and tenure', icon: Scroll, href: '/roster/contracts', active: true },
         { label: 'Player Stats', desc: 'Individual performance metrics', icon: BarChart3, href: '/roster/stats', active: true },
-        { label: 'Recover Fatigue', desc: 'Instant stamina restoration', icon: HeartPulse, active: false },
+        { label: 'Recover Fatigue', desc: 'Squad-wide stamina restoration', icon: HeartPulse, href: '/roster/fatigue', active: true },
       ]
     },
     ru: {
@@ -59,7 +60,7 @@ export default function RosterPage() {
         { label: 'Тренировка за сутки', desc: '24-часовой цикл подготовки', icon: Clock, href: '/roster/daily-training', active: true },
         { label: 'Контракты', desc: 'Финансовые соглашения и сроки', icon: Scroll, href: '/roster/contracts', active: true },
         { label: 'Статистика игроков', desc: 'Индивидуальные метрики игроков', icon: BarChart3, href: '/roster/stats', active: true },
-        { label: 'Снять усталость', desc: 'Мгновенное восстановление выносливости', icon: HeartPulse, active: false },
+        { label: 'Снять усталость', desc: 'Массовое восстановление выносливости состава', icon: HeartPulse, href: '/roster/fatigue', active: true },
       ]
     }
   };

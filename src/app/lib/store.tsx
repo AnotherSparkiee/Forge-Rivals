@@ -251,6 +251,7 @@ interface GameStateContextType extends GameState {
   claimDailyHeroTraining: (heroId: string) => void;
   updateHero: (heroId: string, updates: Partial<Hero>, creditCost?: number, crystalCost?: number) => void;
   removeHero: (heroId: string, sellCreditAmount?: number) => void;
+  recoverAllFatigue: (costType: 'credits' | 'crystals') => boolean;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
@@ -750,6 +751,31 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, [user, db]);
 
+  const recoverAllFatigue = useCallback((costType: 'credits' | 'crystals') => {
+    let result = false;
+    setState(s => {
+      const creditCost = costType === 'credits' ? 75000 : 0;
+      const crystalCost = costType === 'crystals' ? 150 : 0;
+
+      if (s.credits < creditCost || s.crystals < crystalCost) return s;
+
+      const updatedHeroes = s.ownedHeroes.map(h => ({ ...h, fatigue: 0 }));
+      const newCredits = s.credits - creditCost;
+      const newCrystals = s.crystals - crystalCost;
+      result = true;
+
+      if (user) {
+        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), {
+          ownedHeroes: sanitizeForFirestore(updatedHeroes),
+          inGameCurrency: newCredits,
+          crystals: newCrystals
+        }, { merge: true });
+      }
+      return { ...s, ownedHeroes: updatedHeroes, credits: newCredits, crystals: newCrystals };
+    });
+    return result;
+  }, [user, db]);
+
   const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string) => {
     const scoreA = result.scoreA || 0;
     const scoreB = result.scoreB || 0;
@@ -827,7 +853,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   return (
     <GameStateContext.Provider value={{
-      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, removeHero
+      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, removeHero, recoverAllFatigue
     }}>
       {children}
     </GameStateContext.Provider>
