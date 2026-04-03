@@ -15,9 +15,10 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Skull, Crosshair, Swords, Loader2, ArrowUpCircle, ArrowDownCircle, MinusCircle, Star, Target } from 'lucide-react';
+import { Trophy, Skull, Crosshair, Swords, Loader2, ArrowUpCircle, ArrowDownCircle, MinusCircle, Star, Target, FileText, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant, getEntryRound } from '@/app/lib/cup-utils';
+import { useRouter } from 'next/navigation';
 
 export function AutoMatchManager() {
   const { 
@@ -28,6 +29,7 @@ export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
   
   const [isSimulating, setIsSimulating] = useState(false);
   const [showResultDialog, setShowResultDialog] = useState(false);
@@ -264,6 +266,12 @@ export function AutoMatchManager() {
     }
   };
 
+  const handleGoToReport = () => {
+    setShowResultDialog(false);
+    if (currentResult && !currentResult.isCup) markMatchAsSeen(currentResult.day);
+    router.push('/match');
+  };
+
   const t = { 
     title: language === 'ru' ? 'ИТОГИ СЕЗОНА' : 'SEASON RESULTS', 
     congrats: language === 'ru' ? 'СЕЗОН ЗАВЕРШЕН!' : 'SEASON COMPLETE!', 
@@ -275,39 +283,46 @@ export function AutoMatchManager() {
     next: language === 'ru' ? 'СЛЕДУЮЩИЙ СЕЗОН' : 'NEXT SEASON',
     matchSummary: language === 'ru' ? 'Обзор матча' : 'Match Summary',
     cupTitle: language === 'ru' ? 'КУБОК ПИРАМИДЫ' : 'PYRAMID CUP',
-    victory: language === 'ru' ? 'ПОБЕДА' : 'VICTORY',
-    defeat: language === 'ru' ? 'ВЫЛЕТ' : 'ELIMINATED'
+    victory: language === 'ru' ? 'ОПЕРАЦИЯ ЗАВЕРШЕНА' : 'ENGAGEMENT COMPLETE',
+    alert: language === 'ru' ? 'ТАКТИЧЕСКАЯ СВОДКА' : 'TACTICAL ALERT',
+    proceed: language === 'ru' ? 'ПЕРЕЙТИ К ОТЧЕТУ' : 'PROCEED TO REPORT',
+    desc: language === 'ru' ? 'Технический отчет о столкновении расшифрован и готов к изучению.' : 'Technical after-action report decrypted and ready for evaluation.'
   };
 
   return (
     <>
-      <Dialog open={showResultDialog} onOpenChange={(open) => { setShowResultDialog(open); if (!open && currentResult && !currentResult.isCup) markMatchAsSeen(currentResult.day); }}>
-        <DialogContent className="max-w-md p-0 overflow-hidden bg-background border-white/5">
-          <div className={cn("p-6 text-center border-b", currentResult?.scoreA > currentResult?.scoreB ? "bg-primary/10 border-primary/20" : "bg-accent/10 border-accent/20")}>
-            {currentResult?.isCup ? <Target className="w-16 h-16 mx-auto mb-3 text-accent" /> : <Trophy className="w-16 h-16 mx-auto mb-3 text-primary" />}
-            <DialogTitle className="text-3xl font-headline font-bold mb-1 uppercase">
-              {currentResult?.isCup ? t.cupTitle : (currentResult?.scoreA > currentResult?.scoreB ? t.victory : (language === 'ru' ? 'МАТЧ ОКОНЧЕН' : 'MATCH OVER'))}
-            </DialogTitle>
-            <DialogDescription className="sr-only">{t.matchSummary}</DialogDescription>
-            <div className="flex items-center justify-center gap-4 text-2xl font-headline font-bold mt-2">
-              <span className={cn(currentResult?.scoreA > currentResult?.scoreB && "text-primary")}>{currentResult?.scoreA}</span>
-              <span className="opacity-30">:</span>
-              <span className={cn(currentResult?.scoreB > currentResult?.scoreA && "text-red-400")}>{currentResult?.scoreB}</span>
+      <Dialog open={showResultDialog} onOpenChange={(open) => { if (!open) handleGoToReport(); }}>
+        <DialogContent className="max-w-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
+          <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
+            <div className="mx-auto w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary shadow-[0_0_20px_rgba(var(--primary),0.3)]">
+              <Zap className="w-8 h-8 text-primary animate-pulse" />
             </div>
-            {currentResult?.isCup && currentResult?.scoreA < currentResult?.scoreB && (
-              <p className="text-xs text-red-400 font-black mt-2 uppercase tracking-widest">{t.defeat}</p>
-            )}
+            <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">
+              {t.alert}
+            </DialogTitle>
+            <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">
+              {t.victory}
+            </DialogDescription>
           </div>
-          <div className="p-6 space-y-6">
-            <div className="max-h-[40vh] overflow-y-auto pr-2 scrollbar-hide">
-              <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
-                {currentResult?.matchSummary}
+
+          <div className="p-6 space-y-4">
+            <div className="bg-secondary/30 rounded-xl border border-white/5 p-4 flex items-center gap-4">
+              <div className="p-2 rounded-lg bg-primary/20">
+                <FileText className="w-5 h-5 text-primary" />
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground italic">
+                "{t.desc}"
               </p>
             </div>
           </div>
-          <DialogFooter className="p-4 bg-secondary/20">
-            <Button onClick={() => setShowResultDialog(false)} className="w-full font-bold uppercase text-[10px] h-12">
-              {language === 'ru' ? 'ЗАКРЫТЬ' : 'CLOSE'}
+
+          <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5">
+            <Button 
+              className="w-full h-12 hero-gradient font-bold uppercase text-xs tracking-widest" 
+              onClick={handleGoToReport}
+            >
+              <ArrowRight className="w-4 h-4 mr-2" />
+              {t.proceed}
             </Button>
           </DialogFooter>
         </DialogContent>

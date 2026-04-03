@@ -318,7 +318,7 @@ function MatchContent() {
           <p className="text-[10px] font-black text-accent uppercase tracking-widest">{step === 'preview' ? t.preview : step === 'live' ? t.live : t.stats}</p>
         </header>
 
-        {/* MAIN RESULT CARD (ALWAYS VISIBLE) */}
+        {/* MAIN RESULT CARD - Conditional Score */}
         <Card className="glass-card border-primary/20 bg-gradient-to-b from-primary/10 to-transparent overflow-hidden mb-8">
           <CardContent className="p-0">
             <div className="grid grid-cols-3 items-center p-6">
@@ -332,18 +332,29 @@ function MatchContent() {
               </div>
 
               <div className="flex flex-col items-center justify-center">
-                <div className="text-3xl font-headline font-black italic tracking-tighter flex items-center gap-3">
-                  <span className={cn(currentResult?.scoreA > currentResult?.scoreB && "text-primary")}>{currentResult?.scoreA}</span>
-                  <span className="opacity-20">:</span>
-                  <span className={cn(currentResult?.scoreB > currentResult?.scoreA && "text-primary")}>{currentResult?.scoreB}</span>
-                </div>
-                {step === 'stats' && (
-                  <Badge className={cn(
-                    "mt-3 text-[7px] font-black tracking-widest",
-                    currentResult?.scoreA > currentResult?.scoreB ? "bg-green-500/20 text-green-400" : (currentResult?.scoreA === currentResult?.scoreB ? "bg-accent/20 text-accent" : "bg-red-500/20 text-red-400")
-                  )}>
-                    {currentResult?.scoreA > currentResult?.scoreB ? "VICTORY" : (currentResult?.scoreA === currentResult?.scoreB ? "DRAW" : "DEFEAT")}
-                  </Badge>
+                {step === 'stats' ? (
+                  <>
+                    <div className="text-3xl font-headline font-black italic tracking-tighter flex items-center gap-3 animate-in zoom-in duration-500">
+                      <span className={cn(currentResult?.scoreA > currentResult?.scoreB && "text-primary")}>{currentResult?.scoreA}</span>
+                      <span className="opacity-20">:</span>
+                      <span className={cn(currentResult?.scoreB > currentResult?.scoreA && "text-primary")}>{currentResult?.scoreB}</span>
+                    </div>
+                    <Badge className={cn(
+                      "mt-3 text-[7px] font-black tracking-widest",
+                      currentResult?.scoreA > currentResult?.scoreB ? "bg-green-500/20 text-green-400" : (currentResult?.scoreA === currentResult?.scoreB ? "bg-accent/20 text-accent" : "bg-red-500/20 text-red-400")
+                    )}>
+                      {currentResult?.scoreA > currentResult?.scoreB ? "VICTORY" : (currentResult?.scoreA === currentResult?.scoreB ? "DRAW" : "DEFEAT")}
+                    </Badge>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="text-3xl font-headline font-black italic tracking-tighter opacity-40">
+                      {t.vs}
+                    </div>
+                    <Badge variant="outline" className="text-[6px] font-black tracking-widest border-primary/20 text-primary uppercase">
+                      {step === 'preview' ? 'PRE-GAME' : 'LIVE FEED'}
+                    </Badge>
+                  </div>
                 )}
               </div>
 
