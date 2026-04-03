@@ -646,6 +646,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const setLanguage = useCallback((lang: 'en' | 'ru') => setState(s => ({ ...s, language: lang })), []);
   
   const assignToRole = useCallback((slot: LineupSlot, heroId: string | null) => {
+    let finalLineup: any;
     setState(s => {
       const newLineup = { ...s.lineup };
       if (heroId) {
@@ -654,61 +655,59 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         });
       }
       newLineup[slot] = heroId;
+      finalLineup = newLineup;
       const uniqueHeroIds = Array.from(new Set(Object.values(newLineup).filter(id => id !== null)));
-      
-      const newState = { ...s, lineup: newLineup, team: s.ownedHeroes.filter(h => uniqueHeroIds.includes(h.id)), isSyncing: true };
-      
-      if (user) {
-        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { lineup: newLineup }, { merge: true });
-        setTimeout(() => setState(prev => ({ ...prev, isSyncing: false })), 1000);
-      }
-      
-      return newState;
+      return { ...s, lineup: newLineup, team: s.ownedHeroes.filter(h => uniqueHeroIds.includes(h.id)), isSyncing: true };
     });
+    
+    if (user && finalLineup) {
+      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { lineup: finalLineup }, { merge: true });
+      setTimeout(() => setState(prev => ({ ...prev, isSyncing: false })), 1000);
+    }
   }, [user, db]);
 
   const updateTactics = useCallback((strategy: string, lineSettings: { carry: string; mid: string; offlane: string }) => {
-    setState(s => {
-      const newState = { ...s, strategy, lineSettings, isSyncing: true };
-      if (user) {
-        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { strategy, lineSettings }, { merge: true });
-        setTimeout(() => setState(prev => ({ ...prev, isSyncing: false })), 1000);
-      }
-      return newState;
-    });
+    setState(s => ({ ...s, strategy, lineSettings, isSyncing: true }));
+    if (user) {
+      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { strategy, lineSettings }, { merge: true });
+      setTimeout(() => setState(prev => ({ ...prev, isSyncing: false })), 1000);
+    }
   }, [user, db]);
 
   const setTrainingFocus = useCallback((heroId: string, skillKey: string | null) => {
+    let updatedHeroes: Hero[] = [];
     setState(s => {
-      const updatedHeroes = s.ownedHeroes.map(h => h.id === heroId ? { ...h, trainingFocus: skillKey } : h);
-      if (user) {
-        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedHeroes) }, { merge: true });
-      }
+      updatedHeroes = s.ownedHeroes.map(h => h.id === heroId ? { ...h, trainingFocus: skillKey } : h);
       return { ...s, ownedHeroes: updatedHeroes };
     });
+    if (user && updatedHeroes.length) {
+      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedHeroes) }, { merge: true });
+    }
   }, [user, db]);
 
   const startDailyHeroTraining = useCallback((heroId: string, skillKey: string) => {
+    let updatedHeroes: Hero[] = [];
     setState(s => {
       const finishTime = new Date(Date.now() + 24 * 3600000).toISOString();
-      const updatedHeroes = s.ownedHeroes.map(h => h.id === heroId ? { ...h, dailyTrainingFocus: skillKey, dailyTrainingFinishTime: finishTime } : h);
-      if (user) {
-        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedHeroes) }, { merge: true });
-      }
+      updatedHeroes = s.ownedHeroes.map(h => h.id === heroId ? { ...h, dailyTrainingFocus: skillKey, dailyTrainingFinishTime: finishTime } : h);
       return { ...s, ownedHeroes: updatedHeroes };
     });
+    if (user && updatedHeroes.length) {
+      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedHeroes) }, { merge: true });
+    }
   }, [user, db]);
 
   const claimDailyHeroTraining = useCallback((heroId: string) => {
+    let updatedHeroes: Hero[] = [];
     setState(s => {
-      const updatedHeroes = s.ownedHeroes.map(hero => {
+      updatedHeroes = s.ownedHeroes.map(hero => {
         if (hero.id === heroId && hero.dailyTrainingFocus) {
           const skillKey = hero.dailyTrainingFocus;
           const currentVal = (hero.proStats as any)[skillKey] || 0;
           const talentLimit = (hero.proTalents ? (hero.proTalents as any)[skillKey] || 3.0 : 3.0) * 20;
           
           if (currentVal < talentLimit) {
-            const gain = Math.floor(Math.random() * (5 - 3 + 1)) + 3; // +3-5 points
+            const gain = Math.floor(Math.random() * (5 - 3 + 1)) + 3;
             const newVal = Math.min(talentLimit, currentVal + gain);
             return { ...hero, proStats: { ...hero.proStats, [skillKey]: newVal }, dailyTrainingFocus: null, dailyTrainingFinishTime: null };
           }
@@ -716,74 +715,74 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         }
         return hero;
       });
-      if (user) {
-        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedHeroes) }, { merge: true });
-      }
       return { ...s, ownedHeroes: updatedHeroes };
     });
+    if (user && updatedHeroes.length) {
+      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedHeroes) }, { merge: true });
+    }
   }, [user, db]);
 
   const updateHero = useCallback((heroId: string, updates: Partial<Hero>, creditCost = 0, crystalCost = 0) => {
+    let updatedState: any;
     setState(s => {
       if (s.credits < creditCost || s.crystals < crystalCost) return s;
       const updatedHeroes = s.ownedHeroes.map(h => h.id === heroId ? { ...h, ...updates } : h);
-      const newCredits = s.credits - creditCost;
-      const newCrystals = s.crystals - crystalCost;
-      
-      if (user) {
-        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { 
-          ownedHeroes: sanitizeForFirestore(updatedHeroes),
-          inGameCurrency: newCredits,
-          crystals: newCrystals
-        }, { merge: true });
-      }
-      return { ...s, ownedHeroes: updatedHeroes, credits: newCredits, crystals: newCrystals };
+      updatedState = { 
+        ownedHeroes: updatedHeroes,
+        credits: s.credits - creditCost,
+        crystals: s.crystals - crystalCost
+      };
+      return { ...s, ...updatedState };
     });
+    if (user && updatedState) {
+      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { 
+        ownedHeroes: sanitizeForFirestore(updatedState.ownedHeroes),
+        inGameCurrency: updatedState.credits,
+        crystals: updatedState.crystals
+      }, { merge: true });
+    }
   }, [user, db]);
 
   const removeHero = useCallback((heroId: string, sellCreditAmount = 0) => {
+    let updatedData: any;
     setState(s => {
       const updatedHeroes = s.ownedHeroes.filter(h => h.id !== heroId);
       const newLineup = { ...s.lineup };
       Object.keys(newLineup).forEach(k => {
         if (newLineup[k as LineupSlot] === heroId) newLineup[k as LineupSlot] = null;
       });
-      const newCredits = s.credits + sellCreditAmount;
-
-      if (user) {
-        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { 
-          ownedHeroes: sanitizeForFirestore(updatedHeroes),
-          lineup: newLineup,
-          inGameCurrency: newCredits
-        }, { merge: true });
-      }
-      return { ...s, ownedHeroes: updatedHeroes, lineup: newLineup, credits: newCredits };
+      updatedData = { heroes: updatedHeroes, lineup: newLineup, credits: s.credits + sellCreditAmount };
+      return { ...s, ownedHeroes: updatedHeroes, lineup: newLineup, credits: s.credits + sellCreditAmount };
     });
+    if (user && updatedData) {
+      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { 
+        ownedHeroes: sanitizeForFirestore(updatedData.heroes),
+        lineup: updatedData.lineup,
+        inGameCurrency: updatedData.credits
+      }, { merge: true });
+    }
   }, [user, db]);
 
   const recoverAllFatigue = useCallback((costType: 'credits' | 'crystals') => {
-    let result = false;
+    let success = false;
+    let updatedData: any;
     setState(s => {
       const creditCost = costType === 'credits' ? 75000 : 0;
       const crystalCost = costType === 'crystals' ? 150 : 0;
-
       if (s.credits < creditCost || s.crystals < crystalCost) return s;
-
       const updatedHeroes = s.ownedHeroes.map(h => ({ ...h, fatigue: 0 }));
-      const newCredits = s.credits - creditCost;
-      const newCrystals = s.crystals - crystalCost;
-      result = true;
-
-      if (user) {
-        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), {
-          ownedHeroes: sanitizeForFirestore(updatedHeroes),
-          inGameCurrency: newCredits,
-          crystals: newCrystals
-        }, { merge: true });
-      }
-      return { ...s, ownedHeroes: updatedHeroes, credits: newCredits, crystals: newCrystals };
+      success = true;
+      updatedData = { heroes: updatedHeroes, credits: s.credits - creditCost, crystals: s.crystals - crystalCost };
+      return { ...s, ownedHeroes: updatedHeroes, credits: s.credits - creditCost, crystals: s.crystals - crystalCost };
     });
-    return result;
+    if (user && success && updatedData) {
+      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), {
+        ownedHeroes: sanitizeForFirestore(updatedData.heroes),
+        inGameCurrency: updatedData.credits,
+        crystals: updatedData.crystals
+      }, { merge: true });
+    }
+    return success;
   }, [user, db]);
 
   const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string) => {
@@ -795,13 +794,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     else if (scoreA > scoreB) { creditsEarned = 150; rankChange = 10; }
     else if (scoreA === scoreB) rankChange = 0;
 
+    let finalNewState: any;
     setState(s => {
       const matchId = customId || `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
       const existingIdx = s.matchHistory.findIndex(m => m.id === matchId);
       const isLegacy = existingIdx !== -1 && !s.matchHistory[existingIdx].preview;
 
-      // Only skip if already exists AND has full analytical data
+      // Update only if missing or if it's a legacy entry needing full analytical stages
       if (existingIdx !== -1 && !isLegacy) return s;
 
       const xpRange = (type === 'league' || type === 'tournament') ? { min: 2, max: 4 } : { min: 1, max: 1 };
@@ -843,26 +842,29 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
 
       const todayStr = getMoscowDateString();
-      const newState = { ...s, credits: s.credits + creditsEarned, rank: s.rank + rankChange, 
+      finalNewState = { 
+        credits: s.credits + creditsEarned, 
+        rank: s.rank + rankChange, 
         matchHistory: newHistory,
         lastLeagueMatchDate: type === 'league' && matchDay === s.seasonDay ? todayStr : s.lastLeagueMatchDate,
         lastCupMatchDate: type === 'tournament' ? todayStr : s.lastCupMatchDate,
-        ownedHeroes: updatedHeroes,
-        isSyncing: true
+        ownedHeroes: updatedHeroes
       };
-      if (user) {
-        setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { 
-          inGameCurrency: newState.credits, 
-          rank: newState.rank, 
-          lastLeagueMatchDate: newState.lastLeagueMatchDate ?? null, 
-          lastCupMatchDate: newState.lastCupMatchDate ?? null,
-          matchHistory: newState.matchHistory,
-          ownedHeroes: sanitizeForFirestore(updatedHeroes)
-        }, { merge: true });
-        setTimeout(() => setState(prev => ({ ...prev, isSyncing: false })), 1500);
-      }
-      return newState;
+      
+      return { ...s, ...finalNewState, isSyncing: true };
     });
+
+    if (user && finalNewState) {
+      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { 
+        inGameCurrency: finalNewState.credits, 
+        rank: finalNewState.rank, 
+        lastLeagueMatchDate: finalNewState.lastLeagueMatchDate ?? null, 
+        lastCupMatchDate: finalNewState.lastCupMatchDate ?? null,
+        matchHistory: finalNewState.matchHistory,
+        ownedHeroes: sanitizeForFirestore(finalNewState.ownedHeroes)
+      }, { merge: true });
+      setTimeout(() => setState(prev => ({ ...prev, isSyncing: false })), 1500);
+    }
   }, [user, db]);
 
   const markMatchAsSeen = useCallback((day: number) => {

@@ -8,10 +8,10 @@ import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, User, Check, 
+  ChevronLeft, Check, 
   Swords, Activity, Map, ArrowRight, TrendingUp,
   ShieldCheck, Brain, Zap, Target, FileText,
-  Users, Signal, EyeOff, Loader2, Calendar, MapPin
+  Users, Signal, EyeOff, Calendar, MapPin, Trophy, Clock, Medal
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -27,7 +27,7 @@ function MatchContent() {
   const searchParams = useSearchParams();
   const db = useFirestore();
   const { 
-    language, isLoaded, lastSeenMatchDay, markMatchAsSeen, 
+    language, isLoaded, markMatchAsSeen, 
     matchHistory
   } = useGameState();
 
@@ -49,13 +49,14 @@ function MatchContent() {
       if (match) return match;
     }
     
+    // Find latest match that has full analytical data
     const sortedHistory = [...matchHistory].sort((a, b) => {
       const timeA = new Date(a.playedAt).getTime();
       const timeB = new Date(b.playedAt).getTime();
       return timeB - timeA;
     });
 
-    return sortedHistory[0] || null;
+    return sortedHistory.find(m => !!m.preview) || sortedHistory[0] || null;
   }, [matchHistory, matchId]);
 
   const isHistoricalViewing = !!matchId;
@@ -160,14 +161,11 @@ function MatchContent() {
 
     const tourLabel = t.tournamentTypes[currentResult?.type as keyof typeof t.tournamentTypes] || currentResult?.type?.toUpperCase();
     const playedDate = currentResult?.playedAt ? new Date(currentResult.playedAt).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' }) : '--';
-    
-    // Calculate realistic spectators based on arena capacity
     const arenaCapacity = profile?.arena?.capacity || 5000;
     const spectators = Math.floor(arenaCapacity * (0.85 + Math.random() * 0.15));
 
     return (
       <div className="space-y-6 animate-in fade-in duration-500">
-        {/* Match Identity Bar */}
         <div className="bg-secondary/30 rounded-xl border border-white/5 p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Calendar className="w-3.5 h-3.5 text-primary" />
@@ -178,7 +176,6 @@ function MatchContent() {
           </Badge>
         </div>
 
-        {/* Main Teams Presentation */}
         <Card className="glass-card border-white/10 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden">
           <CardContent className="p-0">
             <div className="grid grid-cols-2 divide-x divide-white/5">
@@ -211,7 +208,6 @@ function MatchContent() {
               </div>
             </div>
 
-            {/* Arena & Fans Footer */}
             <div className="bg-black/40 border-t border-white/5 p-3 flex items-center justify-around">
               <div className="flex items-center gap-2">
                 <MapPin className="w-3 h-3 text-accent" />
@@ -232,7 +228,6 @@ function MatchContent() {
           </CardContent>
         </Card>
 
-        {/* Analytical Stats */}
         <div className="grid grid-cols-2 gap-4">
           <Card className="bg-primary/5 border-primary/20 p-4 text-center">
             <p className="text-[10px] uppercase font-black text-muted-foreground mb-1">{t.orv}</p>
@@ -325,7 +320,20 @@ function MatchContent() {
     );
 
     return (
-      <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
+      <div className="space-y-6 animate-in slide-in-from-right-4 duration-500 pb-10">
+        <div className="grid grid-cols-2 gap-3">
+          <Card className="glass-card bg-primary/5 border-primary/20 p-4 text-center">
+            <Medal className="w-5 h-5 text-yellow-500 mx-auto mb-2 animate-bounce" />
+            <p className="text-[8px] uppercase font-black text-muted-foreground">{t.mvp}</p>
+            <p className="text-sm font-headline font-bold text-primary uppercase truncate">{currentResult?.mvp || 'UNKNOWN'}</p>
+          </Card>
+          <Card className="glass-card bg-accent/5 border-accent/20 p-4 text-center">
+            <Clock className="w-5 h-5 text-accent mx-auto mb-2" />
+            <p className="text-[8px] uppercase font-black text-muted-foreground">{t.duration}</p>
+            <p className="text-sm font-headline font-bold text-accent">{currentResult?.duration || '35:00'}</p>
+          </Card>
+        </div>
+
         <div className="space-y-3">
           <div className="flex items-center gap-2 px-1">
             <Activity className="w-4 h-4 text-accent" />
