@@ -8,8 +8,7 @@ import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, Check, 
-  Swords, Activity, Map, ArrowRight, TrendingUp,
+  ChevronLeft, Check, Swords, Activity, Map, ArrowRight, TrendingUp,
   ShieldCheck, Brain, Zap, Target, FileText,
   Users, Signal, EyeOff, Calendar, MapPin, Trophy, Clock, Medal
 } from 'lucide-react';
@@ -49,14 +48,13 @@ function MatchContent() {
       if (match) return match;
     }
     
-    // Find latest match that has full analytical data
     const sortedHistory = [...matchHistory].sort((a, b) => {
       const timeA = new Date(a.playedAt).getTime();
       const timeB = new Date(b.playedAt).getTime();
       return timeB - timeA;
     });
 
-    return sortedHistory.find(m => !!m.preview) || sortedHistory[0] || null;
+    return sortedHistory.find(m => m.preview !== undefined) || sortedHistory[0] || null;
   }, [matchHistory, matchId]);
 
   const isHistoricalViewing = !!matchId;
@@ -166,7 +164,6 @@ function MatchContent() {
 
     return (
       <div className="space-y-6 animate-in fade-in duration-500">
-        {/* Stage 1 Header Info */}
         <div className="bg-secondary/30 rounded-xl border border-white/5 p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Calendar className="w-3.5 h-3.5 text-primary" />
@@ -177,11 +174,9 @@ function MatchContent() {
           </Badge>
         </div>
 
-        {/* Home / Away Visual Layout */}
         <Card className="glass-card border-white/10 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden">
           <CardContent className="p-0">
             <div className="grid grid-cols-2 divide-x divide-white/5">
-              {/* Home Player (Current User) */}
               <div className="p-6 flex flex-col items-center gap-3 text-center">
                 <div className="relative">
                   <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-primary/30 flex items-center justify-center shadow-xl">
@@ -196,7 +191,6 @@ function MatchContent() {
                 </h3>
               </div>
 
-              {/* Away Player (Opponent) */}
               <div className="p-6 flex flex-col items-center gap-3 text-center">
                 <div className="relative">
                   <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center shadow-xl">
@@ -212,7 +206,6 @@ function MatchContent() {
               </div>
             </div>
 
-            {/* Arena and Spectators Info */}
             <div className="bg-black/40 border-t border-white/5 p-3 flex items-center justify-around">
               <div className="flex items-center gap-2">
                 <MapPin className="w-3 h-3 text-accent" />
@@ -233,7 +226,6 @@ function MatchContent() {
           </CardContent>
         </Card>
 
-        {/* AI Analytics Blocks */}
         <div className="grid grid-cols-2 gap-4">
           <Card className="bg-primary/5 border-primary/20 p-4 text-center">
             <p className="text-[10px] uppercase font-black text-muted-foreground mb-1">{t.orv}</p>
@@ -445,7 +437,6 @@ function MatchContent() {
           <p className="text-[10px] font-black text-accent uppercase tracking-widest">{step === 'preview' ? t.preview : step === 'live' ? t.live : t.stats}</p>
         </header>
 
-        {/* Global Match Card (Switches content based on step) */}
         <Card className="glass-card border-primary/20 bg-gradient-to-b from-primary/10 to-transparent overflow-hidden mb-8">
           <CardContent className="p-0">
             <div className="grid grid-cols-3 items-center p-6">

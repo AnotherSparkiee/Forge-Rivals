@@ -228,7 +228,8 @@ const DEFAULT_STATE: GameState = {
 };
 
 function sanitizeForFirestore(obj: any) {
-  if (!obj) return null;
+  if (obj === undefined) return null;
+  if (!obj) return obj;
   try {
     return JSON.parse(JSON.stringify(obj));
   } catch (e) {
@@ -799,9 +800,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(s => {
       const matchId = customId || `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const existingIdx = s.matchHistory.findIndex(m => m.id === matchId);
-      const isLegacy = existingIdx !== -1 && !s.matchHistory[existingIdx].preview;
+      // Change: strictly check for undefined to distinguish from null (modern match with no analytical data)
+      const isLegacy = existingIdx !== -1 && s.matchHistory[existingIdx].preview === undefined;
 
-      // Update only if missing or if it's a legacy entry needing full analytical stages
       if (existingIdx !== -1 && !isLegacy) return s;
 
       const xpRange = (type === 'league' || type === 'tournament') ? { min: 2, max: 4 } : { min: 1, max: 1 };
@@ -856,7 +857,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return { ...s, ...finalNewState };
     });
 
-    // Handle Firebase update outside of the setState updater to avoid "Maximum update depth"
     if (user && finalNewState) {
       setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { 
         inGameCurrency: finalNewState.credits, 

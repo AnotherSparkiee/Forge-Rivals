@@ -5,23 +5,22 @@ import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { isMatchDue, getMoscowTime, getGlobalSeasonInfo, getPyramidCupTime } from '@/app/lib/time-utils';
+import { isMatchDue, getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '@/app/lib/leagues-data';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
-import { useToast } from '@/hooks/use-toast';
 import { 
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Trophy, Skull, Crosshair, Swords, Loader2, ArrowUpCircle, ArrowDownCircle, MinusCircle, Star, Target, FileText, Zap, ArrowRight } from 'lucide-react';
+import { Zap, ArrowRight, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant, getEntryRound } from '@/app/lib/cup-utils';
 import { useRouter } from 'next/navigation';
 
 function sanitizeForFirestore(obj: any) {
-  if (!obj) return null;
+  if (obj === undefined) return null;
+  if (!obj) return obj;
   try {
     return JSON.parse(JSON.stringify(obj));
   } catch (e) {
@@ -32,12 +31,11 @@ function sanitizeForFirestore(obj: any) {
 export function AutoMatchManager() {
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, 
-    seasonDay, seasonNumber, lastLeagueMatchDate, lastCupMatchDate, recordMatch, team, strategy, rank, seasonStartDate,
+    seasonDay, seasonNumber, lastLeagueMatchDate, lastCupMatchDate, recordMatch, strategy, rank, seasonStartDate,
     markMatchAsSeen, matchHistory, seasonResults, dismissSeasonResults, setSyncing, ownedHeroes, lineup
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
-  const { toast } = useToast();
   const router = useRouter();
   
   const [isSimulating, setIsSimulating] = useState(false);
@@ -83,8 +81,8 @@ export function AutoMatchManager() {
           const detId = `league_${seasonNumber}_${d}`;
           const existingMatch = matchHistory.find(m => m.id === detId || (m.day === d && m.type === 'league' && m.seasonNumber === seasonNumber));
           
-          // Re-simulate if match is missing analytical stages
-          const isLegacy = existingMatch && !existingMatch.preview;
+          // Fix: strictly check for undefined to identify true legacy matches
+          const isLegacy = existingMatch && (existingMatch.preview === undefined);
           if (existingMatch && !isLegacy) continue;
 
           if (d < seasonDay || isMatchDue(matchTime, lastLeagueMatchDate)) {
@@ -95,7 +93,7 @@ export function AutoMatchManager() {
       };
       catchUp();
     }
-  }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, isSimulating]);
+  }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user]);
 
   useEffect(() => {
     if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !cupSimulationRef.current && !isUserLoading && profile?.selectedLeagueId && user && allLeaguePlayers) {
@@ -106,7 +104,7 @@ export function AutoMatchManager() {
           const detId = `cup_${seasonNumber}_${d}`;
           const existingMatch = matchHistory.find(m => m.id === detId || (m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber));
           
-          const isLegacy = existingMatch && !existingMatch.preview;
+          const isLegacy = existingMatch && (existingMatch.preview === undefined);
           if (existingMatch && !isLegacy) continue;
 
           const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
@@ -120,7 +118,7 @@ export function AutoMatchManager() {
       };
       catchUpCup();
     }
-  }, [isLoaded, profile, lastCupMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, isSimulating, allLeaguePlayers]);
+  }, [isLoaded, profile, lastCupMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, allLeaguePlayers]);
 
   const triggerAutoMatch = async (matchTime: string, targetDay: number, detId: string) => {
     if (!groupPlayers || !user || !profile || simulationRef.current) return;
@@ -205,7 +203,10 @@ export function AutoMatchManager() {
           scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
           matchSummary: "Seeded progression. No match required for this round.",
           teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
-          heroPerformance: []
+          heroPerformance: [],
+          preview: null,
+          timeline: [],
+          postMatch: null
         };
         recordMatch(seededResult.winner, seededResult, targetDay, "SEEDED", 'tournament', undefined, detId);
         setIsSimulating(false);
@@ -225,7 +226,10 @@ export function AutoMatchManager() {
           scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
           matchSummary: "Waiting for qualifiers. Automatic progression.",
           teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
-          heroPerformance: []
+          heroPerformance: [],
+          preview: null,
+          timeline: [],
+          postMatch: null
         };
         recordMatch(waitResult.winner, waitResult, targetDay, "WAITING", 'tournament', undefined, detId);
         setIsSimulating(false);
@@ -303,8 +307,6 @@ export function AutoMatchManager() {
     demoted: language === 'ru' ? 'ПОНИЖЕНИЕ В КЛАССЕ' : 'RELEGATED', 
     stayed: language === 'ru' ? 'ПОЗИЦИЯ СОХРАНЕНА' : 'POSITION MAINTAINED', 
     next: language === 'ru' ? 'СЛЕДУЮЩИЙ СЕЗОН' : 'NEXT SEASON',
-    matchSummary: language === 'ru' ? 'Обзор матча' : 'Match Summary',
-    cupTitle: language === 'ru' ? 'КУБОК ПИРАМИДЫ' : 'PYRAMID CUP',
     victory: language === 'ru' ? 'ОПЕРАЦИЯ ЗАВЕРШЕНА' : 'ENGAGEMENT COMPLETE',
     alert: language === 'ru' ? 'ТАКТИЧЕСКАЯ СВОДКА' : 'TACTICAL ALERT',
     proceed: language === 'ru' ? 'ПЕРЕЙТИ К ОТЧЕТУ' : 'PROCEED TO REPORT',
@@ -353,9 +355,6 @@ export function AutoMatchManager() {
       <Dialog open={!!seasonResults} onOpenChange={(open) => !open && dismissSeasonResults()}>
         <DialogContent className="max-w-md p-0 overflow-hidden bg-background border-white/10 shadow-2xl">
           <div className="p-8 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
-            <div className="mx-auto w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary">
-              {seasonResults?.promoted ? <ArrowUpCircle className="w-10 h-10 text-primary animate-bounce" /> : <MinusCircle className="w-10 h-10 text-accent" />}
-            </div>
             <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-primary">{t.congrats}</DialogTitle>
             <DialogDescription className="sr-only">{t.title}</DialogDescription>
           </div>
@@ -369,9 +368,6 @@ export function AutoMatchManager() {
                 <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">{t.pts}</p>
                 <p className="text-3xl font-headline font-bold text-primary">{seasonResults?.lastPoints}</p>
               </div>
-            </div>
-            <div className={cn("p-6 rounded-xl border-2 text-center", seasonResults?.promoted ? "bg-primary/10 border-primary/30" : "bg-accent/10 border-accent/30")}>
-              <h3 className="text-xl font-headline font-bold uppercase">{seasonResults?.promoted ? t.promoted : t.stayed}</h3>
             </div>
           </div>
           <DialogFooter className="p-6 bg-secondary/20 border-t border-white/5">
