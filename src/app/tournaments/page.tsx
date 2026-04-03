@@ -26,7 +26,7 @@ export default function TournamentsPage() {
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
-  const { language, isLoaded, strategy, team } = useGameState();
+  const { language, isLoaded, strategy, team, ownedHeroes, lineup } = useGameState();
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies', user.uid) : null, [db, user]);
@@ -148,15 +148,18 @@ export default function TournamentsPage() {
     try {
       const botId = `bot${Math.floor(Math.random() * 9000) + 1000}`;
       
-      // Simulate result immediately but set start time in 15 mins
+      const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
+        ...h,
+        isSub: h.id === lineup.sub1 || h.id === lineup.sub2
+      }));
+
       const result = await simulateMobaMatch({
-        teamA: { name: profile.displayName || "Manager", strategy, heroes: team },
+        teamA: { name: profile.displayName || "Manager", strategy, heroes: squad },
         teamB: { 
           name: botId, 
           strategy: "Standard Training", 
-          heroes: INITIAL_HEROES.slice(0, 5) 
+          heroes: INITIAL_HEROES.map((h, i) => ({ ...h, isSub: i > 4 }))
         },
-        includeRandomEvents: true,
         isBo2: false
       });
 

@@ -1,190 +1,100 @@
 
 'use server';
 /**
- * @fileOverview A MOBA match simulation AI agent.
+ * @fileOverview Продвинутый математический симулятор MOBA-матчей.
+ * 
+ * Логика учитывает 10 характеристик игроков, фазы игры, механику тильта и замен.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
+const ProStatsSchema = z.object({
+  lastHitting: z.number(),
+  mapAwareness: z.number(),
+  positioning: z.number(),
+  reflexes: z.number(),
+  manaManagement: z.number(),
+  objectiveControl: z.number(),
+  communication: z.number(),
+  tiltResistance: z.number(),
+  versatility: z.number(),
+  ganking: z.number(),
+});
+
 const HeroStatsSchema = z.object({
-  name: z.string().describe('The name of the hero.'),
-  role: z
-    .string()
-    .describe(
-      'The primary role of the hero (e.g., Tank, Carry, Support, Midlaner, Jungler).'
-    ),
-  baseStats: z
-    .object({
-      attack: z.number().describe('Hero basic attack power.'),
-      defense: z.number().describe('Hero basic defense rating.'),
-      health: z.number().describe('Hero maximum health points.'),
-      abilityPower: z.number().describe('Hero ability power for spell damage.'),
-      speed: z.number().describe('Hero movement speed.'),
-    })
-    .describe('Base statistics for the hero.'),
-  abilitiesFocus: z
-    .string()
-    .describe(
-      'The strategic focus for this hero\'s abilities (e.g., "Aggressive", "Defensive", "Utility", "Burst Damage", "Sustain").'
-    ),
+  name: z.string().describe('Имя героя.'),
+  role: z.string().describe('Роль героя (Carry, Support и т.д.).'),
+  overallRating: z.number().describe('Общий рейтинг.'),
+  proStats: ProStatsSchema.describe('10 ключевых характеристик.'),
+  isSub: z.boolean().optional().describe('Флаг запасного игрока.'),
 });
 
 const TeamSchema = z.object({
-  name: z.string().describe('The name of the team.'),
-  heroes: z.array(HeroStatsSchema).describe('The roster of heroes for this team.'),
-  strategy: z
-    .string()
-    .describe('A description of the overall team strategy.'),
+  name: z.string().describe('Название команды.'),
+  heroes: z.array(HeroStatsSchema).describe('Состав (Основа + Замены).'),
+  strategy: z.string().describe('Тактическая установка.'),
 });
 
 const SimulateMobaMatchInputSchema = z.object({
-  teamA: TeamSchema.describe('Details for Team A.'),
-  teamB: TeamSchema.describe('Details for Team B.'),
-  includeRandomEvents: z
-    .boolean()
-    .default(true)
-    .describe(
-      'Whether to include random in-game events that can influence the match outcome.'
-    ),
-  isBo2: z.boolean().default(true).describe('Whether this is a Best of 2 series (result MUST be 2:0, 1:1, or 0:2).'),
-  isBo3: z.boolean().default(false).describe('Whether this is a Best of 3 series (result MUST be 2:0, 2:1, 1:2, or 0:2). No Draws allowed.'),
-  scoreA: z.number().optional().describe('Force score for Team A.'),
-  scoreB: z.number().optional().describe('Force score for Team B.'),
+  teamA: TeamSchema,
+  teamB: TeamSchema,
+  isBo2: z.boolean().default(true),
+  isBo3: z.boolean().default(false),
+  scoreA: z.number().optional().describe('Принудительный счет для команды А.'),
+  scoreB: z.number().optional().describe('Принудительный счет для команды Б.'),
 });
 export type SimulateMobaMatchInput = z.infer<typeof SimulateMobaMatchInputSchema>;
 
-const MatchTeamStatsSchema = z
-  .object({
-    kills: z.number().describe('Total kills achieved by the team.'),
-    deaths: z.number().describe('Total deaths suffered by the team.'),
-    assists: z.number().describe('Total assists achieved by the team.'),
-    towersDestroyed: z.number().describe('Number of enemy towers destroyed.'),
-    objectivesTaken: z
-      .array(z.string())
-      .describe('List of major objectives taken (e.g., "Dragon", "Baron", "Rosh").'),
-  })
-  .describe('Summary statistics for a team in the match.');
-
-const HeroMatchPerformanceSchema = z
-  .object({
-    heroName: z.string().describe('The name of the hero.'),
-    teamName: z
-      .string()
-      .describe('The name of the team this hero belongs to.'),
-    kills: z.number().describe('Kills achieved by this hero.'),
-    deaths: z.number().describe('Deaths suffered by this hero.'),
-    assists: z.number().describe('Assists achieved by this hero.'),
-    damageDealt: z.number().describe('Total damage dealt by this hero.'),
-    damageTaken: z.number().describe('Total damage taken by this hero.'),
-    healingDone: z
-      .number()
-      .optional()
-      .describe('Total healing done by this hero, if applicable.'),
-  })
-  .describe('Detailed performance statistics for a single hero in the match.');
-
 const SimulateMobaMatchOutputSchema = z.object({
-  winner: z.string().describe('The name of the winning team.'),
-  scoreA: z.number().describe('Score for Team A.'),
-  scoreB: z.number().describe('Score for Team B.'),
-  matchSummary: z
-    .string()
-    .describe(
-      'A narrative summary of the match, highlighting key moments and reasons for victory/defeat.'
-    ),
-  teamStats: z
-    .object({
-      teamA: MatchTeamStatsSchema,
-      teamB: MatchTeamStatsSchema,
-    })
-    .describe('Overall statistics for both teams.'),
-  heroPerformance: z
-    .array(HeroMatchPerformanceSchema)
-    .describe('Detailed performance statistics for each hero in the match.'),
+  winner: z.string(),
+  scoreA: z.number(),
+  scoreB: z.number(),
+  matchSummary: z.string().describe('Полный отчет: Анализ, Хронология, Статистика, MVP, Вердикт.'),
+  teamStats: z.object({
+    teamA: z.object({ kills: z.number(), towersDestroyed: z.number() }),
+    teamB: z.object({ kills: z.number(), towersDestroyed: z.number() }),
+  }),
+  duration: z.string().describe('Длительность матча (например, "34:12").'),
+  mvp: z.string().describe('MVP матча.'),
+  heroPerformance: z.array(z.object({
+    heroName: z.string(),
+    kills: z.number(),
+    deaths: z.number(),
+    assists: z.number(),
+  })),
 });
-export type SimulateMobaMatchOutput = z.infer<
-  typeof SimulateMobaMatchOutputSchema
->;
+export type SimulateMobaMatchOutput = z.infer<typeof SimulateMobaMatchOutputSchema>;
 
 /**
- * Procedural fallback for match simulation when AI quota is exhausted.
+ * Процедурный откат на случай сбоя ИИ.
  */
 function generateFallbackSimulation(input: SimulateMobaMatchInput): SimulateMobaMatchOutput {
-  let scoreA = 0;
-  let scoreB = 0;
-
-  if (input.scoreA !== undefined && input.scoreB !== undefined) {
-    scoreA = input.scoreA;
-    scoreB = input.scoreB;
-  } else if (input.isBo3) {
-    // Bo3 logic: random 2:0 or 2:1
-    const winA = Math.random() > 0.5;
-    const cleanSheet = Math.random() > 0.6;
-    if (winA) {
-      scoreA = 2;
-      scoreB = cleanSheet ? 0 : 1;
-    } else {
-      scoreB = 2;
-      scoreA = cleanSheet ? 0 : 1;
-    }
-  } else {
-    // Bo2 logic
-    scoreA = Math.random() > 0.5 ? 2 : 0;
-    scoreB = scoreA === 2 ? 0 : (scoreA === 1 ? 1 : 2);
-  }
-  
+  const scoreA = input.scoreA ?? 1;
+  const scoreB = input.scoreB ?? 1;
   const winner = scoreA > scoreB ? input.teamA.name : (scoreA < scoreB ? input.teamB.name : "Draw");
-  const gamesPlayed = scoreA + scoreB;
   
-  const genTeamStats = (score: number, opponentScore: number) => ({
-    kills: (10 * gamesPlayed) + Math.floor(Math.random() * 15) + (score * 5),
-    deaths: (10 * gamesPlayed) + Math.floor(Math.random() * 15) + (opponentScore * 5),
-    assists: (20 * gamesPlayed) + Math.floor(Math.random() * 20),
-    towersDestroyed: score === 2 ? 11 : (score === 1 ? 7 : Math.floor(Math.random() * 5)),
-    objectivesTaken: score >= 1 ? ["Dragon", "Tower"] : ["Tower"]
-  });
-
-  const heroPerformance: any[] = [];
-  const processHeroes = (heroes: any[], teamName: string) => {
-    heroes.forEach(h => {
-      heroPerformance.push({
-        heroName: h.name,
-        teamName: teamName,
-        kills: Math.floor(Math.random() * (8 * gamesPlayed)),
-        deaths: Math.floor(Math.random() * (6 * gamesPlayed)),
-        assists: Math.floor(Math.random() * (12 * gamesPlayed)),
-        damageDealt: 15000 + Math.floor(Math.random() * 30000 * gamesPlayed),
-        damageTaken: 10000 + Math.floor(Math.random() * 40000 * gamesPlayed),
-        healingDone: h.role === 'Support' ? 5000 + Math.floor(Math.random() * 10000 * gamesPlayed) : 0
-      });
-    });
-  };
-
-  processHeroes(input.teamA.heroes, input.teamA.name);
-  processHeroes(input.teamB.heroes, input.teamB.name);
-
   return {
     winner,
     scoreA,
     scoreB,
-    matchSummary: `The engagement between ${input.teamA.name} and ${input.teamB.name} was decided by superior tactical positioning. Format: ${input.isBo3 ? "Bo3" : "Bo2"}. (Tactical Fallback Protocol Active)`,
+    matchSummary: `Матч между ${input.teamA.name} и ${input.teamB.name} завершился со счетом ${scoreA}:${scoreB}. (Активирован протокол экстренной симуляции)`,
     teamStats: {
-      teamA: genTeamStats(scoreA, scoreB),
-      teamB: genTeamStats(scoreB, scoreA)
+      teamA: { kills: 15, towersDestroyed: 7 },
+      teamB: { kills: 15, towersDestroyed: 7 }
     },
-    heroPerformance
+    duration: "32:00",
+    mvp: input.teamA.heroes[0].name,
+    heroPerformance: []
   };
 }
 
-export async function simulateMobaMatch(
-  input: SimulateMobaMatchInput
-): Promise<SimulateMobaMatchOutput> {
+export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<SimulateMobaMatchOutput> {
   try {
-    const result = await simulateMobaMatchFlow(input);
-    return result;
+    const {output} = await simulateMobaMatchFlow(input);
+    return output!;
   } catch (error: any) {
-    console.warn("AI Simulation failed (Quota/Error). Triggering fallback logic.", error.message);
+    console.warn("AI Simulation failed. Fallback active.", error.message);
     return generateFallbackSimulation(input);
   }
 }
@@ -193,40 +103,46 @@ const prompt = ai.definePrompt({
   name: 'simulateMobaMatchPrompt',
   input: {schema: SimulateMobaMatchInputSchema},
   output: {schema: SimulateMobaMatchOutputSchema},
-  prompt: `You are an expert MOBA match simulator. 
+  prompt: `Действуй как продвинутый математический симулятор MOBA-матчей. Твоя задача — провести детальный расчет игры между двумя командами.
 
-{{#if isBo3}}
-Tournament Format: Best of 3 (Bo3). The first team to win 2 maps wins the match.
-Result MUST be one of: 2-0, 2-1, 1-2, 0-2. NO DRAWS.
-{{else}}
-Tournament Format: Best of 2 (Bo2).
-Result MUST be one of: 2-0, 1-1, 0-2.
-{{/if}}
-
-Consider Team A:
-Team Name: {{{teamA.name}}}
-Team Strategy: {{{teamA.strategy}}}
-Team Heroes:
+ДАННЫЕ КОМАНД:
+Команда А: {{{teamA.name}}}
+Стратегия: {{{teamA.strategy}}}
+Герои Команды А:
 {{#each teamA.heroes}}
-- Hero Name: {{{name}}}
-  Role: {{{role}}}
+- {{{name}}} ({{{role}}}), OVR: {{{overallRating}}}, Sub: {{#if isSub}}Да{{else}}Нет{{/if}}
+  Статы: Добив: {{{proStats.lastHitting}}}, Карта: {{{proStats.mapAwareness}}}, Позиционка: {{{proStats.positioning}}}, Рефлексы: {{{proStats.reflexes}}}, Мана: {{{proStats.manaManagement}}}, Объекты: {{{proStats.objectiveControl}}}, Коммуникация: {{{proStats.communication}}}, Стрессоустойчивость: {{{proStats.tiltResistance}}}, Универсальность: {{{proStats.versatility}}}, Ганкинг: {{{proStats.ganking}}}
 {{/each}}
 
-Consider Team B:
-Team Name: {{{teamB.name}}}
-Team Strategy: {{{teamB.strategy}}}
-Team Heroes:
+Команда Б: {{{teamB.name}}}
+Стратегия: {{{teamB.strategy}}}
+Герои Команды Б:
 {{#each teamB.heroes}}
-- Hero Name: {{{name}}}
-  Role: {{{role}}}
+- {{{name}}} ({{{role}}}), OVR: {{{overallRating}}}, Sub: {{#if isSub}}Да{{else}}Нет{{/if}}
+  Статы: Добив: {{{proStats.lastHitting}}}, Карта: {{{proStats.mapAwareness}}}, Позиционка: {{{proStats.positioning}}}, Рефлексы: {{{proStats.reflexes}}}, Мана: {{{proStats.manaManagement}}}, Объекты: {{{proStats.objectiveControl}}}, Коммуникация: {{{proStats.communication}}}, Стрессоустойчивость: {{{proStats.tiltResistance}}}, Универсальность: {{{proStats.versatility}}}, Ганкинг: {{{proStats.ganking}}}
 {{/each}}
 
+ПРАВИЛА РАСЧЕТА:
+1. Early Game (0–12 мин): Приоритет — Добив крипов, Менеджмент маны и Рефлексы. Победитель получает преимущество по золоту.
+2. Mid Game (12–25 мин): Приоритет — Ганкинг, Контроль карты и Коммуникация. Решается судьба вышек.
+3. Late Game (25+ мин): Приоритет — Позиционка, Рефлексы, Стрессоустойчивость и Объекты.
+4. Механика Тильта: Если разница по золоту критическая, игроки с низкой Стрессоустойчивостью получают -10% ко всем характеристикам.
+5. Механика Банов: Если Универсальность < 60, игрок играет на 10% слабее своего рейтинга.
+6. Механика Замен: Наличие Sub в составе дает штраф -15% к Коммуникации всей команды.
+
+ТРЕБОВАНИЯ К СЧЕТУ:
 {{#if scoreA}}
-CRITICAL REQUIREMENT: The final score MUST be strictly Team A: {{{scoreA}}} - Team B: {{{scoreB}}}.
-Generate a match narrative and statistics that lead to this exact outcome.
+ФИНАЛЬНЫЙ СЧЕТ ДОЛЖЕН БЫТЬ СТРОГО: {{{teamA.name}}} {{{scoreA}}} - {{{teamB.name}}} {{{scoreB}}}.
+{{else}}
+Рассчитай результат на основе математической модели (Bo2 или Bo3 формат).
 {{/if}}
 
-Provide a detailed narrative match summary and precise statistics for both teams and individual heroes based on the required outcome.`,
+СТРУКТУРА ОТЧЕТА (поле matchSummary):
+1. Анализ составов: Сравнение сильных и слабых сторон.
+2. Хронология матча: 4-5 ключевых событий с привязкой к характеристикам.
+3. Вердикт: Математическая причина победы.
+
+Заполни все поля выходной схемы корректно.`,
 });
 
 const simulateMobaMatchFlow = ai.defineFlow(

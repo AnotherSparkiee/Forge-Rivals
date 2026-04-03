@@ -14,8 +14,8 @@ import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { INITIAL_HEROES } from '@/app/lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
 
-const MATCH_DURATION_MS = 15 * 60 * 1000; // 15 minutes
-const LOBBY_EXPIRATION_MS = 60 * 1000; // 1 minute for "searching" status
+const MATCH_DURATION_MS = 15 * 60 * 1000; 
+const LOBBY_EXPIRATION_MS = 60 * 1000; 
 
 function sanitizeForFirestore(obj: any) {
   return JSON.parse(JSON.stringify(obj));
@@ -24,19 +24,17 @@ function sanitizeForFirestore(obj: any) {
 export function FriendlyMatchListener() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
-  const { language, team, strategy, recordMatch } = useGameState();
+  const { language, team, strategy, recordMatch, ownedHeroes, lineup } = useGameState();
   const { toast } = useToast();
 
   const [activeLobby, setActiveLobby] = useState<any | null>(null);
   const [challengeResult, setChallengeResult] = useState<any | null>(null);
   const [isProcessing, setIsActionLoading] = useState(false);
   
-  // Guard for challenge modal to prevent multiple popups for the same request
   const [showChallengeModal, setShowChallengeModal] = useState(false);
   const handledChallengeIdRef = useRef<string | null>(null);
   const processedMatches = useRef<Set<string>>(new Set());
 
-  // 1. Listen for challenges or active matches as Host
   useEffect(() => {
     if (isUserLoading || !user) return;
     const lobbyRef = doc(db, 'friendly_lobbies', user.uid);
@@ -51,7 +49,6 @@ export function FriendlyMatchListener() {
     return () => unsubscribe();
   }, [user, isUserLoading, db]);
 
-  // 2. Listen for results or accepted matches as Challenger
   useEffect(() => {
     if (isUserLoading || !user) return;
     const q = query(
@@ -69,7 +66,6 @@ export function FriendlyMatchListener() {
     return () => unsubscribe();
   }, [user, isUserLoading, db]);
 
-  // Challenge modal logic
   useEffect(() => {
     if (activeLobby?.status === 'challenged') {
       const challengeId = activeLobby.updatedAt?.toMillis()?.toString() || 'init';
@@ -83,14 +79,12 @@ export function FriendlyMatchListener() {
     }
   }, [activeLobby]);
 
-  // 3. Expiration and Completion Logic
   useEffect(() => {
     const data = activeLobby || challengeResult;
     if (!data || !user) return;
 
     const isHost = data.hostId === user.uid;
 
-    // A. Handle Expiration for "searching" status (1 minute rule)
     if (data.status === 'searching' && isHost) {
       const createdAt = data.updatedAt?.toMillis() || Date.now();
       const checkExpiration = () => {
@@ -107,7 +101,6 @@ export function FriendlyMatchListener() {
       return () => clearInterval(expirationTimer);
     }
 
-    // B. Auto-clear rejected
     if (data.status === 'rejected') {
       if (!isHost) {
         toast({
@@ -122,7 +115,6 @@ export function FriendlyMatchListener() {
       return;
     }
 
-    // C. Auto-record accepted when time is up
     if (data.status === 'accepted' && data.matchResult) {
       if (processedMatches.current.has(data.id)) return;
 
@@ -144,7 +136,7 @@ export function FriendlyMatchListener() {
           };
           
           const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
-          recordMatch(finalResult.winner, finalResult, 0, opponentName, data.isTrial ? 'friendly' : 'friendly');
+          recordMatch(finalResult.winner, finalResult, 0, opponentName, 'friendly');
           
           toast({
             title: language === 'ru' ? (data.isTrial ? "Тренировка завершена" : "Матч завершен") : (data.isTrial ? "Training Finished" : "Match Completed"),
@@ -171,12 +163,17 @@ export function FriendlyMatchListener() {
     try {
       const lobbyRef = doc(db, 'friendly_lobbies', activeLobby.id);
       if (accept) {
+        const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
+          ...h,
+          isSub: h.id === lineup.sub1 || h.id === lineup.sub2
+        }));
+
         const result = await simulateMobaMatch({
-          teamA: { name: activeLobby.hostName, strategy: strategy, heroes: team },
+          teamA: { name: activeLobby.hostName, strategy: strategy, heroes: squad },
           teamB: { 
             name: activeLobby.challengerName || "Rival Manager", 
             strategy: "Aggressive Play", 
-            heroes: INITIAL_HEROES.slice(0, 5) 
+            heroes: INITIAL_HEROES.map((h, i) => ({ ...h, isSub: i > 4 }))
           },
           includeRandomEvents: true,
           isBo2: false

@@ -23,7 +23,7 @@ export function AutoMatchManager() {
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, 
     seasonDay, seasonNumber, lastLeagueMatchDate, lastCupMatchDate, recordMatch, team, strategy, rank, seasonStartDate,
-    markMatchAsSeen, matchHistory, seasonResults, dismissSeasonResults, setSyncing
+    markMatchAsSeen, matchHistory, seasonResults, dismissSeasonResults, setSyncing, ownedHeroes, lineup
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
@@ -125,25 +125,25 @@ export function AutoMatchManager() {
       const forcedScoreA = todayMatch.home.id === user.uid ? detScoreA : detScoreB;
       const forcedScoreB = todayMatch.away.id === user.uid ? detScoreA : detScoreB;
       
-      const botPowerMultiplier = 1.2 + ((10 - leagueLevel) * 0.15); 
-      
+      // Get full detailed heroes including proStats and sub status
+      const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
+        ...h,
+        isSub: h.id === lineup.sub1 || h.id === lineup.sub2
+      }));
+
       const result = await simulateMobaMatch({
-        teamA: { name: profile.displayName || "My Team", strategy, heroes: team },
+        teamA: { name: profile.displayName || "My Team", strategy, heroes: squad },
         teamB: { 
           name: opponent.name || "Unknown Team", 
           strategy: "Advanced Tactics", 
-          heroes: INITIAL_HEROES.map(h => ({ 
+          heroes: INITIAL_HEROES.map((h, i) => ({ 
             ...h, 
-            baseStats: { 
-              ...h.baseStats, 
-              attack: Math.round(h.baseStats.attack * botPowerMultiplier) + 30, 
-              health: Math.round(h.baseStats.health * botPowerMultiplier) + 300 
-            } 
+            name: `${h.name} Bot`,
+            overallRating: h.overallRating + 10,
+            isSub: i > 4
           })) 
         },
-        includeRandomEvents: true, 
         isBo2: true,
-        isBo3: false, 
         scoreA: forcedScoreA, 
         scoreB: forcedScoreB
       });
@@ -198,16 +198,11 @@ export function AutoMatchManager() {
         return;
       }
 
-      // Results strictly after 07:00 MSK
       const mskNow = getMoscowTime();
-      const effectiveLimit = mskNow.getHours() >= 7 ? seasonDay : Math.max(0, seasonDay - 1);
-      
       winnersCache.current.clear();
       const step = Math.pow(2, targetDay - 1);
       const myBranchStart = Math.floor(myIdx / step) * step;
       const oppBranchStart = myBranchStart ^ step;
-      
-      // We determine today's opponent based on yesterday's winners
       const opponent = getWinnerOfBranch(participants, targetDay - 1, oppBranchStart, winnersCache.current, targetDay - 1);
       
       if (!opponent) {
@@ -226,14 +221,18 @@ export function AutoMatchManager() {
 
       const [forcedA, forcedB] = getMatchResult(user.uid, opponent.id, targetDay, true);
 
+      const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
+        ...h,
+        isSub: h.id === lineup.sub1 || h.id === lineup.sub2
+      }));
+
       const result = await simulateMobaMatch({
-        teamA: { name: profile.displayName || "My Team", strategy, heroes: team },
+        teamA: { name: profile.displayName || "My Team", strategy, heroes: squad },
         teamB: { 
           name: opponent.name, 
           strategy: "Tournament Execution", 
-          heroes: INITIAL_HEROES.slice(0, 5) 
+          heroes: INITIAL_HEROES.map((h, i) => ({ ...h, isSub: i > 4 })) 
         },
-        includeRandomEvents: true,
         isBo2: false,
         isBo3: true,
         scoreA: forcedA,
@@ -299,7 +298,11 @@ export function AutoMatchManager() {
             )}
           </div>
           <div className="p-6 space-y-6">
-            <p className="text-sm leading-relaxed text-muted-foreground italic">"{currentResult?.matchSummary}"</p>
+            <div className="max-h-[40vh] overflow-y-auto pr-2 scrollbar-hide">
+              <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                {currentResult?.matchSummary}
+              </p>
+            </div>
           </div>
           <DialogFooter className="p-4 bg-secondary/20">
             <Button onClick={() => setShowResultDialog(false)} className="w-full font-bold uppercase text-[10px] h-12">

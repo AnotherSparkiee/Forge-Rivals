@@ -19,15 +19,11 @@ function sanitizeForFirestore(obj: any) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-/**
- * Global listener for CW Basket results.
- * Shows a modal when a match is found and handles auto-simulation when time is up.
- */
 export function CWBasketListener() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const pathname = usePathname();
-  const { language, strategy, team, recordMatch } = useGameState();
+  const { language, strategy, team, recordMatch, ownedHeroes, lineup } = useGameState();
   const { toast } = useToast();
 
   const [showModal, setShowModal] = useState(false);
@@ -41,18 +37,13 @@ export function CWBasketListener() {
     if (myEntry?.status === 'matched' && myEntry.matchStartTime) {
       const currentMatchId = myEntry.matchStartTime;
 
-      // Check if we already notified for THIS specific match
       if (notifiedMatchIdRef.current !== currentMatchId) {
-        // Only show modal if we are NOT on the basket page
-        // If we are on the page, the user already sees the "Matched" status
         if (pathname !== '/tournaments/cw-basket') {
           setShowModal(true);
         }
-        // Mark this match as "notified" so it doesn't pop up again on navigation or data sync
         notifiedMatchIdRef.current = currentMatchId;
       }
 
-      // Auto-simulation check
       if (!isSimulatingRef.current) {
         const startTime = new Date(myEntry.matchStartTime).getTime();
         
@@ -60,19 +51,21 @@ export function CWBasketListener() {
           if (Date.now() >= startTime && !isSimulatingRef.current) {
             isSimulatingRef.current = true;
             try {
-              // Simulate Match
+              const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
+                ...h,
+                isSub: h.id === lineup.sub1 || h.id === lineup.sub2
+              }));
+
               const result = await simulateMobaMatch({
-                teamA: { name: myEntry.userName || "My Team", strategy, heroes: team },
+                teamA: { name: myEntry.userName || "My Team", strategy, heroes: squad },
                 teamB: { 
                   name: myEntry.matchedWithName || "Rival Manager", 
                   strategy: "Balanced Play", 
-                  heroes: INITIAL_HEROES.slice(0, 5) 
+                  heroes: INITIAL_HEROES.map((h, i) => ({ ...h, isSub: i > 4 }))
                 },
-                includeRandomEvents: true,
                 isBo2: false
               });
 
-              // Record Match
               recordMatch(
                 result.winner, 
                 sanitizeForFirestore(result), 
@@ -87,7 +80,6 @@ export function CWBasketListener() {
                 description: language === 'ru' ? `Результаты боя против ${myEntry.matchedWithName} сохранены.` : `Battle results vs ${myEntry.matchedWithName} archived.`,
               });
 
-              // Clean up entry
               await deleteDoc(doc(db, 'cw_basket', user!.uid));
             } catch (e) {
               console.error("CW Auto-sim failed", e);
@@ -102,7 +94,6 @@ export function CWBasketListener() {
         return () => clearInterval(timer);
       }
     } else if (myEntry?.status !== 'matched') {
-      // Reset notification ref when no match is active, allowing notifications for future matches
       notifiedMatchIdRef.current = null;
       setShowModal(false);
     }
