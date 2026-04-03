@@ -69,6 +69,14 @@ function MatchContent() {
   }
 
   const handleNext = () => {
+    const isTechnicalResult = currentResult?.opponentName === 'WAITING' || currentResult?.opponentName === 'SEEDED';
+    
+    if (isTechnicalResult) {
+      setStep('stats'); // Technical results skip live view
+      if (step === 'stats') handleAcknowledgeMatch();
+      return;
+    }
+
     if (step === 'preview') setStep('live');
     else if (step === 'live') setStep('stats');
     else handleAcknowledgeMatch();

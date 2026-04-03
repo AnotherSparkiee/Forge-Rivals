@@ -5,7 +5,7 @@ import { Hero, INITIAL_HEROES } from './moba-data';
 import { getMoscowTime, getMoscowDateString, isMatchDue, getGlobalSeasonInfo } from './time-utils';
 import { useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { getMockGroupTeams, LEAGUES } from './leagues-data';
+import { getMockGroupTeams, LEAGUES, getMatchResult } from './leagues-data';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2';
 
@@ -805,9 +805,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const isTechnical = existing.opponentName === 'WAITING' || existing.opponentName === 'SEEDED';
         const isLegacy = existing.preview === undefined;
 
-        // If we already have a complete match with same ID, and opponent matches, skip update to prevent recursion
+        // CRITICAL: Skip update ONLY if data is truly identical to prevent infinite recursion
+        // If we are moving from WAITING to a real opponent, we MUST allow the update.
         if (!isLegacy && !isTechnical && existing.opponentName === opponentName) return s;
-        // If technical status is same, also skip to prevent loops
         if (isTechnical && existing.opponentName === opponentName) return s;
       }
 
