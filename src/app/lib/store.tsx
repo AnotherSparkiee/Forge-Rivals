@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
@@ -800,10 +799,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(s => {
       const matchId = customId || `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const existingIdx = s.matchHistory.findIndex(m => m.id === matchId);
-      // Change: strictly check for undefined to distinguish from null (modern match with no analytical data)
+      
+      // Technical results logic: if opponent is WAITING or SEEDED, we allow later overwrite with full data
+      const isTechnical = existingIdx !== -1 && (s.matchHistory[existingIdx].opponentName === 'WAITING' || s.matchHistory[existingIdx].opponentName === 'SEEDED');
       const isLegacy = existingIdx !== -1 && s.matchHistory[existingIdx].preview === undefined;
 
-      if (existingIdx !== -1 && !isLegacy) return s;
+      if (existingIdx !== -1 && !isLegacy && !isTechnical && opponentName !== 'WAITING' && opponentName !== 'SEEDED') return s;
 
       const xpRange = (type === 'league' || type === 'tournament') ? { min: 2, max: 4 } : { min: 1, max: 1 };
       const updatedHeroes = s.ownedHeroes.map(hero => {

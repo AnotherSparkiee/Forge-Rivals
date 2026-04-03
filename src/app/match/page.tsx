@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
@@ -10,7 +9,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, Check, Swords, Activity, Map, ArrowRight, TrendingUp,
   ShieldCheck, Brain, Zap, Target, FileText,
-  Users, Signal, EyeOff, Calendar, MapPin, Trophy, Clock, Medal
+  Users, Signal, EyeOff, Calendar, MapPin, Trophy, Clock, Medal,
+  ShieldAlert, RefreshCw
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -48,6 +48,7 @@ function MatchContent() {
       if (match) return match;
     }
     
+    // Sort to find the latest unread or just the latest
     const sortedHistory = [...matchHistory].sort((a, b) => {
       const timeA = new Date(a.playedAt).getTime();
       const timeB = new Date(b.playedAt).getTime();
@@ -108,6 +109,8 @@ function MatchContent() {
       away: "AWAY",
       arena: "ARENA",
       spectators: "SPECTATORS",
+      technicalWin: "TECHNICAL PROGRESSION",
+      technicalDesc: "Automatic victory due to seeded bracket position or lack of qualifiers. Tactical data not generated for non-combat encounters.",
       tournamentTypes: {
         league: "PRO LEAGUE",
         tournament: "PYRAMID CUP",
@@ -137,6 +140,8 @@ function MatchContent() {
       away: "В ГОСТЯХ",
       arena: "АРЕНА",
       spectators: "ЗРИТЕЛИ",
+      technicalWin: "ТЕХНИЧЕСКАЯ ПРОГРЕССИЯ",
+      technicalDesc: "Автоматическая победа из-за позиции в сетке или отсутствия квалифицированного соперника. Тактический отчет для небоевых вылетов не формируется.",
       tournamentTypes: {
         league: "ПРОФ. ЛИГА",
         tournament: "КУБОК ПИРАМИДЫ",
@@ -148,7 +153,24 @@ function MatchContent() {
 
   const t = labels[language as keyof typeof labels] || labels.ru;
 
+  const isTechnicalResult = currentResult?.opponentName === 'WAITING' || currentResult?.opponentName === 'SEEDED';
+
   const renderPreview = () => {
+    if (isTechnicalResult) {
+      return (
+        <div className="py-12 space-y-6 animate-in fade-in duration-500">
+          <Card className="glass-card border-accent/20 bg-accent/5 p-8 text-center">
+            <ShieldCheck className="w-16 h-16 text-accent mx-auto mb-4 animate-pulse" />
+            <h2 className="text-xl font-headline font-bold text-white uppercase">{t.technicalWin}</h2>
+            <p className="text-xs text-muted-foreground mt-4 leading-relaxed italic">{t.technicalDesc}</p>
+            <Badge className="mt-6 bg-accent text-accent-foreground text-[8px] font-black uppercase tracking-widest h-5">
+              AUTOMATIC ADVANCEMENT
+            </Badge>
+          </Card>
+        </div>
+      );
+    }
+
     const preview = (currentResult as any)?.preview;
     if (!preview) return (
       <div className="py-20 text-center opacity-50 space-y-4">
@@ -270,6 +292,15 @@ function MatchContent() {
   };
 
   const renderLive = () => {
+    if (isTechnicalResult) {
+      return (
+        <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4 animate-in slide-in-from-right-4">
+          <Signal className="w-16 h-16 text-muted-foreground" />
+          <p className="text-[10px] uppercase font-black tracking-widest">LIVE SIGNAL UNAVAILABLE FOR TECHNICAL PROCEEDING</p>
+        </div>
+      );
+    }
+
     const timeline = (currentResult as any)?.timeline;
     if (!timeline || timeline.length === 0) return (
       <div className="py-20 text-center opacity-50 space-y-4">
@@ -308,9 +339,14 @@ function MatchContent() {
 
   const renderStats = () => {
     const post = (currentResult as any)?.postMatch;
-    if (!post) return (
+    if (isTechnicalResult || !post) return (
       <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-        <p className="text-center py-4 opacity-50 italic text-[10px] uppercase font-black">{t.legacyMsg}</p>
+        <div className="text-center py-12">
+          <Badge className="bg-green-500/20 text-green-400 font-black italic text-lg px-6 h-10 mb-4">
+            {currentResult?.scoreA} : {currentResult?.scoreB}
+          </Badge>
+          <p className="text-xs text-muted-foreground uppercase font-black tracking-widest">{t.technicalWin}</p>
+        </div>
         <Card className="glass-card p-6 bg-primary/5">
           <p className="text-xs leading-relaxed italic">{currentResult?.matchSummary}</p>
         </Card>

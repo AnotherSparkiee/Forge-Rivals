@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -79,11 +78,11 @@ export function AutoMatchManager() {
       const catchUp = async () => {
         for (let d = 1; d <= seasonDay; d++) {
           const detId = `league_${seasonNumber}_${d}`;
-          const existingMatch = matchHistory.find(m => m.id === detId || (m.day === d && m.type === 'league' && m.seasonNumber === seasonNumber));
+          const existingMatch = matchHistory.find(m => m.id === detId);
           
-          // Fix: strictly check for undefined to identify true legacy matches
-          const isLegacy = existingMatch && (existingMatch.preview === undefined);
-          if (existingMatch && !isLegacy) continue;
+          // Re-simulate if match is technical placeholder (WAITING) or legacy (no preview)
+          const isIncomplete = existingMatch && (existingMatch.preview === undefined || existingMatch.opponentName === 'WAITING');
+          if (existingMatch && !isIncomplete) continue;
 
           if (d < seasonDay || isMatchDue(matchTime, lastLeagueMatchDate)) {
             await triggerAutoMatch(matchTime, d, detId);
@@ -96,16 +95,16 @@ export function AutoMatchManager() {
   }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user]);
 
   useEffect(() => {
-    if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !cupSimulationRef.current && !isUserLoading && profile?.selectedLeagueId && user && allLeaguePlayers) {
+    if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !cupSimulationRef.current && !isUserLoading && profile?.selectedLeagueId && user && allLeaguePlayers && allLeaguePlayers.length > 0) {
       const cupTime = "07:00"; 
       
       const catchUpCup = async () => {
         for (let d = 1; d <= seasonDay; d++) {
           const detId = `cup_${seasonNumber}_${d}`;
-          const existingMatch = matchHistory.find(m => m.id === detId || (m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber));
+          const existingMatch = matchHistory.find(m => m.id === detId);
           
-          const isLegacy = existingMatch && (existingMatch.preview === undefined);
-          if (existingMatch && !isLegacy) continue;
+          const isIncomplete = existingMatch && (existingMatch.preview === undefined || existingMatch.opponentName === 'WAITING');
+          if (existingMatch && !isIncomplete) continue;
 
           const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
           if (wasEliminated) break;
