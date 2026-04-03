@@ -70,11 +70,12 @@ export function AutoMatchManager() {
       
       const catchUp = async () => {
         for (let d = 1; d <= seasonDay; d++) {
-          const alreadyPlayed = matchHistory.some(m => m.day === d && m.type === 'league' && m.seasonNumber === seasonNumber);
+          const detId = `league_${seasonNumber}_${d}`;
+          const alreadyPlayed = matchHistory.some(m => m.id === detId || (m.day === d && m.type === 'league' && m.seasonNumber === seasonNumber));
           if (alreadyPlayed) continue;
 
           if (d < seasonDay || isMatchDue(matchTime, lastLeagueMatchDate)) {
-            await triggerAutoMatch(matchTime, d);
+            await triggerAutoMatch(matchTime, d, detId);
             break; 
           }
         }
@@ -90,14 +91,15 @@ export function AutoMatchManager() {
       
       const catchUpCup = async () => {
         for (let d = 1; d <= seasonDay; d++) {
-          const hasPlayedDayCup = matchHistory.some(m => m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber);
+          const detId = `cup_${seasonNumber}_${d}`;
+          const hasPlayedDayCup = matchHistory.some(m => m.id === detId || (m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber));
           if (hasPlayedDayCup) continue;
 
           const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
           if (wasEliminated) break;
 
           if (d < seasonDay || isMatchDue(cupTime, lastCupMatchDate)) {
-            await triggerCupMatch(cupTime, d);
+            await triggerCupMatch(cupTime, d, detId);
             break;
           }
         }
@@ -106,7 +108,7 @@ export function AutoMatchManager() {
     }
   }, [isLoaded, profile, lastCupMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, isSimulating, allLeaguePlayers]);
 
-  const triggerAutoMatch = async (matchTime: string, targetDay: number) => {
+  const triggerAutoMatch = async (matchTime: string, targetDay: number, detId: string) => {
     if (!groupPlayers || !user || !profile || simulationRef.current) return;
     simulationRef.current = true;
     setIsSimulating(true);
@@ -125,7 +127,6 @@ export function AutoMatchManager() {
       const forcedScoreA = todayMatch.home.id === user.uid ? detScoreA : detScoreB;
       const forcedScoreB = todayMatch.away.id === user.uid ? detScoreA : detScoreB;
       
-      // Get full detailed heroes including proStats and sub status
       const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
         ...h,
         isSub: h.id === lineup.sub1 || h.id === lineup.sub2
@@ -157,7 +158,7 @@ export function AutoMatchManager() {
         customPlayedAt = d.toISOString();
       }
 
-      recordMatch(result.winner, result, targetDay, opponent.name || "Unknown Team", 'league', customPlayedAt);
+      recordMatch(result.winner, result, targetDay, opponent.name || "Unknown Team", 'league', customPlayedAt, detId);
       
       if (targetDay === seasonDay) {
         setCurrentResult({ ...result, day: targetDay, opponentName: opponent.name, isCup: false });
@@ -172,7 +173,7 @@ export function AutoMatchManager() {
     }
   };
 
-  const triggerCupMatch = async (matchTime: string, targetDay: number) => {
+  const triggerCupMatch = async (matchTime: string, targetDay: number, detId: string) => {
     if (!user || !profile || !allLeaguePlayers || cupSimulationRef.current) return;
     cupSimulationRef.current = true;
     setIsSimulating(true);
@@ -191,7 +192,7 @@ export function AutoMatchManager() {
           teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
           heroPerformance: []
         };
-        recordMatch(seededResult.winner, seededResult, targetDay, "SEEDED", 'tournament');
+        recordMatch(seededResult.winner, seededResult, targetDay, "SEEDED", 'tournament', undefined, detId);
         setIsSimulating(false);
         cupSimulationRef.current = false;
         setSyncing(false);
@@ -212,7 +213,7 @@ export function AutoMatchManager() {
           teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
           heroPerformance: []
         };
-        recordMatch(waitResult.winner, waitResult, targetDay, "WAITING", 'tournament');
+        recordMatch(waitResult.winner, waitResult, targetDay, "WAITING", 'tournament', undefined, detId);
         setIsSimulating(false);
         cupSimulationRef.current = false;
         setSyncing(false);
@@ -248,7 +249,7 @@ export function AutoMatchManager() {
         customPlayedAt = d.toISOString();
       }
 
-      recordMatch(result.winner, result, targetDay, opponent.name, 'tournament', customPlayedAt);
+      recordMatch(result.winner, result, targetDay, opponent.name, 'tournament', customPlayedAt, detId);
       
       if (targetDay === seasonDay) { 
         setCurrentResult({ ...result, day: targetDay, opponentName: opponent.name, isCup: true }); 

@@ -24,7 +24,7 @@ function sanitizeForFirestore(obj: any) {
 export function FriendlyMatchListener() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
-  const { language, team, strategy, recordMatch, ownedHeroes, lineup } = useGameState();
+  const { language, team, strategy, recordMatch, ownedHeroes, lineup, matchHistory } = useGameState();
   const { toast } = useToast();
 
   const [activeLobby, setActiveLobby] = useState<any | null>(null);
@@ -33,7 +33,6 @@ export function FriendlyMatchListener() {
   
   const [showChallengeModal, setShowChallengeModal] = useState(false);
   const handledChallengeIdRef = useRef<string | null>(null);
-  const processedMatches = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (isUserLoading || !user) return;
@@ -116,7 +115,12 @@ export function FriendlyMatchListener() {
     }
 
     if (data.status === 'accepted' && data.matchResult) {
-      if (processedMatches.current.has(data.id)) return;
+      // Check if this specific lobby match has already been recorded in history
+      const alreadyProcessed = matchHistory.some(m => m.id === data.id);
+      if (alreadyProcessed) {
+        if (isHost) deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
+        return;
+      }
 
       const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); 
       const finishTime = acceptedAt + MATCH_DURATION_MS;
@@ -124,8 +128,11 @@ export function FriendlyMatchListener() {
       const checkAndComplete = () => {
         const now = Date.now();
         if (now >= finishTime) {
-          if (processedMatches.current.has(data.id)) return;
-          processedMatches.current.add(data.id);
+          // Double check history inside interval
+          if (matchHistory.some(m => m.id === data.id)) {
+            if (isHost) deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
+            return;
+          }
 
           const result = data.matchResult;
           const finalResult = isHost ? result : {
@@ -136,7 +143,7 @@ export function FriendlyMatchListener() {
           };
           
           const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
-          recordMatch(finalResult.winner, finalResult, 0, opponentName, 'friendly');
+          recordMatch(finalResult.winner, finalResult, 0, opponentName, 'friendly', undefined, data.id);
           
           toast({
             title: language === 'ru' ? (data.isTrial ? "Тренировка завершена" : "Матч завершен") : (data.isTrial ? "Training Finished" : "Match Completed"),
@@ -155,7 +162,7 @@ export function FriendlyMatchListener() {
       checkAndComplete();
       return () => clearInterval(timer);
     }
-  }, [activeLobby, challengeResult, user, language, recordMatch, db, toast]);
+  }, [activeLobby, challengeResult, user, language, recordMatch, db, toast, matchHistory]);
 
   const handleHostRespond = async (accept: boolean) => {
     if (!activeLobby) return;

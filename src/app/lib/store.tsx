@@ -240,7 +240,7 @@ interface GameStateContextType extends GameState {
   startCapacityExpansion: (seats: number, cost: number, hours: number) => boolean;
   checkConstructions: () => void;
   setLanguage: (lang: 'en' | 'ru') => void;
-  recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string) => void;
+  recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string) => void;
   markMatchAsSeen: (day: number) => void;
   claimReward: (creditsReward: number, crystalsReward: number) => void;
   syncStats: (groupPlayers: any[]) => void;
@@ -776,7 +776,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return result;
   }, [user, db]);
 
-  const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string) => {
+  const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string) => {
     const scoreA = result.scoreA || 0;
     const scoreB = result.scoreB || 0;
     let creditsEarned = 50; let rankChange = -15;
@@ -786,6 +786,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     else if (scoreA === scoreB) rankChange = 0;
 
     setState(s => {
+      const matchId = customId || `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Prevent duplicate entry by ID
+      if (s.matchHistory.some(m => m.id === matchId)) return s;
+
       if (type === 'league' && s.matchHistory.some(m => m.day === matchDay && m.type === 'league' && m.seasonNumber === s.seasonNumber)) return s;
       
       // Calculate XP for training
@@ -795,7 +800,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         if (isHeroActive && hero.trainingFocus) {
           const skillKey = hero.trainingFocus;
           const currentVal = (hero.proStats as any)[skillKey] || 0;
-          // Added safety check for proTalents
           const talentLimit = (hero.proTalents ? (hero.proTalents as any)[skillKey] || 3.0 : 3.0) * 20;
           if (currentVal < talentLimit) {
             const gain = Math.floor(Math.random() * (xpRange.max - xpRange.min + 1)) + xpRange.min;
@@ -807,7 +811,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       });
 
       const matchEntry: MatchResultEntry = {
-        id: `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: matchId,
         day: matchDay, type, opponentName, winner, scoreA, scoreB,
         matchSummary: result.matchSummary || "",
         teamStats: sanitizeForFirestore(result.teamStats || {}),

@@ -23,14 +23,15 @@ export function DailyRewardManager() {
   const pathname = usePathname();
 
   useEffect(() => {
-    // Only show reward on the main dashboard page after registration/setup
-    // Added check for selectedLeagueId to ensure user is fully registered
+    // Only show reward if user has completed setup (selectedLeagueId exists)
     if (isLoaded && pathname === '/' && !!selectedLeagueId) {
       const today = getMoscowDateString();
       if (lastRewardClaimDate !== today) {
         const timer = setTimeout(() => setShowReward(true), 1500);
         return () => clearTimeout(timer);
       }
+    } else {
+      setShowReward(false);
     }
   }, [isLoaded, lastRewardClaimDate, pathname, selectedLeagueId]);
 
@@ -61,7 +62,6 @@ export function DailyRewardManager() {
     today: language === 'ru' ? "СЕГОДНЯ" : "TODAY",
   };
 
-  // Do not render anything if the user hasn't completed setup
   if (!selectedLeagueId) return null;
 
   return (

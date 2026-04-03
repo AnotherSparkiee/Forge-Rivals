@@ -23,7 +23,7 @@ export function CWBasketListener() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const pathname = usePathname();
-  const { language, strategy, team, recordMatch, ownedHeroes, lineup } = useGameState();
+  const { language, strategy, team, recordMatch, ownedHeroes, lineup, matchHistory } = useGameState();
   const { toast } = useToast();
 
   const [showModal, setShowModal] = useState(false);
@@ -38,7 +38,9 @@ export function CWBasketListener() {
       const currentMatchId = myEntry.matchStartTime;
 
       if (notifiedMatchIdRef.current !== currentMatchId) {
-        if (pathname !== '/tournaments/cw-basket') {
+        // Only show modal if match is not already recorded
+        const alreadyRecorded = matchHistory.some(m => m.id === currentMatchId);
+        if (pathname !== '/tournaments/cw-basket' && !alreadyRecorded) {
           setShowModal(true);
         }
         notifiedMatchIdRef.current = currentMatchId;
@@ -49,6 +51,12 @@ export function CWBasketListener() {
         
         const checkAndSimulate = async () => {
           if (Date.now() >= startTime && !isSimulatingRef.current) {
+            // Re-check match history before starting simulation
+            if (matchHistory.some(m => m.id === currentMatchId)) {
+              await deleteDoc(doc(db, 'cw_basket', user!.uid));
+              return;
+            }
+
             isSimulatingRef.current = true;
             try {
               const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
@@ -72,7 +80,8 @@ export function CWBasketListener() {
                 0, 
                 myEntry.matchedWithName, 
                 'basket',
-                new Date().toISOString()
+                new Date().toISOString(),
+                currentMatchId
               );
 
               toast({
@@ -97,7 +106,7 @@ export function CWBasketListener() {
       notifiedMatchIdRef.current = null;
       setShowModal(false);
     }
-  }, [myEntry, pathname, strategy, team, recordMatch, language, user, db, toast]);
+  }, [myEntry, pathname, strategy, team, recordMatch, language, user, db, toast, matchHistory, ownedHeroes, lineup]);
 
   const handleAcknowledge = () => {
     setShowModal(false);
