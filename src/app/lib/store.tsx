@@ -76,6 +76,10 @@ export interface MatchResultEntry {
   playedAt: string;
   duration?: string;
   mvp?: string;
+  // New step-by-step data fields
+  preview?: any;
+  timeline?: any[];
+  postMatch?: any;
 }
 
 interface GameState {
@@ -225,6 +229,7 @@ const DEFAULT_STATE: GameState = {
 };
 
 function sanitizeForFirestore(obj: any) {
+  if (!obj) return null;
   return JSON.parse(JSON.stringify(obj));
 }
 
@@ -820,7 +825,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         heroPerformance: sanitizeForFirestore(result.heroPerformance || []),
         playedAt: customPlayedAt || new Date().toISOString(),
         duration: result.duration || "",
-        mvp: result.mvp || ""
+        mvp: result.mvp || "",
+        preview: sanitizeForFirestore(result.preview || null),
+        timeline: sanitizeForFirestore(result.timeline || []),
+        postMatch: sanitizeForFirestore(result.postMatch || null),
       };
       if (type === 'league' || type === 'tournament') matchEntry.seasonNumber = s.seasonNumber;
       

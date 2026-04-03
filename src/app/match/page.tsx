@@ -55,6 +55,11 @@ function MatchContent() {
 
   const isHistoricalViewing = !!matchId;
 
+  // Reset scroll on step change
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [step]);
+
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
@@ -367,6 +372,7 @@ function MatchContent() {
         <div className="w-full max-w-lg mx-auto px-6 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 w-full">
             <Button 
+              type="button"
               onClick={() => router.back()}
               variant="outline"
               className="h-12 flex-1 border-white/10 hover:bg-white/5 font-black text-[10px] uppercase tracking-widest"
@@ -374,6 +380,7 @@ function MatchContent() {
               {t.exit}
             </Button>
             <Button 
+              type="button"
               onClick={handleNext}
               className="h-12 flex-[2] hero-gradient border-none font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20 group"
             >
