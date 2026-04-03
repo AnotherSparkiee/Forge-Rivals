@@ -1,0 +1,160 @@
+'use client';
+
+import { useMemo } from 'react';
+import { useGameState } from '../../lib/store';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { 
+  ChevronLeft, BarChart3, User, Trophy, 
+  Skull, Crosshair, Swords, Star, Activity
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import Link from 'next/link';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { Badge } from '@/components/ui/badge';
+
+export default function PlayerStatsPage() {
+  const { ownedHeroes, matchHistory, language, isLoaded } = useGameState();
+
+  const playerStats = useMemo(() => {
+    return ownedHeroes.map(hero => {
+      let matches = 0;
+      let kills = 0;
+      let deaths = 0;
+      let assists = 0;
+
+      matchHistory.forEach(match => {
+        // Find this hero in the match performance report
+        const performance = match.heroPerformance?.find(p => p.heroName === hero.name);
+        if (performance) {
+          matches++;
+          kills += (performance.kills || 0);
+          deaths += (performance.deaths || 0);
+          assists += (performance.assists || 0);
+        }
+      });
+
+      const kda = deaths === 0 ? (kills + assists) : (kills + assists) / deaths;
+
+      return {
+        ...hero,
+        stats: {
+          matches,
+          kills,
+          deaths,
+          assists,
+          kda: kda.toFixed(2)
+        }
+      };
+    });
+  }, [ownedHeroes, matchHistory]);
+
+  if (!isLoaded) return <LoadingScreen />;
+
+  const t = {
+    title: language === 'ru' ? "СТАТИСТИКА ИГРОКОВ" : "PLAYER STATISTICS",
+    subtitle: language === 'ru' ? "Индивидуальный отчет эффективности" : "Individual performance report",
+    matches: language === 'ru' ? "Матчи" : "Matches",
+    kills: language === 'ru' ? "Убийства" : "Kills",
+    deaths: language === 'ru' ? "Смерти" : "Deaths",
+    assists: language === 'ru' ? "Ассисты" : "Assists",
+    kda: language === 'ru' ? "СР. KDA" : "AVG KDA",
+    overall: language === 'ru' ? "ОБЩ" : "OVR",
+    noData: language === 'ru' ? "Нет данных" : "No match data yet",
+  };
+
+  return (
+    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+      <header className="mb-6 flex items-center gap-4">
+        <Link href="/roster">
+          <Button variant="ghost" size="icon" className="rounded-full">
+            <ChevronLeft className="w-6 h-6" />
+          </Button>
+        </Link>
+        <div>
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2">
+            <BarChart3 className="w-6 h-6 text-primary" />
+            {t.title}
+          </h1>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
+        </div>
+      </header>
+
+      <div className="space-y-3">
+        {playerStats.map((hero) => (
+          <Card key={hero.id} className="glass-card border-white/5 overflow-hidden">
+            <CardContent className="p-0">
+              {/* Header: Hero Info */}
+              <div className="p-4 border-b border-white/5 flex items-center justify-between bg-primary/5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/10 bg-secondary/50">
+                    <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-tight truncate max-w-[140px]">{hero.name}</h3>
+                    <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[7px] font-black text-accent uppercase tracking-widest leading-none mb-1">{t.overall}</p>
+                  <p className="text-xl font-headline font-bold text-accent italic leading-none">{hero.overallRating}</p>
+                </div>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="p-4 grid grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+                      <Swords className="w-3 h-3 text-primary" /> {t.matches}
+                    </span>
+                    <span className="text-xs font-mono font-bold">{hero.stats.matches}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+                      <Skull className="w-3 h-3 text-red-400" /> {t.deaths}
+                    </span>
+                    <span className="text-xs font-mono font-bold">{hero.stats.deaths}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+                      <Trophy className="w-3 h-3 text-yellow-500" /> {t.kills}
+                    </span>
+                    <span className="text-xs font-mono font-bold text-primary">{hero.stats.kills}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+                      <Activity className="w-3 h-3 text-green-400" /> {t.assists}
+                    </span>
+                    <span className="text-xs font-mono font-bold">{hero.stats.assists}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* KDA Footer */}
+              <div className="px-4 py-2 bg-secondary/30 border-t border-white/5 flex items-center justify-between">
+                <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.kda}</span>
+                <Badge className={cn(
+                  "font-black italic text-[10px] px-3",
+                  Number(hero.stats.kda) >= 4 ? "bg-green-500/20 text-green-400" : (Number(hero.stats.kda) >= 2 ? "bg-primary/20 text-primary" : "bg-red-500/20 text-red-400")
+                )}>
+                  {hero.stats.matches > 0 ? hero.stats.kda : "0.00"}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
+        {playerStats.length === 0 && (
+          <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
+            <BarChart3 className="w-16 h-16" />
+            <p className="text-xs font-bold uppercase tracking-widest">{t.noData}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
