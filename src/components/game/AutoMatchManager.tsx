@@ -4,9 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { isMatchDue, getMoscowDateString, getGlobalSeasonInfo, getPyramidCupTime, getMoscowTime } from '@/app/lib/time-utils';
+import { isMatchDue, getMoscowTime, getGlobalSeasonInfo, getPyramidCupTime } from '@/app/lib/time-utils';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '@/app/lib/leagues-data';
-import { INITIAL_HEROES } from '@/app/lib/moba-data';
+import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -63,7 +63,6 @@ export function AutoMatchManager() {
 
   const { data: allLeaguePlayers } = useCollection(allLeaguePlayersQuery);
 
-  // 1. Regular League Simulation (Bo2)
   useEffect(() => {
     if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !simulationRef.current && !isUserLoading && profile?.selectedLeagueId && groupPlayers && user) {
       const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
@@ -85,7 +84,6 @@ export function AutoMatchManager() {
     }
   }, [isLoaded, profile, groupPlayers, lastLeagueMatchDate, isUserLoading, seasonDay, seasonNumber, matchHistory, user, isSimulating]);
 
-  // 2. Pyramid Cup Simulation (Bo3) - Fixed to 07:00 MSK
   useEffect(() => {
     if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !cupSimulationRef.current && !isUserLoading && profile?.selectedLeagueId && user && allLeaguePlayers) {
       const cupTime = "07:00"; 
@@ -133,17 +131,19 @@ export function AutoMatchManager() {
         isSub: h.id === lineup.sub1 || h.id === lineup.sub2
       }));
 
+      const botSquad = getRandomStartingSquad().map((h, i) => ({
+        ...h,
+        name: `${h.name} Bot`,
+        overallRating: h.overallRating + 5,
+        isSub: i > 4
+      }));
+
       const result = await simulateMobaMatch({
         teamA: { name: profile.displayName || "My Team", strategy, heroes: squad },
         teamB: { 
           name: opponent.name || "Unknown Team", 
           strategy: "Advanced Tactics", 
-          heroes: INITIAL_HEROES.map((h, i) => ({ 
-            ...h, 
-            name: `${h.name} Bot`,
-            overallRating: h.overallRating + 10,
-            isSub: i > 4
-          })) 
+          heroes: botSquad
         },
         isBo2: true,
         scoreA: forcedScoreA, 
@@ -228,12 +228,19 @@ export function AutoMatchManager() {
         isSub: h.id === lineup.sub1 || h.id === lineup.sub2
       }));
 
+      const botSquad = getRandomStartingSquad().map((h, i) => ({
+        ...h,
+        name: `${h.name} Cup AI`,
+        overallRating: h.overallRating + 8,
+        isSub: i > 4
+      }));
+
       const result = await simulateMobaMatch({
         teamA: { name: profile.displayName || "My Team", strategy, heroes: squad },
         teamB: { 
           name: opponent.name, 
           strategy: "Tournament Execution", 
-          heroes: INITIAL_HEROES.map((h, i) => ({ ...h, isSub: i > 4 })) 
+          heroes: botSquad
         },
         isBo2: false,
         isBo3: true,

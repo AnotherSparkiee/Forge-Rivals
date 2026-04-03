@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -19,7 +18,17 @@ import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
-import { INITIAL_HEROES } from '@/app/lib/moba-data';
+import { getRandomStartingSquad } from '@/app/lib/moba-data';
+
+function sanitizeForFirestore(obj: any) {
+  if (!obj) return null;
+  try {
+    return JSON.parse(JSON.stringify(obj));
+  } catch (e) {
+    console.error("Sanitization failed", e);
+    return null;
+  }
+}
 
 export default function TournamentsPage() {
   const { user, isUserLoading } = useUser();
@@ -153,15 +162,25 @@ export default function TournamentsPage() {
         isSub: h.id === lineup.sub1 || h.id === lineup.sub2
       }));
 
+      // Generate full squad for bot (7 heroes)
+      const botSquad = getRandomStartingSquad().map((h, i) => ({
+        ...h,
+        name: `${h.name} AI`,
+        isSub: i > 4
+      }));
+
       const result = await simulateMobaMatch({
         teamA: { name: profile.displayName || "Manager", strategy, heroes: squad },
         teamB: { 
           name: botId, 
           strategy: "Standard Training", 
-          heroes: INITIAL_HEROES.map((h, i) => ({ ...h, isSub: i > 4 }))
+          heroes: botSquad
         },
         isBo2: false
       });
+
+      const safeResult = sanitizeForFirestore(result);
+      if (!safeResult) throw new Error("Simulation failed");
 
       await setDoc(doc(db, 'friendly_lobbies', user.uid), {
         hostId: user.uid,
@@ -169,7 +188,7 @@ export default function TournamentsPage() {
         status: 'accepted',
         challengerId: botId,
         challengerName: botId,
-        matchResult: JSON.parse(JSON.stringify(result)),
+        matchResult: safeResult,
         acceptedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         isTrial: true
@@ -178,6 +197,7 @@ export default function TournamentsPage() {
       toast({ title: t.toastTrial, description: t.toastTrialDesc });
     } catch (e) {
       console.error(e);
+      toast({ variant: "destructive", title: "Simulation Error", description: "Failed to initiate tactical trial." });
     } finally {
       setIsActionLoading(false);
     }

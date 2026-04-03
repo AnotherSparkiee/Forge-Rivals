@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -13,10 +12,15 @@ import { Swords, Loader2, Timer, Zap, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePathname } from 'next/navigation';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
-import { INITIAL_HEROES } from '@/app/lib/moba-data';
+import { getRandomStartingSquad } from '@/app/lib/moba-data';
 
 function sanitizeForFirestore(obj: any) {
-  return JSON.parse(JSON.stringify(obj));
+  if (!obj) return null;
+  try {
+    return JSON.parse(JSON.stringify(obj));
+  } catch (e) {
+    return null;
+  }
 }
 
 export function CWBasketListener() {
@@ -38,7 +42,6 @@ export function CWBasketListener() {
       const currentMatchId = myEntry.matchStartTime;
 
       if (notifiedMatchIdRef.current !== currentMatchId) {
-        // Only show modal if match is not already recorded
         const alreadyRecorded = matchHistory.some(m => m.id === currentMatchId);
         if (pathname !== '/tournaments/cw-basket' && !alreadyRecorded) {
           setShowModal(true);
@@ -51,7 +54,6 @@ export function CWBasketListener() {
         
         const checkAndSimulate = async () => {
           if (Date.now() >= startTime && !isSimulatingRef.current) {
-            // Re-check match history before starting simulation
             if (matchHistory.some(m => m.id === currentMatchId)) {
               await deleteDoc(doc(db, 'cw_basket', user!.uid));
               return;
@@ -64,19 +66,28 @@ export function CWBasketListener() {
                 isSub: h.id === lineup.sub1 || h.id === lineup.sub2
               }));
 
+              const rivalSquad = getRandomStartingSquad().map((h, i) => ({
+                ...h,
+                name: `${h.name} CW`,
+                isSub: i > 4
+              }));
+
               const result = await simulateMobaMatch({
                 teamA: { name: myEntry.userName || "My Team", strategy, heroes: squad },
                 teamB: { 
                   name: myEntry.matchedWithName || "Rival Manager", 
                   strategy: "Balanced Play", 
-                  heroes: INITIAL_HEROES.map((h, i) => ({ ...h, isSub: i > 4 }))
+                  heroes: rivalSquad
                 },
                 isBo2: false
               });
 
+              const safeResult = sanitizeForFirestore(result);
+              if (!safeResult) throw new Error("Simulation failed");
+
               recordMatch(
-                result.winner, 
-                sanitizeForFirestore(result), 
+                safeResult.winner, 
+                safeResult, 
                 0, 
                 myEntry.matchedWithName, 
                 'basket',

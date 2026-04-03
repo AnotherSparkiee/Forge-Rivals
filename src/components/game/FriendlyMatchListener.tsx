@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -11,14 +10,19 @@ import {
 import { Button } from '@/components/ui/button';
 import { Swords, Loader2, XCircle, ShieldCheck, Clock } from 'lucide-react';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
-import { INITIAL_HEROES } from '@/app/lib/moba-data';
+import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
 
 const MATCH_DURATION_MS = 15 * 60 * 1000; 
 const LOBBY_EXPIRATION_MS = 60 * 1000; 
 
 function sanitizeForFirestore(obj: any) {
-  return JSON.parse(JSON.stringify(obj));
+  if (!obj) return null;
+  try {
+    return JSON.parse(JSON.stringify(obj));
+  } catch (e) {
+    return null;
+  }
 }
 
 export function FriendlyMatchListener() {
@@ -115,7 +119,6 @@ export function FriendlyMatchListener() {
     }
 
     if (data.status === 'accepted' && data.matchResult) {
-      // Check if this specific lobby match has already been recorded in history
       const alreadyProcessed = matchHistory.some(m => m.id === data.id);
       if (alreadyProcessed) {
         if (isHost) deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
@@ -128,7 +131,6 @@ export function FriendlyMatchListener() {
       const checkAndComplete = () => {
         const now = Date.now();
         if (now >= finishTime) {
-          // Double check history inside interval
           if (matchHistory.some(m => m.id === data.id)) {
             if (isHost) deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
             return;
@@ -175,14 +177,20 @@ export function FriendlyMatchListener() {
           isSub: h.id === lineup.sub1 || h.id === lineup.sub2
         }));
 
+        // Bot squad for rival if any
+        const rivalSquad = getRandomStartingSquad().map((h, i) => ({
+          ...h,
+          name: `${h.name} Rival`,
+          isSub: i > 4
+        }));
+
         const result = await simulateMobaMatch({
           teamA: { name: activeLobby.hostName, strategy: strategy, heroes: squad },
           teamB: { 
             name: activeLobby.challengerName || "Rival Manager", 
             strategy: "Aggressive Play", 
-            heroes: INITIAL_HEROES.map((h, i) => ({ ...h, isSub: i > 4 }))
+            heroes: rivalSquad
           },
-          includeRandomEvents: true,
           isBo2: false
         });
         
