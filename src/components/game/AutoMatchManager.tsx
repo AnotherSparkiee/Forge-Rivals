@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -162,7 +163,7 @@ export function AutoMatchManager() {
       recordMatch(result.winner, result, targetDay, opponent.name || "Unknown Team", 'league', customPlayedAt, detId);
       
       if (targetDay === seasonDay) {
-        setCurrentResult({ ...result, day: targetDay, opponentName: opponent.name, isCup: false });
+        setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, isCup: false });
         setShowResultDialog(true);
       }
     } catch (e: any) {
@@ -200,7 +201,6 @@ export function AutoMatchManager() {
         return;
       }
 
-      const mskNow = getMoscowTime();
       winnersCache.current.clear();
       const step = Math.pow(2, targetDay - 1);
       const myBranchStart = Math.floor(myIdx / step) * step;
@@ -260,7 +260,7 @@ export function AutoMatchManager() {
       recordMatch(result.winner, result, targetDay, opponent.name, 'tournament', customPlayedAt, detId);
       
       if (targetDay === seasonDay) { 
-        setCurrentResult({ ...result, day: targetDay, opponentName: opponent.name, isCup: true }); 
+        setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, isCup: true }); 
         setShowResultDialog(true); 
       }
     } catch (e: any) {
@@ -275,7 +275,11 @@ export function AutoMatchManager() {
   const handleGoToReport = () => {
     setShowResultDialog(false);
     if (currentResult && !currentResult.isCup) markMatchAsSeen(currentResult.day);
-    router.push('/match');
+    if (currentResult?.id) {
+      router.push(`/match?id=${currentResult.id}`);
+    } else {
+      router.push('/match');
+    }
   };
 
   const t = { 
@@ -297,7 +301,7 @@ export function AutoMatchManager() {
 
   return (
     <>
-      <Dialog open={showResultDialog} onOpenChange={(open) => { if (!open) handleGoToReport(); }}>
+      <Dialog open={showResultDialog} onOpenChange={(open) => { if (!open) setShowResultDialog(false); }}>
         <DialogContent className="max-w-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
           <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
             <div className="mx-auto w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary shadow-[0_0_20px_rgba(var(--primary),0.3)]">

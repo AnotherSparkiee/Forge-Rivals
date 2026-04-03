@@ -8,14 +8,13 @@ import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, Timer, User, Star, Check, X, 
-  Swords, Skull, Crosshair, FileText, Activity,
-  Trophy, Users, Signal, Map, ArrowRight, TrendingUp,
-  ShieldCheck, Brain, Zap, Target
+  ChevronLeft, User, Check, 
+  Swords, Activity, Map, ArrowRight, TrendingUp,
+  ShieldCheck, Brain, Zap, Target, FileText,
+  Users, Signal
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { cn, formatCurrency } from '@/lib/utils';
-import Link from 'next/link';
+import { cn } from '@/lib/utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { doc } from 'firebase/firestore';
 import { COUNTRIES } from '../lib/countries-data';
@@ -29,7 +28,7 @@ function MatchContent() {
   const db = useFirestore();
   const { 
     language, isLoaded, lastSeenMatchDay, markMatchAsSeen, 
-    matchHistory, arena, credits
+    matchHistory
   } = useGameState();
 
   const matchId = searchParams.get('id');
@@ -45,13 +44,21 @@ function MatchContent() {
   }, [user, isUserLoading, router]);
 
   const currentResult = useMemo(() => {
+    // If explicit ID is provided, find it
     if (matchId) {
       return matchHistory.find(m => m.id === matchId) || null;
     }
-    return [...matchHistory]
-      .filter(m => m.day > lastSeenMatchDay)
-      .sort((a, b) => a.day - b.day)[0] || (matchHistory.length > 0 ? matchHistory[0] : null);
-  }, [matchHistory, lastSeenMatchDay, matchId]);
+    
+    // Otherwise, pick the most recent match that was played today or is still unseen
+    // We sort by playedAt descending to get the absolute newest match
+    const sortedHistory = [...matchHistory].sort((a, b) => {
+      const timeA = new Date(a.playedAt).getTime();
+      const timeB = new Date(b.playedAt).getTime();
+      return timeB - timeA;
+    });
+
+    return sortedHistory[0] || null;
+  }, [matchHistory, matchId]);
 
   const isHistoricalViewing = !!matchId;
 
@@ -125,7 +132,12 @@ function MatchContent() {
 
   const renderPreview = () => {
     const preview = (currentResult as any)?.preview;
-    if (!preview) return <p className="text-center py-10 opacity-50 italic">Legacy Match Data: Stage 1 Unavailable</p>;
+    if (!preview) return (
+      <div className="py-20 text-center opacity-50 space-y-4">
+        <Activity className="w-12 h-12 mx-auto text-muted-foreground animate-pulse" />
+        <p className="text-xs uppercase font-black tracking-widest">Legacy Match Data: Stage 1 Unavailable</p>
+      </div>
+    );
 
     return (
       <div className="space-y-6 animate-in fade-in duration-500">
@@ -174,7 +186,12 @@ function MatchContent() {
 
   const renderLive = () => {
     const timeline = (currentResult as any)?.timeline;
-    if (!timeline) return <p className="text-center py-10 opacity-50 italic">Legacy Match Data: Stage 2 Unavailable</p>;
+    if (!timeline || timeline.length === 0) return (
+      <div className="py-20 text-center opacity-50 space-y-4">
+        <Map className="w-12 h-12 mx-auto text-muted-foreground animate-pulse" />
+        <p className="text-xs uppercase font-black tracking-widest">Legacy Match Data: Stage 2 Unavailable</p>
+      </div>
+    );
 
     return (
       <div className="space-y-4 animate-in slide-in-from-right-4 duration-500">
@@ -193,7 +210,7 @@ function MatchContent() {
                 <div className="flex-1 space-y-2">
                   <p className="text-[11px] leading-relaxed text-muted-foreground">{event.event}</p>
                   <div className="flex justify-end">
-                    <Badge className="bg-background/50 text-[9px] font-mono font-bold text-white border-white/10">{event.score}</Badge>
+                    <Badge className="bg-black/40 text-[9px] font-mono font-bold text-white border-white/10">{event.score}</Badge>
                   </div>
                 </div>
               </CardContent>
@@ -293,6 +310,15 @@ function MatchContent() {
     );
   };
 
+  if (!currentResult) return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4">
+      <Zap className="w-12 h-12 text-primary animate-pulse" />
+      <h2 className="text-xl font-headline font-bold uppercase">Awaiting Data Feed</h2>
+      <p className="text-xs text-muted-foreground uppercase tracking-widest">Tactical history not yet established.</p>
+      <Button onClick={() => router.push('/')} variant="outline" className="mt-4 border-white/10 uppercase font-black text-[10px]">Back to HQ</Button>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-background text-foreground pb-32">
       {/* Background Grid Overlay */}
@@ -302,7 +328,7 @@ function MatchContent() {
         <header className="text-center space-y-4 mb-8">
           <div className="flex flex-col items-center gap-2">
             <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary text-[8px] font-black uppercase tracking-[0.2em] px-3">
-              {currentResult?.type.toUpperCase()} ENGAGEMENT
+              {currentResult.type.toUpperCase()} ENGAGEMENT
             </Badge>
             <h1 className="text-sm font-headline font-bold text-white uppercase tracking-tighter">
               {t.reportTitle}
@@ -335,15 +361,15 @@ function MatchContent() {
                 {step === 'stats' ? (
                   <>
                     <div className="text-3xl font-headline font-black italic tracking-tighter flex items-center gap-3 animate-in zoom-in duration-500">
-                      <span className={cn(currentResult?.scoreA > currentResult?.scoreB && "text-primary")}>{currentResult?.scoreA}</span>
+                      <span className={cn(currentResult.scoreA > currentResult.scoreB && "text-primary")}>{currentResult.scoreA}</span>
                       <span className="opacity-20">:</span>
-                      <span className={cn(currentResult?.scoreB > currentResult?.scoreA && "text-primary")}>{currentResult?.scoreB}</span>
+                      <span className={cn(currentResult.scoreB > currentResult.scoreA && "text-primary")}>{currentResult.scoreB}</span>
                     </div>
                     <Badge className={cn(
                       "mt-3 text-[7px] font-black tracking-widest",
-                      currentResult?.scoreA > currentResult?.scoreB ? "bg-green-500/20 text-green-400" : (currentResult?.scoreA === currentResult?.scoreB ? "bg-accent/20 text-accent" : "bg-red-500/20 text-red-400")
+                      currentResult.scoreA > currentResult.scoreB ? "bg-green-500/20 text-green-400" : (currentResult.scoreA === currentResult.scoreB ? "bg-accent/20 text-accent" : "bg-red-500/20 text-red-400")
                     )}>
-                      {currentResult?.scoreA > currentResult?.scoreB ? "VICTORY" : (currentResult?.scoreA === currentResult?.scoreB ? "DRAW" : "DEFEAT")}
+                      {currentResult.scoreA > currentResult.scoreB ? "VICTORY" : (currentResult.scoreA === currentResult.scoreB ? "DRAW" : "DEFEAT")}
                     </Badge>
                   </>
                 ) : (
@@ -363,7 +389,7 @@ function MatchContent() {
                   <span className="text-2xl">🏳️</span>
                 </div>
                 <p className="text-[9px] font-headline font-bold uppercase truncate w-full text-white">
-                  {currentResult?.opponentName}
+                  {currentResult.opponentName}
                 </p>
               </div>
             </div>
@@ -386,7 +412,7 @@ function MatchContent() {
               type="button"
               onClick={() => router.back()}
               variant="outline"
-              className="h-12 flex-1 border-white/10 hover:bg-white/5 font-black text-[10px] uppercase tracking-widest"
+              className="h-12 flex-1 border-white/10 font-black text-[10px] uppercase tracking-widest"
             >
               {t.exit}
             </Button>

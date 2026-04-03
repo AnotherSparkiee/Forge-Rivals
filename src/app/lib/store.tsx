@@ -76,7 +76,6 @@ export interface MatchResultEntry {
   playedAt: string;
   duration?: string;
   mvp?: string;
-  // New step-by-step data fields
   preview?: any;
   timeline?: any[];
   postMatch?: any;
@@ -833,7 +832,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       if (type === 'league' || type === 'tournament') matchEntry.seasonNumber = s.seasonNumber;
       
       const todayStr = getMoscowDateString();
-      const newState = { ...s, credits: s.credits + creditsEarned, rank: s.rank + rankChange, matchHistory: [matchEntry, ...s.matchHistory].slice(0, 500), 
+      const newState = { ...s, credits: s.credits + creditsEarned, rank: s.rank + rankChange, 
+        matchHistory: [matchEntry, ...s.matchHistory].slice(0, 100), // Limit history size for stability
         lastLeagueMatchDate: type === 'league' && matchDay === s.seasonDay ? todayStr : s.lastLeagueMatchDate,
         lastCupMatchDate: type === 'tournament' ? todayStr : s.lastCupMatchDate,
         ownedHeroes: updatedHeroes,
