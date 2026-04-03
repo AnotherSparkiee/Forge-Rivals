@@ -11,7 +11,7 @@ import {
   ChevronLeft, User, Check, 
   Swords, Activity, Map, ArrowRight, TrendingUp,
   ShieldCheck, Brain, Zap, Target, FileText,
-  Users, Signal
+  Users, Signal, EyeOff, Loader2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -44,13 +44,11 @@ function MatchContent() {
   }, [user, isUserLoading, router]);
 
   const currentResult = useMemo(() => {
-    // If explicit ID is provided, find it
     if (matchId) {
-      return matchHistory.find(m => m.id === matchId) || null;
+      const match = matchHistory.find(m => m.id === matchId);
+      if (match) return match;
     }
     
-    // Otherwise, pick the most recent match that was played today or is still unseen
-    // We sort by playedAt descending to get the absolute newest match
     const sortedHistory = [...matchHistory].sort((a, b) => {
       const timeA = new Date(a.playedAt).getTime();
       const timeB = new Date(b.playedAt).getTime();
@@ -62,7 +60,6 @@ function MatchContent() {
 
   const isHistoricalViewing = !!matchId;
 
-  // Reset scroll on step change
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [step]);
@@ -106,7 +103,8 @@ function MatchContent() {
       scoreboard: "Scoreboard",
       duration: "Duration",
       mvp: "Unit MVP",
-      orv: "AVG OVR"
+      orv: "AVG OVR",
+      legacyMsg: "Legacy Match Data: Detailed Analysis Unavailable"
     },
     ru: {
       reportTitle: "ТАКТИЧЕСКИЙ ОТЧЕТ ПОСЛЕ БОЯ",
@@ -124,7 +122,8 @@ function MatchContent() {
       scoreboard: "Таблица игроков",
       duration: "Длительность",
       mvp: "MVP отряда",
-      orv: "Средний OVR"
+      orv: "Средний OVR",
+      legacyMsg: "Устаревшие данные: Полный отчет недоступен"
     }
   };
 
@@ -135,7 +134,7 @@ function MatchContent() {
     if (!preview) return (
       <div className="py-20 text-center opacity-50 space-y-4">
         <Activity className="w-12 h-12 mx-auto text-muted-foreground animate-pulse" />
-        <p className="text-xs uppercase font-black tracking-widest">Legacy Match Data: Stage 1 Unavailable</p>
+        <p className="text-[10px] uppercase font-black tracking-widest px-10">{t.legacyMsg}</p>
       </div>
     );
 
@@ -189,7 +188,7 @@ function MatchContent() {
     if (!timeline || timeline.length === 0) return (
       <div className="py-20 text-center opacity-50 space-y-4">
         <Map className="w-12 h-12 mx-auto text-muted-foreground animate-pulse" />
-        <p className="text-xs uppercase font-black tracking-widest">Legacy Match Data: Stage 2 Unavailable</p>
+        <p className="text-[10px] uppercase font-black tracking-widest px-10">{t.legacyMsg}</p>
       </div>
     );
 
@@ -225,7 +224,7 @@ function MatchContent() {
     const post = (currentResult as any)?.postMatch;
     if (!post) return (
       <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-        <p className="text-center py-4 opacity-50 italic">Simplified Legacy Report</p>
+        <p className="text-center py-4 opacity-50 italic text-[10px] uppercase font-black">{t.legacyMsg}</p>
         <Card className="glass-card p-6 bg-primary/5">
           <p className="text-xs leading-relaxed italic">{currentResult?.matchSummary}</p>
         </Card>
@@ -234,7 +233,6 @@ function MatchContent() {
 
     return (
       <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-        {/* LINE RATINGS */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 px-1">
             <Activity className="w-4 h-4 text-accent" />
@@ -242,10 +240,10 @@ function MatchContent() {
           </div>
           <div className="grid grid-cols-2 gap-2">
             {[
-              { label: 'Laning', icon: Swords, a: post.lineRatings.laning.a, b: post.lineRatings.laning.b },
-              { label: 'Teamfight', icon: Users, a: post.lineRatings.teamfight.a, b: post.lineRatings.teamfight.b },
-              { label: 'Macro', icon: Signal, a: post.lineRatings.macro.a, b: post.lineRatings.macro.b },
-              { label: 'Mental', icon: Brain, a: post.lineRatings.mental.a, b: post.lineRatings.mental.b },
+              { label: 'Laning', icon: Swords, a: post.lineRatings?.laning?.a || 0, b: post.lineRatings?.laning?.b || 0 },
+              { label: 'Teamfight', icon: Users, a: post.lineRatings?.teamfight?.a || 0, b: post.lineRatings?.teamfight?.b || 0 },
+              { label: 'Macro', icon: Signal, a: post.lineRatings?.macro?.a || 0, b: post.lineRatings?.macro?.b || 0 },
+              { label: 'Mental', icon: Brain, a: post.lineRatings?.mental?.a || 0, b: post.lineRatings?.mental?.b || 0 },
             ].map(r => (
               <Card key={r.label} className="bg-secondary/20 border-white/5 p-3 flex flex-col items-center">
                 <r.icon className="w-3 h-3 text-muted-foreground mb-1" />
@@ -253,8 +251,8 @@ function MatchContent() {
                 <div className="flex items-center gap-3 w-full justify-center">
                   <span className="text-[10px] font-bold text-primary">{r.a}</span>
                   <div className="h-1 flex-1 bg-secondary rounded-full overflow-hidden flex max-w-[40px]">
-                    <div className="h-full bg-primary" style={{ width: `${(r.a / (r.a + r.b)) * 100}%` }}></div>
-                    <div className="h-full bg-accent" style={{ width: `${(r.b / (r.a + r.b)) * 100}%` }}></div>
+                    <div className="h-full bg-primary" style={{ width: `${(r.a / (r.a + r.b + 0.1)) * 100}%` }}></div>
+                    <div className="h-full bg-accent" style={{ width: `${(r.b / (r.a + r.b + 0.1)) * 100}%` }}></div>
                   </div>
                   <span className="text-[10px] font-bold text-accent">{r.b}</span>
                 </div>
@@ -263,7 +261,6 @@ function MatchContent() {
           </div>
         </div>
 
-        {/* SCOREBOARD */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 px-1">
             <FileText className="w-4 h-4 text-primary" />
@@ -276,7 +273,7 @@ function MatchContent() {
               <div className="col-span-3">GPM</div>
             </div>
             <div className="divide-y divide-white/5">
-              {post.scoreboard.map((row: any, i: number) => (
+              {(post.scoreboard || []).map((row: any, i: number) => (
                 <div key={i} className={cn(
                   "p-2 grid grid-cols-12 items-center text-[9px] font-bold uppercase",
                   row.team === 'A' ? "text-primary/80" : "text-accent/80"
@@ -293,7 +290,6 @@ function MatchContent() {
           </Card>
         </div>
 
-        {/* ANALYSIS */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 px-1">
             <ShieldCheck className="w-4 h-4 text-green-400" />
@@ -321,7 +317,6 @@ function MatchContent() {
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-32">
-      {/* Background Grid Overlay */}
       <div className="fixed inset-0 pointer-events-none opacity-5 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:30px_30px]"></div>
 
       <div className="max-w-md mx-auto relative z-10 px-4 pt-6">
@@ -335,7 +330,6 @@ function MatchContent() {
             </h1>
           </div>
 
-          {/* STEP INDICATOR */}
           <div className="flex items-center justify-center gap-2 max-w-[240px] mx-auto">
             <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'preview' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
             <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'live' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
@@ -344,7 +338,6 @@ function MatchContent() {
           <p className="text-[10px] font-black text-accent uppercase tracking-widest">{step === 'preview' ? t.preview : step === 'live' ? t.live : t.stats}</p>
         </header>
 
-        {/* MAIN RESULT CARD - Conditional Score */}
         <Card className="glass-card border-primary/20 bg-gradient-to-b from-primary/10 to-transparent overflow-hidden mb-8">
           <CardContent className="p-0">
             <div className="grid grid-cols-3 items-center p-6">
@@ -396,7 +389,6 @@ function MatchContent() {
           </CardContent>
         </Card>
 
-        {/* STEP CONTENT */}
         <div className="min-h-[400px]">
           {step === 'preview' && renderPreview()}
           {step === 'live' && renderLive()}
@@ -404,7 +396,6 @@ function MatchContent() {
         </div>
       </div>
 
-      {/* FIXED ACTION FOOTER */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-t border-white/10 h-24 flex items-center shadow-[0_-15px_40px_rgba(0,0,0,0.6)]">
         <div className="w-full max-w-lg mx-auto px-6 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 w-full">

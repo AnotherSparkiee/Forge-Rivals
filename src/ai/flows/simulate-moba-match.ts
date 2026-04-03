@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Архитектурный модуль симуляции матчей Lines of Enmity.
@@ -96,9 +97,16 @@ const SimulateMobaMatchOutputSchema = z.object({
 export type SimulateMobaMatchOutput = z.infer<typeof SimulateMobaMatchOutputSchema>;
 
 /**
- * Процедурный откат.
+ * Процедурный откат. Теперь включает структуру scoreboard.
  */
 function generateFallbackSimulation(input: SimulateMobaMatchInput): SimulateMobaMatchOutput {
+  const scoreboard = [...input.teamA.heroes, ...input.teamB.heroes].map(h => ({
+    name: h.name,
+    team: input.teamA.heroes.includes(h) ? 'A' : 'B',
+    kda: "0/0/0",
+    gpm: 450
+  }));
+
   return {
     winner: "Draw", scoreA: 1, scoreB: 1, duration: "34:12", mvp: input.teamA.heroes[0].name,
     matchSummary: "Fallback simulation active.",
@@ -106,8 +114,8 @@ function generateFallbackSimulation(input: SimulateMobaMatchInput): SimulateMoba
     timeline: [{ phase: 'Mid', time: '15:00', event: 'Equal trade in jungle', score: '5:5' }],
     postMatch: {
       lineRatings: { laning: { a: 70, b: 70 }, teamfight: { a: 70, b: 70 }, macro: { a: 70, b: 70 }, mental: { a: 70, b: 70 } },
-      scoreboard: [],
-      analysis: "Mathematical parity."
+      scoreboard: scoreboard,
+      analysis: "Mathematical parity (Fallback Engine)."
     },
     teamStats: { teamA: { kills: 15, towersDestroyed: 7 }, teamB: { kills: 15, towersDestroyed: 7 } },
     heroPerformance: []

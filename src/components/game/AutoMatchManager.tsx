@@ -20,6 +20,15 @@ import { cn } from '@/lib/utils';
 import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant, getEntryRound } from '@/app/lib/cup-utils';
 import { useRouter } from 'next/navigation';
 
+function sanitizeForFirestore(obj: any) {
+  if (!obj) return null;
+  try {
+    return JSON.parse(JSON.stringify(obj));
+  } catch (e) {
+    return null;
+  }
+}
+
 export function AutoMatchManager() {
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, 
@@ -72,8 +81,11 @@ export function AutoMatchManager() {
       const catchUp = async () => {
         for (let d = 1; d <= seasonDay; d++) {
           const detId = `league_${seasonNumber}_${d}`;
-          const alreadyPlayed = matchHistory.some(m => m.id === detId || (m.day === d && m.type === 'league' && m.seasonNumber === seasonNumber));
-          if (alreadyPlayed) continue;
+          const existingMatch = matchHistory.find(m => m.id === detId || (m.day === d && m.type === 'league' && m.seasonNumber === seasonNumber));
+          
+          // Re-simulate if match is missing analytical stages
+          const isLegacy = existingMatch && !existingMatch.preview;
+          if (existingMatch && !isLegacy) continue;
 
           if (d < seasonDay || isMatchDue(matchTime, lastLeagueMatchDate)) {
             await triggerAutoMatch(matchTime, d, detId);
@@ -92,8 +104,10 @@ export function AutoMatchManager() {
       const catchUpCup = async () => {
         for (let d = 1; d <= seasonDay; d++) {
           const detId = `cup_${seasonNumber}_${d}`;
-          const hasPlayedDayCup = matchHistory.some(m => m.id === detId || (m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber));
-          if (hasPlayedDayCup) continue;
+          const existingMatch = matchHistory.find(m => m.id === detId || (m.day === d && m.type === 'tournament' && m.seasonNumber === seasonNumber));
+          
+          const isLegacy = existingMatch && !existingMatch.preview;
+          if (existingMatch && !isLegacy) continue;
 
           const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
           if (wasEliminated) break;
@@ -135,7 +149,6 @@ export function AutoMatchManager() {
       const botSquad = getRandomStartingSquad().map((h, i) => ({
         ...h,
         name: `${h.name} Bot`,
-        overallRating: h.overallRating + 5,
         isSub: i > 4
       }));
 
@@ -231,7 +244,6 @@ export function AutoMatchManager() {
       const botSquad = getRandomStartingSquad().map((h, i) => ({
         ...h,
         name: `${h.name} Cup AI`,
-        overallRating: h.overallRating + 8,
         isSub: i > 4
       }));
 

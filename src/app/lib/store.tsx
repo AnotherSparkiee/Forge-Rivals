@@ -229,7 +229,11 @@ const DEFAULT_STATE: GameState = {
 
 function sanitizeForFirestore(obj: any) {
   if (!obj) return null;
-  return JSON.parse(JSON.stringify(obj));
+  try {
+    return JSON.parse(JSON.stringify(obj));
+  } catch (e) {
+    return null;
+  }
 }
 
 interface GameStateContextType extends GameState {
@@ -794,12 +798,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(s => {
       const matchId = customId || `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Prevent duplicate entry by ID
-      if (s.matchHistory.some(m => m.id === matchId)) return s;
+      const existingIdx = s.matchHistory.findIndex(m => m.id === matchId);
+      const isLegacy = existingIdx !== -1 && !s.matchHistory[existingIdx].preview;
 
-      if (type === 'league' && s.matchHistory.some(m => m.day === matchDay && m.type === 'league' && m.seasonNumber === s.seasonNumber)) return s;
-      
-      // Calculate XP for training
+      // Only skip if already exists AND has full analytical data
+      if (existingIdx !== -1 && !isLegacy) return s;
+
       const xpRange = (type === 'league' || type === 'tournament') ? { min: 2, max: 4 } : { min: 1, max: 1 };
       const updatedHeroes = s.ownedHeroes.map(hero => {
         const isHeroActive = Object.values(s.lineup).includes(hero.id);
@@ -831,9 +835,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       };
       if (type === 'league' || type === 'tournament') matchEntry.seasonNumber = s.seasonNumber;
       
+      let newHistory = [...s.matchHistory];
+      if (existingIdx !== -1) {
+        newHistory[existingIdx] = matchEntry;
+      } else {
+        newHistory = [matchEntry, ...newHistory].slice(0, 100);
+      }
+
       const todayStr = getMoscowDateString();
       const newState = { ...s, credits: s.credits + creditsEarned, rank: s.rank + rankChange, 
-        matchHistory: [matchEntry, ...s.matchHistory].slice(0, 100), // Limit history size for stability
+        matchHistory: newHistory,
         lastLeagueMatchDate: type === 'league' && matchDay === s.seasonDay ? todayStr : s.lastLeagueMatchDate,
         lastCupMatchDate: type === 'tournament' ? todayStr : s.lastCupMatchDate,
         ownedHeroes: updatedHeroes,
