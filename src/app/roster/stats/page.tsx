@@ -1,22 +1,34 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, BarChart3, User, Trophy, 
-  Skull, Crosshair, Swords, Star, Activity
+  Skull, Crosshair, Swords, Star, Activity,
+  Info, ShieldAlert
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
 
 export default function PlayerStatsPage() {
+  const { user, isUserLoading } = useUser();
+  const db = useFirestore();
   const { ownedHeroes, matchHistory, language, isLoaded } = useGameState();
 
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
+  const { data: profile } = useDoc(userRef);
+
   const playerStats = useMemo(() => {
+    if (!profile) return [];
+
+    const regDate = profile.createdAt ? new Date(profile.createdAt).getTime() : 0;
+
     return ownedHeroes.map(hero => {
       let matches = 0;
       let kills = 0;
@@ -24,13 +36,21 @@ export default function PlayerStatsPage() {
       let assists = 0;
 
       matchHistory.forEach(match => {
-        // Find this hero in the match performance report
-        const performance = match.heroPerformance?.find(p => p.heroName === hero.name);
-        if (performance) {
-          matches++;
-          kills += (performance.kills || 0);
-          deaths += (performance.deaths || 0);
-          assists += (performance.assists || 0);
+        // 1. Only official games (League and Tournament)
+        const isOfficial = match.type === 'league' || match.type === 'tournament';
+        
+        // 2. Only games played after registration
+        const playedDate = match.playedAt ? new Date(match.playedAt).getTime() : 0;
+        
+        if (isOfficial && playedDate >= regDate) {
+          // Find this hero in the match performance report
+          const performance = match.heroPerformance?.find(p => p.heroName === hero.name);
+          if (performance) {
+            matches++;
+            kills += (performance.kills || 0);
+            deaths += (performance.deaths || 0);
+            assists += (performance.assists || 0);
+          }
         }
       });
 
@@ -47,20 +67,23 @@ export default function PlayerStatsPage() {
         }
       };
     });
-  }, [ownedHeroes, matchHistory]);
+  }, [ownedHeroes, matchHistory, profile]);
 
-  if (!isLoaded) return <LoadingScreen />;
+  if (!isLoaded || isUserLoading) return <LoadingScreen />;
 
   const t = {
     title: language === 'ru' ? "СТАТИСТИКА ИГРОКОВ" : "PLAYER STATISTICS",
-    subtitle: language === 'ru' ? "Индивидуальный отчет эффективности" : "Individual performance report",
+    subtitle: language === 'ru' ? "Официальный отчет эффективности" : "Official performance report",
     matches: language === 'ru' ? "Матчи" : "Matches",
     kills: language === 'ru' ? "Убийства" : "Kills",
     deaths: language === 'ru' ? "Смерти" : "Deaths",
     assists: language === 'ru' ? "Ассисты" : "Assists",
     kda: language === 'ru' ? "СР. KDA" : "AVG KDA",
     overall: language === 'ru' ? "ОБЩ" : "OVR",
-    noData: language === 'ru' ? "Нет данных" : "No match data yet",
+    noData: language === 'ru' ? "Нет официальных данных" : "No official data yet",
+    desc: language === 'ru' 
+      ? "Учитываются только игры Лиги и Кубка после регистрации клуба."
+      : "Only League and Cup games post-registration are considered."
   };
 
   return (
@@ -80,11 +103,19 @@ export default function PlayerStatsPage() {
         </div>
       </header>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="p-4 flex gap-3">
+            <Info className="w-4 h-4 text-primary shrink-0" />
+            <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+              {t.desc}
+            </p>
+          </CardContent>
+        </Card>
+
         {playerStats.map((hero) => (
           <Card key={hero.id} className="glass-card border-white/5 overflow-hidden">
             <CardContent className="p-0">
-              {/* Header: Hero Info */}
               <div className="p-4 border-b border-white/5 flex items-center justify-between bg-primary/5">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/10 bg-secondary/50">
@@ -101,7 +132,6 @@ export default function PlayerStatsPage() {
                 </div>
               </div>
 
-              {/* Stats Grid */}
               <div className="p-4 grid grid-cols-2 gap-4">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -134,7 +164,6 @@ export default function PlayerStatsPage() {
                 </div>
               </div>
 
-              {/* KDA Footer */}
               <div className="px-4 py-2 bg-secondary/30 border-t border-white/5 flex items-center justify-between">
                 <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.kda}</span>
                 <Badge className={cn(
@@ -148,12 +177,12 @@ export default function PlayerStatsPage() {
           </Card>
         ))}
 
-        {playerStats.length === 0 && (
+        {playerStats.length === 0 || playerStats.every(h => h.stats.matches === 0) ? (
           <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
-            <BarChart3 className="w-16 h-16" />
+            <ShieldAlert className="w-16 h-16" />
             <p className="text-xs font-bold uppercase tracking-widest">{t.noData}</p>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
