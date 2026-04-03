@@ -8,9 +8,9 @@ import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, CalendarClock, ShieldAlert, Timer, 
-  User, Star, Check, X, Users, Signal, Swords,
-  Skull, Crosshair, FileText
+  ChevronLeft, Timer, User, Star, Check, X, 
+  Swords, Skull, Crosshair, FileText, Activity,
+  Trophy, Users, Signal
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -26,7 +26,7 @@ function MatchContent() {
   const db = useFirestore();
   const { 
     language, isLoaded, lastSeenMatchDay, markMatchAsSeen, 
-    matchHistory, arena, credits, crystals
+    matchHistory, arena, credits
   } = useGameState();
 
   const matchId = searchParams.get('id');
@@ -69,254 +69,237 @@ function MatchContent() {
 
   const labels = {
     en: {
-      reportTitle: "MATCH REPORT",
-      league: "League",
-      friendly: "Friendly Match",
+      reportTitle: "TACTICAL AFTER-ACTION REPORT",
+      league: "Regional League",
+      friendly: "Friendly Engagement",
       tournament: "Pyramid Cup",
-      basket: "CW Basket",
+      basket: "CW Basket Match",
       round: "Matchday",
-      spectators: "Spectators",
-      people: "ppl",
-      summary: "Strategic Analysis",
-      stats: "In-Game Statistics",
-      mvp: "MVP OF THE MATCH",
-      duration: "DURATION",
-      accept: "ACCEPT",
-      back: "BACK",
-      noHistory: "No records found.",
-      connection: "Connection Quality",
-      excellent: "Excellent"
+      summary: "Operational Analysis",
+      mvp: "UNIT MVP",
+      duration: "TIME ELAPSED",
+      accept: "CONFIRM",
+      back: "EXIT",
+      noHistory: "No mission logs detected.",
+      kills: "Eliminations",
+      towers: "Structures",
+      spectators: "Audience",
+      connection: "Link Quality"
     },
     ru: {
-      reportTitle: "ОТЧЕТ О МАТЧЕ",
-      league: "Лига",
-      friendly: "Тов. матч",
+      reportTitle: "ТАКТИЧЕСКИЙ ОТЧЕТ ПОСЛЕ БОЯ",
+      league: "Региональная Лига",
+      friendly: "Товарищеский Бой",
       tournament: "Кубок Пирамиды",
       basket: "КВ Корзина",
-      round: "Тур",
+      round: "Игровой день",
+      summary: "Оперативный анализ",
+      mvp: "ЛУЧШИЙ ИГРОК",
+      duration: "ВРЕМЯ ОПЕРАЦИИ",
+      accept: "ПОДТВЕРДИТЬ",
+      back: "ВЫЙТИ",
+      noHistory: "Логи миссий не обнаружены.",
+      kills: "Убийства",
+      towers: "Объекты",
       spectators: "Зрители",
-      people: "чел.",
-      summary: "Стратегический анализ",
-      stats: "Игровая статистика",
-      mvp: "MVP МАТЧА",
-      duration: "ДЛИТЕЛЬНОСТЬ",
-      accept: "ПРИНЯТЬ",
-      back: "НАЗАД",
-      noHistory: "Отчеты не найдены.",
-      connection: "Качество связи",
-      excellent: "Отличное"
+      connection: "Качество связи"
     }
   };
 
   const t = labels[language as keyof typeof labels] || labels.ru;
 
-  // Mock spectator count based on arena capacity or random for friendlies
   const spectators = currentResult?.type === 'league' ? arena.capacity : Math.floor(Math.random() * 5000) + 1000;
 
   const getMatchTime = (iso: string) => {
-    if (!iso) return "2024-01-01 00:00:00";
+    if (!iso) return "--.--.---- --:--";
     const d = new Date(iso);
-    return d.toISOString().replace('T', ' ').split('.')[0];
+    return d.toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
   };
 
   return (
-    <div className="min-h-screen bg-[#0d1f14] text-[#e0e7d8] pb-32">
+    <div className="min-h-screen bg-background text-foreground pb-32">
       {/* Background Grid Overlay */}
-      <div className="fixed inset-0 pointer-events-none opacity-10 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:20px_20px]"></div>
+      <div className="fixed inset-0 pointer-events-none opacity-5 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:30px_30px]"></div>
 
-      {/* HEADER BAR */}
-      <div className="bg-[#1a472a] border-b-2 border-[#2d5a3d] py-3 text-center shadow-lg relative z-10">
-        <h1 className="text-lg font-headline font-bold text-[#f0f4e8] tracking-widest uppercase">
-          {t.reportTitle}
-        </h1>
-      </div>
-
-      <div className="max-w-md mx-auto relative z-10">
+      <div className="max-w-md mx-auto relative z-10 px-4 pt-6">
         {!currentResult ? (
-          <div className="py-20 text-center space-y-4">
-            <ShieldAlert className="w-16 h-16 mx-auto opacity-20" />
-            <p className="text-sm font-bold uppercase tracking-widest">{t.noHistory}</p>
-            <Button variant="outline" className="border-white/10" onClick={() => router.back()}>GO BACK</Button>
+          <div className="py-20 text-center space-y-6">
+            <Activity className="w-16 h-16 mx-auto opacity-20 text-primary" />
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground">{t.noHistory}</p>
+            <Button variant="outline" className="border-white/10" onClick={() => router.back()}>
+              {t.back}
+            </Button>
           </div>
         ) : (
-          <div className="space-y-0.5 mt-1">
+          <div className="space-y-6">
             
-            {/* DATE & TIME ROW */}
-            <div className="bg-[#122b19] border-y border-[#2d5a3d]/30 py-2 text-center">
-              <p className="text-xs font-mono font-bold text-[#a8c69f] tracking-tighter">
-                {getMatchTime(currentResult.playedAt)}
-              </p>
-            </div>
-
-            {/* COMPETITION ROW */}
-            <div className="bg-[#122b19] py-2 text-center">
-              <p className="text-sm font-bold text-[#f0f4e8] uppercase tracking-wide">
+            {/* TOP HEADER */}
+            <div className="text-center space-y-1">
+              <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary text-[8px] font-black uppercase tracking-[0.2em] px-3">
                 {currentResult.type === 'league' ? t.league : 
                  currentResult.type === 'tournament' ? t.tournament : 
                  currentResult.type === 'basket' ? t.basket : t.friendly}
+              </Badge>
+              <h1 className="text-sm font-headline font-bold text-white uppercase tracking-tighter pt-2">
+                {t.reportTitle}
+              </h1>
+              <p className="text-[10px] font-mono text-muted-foreground uppercase opacity-60">
+                {getMatchTime(currentResult.playedAt)} | {t.round} {currentResult.day > 0 ? currentResult.day : 'Final'}
               </p>
             </div>
 
-            {/* ROUND ROW */}
-            <div className="bg-[#122b19] border-b border-[#2d5a3d]/30 py-2 text-center">
-              <p className="text-xs font-bold text-[#a8c69f] uppercase tracking-widest">
-                {currentResult.day > 0 ? `${currentResult.day}-${language === 'ru' ? 'й' : ''} ${t.round}` : "Final Phase"}
-              </p>
-            </div>
-
-            {/* TEAMS & SCORE BLOCK */}
-            <div className="bg-[#163521] py-8 border-b border-[#2d5a3d]/50 px-6 flex flex-col gap-6 items-center">
-              <div className="w-full flex items-center justify-between">
-                {/* Team A */}
-                <div className="flex-1 flex flex-col items-center gap-2 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">{myFlag}</span>
-                    <span className="text-sm font-headline font-bold text-white truncate max-w-[120px] uppercase">
+            {/* MAIN SCOREBOARD */}
+            <Card className="glass-card border-primary/20 bg-gradient-to-b from-primary/10 to-transparent overflow-hidden">
+              <CardContent className="p-0">
+                <div className="grid grid-cols-3 items-center p-8">
+                  {/* TEAM A */}
+                  <div className="flex flex-col items-center gap-3 text-center min-w-0">
+                    <div className="w-14 h-14 rounded-2xl bg-secondary/50 border border-white/5 flex items-center justify-center shadow-xl">
+                      <span className="text-3xl">{myFlag}</span>
+                    </div>
+                    <p className="text-[10px] font-headline font-bold uppercase truncate w-full text-white">
                       {profile?.displayName || "MY TEAM"}
-                    </span>
+                    </p>
                   </div>
-                </div>
 
-                {/* BIG SCORE */}
-                <div className="px-4 flex items-center gap-4 text-5xl font-headline font-black italic text-[#f0f4e8]">
-                  <span className={cn(currentResult.scoreA > currentResult.scoreB && "text-yellow-400")}>{currentResult.scoreA}</span>
-                  <span className="opacity-20">:</span>
-                  <span className={cn(currentResult.scoreB > currentResult.scoreA && "text-yellow-400")}>{currentResult.scoreB}</span>
-                </div>
+                  {/* SCORE */}
+                  <div className="flex flex-col items-center justify-center gap-1">
+                    <div className="flex items-center gap-4 text-5xl font-headline font-black italic tracking-tighter">
+                      <span className={cn(currentResult.scoreA > currentResult.scoreB ? "text-primary drop-shadow-[0_0_15px_rgba(var(--primary),0.5)]" : "text-white")}>
+                        {currentResult.scoreA}
+                      </span>
+                      <span className="text-muted-foreground/30 font-light">:</span>
+                      <span className={cn(currentResult.scoreB > currentResult.scoreA ? "text-primary drop-shadow-[0_0_15px_rgba(var(--primary),0.5)]" : "text-white")}>
+                        {currentResult.scoreB}
+                      </span>
+                    </div>
+                    <Badge className={cn(
+                      "mt-4 text-[8px] font-black tracking-widest",
+                      currentResult.scoreA > currentResult.scoreB ? "bg-green-500/20 text-green-400" : (currentResult.scoreA === currentResult.scoreB ? "bg-accent/20 text-accent" : "bg-red-500/20 text-red-400")
+                    )}>
+                      {currentResult.scoreA > currentResult.scoreB ? "VICTORY" : (currentResult.scoreA === currentResult.scoreB ? "DRAW" : "DEFEAT")}
+                    </Badge>
+                  </div>
 
-                {/* Team B */}
-                <div className="flex-1 flex flex-col items-center gap-2 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-headline font-bold text-white truncate max-w-[120px] uppercase">
+                  {/* TEAM B */}
+                  <div className="flex flex-col items-center gap-3 text-center min-w-0">
+                    <div className="w-14 h-14 rounded-2xl bg-secondary/50 border border-white/5 flex items-center justify-center shadow-xl">
+                      <span className="text-3xl">🏳️</span>
+                    </div>
+                    <p className="text-[10px] font-headline font-bold uppercase truncate w-full text-white">
                       {currentResult.opponentName}
-                    </span>
-                    <span className="text-xl">🏳️</span>
+                    </p>
                   </div>
                 </div>
-              </div>
-              
-              <div className="w-full flex justify-center">
-                <Badge variant="outline" className="border-[#2d5a3d] text-[#a8c69f] text-[9px] font-black uppercase px-4 py-1 bg-black/20">
-                  {currentResult.scoreA > currentResult.scoreB ? "VICTORY" : (currentResult.scoreA === currentResult.scoreB ? "DRAW" : "DEFEAT")}
-                </Badge>
-              </div>
-            </div>
 
-            {/* STATS STRIP (Weather / Spectators) */}
-            <div className="bg-[#122b19] border-b border-[#2d5a3d]/30 py-3 flex items-center justify-center gap-8">
-              <div className="flex items-center gap-2">
-                <Signal className="w-4 h-4 text-yellow-500" />
-                <p className="text-[10px] font-bold text-[#a8c69f] uppercase tracking-tighter">
-                  {t.connection}: <span className="text-white">{t.excellent}</span>
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-blue-400" />
-                <p className="text-[10px] font-bold text-[#a8c69f] uppercase tracking-tighter">
-                  {t.spectators}: <span className="text-white">{spectators.toLocaleString()} {t.people}</span>
-                </p>
-              </div>
-            </div>
-
-            {/* MVP & DURATION ROW */}
-            <div className="grid grid-cols-2 gap-px bg-[#2d5a3d]/20 border-b border-[#2d5a3d]/30">
-              <div className="bg-[#122b19] p-4 flex flex-col items-center gap-1 border-r border-[#2d5a3d]/20">
-                <p className="text-[8px] font-black text-[#a8c69f] uppercase tracking-[0.2em]">{t.mvp}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
-                  <span className="text-xs font-bold text-white uppercase truncate max-w-[140px]">{currentResult.mvp || 'UNKNOWN'}</span>
+                <div className="border-t border-white/5 bg-black/20 grid grid-cols-2 divide-x divide-white/5">
+                  <div className="p-3 flex items-center justify-center gap-2">
+                    <Users className="w-3.5 h-3.5 text-accent" />
+                    <span className="text-[9px] font-black uppercase text-muted-foreground">{t.spectators}: <span className="text-white">{spectators.toLocaleString()}</span></span>
+                  </div>
+                  <div className="p-3 flex items-center justify-center gap-2">
+                    <Signal className="w-3.5 h-3.5 text-primary" />
+                    <span className="text-[9px] font-black uppercase text-muted-foreground">{t.connection}: <span className="text-white">LINK_OK</span></span>
+                  </div>
                 </div>
-              </div>
-              <div className="bg-[#122b19] p-4 flex flex-col items-center gap-1">
-                <p className="text-[8px] font-black text-[#a8c69f] uppercase tracking-[0.2em]">{t.duration}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <Timer className="w-3.5 h-3.5 text-blue-400" />
-                  <span className="text-sm font-mono font-bold text-white">{currentResult.duration || '34:12'}</span>
+              </CardContent>
+            </Card>
+
+            {/* STATS GRID */}
+            <div className="grid grid-cols-2 gap-3">
+              <Card className="glass-card bg-secondary/20 border-white/5">
+                <CardContent className="p-4 flex flex-col items-center gap-1 text-center">
+                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.mvp}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="p-1.5 rounded-lg bg-yellow-500/10">
+                      <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                    </div>
+                    <span className="text-xs font-bold text-white uppercase truncate max-w-[100px]">{currentResult.mvp || 'UNKNOWN'}</span>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="glass-card bg-secondary/20 border-white/5">
+                <CardContent className="p-4 flex flex-col items-center gap-1 text-center">
+                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.duration}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="p-1.5 rounded-lg bg-primary/10">
+                      <Timer className="w-4 h-4 text-primary" />
+                    </div>
+                    <span className="text-sm font-mono font-bold text-white">{currentResult.duration || '34:12'}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* COMBAT STATS */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-secondary/30 rounded-xl p-4 border border-white/5 flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-[8px] font-black text-red-400 uppercase tracking-widest">{t.kills}</span>
+                  <span className="text-2xl font-headline font-black italic">{currentResult.teamStats?.teamA?.kills || 0}</span>
                 </div>
+                <Skull className="w-6 h-6 text-red-400/20" />
+              </div>
+              <div className="bg-secondary/30 rounded-xl p-4 border border-white/5 flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-[8px] font-black text-accent uppercase tracking-widest">{t.towers}</span>
+                  <span className="text-2xl font-headline font-black italic">{currentResult.teamStats?.teamA?.towersDestroyed || 0}</span>
+                </div>
+                <Crosshair className="w-6 h-6 text-accent/20" />
               </div>
             </div>
 
-            {/* AI SUMMARY BOX */}
-            <div className="p-4 space-y-4">
+            {/* AI DATA DECRYPTION */}
+            <div className="space-y-3">
               <div className="flex items-center gap-2 px-1">
-                <FileText className="w-4 h-4 text-yellow-500" />
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-[#a8c69f]">{t.summary}</h3>
+                <FileText className="w-4 h-4 text-primary" />
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">{t.summary}</h3>
               </div>
-              <Card className="bg-[#122b19] border-[#2d5a3d]/30 rounded-xl overflow-hidden shadow-2xl">
-                <CardContent className="p-5">
-                  <div className="max-h-[40vh] overflow-y-auto scrollbar-hide pr-2">
-                    <p className="text-sm leading-relaxed text-[#d1d9c9] italic whitespace-pre-wrap font-medium">
+              <Card className="glass-card border-primary/10 bg-primary/5 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-0.5 bg-primary/20 animate-pulse"></div>
+                <CardContent className="p-6">
+                  <div className="max-h-[30vh] overflow-y-auto scrollbar-hide">
+                    <p className="text-xs leading-relaxed text-blue-100 italic whitespace-pre-wrap font-medium opacity-80">
                       {currentResult.matchSummary}
                     </p>
                   </div>
                 </CardContent>
               </Card>
-
-              <div className="grid grid-cols-2 gap-3 mt-4">
-                <div className="bg-[#122b19] p-4 rounded-xl border border-[#2d5a3d]/30 flex flex-col items-center">
-                  <Skull className="w-5 h-5 text-red-400 mb-2" />
-                  <span className="text-2xl font-headline font-black italic">{currentResult.teamStats?.teamA?.kills || 0}</span>
-                  <span className="text-[8px] text-[#a8c69f] uppercase font-black tracking-widest">Team Kills</span>
-                </div>
-                <div className="bg-[#122b19] p-4 rounded-xl border border-[#2d5a3d]/30 flex flex-col items-center">
-                  <Crosshair className="w-5 h-5 text-blue-400 mb-2" />
-                  <span className="text-2xl font-headline font-black italic">{currentResult.teamStats?.teamA?.towersDestroyed || 0}</span>
-                  <span className="text-[8px] text-[#a8c69f] uppercase font-black tracking-widest">Objectives</span>
-                </div>
-              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* FIXED FOOTER BAR */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#163521] border-t-2 border-[#2d5a3d] h-20 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] flex items-center">
-        <div className="w-full max-w-lg mx-auto px-4 grid grid-cols-3 items-center">
+      {/* FIXED ACTION FOOTER */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-t border-white/10 h-24 flex items-center shadow-[0_-15px_40px_rgba(0,0,0,0.6)]">
+        <div className="w-full max-w-lg mx-auto px-6 flex items-center justify-between gap-4">
           
-          {/* Accept Button */}
-          <div className="flex justify-start">
-            <button 
-              onClick={handleAcknowledgeMatch}
-              className="flex flex-col items-center gap-1 group active:scale-95 transition-all"
-            >
-              <div className="w-10 h-10 rounded-xl bg-green-600/20 border border-green-500/50 flex items-center justify-center shadow-[0_0_15px_rgba(34,197,94,0.2)]">
-                <Check className="w-6 h-6 text-green-400" />
-              </div>
-              <span className="text-[8px] font-black tracking-[0.2em] text-[#a8c69f] uppercase">
-                {t.accept}
-              </span>
-            </button>
-          </div>
-
-          {/* Center Stats */}
-          <div className="flex flex-col items-center justify-center gap-1">
-            <div className="bg-black/40 px-3 py-1 rounded border border-[#2d5a3d]/50 flex items-center gap-2">
-              <span className="text-yellow-500 font-bold text-[10px]">€</span>
-              <span className="text-xs font-mono font-bold text-white tracking-tighter">
-                {formatCurrency(credits)}
-              </span>
-            </div>
-            <div className="bg-black/40 px-3 py-1 rounded border border-[#2d5a3d]/50 flex items-center gap-2">
-              <Timer className="w-3 h-3 text-blue-400" />
-              <span className="text-[10px] font-mono font-bold text-[#a8c69f]">
-                {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </span>
+          <div className="flex-1 flex flex-col gap-1">
+            <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">MISSION EARNINGS</p>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+              <span className="text-lg font-headline font-bold text-white tracking-tight">€ {formatCurrency(credits)}</span>
             </div>
           </div>
 
-          {/* Back/Close Button */}
-          <div className="flex justify-end">
-            <button 
+          <div className="flex items-center gap-3">
+            <Button 
               onClick={() => router.back()}
-              className="flex flex-col items-center gap-1 group active:scale-95 transition-all"
+              variant="outline"
+              className="h-12 px-6 border-white/10 hover:bg-white/5 font-black text-[10px] uppercase tracking-widest"
             >
-              <div className="w-10 h-10 rounded-xl bg-red-600/20 border border-red-500/50 flex items-center justify-center shadow-[0_0_15px_rgba(239,68,68,0.2)]">
-                <X className="w-6 h-6 text-red-400" />
-              </div>
-              <span className="text-[8px] font-black tracking-[0.2em] text-[#a8c69f] uppercase">
-                {t.back}
-              </span>
-            </button>
+              {t.back}
+            </Button>
+            <Button 
+              onClick={handleAcknowledgeMatch}
+              className="h-12 px-8 hero-gradient border-none font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20"
+            >
+              <Check className="w-4 h-4 mr-2" />
+              {t.accept}
+            </Button>
           </div>
 
         </div>
