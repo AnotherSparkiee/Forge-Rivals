@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
@@ -6,7 +7,7 @@ import { useUser } from '@/firebase';
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Swords, Trophy, Skull, Crosshair, ChevronLeft, CalendarClock, ShieldAlert } from 'lucide-react';
+import { Swords, Trophy, Skull, Crosshair, ChevronLeft, CalendarClock, ShieldAlert, Timer, User, Star } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -56,14 +57,16 @@ function MatchContent() {
       lastReport: isHistoricalViewing ? "ARCHIVED RECORD" : (currentResult && currentResult.day > lastSeenMatchDay ? "PENDING TRANSMISSION" : "LATEST MATCH REPORT"),
       noHistory: "No match reports found.",
       noHistoryDesc: "Synchronize with league server to receive tactical data.",
-      summary: "Match Summary",
+      summary: "Strategic Analysis",
       victory: "VICTORY",
       draw: "DRAW",
       defeat: "DEFEAT",
       return: "RETURN TO HUB",
       nextReport: "VIEW NEXT REPORT",
       viewAll: "ALL REPORTS VIEWED",
-      closeReplay: "CLOSE REPLAY"
+      closeReplay: "CLOSE REPLAY",
+      mvp: "MVP OF THE MATCH",
+      duration: "MATCH DURATION"
     },
     ru: {
       title: isHistoricalViewing ? "ПЕРЕСМОТР МАТЧА" : "ОБЗОР МАТЧЕЙ",
@@ -71,14 +74,16 @@ function MatchContent() {
       lastReport: isHistoricalViewing ? "АРХИВНАЯ ЗАПИСЬ" : (currentResult && currentResult.day > lastSeenMatchDay ? "ОЖИДАЮЩАЯ ПЕРЕДАЧА" : "ОТЧЕТ ПОСЛЕДНЕГО МАТЧА"),
       noHistory: "Отчеты не найдены.",
       noHistoryDesc: "Дождитесь синхронизации с сервером лиги для получения данных.",
-      summary: "Обзор матча",
+      summary: "Стратегический анализ",
       victory: "ПОБЕДА",
       draw: "НИЧЬЯ",
       defeat: "ПОРАЖЕНИЕ",
       return: "В ГЛАВНЫЙ ХАБ",
       nextReport: "СЛЕДУЮЩИЙ ОТЧЕТ",
       viewAll: "ВСЕ ОТЧЕТЫ ПРОСМОТРЕНЫ",
-      closeReplay: "ЗАКРЫТЬ ПОВТОР"
+      closeReplay: "ЗАКРЫТЬ ПОВТОР",
+      mvp: "MVP МАТЧА",
+      duration: "ДЛИТЕЛЬНОСТЬ"
     }
   };
 
@@ -158,12 +163,35 @@ function MatchContent() {
             </p>
           </div>
 
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <Card className="glass-card border-accent/20 bg-accent/5">
+              <CardContent className="p-4 flex flex-col items-center gap-1">
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.mvp}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                  <span className="text-xs font-bold text-white uppercase truncate max-w-[120px]">{currentResult.mvp || 'UNKNOWN'}</span>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="glass-card border-primary/20 bg-primary/5">
+              <CardContent className="p-4 flex flex-col items-center gap-1">
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.duration}</p>
+                <div className="flex items-center gap-2 mt-1 text-primary">
+                  <Timer className="w-3 h-3" />
+                  <span className="text-xs font-mono font-bold">{currentResult.duration || '??:??'}</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card className="glass-card mb-6">
             <CardHeader className="pb-2">
               <CardTitle className="text-[10px] font-bold uppercase text-accent tracking-widest">{t.summary}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs leading-relaxed text-muted-foreground italic">"{currentResult.matchSummary}"</p>
+              <div className="max-h-[30vh] overflow-y-auto pr-2 scrollbar-hide">
+                <p className="text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap">{currentResult.matchSummary}</p>
+              </div>
             </CardContent>
           </Card>
 
@@ -171,14 +199,14 @@ function MatchContent() {
             <Card className="bg-secondary/20 border-white/5">
               <CardContent className="p-4 flex flex-col items-center">
                 <Skull className="w-5 h-5 text-red-400 mb-2" />
-                <span className="text-xl font-bold">{currentResult.teamStats.teamA.kills}</span>
+                <span className="text-xl font-bold">{currentResult.teamStats?.teamA?.kills || 0}</span>
                 <span className="text-[8px] text-muted-foreground uppercase font-bold">Kills</span>
               </CardContent>
             </Card>
             <Card className="bg-secondary/20 border-white/5">
               <CardContent className="p-4 flex flex-col items-center">
                 <Crosshair className="w-5 h-5 text-blue-400 mb-2" />
-                <span className="text-xl font-bold">{currentResult.teamStats.teamA.towersDestroyed}</span>
+                <span className="text-xl font-bold">{currentResult.teamStats?.teamA?.towersDestroyed || 0}</span>
                 <span className="text-[8px] text-muted-foreground uppercase font-bold">Towers</span>
               </CardContent>
             </Card>

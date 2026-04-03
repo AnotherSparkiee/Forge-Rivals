@@ -74,6 +74,8 @@ export interface MatchResultEntry {
   teamStats: any;
   heroPerformance: any[];
   playedAt: string;
+  duration?: string;
+  mvp?: string;
 }
 
 interface GameState {
@@ -816,7 +818,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         matchSummary: result.matchSummary || "",
         teamStats: sanitizeForFirestore(result.teamStats || {}),
         heroPerformance: sanitizeForFirestore(result.heroPerformance || []),
-        playedAt: customPlayedAt || new Date().toISOString()
+        playedAt: customPlayedAt || new Date().toISOString(),
+        duration: result.duration || "",
+        mvp: result.mvp || ""
       };
       if (type === 'league' || type === 'tournament') matchEntry.seasonNumber = s.seasonNumber;
       
