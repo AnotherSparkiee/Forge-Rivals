@@ -794,7 +794,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     else if (scoreA > scoreB) { creditsEarned = 150; rankChange = 10; }
     else if (scoreA === scoreB) rankChange = 0;
 
-    let finalNewState: any;
+    let finalNewState: any = null;
+    
     setState(s => {
       const matchId = customId || `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const existingIdx = s.matchHistory.findIndex(m => m.id === matchId);
@@ -848,12 +849,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         matchHistory: newHistory,
         lastLeagueMatchDate: type === 'league' && matchDay === s.seasonDay ? todayStr : s.lastLeagueMatchDate,
         lastCupMatchDate: type === 'tournament' ? todayStr : s.lastCupMatchDate,
-        ownedHeroes: updatedHeroes
+        ownedHeroes: updatedHeroes,
+        isSyncing: true
       };
       
-      return { ...s, ...finalNewState, isSyncing: true };
+      return { ...s, ...finalNewState };
     });
 
+    // Handle Firebase update outside of the setState updater to avoid "Maximum update depth"
     if (user && finalNewState) {
       setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { 
         inGameCurrency: finalNewState.credits, 
@@ -863,6 +866,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         matchHistory: finalNewState.matchHistory,
         ownedHeroes: sanitizeForFirestore(finalNewState.ownedHeroes)
       }, { merge: true });
+      
       setTimeout(() => setState(prev => ({ ...prev, isSyncing: false })), 1500);
     }
   }, [user, db]);
