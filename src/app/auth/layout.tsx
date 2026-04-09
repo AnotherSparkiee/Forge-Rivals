@@ -72,7 +72,7 @@ export default function AuthLayout({
 
       <div className="w-full max-w-sm space-y-8 relative z-10">
         <div className="text-center">
-          <h1 className="text-4xl font-headline font-bold tracking-tighter text-primary">MOBA TACTICS</h1>
+          <h1 className="text-4xl font-headline font-bold tracking-tighter text-primary">LINES OF THE ENMITY</h1>
           <p className="text-muted-foreground mt-2 text-xs uppercase tracking-widest">{t.subtitle}</p>
         </div>
         {children}

@@ -14,7 +14,7 @@ import { Suspense } from 'react';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export const metadata: Metadata = {
-  title: 'Moba Tactics Online',
+  title: 'Lines of the Enmity',
   description: 'The ultimate MOBA manager game',
 };
 
@@ -30,7 +30,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-body antialiased min-h-screen bg-background text-foreground pt-14 pb-24">
+      <body className="font-body antialiased min-h-screen bg-background text-foreground pt-14 pb-24" suppressHydrationWarning>
         <FirebaseClientProvider>
           <GameStateProvider>
             <AuthGuard>

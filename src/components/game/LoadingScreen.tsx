@@ -1,11 +1,10 @@
 'use client';
 
-import { Loader2, Swords } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 /**
- * A full-screen tactical loading component for MOBA Tactics.
- * Features a scanner animation and pulsing logo.
+ * A full-screen tactical loading component for Lines of the Enmity.
+ * Features a scanner animation and pulsing game logo.
  */
 export function LoadingScreen() {
   const [dots, setDots] = useState('');
@@ -26,8 +25,13 @@ export function LoadingScreen() {
       {/* Pulsing Logo Container */}
       <div className="relative mb-8">
         <div className="absolute -inset-4 bg-primary/20 rounded-full blur-2xl animate-pulse"></div>
-        <div className="relative w-24 h-24 rounded-full border-2 border-primary/50 flex items-center justify-center bg-card shadow-[0_0_30px_rgba(var(--primary),0.2)]">
-          <Swords className="w-10 h-10 text-primary animate-bounce" />
+        <div className="relative w-28 h-28 rounded-full border-2 border-primary/50 flex items-center justify-center bg-card shadow-[0_0_40px_rgba(var(--primary),0.3)] overflow-hidden">
+          <img 
+            src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png" 
+            alt="Lines of the Enmity Logo" 
+            className="w-20 h-20 object-contain animate-pulse"
+            suppressHydrationWarning
+          />
         </div>
         {/* Scanner Bar Effect */}
         <div className="absolute -left-12 -right-12 h-0.5 bg-accent/40 top-1/2 -translate-y-1/2 shadow-[0_0_15px_hsl(var(--accent))] animate-[scan_2s_ease-in-out_infinite]"></div>
@@ -36,7 +40,7 @@ export function LoadingScreen() {
       {/* Text Info */}
       <div className="text-center space-y-3 relative">
         <h2 className="text-xl font-headline font-bold tracking-tighter text-primary uppercase">
-          MOBA TACTICS
+          LINES OF THE ENMITY
         </h2>
         <div className="flex flex-col items-center gap-1">
           <p className="text-[10px] text-muted-foreground uppercase tracking-[0.3em] font-bold">

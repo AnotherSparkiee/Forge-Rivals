@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { isMatchDue, getGlobalSeasonInfo } from '@/app/lib/time-utils';
+import { isMatchDue, getGlobalSeasonInfo, getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '@/app/lib/leagues-data';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
@@ -150,8 +150,6 @@ export function AutoMatchManager() {
     const wasWaiting = existingMatch?.opponentName === 'WAITING';
     const isIncomplete = !existingMatch || existingMatch.preview === undefined;
     
-    // We only skip if match is complete AND it wasn't a WAITING match.
-    // If it was WAITING, we proceed to see if an opponent is now available.
     if (existingMatch && !isIncomplete && !wasWaiting) return;
 
     const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < targetDay && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
@@ -189,7 +187,6 @@ export function AutoMatchManager() {
       const opponent = getWinnerOfBranch(participants, targetDay - 1, oppBranchStart, winnersCache.current, targetDay - 1);
       
       if (!opponent) {
-        // If we were already waiting, don't re-record the same waiting state
         if (wasWaiting) return;
         const waitResult = {
           scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
@@ -204,7 +201,6 @@ export function AutoMatchManager() {
         return;
       }
 
-      // If we got here, we HAVE an opponent! Even if we were waiting before, simulate now.
       const [forcedA, forcedB] = getMatchResult(user.uid, opponent.id, targetDay, true);
       const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
         ...h,

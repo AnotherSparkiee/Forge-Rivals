@@ -273,7 +273,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   const getStorageKey = useCallback(() => {
-    return user ? `moba_tactics_v8_${user.uid}` : null;
+    return user ? `lote_v1_${user.uid}` : null;
   }, [user]);
 
   useEffect(() => {
@@ -787,31 +787,29 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string) => {
     const matchId = customId || `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const scoreA = result.scoreA || 0;
-    const scoreB = result.scoreB || 0;
     
-    let creditsEarned = 50; let rankChange = -15;
-    if (scoreA === 2 && scoreB === 0) { creditsEarned = 200; rankChange = 25; }
-    else if (scoreA === 1 && scoreB === 1) { creditsEarned = 100; rankChange = 5; }
-    else if (scoreA > scoreB) { creditsEarned = 150; rankChange = 10; }
-    else if (scoreA === scoreB) rankChange = 0;
+    let shouldUpdateDB = false;
+    let computedNewState: any = null;
 
-    let finalNewHistory: MatchResultEntry[] | null = null;
-    let finalNewState: any = null;
-    
     setState(s => {
       const existingIdx = s.matchHistory.findIndex(m => m.id === matchId);
       
       if (existingIdx !== -1) {
         const existing = s.matchHistory[existingIdx];
-        const isTechnical = existing.opponentName === 'WAITING' || existing.opponentName === 'SEEDED';
-        const isNewMatchReal = opponentName !== 'WAITING' && opponentName !== 'SEEDED';
-        const isLegacy = existing.preview === undefined;
-
-        // Skip if data is identical AND it wasn't a technical result being replaced by a real one
-        if (!isLegacy && !isTechnical && existing.opponentName === opponentName) return s;
-        if (isTechnical && opponentName === existing.opponentName) return s;
+        // If current is WAITING but new is real, proceed.
+        // If they are identical technical status, skip.
+        if (existing.opponentName === opponentName && existing.winner === winner && existing.preview !== undefined) return s;
+        if (existing.opponentName === opponentName && (opponentName === 'WAITING' || opponentName === 'SEEDED')) return s;
       }
+
+      const scoreA = result.scoreA || 0;
+      const scoreB = result.scoreB || 0;
+      
+      let creditsEarned = 50; let rankChange = -15;
+      if (scoreA === 2 && scoreB === 0) { creditsEarned = 200; rankChange = 25; }
+      else if (scoreA === 1 && scoreB === 1) { creditsEarned = 100; rankChange = 5; }
+      else if (scoreA > scoreB) { creditsEarned = 150; rankChange = 10; }
+      else if (scoreA === scoreB) rankChange = 0;
 
       const xpRange = (type === 'league' || type === 'tournament') ? { min: 2, max: 4 } : { min: 1, max: 1 };
       const updatedHeroes = s.ownedHeroes.map(hero => {
@@ -852,7 +850,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
 
       const todayStr = getMoscowDateString();
-      finalNewState = { 
+      shouldUpdateDB = true;
+      computedNewState = { 
+        ...s,
         credits: s.credits + creditsEarned, 
         rank: s.rank + rankChange, 
         matchHistory: newHistory,
@@ -862,18 +862,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         isSyncing: true
       };
       
-      return { ...s, ...finalNewState };
+      return computedNewState;
     });
 
-    if (user && finalNewState) {
-      const profileRef = doc(db, 'players_v5', user.uid);
-      setDocumentNonBlocking(profileRef, { 
-        inGameCurrency: finalNewState.credits, 
-        rank: finalNewState.rank, 
-        lastLeagueMatchDate: finalNewState.lastLeagueMatchDate ?? null, 
-        lastCupMatchDate: finalNewState.lastCupMatchDate ?? null,
-        matchHistory: finalNewState.matchHistory,
-        ownedHeroes: sanitizeForFirestore(finalNewState.ownedHeroes)
+    // Side effects handled safely outside the state updater loop
+    if (shouldUpdateDB && user && computedNewState) {
+      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { 
+        inGameCurrency: computedNewState.credits, 
+        rank: computedNewState.rank, 
+        lastLeagueMatchDate: computedNewState.lastLeagueMatchDate ?? null, 
+        lastCupMatchDate: computedNewState.lastCupMatchDate ?? null,
+        matchHistory: computedNewState.matchHistory,
+        ownedHeroes: sanitizeForFirestore(computedNewState.ownedHeroes)
       }, { merge: true });
       
       setTimeout(() => setState(prev => ({ ...prev, isSyncing: false })), 1500);
