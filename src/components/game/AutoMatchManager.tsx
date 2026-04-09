@@ -43,6 +43,7 @@ export function AutoMatchManager() {
   
   const simulationRef = useRef(false);
   const cupSimulationRef = useRef(false);
+  const processedMatchesRef = useRef<Set<string>>(new Set());
   const winnersCache = useRef<Map<string, CupParticipant | null>>(new Map());
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
@@ -71,13 +72,13 @@ export function AutoMatchManager() {
   const { data: allLeaguePlayers } = useCollection(allLeaguePlayersQuery);
 
   const triggerAutoMatch = async (matchTime: string, targetDay: number, detId: string) => {
-    if (!groupPlayers || !user || !profile || simulationRef.current) return;
+    if (!groupPlayers || !user || !profile || simulationRef.current || processedMatchesRef.current.has(detId)) return;
     
-    // Check if simulation is actually needed
     const existingMatch = matchHistory.find(m => m.id === detId);
-    const isIncomplete = !existingMatch || existingMatch.preview === undefined || existingMatch.opponentName === 'WAITING';
+    const isIncomplete = !existingMatch || existingMatch.preview === undefined;
     if (!isIncomplete) return;
 
+    processedMatchesRef.current.add(detId);
     simulationRef.current = true;
     setIsSimulating(true);
     setSyncing(true);
@@ -143,17 +144,20 @@ export function AutoMatchManager() {
   };
 
   const triggerCupMatch = async (matchTime: string, targetDay: number, detId: string) => {
-    if (!user || !profile || !allLeaguePlayers || cupSimulationRef.current) return;
+    if (!user || !profile || !allLeaguePlayers || cupSimulationRef.current || processedMatchesRef.current.has(detId)) return;
     
     const existingMatch = matchHistory.find(m => m.id === detId);
-    const isWaiting = existingMatch?.opponentName === 'WAITING';
-    const isIncomplete = !existingMatch || existingMatch.preview === undefined || isWaiting;
+    const wasWaiting = existingMatch?.opponentName === 'WAITING';
+    const isIncomplete = !existingMatch || existingMatch.preview === undefined;
     
-    if (!isIncomplete) return;
+    // We only skip if match is complete AND it wasn't a WAITING match.
+    // If it was WAITING, we proceed to see if an opponent is now available.
+    if (existingMatch && !isIncomplete && !wasWaiting) return;
 
     const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < targetDay && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
     if (wasEliminated) return;
 
+    processedMatchesRef.current.add(detId);
     cupSimulationRef.current = true;
     setIsSimulating(true);
     setSyncing(true);
@@ -185,7 +189,8 @@ export function AutoMatchManager() {
       const opponent = getWinnerOfBranch(participants, targetDay - 1, oppBranchStart, winnersCache.current, targetDay - 1);
       
       if (!opponent) {
-        if (isWaiting) return;
+        // If we were already waiting, don't re-record the same waiting state
+        if (wasWaiting) return;
         const waitResult = {
           scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
           matchSummary: "Waiting for qualifiers. Automatic progression.",
@@ -199,6 +204,7 @@ export function AutoMatchManager() {
         return;
       }
 
+      // If we got here, we HAVE an opponent! Even if we were waiting before, simulate now.
       const [forcedA, forcedB] = getMatchResult(user.uid, opponent.id, targetDay, true);
       const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
         ...h,
@@ -259,7 +265,7 @@ export function AutoMatchManager() {
           const existingMatch = matchHistory.find(m => m.id === detId);
           const isIncomplete = !existingMatch || existingMatch.preview === undefined;
           
-          if (isIncomplete) {
+          if (isIncomplete && !processedMatchesRef.current.has(detId)) {
             if (d < seasonDay || isMatchDue(matchTime, lastLeagueMatchDate)) {
               await triggerAutoMatch(matchTime, d, detId);
             }
@@ -268,7 +274,7 @@ export function AutoMatchManager() {
       };
       catchUp();
     }
-  }, [isLoaded, profile?.selectedLeagueId, lastLeagueMatchDate, isUserLoading, seasonDay, seasonNumber, user]);
+  }, [isLoaded, seasonDay, seasonNumber, profile?.selectedLeagueId, !!groupPlayers]);
 
   useEffect(() => {
     if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !isUserLoading && profile?.selectedLeagueId && user && allLeaguePlayers && allLeaguePlayers.length > 0) {
@@ -278,13 +284,13 @@ export function AutoMatchManager() {
         for (let d = 1; d <= seasonDay; d++) {
           const detId = `cup_${seasonNumber}_${d}`;
           const existingMatch = matchHistory.find(m => m.id === detId);
-          const isWaiting = existingMatch?.opponentName === 'WAITING';
-          const isIncomplete = !existingMatch || existingMatch.preview === undefined || isWaiting;
+          const wasWaiting = existingMatch?.opponentName === 'WAITING';
+          const isIncomplete = !existingMatch || existingMatch.preview === undefined;
 
           const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
           if (wasEliminated) break;
 
-          if (isIncomplete) {
+          if ((isIncomplete || wasWaiting) && !processedMatchesRef.current.has(detId)) {
             if (d < seasonDay || isMatchDue(cupTime, lastCupMatchDate)) {
               await triggerCupMatch(cupTime, d, detId);
             }
@@ -293,13 +299,14 @@ export function AutoMatchManager() {
       };
       catchUpCup();
     }
-  }, [isLoaded, profile?.selectedLeagueId, lastCupMatchDate, isUserLoading, seasonDay, seasonNumber, user, !!allLeaguePlayers]);
+  }, [isLoaded, seasonDay, seasonNumber, profile?.selectedLeagueId, !!allLeaguePlayers]);
 
   const handleGoToReport = () => {
     setShowResultDialog(false);
+    const targetId = currentResult?.id;
     if (currentResult && !currentResult.isCup) markMatchAsSeen(currentResult.day);
-    if (currentResult?.id) {
-      router.push(`/match?id=${currentResult.id}`);
+    if (targetId) {
+      router.push(`/match?id=${targetId}`);
     } else {
       router.push('/match');
     }

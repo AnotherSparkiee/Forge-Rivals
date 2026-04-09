@@ -786,28 +786,31 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [user, db]);
 
   const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string) => {
+    const matchId = customId || `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const scoreA = result.scoreA || 0;
     const scoreB = result.scoreB || 0;
+    
     let creditsEarned = 50; let rankChange = -15;
     if (scoreA === 2 && scoreB === 0) { creditsEarned = 200; rankChange = 25; }
     else if (scoreA === 1 && scoreB === 1) { creditsEarned = 100; rankChange = 5; }
     else if (scoreA > scoreB) { creditsEarned = 150; rankChange = 10; }
     else if (scoreA === scoreB) rankChange = 0;
 
+    let finalNewHistory: MatchResultEntry[] | null = null;
     let finalNewState: any = null;
     
     setState(s => {
-      const matchId = customId || `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const existingIdx = s.matchHistory.findIndex(m => m.id === matchId);
       
       if (existingIdx !== -1) {
         const existing = s.matchHistory[existingIdx];
         const isTechnical = existing.opponentName === 'WAITING' || existing.opponentName === 'SEEDED';
+        const isNewMatchReal = opponentName !== 'WAITING' && opponentName !== 'SEEDED';
         const isLegacy = existing.preview === undefined;
 
-        // CRITICAL: Skip update ONLY if data is truly identical to prevent infinite recursion
+        // Skip if data is identical AND it wasn't a technical result being replaced by a real one
         if (!isLegacy && !isTechnical && existing.opponentName === opponentName) return s;
-        if (isTechnical && existing.opponentName === opponentName) return s;
+        if (isTechnical && opponentName === existing.opponentName) return s;
       }
 
       const xpRange = (type === 'league' || type === 'tournament') ? { min: 2, max: 4 } : { min: 1, max: 1 };

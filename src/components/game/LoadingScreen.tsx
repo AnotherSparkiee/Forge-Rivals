@@ -18,7 +18,7 @@ export function LoadingScreen() {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-background flex flex-col items-center justify-center p-6 overflow-hidden">
+    <div className="fixed inset-0 z-[9999] bg-background flex flex-col items-center justify-center p-6 overflow-hidden" suppressHydrationWarning>
       {/* Background Grid/Effect */}
       <div className="absolute inset-0 opacity-10 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)]"></div>
