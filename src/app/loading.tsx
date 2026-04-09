@@ -3,8 +3,8 @@
 import { LoadingScreen } from "@/components/game/LoadingScreen";
 
 /**
- * Next.js loading UI for the root layout.
- * Shown during initial page loads and route transitions.
+ * Стандартный загрузчик Next.js.
+ * Срабатывает МГНОВЕННО при переходе между любыми маршрутами (вкладками).
  */
 export default function Loading() {
   return <LoadingScreen />;
