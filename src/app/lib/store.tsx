@@ -806,7 +806,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const isLegacy = existing.preview === undefined;
 
         // CRITICAL: Skip update ONLY if data is truly identical to prevent infinite recursion
-        // If we are moving from WAITING to a real opponent, we MUST allow the update.
         if (!isLegacy && !isTechnical && existing.opponentName === opponentName) return s;
         if (isTechnical && existing.opponentName === opponentName) return s;
       }

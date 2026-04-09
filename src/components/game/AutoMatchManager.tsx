@@ -75,8 +75,8 @@ export function AutoMatchManager() {
     
     // Check if simulation is actually needed
     const existingMatch = matchHistory.find(m => m.id === detId);
-    const isIncomplete = existingMatch && (existingMatch.preview === undefined || existingMatch.opponentName === 'WAITING');
-    if (existingMatch && !isIncomplete) return;
+    const isIncomplete = !existingMatch || existingMatch.preview === undefined || existingMatch.opponentName === 'WAITING';
+    if (!isIncomplete) return;
 
     simulationRef.current = true;
     setIsSimulating(true);
@@ -146,14 +146,11 @@ export function AutoMatchManager() {
     if (!user || !profile || !allLeaguePlayers || cupSimulationRef.current) return;
     
     const existingMatch = matchHistory.find(m => m.id === detId);
-    
-    // A cup match is incomplete if it doesn't exist OR it's a technical placeholder (WAITING)
     const isWaiting = existingMatch?.opponentName === 'WAITING';
     const isIncomplete = !existingMatch || existingMatch.preview === undefined || isWaiting;
     
     if (!isIncomplete) return;
 
-    // Check if we already have an elimination in a previous day this season
     const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < targetDay && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
     if (wasEliminated) return;
 
@@ -188,9 +185,7 @@ export function AutoMatchManager() {
       const opponent = getWinnerOfBranch(participants, targetDay - 1, oppBranchStart, winnersCache.current, targetDay - 1);
       
       if (!opponent) {
-        // If we were waiting and still no opponent, just exit to prevent infinite loop
         if (isWaiting) return;
-
         const waitResult = {
           scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
           matchSummary: "Waiting for qualifiers. Automatic progression.",
@@ -204,9 +199,7 @@ export function AutoMatchManager() {
         return;
       }
 
-      // If we got here, we have a real opponent. Proceed with simulation.
       const [forcedA, forcedB] = getMatchResult(user.uid, opponent.id, targetDay, true);
-
       const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
         ...h,
         isSub: h.id === lineup.sub1 || h.id === lineup.sub2
@@ -264,7 +257,7 @@ export function AutoMatchManager() {
         for (let d = 1; d <= seasonDay; d++) {
           const detId = `league_${seasonNumber}_${d}`;
           const existingMatch = matchHistory.find(m => m.id === detId);
-          const isIncomplete = !existingMatch || existingMatch.preview === undefined || existingMatch.opponentName === 'WAITING';
+          const isIncomplete = !existingMatch || existingMatch.preview === undefined;
           
           if (isIncomplete) {
             if (d < seasonDay || isMatchDue(matchTime, lastLeagueMatchDate)) {
@@ -285,7 +278,8 @@ export function AutoMatchManager() {
         for (let d = 1; d <= seasonDay; d++) {
           const detId = `cup_${seasonNumber}_${d}`;
           const existingMatch = matchHistory.find(m => m.id === detId);
-          const isIncomplete = !existingMatch || existingMatch.preview === undefined || existingMatch.opponentName === 'WAITING';
+          const isWaiting = existingMatch?.opponentName === 'WAITING';
+          const isIncomplete = !existingMatch || existingMatch.preview === undefined || isWaiting;
 
           const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
           if (wasEliminated) break;
@@ -299,7 +293,7 @@ export function AutoMatchManager() {
       };
       catchUpCup();
     }
-  }, [isLoaded, profile?.selectedLeagueId, lastCupMatchDate, isUserLoading, seasonDay, seasonNumber, user]);
+  }, [isLoaded, profile?.selectedLeagueId, lastCupMatchDate, isUserLoading, seasonDay, seasonNumber, user, !!allLeaguePlayers]);
 
   const handleGoToReport = () => {
     setShowResultDialog(false);
