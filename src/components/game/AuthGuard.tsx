@@ -2,20 +2,32 @@
 
 import { useUser } from '@/firebase';
 import { useRouter, usePathname } from 'next/navigation';
-import { useEffect, ReactNode } from 'react';
+import { useEffect, ReactNode, useState } from 'react';
 import { LoadingScreen } from './LoadingScreen';
 import { useGameState } from '@/app/lib/store';
 
 /**
- * Enhanced Route Guard for MOBA Tactics Online.
- * Ensures users are authenticated AND have completed their profile setup.
- * Uses the reactive GameState store as the single source of truth.
+ * Enhanced Route Guard for Lines of the Enmity.
+ * Ensures users are authenticated, profile is setup, 
+ * and handles the mandatory 5-second initial splash screen.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
   const { isLoaded, selectedLeagueId, country } = useGameState();
   const router = useRouter();
   const pathname = usePathname();
+  
+  // State to manage the mandatory 5-second splash screen
+  const [splashActive, setSplashActive] = useState(true);
+
+  useEffect(() => {
+    // Start 5-second timer on mount
+    const timer = setTimeout(() => {
+      setSplashActive(false);
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     // 1. Skip checks for auth-related pages (login/register)
@@ -45,8 +57,8 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     return <>{children}</>;
   }
 
-  // Show loading screen while auth is loading OR while game state is syncing from DB
-  if (isUserLoading || !isLoaded) {
+  // Show splash screen if still in initial 5s delay, OR if data is still loading
+  if (splashActive || isUserLoading || !isLoaded) {
     return <LoadingScreen />;
   }
 
@@ -58,5 +70,9 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     }
   }
 
-  return <>{children}</>;
+  return (
+    <div className="animate-in fade-in duration-700">
+      {children}
+    </div>
+  );
 }
