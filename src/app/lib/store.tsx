@@ -459,39 +459,49 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const addCredits = useCallback((amount: number) => {
     setState(s => {
       const newCredits = s.credits + amount;
-      if (user) {
-        const profileRef = doc(db, 'players_v5', user.uid);
-        setDocumentNonBlocking(profileRef, { inGameCurrency: newCredits }, { merge: true });
-      }
       return { ...s, credits: newCredits };
     });
-  }, [user, db]);
+    if (user) {
+      const profileRef = doc(db, 'players_v5', user.uid);
+      setDocumentNonBlocking(profileRef, { inGameCurrency: state.credits + amount }, { merge: true });
+    }
+  }, [user, db, state.credits]);
 
   const addCrystals = useCallback((amount: number) => {
     setState(s => {
       const newCrystals = s.crystals + amount;
-      if (user) {
-        const profileRef = doc(db, 'players_v5', user.uid);
-        setDocumentNonBlocking(profileRef, { crystals: newCrystals }, { merge: true });
-      }
       return { ...s, crystals: newCrystals };
     });
-  }, [user, db]);
+    if (user) {
+      const profileRef = doc(db, 'players_v5', user.uid);
+      setDocumentNonBlocking(profileRef, { crystals: state.crystals + amount }, { merge: true });
+    }
+  }, [user, db, state.crystals]);
 
   const claimReward = useCallback((creditsReward: number, crystalsReward: number) => {
     const today = getMoscowDateString();
+    let newCredits = state.credits;
+    let newCrystals = state.crystals;
+    let nextRewardDay = state.rewardDay;
+
     setState(s => {
       if (s.lastRewardClaimDate === today) return s;
-      const newCredits = s.credits + creditsReward;
-      const newCrystals = s.crystals + crystalsReward;
-      const nextRewardDay = s.rewardDay >= 30 ? 1 : s.rewardDay + 1;
-      if (user) {
-        const profileRef = doc(db, 'players_v5', user.uid);
-        setDocumentNonBlocking(profileRef, { inGameCurrency: newCredits, crystals: newCrystals, lastRewardClaimDate: today, rewardDay: nextRewardDay }, { merge: true });
-      }
+      newCredits = s.credits + creditsReward;
+      newCrystals = s.crystals + crystalsReward;
+      nextRewardDay = s.rewardDay >= 30 ? 1 : s.rewardDay + 1;
       return { ...s, credits: newCredits, crystals: newCrystals, lastRewardClaimDate: today, rewardDay: nextRewardDay };
     });
-  }, [user, db]);
+
+    if (user && state.lastRewardClaimDate !== today) {
+      const profileRef = doc(db, 'players_v5', user.uid);
+      setDocumentNonBlocking(profileRef, { 
+        inGameCurrency: newCredits, 
+        crystals: newCrystals, 
+        lastRewardClaimDate: today, 
+        rewardDay: nextRewardDay 
+      }, { merge: true });
+    }
+  }, [user, db, state.credits, state.crystals, state.rewardDay, state.lastRewardClaimDate]);
 
   const isSectorBusy = useCallback((sector: any) => {
     return sector && sector.constructionFinishes && Object.values(sector.constructionFinishes).some(v => v !== null && v !== undefined);
@@ -499,6 +509,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const startArenaConstruction = useCallback((facility: any, cost: number) => {
     let result = false;
+    let newState: any;
+
     setState(s => {
       if (s.credits >= cost && !isSectorBusy(s.arena)) {
         const hours = 4 * ((s.arena as any)[facility] + 1);
@@ -506,19 +518,26 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
         const newCredits = s.credits - cost;
-        if (user) {
-          const profileRef = doc(db, 'players_v5', user.uid);
-          setDocumentNonBlocking(profileRef, { inGameCurrency: newCredits, arena: sanitizeForFirestore({ ...s.arena, constructionStarts: { ...s.arena.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
-        }
-        return { ...s, credits: newCredits, arena: { ...s.arena, constructionStarts: { ...s.arena.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, [facility]: finishTime.toISOString() } } };
+        newState = { ...s, credits: newCredits, arena: { ...s.arena, constructionStarts: { ...s.arena.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, [facility]: finishTime.toISOString() } } };
+        return newState;
       }
       return s;
     });
+
+    if (user && result && newState) {
+      const profileRef = doc(db, 'players_v5', user.uid);
+      setDocumentNonBlocking(profileRef, { 
+        inGameCurrency: newState.credits, 
+        arena: sanitizeForFirestore(newState.arena) 
+      }, { merge: true });
+    }
     return result;
   }, [isSectorBusy, user, db]);
 
   const startHQConstruction = useCallback((facility: any, cost: number) => {
     let result = false;
+    let newState: any;
+
     setState(s => {
       if (s.credits >= cost && !isSectorBusy(s.hq)) {
         const hours = 4 * ((s.hq as any)[facility] + 1);
@@ -526,19 +545,26 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
         const newCredits = s.credits - cost;
-        if (user) {
-          const profileRef = doc(db, 'players_v5', user.uid);
-          setDocumentNonBlocking(profileRef, { inGameCurrency: newCredits, hq: sanitizeForFirestore({ ...s.hq, constructionStarts: { ...s.hq.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.hq.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
-        }
-        return { ...s, credits: newCredits, hq: { ...s.hq, constructionStarts: { ...s.hq.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.hq.constructionFinishes, [facility]: finishTime.toISOString() } } };
+        newState = { ...s, credits: newCredits, hq: { ...s.hq, constructionStarts: { ...s.hq.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.hq.constructionFinishes, [facility]: finishTime.toISOString() } } };
+        return newState;
       }
       return s;
     });
+
+    if (user && result && newState) {
+      const profileRef = doc(db, 'players_v5', user.uid);
+      setDocumentNonBlocking(profileRef, { 
+        inGameCurrency: newState.credits, 
+        hq: sanitizeForFirestore(newState.hq) 
+      }, { merge: true });
+    }
     return result;
   }, [isSectorBusy, user, db]);
 
   const startBootcampConstruction = useCallback((facility: any, cost: number) => {
     let result = false;
+    let newState: any;
+
     setState(s => {
       if (s.credits >= cost && !isSectorBusy(s.bootcamp)) {
         const hours = 4 * ((s.bootcamp as any)[facility] + 1);
@@ -546,19 +572,26 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
         const newCredits = s.credits - cost;
-        if (user) {
-          const profileRef = doc(db, 'players_v5', user.uid);
-          setDocumentNonBlocking(profileRef, { inGameCurrency: newCredits, bootcamp: sanitizeForFirestore({ ...s.bootcamp, constructionStarts: { ...s.bootcamp.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.bootcamp.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
-        }
-        return { ...s, credits: newCredits, bootcamp: { ...s.bootcamp, constructionStarts: { ...s.bootcamp.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.bootcamp.constructionFinishes, [facility]: finishTime.toISOString() } } };
+        newState = { ...s, credits: newCredits, bootcamp: { ...s.bootcamp, constructionStarts: { ...s.bootcamp.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.bootcamp.constructionFinishes, [facility]: finishTime.toISOString() } } };
+        return newState;
       }
       return s;
     });
+
+    if (user && result && newState) {
+      const profileRef = doc(db, 'players_v5', user.uid);
+      setDocumentNonBlocking(profileRef, { 
+        inGameCurrency: newState.credits, 
+        bootcamp: sanitizeForFirestore(newState.bootcamp) 
+      }, { merge: true });
+    }
     return result;
   }, [isSectorBusy, user, db]);
 
   const startAcademyConstruction = useCallback((facility: any, cost: number) => {
     let result = false;
+    let newState: any;
+
     setState(s => {
       if (s.credits >= cost && !isSectorBusy(s.academy)) {
         const hours = 4 * ((s.academy as any)[facility] + 1);
@@ -566,19 +599,26 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
         const newCredits = s.credits - cost;
-        if (user) {
-          const profileRef = doc(db, 'players_v5', user.uid);
-          setDocumentNonBlocking(profileRef, { inGameCurrency: newCredits, academy: sanitizeForFirestore({ ...s.academy, constructionStarts: { ...s.academy.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.academy.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
-        }
-        return { ...s, credits: newCredits, academy: { ...s.academy, constructionStarts: { ...s.academy.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.academy.constructionFinishes, [facility]: finishTime.toISOString() } } };
+        newState = { ...s, credits: newCredits, academy: { ...s.academy, constructionStarts: { ...s.academy.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.academy.constructionFinishes, [facility]: finishTime.toISOString() } } };
+        return newState;
       }
       return s;
     });
+
+    if (user && result && newState) {
+      const profileRef = doc(db, 'players_v5', user.uid);
+      setDocumentNonBlocking(profileRef, { 
+        inGameCurrency: newState.credits, 
+        academy: sanitizeForFirestore(newState.academy) 
+      }, { merge: true });
+    }
     return result;
   }, [isSectorBusy, user, db]);
 
   const startMedicalConstruction = useCallback((facility: any, cost: number) => {
     let result = false;
+    let newState: any;
+
     setState(s => {
       if (s.credits >= cost && !isSectorBusy(s.medical)) {
         const hours = 4 * ((s.medical as any)[facility] + 1);
@@ -586,33 +626,45 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
         const newCredits = s.credits - cost;
-        if (user) {
-          const profileRef = doc(db, 'players_v5', user.uid);
-          setDocumentNonBlocking(profileRef, { inGameCurrency: newCredits, medical: sanitizeForFirestore({ ...s.medical, constructionStarts: { ...s.medical.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.medical.constructionFinishes, [facility]: finishTime.toISOString() } }) }, { merge: true });
-        }
-        return { ...s, credits: newCredits, medical: { ...s.medical, constructionStarts: { ...s.medical.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.medical.constructionFinishes, [facility]: finishTime.toISOString() } } };
+        newState = { ...s, credits: newCredits, medical: { ...s.medical, constructionStarts: { ...s.medical.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.medical.constructionFinishes, [facility]: finishTime.toISOString() } } };
+        return newState;
       }
       return s;
     });
+
+    if (user && result && newState) {
+      const profileRef = doc(db, 'players_v5', user.uid);
+      setDocumentNonBlocking(profileRef, { 
+        inGameCurrency: newState.credits, 
+        medical: sanitizeForFirestore(newState.medical) 
+      }, { merge: true });
+    }
     return result;
   }, [isSectorBusy, user, db]);
 
   const startCapacityExpansion = useCallback((seats: number, cost: number, hours: number) => {
     let result = false;
+    let newState: any;
+
     setState(s => {
       if (s.credits >= cost && !isSectorBusy(s.arena)) {
         const startTime = new Date();
         const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true;
         const newCredits = s.credits - cost;
-        if (user) {
-          const profileRef = doc(db, 'players_v5', user.uid);
-          setDocumentNonBlocking(profileRef, { inGameCurrency: newCredits, arena: sanitizeForFirestore({ ...s.arena, pendingCapacitySeats: seats, constructionStarts: { ...s.arena.constructionStarts, capacity: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, capacity: finishTime.toISOString() } }) }, { merge: true });
-        }
-        return { ...s, credits: newCredits, arena: { ...s.arena, pendingCapacitySeats: seats, constructionStarts: { ...s.arena.constructionStarts, capacity: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, capacity: finishTime.toISOString() } } };
+        newState = { ...s, credits: newCredits, arena: { ...s.arena, pendingCapacitySeats: seats, constructionStarts: { ...s.arena.constructionStarts, capacity: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, capacity: finishTime.toISOString() } } };
+        return newState;
       }
       return s;
     });
+
+    if (user && result && newState) {
+      const profileRef = doc(db, 'players_v5', user.uid);
+      setDocumentNonBlocking(profileRef, { 
+        inGameCurrency: newState.credits, 
+        arena: sanitizeForFirestore(newState.arena) 
+      }, { merge: true });
+    }
     return result;
   }, [isSectorBusy, user, db]);
 
@@ -789,17 +841,19 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const matchId = customId || `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     let shouldUpdateDB = false;
-    let computedNewState: any = null;
+    let newState: any = null;
 
     setState(s => {
       const existingIdx = s.matchHistory.findIndex(m => m.id === matchId);
       
       if (existingIdx !== -1) {
         const existing = s.matchHistory[existingIdx];
-        // If current is WAITING but new is real, proceed.
-        // If they are identical technical status, skip.
-        if (existing.opponentName === opponentName && existing.winner === winner && existing.preview !== undefined) return s;
-        if (existing.opponentName === opponentName && (opponentName === 'WAITING' || opponentName === 'SEEDED')) return s;
+        const isExistingTechnical = existing.opponentName === 'WAITING' || existing.opponentName === 'SEEDED';
+        const isNewTechnical = opponentName === 'WAITING' || opponentName === 'SEEDED';
+
+        // ONLY skip if they are identical technical placeholders or identical real matches
+        if (isExistingTechnical && isNewTechnical && existing.opponentName === opponentName) return s;
+        if (!isExistingTechnical && !isNewTechnical && existing.preview !== undefined && result.preview !== undefined && existing.winner === winner) return s;
       }
 
       const scoreA = result.scoreA || 0;
@@ -851,7 +905,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
       const todayStr = getMoscowDateString();
       shouldUpdateDB = true;
-      computedNewState = { 
+      newState = { 
         ...s,
         credits: s.credits + creditsEarned, 
         rank: s.rank + rankChange, 
@@ -861,21 +915,19 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         ownedHeroes: updatedHeroes,
         isSyncing: true
       };
-      
-      return computedNewState;
+      return newState;
     });
 
-    // Side effects handled safely outside the state updater loop
-    if (shouldUpdateDB && user && computedNewState) {
-      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { 
-        inGameCurrency: computedNewState.credits, 
-        rank: computedNewState.rank, 
-        lastLeagueMatchDate: computedNewState.lastLeagueMatchDate ?? null, 
-        lastCupMatchDate: computedNewState.lastCupMatchDate ?? null,
-        matchHistory: computedNewState.matchHistory,
-        ownedHeroes: sanitizeForFirestore(computedNewState.ownedHeroes)
+    if (user && shouldUpdateDB && newState) {
+      const profileRef = doc(db, 'players_v5', user.uid);
+      setDocumentNonBlocking(profileRef, { 
+        inGameCurrency: newState.credits, 
+        rank: newState.rank, 
+        lastLeagueMatchDate: newState.lastLeagueMatchDate ?? null, 
+        lastCupMatchDate: newState.lastCupMatchDate ?? null,
+        matchHistory: newState.matchHistory,
+        ownedHeroes: sanitizeForFirestore(newState.ownedHeroes)
       }, { merge: true });
-      
       setTimeout(() => setState(prev => ({ ...prev, isSyncing: false })), 1500);
     }
   }, [user, db]);

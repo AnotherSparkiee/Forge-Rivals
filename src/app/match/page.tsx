@@ -64,24 +64,6 @@ function MatchContent() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [step]);
 
-  if (isUserLoading || !isLoaded || !user) {
-    return <LoadingScreen />;
-  }
-
-  const handleNext = () => {
-    const isTechnicalResult = currentResult?.opponentName === 'WAITING' || currentResult?.opponentName === 'SEEDED';
-    
-    if (isTechnicalResult) {
-      setStep('stats'); // Technical results skip live view
-      if (step === 'stats') handleAcknowledgeMatch();
-      return;
-    }
-
-    if (step === 'preview') setStep('live');
-    else if (step === 'live') setStep('stats');
-    else handleAcknowledgeMatch();
-  };
-
   const handleAcknowledgeMatch = () => {
     if (currentResult && !isHistoricalViewing) {
       markMatchAsSeen(currentResult.day);
@@ -90,6 +72,27 @@ function MatchContent() {
       router.push('/matches');
     }
   };
+
+  const handleNext = () => {
+    const isTechnicalResult = currentResult?.opponentName === 'WAITING' || currentResult?.opponentName === 'SEEDED';
+    
+    if (isTechnicalResult) {
+      if (step === 'stats') {
+        handleAcknowledgeMatch();
+      } else {
+        setStep('stats');
+      }
+      return;
+    }
+
+    if (step === 'preview') setStep('live');
+    else if (step === 'live') setStep('stats');
+    else handleAcknowledgeMatch();
+  };
+
+  if (isUserLoading || !isLoaded || !user) {
+    return <LoadingScreen />;
+  }
 
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
   const myFlag = userCountry?.flag || '🏳️';
@@ -112,7 +115,7 @@ function MatchContent() {
       duration: "Duration",
       mvp: "Unit MVP",
       orv: "AVG OVR",
-      legacyMsg: "Legacy Match Data: Detailed Analysis Unavailable",
+      legacyMsg: "Deciphering match data...",
       home: "HOME",
       away: "AWAY",
       arena: "ARENA",
@@ -143,7 +146,7 @@ function MatchContent() {
       duration: "Длительность",
       mvp: "MVP отряда",
       orv: "Средний OVR",
-      legacyMsg: "Устаревшие данные: Полный отчет недоступен",
+      legacyMsg: "Дешифровка данных матча...",
       home: "ДОМА",
       away: "В ГОСТЯХ",
       arena: "АРЕНА",
@@ -302,7 +305,7 @@ function MatchContent() {
   const renderLive = () => {
     if (isTechnicalResult) {
       return (
-        <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4 animate-in slide-in-from-right-4">
+        <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
           <Signal className="w-16 h-16 text-muted-foreground" />
           <p className="text-[10px] uppercase font-black tracking-widest">LIVE SIGNAL UNAVAILABLE FOR TECHNICAL PROCEEDING</p>
         </div>
