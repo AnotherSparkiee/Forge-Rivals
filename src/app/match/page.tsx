@@ -10,7 +10,7 @@ import {
   ChevronLeft, Check, Swords, Activity, Map, ArrowRight, TrendingUp,
   ShieldCheck, Brain, Zap, Target, FileText,
   Users, Signal, EyeOff, Calendar, MapPin, Trophy, Clock, Medal,
-  ShieldAlert, RefreshCw
+  ShieldAlert, RefreshCw, MousePointer2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -48,7 +48,6 @@ function MatchContent() {
       if (match) return match;
     }
     
-    // Sort to find the latest unread or just the latest
     const sortedHistory = [...matchHistory].sort((a, b) => {
       const timeA = new Date(a.playedAt).getTime();
       const timeB = new Date(b.playedAt).getTime();
@@ -90,6 +89,12 @@ function MatchContent() {
     else handleAcknowledgeMatch();
   };
 
+  // Prevent background click when actual buttons are pressed
+  const handleButtonClick = (e: React.MouseEvent, action: () => void) => {
+    e.stopPropagation();
+    action();
+  };
+
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
@@ -122,6 +127,7 @@ function MatchContent() {
       spectators: "SPECTATORS",
       technicalWin: "TECHNICAL PROGRESSION",
       technicalDesc: "Automatic victory due to seeded bracket position or lack of qualifiers. Tactical data not generated for non-combat encounters.",
+      clickToContinue: "TAP ANYWHERE TO CONTINUE",
       tournamentTypes: {
         league: "PRO LEAGUE",
         tournament: "PYRAMID CUP",
@@ -153,6 +159,7 @@ function MatchContent() {
       spectators: "ЗРИТЕЛИ",
       technicalWin: "ТЕХНИЧЕСКАЯ ПРОГРЕССИЯ",
       technicalDesc: "Автоматическая победа из-за позиции в сетке или отсутствия квалифицированного соперника. Тактический отчет для небоевых вылетов не формируется.",
+      clickToContinue: "НАЖМИТЕ В ЛЮБОМ МЕСТЕ ДЛЯ ПРОДОЛЖЕНИЯ",
       tournamentTypes: {
         league: "ПРОФ. ЛИГА",
         tournament: "КУБОК ПИРАМИДЫ",
@@ -226,7 +233,7 @@ function MatchContent() {
 
               <div className="p-6 flex flex-col items-center gap-3 text-center">
                 <div className="relative">
-                  <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center shadow-xl">
+                  <div className="w-16 h-16 rounded-2xl bg-secondary/50 border-white/10 flex items-center justify-center shadow-xl">
                     <span className="text-3xl">🏳️</span>
                   </div>
                   <Badge variant="outline" className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-background border-white/20 text-muted-foreground text-[7px] font-black uppercase px-2 h-4">
@@ -462,7 +469,10 @@ function MatchContent() {
   );
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-32">
+    <div 
+      className="min-h-screen bg-background text-foreground pb-32 cursor-pointer select-none"
+      onClick={handleNext}
+    >
       <div className="fixed inset-0 pointer-events-none opacity-5 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:30px_30px]"></div>
 
       <div className="max-w-md mx-auto relative z-10 px-4 pt-6">
@@ -540,6 +550,13 @@ function MatchContent() {
           {step === 'live' && renderLive()}
           {step === 'stats' && renderStats()}
         </div>
+
+        {step !== 'stats' && (
+          <div className="mt-8 flex flex-col items-center gap-2 animate-bounce opacity-40">
+            <MousePointer2 className="w-4 h-4 text-muted-foreground" />
+            <p className="text-[8px] font-black uppercase tracking-widest">{t.clickToContinue}</p>
+          </div>
+        )}
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-t border-white/10 h-24 flex items-center shadow-[0_-15px_40px_rgba(0,0,0,0.6)]">
@@ -547,7 +564,7 @@ function MatchContent() {
           <div className="flex items-center gap-3 w-full">
             <Button 
               type="button"
-              onClick={() => router.back()}
+              onClick={(e) => handleButtonClick(e, () => router.back())}
               variant="outline"
               className="h-12 flex-1 border-white/10 font-black text-[10px] uppercase tracking-widest"
             >
@@ -555,7 +572,7 @@ function MatchContent() {
             </Button>
             <Button 
               type="button"
-              onClick={handleNext}
+              onClick={(e) => handleButtonClick(e, handleNext)}
               className="h-12 flex-[2] hero-gradient border-none font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20 group"
             >
               {step === 'stats' ? <Check className="w-4 h-4 mr-2" /> : <ArrowRight className="w-4 h-4 mr-2 group-hover:translate-x-1 transition-transform" />}
