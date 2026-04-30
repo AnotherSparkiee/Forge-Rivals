@@ -26,7 +26,7 @@ function MatchContent() {
   const searchParams = useSearchParams();
   const db = useFirestore();
   const { 
-    language, isLoaded, markMatchAsSeen, 
+    language, isLoaded, markMatchAsSeen, lastSeenMatchDay,
     matchHistory
   } = useGameState();
 
@@ -42,12 +42,24 @@ function MatchContent() {
     }
   }, [user, isUserLoading, router]);
 
+  // Logic to pick the correct match to display
   const currentResult = useMemo(() => {
+    // 1. If explicit ID provided (historical view)
     if (matchId) {
       const match = matchHistory.find(m => m.id === matchId);
       if (match) return match;
     }
     
+    // 2. If no ID, find the OLDEST unseen league match (sequential progression)
+    const unseenLeagueMatches = matchHistory
+      .filter(m => m.type === 'league' && m.day > lastSeenMatchDay)
+      .sort((a, b) => a.day - b.day);
+
+    if (unseenLeagueMatches.length > 0) {
+      return unseenLeagueMatches[0];
+    }
+
+    // 3. Fallback: pick the latest match that has data
     const sortedHistory = [...matchHistory].sort((a, b) => {
       const timeA = new Date(a.playedAt).getTime();
       const timeB = new Date(b.playedAt).getTime();
@@ -55,7 +67,7 @@ function MatchContent() {
     });
 
     return sortedHistory.find(m => m.preview !== undefined) || sortedHistory[0] || null;
-  }, [matchHistory, matchId]);
+  }, [matchHistory, matchId, lastSeenMatchDay]);
 
   const isHistoricalViewing = !!matchId;
 
@@ -65,6 +77,7 @@ function MatchContent() {
 
   const handleAcknowledgeMatch = () => {
     if (currentResult && !isHistoricalViewing) {
+      // Mark as seen. This unlocks the next match in the sequence.
       markMatchAsSeen(currentResult.day);
       router.push('/');
     } else {
@@ -73,8 +86,11 @@ function MatchContent() {
   };
 
   const handleNext = () => {
-    const isTechnicalResult = currentResult?.opponentName === 'WAITING' || currentResult?.opponentName === 'SEEDED';
+    if (!currentResult) return;
+
+    const isTechnicalResult = currentResult.opponentName === 'WAITING' || currentResult.opponentName === 'SEEDED';
     
+    // Technical matches skip the Live stage
     if (isTechnicalResult) {
       if (step === 'stats') {
         handleAcknowledgeMatch();
@@ -89,7 +105,6 @@ function MatchContent() {
     else handleAcknowledgeMatch();
   };
 
-  // Prevent background click when actual buttons are pressed
   const handleButtonClick = (e: React.MouseEvent, action: () => void) => {
     e.stopPropagation();
     action();
@@ -342,7 +357,7 @@ function MatchContent() {
                   <Badge variant="outline" className="text-[7px] px-1 py-0 border-primary/30 text-primary">{event.phase}</Badge>
                 </div>
                 <div className="flex-1 space-y-2">
-                  <p className="text-[11px] leading-relaxed text-muted-foreground">{event.event}</p>
+                  <p className="text-sm leading-relaxed text-muted-foreground">{event.event}</p>
                   <div className="flex justify-end">
                     <Badge className="bg-black/40 text-[9px] font-mono font-bold text-white border-white/10">{event.score}</Badge>
                   </div>
@@ -450,7 +465,7 @@ function MatchContent() {
           </div>
           <Card className="glass-card border-green-500/20 bg-green-500/5 p-6 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-0.5 bg-green-500/20 animate-pulse"></div>
-            <p className="text-xs leading-relaxed text-green-100 italic whitespace-pre-wrap">
+            <p className="text-sm leading-relaxed text-green-100 italic whitespace-pre-wrap">
               {post.analysis}
             </p>
           </Card>
