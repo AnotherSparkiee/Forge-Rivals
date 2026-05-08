@@ -17,16 +17,6 @@ import { cn } from '@/lib/utils';
 import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant, getEntryRound } from '@/app/lib/cup-utils';
 import { useRouter } from 'next/navigation';
 
-function sanitizeForFirestore(obj: any) {
-  if (obj === undefined) return null;
-  if (!obj) return obj;
-  try {
-    return JSON.parse(JSON.stringify(obj));
-  } catch (e) {
-    return null;
-  }
-}
-
 export function AutoMatchManager() {
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, 
@@ -70,7 +60,7 @@ export function AutoMatchManager() {
 
   const { data: allLeaguePlayers } = useCollection(allLeaguePlayersQuery);
 
-  const simulateOneLeagueMatch = useCallback(async (targetSeason: number, targetDay: number, matchTime: string, isCatchUp: boolean) => {
+  const simulateOneLeagueMatch = useCallback(async (targetSeason: number, targetDay: number, isCatchUp: boolean) => {
     if (!groupPlayers || !user || !profile || simulationLockRef.current) return;
     
     const detId = `league_${targetSeason}_${targetDay}`;
@@ -110,18 +100,20 @@ export function AutoMatchManager() {
         scoreB: forcedScoreB
       });
 
-      let customPlayedAt = undefined;
-      if (isCatchUp && seasonStartDate) {
-        const d = new Date(seasonStartDate);
-        d.setDate(d.getDate() + (targetDay - 1));
-        customPlayedAt = d.toISOString();
-      }
+      if (result) {
+        let customPlayedAt = undefined;
+        if (isCatchUp && seasonStartDate) {
+          const d = new Date(seasonStartDate);
+          d.setDate(d.getDate() + (targetDay - 1));
+          customPlayedAt = d.toISOString();
+        }
 
-      recordMatch(result.winner, result, targetDay, opponent.name || "Opponent", 'league', customPlayedAt, detId);
-      
-      if (!isCatchUp) {
-        setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, isCup: false });
-        setShowResultDialog(true);
+        recordMatch(result.winner, result, targetDay, opponent.name || "Opponent", 'league', customPlayedAt, detId);
+        
+        if (!isCatchUp) {
+          setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, isCup: false });
+          setShowResultDialog(true);
+        }
       }
     } catch (e: any) {
       console.error("Simulation failed", e);
@@ -132,7 +124,7 @@ export function AutoMatchManager() {
     }
   }, [groupPlayers, user, profile, strategy, rank, leagueLevel, divisionSubId, groupId, ownedHeroes, lineup, seasonStartDate, recordMatch, setSyncing]);
 
-  const simulateOneCupMatch = useCallback(async (targetSeason: number, targetDay: number, matchTime: string, isCatchUp: boolean) => {
+  const simulateOneCupMatch = useCallback(async (targetSeason: number, targetDay: number, isCatchUp: boolean) => {
     if (!user || !profile || !allLeaguePlayers || simulationLockRef.current) return;
     
     const detId = `cup_${targetSeason}_${targetDay}`;
@@ -190,11 +182,13 @@ export function AutoMatchManager() {
         isBo2: false, isBo3: true, scoreA: forcedA, scoreB: forcedB
       });
       
-      recordMatch(result.winner, result, targetDay, opponent.name, 'tournament', undefined, detId);
-      
-      if (!isCatchUp) {
-        setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, isCup: true }); 
-        setShowResultDialog(true); 
+      if (result) {
+        recordMatch(result.winner, result, targetDay, opponent.name, 'tournament', undefined, detId);
+        
+        if (!isCatchUp) {
+          setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, isCup: true }); 
+          setShowResultDialog(true); 
+        }
       }
     } catch (e: any) {
       console.error("Cup simulation failed", e);
@@ -215,7 +209,7 @@ export function AutoMatchManager() {
           const detId = `league_${lastProcessedSeason}_${d}`;
           const existing = matchHistory.find(m => m.id === detId);
           if (!existing || existing.preview === undefined) {
-            await simulateOneLeagueMatch(lastProcessedSeason, d, "23:00", true);
+            await simulateOneLeagueMatch(lastProcessedSeason, d, true);
             return; 
           }
         }
@@ -232,8 +226,12 @@ export function AutoMatchManager() {
           const lId = `league_${seasonNumber}_${d}`;
           const lMatch = matchHistory.find(m => m.id === lId);
           const lDue = (d < seasonDay) || isMatchDue(leagueTime, lastLeagueMatchDate);
-          if (lDue && (!lMatch || lMatch.preview === undefined)) {
-            await simulateOneLeagueMatch(seasonNumber, d, leagueTime, d < seasonDay);
+          
+          // Re-simulate if was WAITING but now day is past
+          const isFadedWaiting = lMatch?.opponentName === 'WAITING' && d < seasonDay;
+
+          if ((lDue && (!lMatch || lMatch.preview === undefined)) || isFadedWaiting) {
+            await simulateOneLeagueMatch(seasonNumber, d, d < seasonDay);
             return;
           }
 
@@ -242,7 +240,6 @@ export function AutoMatchManager() {
           const cMatch = matchHistory.find(m => m.id === cId);
           const cDue = (d < seasonDay) || isMatchDue(cupTime, lastCupMatchDate);
           
-          // STRICT ELIMINATION CHECK: Don't simulate cup if already lost a tournament game this season
           const eliminated = matchHistory.some(m => 
             m.type === 'tournament' && 
             m.seasonNumber === seasonNumber && 
@@ -252,8 +249,10 @@ export function AutoMatchManager() {
             m.scoreA < m.scoreB
           );
           
-          if (!eliminated && cDue && (!cMatch || cMatch.preview === undefined || cMatch.opponentName === 'WAITING')) {
-            await simulateOneCupMatch(seasonNumber, d, cupTime, d < seasonDay);
+          const isCupWaiting = cMatch?.opponentName === 'WAITING' && (d < seasonDay || isMatchDue(cupTime, null));
+
+          if (!eliminated && cDue && (!cMatch || cMatch.preview === undefined || isCupWaiting)) {
+            await simulateOneCupMatch(seasonNumber, d, d < seasonDay);
             return;
           }
         }

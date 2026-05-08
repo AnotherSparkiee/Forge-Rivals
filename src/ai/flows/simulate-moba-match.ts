@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Архитектурный модуль симуляции матчей Lines of Enmity.
@@ -102,30 +101,35 @@ export type SimulateMobaMatchOutput = z.infer<typeof SimulateMobaMatchOutputSche
 function generateFallbackSimulation(input: SimulateMobaMatchInput): SimulateMobaMatchOutput {
   const scoreboard = [...input.teamA.heroes, ...input.teamB.heroes].map(h => ({
     name: h.name,
-    team: input.teamA.heroes.includes(h) ? 'A' : 'B',
+    team: input.teamA.heroes.some(th => th.name === h.name) ? 'A' : 'B',
     kda: "0/0/0",
     gpm: 450
   }));
 
+  const forcedScoreA = input.scoreA !== undefined ? input.scoreA : 1;
+  const forcedScoreB = input.scoreB !== undefined ? input.scoreB : 1;
+  const winner = forcedScoreA > forcedScoreB ? input.teamA.name : (forcedScoreA < forcedScoreB ? input.teamB.name : "Draw");
+
   return {
-    winner: "Draw", scoreA: 1, scoreB: 1, duration: "34:12", mvp: input.teamA.heroes[0].name,
-    matchSummary: "Fallback simulation active.",
+    winner, scoreA: forcedScoreA, scoreB: forcedScoreB, duration: "34:12", mvp: input.teamA.heroes[0].name,
+    matchSummary: "Fallback simulation active due to AI unavailability.",
     preview: { teamAOrv: 35, teamBOrv: 35, keyMatchup: "Midlane battle", winProbabilityA: 50 },
-    timeline: [{ phase: 'Mid', time: '15:00', event: 'Equal trade in jungle', score: '5:5' }],
+    timeline: [{ phase: 'Mid', time: '15:00', event: 'Equal trade in jungle', score: `${forcedScoreA}:${forcedScoreB}` }],
     postMatch: {
       lineRatings: { laning: { a: 70, b: 70 }, teamfight: { a: 70, b: 70 }, macro: { a: 70, b: 70 }, mental: { a: 70, b: 70 } },
       scoreboard: scoreboard,
       analysis: "Mathematical parity (Fallback Engine)."
     },
     teamStats: { teamA: { kills: 15, towersDestroyed: 7 }, teamB: { kills: 15, towersDestroyed: 7 } },
-    heroPerformance: []
+    heroPerformance: scoreboard.map(s => ({ heroName: s.name, kills: 0, deaths: 0, assists: 0 }))
   };
 }
 
 export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<SimulateMobaMatchOutput> {
   try {
     const {output} = await simulateMobaMatchFlow(input);
-    return output!;
+    if (!output) return generateFallbackSimulation(input);
+    return output;
   } catch (error: any) {
     console.warn("AI Simulation failed. Fallback active.", error.message);
     return generateFallbackSimulation(input);

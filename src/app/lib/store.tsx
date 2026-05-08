@@ -838,6 +838,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [user, db]);
 
   const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string) => {
+    if (!result) return;
     const matchId = customId || `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     let shouldUpdateDB = false;
@@ -924,7 +925,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         inGameCurrency: newState.credits, 
         rank: newState.rank, 
         lastLeagueMatchDate: newState.lastLeagueMatchDate ?? null, 
-        lastCupMatchDate: newState.lastCupMatchDate ?? null,
+        lastCupMatchDate: newState.lastCupMatchDate ?? null, 
         matchHistory: newState.matchHistory,
         ownedHeroes: sanitizeForFirestore(newState.ownedHeroes)
       }, { merge: true });
