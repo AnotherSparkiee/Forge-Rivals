@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
@@ -31,7 +31,8 @@ export function AutoMatchManager() {
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, 
     seasonDay, seasonNumber, lastLeagueMatchDate, lastCupMatchDate, recordMatch, strategy, rank, seasonStartDate,
-    markMatchAsSeen, matchHistory, seasonResults, dismissSeasonResults, setSyncing, ownedHeroes, lineup
+    markMatchAsSeen, matchHistory, seasonResults, dismissSeasonResults, setSyncing, ownedHeroes, lineup,
+    lastProcessedSeason
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
@@ -41,9 +42,7 @@ export function AutoMatchManager() {
   const [showResultDialog, setShowResultDialog] = useState(false);
   const [currentResult, setCurrentResult] = useState<any | null>(null);
   
-  const simulationRef = useRef(false);
-  const cupSimulationRef = useRef(false);
-  const processedMatchesRef = useRef<Set<string>>(new Set());
+  const simulationLockRef = useRef(false);
   const winnersCache = useRef<Map<string, CupParticipant | null>>(new Map());
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
@@ -71,30 +70,26 @@ export function AutoMatchManager() {
 
   const { data: allLeaguePlayers } = useCollection(allLeaguePlayersQuery);
 
-  const triggerAutoMatch = async (matchTime: string, targetDay: number, detId: string) => {
-    if (!groupPlayers || !user || !profile || simulationRef.current || processedMatchesRef.current.has(detId)) return;
+  const simulateOneLeagueMatch = useCallback(async (targetSeason: number, targetDay: number, matchTime: string, isCatchUp: boolean) => {
+    if (!groupPlayers || !user || !profile || simulationLockRef.current) return;
     
-    const existingMatch = matchHistory.find(m => m.id === detId);
-    const isIncomplete = !existingMatch || existingMatch.preview === undefined;
-    if (!isIncomplete) return;
-
-    processedMatchesRef.current.add(detId);
-    simulationRef.current = true;
+    const detId = `league_${targetSeason}_${targetDay}`;
+    simulationLockRef.current = true;
     setIsSimulating(true);
     setSyncing(true);
     
     try {
       const groupTeams = getMockGroupTeams(rank, profile.displayName || "My Team", leagueLevel, divisionSubId, groupId, profile.selectedLeagueId || "ALPHA", groupPlayers || [], user.uid, 0);
       const schedule = getSchedule(groupTeams);
-      const todayMatch = schedule[targetDay - 1]?.find((m: any) => m.home.id === user.uid || m.away.id === user.uid);
+      const targetMatch = schedule[targetDay - 1]?.find((m: any) => m.home.id === user.uid || m.away.id === user.uid);
       
-      if (!todayMatch) throw new Error("No match scheduled");
+      if (!targetMatch) throw new Error("No match scheduled");
       
-      const opponent = todayMatch.home.id === user.uid ? todayMatch.away : todayMatch.home;
-      const [detScoreA, detScoreB] = getMatchResult(todayMatch.home.id, todayMatch.away.id, targetDay, false);
+      const opponent = targetMatch.home.id === user.uid ? targetMatch.away : targetMatch.home;
+      const [detScoreH, detScoreA] = getMatchResult(targetMatch.home.id, targetMatch.away.id, targetDay, false);
       
-      const forcedScoreA = todayMatch.home.id === user.uid ? detScoreA : detScoreB;
-      const forcedScoreB = todayMatch.away.id === user.uid ? detScoreA : detScoreB;
+      const forcedScoreA = targetMatch.home.id === user.uid ? detScoreH : detScoreA;
+      const forcedScoreB = targetMatch.away.id === user.uid ? detScoreH : detScoreA;
       
       const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
         ...h,
@@ -103,78 +98,60 @@ export function AutoMatchManager() {
 
       const botSquad = getRandomStartingSquad().map((h, i) => ({
         ...h,
-        name: `${h.name} Bot`,
+        name: `${h.name} AI`,
         isSub: i > 4
       }));
 
       const result = await simulateMobaMatch({
         teamA: { name: profile.displayName || "My Team", strategy, heroes: squad },
-        teamB: { 
-          name: opponent.name || "Unknown Team", 
-          strategy: "Advanced Tactics", 
-          heroes: botSquad
-        },
+        teamB: { name: opponent.name || "Opponent", strategy: "Advanced Tactics", heroes: botSquad },
         isBo2: true,
         scoreA: forcedScoreA, 
         scoreB: forcedScoreB
       });
 
       let customPlayedAt = undefined;
-      if (targetDay < seasonDay && seasonStartDate) {
+      if (isCatchUp && seasonStartDate) {
         const d = new Date(seasonStartDate);
+        // This is a simplification; for catch-up across seasons we'd need more complex date math
         d.setDate(d.getDate() + (targetDay - 1));
-        const [h, m] = matchTime.split(':').map(Number);
-        d.setHours(h, m, 0, 0);
         customPlayedAt = d.toISOString();
       }
 
-      recordMatch(result.winner, result, targetDay, opponent.name || "Unknown Team", 'league', customPlayedAt, detId);
+      recordMatch(result.winner, result, targetDay, opponent.name || "Opponent", 'league', customPlayedAt, detId);
       
-      if (targetDay === seasonDay) {
+      if (!isCatchUp) {
         setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, isCup: false });
         setShowResultDialog(true);
       }
     } catch (e: any) {
-      console.error("Sim failed", e);
+      console.error("Simulation failed", e);
     } finally {
       setIsSimulating(false);
-      simulationRef.current = false;
+      simulationLockRef.current = false;
       setSyncing(false);
     }
-  };
+  }, [groupPlayers, user, profile, strategy, rank, leagueLevel, divisionSubId, groupId, ownedHeroes, lineup, seasonStartDate, recordMatch, setSyncing]);
 
-  const triggerCupMatch = async (matchTime: string, targetDay: number, detId: string) => {
-    if (!user || !profile || !allLeaguePlayers || cupSimulationRef.current || processedMatchesRef.current.has(detId)) return;
+  const simulateOneCupMatch = useCallback(async (targetSeason: number, targetDay: number, matchTime: string, isCatchUp: boolean) => {
+    if (!user || !profile || !allLeaguePlayers || simulationLockRef.current) return;
     
-    const existingMatch = matchHistory.find(m => m.id === detId);
-    const wasWaiting = existingMatch?.opponentName === 'WAITING';
-    const isIncomplete = !existingMatch || existingMatch.preview === undefined;
-    
-    if (existingMatch && !isIncomplete && !wasWaiting) return;
-
-    const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < targetDay && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
-    if (wasEliminated) return;
-
-    processedMatchesRef.current.add(detId);
-    cupSimulationRef.current = true;
+    const detId = `cup_${targetSeason}_${targetDay}`;
+    simulationLockRef.current = true;
     setIsSimulating(true);
     setSyncing(true);
     
     try {
-      const participants = getGlobalCupParticipants(allLeaguePlayers, seasonNumber);
+      const participants = getGlobalCupParticipants(allLeaguePlayers, targetSeason);
       const myIdx = participants.findIndex(p => p?.id === user.uid);
-      if (myIdx === -1) throw new Error("User not in cup participants");
+      if (myIdx === -1) return;
 
       const entryRound = getEntryRound(profile.leagueLevel);
       if (targetDay <= entryRound) {
         const seededResult = {
           scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
-          matchSummary: "Seeded progression. No match required for this round.",
-          teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
-          heroPerformance: [],
-          preview: null,
-          timeline: [],
-          postMatch: null
+          matchSummary: "Seeded progression.", teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
+          heroPerformance: [], preview: null, timeline: [], postMatch: null
         };
         recordMatch(seededResult.winner, seededResult, targetDay, "SEEDED", 'tournament', undefined, detId);
         return;
@@ -187,15 +164,10 @@ export function AutoMatchManager() {
       const opponent = getWinnerOfBranch(participants, targetDay - 1, oppBranchStart, winnersCache.current, targetDay - 1);
       
       if (!opponent) {
-        if (wasWaiting) return;
         const waitResult = {
           scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
-          matchSummary: "Waiting for qualifiers. Automatic progression.",
-          teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
-          heroPerformance: [],
-          preview: null,
-          timeline: [],
-          postMatch: null
+          matchSummary: "Automatic progression.", teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
+          heroPerformance: [], preview: null, timeline: [], postMatch: null
         };
         recordMatch(waitResult.winner, waitResult, targetDay, "WAITING", 'tournament', undefined, detId);
         return;
@@ -209,115 +181,93 @@ export function AutoMatchManager() {
 
       const botSquad = getRandomStartingSquad().map((h, i) => ({
         ...h,
-        name: `${h.name} Cup AI`,
+        name: `${h.name} AI`,
         isSub: i > 4
       }));
 
       const result = await simulateMobaMatch({
-        teamA: { name: profile.displayName || "My Team", strategy, heroes: squad },
-        teamB: { 
-          name: opponent.name, 
-          strategy: "Tournament Execution", 
-          heroes: botSquad
-        },
-        isBo2: false,
-        isBo3: true,
-        scoreA: forcedA,
-        scoreB: forcedB
+        teamA: { name: profile.displayName || "Manager", strategy, heroes: squad },
+        teamB: { name: opponent.name, strategy: "Tournament Execution", heroes: botSquad },
+        isBo2: false, isBo3: true, scoreA: forcedA, scoreB: forcedB
       });
       
-      let customPlayedAt = undefined;
-      if (targetDay < seasonDay && seasonStartDate) {
-        const d = new Date(seasonStartDate);
-        d.setDate(d.getDate() + (targetDay - 1));
-        const [h, m] = matchTime.split(':').map(Number);
-        d.setHours(h, m, 0, 0); 
-        customPlayedAt = d.toISOString();
-      }
-
-      recordMatch(result.winner, result, targetDay, opponent.name, 'tournament', customPlayedAt, detId);
+      recordMatch(result.winner, result, targetDay, opponent.name, 'tournament', undefined, detId);
       
-      if (targetDay === seasonDay) { 
+      if (!isCatchUp) {
         setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, isCup: true }); 
         setShowResultDialog(true); 
       }
     } catch (e: any) {
-      console.error("Cup Sim failed", e);
+      console.error("Cup simulation failed", e);
     } finally {
       setIsSimulating(false);
-      cupSimulationRef.current = false;
+      simulationLockRef.current = false;
       setSyncing(false);
     }
-  };
+  }, [allLeaguePlayers, user, profile, strategy, ownedHeroes, lineup, recordMatch, setSyncing]);
 
   useEffect(() => {
-    if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !isUserLoading && profile?.selectedLeagueId && groupPlayers && user) {
-      const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
-      const matchTime = league?.startTime || '23:00';
-      
-      const catchUp = async () => {
+    if (!isLoaded || isUserLoading || isSimulating || !profile?.selectedLeagueId || !user) return;
+
+    const findAndSimulateNext = async () => {
+      // 1. Finish previous seasons if any
+      if (lastProcessedSeason > 0 && lastProcessedSeason < seasonNumber) {
+        for (let d = 1; d <= 14; d++) {
+          const detId = `league_${lastProcessedSeason}_${d}`;
+          const existing = matchHistory.find(m => m.id === detId);
+          if (!existing || existing.preview === undefined) {
+            await simulateOneLeagueMatch(lastProcessedSeason, d, "23:00", true);
+            return; // Simulate only one per cycle
+          }
+        }
+      }
+
+      // 2. Current season matches
+      if (seasonDay > 0 && seasonDay <= 14) {
+        const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
+        const leagueTime = league?.startTime || '23:00';
+        const cupTime = "07:00";
+
         for (let d = 1; d <= seasonDay; d++) {
-          const detId = `league_${seasonNumber}_${d}`;
-          const existingMatch = matchHistory.find(m => m.id === detId);
-          const isIncomplete = !existingMatch || existingMatch.preview === undefined;
+          // Check League
+          const lId = `league_${seasonNumber}_${d}`;
+          const lMatch = matchHistory.find(m => m.id === lId);
+          const lDue = (d < seasonDay) || isMatchDue(leagueTime, lastLeagueMatchDate);
+          if (lDue && (!lMatch || lMatch.preview === undefined)) {
+            await simulateOneLeagueMatch(seasonNumber, d, leagueTime, d < seasonDay);
+            return;
+          }
+
+          // Check Cup
+          const cId = `cup_${seasonNumber}_${d}`;
+          const cMatch = matchHistory.find(m => m.id === cId);
+          const cDue = (d < seasonDay) || isMatchDue(cupTime, lastCupMatchDate);
+          const eliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
           
-          if (isIncomplete && !processedMatchesRef.current.has(detId)) {
-            if (d < seasonDay || isMatchDue(matchTime, lastLeagueMatchDate)) {
-              await triggerAutoMatch(matchTime, d, detId);
-            }
+          if (!eliminated && cDue && (!cMatch || cMatch.preview === undefined || cMatch.opponentName === 'WAITING')) {
+            await simulateOneCupMatch(seasonNumber, d, cupTime, d < seasonDay);
+            return;
           }
         }
-      };
-      catchUp();
-    }
-  }, [isLoaded, seasonDay, seasonNumber, profile?.selectedLeagueId, !!groupPlayers]);
+      }
+    };
 
-  useEffect(() => {
-    if (isLoaded && seasonDay > 0 && seasonDay <= 14 && !isSimulating && !isUserLoading && profile?.selectedLeagueId && user && allLeaguePlayers && allLeaguePlayers.length > 0) {
-      const cupTime = "07:00"; 
-      
-      const catchUpCup = async () => {
-        for (let d = 1; d <= seasonDay; d++) {
-          const detId = `cup_${seasonNumber}_${d}`;
-          const existingMatch = matchHistory.find(m => m.id === detId);
-          const wasWaiting = existingMatch?.opponentName === 'WAITING';
-          const isIncomplete = !existingMatch || existingMatch.preview === undefined;
-
-          const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
-          if (wasEliminated) break;
-
-          if ((isIncomplete || wasWaiting) && !processedMatchesRef.current.has(detId)) {
-            if (d < seasonDay || isMatchDue(cupTime, lastCupMatchDate)) {
-              await triggerCupMatch(cupTime, d, detId);
-            }
-          }
-        }
-      };
-      catchUpCup();
-    }
-  }, [isLoaded, seasonDay, seasonNumber, profile?.selectedLeagueId, !!allLeaguePlayers]);
+    const timer = setTimeout(findAndSimulateNext, 2000);
+    return () => clearTimeout(timer);
+  }, [isLoaded, isUserLoading, isSimulating, seasonDay, seasonNumber, lastProcessedSeason, matchHistory, profile?.selectedLeagueId, lastLeagueMatchDate, lastCupMatchDate, simulateOneLeagueMatch, simulateOneCupMatch, user]);
 
   const handleGoToReport = () => {
     setShowResultDialog(false);
     const targetId = currentResult?.id;
     if (currentResult && !currentResult.isCup) markMatchAsSeen(currentResult.day);
-    if (targetId) {
-      router.push(`/match?id=${targetId}`);
-    } else {
-      router.push('/match');
-    }
+    if (targetId) router.push(`/match?id=${targetId}`);
   };
 
   const t = { 
-    title: language === 'ru' ? 'ИТОГИ СЕЗОНА' : 'SEASON RESULTS', 
     congrats: language === 'ru' ? 'СЕЗОН ЗАВЕРШЕН!' : 'SEASON COMPLETE!', 
     pos: language === 'ru' ? 'Ваше место:' : 'Your Place:', 
     pts: language === 'ru' ? 'Набрано очков:' : 'Points Scored:', 
-    promoted: language === 'ru' ? 'ПОВЫШЕНИЕ В КЛАССЕ!' : 'PROMOTED!', 
-    demoted: language === 'ru' ? 'ПОНИЖЕНИЕ В КЛАССЕ' : 'RELEGATED', 
-    stayed: language === 'ru' ? 'ПОЗИЦИЯ СОХРАНЕНА' : 'POSITION MAINTAINED', 
     next: language === 'ru' ? 'СЛЕДУЮЩИЙ СЕЗОН' : 'NEXT SEASON',
-    victory: language === 'ru' ? 'ОПЕРАЦИЯ ЗАВЕРШЕНА' : 'ENGAGEMENT COMPLETE',
     alert: language === 'ru' ? 'ТАКТИЧЕСКАЯ СВОДКА' : 'TACTICAL ALERT',
     proceed: language === 'ru' ? 'ПЕРЕЙТИ К ОТЧЕТУ' : 'PROCEED TO REPORT',
     desc: language === 'ru' ? 'Технический отчет о столкновении расшифрован и готов к изучению.' : 'Technical after-action report decrypted and ready for evaluation.'
@@ -325,38 +275,23 @@ export function AutoMatchManager() {
 
   return (
     <>
-      <Dialog open={showResultDialog} onOpenChange={(open) => { if (!open) setShowResultDialog(false); }}>
+      <Dialog open={showResultDialog} onOpenChange={setShowResultDialog}>
         <DialogContent className="max-w-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
           <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
             <div className="mx-auto w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary shadow-[0_0_20px_rgba(var(--primary),0.3)]">
               <Zap className="w-8 h-8 text-primary animate-pulse" />
             </div>
-            <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">
-              {t.alert}
-            </DialogTitle>
-            <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">
-              {t.victory}
-            </DialogDescription>
+            <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">{t.alert}</DialogTitle>
           </div>
-
           <div className="p-6 space-y-4">
             <div className="bg-secondary/30 rounded-xl border border-white/5 p-4 flex items-center gap-4">
-              <div className="p-2 rounded-lg bg-primary/20">
-                <FileText className="w-5 h-5 text-primary" />
-              </div>
-              <p className="text-xs leading-relaxed text-muted-foreground italic">
-                "{t.desc}"
-              </p>
+              <div className="p-2 rounded-lg bg-primary/20"><FileText className="w-5 h-5 text-primary" /></div>
+              <p className="text-xs leading-relaxed text-muted-foreground italic">"{t.desc}"</p>
             </div>
           </div>
-
           <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5">
-            <Button 
-              className="w-full h-12 hero-gradient font-bold uppercase text-xs tracking-widest" 
-              onClick={handleGoToReport}
-            >
-              <ArrowRight className="w-4 h-4 mr-2" />
-              {t.proceed}
+            <Button className="w-full h-12 hero-gradient font-bold uppercase text-xs tracking-widest" onClick={handleGoToReport}>
+              <ArrowRight className="w-4 h-4 mr-2" /> {t.proceed}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -366,7 +301,6 @@ export function AutoMatchManager() {
         <DialogContent className="max-w-md p-0 overflow-hidden bg-background border-white/10 shadow-2xl">
           <div className="p-8 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
             <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-primary">{t.congrats}</DialogTitle>
-            <DialogDescription className="sr-only">{t.title}</DialogDescription>
           </div>
           <div className="p-8 space-y-6">
             <div className="grid grid-cols-2 gap-4">

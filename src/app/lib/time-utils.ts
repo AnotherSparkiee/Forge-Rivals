@@ -3,11 +3,22 @@
  */
 
 export function getMoscowTime(): Date {
-  // Moscow is UTC+3.
   const now = new Date();
-  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-  const mskOffset = 3 * 3600000;
-  return new Date(utc + mskOffset);
+  // Using Intl to get parts in Moscow timezone regardless of system local
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: 'numeric', second: 'numeric',
+    hour12: false
+  });
+  
+  const parts = formatter.formatToParts(now);
+  const p: Record<string, number> = {};
+  parts.forEach(part => {
+    if (part.type !== 'literal') p[part.type] = parseInt(part.value);
+  });
+
+  return new Date(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
 }
 
 export function getMoscowDateString(): string {
@@ -36,6 +47,7 @@ export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   // Fixed Epoch: Jan 1st, 2024
   const epoch = Date.UTC(2024, 0, 1);
+  // Get current MSK date at 00:00:00 UTC for consistent day counting
   const nowUtc = Date.UTC(mskNow.getFullYear(), mskNow.getMonth(), mskNow.getDate());
   
   const diffDays = Math.floor((nowUtc - epoch) / (1000 * 60 * 60 * 24));
@@ -85,6 +97,5 @@ export function isMatchDue(startTimeStr: string, lastMatchDateStr: string | null
  * Calculates the Pyramid Cup match time (Fixed at 07:00 MSK for all)
  */
 export function getPyramidCupTime(leagueStartTime?: string): string {
-  // Disregard leagueStartTime, user requested fixed 07:00 finish for Cup
   return "07:00";
 }
