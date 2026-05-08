@@ -113,7 +113,6 @@ export function AutoMatchManager() {
       let customPlayedAt = undefined;
       if (isCatchUp && seasonStartDate) {
         const d = new Date(seasonStartDate);
-        // This is a simplification; for catch-up across seasons we'd need more complex date math
         d.setDate(d.getDate() + (targetDay - 1));
         customPlayedAt = d.toISOString();
       }
@@ -217,7 +216,7 @@ export function AutoMatchManager() {
           const existing = matchHistory.find(m => m.id === detId);
           if (!existing || existing.preview === undefined) {
             await simulateOneLeagueMatch(lastProcessedSeason, d, "23:00", true);
-            return; // Simulate only one per cycle
+            return; 
           }
         }
       }
@@ -242,7 +241,16 @@ export function AutoMatchManager() {
           const cId = `cup_${seasonNumber}_${d}`;
           const cMatch = matchHistory.find(m => m.id === cId);
           const cDue = (d < seasonDay) || isMatchDue(cupTime, lastCupMatchDate);
-          const eliminated = matchHistory.some(m => m.type === 'tournament' && m.day < d && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
+          
+          // STRICT ELIMINATION CHECK: Don't simulate cup if already lost a tournament game this season
+          const eliminated = matchHistory.some(m => 
+            m.type === 'tournament' && 
+            m.seasonNumber === seasonNumber && 
+            m.day < d && 
+            m.opponentName !== 'SEEDED' && 
+            m.opponentName !== 'WAITING' &&
+            m.scoreA < m.scoreB
+          );
           
           if (!eliminated && cDue && (!cMatch || cMatch.preview === undefined || cMatch.opponentName === 'WAITING')) {
             await simulateOneCupMatch(seasonNumber, d, cupTime, d < seasonDay);

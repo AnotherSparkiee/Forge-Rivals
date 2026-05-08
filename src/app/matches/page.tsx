@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -199,11 +198,19 @@ export default function MatchesPage() {
   // Priority 4: Official (League or Pyramid Cup)
   const cupNextMatch = useMemo(() => {
     if (!isLoaded || !profile || seasonDay > 14) return null;
-    const cupTime = "07:00";
-    const wasEliminated = matchHistory.some(m => m.type === 'tournament' && m.scoreA < m.scoreB && m.seasonNumber === seasonNumber);
+    
+    // STRICT ELIMINATION CHECK: If user has ANY loss in tournament for this season, hide cup.
+    const wasEliminated = matchHistory.some(m => 
+      m.type === 'tournament' && 
+      m.seasonNumber === seasonNumber && 
+      m.opponentName !== 'SEEDED' && 
+      m.opponentName !== 'WAITING' &&
+      m.scoreA < m.scoreB
+    );
     
     if (wasEliminated) return null;
-    
+
+    const cupTime = "07:00";
     return { 
       opponent: { name: "Tournament Rival", isPlayer: false },
       time: cupTime,
