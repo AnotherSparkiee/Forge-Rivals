@@ -40,65 +40,21 @@
       },
       "required": ["id", "displayName", "email", "inGameCurrency", "experiencePoints", "lastLoginDate", "createdAt", "ownedHeroIds"]
     },
-    "FriendlyLobby": {
+    "MarketAgent": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "FriendlyLobby",
+      "title": "MarketAgent",
       "type": "object",
-      "description": "A temporary lobby for matchmaking friendly matches.",
+      "description": "A free agent available on the global transfer market.",
       "properties": {
-        "hostId": { "type": "string" },
-        "hostName": { "type": "string" },
-        "status": { "type": "string", "enum": ["searching", "challenged", "accepted", "rejected"] },
-        "challengerId": { "type": "string" },
-        "challengerName": { "type": "string" },
-        "matchResult": { "type": "object" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "id": { "type": "string" },
+        "heroData": { "type": "object" },
+        "currentBid": { "type": "number" },
+        "startingPrice": { "type": "number" },
+        "highestBidderId": { "type": "string" },
+        "highestBidderName": { "type": "string" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "dropDate": { "type": "string" }
       }
-    },
-    "CWBasketEntry": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "CWBasketEntry",
-      "type": "object",
-      "description": "A request in the quick match basket.",
-      "properties": {
-        "userId": { "type": "string" },
-        "userName": { "type": "string" },
-        "status": { "type": "string", "enum": ["searching", "matched"] },
-        "matchedWithId": { "type": "string" },
-        "matchedWithName": { "type": "string" },
-        "matchStartTime": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      }
-    },
-    "ChatMessage": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "ChatMessage",
-      "type": "object",
-      "description": "A message sent in a chat room.",
-      "properties": {
-        "userId": { "type": "string" },
-        "userName": { "type": "string" },
-        "text": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["userId", "userName", "text", "createdAt"]
-    },
-    "PrivateMessage": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "PrivateMessage",
-      "type": "object",
-      "description": "A secured transmission between two managers.",
-      "properties": {
-        "senderId": { "type": "string" },
-        "senderName": { "type": "string" },
-        "receiverId": { "type": "string" },
-        "receiverName": { "type": "string" },
-        "participants": { "type": "array", "items": { "type": "string" } },
-        "text": { "type": "string" },
-        "read": { "type": "boolean" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["senderId", "receiverId", "participants", "text", "createdAt", "read"]
     }
   },
   "auth": {
@@ -111,20 +67,8 @@
         "definition": { "entityName": "UserProfile" }
       },
       {
-        "path": "/friendly_lobbies/{userId}",
-        "definition": { "entityName": "FriendlyLobby" }
-      },
-      {
-        "path": "/cw_basket/{userId}",
-        "definition": { "entityName": "CWBasketEntry" }
-      },
-      {
-        "path": "/global_chat/{messageId}",
-        "definition": { "entityName": "ChatMessage" }
-      },
-      {
-        "path": "/private_messages/{messageId}",
-        "definition": { "entityName": "PrivateMessage" }
+        "path": "/market_v1/{agentId}",
+        "definition": { "entityName": "MarketAgent" }
       }
     ]
   }

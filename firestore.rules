@@ -7,10 +7,17 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Version 5 - Fresh reset with email verification
     match /players_v5/{userId} {
       allow read: if true;
       allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /market_v1/{agentId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() 
+        && request.resource.data.currentBid >= (resource.data.currentBid * 1.03)
+        && request.resource.data.highestBidderId == request.auth.uid;
     }
 
     match /friendly_lobbies/{userId} {
