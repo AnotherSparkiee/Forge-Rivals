@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -39,8 +40,8 @@ export default function TransfersPage() {
         { label: 'PRO Players', desc: 'Elite professional athletes market', icon: Star, active: false },
         { label: 'Quick Search', desc: 'Rapid acquisition protocols', icon: Search, active: true, href: '/transfers/quick-search' },
         { label: 'Advanced Search', desc: 'Detailed scouting filters', icon: SlidersHorizontal, active: true, href: '/transfers/advanced-search' },
-        { label: 'My Purchases', desc: 'Acquisition history dossier', icon: Package, active: false },
-        { label: 'My Sales', desc: 'Transfer revenue records', icon: Coins, active: false },
+        { label: 'My Bids', desc: 'Track and re-bid on active agents', icon: Package, active: true, href: '/transfers/my-bids' },
+        { label: 'My Sales', desc: 'Monitor your players on auction', icon: Coins, active: true, href: '/transfers/my-sales' },
       ]
     },
     ru: {
@@ -51,8 +52,8 @@ export default function TransfersPage() {
         { label: 'PRO-Игроки', desc: 'Рынок элитных профессионалов', icon: Star, active: false },
         { label: 'Быстрый поиск', desc: 'Протоколы мгновенного найма', icon: Search, active: true, href: '/transfers/quick-search' },
         { label: 'Расширенный поиск', desc: 'Детальные фильтры скаутинга', icon: SlidersHorizontal, active: true, href: '/transfers/advanced-search' },
-        { label: 'Мои покупки', desc: 'Досье истории приобретений', icon: Package, active: false },
-        { label: 'Мои продажи', desc: 'Записи о доходах с трансферов', icon: Coins, active: false },
+        { label: 'Мои покупки', desc: 'Список игроков на которых вы ставили', icon: Package, active: true, href: '/transfers/my-bids' },
+        { label: 'Мои продажи', desc: 'Ваши игроки на трансферном рынке', icon: Coins, active: true, href: '/transfers/my-sales' },
       ]
     }
   };

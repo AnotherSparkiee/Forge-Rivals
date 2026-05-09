@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useDoc } from '@/firebase';
-import { collection, query, where, doc } from 'firebase/firestore';
+import { collection, query, where, doc, arrayUnion } from 'firebase/firestore';
 import { getMoscowDateString } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -61,7 +61,6 @@ export default function AdvancedSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
-    // Only query if user is definitely authenticated and profile is ready
     if (isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
   }, [db, today, user?.uid, isUserLoading, isProfileLoading, !!profile]);
@@ -96,6 +95,14 @@ export default function AdvancedSearchPage() {
       return;
     }
 
+    if (agent.sellerId === user.uid) {
+      toast({ 
+        title: language === 'ru' ? "Это ваш игрок" : "You are the seller", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     const minNextBid = Math.ceil(agent.currentBid * 1.03);
     if (credits < minNextBid) {
       toast({ 
@@ -110,7 +117,8 @@ export default function AdvancedSearchPage() {
       updateDocumentNonBlocking(doc(db, 'market_v1', agent.id), {
         currentBid: minNextBid,
         highestBidderId: user.uid,
-        highestBidderName: profile.displayName || "Manager"
+        highestBidderName: profile.displayName || "Manager",
+        bidders: arrayUnion(user.uid)
       });
       toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Placed!" });
     } finally {
@@ -256,6 +264,7 @@ export default function AdvancedSearchPage() {
           filteredAgents.map((agent) => {
             const player = agent.heroData;
             const isLeading = agent.highestBidderId === user?.uid;
+            const isSeller = agent.sellerId === user?.uid;
             const minNext = Math.ceil(agent.currentBid * 1.03);
             const isClosed = now >= new Date(agent.expiresAt).getTime();
 
@@ -280,6 +289,7 @@ export default function AdvancedSearchPage() {
                       <div className="flex items-center gap-2">
                         <h3 className="text-sm font-bold uppercase truncate">{player.name}</h3>
                         {isLeading && <Badge className="bg-green-500 text-white text-[7px] h-3 px-1 uppercase font-black">LEADER</Badge>}
+                        {isSeller && <Badge className="bg-primary text-primary-foreground text-[7px] h-3 px-1 uppercase font-black">YOUR PLAYER</Badge>}
                       </div>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[8px] font-bold text-muted-foreground uppercase flex items-center gap-1">
@@ -304,9 +314,6 @@ export default function AdvancedSearchPage() {
                         <Gavel className="w-2.5 h-2.5" /> {t.bid}
                       </p>
                       <p className="text-sm font-headline font-bold text-white">€{agent.currentBid.toLocaleString()}</p>
-                      {agent.highestBidderName && (
-                        <p className="text-[7px] text-accent font-bold uppercase mt-1 truncate">Leader: {agent.highestBidderName}</p>
-                      )}
                     </div>
                     <div className="bg-secondary/40 p-2.5 rounded-xl border border-white/5">
                       <p className="text-[7px] uppercase font-black text-muted-foreground flex items-center gap-1 mb-1">
@@ -323,10 +330,10 @@ export default function AdvancedSearchPage() {
                       isLeading ? "bg-green-600 hover:bg-green-700" : "hero-gradient"
                     )}
                     onClick={() => handleBid(agent)}
-                    disabled={!!isBidding || isClosed || isLeading}
+                    disabled={!!isBidding || isClosed || isLeading || isSeller}
                   >
                     {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gavel className="w-4 h-4 mr-2" />}
-                    {isClosed ? "CLOSED" : (isLeading ? "YOUR BID IS HIGHEST" : "PLACE BID")}
+                    {isClosed ? "CLOSED" : (isLeading ? "YOUR BID IS HIGHEST" : (isSeller ? "CANNOT BID ON SELF" : "PLACE BID"))}
                   </Button>
                 </CardContent>
               </Card>

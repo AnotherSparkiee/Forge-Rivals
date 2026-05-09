@@ -20,10 +20,14 @@ service cloud.firestore {
       allow update: if isSignedIn() 
         && (
           // 1. Allow if document is being initialized (no bidder yet)
-          resource.data.get('highestBidderId', null) == null ||
-          // 2. Standard auction rule: +3% increment and requester becomes the leader
-          (request.resource.data.currentBid >= (resource.data.currentBid * 1.03)
-           && request.resource.data.highestBidderId == request.auth.uid)
+          !('highestBidderId' in resource.data) || resource.data.highestBidderId == null ||
+          // 2. Standard auction rule: +3% increment, requester becomes leader, and not bidding on self
+          (
+            request.resource.data.currentBid >= (resource.data.currentBid * 1.03) &&
+            request.resource.data.highestBidderId == request.auth.uid &&
+            // Prevent bidding on your own players
+            (!('sellerId' in resource.data) || resource.data.sellerId != request.auth.uid)
+          )
         );
       allow delete: if false;
     }

@@ -11,7 +11,7 @@ import {
   ChevronLeft, Scroll, User, Star, Trash2, 
   Coins, Gem, HeartPulse, ShieldAlert, Award,
   Info, TrendingUp, Eye, Target, Brain, Map, Users,
-  Zap, Sparkles, Sword, Crosshair, Activity
+  Zap, Sparkles, Sword, Crosshair, Activity, ShoppingCart, Loader2
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
@@ -23,14 +23,24 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogPortal
+  DialogPortal,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
+import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 
 export default function ContractsPage() {
   const { ownedHeroes, language, isLoaded, credits, crystals, updateHero, removeHero } = useGameState();
+  const { user } = useUser();
+  const db = useFirestore();
   const [profileHero, setProfileHero] = useState<Hero | null>(null);
+  const [isTransferring, setIsTransferring] = useState(false);
   const { toast } = useToast();
+
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
+  const { data: profile } = useDoc(userRef);
 
   if (!isLoaded) return <LoadingScreen />;
 
@@ -39,6 +49,7 @@ export default function ContractsPage() {
     subtitle: language === 'ru' ? "Администрирование состава" : "Squad administration",
     sell: language === 'ru' ? "ПРОДАТЬ" : "SELL",
     dismiss: language === 'ru' ? "УВОЛИТЬ" : "DISMISS",
+    onTransfer: language === 'ru' ? "ВЫСТАВИТЬ НА РЫНОК" : "PUT ON TRANSFER",
     recoverEuro: language === 'ru' ? "СНЯТЬ УСТАЛОСТЬ (ЕВРО)" : "REMOVE FATIGUE (EURO)",
     recoverGems: language === 'ru' ? "СНЯТЬ УСТАЛОСТЬ (ГЕМЫ)" : "REMOVE FATIGUE (GEMS)",
     boostForm: language === 'ru' ? "ПОДНЯТЬ ФОРМУ" : "BOOST FORM",
@@ -47,6 +58,7 @@ export default function ContractsPage() {
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     years: language === 'ru' ? "лет" : "yrs",
     stats: language === 'ru' ? "Навыки и таланты" : "Skills & Talents",
+    transferDesc: language === 'ru' ? "Игрок будет выставлен на аукцион на 12 часов. Вы получите финальную ставку по окончании торгов." : "The player will be listed for 12 hours. You will receive the final bid amount when the auction ends.",
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
       mapAwareness: language === 'ru' ? "Контроль карты" : "Map Awareness",
@@ -61,10 +73,51 @@ export default function ContractsPage() {
     }
   };
 
-  const handleAction = (action: string) => {
+  const handleAction = async (action: string) => {
     if (!profileHero) return;
 
     switch (action) {
+      case 'onTransfer':
+        if (!user || !profile) return;
+        setIsTransferring(true);
+        try {
+          const today = getMoscowDateString();
+          const mskNow = getMoscowTime();
+          const expiryTime = new Date(mskNow);
+          expiryTime.setHours(expiryTime.getHours() + 12);
+          
+          const startPrice = (profileHero.overallRating * 15000) + 100000;
+          const agentId = `user_${user.uid}_${Date.now()}`;
+          
+          const agentData = {
+            id: agentId,
+            heroData: JSON.parse(JSON.stringify(profileHero)),
+            currentBid: startPrice,
+            startingPrice: startPrice,
+            highestBidderId: null,
+            highestBidderName: null,
+            bidders: [],
+            sellerId: user.uid,
+            sellerName: profile.displayName || "Manager",
+            expiresAt: expiryTime.toISOString(),
+            dropDate: today,
+            dropTime: mskNow.toISOString()
+          };
+
+          setDocumentNonBlocking(doc(db, 'market_v1', agentId), agentData, { merge: true });
+          removeHero(profileHero.id, 0);
+          
+          toast({ 
+            title: language === 'ru' ? "Игрок выставлен на трансфер" : "Player Listed for Transfer",
+            description: language === 'ru' ? "Вы можете следить за торгами в меню Трансферы." : "You can monitor the auction in Transfers menu."
+          });
+          setProfileHero(null);
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setIsTransferring(false);
+        }
+        break;
       case 'sell':
         removeHero(profileHero.id, 50000);
         toast({ title: language === 'ru' ? "Игрок продан" : "Hero Sold", description: "+50,000 €" });
@@ -265,6 +318,23 @@ export default function ContractsPage() {
                             <p className="text-[8px] text-muted-foreground">+15% Form | Cost: 10,000 €</p>
                           </div>
                         </Button>
+
+                        <div className="pt-4 space-y-2">
+                           <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 flex gap-3">
+                             <Info className="w-4 h-4 text-primary shrink-0" />
+                             <p className="text-[9px] text-muted-foreground leading-tight italic">{t.transferDesc}</p>
+                           </div>
+                           <Button 
+                             variant="outline" 
+                             className="w-full h-12 border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary group" 
+                             onClick={() => handleAction('onTransfer')}
+                             disabled={isTransferring}
+                           >
+                             {isTransferring ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-3" />}
+                             <span className="text-[9px] font-black uppercase tracking-widest">{t.onTransfer}</span>
+                           </Button>
+                        </div>
+
                         {profileHero.isInjured && (
                           <Button variant="outline" className="justify-start h-12 border-red-500/20 bg-red-500/5 hover:bg-red-500/10 group" onClick={() => handleAction('heal')}>
                             <HeartPulse className="w-4 h-4 mr-3 text-red-400" />

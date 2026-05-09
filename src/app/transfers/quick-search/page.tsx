@@ -17,7 +17,7 @@ import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { generateUniqueHero, Role } from '@/app/lib/moba-data';
 import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, setDocumentNonBlocking, useDoc } from '@/firebase';
-import { collection, query, where, doc } from 'firebase/firestore';
+import { collection, query, where, doc, arrayUnion } from 'firebase/firestore';
 import { getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -40,7 +40,6 @@ export default function QuickSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
-    // Only query if user is definitely authenticated and profile is ready
     if (isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
   }, [db, today, user?.uid, isUserLoading, isProfileLoading, !!profile]);
@@ -48,7 +47,6 @@ export default function QuickSearchPage() {
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
   useEffect(() => {
-    // Only initialize if market is definitely empty for today and we are authorized
     if (isLoaded && !isUserLoading && !isProfileLoading && user?.uid && profile && isMarketLoading === false && Array.isArray(agents) && agents.length === 0) {
       const initMarket = async () => {
         const dateSeed = today.split('-').reduce((acc, v) => acc + parseInt(v), 0);
@@ -76,6 +74,7 @@ export default function QuickSearchPage() {
               startingPrice: startPrice,
               highestBidderId: null,
               highestBidderName: null,
+              bidders: [],
               expiresAt: expiryTime.toISOString(),
               dropDate: today,
               dropTime: dropTime.toISOString()
@@ -95,7 +94,14 @@ export default function QuickSearchPage() {
     if (agent.highestBidderId === user.uid) {
       toast({ 
         title: language === 'ru' ? "Вы уже лидер" : "You are leading", 
-        description: language === 'ru' ? "Дождитесь, пока кто-то перебьет вашу ставку." : "Wait for someone to outbid you.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    if (agent.sellerId === user.uid) {
+      toast({ 
+        title: language === 'ru' ? "Это ваш игрок" : "You are the seller", 
         variant: "destructive" 
       });
       return;
@@ -113,12 +119,11 @@ export default function QuickSearchPage() {
 
     setIsBidding(agent.id);
     try {
-      const agentRef = doc(db, 'market_v1', agent.id);
-      
-      updateDocumentNonBlocking(agentRef, {
+      updateDocumentNonBlocking(doc(db, 'market_v1', agent.id), {
         currentBid: minNextBid,
         highestBidderId: user.uid,
-        highestBidderName: profile.displayName || "Manager"
+        highestBidderName: profile.displayName || "Manager",
+        bidders: arrayUnion(user.uid)
       });
 
       toast({ 
@@ -148,7 +153,6 @@ export default function QuickSearchPage() {
     bid: language === 'ru' ? "СТАВКА" : "BID",
     minNext: language === 'ru' ? "Мин. след." : "Min Next",
     leader: language === 'ru' ? "Лидер" : "Leader",
-    startsIn: language === 'ru' ? "Начало через" : "Starts in",
     noPlayers: language === 'ru' ? "Кандидаты появятся позже" : "Candidates appearing soon",
     roles: [
       { id: 'Carry', label: language === 'ru' ? "Керри" : "Carry" },
@@ -218,6 +222,7 @@ export default function QuickSearchPage() {
                 roleAgents.map((agent) => {
                   const player = agent.heroData;
                   const isLeading = agent.highestBidderId === user?.uid;
+                  const isSeller = agent.sellerId === user?.uid;
                   const minNext = Math.ceil(agent.currentBid * 1.03);
                   const isClosed = now >= new Date(agent.expiresAt).getTime();
 
@@ -242,6 +247,7 @@ export default function QuickSearchPage() {
                             <div className="flex items-center gap-2">
                               <h3 className="text-sm font-bold uppercase truncate">{player.name}</h3>
                               {isLeading && <Badge className="bg-green-500 text-white text-[7px] h-3 px-1 uppercase font-black">LEADER</Badge>}
+                              {isSeller && <Badge className="bg-primary text-primary-foreground text-[7px] h-3 px-1 uppercase font-black">YOUR PLAYER</Badge>}
                             </div>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-[8px] font-bold text-muted-foreground uppercase flex items-center gap-1">
@@ -267,12 +273,12 @@ export default function QuickSearchPage() {
                             </p>
                             <p className="text-sm font-headline font-bold text-white">€{agent.currentBid.toLocaleString()}</p>
                             {agent.highestBidderName && (
-                              <p className="text-[7px] text-accent font-bold uppercase mt-1 truncate">{t.leader}: {agent.highestBidderName}</p>
+                              <p className="text-[7px] text-accent font-bold uppercase mt-1 truncate">Leader: {agent.highestBidderName}</p>
                             )}
                           </div>
                           <div className="bg-secondary/40 p-2.5 rounded-xl border border-white/5">
                             <p className="text-[7px] uppercase font-black text-muted-foreground flex items-center gap-1 mb-1">
-                              <TrendingUp className="w-2.5 h-2.5" /> {t.minNext}
+                              <TrendingUp className="w-2.5 h-2.5" /> Next Min
                             </p>
                             <p className="text-sm font-headline font-bold text-primary">€{minNext.toLocaleString()}</p>
                             <p className="text-[7px] text-muted-foreground font-bold uppercase mt-1">+3% Increment</p>
@@ -285,26 +291,21 @@ export default function QuickSearchPage() {
                             isLeading ? "bg-green-600 hover:bg-green-700" : "hero-gradient"
                           )}
                           onClick={() => handleBid(agent)}
-                          disabled={!!isBidding || isClosed || isLeading}
+                          disabled={!!isBidding || isClosed || isLeading || isSeller}
                         >
                           {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gavel className="w-4 h-4 mr-2" />}
-                          {isClosed ? "AUCTION CLOSED" : (isLeading ? "YOUR BID IS HIGHEST" : "PLACE BID")}
+                          {isClosed ? "AUCTION CLOSED" : (isLeading ? "YOUR BID IS HIGHEST" : (isSeller ? "CANNOT BID ON SELF" : "PLACE BID"))}
                         </Button>
                       </CardContent>
                     </Card>
                   );
                 })
-              ) : upcomingAgents.length > 0 ? (
+              ) : (
                 <div className="py-20 text-center opacity-40">
                   <Clock className="w-12 h-12 mx-auto mb-4 text-muted-foreground animate-pulse" />
                   <p className="text-xs uppercase font-black tracking-widest leading-relaxed">
                     {t.noPlayers}
                   </p>
-                </div>
-              ) : (
-                <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
-                  <AlertTriangle className="w-16 h-16" />
-                  <p className="text-xs font-bold uppercase tracking-widest">{t.noPlayers}</p>
                 </div>
               )}
             </TabsContent>
