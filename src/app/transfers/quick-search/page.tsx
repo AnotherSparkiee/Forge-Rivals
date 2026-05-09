@@ -16,8 +16,8 @@ import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { generateUniqueHero, Role } from '@/app/lib/moba-data';
-import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
-import { collection, query, where, doc, getDocs, limit } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
+import { collection, query, where, doc } from 'firebase/firestore';
 import { getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -46,7 +46,6 @@ export default function QuickSearchPage() {
   useEffect(() => {
     if (isLoaded && !isMarketLoading && (!agents || agents.length === 0)) {
       const initMarket = async () => {
-        // Random but deterministic drop hour based on date (0 to 11)
         const dateSeed = today.split('-').reduce((acc, v) => acc + parseInt(v), 0);
         const dropHour = dateSeed % 12; 
         
@@ -59,16 +58,14 @@ export default function QuickSearchPage() {
 
         const roles: Role[] = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'];
         
-        // Only the first one who sees the empty market for today will populate it
-        // Firestore rules will handle the "one time" creation due to ID checks if needed, 
-        // but for free agents we generate unique IDs per batch.
         roles.forEach(role => {
           for (let i = 0; i < 3; i++) {
             const hero = generateUniqueHero(role, i, false);
             const startPrice = (hero.overallRating * 15000) + 50000;
+            const agentId = `${today}_${role}_${i}`;
             
             const agentData = {
-              id: `${today}_${role}_${i}`,
+              id: agentId,
               heroData: JSON.parse(JSON.stringify(hero)),
               currentBid: startPrice,
               startingPrice: startPrice,
@@ -79,7 +76,8 @@ export default function QuickSearchPage() {
               dropTime: dropTime.toISOString()
             };
             
-            addDocumentNonBlocking(collection(db, 'market_v1'), agentData);
+            // Use setDocumentNonBlocking with deterministic ID to prevent duplicates
+            setDocumentNonBlocking(doc(db, 'market_v1', agentId), agentData, { merge: true });
           }
         });
       };
@@ -106,7 +104,6 @@ export default function QuickSearchPage() {
     try {
       const agentRef = doc(db, 'market_v1', agent.id);
       
-      // Update bid - validation happens in security rules (+3% check)
       updateDocumentNonBlocking(agentRef, {
         currentBid: minNextBid,
         highestBidderId: user.uid,
