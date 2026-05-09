@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -60,9 +61,10 @@ export default function AdvancedSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
-    if (isUserLoading || isProfileLoading || !user || !profile) return null;
+    // Robust check: Only query if user is definitely authenticated and profile is ready
+    if (isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
-  }, [db, today, user, isUserLoading, isProfileLoading, !!profile]);
+  }, [db, today, user?.uid, isUserLoading, isProfileLoading, !!profile]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 

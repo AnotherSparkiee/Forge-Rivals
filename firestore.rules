@@ -13,14 +13,13 @@ service cloud.firestore {
     }
 
     match /market_v1/{agentId} {
-      // Allow any signed in user to read the collection and individual agents
-      allow read, create: if isSignedIn();
+      // Explicitly allow list and get for all signed in users
+      allow get, list, create: if isSignedIn();
       
       allow update: if isSignedIn() 
         && (
           // Allow update if auction hasn't started yet (bidder field is null or missing)
-          !('highestBidderId' in resource.data) || 
-          resource.data.highestBidderId == null ||
+          resource.data.get('highestBidderId', null) == null ||
           // Standard auction rule: +3% increment and requester becomes the leader
           (request.resource.data.currentBid >= (resource.data.currentBid * 1.03)
            && request.resource.data.highestBidderId == request.auth.uid)

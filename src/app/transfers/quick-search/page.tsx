@@ -40,17 +40,16 @@ export default function QuickSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
-    // Crucial: Wait for both user and profile to be fully ready before querying
-    // This prevents "Missing or insufficient permissions" during the auth handshake
-    if (isUserLoading || isProfileLoading || !user || !profile) return null;
+    // Robust check: Only query if user is definitely authenticated and profile is ready
+    if (isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
-  }, [db, today, user, isUserLoading, isProfileLoading, !!profile]);
+  }, [db, today, user?.uid, isUserLoading, isProfileLoading, !!profile]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
   useEffect(() => {
     // Only initialize if market is definitely empty for today and we are authorized
-    if (isLoaded && !isUserLoading && !isProfileLoading && user && profile && !isMarketLoading && Array.isArray(agents) && agents.length === 0) {
+    if (isLoaded && !isUserLoading && !isProfileLoading && user?.uid && profile && !isMarketLoading && Array.isArray(agents) && agents.length === 0) {
       const initMarket = async () => {
         const dateSeed = today.split('-').reduce((acc, v) => acc + parseInt(v), 0);
         const dropHour = dateSeed % 12; 
@@ -88,7 +87,7 @@ export default function QuickSearchPage() {
       };
       initMarket();
     }
-  }, [isLoaded, isUserLoading, isProfileLoading, user, !!profile, isMarketLoading, agents, today, db]);
+  }, [isLoaded, isUserLoading, isProfileLoading, user?.uid, !!profile, isMarketLoading, agents, today, db]);
 
   const handleBid = async (agent: any) => {
     if (!user || !profile || isBidding) return;
