@@ -15,8 +15,13 @@ service cloud.firestore {
     match /market_v1/{agentId} {
       allow read, create: if isSignedIn();
       allow update: if isSignedIn() 
-        && request.resource.data.currentBid >= (resource.data.currentBid * 1.03)
-        && request.resource.data.highestBidderId == request.auth.uid;
+        && (
+          // Allow initial setup if bidder is null
+          (resource == null || resource.data.highestBidderId == null) ||
+          // Standard auction rule: +3% increment and leader must be current user
+          (request.resource.data.currentBid >= (resource.data.currentBid * 1.03)
+           && request.resource.data.highestBidderId == request.auth.uid)
+        );
     }
 
     match /friendly_lobbies/{userId} {

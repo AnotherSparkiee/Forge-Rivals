@@ -37,14 +37,16 @@ export default function QuickSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
+    // CRITICAL: Only return query if user is available to avoid Permission Denied on initial load
+    if (!user) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
-  }, [db, today]);
+  }, [db, today, user]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
   // Initialize market if empty for today (Deterministic Client-Side Initialization)
   useEffect(() => {
-    if (isLoaded && !isMarketLoading && (!agents || agents.length === 0)) {
+    if (isLoaded && !isUserLoading && user && !isMarketLoading && (!agents || agents.length === 0)) {
       const initMarket = async () => {
         const dateSeed = today.split('-').reduce((acc, v) => acc + parseInt(v), 0);
         const dropHour = dateSeed % 12; 
@@ -76,14 +78,13 @@ export default function QuickSearchPage() {
               dropTime: dropTime.toISOString()
             };
             
-            // Use setDocumentNonBlocking with deterministic ID to prevent duplicates
             setDocumentNonBlocking(doc(db, 'market_v1', agentId), agentData, { merge: true });
           }
         });
       };
       initMarket();
     }
-  }, [isLoaded, isMarketLoading, agents, today, db]);
+  }, [isLoaded, isUserLoading, user, isMarketLoading, agents, today, db]);
 
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;
@@ -128,7 +129,7 @@ export default function QuickSearchPage() {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  if (!isLoaded || isMarketLoading) return <LoadingScreen />;
+  if (!isLoaded || isUserLoading) return <LoadingScreen />;
 
   const t = {
     title: language === 'ru' ? "СВОБОДНЫЕ АГЕНТЫ" : "FREE AGENTS",
@@ -199,7 +200,11 @@ export default function QuickSearchPage() {
 
           return (
             <TabsContent key={role.id} value={role.id} className="space-y-3 mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              {roleAgents.length > 0 ? (
+              {isMarketLoading ? (
+                <div className="py-20 text-center opacity-50">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+                </div>
+              ) : roleAgents.length > 0 ? (
                 roleAgents.map((agent) => {
                   const player = agent.heroData;
                   const isLeading = agent.highestBidderId === user?.uid;
