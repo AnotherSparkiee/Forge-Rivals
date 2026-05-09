@@ -37,7 +37,6 @@ export default function QuickSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
-    // CRITICAL: Only return query if user is available to avoid Permission Denied on initial load
     if (!user) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
   }, [db, today, user]);
@@ -46,7 +45,8 @@ export default function QuickSearchPage() {
 
   // Initialize market if empty for today (Deterministic Client-Side Initialization)
   useEffect(() => {
-    if (isLoaded && !isUserLoading && user && !isMarketLoading && (!agents || agents.length === 0)) {
+    // CRITICAL: Only run if agents is explicitly an empty array and loading is finished
+    if (isLoaded && !isUserLoading && user && !isMarketLoading && Array.isArray(agents) && agents.length === 0) {
       const initMarket = async () => {
         const dateSeed = today.split('-').reduce((acc, v) => acc + parseInt(v), 0);
         const dropHour = dateSeed % 12; 
@@ -78,6 +78,7 @@ export default function QuickSearchPage() {
               dropTime: dropTime.toISOString()
             };
             
+            // Use setDocumentNonBlocking to silently try to create/sync market items
             setDocumentNonBlocking(doc(db, 'market_v1', agentId), agentData, { merge: true });
           }
         });
@@ -90,14 +91,21 @@ export default function QuickSearchPage() {
     if (!user || isBidding) return;
 
     if (agent.highestBidderId === user.uid) {
-      toast({ title: language === 'ru' ? "Вы уже лидер" : "You are leading", description: language === 'ru' ? "Дождитесь, пока кто-то перебьет вашу ставку." : "Wait for someone to outbid you.", variant: "destructive" });
+      toast({ 
+        title: language === 'ru' ? "Вы уже лидер" : "You are leading", 
+        description: language === 'ru' ? "Дождитесь, пока кто-то перебьет вашу ставку." : "Wait for someone to outbid you.", 
+        variant: "destructive" 
+      });
       return;
     }
 
     const minNextBid = Math.ceil(agent.currentBid * 1.03);
     
     if (credits < minNextBid) {
-      toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" });
+      toast({ 
+        title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", 
+        variant: "destructive" 
+      });
       return;
     }
 

@@ -16,12 +16,13 @@ service cloud.firestore {
       allow read, create: if isSignedIn();
       allow update: if isSignedIn() 
         && (
-          // Allow initial setup if bidder is null
-          (resource == null || resource.data.highestBidderId == null) ||
+          // Allow update if there is no bidder yet (Initial setup or first bid)
+          (resource.data.highestBidderId == null) ||
           // Standard auction rule: +3% increment and leader must be current user
           (request.resource.data.currentBid >= (resource.data.currentBid * 1.03)
            && request.resource.data.highestBidderId == request.auth.uid)
         );
+      allow delete: if false;
     }
 
     match /friendly_lobbies/{userId} {
