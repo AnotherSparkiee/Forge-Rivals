@@ -13,15 +13,15 @@ service cloud.firestore {
     }
 
     match /market_v1/{agentId} {
-      // Explicitly allow list and get for authenticated users
+      // Allow read and create for all authenticated users
       allow get, list, create: if isSignedIn();
       
+      // Update logic for auction
       allow update: if isSignedIn() 
         && (
-          // Allow update if auction hasn't started yet or document is being initialized
-          resource == null || 
+          // 1. Allow if document is being initialized (no bidder yet)
           resource.data.get('highestBidderId', null) == null ||
-          // Standard auction rule: +3% increment and requester becomes the leader
+          // 2. Standard auction rule: +3% increment and requester becomes the leader
           (request.resource.data.currentBid >= (resource.data.currentBid * 1.03)
            && request.resource.data.highestBidderId == request.auth.uid)
         );

@@ -61,7 +61,7 @@ export default function AdvancedSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
-    // Robust check: Only query if user is definitely authenticated and profile is ready
+    // Only query if user is definitely authenticated and profile is ready
     if (isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
   }, [db, today, user?.uid, isUserLoading, isProfileLoading, !!profile]);
@@ -301,7 +301,7 @@ export default function AdvancedSearchPage() {
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     <div className="bg-secondary/40 p-2.5 rounded-xl border border-white/5">
                       <p className="text-[7px] uppercase font-black text-muted-foreground flex items-center gap-1 mb-1">
-                        <Coins className="w-2.5 h-2.5" /> {t.bid}
+                        <Gavel className="w-2.5 h-2.5" /> {t.bid}
                       </p>
                       <p className="text-sm font-headline font-bold text-white">€{agent.currentBid.toLocaleString()}</p>
                       {agent.highestBidderName && (
