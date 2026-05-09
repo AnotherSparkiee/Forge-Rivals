@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -14,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Zap, ArrowRight, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getGlobalSeasonInfo as getSeasonInfoHelper } from '@/app/lib/time-utils';
 import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant, getEntryRound } from '@/app/lib/cup-utils';
 import { useRouter } from 'next/navigation';
 
@@ -100,7 +102,7 @@ export function AutoMatchManager() {
         scoreB: forcedScoreB
       });
 
-      if (result) {
+      if (result && typeof result === 'object' && result.winner) {
         let customPlayedAt = undefined;
         if (isCatchUp && seasonStartDate) {
           const d = new Date(seasonStartDate);
@@ -182,7 +184,7 @@ export function AutoMatchManager() {
         isBo2: false, isBo3: true, scoreA: forcedA, scoreB: forcedB
       });
       
-      if (result) {
+      if (result && typeof result === 'object' && result.winner) {
         recordMatch(result.winner, result, targetDay, opponent.name, 'tournament', undefined, detId);
         
         if (!isCatchUp) {
@@ -227,7 +229,6 @@ export function AutoMatchManager() {
           const lMatch = matchHistory.find(m => m.id === lId);
           const lDue = (d < seasonDay) || isMatchDue(leagueTime, lastLeagueMatchDate);
           
-          // Re-simulate if was WAITING but now day is past
           const isFadedWaiting = lMatch?.opponentName === 'WAITING' && d < seasonDay;
 
           if ((lDue && (!lMatch || lMatch.preview === undefined)) || isFadedWaiting) {
