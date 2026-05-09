@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { generateUniqueHero, Role } from '@/app/lib/moba-data';
-import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, setDocumentNonBlocking, useDoc } from '@/firebase';
 import { collection, query, where, doc } from 'firebase/firestore';
 import { getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
@@ -29,6 +29,9 @@ export default function QuickSearchPage() {
   const [isBidding, setIsBidding] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
+  const { data: profile } = useDoc(userRef);
+
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -37,16 +40,15 @@ export default function QuickSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    // Ждем полной загрузки профиля, чтобы избежать Permission Denied на стадии инициализации Auth
+    if (!user || !profile) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
-  }, [db, today, user]);
+  }, [db, today, user, !!profile]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
-  // Initialize market if empty for today (Deterministic Client-Side Initialization)
   useEffect(() => {
-    // CRITICAL: Only run if agents is explicitly an empty array and loading is finished
-    if (isLoaded && !isUserLoading && user && !isMarketLoading && Array.isArray(agents) && agents.length === 0) {
+    if (isLoaded && !isUserLoading && user && profile && !isMarketLoading && Array.isArray(agents) && agents.length === 0) {
       const initMarket = async () => {
         const dateSeed = today.split('-').reduce((acc, v) => acc + parseInt(v), 0);
         const dropHour = dateSeed % 12; 
@@ -78,17 +80,16 @@ export default function QuickSearchPage() {
               dropTime: dropTime.toISOString()
             };
             
-            // Use setDocumentNonBlocking to silently try to create/sync market items
             setDocumentNonBlocking(doc(db, 'market_v1', agentId), agentData, { merge: true });
           }
         });
       };
       initMarket();
     }
-  }, [isLoaded, isUserLoading, user, isMarketLoading, agents, today, db]);
+  }, [isLoaded, isUserLoading, user, !!profile, isMarketLoading, agents, today, db]);
 
   const handleBid = async (agent: any) => {
-    if (!user || isBidding) return;
+    if (!user || !profile || isBidding) return;
 
     if (agent.highestBidderId === user.uid) {
       toast({ 
@@ -116,7 +117,7 @@ export default function QuickSearchPage() {
       updateDocumentNonBlocking(agentRef, {
         currentBid: minNextBid,
         highestBidderId: user.uid,
-        highestBidderName: user.displayName || "Manager"
+        highestBidderName: profile.displayName || "Manager"
       });
 
       toast({ 
