@@ -7,7 +7,7 @@ import { useGameState } from './lib/store';
 import { 
   Users, Trophy, Zap, Clock,
   UserSearch, ShieldAlert, Medal, User, Swords, ChevronRight,
-  CalendarDays, PlayCircle, Loader2, MessageSquare, UsersRound, Target
+  CalendarDays, PlayCircle, Loader2, MessageSquare, UsersRound, Target, ShoppingCart
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -213,6 +213,7 @@ export default function Home() {
       menu: [ 
         { label: 'Roster', href: '/roster', icon: Users, desc: 'Manage lineup' }, 
         { label: 'Training', href: '/training', icon: Zap, desc: 'Improve infrastructure' }, 
+        { label: 'Transfers', href: '/transfers', icon: ShoppingCart, desc: 'Market operations' }, 
         { label: 'Rankings', href: '/rankings', icon: Trophy, desc: 'View tables' }, 
         { label: 'Matches', href: '/matches', icon: CalendarDays, desc: 'Schedule' }, 
         { label: 'Tournaments', href: '/tournaments', icon: Medal, desc: 'Global events' }, 
@@ -230,6 +231,7 @@ export default function Home() {
       menu: [ 
         { label: 'Ростер', href: '/roster', icon: Users, desc: 'Состав команды' }, 
         { label: 'Инфраструктура', href: '/training', icon: Zap, desc: 'Улучшение базы' }, 
+        { label: 'Трансферы', href: '/transfers', icon: ShoppingCart, desc: 'Рынок игроков' }, 
         { label: 'Таблицы', href: '/rankings', icon: Trophy, desc: 'Рейтинги' }, 
         { label: 'Матчи', href: '/matches', icon: CalendarDays, desc: 'Расписание' }, 
         { label: 'Турниры', href: '/tournaments', icon: Medal, desc: 'События' }, 
