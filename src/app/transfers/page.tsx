@@ -37,7 +37,7 @@ export default function TransfersPage() {
       locked: "Restricted",
       menu: [
         { label: 'PRO Players', desc: 'Elite professional athletes market', icon: Star, active: false },
-        { label: 'Quick Search', desc: 'Rapid acquisition protocols', icon: Search, active: false },
+        { label: 'Quick Search', desc: 'Rapid acquisition protocols', icon: Search, active: true, href: '/transfers/quick-search' },
         { label: 'Advanced Search', desc: 'Detailed scouting filters', icon: SlidersHorizontal, active: false },
         { label: 'My Purchases', desc: 'Acquisition history dossier', icon: Package, active: false },
         { label: 'My Sales', desc: 'Transfer revenue records', icon: Coins, active: false },
@@ -49,7 +49,7 @@ export default function TransfersPage() {
       locked: "Закрыто",
       menu: [
         { label: 'PRO-Игроки', desc: 'Рынок элитных профессионалов', icon: Star, active: false },
-        { label: 'Быстрый поиск', desc: 'Протоколы мгновенного найма', icon: Search, active: false },
+        { label: 'Быстрый поиск', desc: 'Протоколы мгновенного найма', icon: Search, active: true, href: '/transfers/quick-search' },
         { label: 'Расширенный поиск', desc: 'Детальные фильтры скаутинга', icon: SlidersHorizontal, active: false },
         { label: 'Мои покупки', desc: 'Досье истории приобретений', icon: Package, active: false },
         { label: 'Мои продажи', desc: 'Записи о доходах с трансферов', icon: Coins, active: false },
@@ -106,6 +106,14 @@ export default function TransfersPage() {
               </CardContent>
             </Card>
           );
+
+          if (item.active && item.href) {
+            return (
+              <Link key={item.label} href={item.href} className="block">
+                {content}
+              </Link>
+            );
+          }
 
           return (
             <div key={item.label} className={cn("block", !item.active && "cursor-not-allowed")}>
