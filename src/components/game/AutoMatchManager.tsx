@@ -205,38 +205,33 @@ export function AutoMatchManager() {
     if (!isLoaded || isUserLoading || isSimulating || !profile?.selectedLeagueId || !user) return;
 
     const findAndSimulateNext = async () => {
-      // 1. Finish previous seasons if any (Catch-up)
       if (lastProcessedSeason > 0 && lastProcessedSeason < seasonNumber) {
         for (let d = 1; d <= 14; d++) {
           const detId = `league_${lastProcessedSeason}_${d}`;
           const existing = matchHistory.find(m => m.id === detId);
           if (!existing || existing.preview === undefined) {
             await simulateOneLeagueMatch(lastProcessedSeason, d, true);
-            return; // EXIT AFTER ONE to follow "one at a time" rule
+            return; 
           }
         }
       }
 
-      // 2. Current season matches
       if (seasonDay > 0 && seasonDay <= 14) {
         const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
         const leagueTime = league?.startTime || '23:00';
         const cupTime = "07:00";
 
         for (let d = 1; d <= seasonDay; d++) {
-          // Check League
           const lId = `league_${seasonNumber}_${d}`;
           const lMatch = matchHistory.find(m => m.id === lId);
           const lDue = (d < seasonDay) || isMatchDue(leagueTime, lastLeagueMatchDate);
-          
           const isFadedWaiting = lMatch?.opponentName === 'WAITING' && d < seasonDay;
 
           if ((lDue && (!lMatch || lMatch.preview === undefined)) || isFadedWaiting) {
             await simulateOneLeagueMatch(seasonNumber, d, d < seasonDay);
-            return; // EXIT AFTER ONE
+            return; 
           }
 
-          // Check Cup
           const cId = `cup_${seasonNumber}_${d}`;
           const cMatch = matchHistory.find(m => m.id === cId);
           const cDue = (d < seasonDay) || isMatchDue(cupTime, lastCupMatchDate);
@@ -254,7 +249,7 @@ export function AutoMatchManager() {
 
           if (!eliminated && cDue && (!cMatch || cMatch.preview === undefined || isCupWaiting)) {
             await simulateOneCupMatch(seasonNumber, d, d < seasonDay);
-            return; // EXIT AFTER ONE
+            return; 
           }
         }
       }

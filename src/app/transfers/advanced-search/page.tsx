@@ -176,7 +176,6 @@ export default function AdvancedSearchPage() {
         </div>
       </header>
 
-      {/* FILTER PANEL */}
       <div className="mb-6">
         <Accordion type="single" collapsible className="w-full">
           <AccordionItem value="filters" className="border-white/10 glass-card rounded-xl px-4">
@@ -187,7 +186,6 @@ export default function AdvancedSearchPage() {
             </AccordionTrigger>
             <AccordionContent className="space-y-6 pt-2 pb-6">
               <div className="space-y-4">
-                {/* Role Select */}
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-muted-foreground">{t.role}</label>
                   <Select value={roleFilter} onValueChange={setRoleFilter}>
@@ -203,7 +201,6 @@ export default function AdvancedSearchPage() {
                   </Select>
                 </div>
 
-                {/* Country Select */}
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-muted-foreground">{t.country}</label>
                   <Select value={countryFilter} onValueChange={setCountryFilter}>
@@ -219,7 +216,6 @@ export default function AdvancedSearchPage() {
                   </Select>
                 </div>
 
-                {/* Min OVR Slider */}
                 <div className="space-y-4 px-1">
                   <div className="flex justify-between items-center">
                     <label className="text-[10px] font-black uppercase text-muted-foreground">{t.minRating}</label>
@@ -228,7 +224,6 @@ export default function AdvancedSearchPage() {
                   <Slider value={minOvr} onValueChange={setMinOvr} max={99} min={20} step={1} />
                 </div>
 
-                {/* Age Range Slider */}
                 <div className="space-y-4 px-1">
                   <div className="flex justify-between items-center">
                     <label className="text-[10px] font-black uppercase text-muted-foreground">{t.age}</label>

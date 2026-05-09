@@ -40,7 +40,7 @@ export default function QuickSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
-    // Only query if user is definitely authenticated and profile is ready
+    // Critical fix: Only query if user is definitely authenticated and profile is ready
     if (isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
   }, [db, today, user?.uid, isUserLoading, isProfileLoading, !!profile]);
@@ -48,7 +48,7 @@ export default function QuickSearchPage() {
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
   useEffect(() => {
-    // Only initialize if market is definitely empty for today and we are authorized and loading finished
+    // Only initialize if market is definitely empty for today and we are authorized
     if (isLoaded && !isUserLoading && !isProfileLoading && user?.uid && profile && isMarketLoading === false && Array.isArray(agents) && agents.length === 0) {
       const initMarket = async () => {
         const dateSeed = today.split('-').reduce((acc, v) => acc + parseInt(v), 0);
