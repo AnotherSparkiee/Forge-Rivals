@@ -38,7 +38,7 @@ export default function TransfersPage() {
       menu: [
         { label: 'PRO Players', desc: 'Elite professional athletes market', icon: Star, active: false },
         { label: 'Quick Search', desc: 'Rapid acquisition protocols', icon: Search, active: true, href: '/transfers/quick-search' },
-        { label: 'Advanced Search', desc: 'Detailed scouting filters', icon: SlidersHorizontal, active: false },
+        { label: 'Advanced Search', desc: 'Detailed scouting filters', icon: SlidersHorizontal, active: true, href: '/transfers/advanced-search' },
         { label: 'My Purchases', desc: 'Acquisition history dossier', icon: Package, active: false },
         { label: 'My Sales', desc: 'Transfer revenue records', icon: Coins, active: false },
       ]
@@ -50,7 +50,7 @@ export default function TransfersPage() {
       menu: [
         { label: 'PRO-Игроки', desc: 'Рынок элитных профессионалов', icon: Star, active: false },
         { label: 'Быстрый поиск', desc: 'Протоколы мгновенного найма', icon: Search, active: true, href: '/transfers/quick-search' },
-        { label: 'Расширенный поиск', desc: 'Детальные фильтры скаутинга', icon: SlidersHorizontal, active: false },
+        { label: 'Расширенный поиск', desc: 'Детальные фильтры скаутинга', icon: SlidersHorizontal, active: true, href: '/transfers/advanced-search' },
         { label: 'Мои покупки', desc: 'Досье истории приобретений', icon: Package, active: false },
         { label: 'Мои продажи', desc: 'Записи о доходах с трансферов', icon: Coins, active: false },
       ]
