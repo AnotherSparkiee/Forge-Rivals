@@ -30,7 +30,7 @@ export default function QuickSearchPage() {
   const [now, setNow] = useState(Date.now());
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
-  const { data: profile } = useDoc(userRef);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -40,15 +40,17 @@ export default function QuickSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
-    // Ждем полной загрузки профиля, чтобы избежать Permission Denied на стадии инициализации Auth
-    if (!user || !profile) return null;
+    // Crucial: Wait for both user and profile to be fully ready before querying
+    // This prevents "Missing or insufficient permissions" during the auth handshake
+    if (isUserLoading || isProfileLoading || !user || !profile) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
-  }, [db, today, user, !!profile]);
+  }, [db, today, user, isUserLoading, isProfileLoading, !!profile]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
   useEffect(() => {
-    if (isLoaded && !isUserLoading && user && profile && !isMarketLoading && Array.isArray(agents) && agents.length === 0) {
+    // Only initialize if market is definitely empty for today and we are authorized
+    if (isLoaded && !isUserLoading && !isProfileLoading && user && profile && !isMarketLoading && Array.isArray(agents) && agents.length === 0) {
       const initMarket = async () => {
         const dateSeed = today.split('-').reduce((acc, v) => acc + parseInt(v), 0);
         const dropHour = dateSeed % 12; 
@@ -86,7 +88,7 @@ export default function QuickSearchPage() {
       };
       initMarket();
     }
-  }, [isLoaded, isUserLoading, user, !!profile, isMarketLoading, agents, today, db]);
+  }, [isLoaded, isUserLoading, isProfileLoading, user, !!profile, isMarketLoading, agents, today, db]);
 
   const handleBid = async (agent: any) => {
     if (!user || !profile || isBidding) return;
