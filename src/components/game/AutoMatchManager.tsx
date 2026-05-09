@@ -13,7 +13,7 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Zap, ArrowRight, FileText } from 'lucide-react';
+import { Zap, ArrowRight, FileText, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getGlobalSeasonInfo as getSeasonInfoHelper } from '@/app/lib/time-utils';
 import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant, getEntryRound } from '@/app/lib/cup-utils';
@@ -205,14 +205,14 @@ export function AutoMatchManager() {
     if (!isLoaded || isUserLoading || isSimulating || !profile?.selectedLeagueId || !user) return;
 
     const findAndSimulateNext = async () => {
-      // 1. Finish previous seasons if any
+      // 1. Finish previous seasons if any (Catch-up)
       if (lastProcessedSeason > 0 && lastProcessedSeason < seasonNumber) {
         for (let d = 1; d <= 14; d++) {
           const detId = `league_${lastProcessedSeason}_${d}`;
           const existing = matchHistory.find(m => m.id === detId);
           if (!existing || existing.preview === undefined) {
             await simulateOneLeagueMatch(lastProcessedSeason, d, true);
-            return; 
+            return; // EXIT AFTER ONE to follow "one at a time" rule
           }
         }
       }
@@ -233,7 +233,7 @@ export function AutoMatchManager() {
 
           if ((lDue && (!lMatch || lMatch.preview === undefined)) || isFadedWaiting) {
             await simulateOneLeagueMatch(seasonNumber, d, d < seasonDay);
-            return;
+            return; // EXIT AFTER ONE
           }
 
           // Check Cup
@@ -254,13 +254,13 @@ export function AutoMatchManager() {
 
           if (!eliminated && cDue && (!cMatch || cMatch.preview === undefined || isCupWaiting)) {
             await simulateOneCupMatch(seasonNumber, d, d < seasonDay);
-            return;
+            return; // EXIT AFTER ONE
           }
         }
       }
     };
 
-    const timer = setTimeout(findAndSimulateNext, 2000);
+    const timer = setTimeout(findAndSimulateNext, 2500);
     return () => clearTimeout(timer);
   }, [isLoaded, isUserLoading, isSimulating, seasonDay, seasonNumber, lastProcessedSeason, matchHistory, profile?.selectedLeagueId, lastLeagueMatchDate, lastCupMatchDate, simulateOneLeagueMatch, simulateOneCupMatch, user]);
 
