@@ -30,7 +30,7 @@ export default function MySalesPage() {
   }, []);
 
   const marketQuery = useMemoFirebase(() => {
-    // Ждем полной авторизации и загрузки профиля, чтобы избежать Permission Denied
+    // CRITICAL: Return null until profile ready
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('sellerId', '==', user.uid));
   }, [db, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
@@ -92,7 +92,7 @@ export default function MySalesPage() {
               )}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4 mb-4">
-                    <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shadow-lg">
+                    <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shadow-lg shrink-0">
                       <img src={player.image} alt={player.name} className="w-full h-full object-cover" />
                     </div>
                     

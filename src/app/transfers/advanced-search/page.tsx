@@ -61,7 +61,7 @@ export default function AdvancedSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
-    // Ждем полной авторизации и загрузки профиля, чтобы избежать Permission Denied
+    // CRITICAL: Block query until fully authorized and profile loaded
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
   }, [db, today, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
@@ -89,27 +89,18 @@ export default function AdvancedSearchPage() {
     if (!user || !profile || isBidding) return;
 
     if (agent.highestBidderId === user.uid) {
-      toast({ 
-        title: language === 'ru' ? "Вы уже лидер" : "You are leading", 
-        variant: "destructive" 
-      });
+      toast({ title: language === 'ru' ? "Вы уже лидер" : "You are leading", variant: "destructive" });
       return;
     }
 
     if (agent.sellerId === user.uid) {
-      toast({ 
-        title: language === 'ru' ? "Это ваш игрок" : "You are the seller", 
-        variant: "destructive" 
-      });
+      toast({ title: language === 'ru' ? "Это ваш игрок" : "You are the seller", variant: "destructive" });
       return;
     }
 
     const minNextBid = Math.ceil(agent.currentBid * 1.03);
     if (credits < minNextBid) {
-      toast({ 
-        title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", 
-        variant: "destructive" 
-      });
+      toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" });
       return;
     }
 
@@ -277,7 +268,7 @@ export default function AdvancedSearchPage() {
               )}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4 mb-4">
-                    <div className="relative">
+                    <div className="relative shrink-0">
                       <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shadow-lg">
                         <img src={player.image} alt={player.name} className="w-full h-full object-cover" />
                       </div>
@@ -290,13 +281,10 @@ export default function AdvancedSearchPage() {
                       <div className="flex items-center gap-2">
                         <h3 className="text-sm font-bold uppercase truncate">{player.name}</h3>
                         {isLeading && <Badge className="bg-green-500 text-white text-[7px] h-3 px-1 uppercase font-black">LEADER</Badge>}
-                        {isSeller && <Badge className="bg-primary text-primary-foreground text-[7px] h-3 px-1 uppercase font-black">YOUR PLAYER</Badge>}
                       </div>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[8px] font-bold text-muted-foreground uppercase flex items-center gap-1">
-                          <Badge variant="outline" className="text-[7px] h-3 py-0 border-white/10 opacity-60 uppercase">{player.role}</Badge>
-                        </span>
-                        <div className="flex items-center gap-1 text-[8px] font-mono text-accent bg-accent/5 px-1.5 py-0.5 rounded border border-accent/10">
+                        <Badge variant="outline" className="text-[7px] h-3 py-0 border-white/10 opacity-60 uppercase">{player.role}</Badge>
+                        <div className="flex items-center gap-1 text-[8px] font-mono text-accent">
                           <Clock className="w-2.5 h-2.5" />
                           {formatCountdown(agent.expiresAt)}
                         </div>
@@ -321,7 +309,6 @@ export default function AdvancedSearchPage() {
                         <TrendingUp className="w-2.5 h-2.5" /> Next Min
                       </p>
                       <p className="text-sm font-headline font-bold text-primary">€{minNext.toLocaleString()}</p>
-                      <p className="text-[7px] text-muted-foreground font-bold uppercase mt-1">Age: {player.age}</p>
                     </div>
                   </div>
 
@@ -334,7 +321,7 @@ export default function AdvancedSearchPage() {
                     disabled={!!isBidding || isClosed || isLeading || isSeller}
                   >
                     {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gavel className="w-4 h-4 mr-2" />}
-                    {isClosed ? "CLOSED" : (isLeading ? "YOUR BID IS HIGHEST" : (isSeller ? "CANNOT BID ON SELF" : "PLACE BID"))}
+                    {isClosed ? "CLOSED" : (isLeading ? "HIGHEST BIDDER" : (isSeller ? "YOUR PLAYER" : "PLACE BID"))}
                   </Button>
                 </CardContent>
               </Card>

@@ -13,21 +13,21 @@ service cloud.firestore {
     }
 
     match /market_v1/{agentId} {
-      // Явно разрешаем получение списка и конкретного документа для всех вошедших
+      // Разрешаем чтение (get и list) и создание всем вошедшим
       allow get, list, create: if isSignedIn();
       
       // Логика аукциона
       allow update: if isSignedIn() 
         && (
-          // Разрешаем обновление, если лидера еще нет (инициализация или первая ставка)
-          (resource.data.get('highestBidderId', null) == null) ||
+          // 1. Разрешаем обновление, если лидер еще не назначен (инициализация или первая ставка)
+          (!('highestBidderId' in resource.data) || resource.data.highestBidderId == null) ||
           
-          // Стандартное правило аукциона: инкремент +3%, меняется лидер
+          // 2. Правило аукциона: инкремент +3%, меняется лидер
           (
             request.resource.data.currentBid >= (resource.data.currentBid * 1.03) &&
             request.resource.data.highestBidderId == request.auth.uid &&
             // Запрет ставить на своих (если есть продавец)
-            (resource.data.get('sellerId', null) != request.auth.uid)
+            (!('sellerId' in resource.data) || resource.data.sellerId != request.auth.uid)
           )
         );
       allow delete: if false;

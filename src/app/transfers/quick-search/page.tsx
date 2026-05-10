@@ -39,7 +39,7 @@ export default function QuickSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
-    // Ждем полной авторизации и загрузки профиля, чтобы избежать Permission Denied
+    // CRITICAL: Return null until profile is ready to avoid Permission Denied on initial load
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
   }, [db, today, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
@@ -47,15 +47,13 @@ export default function QuickSearchPage() {
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
   useEffect(() => {
-    // Инициализируем рынок только если мы уверены, что данных нет и профиль загружен
+    // Only init market if we are fully loaded, authorized, and the list is confirmed empty
     if (isLoaded && !isUserLoading && !isProfileLoading && user?.uid && profile && isMarketLoading === false && Array.isArray(agents) && agents.length === 0) {
       const initMarket = async () => {
-        const dateSeed = today.split('-').reduce((acc, v) => acc + parseInt(v), 0);
-        const dropHour = dateSeed % 12; 
-        
         const mskNow = getMoscowTime();
+        // Fixed drop hour for consistency
         const dropTime = new Date(mskNow);
-        dropTime.setHours(dropHour, 0, 0, 0);
+        dropTime.setHours(mskNow.getHours() - (mskNow.getHours() % 12), 0, 0, 0);
         
         const expiryTime = new Date(dropTime);
         expiryTime.setHours(expiryTime.getHours() + 12);
@@ -66,7 +64,8 @@ export default function QuickSearchPage() {
           for (let i = 0; i < 3; i++) {
             const hero = generateUniqueHero(role, i, false);
             const startPrice = (hero.overallRating * 15000) + 50000;
-            const agentId = `${today}_${role}_${i}`;
+            // Deterministic ID to prevent permission/overwrite issues
+            const agentId = `bot_${today}_${role}_${i}`;
             
             const agentData = {
               id: agentId,
@@ -78,7 +77,9 @@ export default function QuickSearchPage() {
               bidders: [],
               expiresAt: expiryTime.toISOString(),
               dropDate: today,
-              dropTime: dropTime.toISOString()
+              dropTime: dropTime.toISOString(),
+              sellerId: 'system',
+              sellerName: 'League Agent'
             };
             
             setDocumentNonBlocking(doc(db, 'market_v1', agentId), agentData, { merge: true });
@@ -93,28 +94,18 @@ export default function QuickSearchPage() {
     if (!user || !profile || isBidding) return;
 
     if (agent.highestBidderId === user.uid) {
-      toast({ 
-        title: language === 'ru' ? "Вы уже лидер" : "You are leading", 
-        variant: "destructive" 
-      });
+      toast({ title: language === 'ru' ? "Вы уже лидер" : "You are leading", variant: "destructive" });
       return;
     }
 
     if (agent.sellerId === user.uid) {
-      toast({ 
-        title: language === 'ru' ? "Это ваш игрок" : "You are the seller", 
-        variant: "destructive" 
-      });
+      toast({ title: language === 'ru' ? "Это ваш игрок" : "You are the seller", variant: "destructive" });
       return;
     }
 
     const minNextBid = Math.ceil(agent.currentBid * 1.03);
-    
     if (credits < minNextBid) {
-      toast({ 
-        title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", 
-        variant: "destructive" 
-      });
+      toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" });
       return;
     }
 
@@ -126,11 +117,7 @@ export default function QuickSearchPage() {
         highestBidderName: profile.displayName || "Manager",
         bidders: arrayUnion(user.uid)
       });
-
-      toast({ 
-        title: language === 'ru' ? "Ставка принята!" : "Bid Placed!", 
-        description: `€ ${minNextBid.toLocaleString()}` 
-      });
+      toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Placed!", description: `€ ${minNextBid.toLocaleString()}` });
     } finally {
       setIsBidding(null);
     }
@@ -152,8 +139,6 @@ export default function QuickSearchPage() {
     subtitle: language === 'ru' ? "Глобальный рынок талантов" : "Global talent marketplace",
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     bid: language === 'ru' ? "СТАВКА" : "BID",
-    minNext: language === 'ru' ? "Мин. след." : "Min Next",
-    leader: language === 'ru' ? "Лидер" : "Leader",
     noPlayers: language === 'ru' ? "Кандидаты появятся позже" : "Candidates appearing soon",
     roles: [
       { id: 'Carry', label: language === 'ru' ? "Керри" : "Carry" },
@@ -213,7 +198,7 @@ export default function QuickSearchPage() {
           const roleAgents = agents?.filter(a => a.heroData.role === role.id && new Date(a.dropTime).getTime() <= now) || [];
 
           return (
-            <TabsContent key={role.id} value={role.id} className="space-y-3 mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <TabsContent key={role.id} value={role.id} className="space-y-3 mt-0">
               {isMarketLoading ? (
                 <div className="py-20 text-center opacity-50">
                   <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
@@ -234,7 +219,7 @@ export default function QuickSearchPage() {
                     )}>
                       <CardContent className="p-4">
                         <div className="flex items-center gap-4 mb-4">
-                          <div className="relative">
+                          <div className="relative shrink-0">
                             <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shadow-lg">
                               <img src={player.image} alt={player.name} className="w-full h-full object-cover" />
                             </div>
@@ -247,13 +232,10 @@ export default function QuickSearchPage() {
                             <div className="flex items-center gap-2">
                               <h3 className="text-sm font-bold uppercase truncate">{player.name}</h3>
                               {isLeading && <Badge className="bg-green-500 text-white text-[7px] h-3 px-1 uppercase font-black">LEADER</Badge>}
-                              {isSeller && <Badge className="bg-primary text-primary-foreground text-[7px] h-3 px-1 uppercase font-black">YOUR PLAYER</Badge>}
                             </div>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[8px] font-bold text-muted-foreground uppercase flex items-center gap-1">
-                                <Zap className="w-2.5 h-2.5 text-primary" /> {player.age} yrs
-                              </span>
-                              <div className="flex items-center gap-1 text-[8px] font-mono text-accent bg-accent/5 px-1.5 py-0.5 rounded border border-accent/10">
+                              <Badge variant="outline" className="text-[7px] h-3 py-0 border-white/10 opacity-60 uppercase">{player.role}</Badge>
+                              <div className="flex items-center gap-1 text-[8px] font-mono text-accent">
                                 <Clock className="w-2.5 h-2.5" />
                                 {formatCountdown(agent.expiresAt)}
                               </div>
@@ -272,29 +254,25 @@ export default function QuickSearchPage() {
                               <Coins className="w-2.5 h-2.5" /> {t.bid}
                             </p>
                             <p className="text-sm font-headline font-bold text-white">€{agent.currentBid.toLocaleString()}</p>
-                            {agent.highestBidderName && (
-                              <p className="text-[7px] text-accent font-bold uppercase mt-1 truncate">Leader: {agent.highestBidderName}</p>
-                            )}
                           </div>
                           <div className="bg-secondary/40 p-2.5 rounded-xl border border-white/5">
                             <p className="text-[7px] uppercase font-black text-muted-foreground flex items-center gap-1 mb-1">
                               <TrendingUp className="w-2.5 h-2.5" /> Next Min
                             </p>
                             <p className="text-sm font-headline font-bold text-primary">€{minNext.toLocaleString()}</p>
-                            <p className="text-[7px] text-muted-foreground font-bold uppercase mt-1">+3% Increment</p>
                           </div>
                         </div>
 
                         <Button 
                           className={cn(
-                            "w-full h-11 font-black text-[10px] tracking-widest uppercase shadow-lg transition-all active:scale-95",
+                            "w-full h-11 font-black text-[10px] tracking-widest uppercase shadow-lg transition-all",
                             isLeading ? "bg-green-600 hover:bg-green-700" : "hero-gradient"
                           )}
                           onClick={() => handleBid(agent)}
                           disabled={!!isBidding || isClosed || isLeading || isSeller}
                         >
                           {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gavel className="w-4 h-4 mr-2" />}
-                          {isClosed ? "AUCTION CLOSED" : (isLeading ? "YOUR BID IS HIGHEST" : (isSeller ? "CANNOT BID ON SELF" : "PLACE BID"))}
+                          {isClosed ? "CLOSED" : (isLeading ? "HIGHEST BIDDER" : "PLACE BID")}
                         </Button>
                       </CardContent>
                     </Card>

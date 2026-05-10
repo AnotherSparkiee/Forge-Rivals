@@ -35,7 +35,7 @@ export default function MyBidsPage() {
   }, []);
 
   const marketQuery = useMemoFirebase(() => {
-    // Ждем полной авторизации и загрузки профиля, чтобы избежать Permission Denied
+    // CRITICAL: Prevent initial rule violation by waiting for profile
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('bidders', 'array-contains', user.uid));
   }, [db, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
@@ -46,19 +46,13 @@ export default function MyBidsPage() {
     if (!user || !profile || isBidding) return;
 
     if (agent.highestBidderId === user.uid) {
-      toast({ 
-        title: language === 'ru' ? "Вы уже лидер" : "You are leading", 
-        variant: "destructive" 
-      });
+      toast({ title: language === 'ru' ? "Вы уже лидер" : "You are leading", variant: "destructive" });
       return;
     }
 
     const minNextBid = Math.ceil(agent.currentBid * 1.03);
     if (credits < minNextBid) {
-      toast({ 
-        title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", 
-        variant: "destructive" 
-      });
+      toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" });
       return;
     }
 
@@ -135,7 +129,7 @@ export default function MyBidsPage() {
               )}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4 mb-4">
-                    <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shadow-lg">
+                    <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shadow-lg shrink-0">
                       <img src={player.image} alt={player.name} className="w-full h-full object-cover" />
                     </div>
                     
