@@ -102,7 +102,7 @@ export function AutoMatchManager() {
         scoreB: forcedScoreB
       });
 
-      // Defensive check before recording result
+      // Defensive check before recording result to prevent undefined crashes
       if (result && result.winner) {
         let customPlayedAt = undefined;
         if (isCatchUp && seasonStartDate) {
@@ -206,6 +206,7 @@ export function AutoMatchManager() {
     if (!isLoaded || isUserLoading || isSimulating || !profile?.selectedLeagueId || !user) return;
 
     const findAndSimulateNext = async () => {
+      // 1. Check previous season unfinished matches (catch-up)
       if (lastProcessedSeason > 0 && lastProcessedSeason < seasonNumber) {
         for (let d = 1; d <= 14; d++) {
           const detId = `league_${lastProcessedSeason}_${d}`;
@@ -217,12 +218,14 @@ export function AutoMatchManager() {
         }
       }
 
+      // 2. Check current season matches
       if (seasonDay > 0 && seasonDay <= 14) {
         const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
         const leagueTime = league?.startTime || '23:00';
         const cupTime = "07:00";
 
         for (let d = 1; d <= seasonDay; d++) {
+          // League Check
           const lId = `league_${seasonNumber}_${d}`;
           const lMatch = matchHistory.find(m => m.id === lId);
           const lDue = (d < seasonDay) || isMatchDue(leagueTime, lastLeagueMatchDate);
@@ -233,6 +236,7 @@ export function AutoMatchManager() {
             return; 
           }
 
+          // Cup Check
           const cId = `cup_${seasonNumber}_${d}`;
           const cMatch = matchHistory.find(m => m.id === cId);
           const cDue = (d < seasonDay) || isMatchDue(cupTime, lastCupMatchDate);

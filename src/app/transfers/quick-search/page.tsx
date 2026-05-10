@@ -39,16 +39,16 @@ export default function QuickSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
-    // CRITICAL: Block query until fully authorized to avoid Permission Denied
-    if (!isLoaded || isUserLoading || !user?.uid) return null;
+    // CRITICAL: Block query until fully authorized AND profile loaded to avoid Permission Denied
+    if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
-  }, [db, today, user?.uid, isUserLoading, isLoaded]);
+  }, [db, today, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
   useEffect(() => {
     // Only init market if we are fully loaded and authorized
-    if (isLoaded && !isUserLoading && user?.uid && isMarketLoading === false && Array.isArray(agents) && agents.length === 0) {
+    if (isLoaded && !isUserLoading && !isProfileLoading && user?.uid && profile && isMarketLoading === false && Array.isArray(agents) && agents.length === 0) {
       const initMarket = async () => {
         const mskNow = getMoscowTime();
         const dropTime = new Date(mskNow);
@@ -86,7 +86,7 @@ export default function QuickSearchPage() {
       };
       initMarket();
     }
-  }, [isLoaded, isUserLoading, user?.uid, isMarketLoading, agents, today, db]);
+  }, [isLoaded, isUserLoading, isProfileLoading, user?.uid, profile, isMarketLoading, agents, today, db]);
 
   const handleBid = async (agent: any) => {
     if (!user || !profile || isBidding) return;
@@ -130,7 +130,7 @@ export default function QuickSearchPage() {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  if (!isLoaded || isUserLoading) return <LoadingScreen />;
+  if (!isLoaded || isUserLoading || isProfileLoading) return <LoadingScreen />;
 
   const t = {
     title: language === 'ru' ? "СВОБОДНЫЕ АГЕНТЫ" : "FREE AGENTS",
