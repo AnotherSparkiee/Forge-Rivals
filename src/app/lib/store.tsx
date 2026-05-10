@@ -1,6 +1,7 @@
+
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { Hero, INITIAL_HEROES } from './moba-data';
 import { getMoscowTime, getMoscowDateString, isMatchDue, getGlobalSeasonInfo } from './time-utils';
 import { useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
@@ -271,6 +272,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const db = useFirestore();
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const [isLoaded, setIsLoaded] = useState(false);
+  const lastSyncRef = useRef<{ season: number, day: number, leagueId: string | null } | null>(null);
 
   const getStorageKey = useCallback(() => {
     return user ? `lote_v1_${user.uid}` : null;
@@ -375,6 +377,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!state.selectedLeagueId || !state.seasonDay || !user) return;
 
     const { seasonNumber: globalSeason, seasonDay: globalDay } = getGlobalSeasonInfo();
+    
+    const league = LEAGUES.find(l => l.id === state.selectedLeagueId);
+    const isPlayedToday = isMatchDue(league?.startTime || "23:00", state.lastLeagueMatchDate);
+    const completedDays = isPlayedToday ? globalDay : Math.max(0, globalDay - 1);
+
+    if (
+      lastSyncRef.current?.season === globalSeason && 
+      lastSyncRef.current?.day === completedDays && 
+      lastSyncRef.current?.leagueId === state.selectedLeagueId
+    ) {
+      return;
+    }
 
     if (state.lastProcessedSeason > 0 && globalSeason > state.lastProcessedSeason) {
       const lastSeasonTeams = getMockGroupTeams(
@@ -415,6 +429,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         awardedTrophy
       });
 
+      lastSyncRef.current = { season: globalSeason, day: completedDays, leagueId: state.selectedLeagueId };
       const profileRef = doc(db, 'players_v5', user.uid);
       setDocumentNonBlocking(profileRef, {
         leagueLevel: newLevel,
@@ -432,19 +447,21 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
     if (globalDay > 14) return;
 
-    const league = LEAGUES.find(l => l.id === state.selectedLeagueId);
-    const isPlayedToday = isMatchDue(league?.startTime || "23:00", state.lastLeagueMatchDate);
-    const completedDays = isPlayedToday ? state.seasonDay : Math.max(0, state.seasonDay - 1);
-
     const groupTeams = getMockGroupTeams(
       state.rank, user.displayName || "My Team", state.leagueLevel, state.divisionSubId, state.groupId, state.selectedLeagueId,
       groupPlayers, user.uid, completedDays
     );
 
     const myTeam = groupTeams.find(t => t.id === user.uid);
-    if (!myTeam) return;
+    const myDocInSnapshot = groupPlayers.find(p => p.id === user.uid);
+    if (!myTeam || !myDocInSnapshot) return;
 
-    if (state.wins !== myTeam.wins || state.points !== myTeam.points || state.lastProcessedSeason !== globalSeason) {
+    if (
+      myDocInSnapshot.wins !== myTeam.wins || 
+      myDocInSnapshot.points !== myTeam.points || 
+      state.lastProcessedSeason !== globalSeason
+    ) {
+      lastSyncRef.current = { season: globalSeason, day: completedDays, leagueId: state.selectedLeagueId };
       const profileRef = doc(db, 'players_v5', user.uid);
       setDocumentNonBlocking(profileRef, {
         wins: Number(myTeam.wins || 0),
@@ -852,7 +869,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const isExistingTechnical = existing.opponentName === 'WAITING' || existing.opponentName === 'SEEDED';
         const isNewTechnical = opponentName === 'WAITING' || opponentName === 'SEEDED';
 
-        // ONLY skip if they are identical technical placeholders or identical real matches
         if (isExistingTechnical && isNewTechnical && existing.opponentName === opponentName) return s;
         if (!isExistingTechnical && !isNewTechnical && existing.preview !== undefined && result.preview !== undefined && existing.winner === winner) return s;
       }

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,7 @@ export default function QuickSearchPage() {
   const { toast } = useToast();
   const [isBidding, setIsBidding] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
+  const initTriggeredRef = useRef(false);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -38,7 +39,6 @@ export default function QuickSearchPage() {
 
   const today = getMoscowDateString();
   
-  // КРИТИЧЕСКАЯ ЗАЩИТА: Не отправляем запрос до полной загрузки Auth и Профиля
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('dropDate', '==', today));
@@ -46,9 +46,20 @@ export default function QuickSearchPage() {
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
-  // Инициализация системного рынка
   useEffect(() => {
-    if (isLoaded && !isUserLoading && !isProfileLoading && user?.uid && profile && isMarketLoading === false && Array.isArray(agents) && agents.length === 0) {
+    if (
+      isLoaded && 
+      !isUserLoading && 
+      !isProfileLoading && 
+      user?.uid && 
+      profile && 
+      isMarketLoading === false && 
+      Array.isArray(agents) && 
+      agents.length === 0 &&
+      !initTriggeredRef.current
+    ) {
+      initTriggeredRef.current = true;
+      
       const initMarket = async () => {
         const mskNow = getMoscowTime();
         const dropTime = new Date(mskNow);
@@ -63,7 +74,7 @@ export default function QuickSearchPage() {
           for (let i = 0; i < 3; i++) {
             const hero = generateUniqueHero(role, i, false);
             const startPrice = (hero.overallRating * 15000) + 50000;
-            const agentId = `sys_${today}_${role}_${i}`; // Системный префикс
+            const agentId = `sys_${today}_${role}_${i}`;
             
             const agentData = {
               id: agentId,
