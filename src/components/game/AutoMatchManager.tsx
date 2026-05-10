@@ -41,24 +41,24 @@ export function AutoMatchManager() {
   const { data: profile } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
-    if (!profile?.selectedLeagueId) return null;
+    if (!profile?.selectedLeagueId || !user?.uid) return null;
     return query(
       collection(db, 'players_v5'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
     );
-  }, [db, profile?.selectedLeagueId, profile?.leagueLevel, profile?.groupId]);
+  }, [db, profile?.selectedLeagueId, profile?.leagueLevel, profile?.groupId, user?.uid]);
 
   const { data: groupPlayers } = useCollection(groupQuery);
 
   const allLeaguePlayersQuery = useMemoFirebase(() => {
-    if (!profile?.selectedLeagueId) return null;
+    if (!profile?.selectedLeagueId || !user?.uid) return null;
     return query(
       collection(db, 'players_v5'),
       where('selectedLeagueId', '==', profile.selectedLeagueId)
     );
-  }, [db, profile?.selectedLeagueId]);
+  }, [db, profile?.selectedLeagueId, user?.uid]);
 
   const { data: allLeaguePlayers } = useCollection(allLeaguePlayersQuery);
 
@@ -102,7 +102,7 @@ export function AutoMatchManager() {
         scoreB: forcedScoreB
       });
 
-      // Defensive check before recording result to prevent undefined crashes
+      // Extreme safety check before recording
       if (result && result.winner) {
         let customPlayedAt = undefined;
         if (isCatchUp && seasonStartDate) {

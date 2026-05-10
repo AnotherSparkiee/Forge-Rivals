@@ -38,8 +38,8 @@ export default function QuickSearchPage() {
 
   const today = getMoscowDateString();
   
+  // Robust query initialization: wait for absolute auth readiness
   const marketQuery = useMemoFirebase(() => {
-    // Блокируем запрос до полной готовности Auth и профиля
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
   }, [db, today, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
@@ -47,7 +47,7 @@ export default function QuickSearchPage() {
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
   useEffect(() => {
-    // Инициализация рынка только при полной готовности и пустой базе
+    // Initialize market only when auth is fully ready and collection is empty
     if (isLoaded && !isUserLoading && !isProfileLoading && user?.uid && profile && isMarketLoading === false && Array.isArray(agents) && agents.length === 0) {
       const initMarket = async () => {
         const mskNow = getMoscowTime();

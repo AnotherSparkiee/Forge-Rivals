@@ -13,16 +13,16 @@ service cloud.firestore {
     }
 
     match /market_v1/{agentId} {
-      // Явное разрешение на поиск и чтение лотов всем вошедшим
-      allow read, create: if isSignedIn();
+      // Explicitly allow list and get for authenticated users
+      allow get, list, create: if isSignedIn();
       
-      // Логика аукциона
+      // Auction update logic: allows higher bids from anyone except the seller
       allow update: if isSignedIn() 
         && (
-          // 1. Первая ставка (если лидер еще не определен в данных)
+          // Allow system initialization or first bids
           resource.data.get('highestBidderId', null) == null ||
           
-          // 2. Правило аукциона: инкремент цены, смена лидера, запрет на свои лоты
+          // Bid logic: new bid must be higher, must set self as leader, cannot bid on own listing
           (
             request.resource.data.currentBid > resource.data.currentBid &&
             request.resource.data.highestBidderId == request.auth.uid &&
