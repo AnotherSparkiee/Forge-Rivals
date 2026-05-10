@@ -13,22 +13,15 @@ service cloud.firestore {
     }
 
     match /market_v1/{agentId} {
-      // Explicitly allow list and get for authenticated users
-      allow get, list, create: if isSignedIn();
+      // Anyone signed in can view the market and list new players
+      allow read, create: if isSignedIn();
       
-      // Auction update logic: allows higher bids from anyone except the seller
+      // Update logic for bidding
       allow update: if isSignedIn() 
-        && (
-          // Allow system initialization or first bids
-          resource.data.get('highestBidderId', null) == null ||
-          
-          // Bid logic: new bid must be higher, must set self as leader, cannot bid on own listing
-          (
-            request.resource.data.currentBid > resource.data.currentBid &&
-            request.resource.data.highestBidderId == request.auth.uid &&
-            resource.data.get('sellerId', null) != request.auth.uid
-          )
-        );
+        && request.resource.data.currentBid > resource.data.currentBid
+        && request.resource.data.highestBidderId == request.auth.uid
+        && resource.data.sellerId != request.auth.uid;
+
       allow delete: if false;
     }
 

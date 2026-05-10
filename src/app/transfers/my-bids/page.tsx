@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,6 @@ export default function MyBidsPage() {
   }, []);
 
   const marketQuery = useMemoFirebase(() => {
-    // Блокируем запрос до полной готовности Auth и профиля
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('bidders', 'array-contains', user.uid));
   }, [db, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
