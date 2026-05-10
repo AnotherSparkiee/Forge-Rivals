@@ -12,8 +12,8 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, query, where, doc } from 'firebase/firestore';
 
 export default function MySalesPage() {
   const { language, isLoaded } = useGameState();
@@ -21,15 +21,18 @@ export default function MySalesPage() {
   const db = useFirestore();
   const [now, setNow] = useState(Date.now());
 
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
+
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
   const marketQuery = useMemoFirebase(() => {
-    if (isUserLoading || !user?.uid) return null;
+    if (isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('sellerId', '==', user.uid));
-  }, [db, user?.uid, isUserLoading]);
+  }, [db, user?.uid, isUserLoading, isProfileLoading, !!profile]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
@@ -42,7 +45,7 @@ export default function MySalesPage() {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  if (!isLoaded || isUserLoading) return <LoadingScreen />;
+  if (!isLoaded || isUserLoading || isProfileLoading) return <LoadingScreen />;
 
   const t = {
     title: language === 'ru' ? "МОИ ПРОДАЖИ" : "MY SALES",
@@ -133,7 +136,7 @@ export default function MySalesPage() {
           <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
             <AlertTriangle className="w-16 h-16" />
             <p className="text-xs font-bold uppercase tracking-widest">{t.noSales}</p>
-            <p className="text-[10px] text-muted-foreground max-w-[200px]">
+            <p className="text-[10px] text-muted-foreground max-w-[200px] text-center">
               {language === 'ru' ? "Вы можете выставить игрока на трансфер из раздела Ростер -> Контракты" : "You can put a player on transfer from Roster -> Contracts"}
             </p>
           </div>

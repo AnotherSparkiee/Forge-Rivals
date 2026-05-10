@@ -27,7 +27,7 @@ export default function MyBidsPage() {
   const [now, setNow] = useState(Date.now());
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
-  const { data: profile } = useDoc(userRef);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -35,9 +35,9 @@ export default function MyBidsPage() {
   }, []);
 
   const marketQuery = useMemoFirebase(() => {
-    if (isUserLoading || !user?.uid) return null;
+    if (isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('bidders', 'array-contains', user.uid));
-  }, [db, user?.uid, isUserLoading]);
+  }, [db, user?.uid, isUserLoading, isProfileLoading, !!profile]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
@@ -84,7 +84,7 @@ export default function MyBidsPage() {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  if (!isLoaded || isUserLoading) return <LoadingScreen />;
+  if (!isLoaded || isUserLoading || isProfileLoading) return <LoadingScreen />;
 
   const t = {
     title: language === 'ru' ? "МОИ ПОКУПКИ" : "MY BIDS",

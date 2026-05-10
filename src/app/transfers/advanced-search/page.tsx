@@ -7,9 +7,9 @@ import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, Search, SlidersHorizontal, Info, 
-  Globe, Zap, Clock, Loader2, Gavel, 
-  TrendingUp, AlertTriangle, RefreshCw, X
+  ChevronLeft, Search, SlidersHorizontal, 
+  Clock, Loader2, Gavel, 
+  TrendingUp, AlertTriangle, RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -142,7 +142,7 @@ export default function AdvancedSearchPage() {
     setAgeRange([17, 30]);
   };
 
-  if (!isLoaded || isUserLoading) return <LoadingScreen />;
+  if (!isLoaded || isUserLoading || isProfileLoading) return <LoadingScreen />;
 
   const t = {
     title: language === 'ru' ? "РАСШИРЕННЫЙ ПОИСК" : "ADVANCED SCOUTING",

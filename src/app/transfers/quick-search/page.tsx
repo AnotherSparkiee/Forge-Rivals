@@ -7,8 +7,7 @@ import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, Search, Star, Globe, 
-  UserPlus, Coins, Info, Zap, Clock, Loader2, Gavel, TrendingUp, AlertTriangle
+  ChevronLeft, Info, Zap, Clock, Loader2, Gavel, TrendingUp, Coins
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -40,6 +39,7 @@ export default function QuickSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
+    // CRITICAL: Do not initiate query until auth and profile are fully resolved
     if (isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
   }, [db, today, user?.uid, isUserLoading, isProfileLoading, !!profile]);
@@ -47,6 +47,7 @@ export default function QuickSearchPage() {
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
   useEffect(() => {
+    // Only initialize if explicitly confirmed that no agents exist for today
     if (isLoaded && !isUserLoading && !isProfileLoading && user?.uid && profile && isMarketLoading === false && Array.isArray(agents) && agents.length === 0) {
       const initMarket = async () => {
         const dateSeed = today.split('-').reduce((acc, v) => acc + parseInt(v), 0);
@@ -144,7 +145,7 @@ export default function QuickSearchPage() {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  if (!isLoaded || isUserLoading) return <LoadingScreen />;
+  if (!isLoaded || isUserLoading || isProfileLoading) return <LoadingScreen />;
 
   const t = {
     title: language === 'ru' ? "СВОБОДНЫЕ АГЕНТЫ" : "FREE AGENTS",
@@ -210,7 +211,6 @@ export default function QuickSearchPage() {
 
         {t.roles.map((role) => {
           const roleAgents = agents?.filter(a => a.heroData.role === role.id && new Date(a.dropTime).getTime() <= now) || [];
-          const upcomingAgents = agents?.filter(a => a.heroData.role === role.id && new Date(a.dropTime).getTime() > now) || [];
 
           return (
             <TabsContent key={role.id} value={role.id} className="space-y-3 mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300">

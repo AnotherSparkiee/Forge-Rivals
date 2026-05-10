@@ -14,19 +14,21 @@ service cloud.firestore {
 
     match /market_v1/{agentId} {
       // Allow read and create for all authenticated users
-      allow get, list, create: if isSignedIn();
+      allow read, create: if isSignedIn();
       
       // Update logic for auction
       allow update: if isSignedIn() 
         && (
-          // 1. Allow if document is being initialized (no bidder yet)
-          !('highestBidderId' in resource.data) || resource.data.highestBidderId == null ||
-          // 2. Standard auction rule: +3% increment, requester becomes leader, and not bidding on self
+          // 1. Allow if document is being initialized or nobody has bid yet
+          // Use .get() to safely handle missing fields during initialization
+          (resource.data.get('highestBidderId', null) == null) ||
+          
+          // 2. Standard auction rule: +3% increment, requester becomes leader
           (
             request.resource.data.currentBid >= (resource.data.currentBid * 1.03) &&
             request.resource.data.highestBidderId == request.auth.uid &&
-            // Prevent bidding on your own players
-            (!('sellerId' in resource.data) || resource.data.sellerId != request.auth.uid)
+            // Prevent bidding on your own players (sellerId check)
+            (resource.data.get('sellerId', null) != request.auth.uid)
           )
         );
       allow delete: if false;
