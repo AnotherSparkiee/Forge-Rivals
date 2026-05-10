@@ -30,9 +30,10 @@ export default function MySalesPage() {
   }, []);
 
   const marketQuery = useMemoFirebase(() => {
-    if (isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
+    // CRITICAL: Block query until fully authorized
+    if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('sellerId', '==', user.uid));
-  }, [db, user?.uid, isUserLoading, isProfileLoading, !!profile]);
+  }, [db, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 

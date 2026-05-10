@@ -14,7 +14,7 @@ service cloud.firestore {
 
     match /market_v1/{agentId} {
       // Allow searching and viewing agents for all authenticated users
-      allow get, list, create: if isSignedIn();
+      allow read, create: if isSignedIn();
       
       // Update logic for auction
       allow update: if isSignedIn() 

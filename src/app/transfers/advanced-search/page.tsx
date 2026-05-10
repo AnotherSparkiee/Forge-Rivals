@@ -61,10 +61,10 @@ export default function AdvancedSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
-    // CRITICAL: Prevent query until Auth is established
-    if (isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
+    // CRITICAL: Block query until fully authorized
+    if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
-  }, [db, today, user?.uid, isUserLoading, isProfileLoading, !!profile]);
+  }, [db, today, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
