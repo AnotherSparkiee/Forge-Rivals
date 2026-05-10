@@ -29,7 +29,7 @@ export default function MySalesPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // КРИТИЧЕСКИЙ ФИКС: Блокируем запрос до полной готовности
+  // КРИТИЧЕСКАЯ ЗАЩИТА
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('sellerId', '==', user.uid));

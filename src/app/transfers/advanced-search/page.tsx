@@ -60,7 +60,7 @@ export default function AdvancedSearchPage() {
 
   const today = getMoscowDateString();
   
-  // КРИТИЧЕСКИЙ ФИКС: Блокируем запрос до полной готовности
+  // КРИТИЧЕСКАЯ ЗАЩИТА
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('dropDate', '==', today));
@@ -256,7 +256,6 @@ export default function AdvancedSearchPage() {
           filteredAgents.map((agent) => {
             const player = agent.heroData;
             const isLeading = agent.highestBidderId === user?.uid;
-            const isSeller = agent.sellerId === user?.uid;
             const minNext = Math.ceil(agent.currentBid * 1.03);
             const isClosed = now >= new Date(agent.expiresAt).getTime();
 
@@ -318,10 +317,10 @@ export default function AdvancedSearchPage() {
                       isLeading ? "bg-green-600 hover:bg-green-700" : "hero-gradient"
                     )}
                     onClick={() => handleBid(agent)}
-                    disabled={!!isBidding || isClosed || isLeading || isSeller}
+                    disabled={!!isBidding || isClosed || isLeading}
                   >
                     {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gavel className="w-4 h-4 mr-2" />}
-                    {isClosed ? "CLOSED" : (isLeading ? "HIGHEST BIDDER" : (isSeller ? "YOUR PLAYER" : "PLACE BID"))}
+                    {isClosed ? "CLOSED" : (isLeading ? "HIGHEST BIDDER" : "PLACE BID")}
                   </Button>
                 </CardContent>
               </Card>

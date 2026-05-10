@@ -38,7 +38,7 @@ export default function QuickSearchPage() {
 
   const today = getMoscowDateString();
   
-  // КРИТИЧЕСКИЙ ФИКС: Блокируем запрос до полной готовности Auth и Profile
+  // КРИТИЧЕСКАЯ ЗАЩИТА: Не отправляем запрос до полной загрузки Auth и Профиля
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('dropDate', '==', today));
@@ -63,7 +63,7 @@ export default function QuickSearchPage() {
           for (let i = 0; i < 3; i++) {
             const hero = generateUniqueHero(role, i, false);
             const startPrice = (hero.overallRating * 15000) + 50000;
-            const agentId = `bot_${today}_${role}_${i}`;
+            const agentId = `sys_${today}_${role}_${i}`; // Системный префикс
             
             const agentData = {
               id: agentId,
@@ -115,7 +115,7 @@ export default function QuickSearchPage() {
         highestBidderName: profile.displayName || "Manager",
         bidders: arrayUnion(user.uid)
       });
-      toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Placed!", description: `€ ${minNextBid.toLocaleString()}` });
+      toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Placed!" });
     } finally {
       setIsBidding(null);
     }
@@ -133,8 +133,8 @@ export default function QuickSearchPage() {
   if (!isLoaded || isUserLoading || isProfileLoading) return <LoadingScreen />;
 
   const t = {
-    title: language === 'ru' ? "СВОБОДНЫЕ АГЕНТЫ" : "FREE AGENTS",
-    subtitle: language === 'ru' ? "Глобальный рынок талантов" : "Global talent marketplace",
+    title: language === 'ru' ? "БЫСТРЫЙ ПОИСК" : "QUICK SEARCH",
+    subtitle: language === 'ru' ? "Свободные агенты лиги" : "League free agents",
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     bid: language === 'ru' ? "СТАВКА" : "BID",
     noPlayers: language === 'ru' ? "Кандидаты появятся позже" : "Candidates appearing soon",
@@ -205,7 +205,6 @@ export default function QuickSearchPage() {
                 roleAgents.map((agent) => {
                   const player = agent.heroData;
                   const isLeading = agent.highestBidderId === user?.uid;
-                  const isSeller = agent.sellerId === user?.uid;
                   const minNext = Math.ceil(agent.currentBid * 1.03);
                   const isClosed = now >= new Date(agent.expiresAt).getTime();
 
@@ -267,7 +266,7 @@ export default function QuickSearchPage() {
                             isLeading ? "bg-green-600 hover:bg-green-700" : "hero-gradient"
                           )}
                           onClick={() => handleBid(agent)}
-                          disabled={!!isBidding || isClosed || isLeading || isSeller}
+                          disabled={!!isBidding || isClosed || isLeading}
                         >
                           {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gavel className="w-4 h-4 mr-2" />}
                           {isClosed ? "CLOSED" : (isLeading ? "HIGHEST BIDDER" : "PLACE BID")}
