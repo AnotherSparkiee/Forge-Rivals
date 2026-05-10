@@ -103,7 +103,7 @@ export function AutoMatchManager() {
       });
 
       // Defensive check before recording result
-      if (result && typeof result === 'object' && result.winner) {
+      if (result && result.winner) {
         let customPlayedAt = undefined;
         if (isCatchUp && seasonStartDate) {
           const d = new Date(seasonStartDate);
@@ -117,11 +117,9 @@ export function AutoMatchManager() {
           setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, isCup: false });
           setShowResultDialog(true);
         }
-      } else {
-        console.warn("Simulation returned invalid result structure", result);
       }
     } catch (e: any) {
-      console.error("Simulation failed", e);
+      console.error("League Simulation failed", e);
     } finally {
       setIsSimulating(false);
       simulationLockRef.current = false;
@@ -187,15 +185,13 @@ export function AutoMatchManager() {
         isBo2: false, isBo3: true, scoreA: forcedA, scoreB: forcedB
       });
       
-      if (result && typeof result === 'object' && result.winner) {
+      if (result && result.winner) {
         recordMatch(result.winner, result, targetDay, opponent.name, 'tournament', undefined, detId);
         
         if (!isCatchUp) {
           setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, isCup: true }); 
           setShowResultDialog(true); 
         }
-      } else {
-        console.warn("Cup simulation returned invalid result", result);
       }
     } catch (e: any) {
       console.error("Cup simulation failed", e);

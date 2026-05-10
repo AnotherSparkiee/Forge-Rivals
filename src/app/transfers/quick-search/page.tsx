@@ -39,19 +39,18 @@ export default function QuickSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
-    // CRITICAL: Return null until profile is ready to avoid Permission Denied on initial load
-    if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
+    // CRITICAL: Block query until fully authorized to avoid Permission Denied
+    if (!isLoaded || isUserLoading || !user?.uid) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
-  }, [db, today, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
+  }, [db, today, user?.uid, isUserLoading, isLoaded]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
   useEffect(() => {
-    // Only init market if we are fully loaded, authorized, and the list is confirmed empty
-    if (isLoaded && !isUserLoading && !isProfileLoading && user?.uid && profile && isMarketLoading === false && Array.isArray(agents) && agents.length === 0) {
+    // Only init market if we are fully loaded and authorized
+    if (isLoaded && !isUserLoading && user?.uid && isMarketLoading === false && Array.isArray(agents) && agents.length === 0) {
       const initMarket = async () => {
         const mskNow = getMoscowTime();
-        // Fixed drop hour for consistency
         const dropTime = new Date(mskNow);
         dropTime.setHours(mskNow.getHours() - (mskNow.getHours() % 12), 0, 0, 0);
         
@@ -64,7 +63,6 @@ export default function QuickSearchPage() {
           for (let i = 0; i < 3; i++) {
             const hero = generateUniqueHero(role, i, false);
             const startPrice = (hero.overallRating * 15000) + 50000;
-            // Deterministic ID to prevent permission/overwrite issues
             const agentId = `bot_${today}_${role}_${i}`;
             
             const agentData = {
@@ -88,7 +86,7 @@ export default function QuickSearchPage() {
       };
       initMarket();
     }
-  }, [isLoaded, isUserLoading, isProfileLoading, user?.uid, profile, isMarketLoading, agents, today, db]);
+  }, [isLoaded, isUserLoading, user?.uid, isMarketLoading, agents, today, db]);
 
   const handleBid = async (agent: any) => {
     if (!user || !profile || isBidding) return;
@@ -132,7 +130,7 @@ export default function QuickSearchPage() {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  if (!isLoaded || isUserLoading || isProfileLoading) return <LoadingScreen />;
+  if (!isLoaded || isUserLoading) return <LoadingScreen />;
 
   const t = {
     title: language === 'ru' ? "СВОБОДНЫЕ АГЕНТЫ" : "FREE AGENTS",
