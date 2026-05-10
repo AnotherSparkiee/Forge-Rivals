@@ -104,12 +104,13 @@ export default function ContractsPage() {
             dropTime: mskNow.toISOString()
           };
 
-          setDocumentNonBlocking(doc(db, 'market_v1', agentId), agentData, { merge: true });
+          // Используем market_v2
+          setDocumentNonBlocking(doc(db, 'market_v2', agentId), agentData, { merge: true });
           removeHero(profileHero.id, 0);
           
           toast({ 
             title: language === 'ru' ? "Игрок выставлен на трансфер" : "Player Listed for Transfer",
-            description: language === 'ru' ? "Вы можете следить за торгами в меню Трансферы." : "You can monitor the auction in Transfers menu."
+            description: language === 'ru' ? "Вы можете следить за торгами в меню Трансферы -> Мои продажи." : "You can monitor the auction in Transfers -> My Sales."
           });
           setProfileHero(null);
         } catch (e) {

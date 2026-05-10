@@ -34,9 +34,10 @@ export default function MyBidsPage() {
     return () => clearInterval(timer);
   }, []);
 
+  // КРИТИЧЕСКИЙ ФИКС: Блокируем запрос до полной готовности
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
-    return query(collection(db, 'market_v1'), where('bidders', 'array-contains', user.uid));
+    return query(collection(db, 'market_v2'), where('bidders', 'array-contains', user.uid));
   }, [db, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
@@ -57,7 +58,7 @@ export default function MyBidsPage() {
 
     setIsBidding(agent.id);
     try {
-      updateDocumentNonBlocking(doc(db, 'market_v1', agent.id), {
+      updateDocumentNonBlocking(doc(db, 'market_v2', agent.id), {
         currentBid: minNextBid,
         highestBidderId: user.uid,
         highestBidderName: profile.displayName || "Manager",

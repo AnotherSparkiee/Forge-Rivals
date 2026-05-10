@@ -29,9 +29,10 @@ export default function MySalesPage() {
     return () => clearInterval(timer);
   }, []);
 
+  // КРИТИЧЕСКИЙ ФИКС: Блокируем запрос до полной готовности
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
-    return query(collection(db, 'market_v1'), where('sellerId', '==', user.uid));
+    return query(collection(db, 'market_v2'), where('sellerId', '==', user.uid));
   }, [db, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);

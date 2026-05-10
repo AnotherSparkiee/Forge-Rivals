@@ -60,10 +60,10 @@ export default function AdvancedSearchPage() {
 
   const today = getMoscowDateString();
   
+  // КРИТИЧЕСКИЙ ФИКС: Блокируем запрос до полной готовности
   const marketQuery = useMemoFirebase(() => {
-    // Блокируем запрос до полной готовности Auth и профиля
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
-    return query(collection(db, 'market_v1'), where('dropDate', '==', today));
+    return query(collection(db, 'market_v2'), where('dropDate', '==', today));
   }, [db, today, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
@@ -72,7 +72,7 @@ export default function AdvancedSearchPage() {
     if (!agents) return [];
     return agents.filter(agent => {
       const player = agent.heroData;
-      const isDropped = new Date(agent.dropTime).getTime() <= now;
+      const isDropped = new Date(agent.dropTime || agent.dropDate).getTime() <= now;
       
       if (!isDropped) return false;
 
@@ -106,7 +106,7 @@ export default function AdvancedSearchPage() {
 
     setIsBidding(agent.id);
     try {
-      updateDocumentNonBlocking(doc(db, 'market_v1', agent.id), {
+      updateDocumentNonBlocking(doc(db, 'market_v2', agent.id), {
         currentBid: minNextBid,
         highestBidderId: user.uid,
         highestBidderName: profile.displayName || "Manager",

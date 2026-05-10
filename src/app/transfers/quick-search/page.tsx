@@ -38,13 +38,15 @@ export default function QuickSearchPage() {
 
   const today = getMoscowDateString();
   
+  // КРИТИЧЕСКИЙ ФИКС: Блокируем запрос до полной готовности
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
-    return query(collection(db, 'market_v1'), where('dropDate', '==', today));
+    return query(collection(db, 'market_v2'), where('dropDate', '==', today));
   }, [db, today, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
+  // Инициализация системного рынка
   useEffect(() => {
     if (isLoaded && !isUserLoading && !isProfileLoading && user?.uid && profile && isMarketLoading === false && Array.isArray(agents) && agents.length === 0) {
       const initMarket = async () => {
@@ -78,7 +80,7 @@ export default function QuickSearchPage() {
               sellerName: 'League Agent'
             };
             
-            setDocumentNonBlocking(doc(db, 'market_v1', agentId), agentData, { merge: true });
+            setDocumentNonBlocking(doc(db, 'market_v2', agentId), agentData, { merge: true });
           }
         });
       };
@@ -107,7 +109,7 @@ export default function QuickSearchPage() {
 
     setIsBidding(agent.id);
     try {
-      updateDocumentNonBlocking(doc(db, 'market_v1', agent.id), {
+      updateDocumentNonBlocking(doc(db, 'market_v2', agent.id), {
         currentBid: minNextBid,
         highestBidderId: user.uid,
         highestBidderName: profile.displayName || "Manager",
