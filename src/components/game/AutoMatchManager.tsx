@@ -102,6 +102,7 @@ export function AutoMatchManager() {
         scoreB: forcedScoreB
       });
 
+      // Defensive check before recording result
       if (result && typeof result === 'object' && result.winner) {
         let customPlayedAt = undefined;
         if (isCatchUp && seasonStartDate) {
@@ -116,6 +117,8 @@ export function AutoMatchManager() {
           setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, isCup: false });
           setShowResultDialog(true);
         }
+      } else {
+        console.warn("Simulation returned invalid result structure", result);
       }
     } catch (e: any) {
       console.error("Simulation failed", e);
@@ -191,6 +194,8 @@ export function AutoMatchManager() {
           setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, isCup: true }); 
           setShowResultDialog(true); 
         }
+      } else {
+        console.warn("Cup simulation returned invalid result", result);
       }
     } catch (e: any) {
       console.error("Cup simulation failed", e);

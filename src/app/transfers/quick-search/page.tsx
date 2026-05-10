@@ -40,6 +40,7 @@ export default function QuickSearchPage() {
   
   const marketQuery = useMemoFirebase(() => {
     // CRITICAL: Do not initiate query until auth and profile are fully resolved
+    // This prevents "Permission Denied" errors during the split-second before Auth is propagated
     if (isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
   }, [db, today, user?.uid, isUserLoading, isProfileLoading, !!profile]);
@@ -87,7 +88,7 @@ export default function QuickSearchPage() {
       };
       initMarket();
     }
-  }, [isLoaded, isUserLoading, isProfileLoading, user?.uid, !!profile, isMarketLoading, agents, today, db]);
+  }, [isLoaded, isUserLoading, isProfileLoading, user?.uid, profile, isMarketLoading, agents, today, db]);
 
   const handleBid = async (agent: any) => {
     if (!user || !profile || isBidding) return;
