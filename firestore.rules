@@ -13,9 +13,9 @@ service cloud.firestore {
     }
 
     // Правила для трансферного рынка v2
-    match /market_v2/{document=**} {
-      // Любой авторизованный менеджер может искать игроков и просматривать детали
-      allow get, list, create: if isSignedIn();
+    match /market_v2/{agentId} {
+      // Любой авторизованный менеджер может искать игроков, просматривать детали и выставлять своих
+      allow read, create: if isSignedIn();
       
       // Логика ставки: можно обновлять, если ставка выше текущей и ты не продавец
       allow update: if isSignedIn() 

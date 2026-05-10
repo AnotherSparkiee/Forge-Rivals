@@ -44,7 +44,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "MarketAgent",
       "type": "object",
-      "description": "A free agent available on the global transfer market.",
+      "description": "A free agent or player-listed auction item on the transfer market.",
       "properties": {
         "id": { "type": "string" },
         "heroData": { "type": "object" },
@@ -54,8 +54,10 @@
         "highestBidderName": { "type": "string" },
         "bidders": { "type": "array", "items": { "type": "string" } },
         "sellerId": { "type": "string" },
+        "sellerName": { "type": "string" },
         "expiresAt": { "type": "string", "format": "date-time" },
-        "dropDate": { "type": "string" }
+        "dropDate": { "type": "string" },
+        "dropTime": { "type": "string", "format": "date-time" }
       }
     }
   },
