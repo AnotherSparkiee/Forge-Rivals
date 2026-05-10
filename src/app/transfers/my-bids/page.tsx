@@ -34,7 +34,7 @@ export default function MyBidsPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // КРИТИЧЕСКИЙ ФИКС: Блокируем запрос до полной готовности
+  // КРИТИЧЕСКИЙ ФИКС: Блокируем запрос до полной готовности Auth и Profile
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('bidders', 'array-contains', user.uid));

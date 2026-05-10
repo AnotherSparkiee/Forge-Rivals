@@ -52,6 +52,8 @@
         "startingPrice": { "type": "number" },
         "highestBidderId": { "type": "string" },
         "highestBidderName": { "type": "string" },
+        "bidders": { "type": "array", "items": { "type": "string" } },
+        "sellerId": { "type": "string" },
         "expiresAt": { "type": "string", "format": "date-time" },
         "dropDate": { "type": "string" }
       }
@@ -67,7 +69,7 @@
         "definition": { "entityName": "UserProfile" }
       },
       {
-        "path": "/market_v1/{agentId}",
+        "path": "/market_v2/{agentId}",
         "definition": { "entityName": "MarketAgent" }
       }
     ]

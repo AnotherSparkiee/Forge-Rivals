@@ -12,14 +12,15 @@ service cloud.firestore {
       allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
-    match /market_v2/{agentId} {
-      // Любой авторизованный может смотреть список и создавать лоты
-      allow read, create: if isSignedIn();
+    // Правила для трансферного рынка v2
+    match /market_v2/{document=**} {
+      // Любой авторизованный менеджер может искать игроков и просматривать детали
+      allow get, list, create: if isSignedIn();
       
-      // Логика ставки
+      // Логика ставки: можно обновлять, если ставка выше текущей и ты не продавец
       allow update: if isSignedIn() 
         && request.resource.data.currentBid > resource.data.currentBid
-        && request.resource.data.sellerId != request.auth.uid;
+        && (resource.data.get('sellerId', '') != request.auth.uid);
 
       allow delete: if false;
     }
