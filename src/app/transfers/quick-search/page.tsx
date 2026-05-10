@@ -39,7 +39,7 @@ export default function QuickSearchPage() {
   const today = getMoscowDateString();
   
   const marketQuery = useMemoFirebase(() => {
-    // CRITICAL: Block query until fully authorized
+    // Ждем полной авторизации и загрузки профиля, чтобы избежать Permission Denied
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('dropDate', '==', today));
   }, [db, today, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
@@ -47,7 +47,7 @@ export default function QuickSearchPage() {
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
   useEffect(() => {
-    // Only initialize if explicitly confirmed that no agents exist for today
+    // Инициализируем рынок только если мы уверены, что данных нет и профиль загружен
     if (isLoaded && !isUserLoading && !isProfileLoading && user?.uid && profile && isMarketLoading === false && Array.isArray(agents) && agents.length === 0) {
       const initMarket = async () => {
         const dateSeed = today.split('-').reduce((acc, v) => acc + parseInt(v), 0);
@@ -174,7 +174,7 @@ export default function QuickSearchPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2">
-            <Gavel className="w-6 h-6 text-primary" />
+            <Zap className="w-6 h-6 text-primary" />
             {t.title}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>

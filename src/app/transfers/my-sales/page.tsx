@@ -30,7 +30,7 @@ export default function MySalesPage() {
   }, []);
 
   const marketQuery = useMemoFirebase(() => {
-    // CRITICAL: Block query until fully authorized
+    // Ждем полной авторизации и загрузки профиля, чтобы избежать Permission Denied
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v1'), where('sellerId', '==', user.uid));
   }, [db, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
