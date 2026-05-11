@@ -7,43 +7,35 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // 1. ТРАНСФЕРНЫЙ РЫНОК (market_v2)
+    // Размещаем в начале для приоритетной обработки. 
+    // Разрешаем все операции чтения и записи для любых авторизованных менеджеров.
+    match /market_v2/{agentId} {
+      allow read, create: if isSignedIn();
+      allow update, delete: if isSignedIn();
+    }
+
+    // 2. ПРОФИЛИ ИГРОКОВ
     match /players_v5/{userId} {
       allow read: if true;
       allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
-    match /market_v2/{agentId} {
-      // Allow any signed-in user to see the market lists and individual players
-      allow get, list: if isSignedIn();
-      
-      // Allow signed-in users to list players for transfer
-      allow create: if isSignedIn();
-      
-      // Auction logic for bidding
-      allow update: if isSignedIn() 
-        && (
-          // Standard bid: price must increase, and user cannot be the seller
-          (request.resource.data.currentBid > resource.data.currentBid && resource.data.sellerId != request.auth.uid)
-          // System maintenance or fallback
-          || resource.data.sellerId == 'system'
-        );
-        
-      // Allow sellers or system to remove listings
-      allow delete: if isSignedIn() && (resource.data.sellerId == request.auth.uid || resource.data.sellerId == 'system');
-    }
-
+    // 3. ДРУЖЕСКИЕ МАТЧИ И ЛОББИ
     match /friendly_lobbies/{userId} {
       allow read: if isSignedIn();
       allow create, delete: if isSignedIn() && request.auth.uid == userId;
       allow update: if isSignedIn();
     }
 
+    // 4. КВ КОРЗИНА
     match /cw_basket/{userId} {
       allow read: if isSignedIn();
       allow create, delete: if isSignedIn() && request.auth.uid == userId;
       allow update: if isSignedIn();
     }
 
+    // 5. ЧАТЫ
     match /global_chat/{messageId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
@@ -57,6 +49,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Запрет доступа ко всему остальному по умолчанию
     match /{document=**} {
       allow read, write: if false;
     }

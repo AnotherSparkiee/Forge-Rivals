@@ -60,7 +60,7 @@ export default function AdvancedSearchPage() {
 
   const today = getMoscowDateString();
   
-  // STRICT GUARD: Block market query until Auth and Profile are fully resolved to prevent Permission Denied
+  // CRITICAL: Block market query until Auth and Profile are fully resolved to prevent Permission Denied
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('dropDate', '==', today));
@@ -90,11 +90,6 @@ export default function AdvancedSearchPage() {
 
     if (agent.highestBidderId === user.uid) {
       toast({ title: language === 'ru' ? "Вы уже лидер" : "You are leading", variant: "destructive" });
-      return;
-    }
-
-    if (agent.sellerId === user.uid) {
-      toast({ title: language === 'ru' ? "Это ваш игрок" : "You are the seller", variant: "destructive" });
       return;
     }
 

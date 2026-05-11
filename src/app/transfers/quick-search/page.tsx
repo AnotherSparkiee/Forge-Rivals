@@ -66,7 +66,6 @@ export default function QuickSearchPage() {
       const initMarket = async () => {
         const mskNow = getMoscowTime();
         const dropTime = new Date(mskNow);
-        // Normalize drop time to avoid multiple systemic drops in a short period
         dropTime.setHours(mskNow.getHours() - (mskNow.getHours() % 12), 0, 0, 0);
         
         const expiryTime = new Date(dropTime);
@@ -108,11 +107,6 @@ export default function QuickSearchPage() {
 
     if (agent.highestBidderId === user.uid) {
       toast({ title: language === 'ru' ? "Вы уже лидер" : "You are leading", variant: "destructive" });
-      return;
-    }
-
-    if (agent.sellerId === user.uid) {
-      toast({ title: language === 'ru' ? "Это ваш игрок" : "You are the seller", variant: "destructive" });
       return;
     }
 
