@@ -21,7 +21,6 @@ export default function MySalesPage() {
   const db = useFirestore();
   const [now, setNow] = useState(Date.now());
 
-  // Profile hook to ensure user identity is fully verified before querying
   const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
@@ -30,7 +29,6 @@ export default function MySalesPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // CRITICAL: Block market query until Auth and Profile are fully resolved to prevent Permission Denied
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('sellerId', '==', user.uid));

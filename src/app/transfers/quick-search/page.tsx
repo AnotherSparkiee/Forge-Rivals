@@ -29,7 +29,6 @@ export default function QuickSearchPage() {
   const [now, setNow] = useState(Date.now());
   const initTriggeredRef = useRef(false);
 
-  // Profile hook to ensure user identity is fully verified before querying
   const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
@@ -40,7 +39,7 @@ export default function QuickSearchPage() {
 
   const today = getMoscowDateString();
   
-  // CRITICAL: Block market query until Auth and Profile are fully resolved to prevent Permission Denied
+  // Усиленная защита: запрос блокируется до полной инициализации профиля и пользователя
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('dropDate', '==', today));
@@ -48,7 +47,7 @@ export default function QuickSearchPage() {
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
-  // Initialize systemic market if empty
+  // Инициализация системного рынка при отсутствии лотов
   useEffect(() => {
     if (
       isLoaded && 

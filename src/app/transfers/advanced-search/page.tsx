@@ -44,7 +44,6 @@ export default function AdvancedSearchPage() {
   const [isBidding, setIsBidding] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
-  // Filter States
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [countryFilter, setCountryFilter] = useState<string>('all');
   const [minOvr, setMinOvr] = useState([20]);
@@ -60,7 +59,7 @@ export default function AdvancedSearchPage() {
 
   const today = getMoscowDateString();
   
-  // CRITICAL: Block market query until Auth and Profile are fully resolved to prevent Permission Denied
+  // Усиленная защита: запрос блокируется до полной инициализации профиля
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('dropDate', '==', today));
@@ -72,7 +71,8 @@ export default function AdvancedSearchPage() {
     if (!agents) return [];
     return agents.filter(agent => {
       const player = agent.heroData;
-      const isDropped = new Date(agent.dropTime || agent.dropDate).getTime() <= now;
+      const dropTime = agent.dropTime ? new Date(agent.dropTime).getTime() : new Date(agent.dropDate).getTime();
+      const isDropped = dropTime <= now;
       
       if (!isDropped) return false;
 

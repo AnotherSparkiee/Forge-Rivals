@@ -8,14 +8,14 @@ service cloud.firestore {
     }
 
     // 1. ТРАНСФЕРНЫЙ РЫНОК (market_v2)
-    // Размещаем в начале для приоритетной обработки. 
-    // Разрешаем все операции чтения и записи для любых авторизованных менеджеров.
+    // Разрешаем все операции для любых авторизованных менеджеров.
+    // Явно разделяем права для стабильности коллективных запросов (list).
     match /market_v2/{agentId} {
-      allow read, create: if isSignedIn();
-      allow update, delete: if isSignedIn();
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
     }
 
-    // 2. ПРОФИЛИ ИГРОКОВ
+    // 2. ПРОФИЛИ ИГРОКОВ (players_v5)
     match /players_v5/{userId} {
       allow read: if true;
       allow write: if isSignedIn() && request.auth.uid == userId;

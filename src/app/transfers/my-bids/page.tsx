@@ -26,7 +26,6 @@ export default function MyBidsPage() {
   const [isBidding, setIsBidding] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
-  // Profile hook to ensure user identity is fully verified before querying
   const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
@@ -35,10 +34,8 @@ export default function MyBidsPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // CRITICAL: Block market query until Auth and Profile are fully resolved to prevent Permission Denied
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
-    // Filter agents where current user has placed a bid
     return query(collection(db, 'market_v2'), where('bidders', 'array-contains', user.uid));
   }, [db, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
 
