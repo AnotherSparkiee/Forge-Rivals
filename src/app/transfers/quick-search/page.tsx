@@ -29,7 +29,8 @@ export default function QuickSearchPage() {
   const [now, setNow] = useState(Date.now());
   const initTriggeredRef = useRef(false);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
+  // Profile hook to ensure user identity is fully verified before querying
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   useEffect(() => {
@@ -39,7 +40,7 @@ export default function QuickSearchPage() {
 
   const today = getMoscowDateString();
   
-  // STRICT GUARD: Do not query until auth and profile are fully confirmed
+  // CRITICAL: Block market query until Auth and Profile are fully resolved to prevent Permission Denied
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('dropDate', '==', today));
@@ -47,6 +48,7 @@ export default function QuickSearchPage() {
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
+  // Initialize systemic market if empty
   useEffect(() => {
     if (
       isLoaded && 
@@ -64,6 +66,7 @@ export default function QuickSearchPage() {
       const initMarket = async () => {
         const mskNow = getMoscowTime();
         const dropTime = new Date(mskNow);
+        // Normalize drop time to avoid multiple systemic drops in a short period
         dropTime.setHours(mskNow.getHours() - (mskNow.getHours() % 12), 0, 0, 0);
         
         const expiryTime = new Date(dropTime);

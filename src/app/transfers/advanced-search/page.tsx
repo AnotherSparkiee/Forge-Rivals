@@ -50,7 +50,7 @@ export default function AdvancedSearchPage() {
   const [minOvr, setMinOvr] = useState([20]);
   const [ageRange, setAgeRange] = useState([17, 30]);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   useEffect(() => {
@@ -60,7 +60,7 @@ export default function AdvancedSearchPage() {
 
   const today = getMoscowDateString();
   
-  // STRICT GUARD: Block queries until user and profile are ready
+  // STRICT GUARD: Block market query until Auth and Profile are fully resolved to prevent Permission Denied
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('dropDate', '==', today));

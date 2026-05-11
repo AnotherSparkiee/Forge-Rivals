@@ -39,7 +39,7 @@ export default function ContractsPage() {
   const [isTransferring, setIsTransferring] = useState(false);
   const { toast } = useToast();
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
   if (!isLoaded) return <LoadingScreen />;
@@ -104,7 +104,7 @@ export default function ContractsPage() {
             dropTime: mskNow.toISOString()
           };
 
-          // Используем market_v2
+          // Use market_v2 for consistent data structure
           setDocumentNonBlocking(doc(db, 'market_v2', agentId), agentData, { merge: true });
           removeHero(profileHero.id, 0);
           
@@ -115,6 +115,7 @@ export default function ContractsPage() {
           setProfileHero(null);
         } catch (e) {
           console.error(e);
+          toast({ title: "Transfer Failed", variant: "destructive" });
         } finally {
           setIsTransferring(false);
         }
