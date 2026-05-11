@@ -34,7 +34,7 @@ export default function MyBidsPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // КРИТИЧЕСКАЯ ЗАЩИТА
+  // STRICT GUARD: Block queries until user and profile are ready
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('bidders', 'array-contains', user.uid));

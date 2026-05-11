@@ -39,6 +39,7 @@ export default function QuickSearchPage() {
 
   const today = getMoscowDateString();
   
+  // STRICT GUARD: Do not query until auth and profile are fully confirmed
   const marketQuery = useMemoFirebase(() => {
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('dropDate', '==', today));

@@ -13,14 +13,20 @@ service cloud.firestore {
     }
 
     match /market_v2/{agentId} {
-      allow read, create: if isSignedIn();
+      // Explicitly separate get and list for better query reliability
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn();
+      
       allow update: if isSignedIn() 
         && (
-          // Allow system initialization and standard bidding
-          request.resource.data.currentBid > resource.data.currentBid
+          // Allow bidding if price increases and user is not the seller
+          (request.resource.data.currentBid > resource.data.currentBid && request.resource.data.sellerId != request.auth.uid)
+          // Allow system initialization/maintenance
+          || resource.data.sellerId == 'system'
           || request.resource.data.sellerId == 'system'
         );
-      allow delete: if isSignedIn() && resource.data.sellerId == request.auth.uid;
+        
+      allow delete: if isSignedIn() && (resource.data.sellerId == request.auth.uid || resource.data.sellerId == 'system');
     }
 
     match /friendly_lobbies/{userId} {
@@ -44,7 +50,7 @@ service cloud.firestore {
     match /private_messages/{messageId} {
       allow read: if isSignedIn() && (request.auth.uid in resource.data.participants);
       allow create: if isSignedIn() && (request.auth.uid in request.resource.data.participants);
-      allow update: if isSignedIn() && (request.auth.uid in request.resource.data.participants);
+      allow update: if isSignedIn() && (request.auth.uid in resource.data.participants);
       allow delete: if false;
     }
 
