@@ -12,16 +12,14 @@ service cloud.firestore {
       allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // Трансферный рынок v2: Упрощенные правила для стабильной работы
     match /market_v2/{agentId} {
-      // Разрешаем чтение списков и создание документов всем вошедшим
       allow read, create: if isSignedIn();
-      
-      // Логика ставки: новая ставка должна быть выше текущей
-      // Мы убираем сложные проверки sellerId из правил, чтобы избежать Permission Denied при фильтрации
       allow update: if isSignedIn() 
-        && request.resource.data.currentBid > resource.data.currentBid;
-
+        && (
+          // Allow system initialization and standard bidding
+          request.resource.data.currentBid > resource.data.currentBid
+          || request.resource.data.sellerId == 'system'
+        );
       allow delete: if isSignedIn() && resource.data.sellerId == request.auth.uid;
     }
 
@@ -46,7 +44,7 @@ service cloud.firestore {
     match /private_messages/{messageId} {
       allow read: if isSignedIn() && (request.auth.uid in resource.data.participants);
       allow create: if isSignedIn() && (request.auth.uid in request.resource.data.participants);
-      allow update: if isSignedIn() && (request.auth.uid in resource.data.participants);
+      allow update: if isSignedIn() && (request.auth.uid in request.resource.data.participants);
       allow delete: if false;
     }
 

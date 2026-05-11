@@ -382,6 +382,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const isPlayedToday = isMatchDue(league?.startTime || "23:00", state.lastLeagueMatchDate);
     const completedDays = isPlayedToday ? globalDay : Math.max(0, globalDay - 1);
 
+    // CRITICAL: Prevent write storms by checking the last successfully synced state
     if (
       lastSyncRef.current?.season === globalSeason && 
       lastSyncRef.current?.day === completedDays && 
@@ -456,9 +457,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const myDocInSnapshot = groupPlayers.find(p => p.id === user.uid);
     if (!myTeam || !myDocInSnapshot) return;
 
+    // Double check against snapshot data to prevent redundant writes
     if (
-      myDocInSnapshot.wins !== myTeam.wins || 
-      myDocInSnapshot.points !== myTeam.points || 
+      Number(myDocInSnapshot.wins) !== Number(myTeam.wins) || 
+      Number(myDocInSnapshot.points) !== Number(myTeam.points) || 
       state.lastProcessedSeason !== globalSeason
     ) {
       lastSyncRef.current = { season: globalSeason, day: completedDays, leagueId: state.selectedLeagueId };
@@ -697,9 +699,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
             if (id === 'capacity') {
               updated.capacity += (updated.pendingCapacitySeats || 0);
+              updated.capacity = Number(updated.capacity);
               updated.pendingCapacitySeats = null;
             } else {
-              updated[id] = (updated[id] || 0) + 1;
+              updated[id] = Number((updated[id] || 0) + 1);
             }
             finishes[id] = null; starts[id] = null; hasChanges = true;
           }
