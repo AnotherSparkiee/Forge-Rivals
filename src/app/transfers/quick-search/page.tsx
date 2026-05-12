@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, Loader2, Gavel } from 'lucide-react';
+import { ChevronLeft, Loader2, Gavel, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -20,13 +20,13 @@ export default function QuickSearchPage() {
   const { toast } = useToast();
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // Запрашиваем данные ТОЛЬКО когда пользователь точно авторизован
   const marketQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    // CRITICAL: Prevent query until Auth is fully resolved
+    if (isUserLoading || !user?.uid) return null;
     return query(collection(db, 'market_v2'));
-  }, [db, user?.uid]);
+  }, [db, user?.uid, isUserLoading]);
 
-  const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
+  const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;
@@ -54,6 +54,17 @@ export default function QuickSearchPage() {
     }
   };
 
+  if (marketError) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-4">
+        <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
+        <h2 className="text-xl font-bold uppercase tracking-tighter">Access Denied</h2>
+        <p className="text-xs text-muted-foreground uppercase">The database is currently restricted. Please re-authenticate.</p>
+        <Button onClick={() => window.location.reload()} variant="outline" className="border-white/10 uppercase text-[10px] font-bold">Retry Terminal Connection</Button>
+      </div>
+    );
+  }
+
   if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
 
   const roles = [
@@ -77,7 +88,7 @@ export default function QuickSearchPage() {
             {language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">
-            {isMarketLoading ? 'Syncing...' : 'Market Active'}
+            {isMarketLoading ? 'Synchronizing Archive...' : 'Global Market Node: Active'}
           </p>
         </div>
       </header>
@@ -97,8 +108,9 @@ export default function QuickSearchPage() {
           return (
             <TabsContent key={role.id} value={role.id} className="space-y-3">
               {isMarketLoading ? (
-                <div className="py-20 text-center">
-                  <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+                <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <p className="text-[10px] font-bold uppercase tracking-widest">Accessing Node...</p>
                 </div>
               ) : roleAgents.length > 0 ? (
                 roleAgents.map((agent) => (
@@ -106,17 +118,17 @@ export default function QuickSearchPage() {
                     <CardContent className="p-4">
                       <div className="flex items-center gap-4 mb-4">
                         <div className="w-12 h-12 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
-                          <img src={agent.heroData.image} alt="" className="w-full h-full object-cover" />
+                          <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-bold uppercase truncate">{agent.heroData.name}</h3>
+                          <h3 className="text-sm font-bold uppercase truncate">{agent.heroData?.name}</h3>
                           <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase mt-1">
-                            {agent.heroData.role}
+                            {agent.heroData?.role}
                           </Badge>
                         </div>
                         <div className="text-right">
                           <p className="text-xl font-headline font-bold text-primary italic leading-none">
-                            {agent.heroData.overallRating}
+                            {agent.heroData?.overallRating}
                           </p>
                         </div>
                       </div>
@@ -145,7 +157,7 @@ export default function QuickSearchPage() {
                 ))
               ) : (
                 <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl">
-                  <p className="text-[10px] uppercase font-black">No agents listed in this sector</p>
+                  <p className="text-[10px] uppercase font-black">No active agents in this sector</p>
                 </div>
               )}
             </TabsContent>
