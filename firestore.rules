@@ -7,8 +7,8 @@ service cloud.firestore {
     }
 
     // 1. ТРАНСФЕРНЫЙ РЫНОК (market_v2)
-    // Упрощаем до максимума для стабильности: любой вошедший может читать и писать.
-    match /market_v2/{agentId=**} {
+    // Максимальное упрощение для диагностики: доступ всем вошедшим.
+    match /market_v2/{agentId} {
       allow read, write: if isSignedIn();
     }
 
