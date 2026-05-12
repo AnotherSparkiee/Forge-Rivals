@@ -8,7 +8,6 @@ import {
   FirestoreError,
   DocumentSnapshot,
 } from 'firebase/firestore';
-import { isMemoized } from '@/firebase/provider';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 type WithId<T> = T & { id: string };
@@ -36,10 +35,6 @@ export function useDoc<T = any>(
       return;
     }
 
-    if (!isMemoized(memoizedDocRef)) {
-      console.warn("useDoc: Reference was not memoized with useMemoFirebase.");
-    }
-
     setIsLoading(true);
     setError(null);
 
@@ -55,6 +50,7 @@ export function useDoc<T = any>(
         setIsLoading(false);
       },
       (fError: FirestoreError) => {
+        console.error("Firestore useDoc Error:", fError);
         if (fError.code === 'permission-denied') {
           setError(new FirestorePermissionError({ operation: 'get', path: memoizedDocRef.path }))
         } else {

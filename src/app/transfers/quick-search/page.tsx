@@ -23,20 +23,20 @@ export default function QuickSearchPage() {
   const [isBidding, setIsBidding] = useState<string | null>(null);
   const initTriggeredRef = useRef(false);
 
-  const userRef = useMemoFirebase(() => user?.uid ? doc(db, 'players_v5', user.uid) : null, [db, user?.uid]);
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
+  // Strictly block the query until Auth state is guaranteed
   const marketQuery = useMemoFirebase(() => {
-    // CRITICAL: Block query until Auth and Profile are fully settled to avoid Denied errors
-    if (isUserLoading || !user?.uid) return null;
+    if (isUserLoading || !user?.uid || !isStoreLoaded) return null;
     return query(collection(db, 'market_v2'));
-  }, [db, user?.uid, isUserLoading]);
+  }, [db, user?.uid, isUserLoading, isStoreLoaded]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
-  // Auto-initialize market if empty (Safe execution guard)
+  // Auto-initialize market if empty
   useEffect(() => {
-    if (!isMarketLoading && !isUserLoading && agents && agents.length === 0 && !initTriggeredRef.current && user) {
+    if (!isMarketLoading && !isUserLoading && agents && agents.length === 0 && !initTriggeredRef.current && user && isStoreLoaded) {
       initTriggeredRef.current = true;
       const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
       roles.forEach((role, i) => {
@@ -56,7 +56,7 @@ export default function QuickSearchPage() {
         }, { merge: true });
       });
     }
-  }, [isMarketLoading, isUserLoading, agents, user, db]);
+  }, [isMarketLoading, isUserLoading, agents, user, db, isStoreLoaded]);
 
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;

@@ -46,9 +46,6 @@ export interface UserHookResult {
 
 export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
 
-// Internal set to track memoized Firestore objects without polluting them
-const memoizedObjects = new WeakSet<object>();
-
 export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   children,
   firebaseApp,
@@ -125,18 +122,14 @@ export const useFirebaseApp = (): FirebaseApp => useFirebase().firebaseApp;
 
 /**
  * Hook to memoize Firestore references or queries.
- * Uses an internal WeakSet to verify memoization without polluting Firestore objects.
  */
 export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T {
-  const memoized = useMemo(factory, deps);
-  if (typeof memoized === 'object' && memoized !== null) {
-    memoizedObjects.add(memoized);
-  }
-  return memoized;
+  return useMemo(factory, deps);
 }
 
+// isMemoized check removed to prevent INTERNAL ASSERTION FAILED errors in Firestore 11.x
 export function isMemoized(obj: any): boolean {
-  return typeof obj === 'object' && obj !== null && memoizedObjects.has(obj);
+  return true;
 }
 
 export const useUser = (): UserHookResult => {

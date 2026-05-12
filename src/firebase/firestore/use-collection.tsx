@@ -9,7 +9,6 @@ import {
   QuerySnapshot,
   CollectionReference,
 } from 'firebase/firestore';
-import { isMemoized } from '@/firebase/provider';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 export type WithId<T> = T & { id: string };
@@ -47,10 +46,6 @@ export function useCollection<T = any>(
       return;
     }
 
-    if (!isMemoized(memoizedTargetRefOrQuery)) {
-      console.warn("useCollection: Query/Reference was not memoized with useMemoFirebase. This can cause performance issues.");
-    }
-
     setIsLoading(true);
     setError(null);
 
@@ -66,6 +61,7 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (fError: FirestoreError) => {
+        console.error("Firestore useCollection Error:", fError);
         if (fError.code === 'permission-denied') {
           const path: string =
             memoizedTargetRefOrQuery.type === 'collection'
