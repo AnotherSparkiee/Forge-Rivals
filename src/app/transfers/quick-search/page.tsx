@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -23,16 +23,16 @@ export default function QuickSearchPage() {
   const [isBidding, setIsBidding] = useState<string | null>(null);
   const initTriggeredRef = useRef(false);
 
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
-  const { data: profile } = useDoc(userRef);
-
-  // We only initiate the collection query once authentication is fully confirmed and loaded.
+  // Guard: Only construct the query when Auth is fully loaded and UID is present.
   const marketQuery = useMemoFirebase(() => {
     if (isUserLoading || !user?.uid) return null;
     return query(collection(db, 'market_v2'));
   }, [db, user?.uid, isUserLoading]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
+
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
+  const { data: profile } = useDoc(userRef);
 
   // Auto-initialize market if empty and we have valid access
   useEffect(() => {
@@ -41,7 +41,7 @@ export default function QuickSearchPage() {
       const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
       roles.forEach((role, i) => {
         const hero = generateUniqueHero(role, i, false);
-        const agentId = `sys_agent_${role.toLowerCase()}_${i}_v3`; // Increment version to ensure clean start
+        const agentId = `sys_agent_${role.toLowerCase()}_${i}_v4`;
         const startPrice = (hero.overallRating * 10000) + 50000;
         
         setDocumentNonBlocking(doc(db, 'market_v2', agentId), {
@@ -60,7 +60,7 @@ export default function QuickSearchPage() {
 
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;
-    const minNextBid = Math.ceil(agent.currentBid * 1.05); // 5% increase for better progression
+    const minNextBid = Math.ceil(agent.currentBid * 1.05);
     
     if (credits < minNextBid) {
       toast({ 
@@ -92,14 +92,12 @@ export default function QuickSearchPage() {
         <div className="w-20 h-20 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
           <AlertCircle className="w-10 h-10 text-red-500" />
         </div>
-        <div className="space-y-2">
-          <h2 className="text-xl font-headline font-bold uppercase tracking-tight text-white">Access Restricted</h2>
-          <p className="text-[10px] text-muted-foreground uppercase leading-relaxed px-10 font-bold tracking-widest">
-            The market terminal failed to establish a secure link. Please ensure your operational profile is fully synchronized and try again.
-          </p>
-        </div>
+        <h2 className="text-xl font-bold uppercase text-white">Connection Error</h2>
+        <p className="text-[10px] text-muted-foreground uppercase px-10 font-bold tracking-widest leading-relaxed">
+          The database link is restricted. Please ensure you are logged in and your connection is stable.
+        </p>
         <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black tracking-widest px-8">
-          <RefreshCw className="w-4 h-4 mr-2" /> Reconnect Terminal
+          <RefreshCw className="w-4 h-4 mr-2" /> Reconnect
         </Button>
       </div>
     );
@@ -126,7 +124,7 @@ export default function QuickSearchPage() {
             {language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            Market Node Status: {isMarketLoading ? 'Syncing...' : 'Online'}
+            {isMarketLoading ? 'Syncing Market...' : 'Market Node Online'}
           </p>
         </div>
       </header>
@@ -148,7 +146,7 @@ export default function QuickSearchPage() {
               {isMarketLoading ? (
                 <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Scanning Frequencies...</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Reading Collection...</p>
                 </div>
               ) : roleAgents.length > 0 ? (
                 roleAgents.map((agent) => (

@@ -122,14 +122,10 @@ export const useFirebaseApp = (): FirebaseApp => useFirebase().firebaseApp;
 
 /**
  * Hook to memoize Firestore references or queries.
+ * We must NOT modify the returned object to avoid Firestore Assertion failures.
  */
 export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T {
   return useMemo(factory, deps);
-}
-
-// isMemoized check removed to prevent INTERNAL ASSERTION FAILED errors in Firestore 11.x
-export function isMemoized(obj: any): boolean {
-  return true;
 }
 
 export const useUser = (): UserHookResult => {

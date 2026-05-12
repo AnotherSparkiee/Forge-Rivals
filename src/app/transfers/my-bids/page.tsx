@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,6 +16,7 @@ export default function MyBidsPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
 
+  // Guard: Only initiate query when auth state is ready.
   const marketQuery = useMemoFirebase(() => {
     if (isUserLoading || !user?.uid) return null;
     return query(collection(db, 'market_v2'), where('bidders', 'array-contains', user.uid));
@@ -29,12 +30,12 @@ export default function MyBidsPage() {
     return (
       <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-6">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-        <h2 className="text-xl font-bold uppercase text-white">Sync Terminated</h2>
+        <h2 className="text-xl font-bold uppercase text-white">Telemetry Resticted</h2>
         <p className="text-[10px] text-muted-foreground px-10 font-black uppercase tracking-widest leading-relaxed">
-          Database security layer blocked the bid telemetry stream. Re-authentication sequence recommended.
+          The market data node refused the bid telemetry stream. Secure authentication sync required.
         </p>
         <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-bold px-8">
-          <RefreshCw className="w-3 h-3 mr-2" /> Re-sync
+          <RefreshCw className="w-3 h-3 mr-2" /> Re-establish Link
         </Button>
       </div>
     );
@@ -52,7 +53,9 @@ export default function MyBidsPage() {
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
             {language === 'ru' ? 'МОИ ПОКУПКИ' : 'MY BIDS'}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">Personal Bidding Stream Active</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
+            {isMarketLoading ? 'Connecting...' : 'Personal Bidding Stream Active'}
+          </p>
         </div>
       </header>
 
@@ -60,7 +63,7 @@ export default function MyBidsPage() {
         {isMarketLoading ? (
           <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <p className="text-[10px] uppercase font-bold tracking-[0.2em]">Retrieving Personal Data...</p>
+            <p className="text-[10px] uppercase font-bold tracking-[0.2em]">Retrieving Records...</p>
           </div>
         ) : agents && agents.length > 0 ? (
           agents.map((agent) => (
