@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,16 +15,24 @@ export default function MyBidsPage() {
   const { language, isLoaded: isStoreLoaded } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
+  const [readyDelay, setReadyDelay] = useState(false);
 
-  // Decoupled query: Strictly block until Auth UID is available
+  // Buffer delay to ensure Auth token is fully propagated
+  useEffect(() => {
+    if (!isUserLoading && user?.uid && isStoreLoaded) {
+      const timer = setTimeout(() => setReadyDelay(true), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [user?.uid, isUserLoading, isStoreLoaded]);
+
   const marketQuery = useMemoFirebase(() => {
-    if (isUserLoading || !user?.uid) return null;
+    if (!readyDelay || !user?.uid) return null;
     return query(collection(db, 'market_v2'), where('bidders', 'array-contains', user.uid));
-  }, [db, user?.uid, isUserLoading]);
+  }, [db, user?.uid, readyDelay]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
-  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
+  if (isUserLoading || !isStoreLoaded || !readyDelay) return <LoadingScreen />;
 
   if (marketError) {
     return (

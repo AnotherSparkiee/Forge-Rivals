@@ -21,22 +21,31 @@ export default function QuickSearchPage() {
   const db = useFirestore();
   const { toast } = useToast();
   const [isBidding, setIsBidding] = useState<string | null>(null);
+  const [readyDelay, setReadyDelay] = useState(false);
   const initTriggeredRef = useRef(false);
 
   const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
-  // Strictly block the query until Auth state is guaranteed
+  // Buffer delay to ensure Auth token is fully propagated to Firestore
+  useEffect(() => {
+    if (!isUserLoading && user?.uid && isStoreLoaded) {
+      const timer = setTimeout(() => setReadyDelay(true), 500);
+      return () => clearTimeout(timer);
+    }
+    setReadyDelay(false);
+  }, [user?.uid, isUserLoading, isStoreLoaded]);
+
   const marketQuery = useMemoFirebase(() => {
-    if (isUserLoading || !user?.uid || !isStoreLoaded) return null;
+    if (!readyDelay || !user?.uid) return null;
     return query(collection(db, 'market_v2'));
-  }, [db, user?.uid, isUserLoading, isStoreLoaded]);
+  }, [db, user?.uid, readyDelay]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
   // Auto-initialize market if empty
   useEffect(() => {
-    if (!isMarketLoading && !isUserLoading && agents && agents.length === 0 && !initTriggeredRef.current && user && isStoreLoaded) {
+    if (!isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && user && isStoreLoaded && readyDelay) {
       initTriggeredRef.current = true;
       const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
       roles.forEach((role, i) => {
@@ -56,7 +65,7 @@ export default function QuickSearchPage() {
         }, { merge: true });
       });
     }
-  }, [isMarketLoading, isUserLoading, agents, user, db, isStoreLoaded]);
+  }, [isMarketLoading, agents, user, db, isStoreLoaded, readyDelay]);
 
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;
@@ -84,7 +93,7 @@ export default function QuickSearchPage() {
     }
   };
 
-  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
+  if (isUserLoading || !isStoreLoaded || !readyDelay) return <LoadingScreen />;
 
   if (marketError) {
     return (
