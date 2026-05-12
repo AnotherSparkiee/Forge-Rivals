@@ -3,7 +3,7 @@
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Loader2, AlertCircle, RefreshCw, Coins } from 'lucide-react';
 import Link from 'next/link';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
@@ -14,7 +14,7 @@ export default function MySalesPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
 
-  // Decoupled query: Wait only for user uid
+  // Decoupled query: Block until Auth state is guaranteed to avoid initial Denied failures
   const marketQuery = useMemoFirebase(() => {
     if (isUserLoading || !user?.uid) return null;
     return query(collection(db, 'market_v2'), where('sellerId', '==', user.uid));
@@ -28,9 +28,11 @@ export default function MySalesPage() {
     return (
       <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-6">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-        <h2 className="text-xl font-bold uppercase">Restricted Feed</h2>
-        <p className="text-xs text-muted-foreground px-10">Unauthorized attempt to access private sales node.</p>
-        <Button onClick={() => window.location.reload()} variant="outline" className="border-white/10 uppercase text-[10px] font-bold">
+        <h2 className="text-xl font-bold uppercase text-white">Restricted Feed</h2>
+        <p className="text-[10px] text-muted-foreground px-10 font-black uppercase tracking-widest leading-relaxed">
+          Unauthorized attempt to access private sales node. Authentication token invalid or expired.
+        </p>
+        <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-bold px-8">
           <RefreshCw className="w-3 h-3 mr-2" /> Restart Link
         </Button>
       </div>
@@ -46,10 +48,10 @@ export default function MySalesPage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
             {language === 'ru' ? 'МОИ ПРОДАЖИ' : 'MY SALES'}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">Active Listings</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">Active Asset Listings</p>
         </div>
       </header>
 
@@ -57,32 +59,34 @@ export default function MySalesPage() {
         {isMarketLoading ? (
           <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <p className="text-[10px] uppercase font-bold tracking-widest">Accessing Sale Feed...</p>
+            <p className="text-[10px] uppercase font-bold tracking-[0.2em]">Accessing Sale Feed...</p>
           </div>
         ) : agents && agents.length > 0 ? (
           agents.map((agent) => (
-            <Card key={agent.id} className="glass-card border-white/5">
+            <Card key={agent.id} className="glass-card border-white/5 hover:bg-white/5 transition-all">
               <CardContent className="p-4 flex items-center justify-between">
                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-secondary/50 border border-white/10">
+                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
                       <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold uppercase">{agent.heroData?.name}</h3>
-                      <p className="text-[8px] font-black text-accent uppercase">
-                        Highest Bidder: {agent.highestBidderName || 'None'}
+                      <h3 className="text-sm font-bold uppercase text-white truncate max-w-[140px]">{agent.heroData?.name}</h3>
+                      <p className="text-[8px] font-black text-accent uppercase tracking-widest mt-1">
+                        Bidder: {agent.highestBidderName || 'N/A'}
                       </p>
                     </div>
                  </div>
                  <div className="text-right">
-                    <p className="text-sm font-bold text-white">€{agent.currentBid?.toLocaleString()}</p>
+                    <p className="text-sm font-headline font-bold text-white italic">€{agent.currentBid?.toLocaleString()}</p>
+                    <p className="text-[7px] font-black text-muted-foreground uppercase mt-1 tracking-widest">Highest</p>
                  </div>
               </CardContent>
             </Card>
           ))
         ) : (
-          <div className="py-20 text-center opacity-30 text-xs uppercase font-black border border-dashed border-white/10 rounded-2xl">
-            No active listings found
+          <div className="py-20 text-center opacity-30 text-[10px] uppercase font-black border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10 leading-relaxed">
+            <Coins className="w-10 h-10" />
+            <p>No active listings found in your asset portfolio</p>
           </div>
         )}
       </div>

@@ -13,6 +13,7 @@ import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNo
 import { collection, query, doc, arrayUnion } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { generateUniqueHero } from '@/app/lib/moba-data';
+import { cn } from '@/lib/utils';
 
 export default function QuickSearchPage() {
   const { language, isLoaded: isStoreLoaded, credits } = useGameState();
@@ -22,19 +23,20 @@ export default function QuickSearchPage() {
   const [isBidding, setIsBidding] = useState<string | null>(null);
   const initTriggeredRef = useRef(false);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user?.uid ? doc(db, 'players_v5', user.uid) : null, [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
   const marketQuery = useMemoFirebase(() => {
+    // CRITICAL: Block query until Auth and Profile are fully settled to avoid Denied errors
     if (isUserLoading || !user?.uid) return null;
     return query(collection(db, 'market_v2'));
   }, [db, user?.uid, isUserLoading]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
-  // Auto-initialize market if empty (Safe session-locked execution)
+  // Auto-initialize market if empty (Safe execution guard)
   useEffect(() => {
-    if (!isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && user) {
+    if (!isMarketLoading && !isUserLoading && agents && agents.length === 0 && !initTriggeredRef.current && user) {
       initTriggeredRef.current = true;
       const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
       roles.forEach((role, i) => {
@@ -54,7 +56,7 @@ export default function QuickSearchPage() {
         }, { merge: true });
       });
     }
-  }, [isMarketLoading, agents, user, db]);
+  }, [isMarketLoading, isUserLoading, agents, user, db]);
 
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;
@@ -91,8 +93,8 @@ export default function QuickSearchPage() {
           <AlertCircle className="w-10 h-10 text-red-500" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-xl font-headline font-bold uppercase tracking-tight">Terminal Error</h2>
-          <p className="text-xs text-muted-foreground uppercase leading-relaxed px-10">
+          <h2 className="text-xl font-headline font-bold uppercase tracking-tight text-white">Terminal Error</h2>
+          <p className="text-[10px] text-muted-foreground uppercase leading-relaxed px-10 font-bold tracking-widest">
             Database connection restricted. Please re-authenticate to restore the market stream.
           </p>
         </div>
@@ -123,16 +125,16 @@ export default function QuickSearchPage() {
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">
             {language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">
-            {isMarketLoading ? 'Syncing...' : 'Global Market Live'}
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
+            {isMarketLoading ? 'Synchronizing Frequencies...' : 'Market Node Status: Active'}
           </p>
         </div>
       </header>
 
       <Tabs defaultValue="Carry" className="w-full">
-        <TabsList className="bg-secondary/30 border border-white/5 h-11 w-full flex mb-4">
+        <TabsList className="bg-secondary/30 border border-white/5 h-11 w-full flex mb-4 p-1 rounded-xl">
           {roles.map((role) => (
-            <TabsTrigger key={role.id} value={role.id} className="flex-1 text-[9px] font-black uppercase">
+            <TabsTrigger key={role.id} value={role.id} className="flex-1 text-[9px] font-black uppercase rounded-lg">
               {role.label}
             </TabsTrigger>
           ))}
@@ -142,40 +144,41 @@ export default function QuickSearchPage() {
           const roleAgents = agents?.filter(a => a.heroData?.role === role.id) || [];
           
           return (
-            <TabsContent key={role.id} value={role.id} className="space-y-3">
+            <TabsContent key={role.id} value={role.id} className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
               {isMarketLoading ? (
                 <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <p className="text-[10px] font-bold uppercase tracking-widest">Scanning...</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Scanning Sector...</p>
                 </div>
               ) : roleAgents.length > 0 ? (
                 roleAgents.map((agent) => (
-                  <Card key={agent.id} className="glass-card border-white/5 overflow-hidden">
+                  <Card key={agent.id} className="glass-card border-white/5 overflow-hidden group hover:border-primary/30 transition-all">
                     <CardContent className="p-4">
                       <div className="flex items-center gap-4 mb-4">
                         <div className="w-12 h-12 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
                           <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-bold uppercase truncate">{agent.heroData?.name}</h3>
-                          <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase mt-1">
+                          <h3 className="text-sm font-bold uppercase truncate text-white">{agent.heroData?.name}</h3>
+                          <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase mt-1 font-black">
                             {agent.heroData?.role}
                           </Badge>
                         </div>
                         <div className="text-right">
-                          <p className="text-xl font-headline font-bold text-primary italic leading-none">
+                          <p className="text-xl font-headline font-bold text-accent italic leading-none">
                             {agent.heroData?.overallRating}
                           </p>
+                          <p className="text-[8px] font-black text-muted-foreground uppercase mt-1">OVR</p>
                         </div>
                       </div>
                       
                       <div className="flex items-center justify-between gap-4 pt-3 border-t border-white/5">
                         <div className="flex flex-col">
-                          <p className="text-[8px] uppercase text-muted-foreground font-black">Bid</p>
-                          <p className="text-sm font-headline font-bold text-white">€{agent.currentBid?.toLocaleString()}</p>
+                          <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Active Bid</p>
+                          <p className="text-sm font-headline font-bold text-primary">€{agent.currentBid?.toLocaleString()}</p>
                         </div>
                         <Button 
-                          className="h-10 hero-gradient font-black text-[10px] px-6" 
+                          className="h-10 hero-gradient font-black text-[10px] px-6 shadow-lg shadow-primary/10 active:scale-95 transition-transform" 
                           onClick={() => handleBid(agent)} 
                           disabled={!!isBidding || agent.highestBidderId === user?.uid}
                         >
@@ -184,7 +187,7 @@ export default function QuickSearchPage() {
                           ) : agent.highestBidderId === user?.uid ? (
                             'LEADING'
                           ) : (
-                            <><Gavel className="w-3 h-3 mr-2" /> BID</>
+                            <><Gavel className="w-3 h-3 mr-2" /> PLACE BID</>
                           )}
                         </Button>
                       </div>
@@ -192,9 +195,9 @@ export default function QuickSearchPage() {
                   </Card>
                 ))
               ) : (
-                <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl">
-                   <ShoppingCart className="w-10 h-10 mx-auto mb-4" />
-                   <p className="text-[10px] uppercase font-black">No agents in this sector</p>
+                <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4">
+                   <ShoppingCart className="w-12 h-12" />
+                   <p className="text-[10px] uppercase font-black tracking-widest leading-relaxed px-10">No agents detected in this sector. Initializing new candidates...</p>
                 </div>
               )}
             </TabsContent>

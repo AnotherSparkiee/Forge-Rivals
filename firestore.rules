@@ -2,9 +2,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // 1. TRANSFER MARKET (market_v2)
-    // Grant full access to any authenticated user for reading and listing.
-    match /market_v2/{agentId} {
+    // 1. TRANSFER MARKET (market_v2) - High Priority
+    // Allow any authenticated user to participate in the market
+    match /market_v2/{document=**} {
       allow read, write: if request.auth != null;
     }
 
