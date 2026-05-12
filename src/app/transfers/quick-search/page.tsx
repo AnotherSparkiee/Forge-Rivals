@@ -20,8 +20,8 @@ export default function QuickSearchPage() {
   const { toast } = useToast();
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
+  // CRITICAL: Block database access until Auth is fully established
   const marketQuery = useMemoFirebase(() => {
-    // CRITICAL: Prevent query until Auth is fully resolved
     if (isUserLoading || !user?.uid) return null;
     return query(collection(db, 'market_v2'));
   }, [db, user?.uid, isUserLoading]);
@@ -54,18 +54,18 @@ export default function QuickSearchPage() {
     }
   };
 
+  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
+
   if (marketError) {
     return (
       <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-4">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
         <h2 className="text-xl font-bold uppercase tracking-tighter">Access Denied</h2>
         <p className="text-xs text-muted-foreground uppercase">The database is currently restricted. Please re-authenticate.</p>
-        <Button onClick={() => window.location.reload()} variant="outline" className="border-white/10 uppercase text-[10px] font-bold">Retry Terminal Connection</Button>
+        <Button onClick={() => window.location.reload()} variant="outline" className="border-white/10 uppercase text-[10px] font-bold">Retry Connection</Button>
       </div>
     );
   }
-
-  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
 
   const roles = [
     { id: 'Carry', label: language === 'ru' ? "Керри" : "Carry" },
@@ -88,7 +88,7 @@ export default function QuickSearchPage() {
             {language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">
-            {isMarketLoading ? 'Synchronizing Archive...' : 'Global Market Node: Active'}
+            {isMarketLoading ? 'Synchronizing Node...' : 'Market Access: Established'}
           </p>
         </div>
       </header>

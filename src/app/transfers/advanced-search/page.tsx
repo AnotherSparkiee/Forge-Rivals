@@ -15,6 +15,7 @@ export default function AdvancedSearchPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
 
+  // CRITICAL: Block database access until Auth is fully established
   const marketQuery = useMemoFirebase(() => {
     if (isUserLoading || !user?.uid) return null;
     return query(collection(db, 'market_v2'));
@@ -22,18 +23,18 @@ export default function AdvancedSearchPage() {
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
+  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
+
   if (marketError) {
     return (
       <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-4">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
         <h2 className="text-xl font-bold uppercase">Security Protocol Violation</h2>
         <p className="text-xs text-muted-foreground">ACCESS_DENIED: Insufficient credentials for advanced scan.</p>
-        <Button onClick={() => window.location.reload()}>REBOOT TERMINAL</Button>
+        <Button onClick={() => window.location.reload()} variant="outline" className="border-white/10 uppercase text-[10px] font-bold">REBOOT TERMINAL</Button>
       </div>
     );
   }
-
-  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
@@ -53,8 +54,9 @@ export default function AdvancedSearchPage() {
 
       <div className="space-y-3">
         {isMarketLoading ? (
-          <div className="py-20 text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+          <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <p className="text-[10px] uppercase font-bold tracking-widest">Accessing Archive...</p>
           </div>
         ) : agents && agents.length > 0 ? (
           agents.map((agent) => (
