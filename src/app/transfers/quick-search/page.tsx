@@ -1,14 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { 
-  ChevronLeft, Loader2, Gavel
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { ChevronLeft, Loader2, Gavel } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -23,18 +19,12 @@ export default function QuickSearchPage() {
   const db = useFirestore();
   const { toast } = useToast();
   const [isBidding, setIsBidding] = useState<string | null>(null);
-  const [now, setNow] = useState(Date.now());
 
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Блокируем запрос, пока Auth и Store не будут готовы на 100%
+  // Запрашиваем данные ТОЛЬКО когда пользователь точно авторизован
   const marketQuery = useMemoFirebase(() => {
-    if (!user?.uid || !isStoreLoaded) return null;
+    if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
-  }, [db, user?.uid, isStoreLoaded]);
+  }, [db, user?.uid]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
@@ -64,15 +54,6 @@ export default function QuickSearchPage() {
     }
   };
 
-  const formatCountdown = (expiryIso: string) => {
-    const diff = new Date(expiryIso).getTime() - now;
-    if (diff <= 0) return "CLOSED";
-    const h = Math.floor(diff / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    const s = Math.floor((diff % 60000) / 1000);
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  };
-
   if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
 
   const roles = [
@@ -96,7 +77,7 @@ export default function QuickSearchPage() {
             {language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">
-            {isMarketLoading ? 'Syncing Market...' : 'Market Online'}
+            {isMarketLoading ? 'Syncing...' : 'Market Active'}
           </p>
         </div>
       </header>
@@ -118,11 +99,10 @@ export default function QuickSearchPage() {
               {isMarketLoading ? (
                 <div className="py-20 text-center">
                   <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
-                  <p className="text-[10px] uppercase font-bold mt-4 opacity-50">Accessing Satellite Data...</p>
                 </div>
               ) : roleAgents.length > 0 ? (
                 roleAgents.map((agent) => (
-                  <Card key={agent.id} className="glass-card border-white/5 overflow-hidden border-primary/10">
+                  <Card key={agent.id} className="glass-card border-white/5 overflow-hidden">
                     <CardContent className="p-4">
                       <div className="flex items-center gap-4 mb-4">
                         <div className="w-12 h-12 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
@@ -130,16 +110,11 @@ export default function QuickSearchPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="text-sm font-bold uppercase truncate">{agent.heroData.name}</h3>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase opacity-60">
-                              {agent.heroData.role}
-                            </Badge>
-                            <span className="text-[10px] text-accent font-mono font-bold">
-                              {formatCountdown(agent.expiresAt)}
-                            </span>
-                          </div>
+                          <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase mt-1">
+                            {agent.heroData.role}
+                          </Badge>
                         </div>
-                        <div className="text-right shrink-0">
+                        <div className="text-right">
                           <p className="text-xl font-headline font-bold text-primary italic leading-none">
                             {agent.heroData.overallRating}
                           </p>
@@ -148,7 +123,7 @@ export default function QuickSearchPage() {
                       
                       <div className="flex items-center justify-between gap-4 pt-3 border-t border-white/5">
                         <div className="flex flex-col">
-                          <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Current Bid</p>
+                          <p className="text-[8px] uppercase text-muted-foreground font-black">Current Bid</p>
                           <p className="text-sm font-headline font-bold text-white">€{agent.currentBid?.toLocaleString()}</p>
                         </div>
                         <Button 
@@ -170,7 +145,7 @@ export default function QuickSearchPage() {
                 ))
               ) : (
                 <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl">
-                  <p className="text-[10px] uppercase font-black tracking-widest">No agents currently listed</p>
+                  <p className="text-[10px] uppercase font-black">No agents listed in this sector</p>
                 </div>
               )}
             </TabsContent>
