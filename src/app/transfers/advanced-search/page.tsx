@@ -58,8 +58,8 @@ export default function AdvancedSearchPage() {
 
   const today = getMoscowDateString();
   
-  // Усиленная защита: запрос блокируется до полной инициализации профиля
   const marketQuery = useMemoFirebase(() => {
+    // ЖЕСТКАЯ БЛОКИРОВКА ЗАПРОСА ДО ПОЛНОЙ ГОТОВНОСТИ
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('dropDate', '==', today));
   }, [db, today, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);

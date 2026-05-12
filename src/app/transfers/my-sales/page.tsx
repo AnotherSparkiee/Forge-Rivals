@@ -29,6 +29,7 @@ export default function MySalesPage() {
   }, []);
 
   const marketQuery = useMemoFirebase(() => {
+    // ЖЕСТКАЯ БЛОКИРОВКА ЗАПРОСА ДО ПОЛНОЙ ГОТОВНОСТИ
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('sellerId', '==', user.uid));
   }, [db, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);

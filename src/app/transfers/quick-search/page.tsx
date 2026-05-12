@@ -38,15 +38,14 @@ export default function QuickSearchPage() {
 
   const today = getMoscowDateString();
   
-  // Усиленная защита: запрос блокируется до полной инициализации профиля и пользователя
   const marketQuery = useMemoFirebase(() => {
+    // ЖЕСТКАЯ БЛОКИРОВКА ЗАПРОСА ДО ПОЛНОЙ ГОТОВНОСТИ
     if (!isLoaded || isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('dropDate', '==', today));
   }, [db, today, user?.uid, isUserLoading, isProfileLoading, isLoaded, !!profile]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
-  // Инициализация системного рынка при отсутствии лотов
   useEffect(() => {
     if (
       isLoaded && 
