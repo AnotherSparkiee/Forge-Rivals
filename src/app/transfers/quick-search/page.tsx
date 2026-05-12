@@ -1,17 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, Loader2, Gavel, AlertCircle, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Loader2, Gavel, AlertCircle, RefreshCw, ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useDoc } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useDoc, setDocumentNonBlocking } from '@/firebase';
 import { collection, query, doc, arrayUnion } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { generateUniqueHero } from '@/app/lib/moba-data';
 
 export default function QuickSearchPage() {
   const { language, isLoaded: isStoreLoaded, credits } = useGameState();
@@ -19,17 +20,41 @@ export default function QuickSearchPage() {
   const db = useFirestore();
   const { toast } = useToast();
   const [isBidding, setIsBidding] = useState<string | null>(null);
+  const initTriggeredRef = useRef(false);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  // Decoupled query: Wait only for user auth to avoid permission race conditions
   const marketQuery = useMemoFirebase(() => {
     if (isUserLoading || !user?.uid) return null;
     return query(collection(db, 'market_v2'));
   }, [db, user?.uid, isUserLoading]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
+
+  // Auto-initialize market if empty (Safe session-locked execution)
+  useEffect(() => {
+    if (!isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && user) {
+      initTriggeredRef.current = true;
+      const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
+      roles.forEach((role, i) => {
+        const hero = generateUniqueHero(role, i, false);
+        const agentId = `bot_agent_${role.toLowerCase()}_${i}`;
+        const startPrice = (hero.overallRating * 10000) + 50000;
+        
+        setDocumentNonBlocking(doc(db, 'market_v2', agentId), {
+          id: agentId,
+          heroData: JSON.parse(JSON.stringify(hero)),
+          currentBid: startPrice,
+          startingPrice: startPrice,
+          highestBidderId: null,
+          highestBidderName: null,
+          bidders: [],
+          expiresAt: new Date(Date.now() + 86400000).toISOString()
+        }, { merge: true });
+      });
+    }
+  }, [isMarketLoading, agents, user, db]);
 
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;
@@ -66,13 +91,13 @@ export default function QuickSearchPage() {
           <AlertCircle className="w-10 h-10 text-red-500" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-xl font-headline font-bold uppercase tracking-tight">Access Restricted</h2>
+          <h2 className="text-xl font-headline font-bold uppercase tracking-tight">Terminal Error</h2>
           <p className="text-xs text-muted-foreground uppercase leading-relaxed px-10">
-            Database connection could not be established. This may be due to a temporary sync issue.
+            Database connection restricted. Please re-authenticate to restore the market stream.
           </p>
         </div>
         <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black tracking-widest px-8">
-          <RefreshCw className="w-4 h-4 mr-2" /> Reconnect Terminal
+          <RefreshCw className="w-4 h-4 mr-2" /> Reconnect
         </Button>
       </div>
     );
@@ -99,7 +124,7 @@ export default function QuickSearchPage() {
             {language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">
-            {isMarketLoading ? 'Syncing Node...' : 'Market Feed: Active'}
+            {isMarketLoading ? 'Syncing...' : 'Global Market Live'}
           </p>
         </div>
       </header>
@@ -121,7 +146,7 @@ export default function QuickSearchPage() {
               {isMarketLoading ? (
                 <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <p className="text-[10px] font-bold uppercase tracking-widest">Scanning Frequencies...</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest">Scanning...</p>
                 </div>
               ) : roleAgents.length > 0 ? (
                 roleAgents.map((agent) => (
@@ -146,7 +171,7 @@ export default function QuickSearchPage() {
                       
                       <div className="flex items-center justify-between gap-4 pt-3 border-t border-white/5">
                         <div className="flex flex-col">
-                          <p className="text-[8px] uppercase text-muted-foreground font-black">Current Bid</p>
+                          <p className="text-[8px] uppercase text-muted-foreground font-black">Bid</p>
                           <p className="text-sm font-headline font-bold text-white">€{agent.currentBid?.toLocaleString()}</p>
                         </div>
                         <Button 
@@ -168,7 +193,8 @@ export default function QuickSearchPage() {
                 ))
               ) : (
                 <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl">
-                  <p className="text-[10px] uppercase font-black">No agents detected in this sector</p>
+                   <ShoppingCart className="w-10 h-10 mx-auto mb-4" />
+                   <p className="text-[10px] uppercase font-black">No agents in this sector</p>
                 </div>
               )}
             </TabsContent>
