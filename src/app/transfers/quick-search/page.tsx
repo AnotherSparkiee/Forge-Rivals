@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, Loader2, Gavel, AlertCircle } from 'lucide-react';
+import { ChevronLeft, Loader2, Gavel, AlertCircle, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -21,13 +21,13 @@ export default function QuickSearchPage() {
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
-  const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
+  const { data: profile } = useDoc(userRef);
 
-  // CRITICAL: Block database access until Auth AND Profile are fully established
+  // Decoupled query: Wait only for user auth to avoid permission race conditions
   const marketQuery = useMemoFirebase(() => {
-    if (isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
+    if (isUserLoading || !user?.uid) return null;
     return query(collection(db, 'market_v2'));
-  }, [db, user?.uid, isUserLoading, isProfileLoading, !!profile]);
+  }, [db, user?.uid, isUserLoading]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
@@ -48,7 +48,7 @@ export default function QuickSearchPage() {
       updateDocumentNonBlocking(doc(db, 'market_v2', agent.id), {
         currentBid: minNextBid,
         highestBidderId: user.uid,
-        highestBidderName: profile?.displayName || user.displayName || "Manager",
+        highestBidderName: profile?.displayName || "Manager",
         bidders: arrayUnion(user.uid)
       });
       toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Placed!" });
@@ -57,15 +57,23 @@ export default function QuickSearchPage() {
     }
   };
 
-  if (isUserLoading || isProfileLoading || !isStoreLoaded) return <LoadingScreen />;
+  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
 
   if (marketError) {
     return (
-      <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-4">
-        <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-        <h2 className="text-xl font-bold uppercase tracking-tighter">Access Denied</h2>
-        <p className="text-xs text-muted-foreground uppercase">The database is currently restricted. Please re-authenticate.</p>
-        <Button onClick={() => window.location.reload()} variant="outline" className="border-white/10 uppercase text-[10px] font-bold">Retry Connection</Button>
+      <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-6">
+        <div className="w-20 h-20 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
+          <AlertCircle className="w-10 h-10 text-red-500" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-headline font-bold uppercase tracking-tight">Access Restricted</h2>
+          <p className="text-xs text-muted-foreground uppercase leading-relaxed px-10">
+            Database connection could not be established. This may be due to a temporary sync issue.
+          </p>
+        </div>
+        <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black tracking-widest px-8">
+          <RefreshCw className="w-4 h-4 mr-2" /> Reconnect Terminal
+        </Button>
       </div>
     );
   }
@@ -91,7 +99,7 @@ export default function QuickSearchPage() {
             {language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">
-            {isMarketLoading ? 'Synchronizing Node...' : 'Market Access: Established'}
+            {isMarketLoading ? 'Syncing Node...' : 'Market Feed: Active'}
           </p>
         </div>
       </header>
@@ -113,7 +121,7 @@ export default function QuickSearchPage() {
               {isMarketLoading ? (
                 <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <p className="text-[10px] font-bold uppercase tracking-widest">Accessing Node...</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest">Scanning Frequencies...</p>
                 </div>
               ) : roleAgents.length > 0 ? (
                 roleAgents.map((agent) => (
@@ -160,7 +168,7 @@ export default function QuickSearchPage() {
                 ))
               ) : (
                 <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl">
-                  <p className="text-[10px] uppercase font-black">No active agents in this sector</p>
+                  <p className="text-[10px] uppercase font-black">No agents detected in this sector</p>
                 </div>
               )}
             </TabsContent>
