@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ChevronLeft, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, query, where, doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function MyBidsPage() {
@@ -14,15 +14,18 @@ export default function MyBidsPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
 
-  // CRITICAL: Block database access until Auth is fully established
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
+
+  // CRITICAL: Block database access until Auth AND Profile are fully established
   const marketQuery = useMemoFirebase(() => {
-    if (isUserLoading || !user?.uid) return null;
+    if (isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'), where('bidders', 'array-contains', user.uid));
-  }, [db, user?.uid, isUserLoading]);
+  }, [db, user?.uid, isUserLoading, isProfileLoading, !!profile]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
-  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
+  if (isUserLoading || isProfileLoading || !isStoreLoaded) return <LoadingScreen />;
 
   if (marketError) {
     return (

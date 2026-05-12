@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useDoc } from '@/firebase';
 import { collection, query, doc, arrayUnion } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
@@ -20,11 +20,14 @@ export default function QuickSearchPage() {
   const { toast } = useToast();
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // CRITICAL: Block database access until Auth is fully established
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
+
+  // CRITICAL: Block database access until Auth AND Profile are fully established
   const marketQuery = useMemoFirebase(() => {
-    if (isUserLoading || !user?.uid) return null;
+    if (isUserLoading || isProfileLoading || !user?.uid || !profile) return null;
     return query(collection(db, 'market_v2'));
-  }, [db, user?.uid, isUserLoading]);
+  }, [db, user?.uid, isUserLoading, isProfileLoading, !!profile]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
@@ -45,7 +48,7 @@ export default function QuickSearchPage() {
       updateDocumentNonBlocking(doc(db, 'market_v2', agent.id), {
         currentBid: minNextBid,
         highestBidderId: user.uid,
-        highestBidderName: user.displayName || "Manager",
+        highestBidderName: profile?.displayName || user.displayName || "Manager",
         bidders: arrayUnion(user.uid)
       });
       toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Placed!" });
@@ -54,7 +57,7 @@ export default function QuickSearchPage() {
     }
   };
 
-  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
+  if (isUserLoading || isProfileLoading || !isStoreLoaded) return <LoadingScreen />;
 
   if (marketError) {
     return (
