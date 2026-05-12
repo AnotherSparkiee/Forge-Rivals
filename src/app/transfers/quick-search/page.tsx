@@ -21,36 +21,27 @@ export default function QuickSearchPage() {
   const db = useFirestore();
   const { toast } = useToast();
   const [isBidding, setIsBidding] = useState<string | null>(null);
-  const [readyDelay, setReadyDelay] = useState(false);
   const initTriggeredRef = useRef(false);
 
   const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
-  // Buffer delay to ensure Auth token is fully propagated to Firestore
-  useEffect(() => {
-    if (!isUserLoading && user?.uid && isStoreLoaded) {
-      const timer = setTimeout(() => setReadyDelay(true), 800);
-      return () => clearTimeout(timer);
-    }
-    setReadyDelay(false);
-  }, [user?.uid, isUserLoading, isStoreLoaded]);
-
+  // We only initiate the collection query once authentication is fully confirmed and loaded.
   const marketQuery = useMemoFirebase(() => {
-    if (!readyDelay || !user?.uid) return null;
+    if (isUserLoading || !user?.uid) return null;
     return query(collection(db, 'market_v2'));
-  }, [db, user?.uid, readyDelay]);
+  }, [db, user?.uid, isUserLoading]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
-  // Auto-initialize market if empty
+  // Auto-initialize market if empty and we have valid access
   useEffect(() => {
-    if (!isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && user && isStoreLoaded && readyDelay && !marketError) {
+    if (!isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && user?.uid && isStoreLoaded && !marketError) {
       initTriggeredRef.current = true;
       const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
       roles.forEach((role, i) => {
         const hero = generateUniqueHero(role, i, false);
-        const agentId = `sys_agent_${role.toLowerCase()}_${i}_v2`;
+        const agentId = `sys_agent_${role.toLowerCase()}_${i}_v3`; // Increment version to ensure clean start
         const startPrice = (hero.overallRating * 10000) + 50000;
         
         setDocumentNonBlocking(doc(db, 'market_v2', agentId), {
@@ -65,11 +56,11 @@ export default function QuickSearchPage() {
         }, { merge: true });
       });
     }
-  }, [isMarketLoading, agents, user, db, isStoreLoaded, readyDelay, marketError]);
+  }, [isMarketLoading, agents, user?.uid, db, isStoreLoaded, marketError]);
 
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;
-    const minNextBid = Math.ceil(agent.currentBid * 1.03);
+    const minNextBid = Math.ceil(agent.currentBid * 1.05); // 5% increase for better progression
     
     if (credits < minNextBid) {
       toast({ 
@@ -93,7 +84,7 @@ export default function QuickSearchPage() {
     }
   };
 
-  if (isUserLoading || !isStoreLoaded || !readyDelay) return <LoadingScreen />;
+  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
 
   if (marketError) {
     return (
@@ -104,7 +95,7 @@ export default function QuickSearchPage() {
         <div className="space-y-2">
           <h2 className="text-xl font-headline font-bold uppercase tracking-tight text-white">Access Restricted</h2>
           <p className="text-[10px] text-muted-foreground uppercase leading-relaxed px-10 font-bold tracking-widest">
-            The market terminal failed to establish a secure link. Please ensure your operational profile is fully synchronized.
+            The market terminal failed to establish a secure link. Please ensure your operational profile is fully synchronized and try again.
           </p>
         </div>
         <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black tracking-widest px-8">

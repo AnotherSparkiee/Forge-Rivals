@@ -2,17 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // 1. TRANSFER MARKET (market_v2) - TOP PRIORITY
-    // Explicitly allow collection-level listing and document-level access
-    match /market_v2 {
-      allow list: if request.auth != null;
-      match /{agentId} {
-        allow get, create, update, delete: if request.auth != null;
-      }
-      // Recursive fallback for nested structures if any
-      match /{allPaths=**} {
-        allow read, write: if request.auth != null;
-      }
+    // 1. TRANSFER MARKET (market_v2) - MAXIMUM PRIORITY
+    // Using recursive wildcard to explicitly allow both collection-level 'list' and document-level 'get/write'
+    match /market_v2/{document=**} {
+      allow read, write: if request.auth != null;
     }
 
     // 2. PLAYER PROFILES (players_v5)
