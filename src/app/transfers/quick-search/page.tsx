@@ -1,91 +1,52 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, Info, Zap, Clock, Loader2, Gavel, TrendingUp, Coins
+  ChevronLeft, Loader2, Gavel
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { generateUniqueHero, Role } from '@/app/lib/moba-data';
-import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, setDocumentNonBlocking, useDoc } from '@/firebase';
-import { collection, query, where, doc, arrayUnion } from 'firebase/firestore';
-import { getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
+import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { collection, query, doc, arrayUnion } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 export default function QuickSearchPage() {
-  const { language, isLoaded, credits } = useGameState();
+  const { language, isLoaded: isStoreLoaded, credits } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
   const [isBidding, setIsBidding] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
-  const initTriggeredRef = useRef(false);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const today = getMoscowDateString();
-  
-  // Упрощенный запрос: только проверка на наличие user.uid
+  // Блокируем запрос, пока Auth и Store не будут готовы на 100%
   const marketQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!user?.uid || !isStoreLoaded) return null;
     return query(collection(db, 'market_v2'));
-  }, [db, user?.uid]);
+  }, [db, user?.uid, isStoreLoaded]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
-
-  // Инициализация рынка при пустой коллекции
-  useEffect(() => {
-    if (user?.uid && !isMarketLoading && agents?.length === 0 && !initTriggeredRef.current) {
-      initTriggeredRef.current = true;
-      
-      const mskNow = getMoscowTime();
-      const dropTime = new Date(mskNow);
-      dropTime.setHours(mskNow.getHours() - (mskNow.getHours() % 12), 0, 0, 0);
-      const expiryTime = new Date(dropTime);
-      expiryTime.setHours(expiryTime.getHours() + 12);
-
-      const roles: Role[] = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'];
-      
-      roles.forEach(role => {
-        for (let i = 0; i < 2; i++) {
-          const hero = generateUniqueHero(role, i, false);
-          const startPrice = (hero.overallRating * 15000) + 50000;
-          const agentId = `sys_${today}_${role}_${i}`;
-          
-          setDocumentNonBlocking(doc(db, 'market_v2', agentId), {
-            id: agentId,
-            heroData: JSON.parse(JSON.stringify(hero)),
-            currentBid: startPrice,
-            startingPrice: startPrice,
-            highestBidderId: null,
-            highestBidderName: null,
-            bidders: [],
-            expiresAt: expiryTime.toISOString(),
-            dropDate: today,
-            dropTime: dropTime.toISOString(),
-            sellerId: 'system',
-            sellerName: 'League Agent'
-          }, { merge: true });
-        }
-      });
-    }
-  }, [user?.uid, isMarketLoading, agents, today, db]);
 
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;
     const minNextBid = Math.ceil(agent.currentBid * 1.03);
+    
     if (credits < minNextBid) {
-      toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" });
+      toast({ 
+        title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", 
+        variant: "destructive" 
+      });
       return;
     }
 
@@ -112,14 +73,14 @@ export default function QuickSearchPage() {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  if (isUserLoading || !isLoaded) return <LoadingScreen />;
+  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
 
   const roles = [
     { id: 'Carry', label: language === 'ru' ? "Керри" : "Carry" },
     { id: 'Midlaner', label: language === 'ru' ? "Мидер" : "Midlaner" },
-    { id: 'Tank', label: language === 'ru' ? "Оффлейнер" : "Offlaner" },
-    { id: 'Jungler', label: language === 'ru' ? "Четверка" : "Support" },
-    { id: 'Support', label: language === 'ru' ? "Пятерка" : "Full Support" },
+    { id: 'Tank', label: language === 'ru' ? "Танк" : "Tank" },
+    { id: 'Jungler', label: language === 'ru' ? "Лес" : "Jungler" },
+    { id: 'Support', label: language === 'ru' ? "Саппорт" : "Support" },
   ];
 
   return (
@@ -131,8 +92,12 @@ export default function QuickSearchPage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}</h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">Minimal Terminal Mode</p>
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">
+            {language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}
+          </h1>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">
+            {isMarketLoading ? 'Syncing Market...' : 'Market Online'}
+          </p>
         </div>
       </header>
 
@@ -146,41 +111,67 @@ export default function QuickSearchPage() {
         </TabsList>
 
         {roles.map((role) => {
-          const roleAgents = agents?.filter(a => a.heroData.role === role.id) || [];
+          const roleAgents = agents?.filter(a => a.heroData?.role === role.id) || [];
+          
           return (
             <TabsContent key={role.id} value={role.id} className="space-y-3">
               {isMarketLoading ? (
-                <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
+                <div className="py-20 text-center">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+                  <p className="text-[10px] uppercase font-bold mt-4 opacity-50">Accessing Satellite Data...</p>
+                </div>
               ) : roleAgents.length > 0 ? (
                 roleAgents.map((agent) => (
-                  <Card key={agent.id} className="glass-card border-white/5">
+                  <Card key={agent.id} className="glass-card border-white/5 overflow-hidden border-primary/10">
                     <CardContent className="p-4">
                       <div className="flex items-center gap-4 mb-4">
                         <div className="w-12 h-12 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
                           <img src={agent.heroData.image} alt="" className="w-full h-full object-cover" />
                         </div>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <h3 className="text-sm font-bold uppercase truncate">{agent.heroData.name}</h3>
-                          <p className="text-[10px] text-accent font-mono">{formatCountdown(agent.expiresAt)}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase opacity-60">
+                              {agent.heroData.role}
+                            </Badge>
+                            <span className="text-[10px] text-accent font-mono font-bold">
+                              {formatCountdown(agent.expiresAt)}
+                            </span>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-xl font-headline font-bold text-primary italic">{agent.heroData.overallRating}</p>
+                        <div className="text-right shrink-0">
+                          <p className="text-xl font-headline font-bold text-primary italic leading-none">
+                            {agent.heroData.overallRating}
+                          </p>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex-1 bg-secondary/40 p-2 rounded-lg text-center border border-white/5">
-                          <p className="text-[8px] uppercase text-muted-foreground">Price</p>
-                          <p className="text-xs font-bold text-white">€{agent.currentBid.toLocaleString()}</p>
+                      
+                      <div className="flex items-center justify-between gap-4 pt-3 border-t border-white/5">
+                        <div className="flex flex-col">
+                          <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Current Bid</p>
+                          <p className="text-sm font-headline font-bold text-white">€{agent.currentBid?.toLocaleString()}</p>
                         </div>
-                        <Button className="flex-1 h-9 hero-gradient font-black text-[10px]" onClick={() => handleBid(agent)} disabled={!!isBidding || agent.highestBidderId === user?.uid}>
-                          {agent.highestBidderId === user?.uid ? 'LEADING' : 'BID'}
+                        <Button 
+                          className="h-10 hero-gradient font-black text-[10px] px-6" 
+                          onClick={() => handleBid(agent)} 
+                          disabled={!!isBidding || agent.highestBidderId === user?.uid}
+                        >
+                          {isBidding === agent.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : agent.highestBidderId === user?.uid ? (
+                            'LEADING'
+                          ) : (
+                            <><Gavel className="w-3 h-3 mr-2" /> BID</>
+                          )}
                         </Button>
                       </div>
                     </CardContent>
                   </Card>
                 ))
               ) : (
-                <div className="py-20 text-center opacity-30 text-xs uppercase font-black">No agents found</div>
+                <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl">
+                  <p className="text-[10px] uppercase font-black tracking-widest">No agents currently listed</p>
+                </div>
               )}
             </TabsContent>
           );
