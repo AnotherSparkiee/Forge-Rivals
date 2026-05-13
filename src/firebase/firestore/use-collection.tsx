@@ -56,8 +56,11 @@ export function useCollection<T = any>(
         console.warn("Firestore collection stream error:", fError.message);
         
         if (fError.code === 'permission-denied') {
-          // Безопасное определение пути без обращения к приватным свойствам _query
-          const path = (memoizedTargetRefOrQuery as any).path || 'market_archive';
+          // Безопасное определение пути для отладки
+          const path = (memoizedTargetRefOrQuery as any).type === 'collection' 
+            ? (memoizedTargetRefOrQuery as any).path 
+            : 'market_v2';
+            
           setError(new FirestorePermissionError({ operation: 'list', path }));
         } else {
           setError(fError);

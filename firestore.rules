@@ -3,7 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // 1. ПРИОРИТЕТ: ТРАНСФЕРНЫЙ РЫНОК (market_v2)
-    // Разрешаем любые операции всем авторизованным пользователям для стабильной работы списков
+    // Используем универсальный паттерн для гарантии работы метода 'list'
     match /market_v2/{document=**} {
       allow read, write: if request.auth != null;
     }

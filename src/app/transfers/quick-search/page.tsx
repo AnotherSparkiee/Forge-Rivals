@@ -23,21 +23,14 @@ export default function QuickSearchPage() {
   const router = useRouter();
   
   const [isBidding, setIsBidding] = useState<string | null>(null);
-  const [authReady, setAuthReady] = useState(false);
   const initTriggeredRef = useRef(false);
 
-  // Синхронизация сессии: ждем, пока Firebase SDK подтвердит токен
-  useEffect(() => {
-    if (!isUserLoading && user?.uid) {
-      const timer = setTimeout(() => setAuthReady(true), 800);
-      return () => clearTimeout(timer);
-    } else {
-      setAuthReady(false);
-    }
-  }, [isUserLoading, user?.uid]);
+  // Ждем, пока пользователь полностью загрузится
+  const authReady = !isUserLoading && !!user?.uid;
 
   const marketQuery = useMemoFirebase(() => {
     if (!authReady) return null;
+    // Запрос всей коллекции для метода list
     return query(collection(db, 'market_v2'));
   }, [db, authReady]);
 
@@ -46,14 +39,14 @@ export default function QuickSearchPage() {
   const userRef = useMemoFirebase(() => (authReady ? doc(db, 'players_v5', user!.uid) : null), [db, authReady, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
-  // Авто-инициализация рынка при его отсутствии
+  // Авто-инициализация рынка при его отсутствии (версия v7)
   useEffect(() => {
     if (authReady && !isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && !marketError) {
       initTriggeredRef.current = true;
       const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
       roles.forEach((role, i) => {
         const hero = generateUniqueHero(role, i, false);
-        const agentId = `sys_agent_${role.toLowerCase()}_${i}_v6`; // Использование новой версии v6
+        const agentId = `sys_agent_${role.toLowerCase()}_${i}_v7`;
         const startPrice = (hero.overallRating * 10000) + 50000;
         
         setDocumentNonBlocking(doc(db, 'market_v2', agentId), {
@@ -65,7 +58,7 @@ export default function QuickSearchPage() {
           highestBidderName: null,
           bidders: [],
           expiresAt: new Date(Date.now() + 86400000).toISOString(),
-          version: 6
+          version: 7
         }, { merge: true });
       });
     }
