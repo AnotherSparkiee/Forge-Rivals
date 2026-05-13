@@ -20,16 +20,13 @@ export interface UseCollectionResult<T> {
 }
 
 /**
- * Custom hook to subscribe to a Firestore collection or query.
- * Strictly uses public APIs to avoid INTERNAL ASSERTION FAILED errors in Firestore 11.x.
+ * Хук для подписки на коллекции Firestore.
+ * Использует только публичные API для предотвращения INTERNAL ASSERTION FAILED.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
 ): UseCollectionResult<T> {
-  type ResultItemType = WithId<T>;
-  type StateDataType = ResultItemType[] | null;
-
-  const [data, setData] = useState<StateDataType>(null);
+  const [data, setData] = useState<WithId<T>[] | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
@@ -47,28 +44,21 @@ export function useCollection<T = any>(
     const unsubscribe = onSnapshot(
       memoizedTargetRefOrQuery,
       (snapshot: QuerySnapshot<DocumentData>) => {
-        const results: ResultItemType[] = [];
-        for (const doc of snapshot.docs) {
+        const results: WithId<T>[] = [];
+        snapshot.forEach((doc) => {
           results.push({ ...(doc.data() as T), id: doc.id });
-        }
+        });
         setData(results);
         setError(null);
         setIsLoading(false);
       },
       (fError: FirestoreError) => {
-        console.error("Firestore useCollection Error:", fError);
+        console.warn("Firestore collection stream error:", fError.message);
         
         if (fError.code === 'permission-denied') {
-          // SAFE PATH DETECTION: Do not access internal _query properties
-          // We use a generic label if the object doesn't expose a public path
-          const path = (memoizedTargetRefOrQuery as any).path || 'queried-collection';
-
-          const contextualError = new FirestorePermissionError({ 
-            operation: 'list', 
-            path 
-          });
-          
-          setError(contextualError);
+          // Безопасное определение пути без обращения к приватным свойствам _query
+          const path = (memoizedTargetRefOrQuery as any).path || 'market_archive';
+          setError(new FirestorePermissionError({ operation: 'list', path }));
         } else {
           setError(fError);
         }

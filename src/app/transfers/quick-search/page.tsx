@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ChevronLeft, Loader2, Gavel, AlertCircle, RefreshCw, ShoppingCart } from 'lucide-react';
-import Link from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -24,20 +23,18 @@ export default function QuickSearchPage() {
   const router = useRouter();
   
   const [isBidding, setIsBidding] = useState<string | null>(null);
-  const [readyDelay, setReadyDelay] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const initTriggeredRef = useRef(false);
 
-  // Authentication Synchronization: Wait for Firebase SDK to fully propagate tokens
+  // Синхронизация сессии: ждем, пока Firebase SDK подтвердит токен
   useEffect(() => {
     if (!isUserLoading && user?.uid) {
-      const timer = setTimeout(() => setReadyDelay(true), 500);
+      const timer = setTimeout(() => setAuthReady(true), 800);
       return () => clearTimeout(timer);
     } else {
-      setReadyDelay(false);
+      setAuthReady(false);
     }
   }, [isUserLoading, user?.uid]);
-
-  const authReady = readyDelay && !!user?.uid;
 
   const marketQuery = useMemoFirebase(() => {
     if (!authReady) return null;
@@ -49,14 +46,14 @@ export default function QuickSearchPage() {
   const userRef = useMemoFirebase(() => (authReady ? doc(db, 'players_v5', user!.uid) : null), [db, authReady, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
-  // Auto-initialize market if empty and we have valid access
+  // Авто-инициализация рынка при его отсутствии
   useEffect(() => {
     if (authReady && !isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && !marketError) {
       initTriggeredRef.current = true;
       const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
       roles.forEach((role, i) => {
         const hero = generateUniqueHero(role, i, false);
-        const agentId = `sys_agent_${role.toLowerCase()}_${i}_v5`;
+        const agentId = `sys_agent_${role.toLowerCase()}_${i}_v6`; // Использование новой версии v6
         const startPrice = (hero.overallRating * 10000) + 50000;
         
         setDocumentNonBlocking(doc(db, 'market_v2', agentId), {
@@ -67,7 +64,8 @@ export default function QuickSearchPage() {
           highestBidderId: null,
           highestBidderName: null,
           bidders: [],
-          expiresAt: new Date(Date.now() + 86400000).toISOString()
+          expiresAt: new Date(Date.now() + 86400000).toISOString(),
+          version: 6
         }, { merge: true });
       });
     }
@@ -107,14 +105,14 @@ export default function QuickSearchPage() {
         <div className="w-20 h-20 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
           <AlertCircle className="w-10 h-10 text-red-500" />
         </div>
-        <h2 className="text-xl font-bold uppercase text-white">Market Link Blocked</h2>
-        <p className="text-[10px] text-muted-foreground uppercase px-10 font-bold tracking-widest leading-relaxed">
+        <h2 className="text-xl font-bold uppercase text-white">Market Link Restricted</h2>
+        <p className="text-[10px] text-muted-foreground uppercase px-10 font-black tracking-widest leading-relaxed">
           {language === 'ru' 
-            ? 'Связь с базой данных ограничена. Пожалуйста, убедитесь, что ваш профиль синхронизирован.' 
-            : 'The database link is restricted. Please ensure your operational profile is synchronized.'}
+            ? 'Связь с базой данных трансферов ограничена. Пожалуйста, убедитесь, что ваш профиль полностью синхронизирован.' 
+            : 'Access to the transfer archive node was restricted. Secure authentication sync required.'}
         </p>
         <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black tracking-widest px-8">
-          <RefreshCw className="w-4 h-4 mr-2" /> {language === 'ru' ? 'ОБНОВИТЬ' : 'RECONNECT'}
+          <RefreshCw className="w-3 h-3 mr-2" /> {language === 'ru' ? 'СИНХРОНИЗИРОВАТЬ' : 'RE-SYNC'}
         </Button>
       </div>
     );
@@ -139,7 +137,7 @@ export default function QuickSearchPage() {
             {language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {(!authReady || isMarketLoading) ? 'Establishing Link...' : 'Market Node Online'}
+            {(!authReady || isMarketLoading) ? 'Establishing Secure Link...' : 'Operational Node Online'}
           </p>
         </div>
       </header>
@@ -161,7 +159,7 @@ export default function QuickSearchPage() {
               {(!authReady || isMarketLoading) ? (
                 <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Reading Collection...</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Syncing Records...</p>
                 </div>
               ) : roleAgents.length > 0 ? (
                 roleAgents.map((agent) => (
@@ -210,7 +208,7 @@ export default function QuickSearchPage() {
               ) : (
                 <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4">
                    <ShoppingCart className="w-12 h-12" />
-                   <p className="text-[10px] uppercase font-black tracking-widest leading-relaxed px-10">No active listings detected in this sector.</p>
+                   <p className="text-[10px] uppercase font-black tracking-widest leading-relaxed px-10">No active operational listings in this sector.</p>
                 </div>
               )}
             </TabsContent>
