@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,13 +21,23 @@ export default function QuickSearchPage() {
   const db = useFirestore();
   const { toast } = useToast();
   const [isBidding, setIsBidding] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const initTriggeredRef = useRef(false);
 
-  // Guard: Only construct the query when Auth is fully loaded and UID is present.
+  // Safety: Ensure Auth state is stable before initiating any data stream.
+  useEffect(() => {
+    if (!isUserLoading && user?.uid) {
+      const timer = setTimeout(() => setAuthReady(true), 200);
+      return () => clearTimeout(timer);
+    } else {
+      setAuthReady(false);
+    }
+  }, [isUserLoading, user?.uid]);
+
   const marketQuery = useMemoFirebase(() => {
-    if (isUserLoading || !user?.uid) return null;
+    if (!authReady || !user?.uid) return null;
     return query(collection(db, 'market_v2'));
-  }, [db, user?.uid, isUserLoading]);
+  }, [db, user?.uid, authReady]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
@@ -36,7 +46,7 @@ export default function QuickSearchPage() {
 
   // Auto-initialize market if empty and we have valid access
   useEffect(() => {
-    if (!isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && user?.uid && isStoreLoaded && !marketError) {
+    if (authReady && !isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && !marketError) {
       initTriggeredRef.current = true;
       const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
       roles.forEach((role, i) => {
@@ -56,7 +66,7 @@ export default function QuickSearchPage() {
         }, { merge: true });
       });
     }
-  }, [isMarketLoading, agents, user?.uid, db, isStoreLoaded, marketError]);
+  }, [isMarketLoading, agents, authReady, db, marketError]);
 
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;
@@ -92,9 +102,9 @@ export default function QuickSearchPage() {
         <div className="w-20 h-20 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
           <AlertCircle className="w-10 h-10 text-red-500" />
         </div>
-        <h2 className="text-xl font-bold uppercase text-white">Connection Error</h2>
+        <h2 className="text-xl font-bold uppercase text-white">Market Link Blocked</h2>
         <p className="text-[10px] text-muted-foreground uppercase px-10 font-bold tracking-widest leading-relaxed">
-          The database link is restricted. Please ensure you are logged in and your connection is stable.
+          The database link is restricted. Please ensure you are logged in and your operational profile is synchronized.
         </p>
         <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black tracking-widest px-8">
           <RefreshCw className="w-4 h-4 mr-2" /> Reconnect
@@ -124,7 +134,7 @@ export default function QuickSearchPage() {
             {language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {isMarketLoading ? 'Syncing Market...' : 'Market Node Online'}
+            {(!authReady || isMarketLoading) ? 'Establishing Link...' : 'Market Node Online'}
           </p>
         </div>
       </header>
@@ -143,7 +153,7 @@ export default function QuickSearchPage() {
           
           return (
             <TabsContent key={role.id} value={role.id} className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              {isMarketLoading ? (
+              {(!authReady || isMarketLoading) ? (
                 <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Reading Collection...</p>

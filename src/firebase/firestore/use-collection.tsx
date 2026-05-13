@@ -19,15 +19,10 @@ export interface UseCollectionResult<T> {
   error: FirestoreError | Error | null;
 }
 
-export interface InternalQuery extends Query<DocumentData> {
-  _query: {
-    path: {
-      canonicalString(): string;
-      toString(): string;
-    }
-  }
-}
-
+/**
+ * Custom hook to subscribe to a Firestore collection or query.
+ * Stabilized for Firestore v11.x - avoids accessing internal private properties.
+ */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
 ): UseCollectionResult<T> {
@@ -62,18 +57,24 @@ export function useCollection<T = any>(
       },
       (fError: FirestoreError) => {
         console.error("Firestore useCollection Error:", fError);
+        
         if (fError.code === 'permission-denied') {
-          const path: string =
-            memoizedTargetRefOrQuery.type === 'collection'
-              ? (memoizedTargetRefOrQuery as CollectionReference).path
-              : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString()
+          // SAFE: Determine path from CollectionReference if possible, otherwise use generic label.
+          // Accessing _query.path is forbidden as it causes INTERNAL ASSERTION FAILED.
+          const path = memoizedTargetRefOrQuery.type === 'collection' 
+            ? (memoizedTargetRefOrQuery as CollectionReference).path 
+            : 'queried-collection';
 
-          setError(new FirestorePermissionError({ operation: 'list', path }))
+          setError(new FirestorePermissionError({ 
+            operation: 'list', 
+            path 
+          }));
         } else {
           setError(fError);
         }
-        setData(null)
-        setIsLoading(false)
+        
+        setData(null);
+        setIsLoading(false);
       }
     );
 
