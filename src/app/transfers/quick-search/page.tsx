@@ -20,28 +20,22 @@ export default function QuickSearchPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
+  
   const [isBidding, setIsBidding] = useState<string | null>(null);
-  const [authReady, setAuthReady] = useState(false);
   const initTriggeredRef = useRef(false);
 
-  // Safety: Ensure Auth state is stable before initiating any data stream.
-  useEffect(() => {
-    if (!isUserLoading && user?.uid) {
-      const timer = setTimeout(() => setAuthReady(true), 200);
-      return () => clearTimeout(timer);
-    } else {
-      setAuthReady(false);
-    }
-  }, [isUserLoading, user?.uid]);
+  // Synchronization: Ensure auth is fully ready before initiating data flow
+  const authReady = !isUserLoading && !!user?.uid;
 
   const marketQuery = useMemoFirebase(() => {
-    if (!authReady || !user?.uid) return null;
+    if (!authReady) return null;
+    // Simple list query for the market
     return query(collection(db, 'market_v2'));
-  }, [db, user?.uid, authReady]);
+  }, [db, authReady]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
+  const userRef = useMemoFirebase(() => (authReady ? doc(db, 'players_v5', user!.uid) : null), [db, authReady, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
   // Auto-initialize market if empty and we have valid access
@@ -51,7 +45,7 @@ export default function QuickSearchPage() {
       const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
       roles.forEach((role, i) => {
         const hero = generateUniqueHero(role, i, false);
-        const agentId = `sys_agent_${role.toLowerCase()}_${i}_v4`;
+        const agentId = `sys_agent_${role.toLowerCase()}_${i}_v5`;
         const startPrice = (hero.overallRating * 10000) + 50000;
         
         setDocumentNonBlocking(doc(db, 'market_v2', agentId), {
@@ -104,7 +98,7 @@ export default function QuickSearchPage() {
         </div>
         <h2 className="text-xl font-bold uppercase text-white">Market Link Blocked</h2>
         <p className="text-[10px] text-muted-foreground uppercase px-10 font-bold tracking-widest leading-relaxed">
-          The database link is restricted. Please ensure you are logged in and your operational profile is synchronized.
+          The database link is restricted. Please ensure your operational profile is synchronized.
         </p>
         <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black tracking-widest px-8">
           <RefreshCw className="w-4 h-4 mr-2" /> Reconnect
@@ -113,7 +107,7 @@ export default function QuickSearchPage() {
     );
   }
 
-  const roles = [
+  const roleList = [
     { id: 'Carry', label: language === 'ru' ? "Керри" : "Carry" },
     { id: 'Midlaner', label: language === 'ru' ? "Мидер" : "Midlaner" },
     { id: 'Tank', label: language === 'ru' ? "Танк" : "Tank" },
@@ -141,14 +135,14 @@ export default function QuickSearchPage() {
 
       <Tabs defaultValue="Carry" className="w-full">
         <TabsList className="bg-secondary/30 border border-white/5 h-11 w-full flex mb-4 p-1 rounded-xl">
-          {roles.map((role) => (
+          {roleList.map((role) => (
             <TabsTrigger key={role.id} value={role.id} className="flex-1 text-[9px] font-black uppercase rounded-lg">
               {role.label}
             </TabsTrigger>
           ))}
         </TabsList>
 
-        {roles.map((role) => {
+        {roleList.map((role) => {
           const roleAgents = agents?.filter(a => a.heroData?.role === role.id) || [];
           
           return (

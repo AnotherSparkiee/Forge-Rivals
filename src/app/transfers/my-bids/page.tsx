@@ -16,11 +16,13 @@ export default function MyBidsPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
 
-  // Guard: Only initiate query when auth state is ready.
+  // Guard: Ensure user is fully authenticated before initiating the stream.
+  const authReady = !isUserLoading && !!user?.uid;
+
   const marketQuery = useMemoFirebase(() => {
-    if (isUserLoading || !user?.uid) return null;
-    return query(collection(db, 'market_v2'), where('bidders', 'array-contains', user.uid));
-  }, [db, user?.uid, isUserLoading]);
+    if (!authReady) return null;
+    return query(collection(db, 'market_v2'), where('bidders', 'array-contains', user!.uid));
+  }, [db, user?.uid, authReady]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
@@ -30,7 +32,7 @@ export default function MyBidsPage() {
     return (
       <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-6">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-        <h2 className="text-xl font-bold uppercase text-white">Telemetry Resticted</h2>
+        <h2 className="text-xl font-bold uppercase text-white">Telemetry Restricted</h2>
         <p className="text-[10px] text-muted-foreground px-10 font-black uppercase tracking-widest leading-relaxed">
           The market data node refused the bid telemetry stream. Secure authentication sync required.
         </p>
@@ -54,13 +56,13 @@ export default function MyBidsPage() {
             {language === 'ru' ? 'МОИ ПОКУПКИ' : 'MY BIDS'}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {isMarketLoading ? 'Connecting...' : 'Personal Bidding Stream Active'}
+            {(!authReady || isMarketLoading) ? 'Connecting...' : 'Personal Bidding Stream Active'}
           </p>
         </div>
       </header>
 
       <div className="space-y-3">
-        {isMarketLoading ? (
+        {(!authReady || isMarketLoading) ? (
           <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <p className="text-[10px] uppercase font-bold tracking-[0.2em]">Retrieving Records...</p>

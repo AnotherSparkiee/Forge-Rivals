@@ -21,7 +21,7 @@ export interface UseCollectionResult<T> {
 
 /**
  * Custom hook to subscribe to a Firestore collection or query.
- * Stabilized for Firestore v11.x - avoids accessing internal private properties.
+ * Strictly uses public APIs to avoid INTERNAL ASSERTION FAILED errors in Firestore 11.x.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
@@ -59,16 +59,16 @@ export function useCollection<T = any>(
         console.error("Firestore useCollection Error:", fError);
         
         if (fError.code === 'permission-denied') {
-          // SAFE: Determine path from CollectionReference if possible, otherwise use generic label.
-          // Accessing _query.path is forbidden as it causes INTERNAL ASSERTION FAILED.
-          const path = memoizedTargetRefOrQuery.type === 'collection' 
-            ? (memoizedTargetRefOrQuery as CollectionReference).path 
-            : 'queried-collection';
+          // SAFE PATH DETECTION: Use only public .path for CollectionReference
+          // If it's a Query, we use a generic label to avoid accessing internal _query properties
+          const path = (memoizedTargetRefOrQuery as any).path || 'queried-collection';
 
-          setError(new FirestorePermissionError({ 
+          const contextualError = new FirestorePermissionError({ 
             operation: 'list', 
             path 
-          }));
+          });
+          
+          setError(contextualError);
         } else {
           setError(fError);
         }
