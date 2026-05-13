@@ -59,8 +59,8 @@ export function useCollection<T = any>(
         console.error("Firestore useCollection Error:", fError);
         
         if (fError.code === 'permission-denied') {
-          // SAFE PATH DETECTION: Use only public .path for CollectionReference
-          // If it's a Query, we use a generic label to avoid accessing internal _query properties
+          // SAFE PATH DETECTION: Do not access internal _query properties
+          // We use a generic label if the object doesn't expose a public path
           const path = (memoizedTargetRefOrQuery as any).path || 'queried-collection';
 
           const contextualError = new FirestorePermissionError({ 

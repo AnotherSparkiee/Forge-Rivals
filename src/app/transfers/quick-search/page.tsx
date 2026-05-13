@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ChevronLeft, Loader2, Gavel, AlertCircle, RefreshCw, ShoppingCart } from 'lucide-react';
-import Link from 'next/link';
+import Link from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -14,22 +14,33 @@ import { collection, query, doc, arrayUnion } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { generateUniqueHero } from '@/app/lib/moba-data';
 import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
 
 export default function QuickSearchPage() {
   const { language, isLoaded: isStoreLoaded, credits } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
   
   const [isBidding, setIsBidding] = useState<string | null>(null);
+  const [readyDelay, setReadyDelay] = useState(false);
   const initTriggeredRef = useRef(false);
 
-  // Synchronization: Ensure auth is fully ready before initiating data flow
-  const authReady = !isUserLoading && !!user?.uid;
+  // Authentication Synchronization: Wait for Firebase SDK to fully propagate tokens
+  useEffect(() => {
+    if (!isUserLoading && user?.uid) {
+      const timer = setTimeout(() => setReadyDelay(true), 500);
+      return () => clearTimeout(timer);
+    } else {
+      setReadyDelay(false);
+    }
+  }, [isUserLoading, user?.uid]);
+
+  const authReady = readyDelay && !!user?.uid;
 
   const marketQuery = useMemoFirebase(() => {
     if (!authReady) return null;
-    // Simple list query for the market
     return query(collection(db, 'market_v2'));
   }, [db, authReady]);
 
@@ -98,10 +109,12 @@ export default function QuickSearchPage() {
         </div>
         <h2 className="text-xl font-bold uppercase text-white">Market Link Blocked</h2>
         <p className="text-[10px] text-muted-foreground uppercase px-10 font-bold tracking-widest leading-relaxed">
-          The database link is restricted. Please ensure your operational profile is synchronized.
+          {language === 'ru' 
+            ? 'Связь с базой данных ограничена. Пожалуйста, убедитесь, что ваш профиль синхронизирован.' 
+            : 'The database link is restricted. Please ensure your operational profile is synchronized.'}
         </p>
         <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black tracking-widest px-8">
-          <RefreshCw className="w-4 h-4 mr-2" /> Reconnect
+          <RefreshCw className="w-4 h-4 mr-2" /> {language === 'ru' ? 'ОБНОВИТЬ' : 'RECONNECT'}
         </Button>
       </div>
     );
@@ -118,11 +131,9 @@ export default function QuickSearchPage() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center gap-4">
-        <Link href="/transfers">
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
-        </Link>
+        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.push('/transfers')}>
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
             {language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}
