@@ -20,8 +20,8 @@ export interface UseCollectionResult<T> {
 }
 
 /**
- * Хук для подписки на коллекции Firestore.
- * Использует только публичные API для предотвращения INTERNAL ASSERTION FAILED.
+ * Hook for subscribing to Firestore collections.
+ * Optimized for stability and safety with SDK v11.x.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
@@ -31,6 +31,7 @@ export function useCollection<T = any>(
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
+    // Reset state if query is null
     if (!memoizedTargetRefOrQuery) {
       setData(null);
       setIsLoading(false);
@@ -41,27 +42,35 @@ export function useCollection<T = any>(
     setIsLoading(true);
     setError(null);
 
+    // active flag to prevent state updates on unmounted component
+    let active = true;
+
     const unsubscribe = onSnapshot(
       memoizedTargetRefOrQuery,
       (snapshot: QuerySnapshot<DocumentData>) => {
+        if (!active) return;
+        
         const results: WithId<T>[] = [];
         snapshot.forEach((doc) => {
           results.push({ ...(doc.data() as T), id: doc.id });
         });
+        
         setData(results);
         setError(null);
         setIsLoading(false);
       },
       (fError: FirestoreError) => {
+        if (!active) return;
+        
         console.warn("Firestore collection stream error:", fError.message);
         
         if (fError.code === 'permission-denied') {
-          // Безопасное определение пути для отладки
-          const path = (memoizedTargetRefOrQuery as any).type === 'collection' 
-            ? (memoizedTargetRefOrQuery as any).path 
-            : 'market_v2';
-            
-          setError(new FirestorePermissionError({ operation: 'list', path }));
+          // IMPORTANT: Do not attempt to read internal SDK properties like _query.path.
+          // This causes "INTERNAL ASSERTION FAILED" in Firestore 11.9.0.
+          setError(new FirestorePermissionError({ 
+            operation: 'list', 
+            path: 'market_v2' 
+          }));
         } else {
           setError(fError);
         }
@@ -71,7 +80,10 @@ export function useCollection<T = any>(
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [memoizedTargetRefOrQuery]);
 
   return { data, isLoading, error };

@@ -14,9 +14,19 @@ export default function AdvancedSearchPage() {
   const { language, isLoaded: isStoreLoaded } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
+  const [isAuthStabilized, setIsAuthStabilized] = useState(false);
 
-  // Guard: Ensure user is fully authenticated before initiating the stream.
-  const authReady = !isUserLoading && !!user?.uid;
+  // Authentication stabilization delay (500ms) to ensure token sync
+  useEffect(() => {
+    if (!isUserLoading && user?.uid) {
+      const timer = setTimeout(() => setIsAuthStabilized(true), 500);
+      return () => clearTimeout(timer);
+    } else {
+      setIsAuthStabilized(false);
+    }
+  }, [isUserLoading, user?.uid]);
+
+  const authReady = isAuthStabilized && !!user?.uid;
 
   const marketQuery = useMemoFirebase(() => {
     if (!authReady) return null;
