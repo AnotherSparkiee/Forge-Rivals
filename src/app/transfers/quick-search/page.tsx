@@ -26,10 +26,11 @@ export default function QuickSearchPage() {
   const [isAuthStabilized, setIsAuthStabilized] = useState(false);
   const initTriggeredRef = useRef(false);
 
-  // CRITICAL: 2.5s stabilization delay to ensure Firebase Token is fully synchronized with Firestore backend
+  // CRITICAL: 3.5s stabilization delay to ensure Firebase Token is fully synchronized with Firestore backend
+  // This is essential to prevent "Missing or insufficient permissions" on initial load
   useEffect(() => {
     if (!isUserLoading && user?.uid) {
-      const timer = setTimeout(() => setIsAuthStabilized(true), 2500);
+      const timer = setTimeout(() => setIsAuthStabilized(true), 3500);
       return () => clearTimeout(timer);
     } else {
       setIsAuthStabilized(false);
@@ -38,9 +39,9 @@ export default function QuickSearchPage() {
 
   const authReady = isAuthStabilized && !!user?.uid;
 
+  // We only define the query once auth is ready to prevent immediate "anonymous" request failures
   const marketQuery = useMemoFirebase(() => {
     if (!authReady) return null;
-    // Query the global market collection
     return query(collection(db, 'market_v2'));
   }, [db, authReady]);
 
@@ -49,19 +50,20 @@ export default function QuickSearchPage() {
   const userRef = useMemoFirebase(() => (authReady ? doc(db, 'players_v5', user!.uid) : null), [db, authReady, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
-  // GLOBAL MARKET INITIALIZATION (Determined by deterministic keys)
+  // SHARED GLOBAL MARKET INITIALIZATION
+  // Everyone sees the SAME agents based on fixed versioned keys
   useEffect(() => {
     if (authReady && !isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && !marketError) {
       initTriggeredRef.current = true;
       
       const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
+      const VERSION = 15; // Increment to force global refresh
       
-      // Create a shared pool of 15 players (3 for each role)
-      roles.forEach((role, roleIdx) => {
+      roles.forEach((role) => {
         for (let i = 1; i <= 3; i++) {
           const hero = generateUniqueHero(role, i, false);
-          // Deterministic Global ID ensures all players see the SAME lot
-          const agentId = `global_lot_${role.toLowerCase()}_${i}_v12`;
+          // Fixed global IDs ensure parity across all clients
+          const agentId = `shared_lot_${role.toLowerCase()}_${i}_v${VERSION}`;
           const startPrice = (hero.overallRating * 12000) + 100000;
           
           setDocumentNonBlocking(doc(db, 'market_v2', agentId), {
@@ -72,10 +74,9 @@ export default function QuickSearchPage() {
             highestBidderId: null,
             highestBidderName: null,
             bidders: [],
-            // Expires in 3 days for persistent bidding wars
-            expiresAt: new Date(Date.now() + 86400000 * 3).toISOString(),
+            expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(),
             createdAt: serverTimestamp(),
-            version: 12
+            marketVersion: VERSION
           }, { merge: true });
         }
       });
@@ -85,9 +86,7 @@ export default function QuickSearchPage() {
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;
     
-    // Minimum bid is 5% higher than current
     const minNextBid = Math.ceil(agent.currentBid * 1.05);
-    
     if (credits < minNextBid) {
       toast({ 
         title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", 
@@ -108,7 +107,7 @@ export default function QuickSearchPage() {
       
       toast({ 
         title: language === 'ru' ? "Ставка принята!" : "Bid Placed!",
-        description: language === 'ru' ? "Вы теперь лидер торгов за этого игрока." : "You are now the leading bidder."
+        description: language === 'ru' ? "Вы теперь лидер торгов." : "You are now the leading bidder."
       });
     } finally {
       setIsBidding(null);
@@ -117,20 +116,28 @@ export default function QuickSearchPage() {
 
   if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
 
+  const t = {
+    title: language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH',
+    sync: language === 'ru' ? 'Синхронизация с узлом рынка...' : 'Establishing Secure Link...',
+    warning: language === 'ru' 
+      ? "Внимание: этот список един для всей лиги. Вы боретесь за одних и тех же игроков!"
+      : "Warning: this list is shared globally. You are competing for the same elite talent!",
+    reconnect: language === 'ru' ? 'ПЕРЕПОДКЛЮЧИТЬСЯ' : 'RE-SYNC TERMINAL',
+    errorDesc: language === 'ru' 
+      ? 'Связь с рынком ограничена. Проверьте статус авторизации.' 
+      : 'Access to the global market node was restricted. Secure authentication sync required.'
+  };
+
   if (marketError) {
     return (
       <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-6">
-        <div className="w-20 h-20 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
-          <AlertCircle className="w-10 h-10 text-red-500" />
-        </div>
-        <h2 className="text-xl font-bold uppercase text-white">Market Protocol Restricted</h2>
+        <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
+        <h2 className="text-xl font-bold uppercase text-white">Market Sync Restricted</h2>
         <p className="text-[10px] text-muted-foreground uppercase px-10 font-black tracking-widest leading-relaxed">
-          {language === 'ru' 
-            ? 'Связь с глобальным рынком ограничена. Пожалуйста, убедитесь, что ваша авторизация активна.' 
-            : 'Access to the global market node was restricted. Secure authentication sync required.'}
+          {t.errorDesc}
         </p>
-        <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black tracking-widest px-8">
-          <RefreshCw className="w-3 h-3 mr-2" /> {language === 'ru' ? 'СИНХРОНИЗИРОВАТЬ' : 'RE-SYNC TERMINAL'}
+        <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black px-8">
+          <RefreshCw className="w-3 h-3 mr-2" /> {t.reconnect}
         </Button>
       </div>
     );
@@ -151,11 +158,9 @@ export default function QuickSearchPage() {
           <ChevronLeft className="w-6 h-6" />
         </Button>
         <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
-            {language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}
-          </h1>
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{t.title}</h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {(!authReady || isMarketLoading) ? 'Establishing Secure Link...' : 'Global Shared Market Online'}
+            {(!authReady || isMarketLoading) ? t.sync : 'Global Shared Market Active'}
           </p>
         </div>
       </header>
@@ -172,9 +177,7 @@ export default function QuickSearchPage() {
         <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl mb-4 flex items-center gap-3">
           <Users className="w-4 h-4 text-primary shrink-0" />
           <p className="text-[9px] text-muted-foreground uppercase font-bold leading-tight italic">
-            {language === 'ru' 
-              ? "Внимание: этот список един для всех менеджеров лиги. Боритесь за лучших игроков, перебивая ставки соперников!"
-              : "Warning: this roster is shared globally. Compete with other managers by outbidding them for elite talent!"}
+            {t.warning}
           </p>
         </div>
 
@@ -186,12 +189,11 @@ export default function QuickSearchPage() {
               {(!authReady || isMarketLoading) ? (
                 <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Syncing Shared Database...</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Synchronizing Archive...</p>
                 </div>
               ) : roleAgents.length > 0 ? (
                 roleAgents.map((agent) => {
                   const isLeading = agent.highestBidderId === user?.uid;
-                  
                   return (
                     <Card key={agent.id} className={cn(
                       "glass-card border-white/5 overflow-hidden group transition-all",
@@ -219,9 +221,7 @@ export default function QuickSearchPage() {
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="text-xl font-headline font-bold text-accent italic leading-none">
-                              {agent.heroData?.overallRating}
-                            </p>
+                            <p className="text-xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
                             <p className="text-[8px] font-black text-muted-foreground uppercase mt-1">OVR</p>
                           </div>
                         </div>

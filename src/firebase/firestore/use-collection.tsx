@@ -9,7 +9,6 @@ import {
   QuerySnapshot,
   CollectionReference,
 } from 'firebase/firestore';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 export type WithId<T> = T & { id: string };
 
@@ -32,6 +31,7 @@ export function useCollection<T = any>(
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
+    // If query is null, we are likely waiting for auth stabilization
     if (!memoizedTargetRefOrQuery) {
       setData(null);
       setIsLoading(false);
@@ -44,6 +44,7 @@ export function useCollection<T = any>(
 
     let active = true;
 
+    // Use onSnapshot without any inspection of the query object to avoid SDK crashes
     const unsubscribe = onSnapshot(
       memoizedTargetRefOrQuery,
       (snapshot: QuerySnapshot<DocumentData>) => {
@@ -61,18 +62,11 @@ export function useCollection<T = any>(
       (fError: FirestoreError) => {
         if (!active) return;
         
-        console.warn("Firestore collection stream error:", fError.code);
+        console.error("Firestore stream error:", fError.code, fError.message);
         
-        if (fError.code === 'permission-denied') {
-          // Use a safe, static path for the error message to avoid triggering assertion failures
-          setError(new FirestorePermissionError({ 
-            operation: 'list', 
-            path: 'market_v2' 
-          }));
-        } else {
-          setError(fError);
-        }
-        
+        // Return a simple error object. DO NOT use custom error classes that 
+        // try to inspect the query path, as that triggers the assertion failure.
+        setError(fError);
         setData(null);
         setIsLoading(false);
       }
