@@ -2,23 +2,20 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // 1. GLOBAL TRANSFER MARKET (STRICT SYNC)
-    // Rule for the shared market collection. Explicitly allows listing and reading.
+    // 1. GLOBAL TRANSFER MARKET (SHARED)
+    // Allows all authenticated users to see and bid on the same global players.
     match /market_v2/{agentId} {
       allow read, write: if request.auth != null;
     }
 
     // 2. PLAYER PROFILES (players_v5)
+    // Required for seeing other managers and ranking tables.
     match /players_v5/{userId} {
-      allow read: if true; // Required to see bidder names in the shared market
+      allow read: if request.auth != null;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
-    
-    match /players_v5 {
-      allow list: if request.auth != null;
-    }
 
-    // 3. OTHER GAME COLLECTIONS
+    // 3. FRIENDLY MATCHES & LOBBIES
     match /friendly_lobbies/{userId} {
       allow read, write: if request.auth != null;
     }
@@ -27,6 +24,7 @@ service cloud.firestore {
       allow list: if request.auth != null;
     }
 
+    // 4. CW BASKET MATCHMAKING
     match /cw_basket/{userId} {
       allow read, write: if request.auth != null;
     }
@@ -35,6 +33,7 @@ service cloud.firestore {
       allow list: if request.auth != null;
     }
 
+    // 5. SOCIAL & CHATS
     match /global_chat/{messageId} {
       allow read, create: if request.auth != null;
     }

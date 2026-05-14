@@ -28,19 +28,20 @@ export default function QuickSearchPage() {
   const [syncProgress, setSyncProgress] = useState(0);
   const initTriggeredRef = useRef(false);
 
-  // CRITICAL: 5.0s stabilization delay to ensure Firebase Token is fully synchronized with Firestore backend.
-  // We also show a progress bar to improve UX during this essential handshake.
+  // VERSION 16: New global synchronized market version
+  const MARKET_VERSION = 16;
+
   useEffect(() => {
     if (!isUserLoading && user?.uid) {
       const interval = setInterval(() => {
-        setSyncProgress(prev => Math.min(prev + 2, 100));
+        setSyncProgress(prev => Math.min(prev + 2.5, 100));
       }, 100);
 
       const timer = setTimeout(() => {
         setIsAuthStabilized(true);
         setSyncProgress(100);
         clearInterval(interval);
-      }, 5000);
+      }, 4000); // 4.0s stabilization is sufficient for token sync
 
       return () => {
         clearTimeout(timer);
@@ -64,20 +65,19 @@ export default function QuickSearchPage() {
   const userRef = useMemoFirebase(() => (authReady ? doc(db, 'players_v5', user!.uid) : null), [db, authReady, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
-  // SHARED GLOBAL MARKET INITIALIZATION
-  // Everyone sees the SAME agents based on fixed versioned keys
+  // SHARED GLOBAL MARKET INITIALIZATION (Deterministic)
   useEffect(() => {
     if (authReady && !isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && !marketError) {
       initTriggeredRef.current = true;
       
       const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
-      const VERSION = 15; // Current global version
       
       roles.forEach((role) => {
         for (let i = 1; i <= 3; i++) {
+          // Heroes are deterministic based on role and index for this version
           const hero = generateUniqueHero(role, i, false);
-          const agentId = `shared_lot_${role.toLowerCase()}_${i}_v${VERSION}`;
-          const startPrice = (hero.overallRating * 12000) + 100000;
+          const agentId = `global_lot_v${MARKET_VERSION}_${role.toLowerCase()}_${i}`;
+          const startPrice = (hero.overallRating * 15000) + 250000;
           
           setDocumentNonBlocking(doc(db, 'market_v2', agentId), {
             id: agentId,
@@ -87,9 +87,9 @@ export default function QuickSearchPage() {
             highestBidderId: null,
             highestBidderName: null,
             bidders: [],
-            expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(),
+            expiresAt: new Date(Date.now() + 86400000 * 30).toISOString(), // 30 days season
             createdAt: serverTimestamp(),
-            marketVersion: VERSION
+            marketVersion: MARKET_VERSION
           }, { merge: true });
         }
       });
@@ -131,21 +131,21 @@ export default function QuickSearchPage() {
 
   const t = {
     title: language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH',
-    sync: language === 'ru' ? 'Синхронизация протокола...' : 'Establishing Secure Link...',
+    sync: language === 'ru' ? 'Синхронизация рынка...' : 'Global Market Sync...',
     warning: language === 'ru' 
       ? "Внимание: этот список един для всей лиги. Вы боретесь за одних и тех же игроков!"
       : "Warning: this list is shared globally. You are competing for the same elite talent!",
     reconnect: language === 'ru' ? 'ПЕРЕПОДКЛЮЧИТЬСЯ' : 'RE-SYNC TERMINAL',
     errorDesc: language === 'ru' 
-      ? 'Протокол безопасности отклонил запрос. Пожалуйста, убедитесь, что ваш профиль активен.' 
-      : 'Access to the global market node was restricted. Secure authentication sync required.'
+      ? 'Ошибка доступа. Пожалуйста, убедитесь, что вы вошли в систему.' 
+      : 'Market link restricted. Ensure your operational profile is synchronized.'
   };
 
   if (marketError) {
     return (
       <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-6">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-        <h2 className="text-xl font-bold uppercase text-white">Market Protocol Restricted</h2>
+        <h2 className="text-xl font-bold uppercase text-white">Sync Restricted</h2>
         <p className="text-[10px] text-muted-foreground uppercase px-10 font-black tracking-widest leading-relaxed">
           {t.errorDesc}
         </p>
@@ -167,7 +167,7 @@ export default function QuickSearchPage() {
           <h3 className="text-sm font-headline font-bold uppercase tracking-widest text-primary">{t.sync}</h3>
           <div className="w-48 mx-auto space-y-2">
             <Progress value={syncProgress} className="h-1 bg-primary/10" />
-            <p className="text-[8px] text-muted-foreground font-black uppercase tracking-tighter">Handshake: {syncProgress}%</p>
+            <p className="text-[8px] text-muted-foreground font-black uppercase tracking-tighter">Terminal Link: {Math.floor(syncProgress)}%</p>
           </div>
         </div>
       </div>
@@ -191,7 +191,7 @@ export default function QuickSearchPage() {
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{t.title}</h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {isMarketLoading ? 'Synchronizing Archive...' : 'Global Shared Market Active'}
+            {isMarketLoading ? 'Accessing Archive...' : 'Global Synchronized Node Active'}
           </p>
         </div>
       </header>
@@ -213,14 +213,14 @@ export default function QuickSearchPage() {
         </div>
 
         {roleList.map((role) => {
-          const roleAgents = agents?.filter(a => a.heroData?.role === role.id) || [];
+          const roleAgents = agents?.filter(a => a.heroData?.role === role.id && a.marketVersion === MARKET_VERSION) || [];
           
           return (
             <TabsContent key={role.id} value={role.id} className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
               {isMarketLoading ? (
                 <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Synchronizing Archive...</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Syncing Global Data...</p>
                 </div>
               ) : roleAgents.length > 0 ? (
                 roleAgents.map((agent) => {
@@ -259,7 +259,7 @@ export default function QuickSearchPage() {
                         
                         <div className="flex items-center justify-between gap-4 pt-3 border-t border-white/5">
                           <div className="flex flex-col">
-                            <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Global Bid</p>
+                            <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Global Current Bid</p>
                             <p className="text-sm font-headline font-bold text-primary">€{agent.currentBid?.toLocaleString()}</p>
                           </div>
                           <Button 
@@ -286,7 +286,7 @@ export default function QuickSearchPage() {
               ) : (
                 <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4">
                    <ShoppingCart className="w-12 h-12" />
-                   <p className="text-[10px] uppercase font-black tracking-widest leading-relaxed px-10">Shared market is re-populating. Stand by...</p>
+                   <p className="text-[10px] uppercase font-black tracking-widest leading-relaxed px-10">Shared global market node empty. Re-syncing...</p>
                 </div>
               )}
             </TabsContent>

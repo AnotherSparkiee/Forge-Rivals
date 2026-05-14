@@ -20,8 +20,7 @@ export interface UseCollectionResult<T> {
 
 /**
  * Hook for subscribing to Firestore collections.
- * CRITICAL FIX: Removed ALL access to internal/private SDK properties (_query, path, etc.)
- * to prevent INTERNAL ASSERTION FAILED in Firestore 11.9.0.
+ * Optimized for stability with Firestore 11.9.0.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
@@ -31,7 +30,6 @@ export function useCollection<T = any>(
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
-    // If query is null, we are likely waiting for auth stabilization
     if (!memoizedTargetRefOrQuery) {
       setData(null);
       setIsLoading(false);
@@ -44,7 +42,6 @@ export function useCollection<T = any>(
 
     let active = true;
 
-    // Use onSnapshot without any inspection of the query object to avoid SDK crashes
     const unsubscribe = onSnapshot(
       memoizedTargetRefOrQuery,
       (snapshot: QuerySnapshot<DocumentData>) => {
@@ -62,10 +59,8 @@ export function useCollection<T = any>(
       (fError: FirestoreError) => {
         if (!active) return;
         
-        console.error("Firestore stream error:", fError.code, fError.message);
-        
-        // Pass the error directly. Custom formatting that touches SDK internals 
-        // triggers internal crashes in v11.9.0.
+        // Pass the error directly. Do NOT attempt to log path via internal SDK properties
+        // as this triggers INTERNAL ASSERTION FAILED in v11.9.0.
         setError(fError);
         setData(null);
         setIsLoading(false);
