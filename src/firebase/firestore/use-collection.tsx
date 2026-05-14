@@ -21,6 +21,7 @@ export interface UseCollectionResult<T> {
 /**
  * Hook for subscribing to Firestore collections.
  * Optimized for stability with Firestore 11.9.0.
+ * Removed internal SDK property access to prevent assertion failures.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
@@ -59,8 +60,9 @@ export function useCollection<T = any>(
       (fError: FirestoreError) => {
         if (!active) return;
         
-        // Pass the error directly. Do NOT attempt to log path via internal SDK properties
-        // as this triggers INTERNAL ASSERTION FAILED in v11.9.0.
+        // Return the error directly. 
+        // DO NOT try to format it by accessing internal SDK properties like _query
+        // as this triggers the "INTERNAL ASSERTION FAILED" in v11.9.x.
         setError(fError);
         setData(null);
         setIsLoading(false);
