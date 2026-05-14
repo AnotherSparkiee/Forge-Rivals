@@ -21,8 +21,8 @@ export interface UseCollectionResult<T> {
 
 /**
  * Hook for subscribing to Firestore collections.
- * Fixed to prevent INTERNAL ASSERTION FAILED in Firestore 11.9.0 by removing 
- * any access to private SDK properties like _query or path.
+ * CRITICAL FIX: Removed ALL access to internal/private SDK properties (_query, path, etc.)
+ * to prevent INTERNAL ASSERTION FAILED in Firestore 11.9.0.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
@@ -64,11 +64,10 @@ export function useCollection<T = any>(
         console.warn("Firestore collection stream error:", fError.code);
         
         if (fError.code === 'permission-denied') {
-          // SAFE: No access to internal SDK properties. 
-          // We use a generic path since this hook is primarily used for market/players.
+          // Use a safe, static path for the error message to avoid triggering assertion failures
           setError(new FirestorePermissionError({ 
             operation: 'list', 
-            path: 'authorized_collection' 
+            path: 'market_v2' 
           }));
         } else {
           setError(fError);
