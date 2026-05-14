@@ -8,7 +8,6 @@ import {
   FirestoreError,
   DocumentSnapshot,
 } from 'firebase/firestore';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 type WithId<T> = T & { id: string };
 
@@ -20,7 +19,7 @@ export interface UseDocResult<T> {
 
 /**
  * Hook for subscribing to a single Firestore document.
- * CRITICAL FIX: Avoid accessing private SDK properties.
+ * Refactored to avoid custom error classes that poll the SDK during construction.
  */
 export function useDoc<T = any>(
   memoizedDocRef: DocumentReference<DocumentData> | null | undefined,
@@ -52,14 +51,8 @@ export function useDoc<T = any>(
         setIsLoading(false);
       },
       (fError: FirestoreError) => {
-        if (fError.code === 'permission-denied') {
-          setError(new FirestorePermissionError({ 
-            operation: 'get', 
-            path: 'document_access' 
-          }));
-        } else {
-          setError(fError);
-        }
+        console.error("Firestore Doc Stream Error:", fError.code, fError.message);
+        setError(fError);
         setData(null);
         setIsLoading(false);
       }

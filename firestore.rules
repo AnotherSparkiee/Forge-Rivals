@@ -3,8 +3,9 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // 1. GLOBAL TRANSFER MARKET (HIGHEST PRIORITY)
-    // Shared collection for competitive bidding
-    match /market_v2/{agentId} {
+    // Shared collection for competitive bidding. 
+    // Patterns must allow both 'list' on collection and 'get' on docs.
+    match /market_v2/{allPaths=**} {
       allow read, write: if request.auth != null;
     }
 
