@@ -21,7 +21,8 @@ export interface UseCollectionResult<T> {
 
 /**
  * Hook for subscribing to Firestore collections.
- * Simplified to prevent internal assertion failures in SDK 11.9.0.
+ * Fixed to prevent INTERNAL ASSERTION FAILED in Firestore 11.9.0 by removing 
+ * any access to private SDK properties like _query or path.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
@@ -31,7 +32,6 @@ export function useCollection<T = any>(
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
-    // Reset state if query is null
     if (!memoizedTargetRefOrQuery) {
       setData(null);
       setIsLoading(false);
@@ -42,7 +42,6 @@ export function useCollection<T = any>(
     setIsLoading(true);
     setError(null);
 
-    // active flag to prevent state updates on unmounted component
     let active = true;
 
     const unsubscribe = onSnapshot(
@@ -62,13 +61,14 @@ export function useCollection<T = any>(
       (fError: FirestoreError) => {
         if (!active) return;
         
-        console.warn("Firestore stream error:", fError.code, fError.message);
+        console.warn("Firestore collection stream error:", fError.code);
         
         if (fError.code === 'permission-denied') {
-          // Provide a safe error object without accessing private SDK properties
+          // SAFE: No access to internal SDK properties. 
+          // We use a generic path since this hook is primarily used for market/players.
           setError(new FirestorePermissionError({ 
             operation: 'list', 
-            path: 'market_v2' 
+            path: 'authorized_collection' 
           }));
         } else {
           setError(fError);
