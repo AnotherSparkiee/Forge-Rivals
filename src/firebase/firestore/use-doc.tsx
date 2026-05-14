@@ -18,12 +18,14 @@ export interface UseDocResult<T> {
   error: FirestoreError | Error | null;
 }
 
+/**
+ * Hook for subscribing to a single Firestore document.
+ * CRITICAL FIX: Avoid accessing private SDK properties.
+ */
 export function useDoc<T = any>(
   memoizedDocRef: DocumentReference<DocumentData> | null | undefined,
 ): UseDocResult<T> {
-  type StateDataType = WithId<T> | null;
-
-  const [data, setData] = useState<StateDataType>(null);
+  const [data, setData] = useState<WithId<T> | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
@@ -50,14 +52,16 @@ export function useDoc<T = any>(
         setIsLoading(false);
       },
       (fError: FirestoreError) => {
-        console.error("Firestore useDoc Error:", fError);
         if (fError.code === 'permission-denied') {
-          setError(new FirestorePermissionError({ operation: 'get', path: memoizedDocRef.path }))
+          setError(new FirestorePermissionError({ 
+            operation: 'get', 
+            path: 'document_access' 
+          }));
         } else {
           setError(fError);
         }
-        setData(null)
-        setIsLoading(false)
+        setData(null);
+        setIsLoading(false);
       }
     );
 
