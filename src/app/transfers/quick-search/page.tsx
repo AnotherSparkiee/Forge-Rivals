@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, Loader2, Gavel, AlertCircle, RefreshCw, ShoppingCart, Users } from 'lucide-react';
+import { ChevronLeft, Loader2, Gavel, AlertCircle, RefreshCw, ShoppingCart, Users, ShieldCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { generateUniqueHero } from '@/app/lib/moba-data';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import { Progress } from '@/components/ui/progress';
 
 export default function QuickSearchPage() {
   const { language, isLoaded: isStoreLoaded, credits } = useGameState();
@@ -24,22 +25,35 @@ export default function QuickSearchPage() {
   
   const [isBidding, setIsBidding] = useState<string | null>(null);
   const [isAuthStabilized, setIsAuthStabilized] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(0);
   const initTriggeredRef = useRef(false);
 
-  // CRITICAL: 3.5s stabilization delay to ensure Firebase Token is fully synchronized with Firestore backend
-  // This is essential to prevent "Missing or insufficient permissions" on initial load
+  // CRITICAL: 5.0s stabilization delay to ensure Firebase Token is fully synchronized with Firestore backend.
+  // We also show a progress bar to improve UX during this essential handshake.
   useEffect(() => {
     if (!isUserLoading && user?.uid) {
-      const timer = setTimeout(() => setIsAuthStabilized(true), 3500);
-      return () => clearTimeout(timer);
+      const interval = setInterval(() => {
+        setSyncProgress(prev => Math.min(prev + 2, 100));
+      }, 100);
+
+      const timer = setTimeout(() => {
+        setIsAuthStabilized(true);
+        setSyncProgress(100);
+        clearInterval(interval);
+      }, 5000);
+
+      return () => {
+        clearTimeout(timer);
+        clearInterval(interval);
+      };
     } else {
       setIsAuthStabilized(false);
+      setSyncProgress(0);
     }
   }, [isUserLoading, user?.uid]);
 
   const authReady = isAuthStabilized && !!user?.uid;
 
-  // We only define the query once auth is ready to prevent immediate "anonymous" request failures
   const marketQuery = useMemoFirebase(() => {
     if (!authReady) return null;
     return query(collection(db, 'market_v2'));
@@ -57,12 +71,11 @@ export default function QuickSearchPage() {
       initTriggeredRef.current = true;
       
       const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
-      const VERSION = 15; // Increment to force global refresh
+      const VERSION = 15; // Current global version
       
       roles.forEach((role) => {
         for (let i = 1; i <= 3; i++) {
           const hero = generateUniqueHero(role, i, false);
-          // Fixed global IDs ensure parity across all clients
           const agentId = `shared_lot_${role.toLowerCase()}_${i}_v${VERSION}`;
           const startPrice = (hero.overallRating * 12000) + 100000;
           
@@ -118,13 +131,13 @@ export default function QuickSearchPage() {
 
   const t = {
     title: language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH',
-    sync: language === 'ru' ? 'Синхронизация с узлом рынка...' : 'Establishing Secure Link...',
+    sync: language === 'ru' ? 'Синхронизация протокола...' : 'Establishing Secure Link...',
     warning: language === 'ru' 
       ? "Внимание: этот список един для всей лиги. Вы боретесь за одних и тех же игроков!"
       : "Warning: this list is shared globally. You are competing for the same elite talent!",
     reconnect: language === 'ru' ? 'ПЕРЕПОДКЛЮЧИТЬСЯ' : 'RE-SYNC TERMINAL',
     errorDesc: language === 'ru' 
-      ? 'Связь с рынком ограничена. Проверьте статус авторизации.' 
+      ? 'Протокол безопасности отклонил запрос. Пожалуйста, убедитесь, что ваш профиль активен.' 
       : 'Access to the global market node was restricted. Secure authentication sync required.'
   };
 
@@ -132,13 +145,31 @@ export default function QuickSearchPage() {
     return (
       <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-6">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-        <h2 className="text-xl font-bold uppercase text-white">Market Sync Restricted</h2>
+        <h2 className="text-xl font-bold uppercase text-white">Market Protocol Restricted</h2>
         <p className="text-[10px] text-muted-foreground uppercase px-10 font-black tracking-widest leading-relaxed">
           {t.errorDesc}
         </p>
         <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black px-8">
           <RefreshCw className="w-3 h-3 mr-2" /> {t.reconnect}
         </Button>
+      </div>
+    );
+  }
+
+  if (!authReady) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-40 text-center space-y-8">
+        <div className="relative w-20 h-20 mx-auto">
+          <Loader2 className="w-20 h-20 animate-spin text-primary opacity-20" />
+          <ShieldCheck className="w-8 h-8 text-primary absolute inset-0 m-auto animate-pulse" />
+        </div>
+        <div className="space-y-4">
+          <h3 className="text-sm font-headline font-bold uppercase tracking-widest text-primary">{t.sync}</h3>
+          <div className="w-48 mx-auto space-y-2">
+            <Progress value={syncProgress} className="h-1 bg-primary/10" />
+            <p className="text-[8px] text-muted-foreground font-black uppercase tracking-tighter">Handshake: {syncProgress}%</p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -160,7 +191,7 @@ export default function QuickSearchPage() {
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{t.title}</h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {(!authReady || isMarketLoading) ? t.sync : 'Global Shared Market Active'}
+            {isMarketLoading ? 'Synchronizing Archive...' : 'Global Shared Market Active'}
           </p>
         </div>
       </header>
@@ -186,7 +217,7 @@ export default function QuickSearchPage() {
           
           return (
             <TabsContent key={role.id} value={role.id} className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              {(!authReady || isMarketLoading) ? (
+              {isMarketLoading ? (
                 <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Synchronizing Archive...</p>

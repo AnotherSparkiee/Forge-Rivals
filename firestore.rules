@@ -2,16 +2,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // 1. GLOBAL TRANSFER MARKET (HIGHEST PRIORITY)
-    // Shared collection for competitive bidding. 
-    // Patterns must allow both 'list' on collection and 'get' on docs.
-    match /market_v2/{allPaths=**} {
+    // 1. GLOBAL TRANSFER MARKET (STRICT SYNC)
+    // Rule for the shared market collection. Explicitly allows listing and reading.
+    match /market_v2/{agentId} {
       allow read, write: if request.auth != null;
     }
 
     // 2. PLAYER PROFILES (players_v5)
     match /players_v5/{userId} {
-      allow read: if true;
+      allow read: if true; // Required to see bidder names in the shared market
       allow write: if request.auth != null && request.auth.uid == userId;
     }
     

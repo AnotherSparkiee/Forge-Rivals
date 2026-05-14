@@ -64,8 +64,8 @@ export function useCollection<T = any>(
         
         console.error("Firestore stream error:", fError.code, fError.message);
         
-        // Return a simple error object. DO NOT use custom error classes that 
-        // try to inspect the query path, as that triggers the assertion failure.
+        // Pass the error directly. Custom formatting that touches SDK internals 
+        // triggers internal crashes in v11.9.0.
         setError(fError);
         setData(null);
         setIsLoading(false);
