@@ -26,10 +26,10 @@ export default function QuickSearchPage() {
   const [isAuthStabilized, setIsAuthStabilized] = useState(false);
   const initTriggeredRef = useRef(false);
 
-  // Authentication stabilization delay (500ms) to ensure token sync
+  // Authentication stabilization delay (1200ms) to ensure token sync and prevent permission race conditions
   useEffect(() => {
     if (!isUserLoading && user?.uid) {
-      const timer = setTimeout(() => setIsAuthStabilized(true), 500);
+      const timer = setTimeout(() => setIsAuthStabilized(true), 1200);
       return () => clearTimeout(timer);
     } else {
       setIsAuthStabilized(false);
@@ -48,14 +48,14 @@ export default function QuickSearchPage() {
   const userRef = useMemoFirebase(() => (authReady ? doc(db, 'players_v5', user!.uid) : null), [db, authReady, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
-  // Auto-initialization logic for empty market (v8)
+  // Auto-initialization logic for empty market (v9)
   useEffect(() => {
     if (authReady && !isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && !marketError) {
       initTriggeredRef.current = true;
       const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
       roles.forEach((role, i) => {
         const hero = generateUniqueHero(role, i, false);
-        const agentId = `sys_agent_${role.toLowerCase()}_${i}_v8`;
+        const agentId = `sys_agent_${role.toLowerCase()}_${i}_v9`;
         const startPrice = (hero.overallRating * 10000) + 50000;
         
         setDocumentNonBlocking(doc(db, 'market_v2', agentId), {
@@ -67,7 +67,7 @@ export default function QuickSearchPage() {
           highestBidderName: null,
           bidders: [],
           expiresAt: new Date(Date.now() + 86400000).toISOString(),
-          version: 8
+          version: 9
         }, { merge: true });
       });
     }
@@ -107,7 +107,7 @@ export default function QuickSearchPage() {
         <div className="w-20 h-20 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
           <AlertCircle className="w-10 h-10 text-red-500" />
         </div>
-        <h2 className="text-xl font-bold uppercase text-white">Market Sync Resticted</h2>
+        <h2 className="text-xl font-bold uppercase text-white">Market Sync Restricted</h2>
         <p className="text-[10px] text-muted-foreground uppercase px-10 font-black tracking-widest leading-relaxed">
           {language === 'ru' 
             ? 'Связь с базой данных трансферов ограничена. Пожалуйста, убедитесь, что ваш профиль полностью синхронизирован.' 

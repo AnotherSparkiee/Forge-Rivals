@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,10 +17,10 @@ export default function MyBidsPage() {
   const db = useFirestore();
   const [isAuthStabilized, setIsAuthStabilized] = useState(false);
 
-  // Authentication stabilization delay (500ms) to ensure token sync
+  // Authentication stabilization delay (1200ms) to ensure token sync and prevent permission race conditions
   useEffect(() => {
     if (!isUserLoading && user?.uid) {
-      const timer = setTimeout(() => setIsAuthStabilized(true), 500);
+      const timer = setTimeout(() => setIsAuthStabilized(true), 1200);
       return () => clearTimeout(timer);
     } else {
       setIsAuthStabilized(false);
