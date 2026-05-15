@@ -1,8 +1,7 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
-import { Hero, INITIAL_HEROES } from './moba-data';
+import { Hero, INITIAL_HEROES, generateYouthHero } from './moba-data';
 import { getMoscowTime, getMoscowDateString, isMatchDue, getGlobalSeasonInfo } from './time-utils';
 import { useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -85,6 +84,7 @@ interface GameState {
   credits: number;
   crystals: number;
   ownedHeroes: Hero[];
+  youthAcademyHeroes: Hero[];
   team: Hero[];
   lineup: Record<LineupSlot, string | null>;
   strategy: string;
@@ -107,6 +107,8 @@ interface GameState {
   seasonDay: number;
   seasonNumber: number;
   lastProcessedSeason: number;
+  lastYouthArrivalDay: number;
+  lastYouthArrivalSeason: number;
   seasonStartDate: string | null;
   lastRewardClaimDate: string | null;
   rewardDay: number; 
@@ -184,6 +186,7 @@ const DEFAULT_STATE: GameState = {
   credits: START_CREDITS,
   crystals: 0,
   ownedHeroes: INITIAL_HEROES,
+  youthAcademyHeroes: [],
   team: INITIAL_HEROES.slice(0, 5),
   lineup: {
     carry: INITIAL_HEROES.find(h => h.role === 'Carry')?.id || null,
@@ -214,6 +217,8 @@ const DEFAULT_STATE: GameState = {
   seasonDay: 0,
   seasonNumber: 0,
   lastProcessedSeason: 0,
+  lastYouthArrivalDay: 0,
+  lastYouthArrivalSeason: 0,
   seasonStartDate: null,
   lastRewardClaimDate: null,
   rewardDay: 1,
@@ -261,6 +266,7 @@ interface GameStateContextType extends GameState {
   startDailyHeroTraining: (heroId: string, skillKey: string) => void;
   claimDailyHeroTraining: (heroId: string) => void;
   updateHero: (heroId: string, updates: Partial<Hero>, creditCost?: number, crystalCost?: number) => void;
+  promoteYouthPlayer: (heroId: string) => void;
   removeHero: (heroId: string, sellCreditAmount?: number) => void;
   recoverAllFatigue: (costType: 'credits' | 'crystals') => boolean;
 }
@@ -323,6 +329,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             credits: profileData.inGameCurrency ?? s.credits ?? 0,
             crystals: profileData.crystals ?? s.crystals ?? 0,
             ownedHeroes: cloudHeroes,
+            youthAcademyHeroes: profileData.youthAcademyHeroes || s.youthAcademyHeroes || [],
             lineup: profileData.lineup || s.lineup,
             strategy: profileData.strategy || s.strategy,
             lineSettings: profileData.lineSettings || s.lineSettings,
@@ -343,6 +350,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             seasonDay: globalDay,
             seasonNumber: globalSeason,
             lastProcessedSeason: profileData.lastProcessedSeason ?? s.lastProcessedSeason ?? 0,
+            lastYouthArrivalDay: profileData.lastYouthArrivalDay ?? s.lastYouthArrivalDay ?? 0,
+            lastYouthArrivalSeason: profileData.lastYouthArrivalSeason ?? s.lastYouthArrivalSeason ?? 0,
             lastRewardClaimDate: profileData.lastRewardClaimDate ?? s.lastRewardClaimDate ?? null,
             rewardDay: profileData.rewardDay ?? s.rewardDay ?? 1,
             seasonResults: profileData.seasonResults ?? s.seasonResults ?? null,
@@ -361,6 +370,28 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       unsubscribe();
     };
   }, [user, isUserLoading, db, getStorageKey]);
+
+  // Periodic Youth Arrival Logic
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+    
+    const { seasonDay, seasonNumber } = getGlobalSeasonInfo();
+    const youthCheckDays = [1, 5, 9, 13];
+    
+    if (youthCheckDays.includes(seasonDay)) {
+      if (state.lastYouthArrivalSeason < seasonNumber || state.lastYouthArrivalDay < seasonDay) {
+        const newHero = generateYouthHero(state.youthAcademyHeroes.length);
+        const updatedAcademy = [...state.youthAcademyHeroes, newHero];
+        
+        const profileRef = doc(db, 'players_v5', user.uid);
+        setDocumentNonBlocking(profileRef, {
+          youthAcademyHeroes: sanitizeForFirestore(updatedAcademy),
+          lastYouthArrivalDay: seasonDay,
+          lastYouthArrivalSeason: seasonNumber
+        }, { merge: true });
+      }
+    }
+  }, [isLoaded, user, state.seasonDay, state.seasonNumber, state.lastYouthArrivalDay, state.lastYouthArrivalSeason, state.youthAcademyHeroes, db]);
 
   useEffect(() => {
     const key = getStorageKey();
@@ -382,7 +413,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const isPlayedToday = isMatchDue(league?.startTime || "23:00", state.lastLeagueMatchDate);
     const completedDays = isPlayedToday ? globalDay : Math.max(0, globalDay - 1);
 
-    // CRITICAL: Prevent write storms by checking the last successfully synced state
     if (
       lastSyncRef.current?.season === globalSeason && 
       lastSyncRef.current?.day === completedDays && 
@@ -457,7 +487,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const myDocInSnapshot = groupPlayers.find(p => p.id === user.uid);
     if (!myTeam || !myDocInSnapshot) return;
 
-    // Double check against snapshot data to prevent redundant writes
     if (
       Number(myDocInSnapshot.wins) !== Number(myTeam.wins) || 
       Number(myDocInSnapshot.points) !== Number(myTeam.points) || 
@@ -815,6 +844,25 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }, [user, db]);
 
+  const promoteYouthPlayer = useCallback((heroId: string) => {
+    let updatedState: any;
+    setState(s => {
+      const hero = s.youthAcademyHeroes.find(h => h.id === heroId);
+      if (!hero || hero.age < 18) return s;
+      
+      const newAcademy = s.youthAcademyHeroes.filter(h => h.id !== heroId);
+      const newOwned = [...s.ownedHeroes, hero];
+      updatedState = { youthAcademyHeroes: newAcademy, ownedHeroes: newOwned };
+      return { ...s, ...updatedState };
+    });
+    if (user && updatedState) {
+      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { 
+        youthAcademyHeroes: sanitizeForFirestore(updatedState.youthAcademyHeroes),
+        ownedHeroes: sanitizeForFirestore(updatedState.ownedHeroes)
+      }, { merge: true });
+    }
+  }, [user, db]);
+
   const removeHero = useCallback((heroId: string, sellCreditAmount = 0) => {
     let updatedData: any;
     setState(s => {
@@ -967,7 +1015,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   return (
     <GameStateContext.Provider value={{
-      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, removeHero, recoverAllFatigue
+      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, promoteYouthPlayer, removeHero, recoverAllFatigue
     }}>
       {children}
     </GameStateContext.Provider>

@@ -156,6 +156,47 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
   };
 }
 
+export function generateYouthHero(index: number): Hero {
+  const roles: Role[] = ['Tank', 'Carry', 'Midlaner', 'Jungler', 'Support'];
+  const role = roles[Math.floor(Math.random() * roles.length)];
+  const hero = generateUniqueHero(role, index, false);
+  
+  // Custom youth stats
+  hero.age = getRandomStat(14, 18);
+  hero.overallRating = getRandomStat(15, 25); // Lower start for academy
+  hero.salary = getRandomStat(500, 1500); // Lower salary for students
+  
+  // But potentially high talents
+  hero.proTalents = {
+    lastHitting: getRandomTalent() + 0.5,
+    mapAwareness: getRandomTalent() + 0.5,
+    positioning: getRandomTalent() + 0.5,
+    reflexes: getRandomTalent() + 0.5,
+    manaManagement: getRandomTalent() + 0.5,
+    objectiveControl: getRandomTalent() + 0.5,
+    communication: getRandomTalent() + 0.5,
+    tiltResistance: getRandomTalent() + 0.5,
+    versatility: getRandomTalent() + 0.5,
+    ganking: getRandomTalent() + 0.5,
+  };
+  
+  // Reset proStats to low values
+  hero.proStats = {
+    lastHitting: getRandomStat(10, 30),
+    mapAwareness: getRandomStat(10, 30),
+    positioning: getRandomStat(10, 30),
+    reflexes: getRandomStat(10, 30),
+    manaManagement: getRandomStat(10, 30),
+    objectiveControl: getRandomStat(10, 30),
+    communication: getRandomStat(10, 30),
+    tiltResistance: getRandomStat(10, 30),
+    versatility: getRandomStat(10, 30),
+    ganking: getRandomStat(10, 30),
+  };
+
+  return hero;
+}
+
 export function getRandomStartingSquad(): Hero[] {
   const roles: Role[] = ['Tank', 'Carry', 'Midlaner', 'Jungler', 'Support', 'Carry', 'Tank'];
   return roles.map((role, i) => generateUniqueHero(role, i, true));
