@@ -23,6 +23,7 @@ import {
   DialogPortal
 } from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
+import { calculateLiveAge } from '@/app/lib/time-utils';
 
 export default function YouthAcademyPage() {
   const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer } = useGameState();
@@ -108,36 +109,41 @@ export default function YouthAcademyPage() {
         </Card>
 
         <div className="space-y-2">
-          {youthAcademyHeroes.length > 0 ? youthAcademyHeroes.map((hero) => (
-            <Card 
-              key={hero.id} 
-              className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all"
-              onClick={() => setSelectedHero(hero)}
-            >
-              <CardContent className="p-3 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
-                  <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold truncate uppercase">{hero.name}</h3>
-                    <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
+          {youthAcademyHeroes.length > 0 ? youthAcademyHeroes.map((hero) => {
+            const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
+            const isReady = liveAge.numeric >= 18;
+
+            return (
+              <Card 
+                key={hero.id} 
+                className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all"
+                onClick={() => setSelectedHero(hero)}
+              >
+                <CardContent className="p-3 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
+                    <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">
-                      {t.age}: {hero.age} {t.years}
-                    </p>
-                    {hero.age === 18 && (
-                      <Badge className="bg-green-500/20 text-green-400 text-[6px] h-3 px-1 font-black animate-pulse">READY</Badge>
-                    )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold truncate uppercase">{hero.name}</h3>
+                      <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">
+                        {t.age}: {liveAge.display} {t.years}
+                      </p>
+                      {isReady && (
+                        <Badge className="bg-green-500/20 text-green-400 text-[6px] h-3 px-1 font-black animate-pulse">READY</Badge>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="flex flex-col items-center justify-center min-w-[40px] border-l border-white/5 pl-3">
-                  <span className="text-lg font-headline font-bold text-accent italic">{hero.overallRating}</span>
-                </div>
-              </CardContent>
-            </Card>
-          )) : (
+                  <div className="flex flex-col items-center justify-center min-w-[40px] border-l border-white/5 pl-3">
+                    <span className="text-lg font-headline font-bold text-accent italic">{hero.overallRating}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          }) : (
             <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
               <Users className="w-16 h-16" />
               <p className="text-xs font-bold uppercase tracking-widest">Academy is currently empty</p>
@@ -179,7 +185,9 @@ export default function YouthAcademyPage() {
                       </div>
                       <div className="bg-background/40 p-3 rounded-xl border border-white/10">
                         <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.age}</p>
-                        <p className="text-xl font-headline font-bold text-primary italic leading-none">{selectedHero.age}</p>
+                        <p className="text-xl font-headline font-bold text-primary italic leading-none">
+                          {calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).display}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -191,15 +199,15 @@ export default function YouthAcademyPage() {
                       </h3>
                       <div className="bg-secondary/10 p-4 rounded-xl border border-white/5 flex items-center justify-between">
                          <div className="flex items-center gap-3">
-                           <ShieldCheck className={cn("w-5 h-5", selectedHero.age >= 18 ? "text-green-400" : "text-muted-foreground")} />
+                           <ShieldCheck className={cn("w-5 h-5", calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 ? "text-green-400" : "text-muted-foreground")} />
                            <div>
-                             <p className="text-[10px] font-bold uppercase">{selectedHero.age >= 18 ? 'GRADUATED' : 'STUDENT'}</p>
-                             <p className="text-[8px] text-muted-foreground">{selectedHero.age >= 18 ? 'Eligible for promotion' : 'Requires training until 18'}</p>
+                             <p className="text-[10px] font-bold uppercase">{calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 ? 'GRADUATED' : 'STUDENT'}</p>
+                             <p className="text-[8px] text-muted-foreground">{calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 ? 'Eligible for promotion' : 'Requires training until 18.0'}</p>
                            </div>
                          </div>
-                         {selectedHero.age < 18 && (
+                         {calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric < 18 && (
                            <div className="text-right">
-                             <p className="text-[8px] font-black text-accent uppercase">{18 - selectedHero.age} Years to go</p>
+                             <p className="text-[8px] font-black text-accent uppercase">Training Protocol Active</p>
                            </div>
                          )}
                       </div>
@@ -246,13 +254,13 @@ export default function YouthAcademyPage() {
                   <Button 
                     className={cn(
                       "w-full h-14 font-black text-[11px] tracking-[0.2em] shadow-xl rounded-xl active:scale-95 transition-all uppercase",
-                      selectedHero.age >= 18 ? "hero-gradient" : "bg-secondary/50 border border-white/5 text-muted-foreground cursor-not-allowed"
+                      calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 ? "hero-gradient" : "bg-secondary/50 border border-white/5 text-muted-foreground cursor-not-allowed"
                     )}
-                    disabled={selectedHero.age < 18}
+                    disabled={calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric < 18}
                     onClick={() => handlePromote(selectedHero.id)}
                   >
                     <ArrowUpCircle className="w-4 h-4 mr-2" />
-                    {selectedHero.age >= 18 ? t.promote : t.notReady}
+                    {calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 ? t.promote : t.notReady}
                   </Button>
                   <Button 
                     variant="ghost"

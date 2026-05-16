@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -29,7 +28,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
+import { getMoscowDateString, getMoscowTime, calculateLiveAge } from '@/app/lib/time-utils';
 
 export default function ContractsPage() {
   const { ownedHeroes, language, isLoaded, credits, crystals, updateHero, removeHero } = useGameState();
@@ -104,7 +103,6 @@ export default function ContractsPage() {
             dropTime: mskNow.toISOString()
           };
 
-          // Use market_v2 for consistent data structure
           setDocumentNonBlocking(doc(db, 'market_v2', agentId), agentData, { merge: true });
           removeHero(profileHero.id, 0);
           
@@ -210,9 +208,14 @@ export default function ContractsPage() {
                   <h3 className="text-sm font-bold truncate uppercase">{hero.name}</h3>
                   <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
                 </div>
-                <p className="text-[9px] text-muted-foreground font-black uppercase mt-0.5 tracking-widest">
-                  Salary: €{hero.salary.toLocaleString()} / mo
-                </p>
+                <div className="flex items-center gap-2 mt-0.5">
+                   <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">
+                     Age: {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.years}
+                   </p>
+                   <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">
+                     Salary: €{hero.salary.toLocaleString()}
+                   </p>
+                </div>
               </div>
               <div className="flex flex-col items-center justify-center min-w-[40px] border-l border-white/5 pl-3">
                 <span className="text-lg font-headline font-bold text-accent italic">{hero.overallRating}</span>
@@ -268,7 +271,7 @@ export default function ContractsPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="bg-secondary/20 p-3 rounded-xl border border-white/5">
                           <p className="text-[7px] font-black text-muted-foreground uppercase">Age</p>
-                          <p className="text-xs font-bold">{profileHero.age} {t.years}</p>
+                          <p className="text-xs font-bold">{calculateLiveAge(profileHero.baseAge, profileHero.hiredAt).display} {t.years}</p>
                         </div>
                         <div className="bg-secondary/20 p-3 rounded-xl border border-white/5">
                           <p className="text-[7px] font-black text-muted-foreground uppercase">Status</p>

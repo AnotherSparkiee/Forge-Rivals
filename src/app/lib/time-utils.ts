@@ -99,3 +99,31 @@ export function isMatchDue(startTimeStr: string, lastMatchDateStr: string | null
 export function getPyramidCupTime(leagueStartTime?: string): string {
   return "07:00";
 }
+
+/**
+ * Calculates live age based on hiring date and base age.
+ * 1 real week = 1 in-game month.
+ * @returns Object containing years, months and string representation
+ */
+export function calculateLiveAge(baseAge: number, hiredAt: string) {
+  const mskNow = getMoscowTime();
+  const hiredDate = new Date(hiredAt);
+  
+  // Calculate diff in days
+  const diffMs = mskNow.getTime() - hiredDate.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  // 7 real days = 1 in-game month
+  const monthsElapsed = Math.floor(diffDays / 7);
+  const totalMonths = (baseAge * 12) + monthsElapsed;
+  
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+  
+  return {
+    years,
+    months,
+    display: `${years}.${months}`,
+    numeric: years + (months / 12)
+  };
+}

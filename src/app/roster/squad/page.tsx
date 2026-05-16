@@ -24,6 +24,7 @@ import {
   DialogDescription,
   DialogPortal
 } from "@/components/ui/dialog";
+import { calculateLiveAge } from '@/app/lib/time-utils';
 
 export default function SquadPage() {
   const { ownedHeroes, lineup, assignToRole, isLoaded, language } = useGameState();
@@ -214,6 +215,11 @@ export default function SquadPage() {
             <h3 className={cn("text-xs font-bold leading-tight truncate", !hero && "text-muted-foreground italic")}>
               {hero ? hero.name : (isSelected ? t.selectHero : t.emptySlot)}
             </h3>
+            {hero && (
+              <p className="text-[8px] text-muted-foreground uppercase font-black tracking-tighter">
+                {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.profile.years}
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-3 flex-shrink-0">
@@ -371,6 +377,9 @@ export default function SquadPage() {
                             <span className="text-[9px] font-bold text-accent flex items-center gap-1">
                               <Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}
                             </span>
+                            <span className="text-[8px] text-muted-foreground font-black uppercase tracking-tighter">
+                              {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.profile.years}
+                            </span>
                             {isAssignedElsewhere && (
                               <Badge className="bg-accent/20 text-accent text-[6px] h-3 px-1 border-none font-black uppercase">
                                 {t.assigned}: {t.roles[currentRoleKey].label}
@@ -449,7 +458,7 @@ export default function SquadPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
                           <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.age}</p>
-                          <p className="text-xs font-bold">{profileHero.age || 0} {t.profile.years}</p>
+                          <p className="text-xs font-bold">{calculateLiveAge(profileHero.baseAge, profileHero.hiredAt).display} {t.profile.years}</p>
                         </div>
                         <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
                           <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.status}</p>

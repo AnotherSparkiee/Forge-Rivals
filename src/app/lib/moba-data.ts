@@ -16,7 +16,9 @@ export interface Hero {
   image: string;
   description: string;
   price: number;
-  age: number;
+  baseAge: number; // The age the hero started with
+  hiredAt: string; // ISO string of when the hero was created/hired
+  age: number; // Kept for legacy/fallback, but UI will use baseAge + time
   salary: number;
   form: number; 
   fatigue: number; 
@@ -132,6 +134,8 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
   const basePower = (baseStats.attack + (baseStats.defense / 2) + (baseStats.abilityPower / 2)) / 5;
   const overall = Math.round((proSum / 10) * 0.4 + basePower * 0.6);
 
+  const startAge = getRandomStat(17, 28);
+
   return {
     id: `hero_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
     name,
@@ -142,7 +146,9 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     image: country.url,
     description: `A unique talent from ${country.name}.`,
     price: 0,
-    age: getRandomStat(17, 28),
+    baseAge: startAge,
+    hiredAt: new Date().toISOString(),
+    age: startAge, // Fallback
     salary: getRandomStat(2000, 8000),
     form: getRandomStat(70, 95),
     fatigue: 0,
@@ -162,7 +168,11 @@ export function generateYouthHero(index: number): Hero {
   const hero = generateUniqueHero(role, index, false);
   
   // Custom youth stats
-  hero.age = getRandomStat(14, 18);
+  const startAge = getRandomStat(14, 17);
+  hero.baseAge = startAge;
+  hero.age = startAge;
+  hero.hiredAt = new Date().toISOString();
+  
   hero.overallRating = getRandomStat(15, 25); // Lower start for academy
   hero.salary = getRandomStat(500, 1500); // Lower salary for students
   
@@ -213,6 +223,8 @@ export const INITIAL_HEROES: Hero[] = [
     image: 'https://i.postimg.cc/PPS3QFFM/de-1.jpg',
     description: 'An unbreakable shield on the battlefield.',
     price: 0,
+    baseAge: 24,
+    hiredAt: "2024-01-01T00:00:00.000Z",
     age: 24,
     salary: 4500,
     form: 85,
@@ -241,6 +253,8 @@ export const INITIAL_HEROES: Hero[] = [
     image: 'https://i.postimg.cc/43mv7dsH/kr-1.jpg',
     description: 'Deals massive physical damage from afar.',
     price: 0,
+    baseAge: 19,
+    hiredAt: "2024-01-01T00:00:00.000Z",
     age: 19,
     salary: 8200,
     form: 92,
