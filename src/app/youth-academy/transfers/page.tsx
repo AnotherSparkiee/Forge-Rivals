@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { Progress } from '@/components/ui/progress';
+import Link from 'next/link';
 
 export default function YouthTransfersPage() {
   const { language, isLoaded: isStoreLoaded, credits } = useGameState();
