@@ -102,19 +102,20 @@ export function getPyramidCupTime(leagueStartTime?: string): string {
 
 /**
  * Calculates live age based on hiring date and base age.
- * 1 real week = 1 in-game month.
+ * NEW RULE: 1 real month (30 days) = 1 game year (12 months).
+ * This means 1 game month = 2.5 real days.
  * @returns Object containing years, months and string representation
  */
 export function calculateLiveAge(baseAge: number, hiredAt: string) {
   const mskNow = getMoscowTime();
   const hiredDate = new Date(hiredAt);
   
-  // Calculate diff in days
+  // Calculate diff in milliseconds and then days
   const diffMs = mskNow.getTime() - hiredDate.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
   
-  // 7 real days = 1 in-game month
-  const monthsElapsed = Math.floor(diffDays / 7);
+  // 2.5 real days = 1 in-game month
+  const monthsElapsed = Math.floor(diffDays / 2.5);
   const totalMonths = (baseAge * 12) + monthsElapsed;
   
   const years = Math.floor(totalMonths / 12);

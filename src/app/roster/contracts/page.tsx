@@ -271,7 +271,9 @@ export default function ContractsPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="bg-secondary/20 p-3 rounded-xl border border-white/5">
                           <p className="text-[7px] font-black text-muted-foreground uppercase">Age</p>
-                          <p className="text-xs font-bold">{calculateLiveAge(profileHero.baseAge, profileHero.hiredAt).display} {t.years}</p>
+                          <p className={cn("text-xs font-bold", calculateLiveAge(profileHero.baseAge, profileHero.hiredAt).numeric < 18 ? "text-red-400" : "text-white")}>
+                            {calculateLiveAge(profileHero.baseAge, profileHero.hiredAt).display} {t.years}
+                          </p>
                         </div>
                         <div className="bg-secondary/20 p-3 rounded-xl border border-white/5">
                           <p className="text-[7px] font-black text-muted-foreground uppercase">Status</p>
