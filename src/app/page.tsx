@@ -8,7 +8,7 @@ import {
   Users, Trophy, Zap, Clock,
   UserSearch, ShieldAlert, Medal, User, Swords, ChevronRight,
   CalendarDays, PlayCircle, Loader2, MessageSquare, UsersRound, Target, ShoppingCart,
-  GraduationCap
+  GraduationCap, UserCog
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -213,7 +213,8 @@ export default function Home() {
       tourLive: "LIVE ENGAGEMENT",
       menu: [ 
         { label: 'Roster', href: '/roster', icon: Users, desc: 'Manage lineup' }, 
-        { label: 'Training', href: '/training', icon: Zap, desc: 'Improve infrastructure' }, 
+        { label: 'Infrastructure', href: '/training', icon: Zap, desc: 'Improve base' }, 
+        { label: 'Staff', href: '/staff', icon: UserCog, desc: 'Professional team' },
         { label: 'Transfers', href: '/transfers', icon: ShoppingCart, desc: 'Market operations' }, 
         { label: 'Youth Academy', href: '/youth-academy', icon: GraduationCap, desc: 'Scout future stars' },
         { label: 'Rankings', href: '/rankings', icon: Trophy, desc: 'View tables' }, 
@@ -233,6 +234,7 @@ export default function Home() {
       menu: [ 
         { label: 'Ростер', href: '/roster', icon: Users, desc: 'Состав команды' }, 
         { label: 'Инфраструктура', href: '/training', icon: Zap, desc: 'Улучшение базы' }, 
+        { label: 'Персонал', href: '/staff', icon: UserCog, desc: 'Профессиональная команда' },
         { label: 'Трансферы', href: '/transfers', icon: ShoppingCart, desc: 'Рынок игроков' }, 
         { label: 'Юношеская академия', href: '/youth-academy', icon: GraduationCap, desc: 'Развитие талантов' },
         { label: 'Таблицы', href: '/rankings', icon: Trophy, desc: 'Рейтинги' }, 

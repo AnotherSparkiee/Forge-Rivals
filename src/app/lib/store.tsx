@@ -60,6 +60,14 @@ interface MedicalState {
   constructionStarts: Record<string, string | null>;
 }
 
+interface StaffState {
+  coachLevel: number;
+  analystLevel: number;
+  scoutLevel: number;
+  doctorLevel: number;
+  financierLevel: number;
+}
+
 export interface MatchResultEntry {
   id: string; 
   day: number; 
@@ -117,6 +125,7 @@ interface GameState {
   bootcamp: BootcampState;
   academy: AcademyState;
   medical: MedicalState;
+  staff: StaffState;
   seasonResults: {
     lastRank: number;
     lastPoints: number;
@@ -180,6 +189,14 @@ const DEFAULT_MEDICAL: MedicalState = {
   constructionStarts: {},
 };
 
+const DEFAULT_STAFF: StaffState = {
+  coachLevel: 0,
+  analystLevel: 0,
+  scoutLevel: 0,
+  doctorLevel: 0,
+  financierLevel: 0,
+};
+
 const START_CREDITS = 10000000;
 
 const DEFAULT_STATE: GameState = {
@@ -227,6 +244,7 @@ const DEFAULT_STATE: GameState = {
   bootcamp: DEFAULT_BOOTCAMP,
   academy: DEFAULT_ACADEMY,
   medical: DEFAULT_MEDICAL,
+  staff: DEFAULT_STAFF,
   seasonResults: null,
   hasEliteTrophy: false,
   isSyncing: false,
@@ -254,6 +272,7 @@ interface GameStateContextType extends GameState {
   startAcademyConstruction: (facility: any, cost: number) => boolean;
   startMedicalConstruction: (facility: any, cost: number) => boolean;
   startCapacityExpansion: (seats: number, cost: number, hours: number) => boolean;
+  upgradeStaff: (member: keyof StaffState, cost: number) => boolean;
   checkConstructions: () => void;
   setLanguage: (lang: 'en' | 'ru') => void;
   recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string) => void;
@@ -354,6 +373,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             lastYouthArrivalSeason: profileData.lastYouthArrivalSeason ?? s.lastYouthArrivalSeason ?? 0,
             lastRewardClaimDate: profileData.lastRewardClaimDate ?? s.lastRewardClaimDate ?? null,
             rewardDay: profileData.rewardDay ?? s.rewardDay ?? 1,
+            arena: profileData.arena || s.arena,
+            hq: profileData.hq || s.hq,
+            bootcamp: profileData.bootcamp || s.bootcamp,
+            academy: profileData.academy || s.academy,
+            medical: profileData.medical || s.medical,
+            staff: profileData.staff || s.staff || DEFAULT_STAFF,
             seasonResults: profileData.seasonResults ?? s.seasonResults ?? null,
             hasEliteTrophy: profileData.hasEliteTrophy ?? s.hasEliteTrophy ?? false,
           };
@@ -716,6 +741,37 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return result;
   }, [isSectorBusy, user, db]);
 
+  const upgradeStaff = useCallback((member: keyof StaffState, cost: number) => {
+    let result = false;
+    let newState: any;
+
+    setState(s => {
+      if (s.credits >= cost) {
+        const newLevel = (s.staff[member] || 0) + 1;
+        if (newLevel > 10) return s;
+        
+        result = true;
+        const newCredits = s.credits - cost;
+        newState = { 
+          ...s, 
+          credits: newCredits, 
+          staff: { ...s.staff, [member]: newLevel } 
+        };
+        return newState;
+      }
+      return s;
+    });
+
+    if (user && result && newState) {
+      const profileRef = doc(db, 'players_v5', user.uid);
+      setDocumentNonBlocking(profileRef, { 
+        inGameCurrency: newState.credits, 
+        staff: sanitizeForFirestore(newState.staff) 
+      }, { merge: true });
+    }
+    return result;
+  }, [user, db]);
+
   const checkConstructions = useCallback(() => {
     setState(s => {
       const nowTime = Date.now();
@@ -1062,7 +1118,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   return (
     <GameStateContext.Provider value={{
-      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, promoteYouthPlayer, removeHero, recoverAllFatigue
+      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, upgradeStaff, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, promoteYouthPlayer, removeHero, recoverAllFatigue
     }}>
       {children}
     </GameStateContext.Provider>
