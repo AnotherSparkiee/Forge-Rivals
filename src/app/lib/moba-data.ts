@@ -55,6 +55,23 @@ export interface Hero {
   };
 }
 
+export type StaffRole = 'coach' | 'analyst' | 'scout' | 'doctor' | 'financier';
+
+export interface StaffMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  role: StaffRole;
+  baseAge: number;
+  hiredAt: string;
+  salary: number;
+  image: string;
+  skills: {
+    primary: number;   // 0-99
+    secondary: number; // 0-99
+  };
+}
+
 const COUNTRY_PHOTOS: Record<string, { flag: string, name: string, url: string }> = {
   'DE': { flag: '🇩🇪', name: 'Germany', url: 'https://i.postimg.cc/PPS3QFFM/de-1.jpg' },
   'CN': { flag: '🇨🇳', name: 'China', url: 'https://i.postimg.cc/wvzKxSYS/1755011442109.jpg' },
@@ -72,12 +89,14 @@ const HERO_NAMES = [
   "Blast", "Drift", "Flux", "Glint", "Haze", "Jolt", "Kite", "Lume", "Mist"
 ];
 
+const FIRST_NAMES = ["James", "Robert", "John", "Michael", "David", "William", "Richard", "Joseph", "Thomas", "Charles", "Viktor", "Dmitry", "Hans", "Lee", "Chen", "Artyom"];
+const LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Ivanov", "Petrov", "Schmidt", "Wang", "Kim", "Park", "Sokolov"];
+
 function getRandomStat(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 function getRandomTalent() {
-  // Returns a value between 2.0 and 5.0 in steps of 0.5
   return (Math.floor(Math.random() * 7) + 4) / 2;
 }
 
@@ -129,7 +148,6 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     ganking: getRandomTalent(),
   };
 
-  // Balance calculation to ensure 29-38 rating for starters
   const proSum = Object.values(proStats).reduce((a, b) => a + b, 0);
   const basePower = (baseStats.attack + (baseStats.defense / 2) + (baseStats.abilityPower / 2)) / 5;
   const overall = Math.round((proSum / 10) * 0.4 + basePower * 0.6);
@@ -148,7 +166,7 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     price: 0,
     baseAge: startAge,
     hiredAt: new Date().toISOString(),
-    age: startAge, // Fallback
+    age: startAge,
     salary: getRandomStat(2000, 8000),
     form: getRandomStat(70, 95),
     fatigue: 0,
@@ -167,16 +185,14 @@ export function generateYouthHero(index: number): Hero {
   const role = roles[Math.floor(Math.random() * roles.length)];
   const hero = generateUniqueHero(role, index, false);
   
-  // Custom youth stats
   const startAge = getRandomStat(14, 17);
   hero.baseAge = startAge;
   hero.age = startAge;
   hero.hiredAt = new Date().toISOString();
   
-  hero.overallRating = getRandomStat(15, 25); // Lower start for academy
-  hero.salary = getRandomStat(500, 1500); // Lower salary for students
+  hero.overallRating = getRandomStat(15, 25);
+  hero.salary = getRandomStat(500, 1500);
   
-  // But potentially high talents
   hero.proTalents = {
     lastHitting: getRandomTalent() + 0.5,
     mapAwareness: getRandomTalent() + 0.5,
@@ -190,7 +206,6 @@ export function generateYouthHero(index: number): Hero {
     ganking: getRandomTalent() + 0.5,
   };
   
-  // Reset proStats to low values
   hero.proStats = {
     lastHitting: getRandomStat(10, 30),
     mapAwareness: getRandomStat(10, 30),
@@ -205,6 +220,27 @@ export function generateYouthHero(index: number): Hero {
   };
 
   return hero;
+}
+
+export function generateStaffMember(role: StaffRole): StaffMember {
+  const startAge = getRandomStat(32, 60);
+  const firstName = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
+  const lastName = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
+  
+  return {
+    id: `staff_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+    firstName,
+    lastName,
+    role,
+    baseAge: startAge,
+    hiredAt: new Date().toISOString(),
+    salary: getRandomStat(15000, 45000),
+    image: `https://picsum.photos/seed/${Math.random()}/200/200`,
+    skills: {
+      primary: getRandomStat(10, 45),
+      secondary: getRandomStat(10, 45)
+    }
+  };
 }
 
 export function getRandomStartingSquad(): Hero[] {
