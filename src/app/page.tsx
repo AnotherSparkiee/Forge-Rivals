@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useGameState } from './lib/store';
 import { 
   Users, Trophy, Zap, Clock,
   UserSearch, ShieldAlert, Medal, User, Swords, ChevronRight,
   CalendarDays, PlayCircle, Loader2, MessageSquare, UsersRound, Target, ShoppingCart,
-  GraduationCap, UserCog, Coins, Heart
+  GraduationCap, UserCog, Coins, Heart, Store
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -224,6 +224,7 @@ export default function Home() {
         { label: 'Fanclub', href: '/fanclub', icon: Heart, desc: 'Fanbase management' },
         { label: 'Chats', href: '/chats', icon: MessageSquare, desc: 'Comms' },
         { label: 'Managers', href: '/managers', icon: UsersRound, desc: 'Community hub' },
+        { label: 'Shop', href: '/shop', icon: Store, desc: 'Acquire resources' },
         { label: 'Profile', href: '/profile', icon: User, desc: 'Settings' } 
       ]
     },
@@ -246,6 +247,7 @@ export default function Home() {
         { label: 'Фанклуб', href: '/fanclub', icon: Heart, desc: 'Управление болельщиками' },
         { label: 'Чаты', href: '/chats', icon: MessageSquare, desc: 'Связь' }, 
         { label: 'Менеджеры', href: '/managers', icon: UsersRound, desc: 'Сообщество' },
+        { label: 'Магазин', href: '/shop', icon: Store, desc: 'Ресурсы и услуги' },
         { label: 'Профиль', href: '/profile', icon: User, desc: 'Настройки' } 
       ]
     }
