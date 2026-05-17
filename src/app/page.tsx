@@ -8,7 +8,7 @@ import {
   Users, Trophy, Zap, Clock,
   UserSearch, ShieldAlert, Medal, User, Swords, ChevronRight,
   CalendarDays, PlayCircle, Loader2, MessageSquare, UsersRound, Target, ShoppingCart,
-  GraduationCap, UserCog
+  GraduationCap, UserCog, Coins
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -220,6 +220,7 @@ export default function Home() {
         { label: 'Rankings', href: '/rankings', icon: Trophy, desc: 'View tables' }, 
         { label: 'Matches', href: '/matches', icon: CalendarDays, desc: 'Schedule' }, 
         { label: 'Tournaments', href: '/tournaments', icon: Medal, desc: 'Global events' }, 
+        { label: 'Finances', href: '/finances', icon: Coins, desc: 'Budget management' },
         { label: 'Chats', href: '/chats', icon: MessageSquare, desc: 'Comms' },
         { label: 'Managers', href: '/managers', icon: UsersRound, desc: 'Community hub' },
         { label: 'Profile', href: '/profile', icon: User, desc: 'Settings' } 
@@ -240,6 +241,7 @@ export default function Home() {
         { label: 'Таблицы', href: '/rankings', icon: Trophy, desc: 'Рейтинги' }, 
         { label: 'Матчи', href: '/matches', icon: CalendarDays, desc: 'Расписание' }, 
         { label: 'Турниры', href: '/tournaments', icon: Medal, desc: 'События' }, 
+        { label: 'Финансы', href: '/finances', icon: Coins, desc: 'Управление бюджетом' },
         { label: 'Чаты', href: '/chats', icon: MessageSquare, desc: 'Связь' }, 
         { label: 'Менеджеры', href: '/managers', icon: UsersRound, desc: 'Сообщество' },
         { label: 'Профиль', href: '/profile', icon: User, desc: 'Настройки' } 
@@ -281,7 +283,7 @@ export default function Home() {
                   <div className={cn("w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "border-green-500" : "border-accent")}>
                     {(displayMatchInfo as any).isCup ? <Target className="w-10 h-10 text-accent" /> : <User className={cn("w-10 h-10", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-accent")} />}
                   </div>
-                  <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1.5 border border-white/10">
+                  <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1.5 border border-white/10 shadow-lg">
                     <Swords className={cn("w-4 h-4", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-primary")} />
                   </div>
                 </div>
