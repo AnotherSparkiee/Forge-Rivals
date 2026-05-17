@@ -33,7 +33,8 @@ export default function MatchesPage() {
   const router = useRouter();
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, seasonDay, rank, 
-    lastLeagueMatchDate, lastCupMatchDate, seasonNumber, matchHistory, seasonStartDate
+    lastLeagueMatchDate, lastCupMatchDate, seasonNumber, matchHistory, seasonStartDate,
+    lastSeenMatchDay
   } = useGameState();
   const db = useFirestore();
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
