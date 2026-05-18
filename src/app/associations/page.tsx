@@ -41,11 +41,9 @@ export default function AssociationPage() {
   const allAssocsQuery = useMemoFirebase(() => query(collection(db, 'associations_v1')), [db]);
   const { data: allAssocs, isLoading: isAssocsLoading } = useCollection(allAssocsQuery);
 
-  // Улучшенная проверка: считаем, что игрок в ассоциации, только если документ РЕАЛЬНО существует
   const myAssoc = useMemo(() => {
     if (!profile?.associationId || !allAssocs) return null;
-    const found = allAssocs.find(a => a.id === profile.associationId);
-    return found || null;
+    return allAssocs.find(a => a.id === profile.associationId) || null;
   }, [profile?.associationId, allAssocs]);
 
   const isOwner = myAssoc?.ownerId === user?.uid;
@@ -131,17 +129,20 @@ export default function AssociationPage() {
         createdAt: serverTimestamp()
       };
 
-      // Используем setDocumentNonBlocking для создания ассоциации
+      // 1. Создаем ассоциацию
       setDocumentNonBlocking(doc(db, 'associations_v1', assocId), assocData, { merge: false });
       
-      // Обновляем профиль игрока
+      // 2. Обновляем профиль игрока
       updateDocumentNonBlocking(userRef!, { associationId: assocId });
       
+      // 3. Снимаем оплату
       addCrystals(-500);
+
       toast({ title: language === 'ru' ? "Ассоциация создана!" : "Association Established!" });
       setActiveTab('my_assoc');
     } catch (e) {
       console.error("Error creating association:", e);
+      toast({ title: "Failed to create association", variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }
@@ -152,7 +153,7 @@ export default function AssociationPage() {
     setIsProcessing(true);
     try {
       updateDocumentNonBlocking(doc(db, 'associations_v1', assoc.id), {
-        requests: arrayUnion({ uid: user.uid, name: profile.displayName })
+        requests: arrayUnion({ uid: user.uid, name: profile.displayName || "Manager" })
       });
       toast({ title: language === 'ru' ? "Заявка отправлена" : "Request Sent" });
     } catch (e) {
@@ -236,7 +237,6 @@ export default function AssociationPage() {
         );
 
       case 'create':
-        // Если игрок уже в ассоциации (которая реально существует), блокируем форму
         if (myAssoc) return (
           <div className="py-20 text-center flex flex-col items-center gap-4">
             <ShieldCheck className="w-12 h-12 text-primary opacity-20" />
@@ -273,7 +273,7 @@ export default function AssociationPage() {
                   <Button 
                     className="w-full h-14 hero-gradient font-black text-xs tracking-widest shadow-xl active:scale-95 transition-all"
                     onClick={handleCreateAssoc}
-                    disabled={isProcessing || assocName.length < 3}
+                    disabled={isProcessing || assocName.trim().length < 3}
                   >
                     {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : t.confirmCreate}
                   </Button>
