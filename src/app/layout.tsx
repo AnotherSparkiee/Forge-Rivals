@@ -9,6 +9,7 @@ import { AutoMatchManager } from "@/components/game/AutoMatchManager";
 import { FriendlyMatchListener } from "@/components/game/FriendlyMatchListener";
 import { CWBasketListener } from "@/components/game/CWBasketListener";
 import { DailyRewardManager } from "@/components/game/DailyRewardManager";
+import { TransferResolver } from "@/components/game/TransferResolver";
 import { AuthGuard } from "@/components/game/AuthGuard";
 import { Suspense } from 'react';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -39,6 +40,7 @@ export default function RootLayout({
               <FriendlyMatchListener />
               <CWBasketListener />
               <DailyRewardManager />
+              <TransferResolver />
               <Suspense fallback={<LoadingScreen />}>
                 {children}
               </Suspense>

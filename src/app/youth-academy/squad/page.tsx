@@ -10,7 +10,7 @@ import {
   ChevronLeft, GraduationCap, User, Star, ArrowUpCircle,
   Info, TrendingUp, ShieldCheck, HeartPulse, Zap,
   Sword, Sparkles, Crosshair, Map, Eye, Target, Brain, Users,
-  ShoppingCart, Loader2, Coins, Award
+  ShoppingCart, Loader2, Coins, Award, Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -31,7 +31,7 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
 export default function YouthSquadPage() {
-  const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, removeHero } = useGameState();
+  const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, removeHero, updateHero } = useGameState();
   const { user } = useUser();
   const db = useFirestore();
   const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
@@ -53,7 +53,7 @@ export default function YouthSquadPage() {
     years: language === 'ru' ? "лет" : "yrs",
     stats: language === 'ru' ? "Навыки и потенциал" : "Skills & Potential",
     onTransfer: language === 'ru' ? "ВЫСТАВИТЬ НА РЫНОК" : "PUT ON TRANSFER",
-    transferDesc: language === 'ru' ? "Юниор будет выставлен на аукцион на 12 часов." : "Junior will be listed for 12 hours.",
+    transferDesc: language === 'ru' ? "Юниор будет выставлен на аукцион на 12 часов. Если ставок не будет, он останется в академии." : "Junior will be listed for 12 hours. If no bids are placed, he remains in the academy.",
     success: language === 'ru' ? "Игрок переведен в состав!" : "Player promoted to squad!",
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
@@ -103,14 +103,18 @@ export default function YouthSquadPage() {
         isYouth: true
       };
 
-      // Прямая запись через SDK для максимальной надежности
+      // 1. Create market entry
       await setDoc(doc(db, 'market_v2', agentId), agentData);
       
-      // Удаляем из локального стора и облака через существующий метод
-      removeHero(selectedHero.id, 0);
+      // 2. Mark hero as "on transfer" instead of removing
+      updateHero(selectedHero.id, { 
+        onTransferUntil: expiryTime.toISOString(),
+        transferMarketId: agentId
+      });
       
       toast({ 
         title: language === 'ru' ? "Юниор выставлен на трансфер" : "Junior Listed for Transfer",
+        description: language === 'ru' ? "На аукционе 12 часов. Он останется в списке." : "On auction for 12 hours. He stays in the list."
       });
       setSelectedHero(null);
     } catch (e: any) {
@@ -158,11 +162,15 @@ export default function YouthSquadPage() {
         {youthAcademyHeroes.length > 0 ? youthAcademyHeroes.map((hero) => {
           const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
           const isReady = liveAge.numeric >= 18;
+          const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil) > new Date();
 
           return (
             <Card 
               key={hero.id} 
-              className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all"
+              className={cn(
+                "glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all",
+                onAuction && "border-yellow-500/30 bg-yellow-500/5"
+              )}
               onClick={() => setSelectedHero(hero)}
             >
               <CardContent className="p-3 flex items-center gap-4">
@@ -173,12 +181,15 @@ export default function YouthSquadPage() {
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold truncate uppercase">{hero.name}</h3>
                     <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
+                    {onAuction && (
+                      <Badge className="bg-yellow-500 text-black text-[6px] h-3 px-1 font-black animate-pulse">AUCTION</Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">
                       {t.age}: {liveAge.display} {t.years}
                     </p>
-                    {isReady && (
+                    {isReady && !onAuction && (
                       <Badge className="bg-green-500/20 text-green-400 text-[6px] h-3 px-1 font-black animate-pulse">READY</Badge>
                     )}
                   </div>
@@ -221,6 +232,11 @@ export default function YouthSquadPage() {
                     <div className="space-y-1">
                       <div className="flex items-center justify-center gap-2">
                         <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{selectedHero.role}</Badge>
+                        {selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil) > new Date() && (
+                          <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5 flex gap-1 items-center">
+                            <Clock className="w-3 h-3" /> ON AUCTION
+                          </Badge>
+                        )}
                       </div>
                     </div>
 
@@ -251,10 +267,12 @@ export default function YouthSquadPage() {
                          variant="outline" 
                          className="w-full h-12 border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary group" 
                          onClick={handleTransfer}
-                         disabled={isTransferring}
+                         disabled={isTransferring || (selectedHero.onTransferUntil !== null && new Date(selectedHero.onTransferUntil) > new Date())}
                        >
                          {isTransferring ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-3" />}
-                         <span className="text-[9px] font-black uppercase tracking-widest">{t.onTransfer}</span>
+                         <span className="text-[9px] font-black uppercase tracking-widest">
+                           {selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil) > new Date() ? 'ACTIVE AUCTION' : t.onTransfer}
+                         </span>
                        </Button>
                     </section>
 
@@ -296,13 +314,13 @@ export default function YouthSquadPage() {
                   <Button 
                     className={cn(
                       "w-full h-14 font-black text-[11px] tracking-[0.2em] shadow-xl rounded-xl active:scale-95 transition-all uppercase",
-                      calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 ? "hero-gradient" : "bg-secondary/50 border border-white/5 text-muted-foreground cursor-not-allowed"
+                      (calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 && !selectedHero.onTransferUntil) ? "hero-gradient" : "bg-secondary/50 border border-white/5 text-muted-foreground cursor-not-allowed"
                     )}
-                    disabled={calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric < 18}
+                    disabled={calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric < 18 || !!selectedHero.onTransferUntil}
                     onClick={() => handlePromote(selectedHero.id)}
                   >
                     <ArrowUpCircle className="w-4 h-4 mr-2" />
-                    {calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 ? t.promote : t.notReady}
+                    {selectedHero.onTransferUntil ? 'ON AUCTION' : (calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 ? t.promote : t.notReady)}
                   </Button>
                   <Button 
                     variant="ghost"

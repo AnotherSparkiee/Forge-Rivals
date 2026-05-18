@@ -27,6 +27,8 @@ export interface Hero {
   trainingFocus?: string | null;
   dailyTrainingFocus?: string | null;
   dailyTrainingFinishTime?: string | null;
+  onTransferUntil?: string | null; // ISO string of auction end
+  transferMarketId?: string | null; // ID of the entry in market_v2
   // Current skill levels (0-100)
   proStats: {
     lastHitting: number;
@@ -175,6 +177,8 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     trainingFocus: null,
     dailyTrainingFocus: null,
     dailyTrainingFinishTime: null,
+    onTransferUntil: null,
+    transferMarketId: null,
     proStats,
     proTalents
   };
@@ -270,6 +274,8 @@ export const INITIAL_HEROES: Hero[] = [
     trainingFocus: null,
     dailyTrainingFocus: null,
     dailyTrainingFinishTime: null,
+    onTransferUntil: null,
+    transferMarketId: null,
     proStats: {
       lastHitting: 45, mapAwareness: 88, positioning: 92, reflexes: 60, manaManagement: 55,
       objectiveControl: 80, communication: 95, tiltResistance: 98, versatility: 70, ganking: 40
@@ -300,6 +306,8 @@ export const INITIAL_HEROES: Hero[] = [
     trainingFocus: null,
     dailyTrainingFocus: null,
     dailyTrainingFinishTime: null,
+    onTransferUntil: null,
+    transferMarketId: null,
     proStats: {
       lastHitting: 98, mapAwareness: 75, positioning: 85, reflexes: 95, manaManagement: 70,
       objectiveControl: 65, communication: 60, tiltResistance: 75, versatility: 80, ganking: 50

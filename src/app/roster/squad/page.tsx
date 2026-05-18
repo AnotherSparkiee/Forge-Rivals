@@ -11,7 +11,7 @@ import {
   ChevronLeft, ChevronRight, UserPlus, X,
   ShieldCheck, Zap, Crosshair, HeartPulse,
   Star, Box, Undo2, Info,
-  TrendingUp, Eye, Target, Brain, Map, Users, AlertCircle, Award
+  TrendingUp, Eye, Target, Brain, Map, Users, AlertCircle, Award, Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -49,6 +49,7 @@ export default function SquadPage() {
     cancel: language === 'ru' ? "ОТМЕНА" : "CANCEL",
     wrongRole: language === 'ru' ? "Нет героев с этой ролью" : "No heroes with this role",
     tooYoung: language === 'ru' ? "Игрок слишком молод! Минимальный возраст для участия в лиге - 18.0" : "Player is too young! Minimum age for league entry is 18.0",
+    onAuction: language === 'ru' ? "ИГРОК НА АУКЦИОНЕ" : "PLAYER ON AUCTION",
     profile: {
       title: language === 'ru' ? "ДОСЬЕ ИГРОКА" : "PLAYER DOSSIER",
       age: language === 'ru' ? "Возраст" : "Age",
@@ -141,6 +142,16 @@ export default function SquadPage() {
 
   const handleHeroAssign = (hero: Hero) => {
     if (selectingSlot) {
+      // Auction Check
+      if (hero.onTransferUntil && new Date(hero.onTransferUntil) > new Date()) {
+        toast({
+          variant: "destructive",
+          title: language === 'ru' ? "Игрок недоступен" : "Player Unavailable",
+          description: t.onAuction
+        });
+        return;
+      }
+
       // Age Check: Only 18.0+ players can be in any slot
       const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
       if (liveAge.numeric < 18) {
@@ -363,6 +374,7 @@ export default function SquadPage() {
                   const isAssignedElsewhere = !!currentRoleKey && currentRoleKey !== selectingSlot;
                   const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
                   const isTooYoung = liveAge.numeric < 18;
+                  const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil) > new Date();
 
                   return (
                     <Card 
@@ -376,7 +388,7 @@ export default function SquadPage() {
                       className={cn(
                         "glass-card border-white/10 hover:border-primary/50 transition-all overflow-hidden cursor-pointer active:scale-[0.98]",
                         isAssignedToThisSlot ? "ring-1 ring-primary bg-primary/10" : (isAssignedElsewhere ? "bg-accent/5 border-accent/20" : "bg-primary/5"),
-                        isTooYoung && "opacity-60 grayscale cursor-not-allowed border-red-500/20"
+                        (isTooYoung || onAuction) && "opacity-60 grayscale cursor-not-allowed border-red-500/20"
                       )}
                       onClick={() => handleHeroAssign(hero)}
                     >
@@ -400,14 +412,14 @@ export default function SquadPage() {
                             )}>
                               {liveAge.display} {t.profile.years}
                             </span>
+                            {onAuction && (
+                              <Badge className="bg-yellow-500/20 text-yellow-500 text-[6px] h-3 px-1 border-none font-black uppercase flex gap-1 items-center">
+                                <Clock className="w-2 h-2" /> AUCTION
+                              </Badge>
+                            )}
                             {isAssignedElsewhere && (
                               <Badge className="bg-accent/20 text-accent text-[6px] h-3 px-1 border-none font-black uppercase">
                                 {t.assigned}: {t.roles[currentRoleKey].label}
-                              </Badge>
-                            )}
-                            {isTooYoung && (
-                              <Badge className="bg-red-500/20 text-red-400 text-[6px] h-3 px-1 border-none font-black uppercase">
-                                YOUNG
                               </Badge>
                             )}
                           </div>
@@ -417,9 +429,9 @@ export default function SquadPage() {
                           <div className={cn(
                             "w-6 h-6 rounded-full flex items-center justify-center border",
                             isAssignedElsewhere ? "bg-accent/10 border-accent/20 text-accent" : "bg-primary/10 border-primary/20 text-primary",
-                            isTooYoung && "border-red-500/30 text-red-400"
+                            (isTooYoung || onAuction) && "border-red-500/30 text-red-400"
                           )}>
-                            {isTooYoung ? <AlertCircle className="w-3 h-3" /> : (isAssignedElsewhere ? <ChevronRight className="w-3 h-3" /> : <Plus className="w-3 h-3" />)}
+                            {isTooYoung || onAuction ? <AlertCircle className="w-3 h-3" /> : (isAssignedElsewhere ? <ChevronRight className="w-3 h-3" /> : <Plus className="w-3 h-3" />)}
                           </div>
                         </div>
                       </CardContent>
@@ -461,6 +473,11 @@ export default function SquadPage() {
                       <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h2>
                       <div className="flex items-center justify-center gap-2">
                         <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
+                        {profileHero.onTransferUntil && new Date(profileHero.onTransferUntil) > new Date() && (
+                          <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5 flex gap-1 items-center">
+                            <Clock className="w-3 h-3" /> ON AUCTION
+                          </Badge>
+                        )}
                       </div>
                     </div>
 

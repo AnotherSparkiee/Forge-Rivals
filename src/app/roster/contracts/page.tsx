@@ -10,7 +10,7 @@ import {
   ChevronLeft, Scroll, User, Star, Trash2, 
   Coins, Gem, HeartPulse, ShieldAlert, Award,
   Info, TrendingUp, Eye, Target, Brain, Map, Users,
-  Zap, Sparkles, Sword, Crosshair, Activity, ShoppingCart, Loader2
+  Zap, Sparkles, Sword, Crosshair, Activity, ShoppingCart, Loader2, Clock
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
@@ -26,8 +26,8 @@ import {
   DialogFooter
 } from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 import { getMoscowDateString, getMoscowTime, calculateLiveAge } from '@/app/lib/time-utils';
 
 export default function ContractsPage() {
@@ -57,7 +57,7 @@ export default function ContractsPage() {
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     years: language === 'ru' ? "лет" : "yrs",
     stats: language === 'ru' ? "Навыки и таланты" : "Skills & Talents",
-    transferDesc: language === 'ru' ? "Игрок будет выставлен на аукцион на 12 часов. Вы получите финальную ставку по окончании торгов." : "The player will be listed for 12 hours. You will receive the final bid amount when the auction ends.",
+    transferDesc: language === 'ru' ? "Игрок будет выставлен на аукцион на 12 часов. Если ставок не будет, он останется в клубе." : "The player will be listed for 12 hours. If no bids are placed, he remains in the club.",
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
       mapAwareness: language === 'ru' ? "Контроль карты" : "Map Awareness",
@@ -103,12 +103,18 @@ export default function ContractsPage() {
             dropTime: mskNow.toISOString()
           };
 
-          setDocumentNonBlocking(doc(db, 'market_v2', agentId), agentData, { merge: true });
-          removeHero(profileHero.id, 0);
+          // 1. Create market entry
+          await setDoc(doc(db, 'market_v2', agentId), agentData);
+          
+          // 2. Mark hero as "on transfer" instead of removing
+          updateHero(profileHero.id, { 
+            onTransferUntil: expiryTime.toISOString(),
+            transferMarketId: agentId
+          });
           
           toast({ 
             title: language === 'ru' ? "Игрок выставлен на трансфер" : "Player Listed for Transfer",
-            description: language === 'ru' ? "Вы можете следить за торгами в меню Трансферы -> Мои продажи." : "You can monitor the auction in Transfers -> My Sales."
+            description: language === 'ru' ? "На аукционе 12 часов. Игрок остается в составе." : "On auction for 12 hours. Player stays in squad."
           });
           setProfileHero(null);
         } catch (e) {
@@ -193,36 +199,45 @@ export default function ContractsPage() {
       </header>
 
       <div className="space-y-2">
-        {ownedHeroes.map((hero) => (
-          <Card 
-            key={hero.id} 
-            className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all"
-            onClick={() => setProfileHero(hero)}
-          >
-            <CardContent className="p-3 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
-                <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold truncate uppercase">{hero.name}</h3>
-                  <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
+        {ownedHeroes.map((hero) => {
+          const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil) > new Date();
+          return (
+            <Card 
+              key={hero.id} 
+              className={cn(
+                "glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all",
+                onAuction && "border-yellow-500/30 bg-yellow-500/5"
+              )}
+              onClick={() => setProfileHero(hero)}
+            >
+              <CardContent className="p-3 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
+                  <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
                 </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                   <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">
-                     Age: {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.years}
-                   </p>
-                   <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">
-                     Salary: €{hero.salary.toLocaleString()}
-                   </p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold truncate uppercase">{hero.name}</h3>
+                    <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
+                    {onAuction && (
+                      <Badge className="bg-yellow-500 text-black text-[6px] h-3 px-1 font-black animate-pulse">AUCTION</Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                     <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">
+                       Age: {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.years}
+                     </p>
+                     <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">
+                       Salary: €{hero.salary.toLocaleString()}
+                     </p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex flex-col items-center justify-center min-w-[40px] border-l border-white/5 pl-3">
-                <span className="text-lg font-headline font-bold text-accent italic">{hero.overallRating}</span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                <div className="flex flex-col items-center justify-center min-w-[40px] border-l border-white/5 pl-3">
+                  <span className="text-lg font-headline font-bold text-accent italic">{hero.overallRating}</span>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <Dialog open={!!profileHero} onOpenChange={() => setProfileHero(null)}>
@@ -248,7 +263,14 @@ export default function ContractsPage() {
                     
                     <div className="space-y-1">
                       <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h2>
-                      <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
+                      <div className="flex items-center justify-center gap-2">
+                        <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
+                        {profileHero.onTransferUntil && new Date(profileHero.onTransferUntil) > new Date() && (
+                          <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5 flex gap-1 items-center">
+                            <Clock className="w-3 h-3" /> ON AUCTION
+                          </Badge>
+                        )}
+                      </div>
                     </div>
 
                     <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto">
@@ -335,10 +357,12 @@ export default function ContractsPage() {
                              variant="outline" 
                              className="w-full h-12 border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary group" 
                              onClick={() => handleAction('onTransfer')}
-                             disabled={isTransferring}
+                             disabled={isTransferring || (profileHero.onTransferUntil !== null && new Date(profileHero.onTransferUntil) > new Date())}
                            >
                              {isTransferring ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-3" />}
-                             <span className="text-[9px] font-black uppercase tracking-widest">{t.onTransfer}</span>
+                             <span className="text-[9px] font-black uppercase tracking-widest">
+                               {profileHero.onTransferUntil && new Date(profileHero.onTransferUntil) > new Date() ? 'ACTIVE AUCTION' : t.onTransfer}
+                             </span>
                            </Button>
                         </div>
 
@@ -352,10 +376,20 @@ export default function ContractsPage() {
                           </Button>
                         )}
                         <div className="grid grid-cols-2 gap-2 mt-4">
-                          <Button variant="outline" className="h-14 border-red-500/20 bg-red-500/5 text-red-400 hover:bg-red-500/10 font-bold text-[10px] uppercase" onClick={() => handleAction('sell')}>
+                          <Button 
+                            variant="outline" 
+                            className="h-14 border-red-500/20 bg-red-500/5 text-red-400 hover:bg-red-500/10 font-bold text-[10px] uppercase" 
+                            onClick={() => handleAction('sell')}
+                            disabled={profileHero.onTransferUntil !== null && new Date(profileHero.onTransferUntil) > new Date()}
+                          >
                             <Coins className="w-4 h-4 mr-2" /> {t.sell}
                           </Button>
-                          <Button variant="outline" className="h-14 border-white/5 bg-secondary/20 text-muted-foreground hover:bg-white/5 font-bold text-[10px] uppercase" onClick={() => handleAction('dismiss')}>
+                          <Button 
+                            variant="outline" 
+                            className="h-14 border-white/5 bg-secondary/20 text-muted-foreground hover:bg-white/5 font-bold text-[10px] uppercase" 
+                            onClick={() => handleAction('dismiss')}
+                            disabled={profileHero.onTransferUntil !== null && new Date(profileHero.onTransferUntil) > new Date()}
+                          >
                             <Trash2 className="w-4 h-4 mr-2" /> {t.dismiss}
                           </Button>
                         </div>
