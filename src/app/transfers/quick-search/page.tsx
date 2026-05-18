@@ -8,8 +8,8 @@ import { ChevronLeft, Loader2, Gavel, AlertCircle, RefreshCw, ShoppingCart, User
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useDoc, setDocumentNonBlocking } from '@/firebase';
-import { collection, query, doc, arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { generateUniqueHero } from '@/app/lib/moba-data';
 import { cn } from '@/lib/utils';
@@ -41,28 +41,31 @@ export default function QuickSearchPage() {
     if (!isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && !marketError && user?.uid) {
       initTriggeredRef.current = true;
       
-      const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
-      
-      roles.forEach((role) => {
-        for (let i = 1; i <= 3; i++) {
-          const hero = generateUniqueHero(role, i, false);
-          const agentId = `global_v${MARKET_VERSION}_${role.toLowerCase()}_${i}`;
-          const startPrice = (hero.overallRating * 18000) + 300000;
-          
-          setDocumentNonBlocking(doc(db, 'market_v2', agentId), {
-            id: agentId,
-            heroData: JSON.parse(JSON.stringify(hero)),
-            currentBid: startPrice,
-            startingPrice: startPrice,
-            highestBidderId: null,
-            highestBidderName: null,
-            bidders: [],
-            expiresAt: new Date(Date.now() + 86400000 * 14).toISOString(),
-            createdAt: serverTimestamp(),
-            marketVersion: MARKET_VERSION
-          }, { merge: true });
+      const initializeMarket = async () => {
+        const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
+        for (const role of roles) {
+          for (let i = 1; i <= 3; i++) {
+            const hero = generateUniqueHero(role, i, false);
+            const agentId = `global_v${MARKET_VERSION}_${role.toLowerCase()}_${i}`;
+            const startPrice = (hero.overallRating * 18000) + 300000;
+            
+            await setDoc(doc(db, 'market_v2', agentId), {
+              id: agentId,
+              heroData: JSON.parse(JSON.stringify(hero)),
+              currentBid: startPrice,
+              startingPrice: startPrice,
+              highestBidderId: null,
+              highestBidderName: null,
+              bidders: [],
+              expiresAt: new Date(Date.now() + 86400000 * 14).toISOString(),
+              createdAt: serverTimestamp(),
+              marketVersion: MARKET_VERSION
+            }, { merge: true });
+          }
         }
-      });
+      };
+
+      initializeMarket().catch(e => console.error("Market init failed", e));
     }
   }, [isMarketLoading, agents, user?.uid, db, marketError]);
 
@@ -80,7 +83,8 @@ export default function QuickSearchPage() {
 
     setIsBidding(agent.id);
     try {
-      updateDocumentNonBlocking(doc(db, 'market_v2', agent.id), {
+      const agentRef = doc(db, 'market_v2', agent.id);
+      await updateDoc(agentRef, {
         currentBid: minNextBid,
         highestBidderId: user.uid,
         highestBidderName: profile?.displayName || "Anonymous Manager",
@@ -94,8 +98,9 @@ export default function QuickSearchPage() {
         title: language === 'ru' ? "Ставка принята!" : "Bid Placed!",
         description: language === 'ru' ? "Вы теперь лидер торгов." : "You are now the leading bidder."
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      toast({ title: "Bid Failed", description: e.message, variant: "destructive" });
     } finally {
       setIsBidding(null);
     }

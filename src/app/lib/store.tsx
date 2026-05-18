@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { Hero, INITIAL_HEROES, generateYouthHero, StaffMember, StaffRole } from './moba-data';
 import { getMoscowTime, getMoscowDateString, isMatchDue, getGlobalSeasonInfo } from './time-utils';
 import { useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { getMockGroupTeams, LEAGUES } from './leagues-data';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2';
@@ -402,11 +402,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const updatedAcademy = [...state.youthAcademyHeroes, newHero];
         
         const profileRef = doc(db, 'players_v5', user.uid);
-        setDocumentNonBlocking(profileRef, {
+        updateDoc(profileRef, {
           youthAcademyHeroes: sanitizeForFirestore(updatedAcademy),
           lastYouthArrivalDay: seasonDay,
           lastYouthArrivalSeason: seasonNumber
-        }, { merge: true });
+        }).catch(e => console.error("Youth sync failed", e));
       }
     }
   }, [isLoaded, user, state.seasonDay, state.seasonNumber, state.lastYouthArrivalDay, state.lastYouthArrivalSeason, state.youthAcademyHeroes, db]);
@@ -449,7 +449,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
       const results = sanitizeForFirestore({ lastRank: myPos, lastPoints: lastSeasonTeams.find(t => t.id === user.uid)?.points || 0, promoted, demoted, seasonNumber: state.lastProcessedSeason, awardedTrophy });
       lastSyncRef.current = { season: globalSeason, day: completedDays, leagueId: state.selectedLeagueId };
-      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { leagueLevel: newLevel, wins: 0, draws: 0, losses: 0, points: 0, lastProcessedSeason: globalSeason, lastLeagueMatchDate: null, lastCupMatchDate: null, lastSeenMatchDay: 0, seasonResults: results, hasEliteTrophy: awardedTrophy || state.hasEliteTrophy }, { merge: true });
+      updateDoc(doc(db, 'players_v5', user.uid), { leagueLevel: newLevel, wins: 0, draws: 0, losses: 0, points: 0, lastProcessedSeason: globalSeason, lastLeagueMatchDate: null, lastCupMatchDate: null, lastSeenMatchDay: 0, seasonResults: results, hasEliteTrophy: awardedTrophy || state.hasEliteTrophy }).catch(e => console.error("League sync failed", e));
       return; 
     }
 
@@ -461,18 +461,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
     if (Number(myDocInSnapshot.wins) !== Number(myTeam.wins) || Number(myDocInSnapshot.points) !== Number(myTeam.points) || state.lastProcessedSeason !== globalSeason) {
       lastSyncRef.current = { season: globalSeason, day: completedDays, leagueId: state.selectedLeagueId };
-      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { wins: Number(myTeam.wins || 0), draws: Number(myTeam.draws || 0), losses: Number(myTeam.losses || 0), points: Number(myTeam.points || 0), lastProcessedSeason: globalSeason }, { merge: true });
+      updateDoc(doc(db, 'players_v5', user.uid), { wins: Number(myTeam.wins || 0), draws: Number(myTeam.draws || 0), losses: Number(myTeam.losses || 0), points: Number(myTeam.points || 0), lastProcessedSeason: globalSeason }).catch(e => console.error("Stats sync failed", e));
     }
   }, [state.selectedLeagueId, state.seasonDay, state.lastLeagueMatchDate, state.rank, state.leagueLevel, state.divisionSubId, state.groupId, state.lastProcessedSeason, state.hasEliteTrophy, user, db]);
 
   const addCredits = useCallback((amount: number) => {
     setState(s => ({ ...s, credits: s.credits + amount }));
-    if (user) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { inGameCurrency: state.credits + amount }, { merge: true });
+    if (user) updateDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: state.credits + amount }).catch(e => console.error("Credits failed", e));
   }, [user, db, state.credits]);
 
   const addCrystals = useCallback((amount: number) => {
     setState(s => ({ ...s, crystals: s.crystals + amount }));
-    if (user) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { crystals: state.crystals + amount }, { merge: true });
+    if (user) updateDoc(doc(db, 'players_v5', user.uid), { crystals: state.crystals + amount }).catch(e => console.error("Crystals failed", e));
   }, [user, db, state.crystals]);
 
   const claimReward = useCallback((creditsReward: number, crystalsReward: number) => {
@@ -486,7 +486,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       nextRewardDay = s.rewardDay >= 30 ? 1 : s.rewardDay + 1;
       return { ...s, credits: newCredits, crystals: newCrystals, lastRewardClaimDate: today, rewardDay: nextRewardDay };
     });
-    if (user && state.lastRewardClaimDate !== today) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { inGameCurrency: newCredits, crystals: newCrystals, lastRewardClaimDate: today, rewardDay: nextRewardDay }, { merge: true });
+    if (user && state.lastRewardClaimDate !== today) updateDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: newCredits, crystals: newCrystals, lastRewardClaimDate: today, rewardDay: nextRewardDay }).catch(e => console.error("Reward failed", e));
   }, [user, db, state.credits, state.crystals, state.rewardDay, state.lastRewardClaimDate]);
 
   const isSectorBusy = useCallback((sector: any) => {
@@ -504,7 +504,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
       return s;
     });
-    if (user && result && newState) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, arena: sanitizeForFirestore(newState.arena) }, { merge: true });
+    if (user && result && newState) updateDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, arena: sanitizeForFirestore(newState.arena) }).catch(e => console.error("Arena build failed", e));
     return result;
   }, [isSectorBusy, user, db]);
 
@@ -519,7 +519,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
       return s;
     });
-    if (user && result && newState) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, hq: sanitizeForFirestore(newState.hq) }, { merge: true });
+    if (user && result && newState) updateDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, hq: sanitizeForFirestore(newState.hq) }).catch(e => console.error("HQ build failed", e));
     return result;
   }, [isSectorBusy, user, db]);
 
@@ -534,7 +534,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
       return s;
     });
-    if (user && result && newState) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, bootcamp: sanitizeForFirestore(newState.bootcamp) }, { merge: true });
+    if (user && result && newState) updateDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, bootcamp: sanitizeForFirestore(newState.bootcamp) }).catch(e => console.error("Bootcamp failed", e));
     return result;
   }, [isSectorBusy, user, db]);
 
@@ -549,7 +549,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
       return s;
     });
-    if (user && result && newState) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, academy: sanitizeForFirestore(newState.academy) }, { merge: true });
+    if (user && result && newState) updateDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, academy: sanitizeForFirestore(newState.academy) }).catch(e => console.error("Academy failed", e));
     return result;
   }, [isSectorBusy, user, db]);
 
@@ -564,7 +564,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
       return s;
     });
-    if (user && result && newState) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, medical: sanitizeForFirestore(newState.medical) }, { merge: true });
+    if (user && result && newState) updateDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, medical: sanitizeForFirestore(newState.medical) }).catch(e => console.error("Medical failed", e));
     return result;
   }, [isSectorBusy, user, db]);
 
@@ -579,7 +579,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
       return s;
     });
-    if (user && result && newState) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, arena: sanitizeForFirestore(newState.arena) }, { merge: true });
+    if (user && result && newState) updateDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, arena: sanitizeForFirestore(newState.arena) }).catch(e => console.error("Capacity failed", e));
     return result;
   }, [isSectorBusy, user, db]);
 
@@ -589,7 +589,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       updatedStaff = { ...s.staff, [member.role]: member };
       return { ...s, staff: updatedStaff, credits: s.credits - (member.salary / 2) };
     });
-    if (user) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { staff: sanitizeForFirestore(updatedStaff), inGameCurrency: state.credits - (member.salary / 2) }, { merge: true });
+    if (user) updateDoc(doc(db, 'players_v5', user.uid), { staff: sanitizeForFirestore(updatedStaff), inGameCurrency: state.credits - (member.salary / 2) }).catch(e => console.error("Hire failed", e));
   }, [user, db, state.credits]);
 
   const trainStaffSkill = useCallback((role: StaffRole, skillKey: 'primary' | 'secondary', cost: number) => {
@@ -605,7 +605,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       success = true;
       return { ...s, staff: updatedStaff, crystals: s.crystals - cost };
     });
-    if (user && success) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { staff: sanitizeForFirestore(updatedStaff), crystals: state.crystals - cost }, { merge: true });
+    if (user && success) updateDoc(doc(db, 'players_v5', user.uid), { staff: sanitizeForFirestore(updatedStaff), crystals: state.crystals - cost }).catch(e => console.error("Train failed", e));
     return success;
   }, [user, db, state.crystals]);
 
@@ -641,7 +641,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return { ...s, lineup: newLineup, team: s.ownedHeroes.filter(h => uniqueHeroIds.includes(h.id)), isSyncing: true };
     });
     if (user && finalLineup) {
-      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { lineup: finalLineup }, { merge: true });
+      updateDoc(doc(db, 'players_v5', user.uid), { lineup: finalLineup }).catch(e => console.error("Lineup failed", e));
       setTimeout(() => setState(prev => ({ ...prev, isSyncing: false })), 1000);
     }
   }, [user, db]);
@@ -649,7 +649,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const updateTactics = useCallback((strategy: string, lineSettings: { carry: string; mid: string; offlane: string }) => {
     setState(s => ({ ...s, strategy, lineSettings, isSyncing: true }));
     if (user) {
-      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { strategy, lineSettings }, { merge: true });
+      updateDoc(doc(db, 'players_v5', user.uid), { strategy, lineSettings }).catch(e => console.error("Tactics failed", e));
       setTimeout(() => setState(prev => ({ ...prev, isSyncing: false })), 1000);
     }
   }, [user, db]);
@@ -661,7 +661,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       updatedYouth = s.youthAcademyHeroes.map(h => h.id === heroId ? { ...h, trainingFocus: skillKey } : h);
       return { ...s, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth };
     });
-    if (user) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedOwned), youthAcademyHeroes: sanitizeForFirestore(updatedYouth) }, { merge: true });
+    if (user) updateDoc(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedOwned), youthAcademyHeroes: sanitizeForFirestore(updatedYouth) }).catch(e => console.error("Focus failed", e));
   }, [user, db]);
 
   const startDailyHeroTraining = useCallback((heroId: string, skillKey: string) => {
@@ -672,7 +672,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       updatedYouth = s.youthAcademyHeroes.map(h => h.id === heroId ? { ...h, dailyTrainingFocus: skillKey, dailyTrainingFinishTime: finishTime } : h);
       return { ...s, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth };
     });
-    if (user) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedOwned), youthAcademyHeroes: sanitizeForFirestore(updatedYouth) }, { merge: true });
+    if (user) updateDoc(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedOwned), youthAcademyHeroes: sanitizeForFirestore(updatedYouth) }).catch(e => console.error("Daily start failed", e));
   }, [user, db]);
 
   const claimDailyHeroTraining = useCallback((heroId: string) => {
@@ -693,7 +693,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       updatedOwned = s.ownedHeroes.map(processHero); updatedYouth = s.youthAcademyHeroes.map(processHero);
       return { ...s, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth };
     });
-    if (user) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedOwned), youthAcademyHeroes: sanitizeForFirestore(updatedYouth) }, { merge: true });
+    if (user) updateDoc(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedOwned), youthAcademyHeroes: sanitizeForFirestore(updatedYouth) }).catch(e => console.error("Daily claim failed", e));
   }, [user, db]);
 
   const updateHero = useCallback((heroId: string, updates: Partial<Hero>, creditCost = 0, crystalCost = 0) => {
@@ -705,7 +705,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       updatedState = { ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth, credits: s.credits - creditCost, crystals: s.crystals - crystalCost };
       return { ...s, ...updatedState };
     });
-    if (user && updatedState) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedState.ownedHeroes), youthAcademyHeroes: sanitizeForFirestore(updatedState.youthAcademyHeroes), inGameCurrency: updatedState.credits, crystals: updatedState.crystals }, { merge: true });
+    if (user && updatedState) updateDoc(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedState.ownedHeroes), youthAcademyHeroes: sanitizeForFirestore(updatedState.youthAcademyHeroes), inGameCurrency: updatedState.credits, crystals: updatedState.crystals }).catch(e => console.error("Hero update failed", e));
   }, [user, db]);
 
   const promoteYouthPlayer = useCallback((heroId: string) => {
@@ -718,7 +718,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       updatedState = { youthAcademyHeroes: newAcademy, ownedHeroes: newOwned };
       return { ...s, ...updatedState };
     });
-    if (user && updatedState) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { youthAcademyHeroes: sanitizeForFirestore(updatedState.youthAcademyHeroes), ownedHeroes: sanitizeForFirestore(updatedState.ownedHeroes) }, { merge: true });
+    if (user && updatedState) updateDoc(doc(db, 'players_v5', user.uid), { youthAcademyHeroes: sanitizeForFirestore(updatedState.youthAcademyHeroes), ownedHeroes: sanitizeForFirestore(updatedState.ownedHeroes) }).catch(e => console.error("Promotion failed", e));
   }, [user, db]);
 
   const removeHero = useCallback((heroId: string, sellCreditAmount = 0) => {
@@ -731,7 +731,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       updatedData = { ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth, lineup: newLineup, credits: s.credits + sellCreditAmount };
       return { ...s, ...updatedData };
     });
-    if (user && updatedData) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedData.ownedHeroes), youthAcademyHeroes: sanitizeForFirestore(updatedData.youthAcademyHeroes), lineup: updatedData.lineup, inGameCurrency: updatedData.credits }, { merge: true });
+    if (user && updatedData) updateDoc(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedData.ownedHeroes), youthAcademyHeroes: sanitizeForFirestore(updatedData.youthAcademyHeroes), lineup: updatedData.lineup, inGameCurrency: updatedData.credits }).catch(e => console.error("Remove failed", e));
   }, [user, db]);
 
   const recoverAllFatigue = useCallback((costType: 'credits' | 'crystals') => {
@@ -744,7 +744,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       success = true; updatedData = { ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth, credits: s.credits - creditCost, crystals: s.crystals - crystalCost };
       return { ...s, ...updatedData };
     });
-    if (user && success && updatedData) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedData.ownedHeroes), youthAcademyHeroes: sanitizeForFirestore(updatedData.youthAcademyHeroes), inGameCurrency: updatedData.credits, crystals: updatedData.crystals }, { merge: true });
+    if (user && success && updatedData) updateDoc(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedData.ownedHeroes), youthAcademyHeroes: sanitizeForFirestore(updatedData.youthAcademyHeroes), inGameCurrency: updatedData.credits, crystals: updatedData.crystals }).catch(e => console.error("Recover failed", e));
     return success;
   }, [user, db]);
 
@@ -784,7 +784,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return newState;
     });
     if (user && shouldUpdateDB && newState) {
-      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, rank: newState.rank, lastLeagueMatchDate: newState.lastLeagueMatchDate ?? null, lastCupMatchDate: newState.lastCupMatchDate ?? null, matchHistory: newState.matchHistory, ownedHeroes: sanitizeForFirestore(newState.ownedHeroes), youthAcademyHeroes: sanitizeForFirestore(newState.youthAcademyHeroes) }, { merge: true });
+      updateDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: newState.credits, rank: newState.rank, lastLeagueMatchDate: newState.lastLeagueMatchDate ?? null, lastCupMatchDate: newState.lastCupMatchDate ?? null, matchHistory: newState.matchHistory, ownedHeroes: sanitizeForFirestore(newState.ownedHeroes), youthAcademyHeroes: sanitizeForFirestore(newState.youthAcademyHeroes) }).catch(e => console.error("Match record failed", e));
       setTimeout(() => setState(prev => ({ ...prev, isSyncing: false })), 1500);
     }
   }, [user, db]);
@@ -792,14 +792,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const markMatchAsSeen = useCallback((day: number) => {
     setState(s => {
       if (day <= s.lastSeenMatchDay) return s;
-      if (user) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { lastSeenMatchDay: day }, { merge: true });
+      if (user) updateDoc(doc(db, 'players_v5', user.uid), { lastSeenMatchDay: day }).catch(e => console.error("Seen failed", e));
       return { ...s, lastSeenMatchDay: day };
     });
   }, [user, db]);
 
   const dismissSeasonResults = useCallback(() => {
     setState(s => ({ ...s, seasonResults: null }));
-    if (user) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { seasonResults: null }, { merge: true });
+    if (user) updateDoc(doc(db, 'players_v5', user.uid), { seasonResults: null }).catch(e => console.error("Dismiss failed", e));
   }, [user, db]);
 
   const addHeroDirectly = useCallback((hero: Hero) => {
@@ -808,19 +808,19 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       updatedOwned = [...s.ownedHeroes, hero];
       return { ...s, ownedHeroes: updatedOwned };
     });
-    if (user) setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedOwned) }, { merge: true });
+    if (user) updateDoc(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedOwned) }).catch(e => console.error("Add hero failed", e));
   }, [user, db]);
 
   const updateProfileName = useCallback((newName: string) => {
     if (user) {
-      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { displayName: newName }, { merge: true });
+      updateDoc(doc(db, 'players_v5', user.uid), { displayName: newName }).catch(e => console.error("Name change failed", e));
     }
   }, [user, db]);
 
   const updateProfileCountry = useCallback((newCountry: string) => {
     setState(s => ({ ...s, country: newCountry }));
     if (user) {
-      setDocumentNonBlocking(doc(db, 'players_v5', user.uid), { country: newCountry }, { merge: true });
+      updateDoc(doc(db, 'players_v5', user.uid), { country: newCountry }).catch(e => console.error("Country change failed", e));
     }
   }, [user, db]);
 

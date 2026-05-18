@@ -16,8 +16,8 @@ import Link from 'next/link';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
-import { collection, query, doc, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, query, doc, serverTimestamp, arrayUnion, arrayRemove, setDoc, updateDoc } from 'firebase/firestore';
 
 type AssocTab = 'menu' | 'all' | 'create' | 'my_assoc' | 'requests' | 'history';
 
@@ -131,6 +131,8 @@ export default function AssociationPage() {
     setIsProcessing(true);
     try {
       const assocId = `assoc_${Date.now()}`;
+      const assocRef = doc(db, 'associations_v1', assocId);
+      
       const assocData = {
         id: assocId,
         name: assocName.trim(),
@@ -144,16 +146,17 @@ export default function AssociationPage() {
         createdAt: serverTimestamp()
       };
 
-      // Выполняем запись
-      setDocumentNonBlocking(doc(db, 'associations_v1', assocId), assocData, { merge: false });
-      updateDocumentNonBlocking(userRef!, { associationId: assocId });
+      // Прямая запись через SDK для надежности
+      await setDoc(assocRef, assocData);
+      await updateDoc(userRef!, { associationId: assocId });
+      
       addCrystals(-500);
 
       toast({ title: language === 'ru' ? "Ассоциация создана!" : "Association Established!" });
       setActiveTab('my_assoc');
-    } catch (e) {
+    } catch (e: any) {
       console.error("Error creating association:", e);
-      toast({ title: "Failed to create association", variant: "destructive" });
+      toast({ title: "Operation Failed", description: e.message, variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }
@@ -163,12 +166,13 @@ export default function AssociationPage() {
     if (!user || !profile || isProcessing) return;
     setIsProcessing(true);
     try {
-      updateDocumentNonBlocking(doc(db, 'associations_v1', assoc.id), {
+      await updateDoc(doc(db, 'associations_v1', assoc.id), {
         requests: arrayUnion({ uid: user.uid, name: profile.displayName || "Manager" })
       });
       toast({ title: language === 'ru' ? "Заявка отправлена" : "Request Sent" });
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      toast({ title: "Failed to send request", description: e.message, variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }
@@ -180,23 +184,24 @@ export default function AssociationPage() {
     try {
       const assocRef = doc(db, 'associations_v1', myAssoc.id);
       if (accept) {
-        updateDocumentNonBlocking(assocRef, {
+        await updateDoc(assocRef, {
           members: arrayUnion(applicant.uid),
           memberNames: arrayUnion(applicant.name),
           requests: arrayRemove(applicant)
         });
-        updateDocumentNonBlocking(doc(db, 'players_v5', applicant.uid), {
+        await updateDoc(doc(db, 'players_v5', applicant.uid), {
           associationId: myAssoc.id
         });
         toast({ title: `${applicant.name} accepted` });
       } else {
-        updateDocumentNonBlocking(assocRef, {
+        await updateDoc(assocRef, {
           requests: arrayRemove(applicant)
         });
         toast({ title: `${applicant.name} rejected` });
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      toast({ title: "Failed to process request", description: e.message, variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }
