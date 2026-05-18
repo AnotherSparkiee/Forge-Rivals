@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,9 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   ChevronLeft, ChevronRight, Shield, Globe, 
-  PlusCircle, History, Users, Star, 
-  ShieldCheck, Trophy, Sparkles, Gem,
-  Loader2, UserPlus, Check, X, Info
+  PlusCircle, History, Users, 
+  ShieldCheck, Loader2, UserPlus, Check, X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -31,7 +30,6 @@ export default function AssociationPage() {
   const [activeTab, setActiveTab] = useState<AssocTab>('menu');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Form State
   const [assocName, setAssocName] = useState('');
   const [assocDesc, setAssocDesc] = useState('');
 
@@ -48,7 +46,7 @@ export default function AssociationPage() {
 
   const isOwner = myAssoc?.ownerId === user?.uid;
 
-  const translations = {
+  const t = {
     en: {
       title: "CLUB ASSOCIATION",
       subtitle: "Alliance Hub & Strategic Coalitions",
@@ -65,8 +63,6 @@ export default function AssociationPage() {
       members: "Members",
       owner: "Founder",
       requests: "Join Requests",
-      accept: "Accept",
-      decline: "Reject",
       tabs: {
         my_assoc: { label: "My Association", desc: "Manage your current alliance", icon: ShieldCheck, color: "text-primary" },
         all: { label: "Global Directory", desc: "Browse all available alliances", icon: Globe, color: "text-blue-400" },
@@ -91,8 +87,6 @@ export default function AssociationPage() {
       members: "Участники",
       owner: "Основатель",
       requests: "Заявки на вступление",
-      accept: "Принять",
-      decline: "Отклонить",
       tabs: {
         my_assoc: { label: "Моя ассоциация", desc: "Управление вашим альянсом", icon: ShieldCheck, color: "text-primary" },
         all: { label: "Глобальный каталог", desc: "Список всех доступных альянсов", icon: Globe, color: "text-blue-400" },
@@ -101,9 +95,30 @@ export default function AssociationPage() {
         history: { label: "Архив войн", desc: "История турниров и логов", icon: History, color: "text-accent" }
       }
     }
+  }[language as 'en' | 'ru'] || {
+    title: "ASSOCIATION",
+    subtitle: "Alliances",
+    back: "Back",
+    insufficient: "No crystals",
+    createTitle: "Create",
+    namePlaceholder: "Name",
+    descPlaceholder: "Desc",
+    costLabel: "500",
+    confirmCreate: "CREATE",
+    noAssocs: "None",
+    join: "Join",
+    pending: "Wait",
+    members: "Members",
+    owner: "Owner",
+    requests: "Reqs",
+    tabs: {
+      my_assoc: { label: "My Assoc", desc: "Manage", icon: ShieldCheck, color: "text-primary" },
+      all: { label: "All", desc: "Browse", icon: Globe, color: "text-blue-400" },
+      create: { label: "Create", desc: "New", icon: PlusCircle, color: "text-green-400" },
+      requests: { label: "Reqs", desc: "Applicants", icon: UserPlus, color: "text-orange-400" },
+      history: { label: "History", desc: "Logs", icon: History, color: "text-accent" }
+    }
   };
-
-  const t = translations[language as keyof typeof translations] || translations.ru;
 
   const handleCreateAssoc = async () => {
     if (!user || !profile || isProcessing) return;
@@ -129,13 +144,9 @@ export default function AssociationPage() {
         createdAt: serverTimestamp()
       };
 
-      // 1. Создаем ассоциацию
+      // Выполняем запись
       setDocumentNonBlocking(doc(db, 'associations_v1', assocId), assocData, { merge: false });
-      
-      // 2. Обновляем профиль игрока
       updateDocumentNonBlocking(userRef!, { associationId: assocId });
-      
-      // 3. Снимаем оплату
       addCrystals(-500);
 
       toast({ title: language === 'ru' ? "Ассоциация создана!" : "Association Established!" });
@@ -237,7 +248,6 @@ export default function AssociationPage() {
         );
 
       case 'create':
-        // Show restricted message ONLY if the association actually exists in our data
         if (myAssoc) return (
           <div className="py-20 text-center flex flex-col items-center gap-4">
             <ShieldCheck className="w-12 h-12 text-primary opacity-20" />
@@ -357,7 +367,7 @@ export default function AssociationPage() {
       case 'history':
         return (
           <div className="py-20 text-center opacity-20 flex flex-col items-center gap-4">
-            <Trophy className="w-16 h-16" />
+            <History className="w-16 h-16" />
             <p className="text-xs font-black uppercase tracking-[0.2em]">Association Battle History Offline</p>
           </div>
         );

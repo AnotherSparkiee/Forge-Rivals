@@ -5,7 +5,7 @@ import { Hero, INITIAL_HEROES, generateYouthHero, StaffMember, StaffRole } from 
 import { getMoscowTime, getMoscowDateString, isMatchDue, getGlobalSeasonInfo } from './time-utils';
 import { useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { getMockGroupTeams, LEAGUES, getMatchResult } from './leagues-data';
+import { getMockGroupTeams, LEAGUES } from './leagues-data';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2';
 

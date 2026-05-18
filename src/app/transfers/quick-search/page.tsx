@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 
 export default function QuickSearchPage() {
-  const { language, isLoaded: isStoreLoaded, credits } = useGameState();
+  const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
@@ -25,8 +25,7 @@ export default function QuickSearchPage() {
   const [isBidding, setIsBidding] = useState<string | null>(null);
   const initTriggeredRef = useRef(false);
 
-  // Глобальная версия рынка для обеспечения синхронизации всех игроков
-  const MARKET_VERSION = 18;
+  const MARKET_VERSION = 20;
 
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
@@ -38,7 +37,6 @@ export default function QuickSearchPage() {
   const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
-  // Инициализация глобального рынка (если он пуст)
   useEffect(() => {
     if (!isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && !marketError && user?.uid) {
       initTriggeredRef.current = true;
@@ -48,7 +46,7 @@ export default function QuickSearchPage() {
       roles.forEach((role) => {
         for (let i = 1; i <= 3; i++) {
           const hero = generateUniqueHero(role, i, false);
-          const agentId = `global_lot_v${MARKET_VERSION}_${role.toLowerCase()}_${i}`;
+          const agentId = `global_v${MARKET_VERSION}_${role.toLowerCase()}_${i}`;
           const startPrice = (hero.overallRating * 18000) + 300000;
           
           setDocumentNonBlocking(doc(db, 'market_v2', agentId), {
@@ -90,6 +88,8 @@ export default function QuickSearchPage() {
         updatedAt: serverTimestamp()
       });
       
+      addCredits(-minNextBid);
+
       toast({ 
         title: language === 'ru' ? "Ставка принята!" : "Bid Placed!",
         description: language === 'ru' ? "Вы теперь лидер торгов." : "You are now the leading bidder."
@@ -143,7 +143,7 @@ export default function QuickSearchPage() {
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{t.title}</h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {isMarketLoading ? 'Syncing Global Archive...' : 'Shared Market Version 18 Active'}
+            {isMarketLoading ? 'Syncing Global Archive...' : 'Shared Market Version 20 Active'}
           </p>
         </div>
       </header>
