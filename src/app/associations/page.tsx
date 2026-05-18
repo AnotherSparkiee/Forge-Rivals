@@ -54,7 +54,7 @@ export default function AssociationPage() {
       subtitle: "Alliance Hub & Strategic Coalitions",
       back: "Back",
       insufficient: "Insufficient crystals",
-      createTitle: "Found Association",
+      createTitle: "Create Association",
       namePlaceholder: "Association Name...",
       descPlaceholder: "Describe your alliance goals...",
       costLabel: "Cost: 500 💎",
@@ -129,10 +129,7 @@ export default function AssociationPage() {
         createdAt: serverTimestamp()
       };
 
-      // Ensure write permissions by calling setDocumentNonBlocking
       setDocumentNonBlocking(doc(db, 'associations_v1', assocId), assocData, { merge: false });
-      
-      // Also update player profile to link to the new association
       updateDocumentNonBlocking(userRef!, { associationId: assocId });
       
       addCrystals(-500);
