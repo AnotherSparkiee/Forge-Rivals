@@ -129,12 +129,17 @@ export default function AssociationPage() {
         createdAt: serverTimestamp()
       };
 
-      await setDocumentNonBlocking(doc(db, 'associations_v1', assocId), assocData, {});
-      await updateDocumentNonBlocking(userRef!, { associationId: assocId });
+      // Ensure write permissions by calling setDocumentNonBlocking
+      setDocumentNonBlocking(doc(db, 'associations_v1', assocId), assocData, { merge: false });
+      
+      // Also update player profile to link to the new association
+      updateDocumentNonBlocking(userRef!, { associationId: assocId });
       
       addCrystals(-500);
       toast({ title: language === 'ru' ? "Ассоциация создана!" : "Association Established!" });
       setActiveTab('my_assoc');
+    } catch (e) {
+      console.error("Error creating association:", e);
     } finally {
       setIsProcessing(false);
     }
@@ -144,10 +149,12 @@ export default function AssociationPage() {
     if (!user || !profile || isProcessing) return;
     setIsProcessing(true);
     try {
-      await updateDocumentNonBlocking(doc(db, 'associations_v1', assoc.id), {
+      updateDocumentNonBlocking(doc(db, 'associations_v1', assoc.id), {
         requests: arrayUnion({ uid: user.uid, name: profile.displayName })
       });
       toast({ title: language === 'ru' ? "Заявка отправлена" : "Request Sent" });
+    } catch (e) {
+      console.error(e);
     } finally {
       setIsProcessing(false);
     }
@@ -159,21 +166,23 @@ export default function AssociationPage() {
     try {
       const assocRef = doc(db, 'associations_v1', myAssoc.id);
       if (accept) {
-        await updateDocumentNonBlocking(assocRef, {
+        updateDocumentNonBlocking(assocRef, {
           members: arrayUnion(applicant.uid),
           memberNames: arrayUnion(applicant.name),
           requests: arrayRemove(applicant)
         });
-        await updateDocumentNonBlocking(doc(db, 'players_v5', applicant.uid), {
+        updateDocumentNonBlocking(doc(db, 'players_v5', applicant.uid), {
           associationId: myAssoc.id
         });
         toast({ title: `${applicant.name} accepted` });
       } else {
-        await updateDocumentNonBlocking(assocRef, {
+        updateDocumentNonBlocking(assocRef, {
           requests: arrayRemove(applicant)
         });
         toast({ title: `${applicant.name} rejected` });
       }
+    } catch (e) {
+      console.error(e);
     } finally {
       setIsProcessing(false);
     }
