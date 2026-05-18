@@ -289,6 +289,7 @@ interface GameStateContextType extends GameState {
   hireStaffMember: (member: StaffMember) => void;
   trainStaffSkill: (role: StaffRole, skillKey: 'primary' | 'secondary', cost: number) => boolean;
   addHeroDirectly: (hero: Hero) => void;
+  addYouthHeroDirectly: (hero: Hero) => void;
   updateProfileName: (name: string) => void;
   updateProfileCountry: (countryName: string) => void;
 }
@@ -811,6 +812,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (user) updateDoc(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedOwned) }).catch(e => console.error("Add hero failed", e));
   }, [user, db]);
 
+  const addYouthHeroDirectly = useCallback((hero: Hero) => {
+    let updatedYouth: Hero[] = [];
+    setState(s => {
+      updatedYouth = [...s.youthAcademyHeroes, hero];
+      return { ...s, youthAcademyHeroes: updatedYouth };
+    });
+    if (user) updateDoc(doc(db, 'players_v5', user.uid), { youthAcademyHeroes: sanitizeForFirestore(updatedYouth) }).catch(e => console.error("Add youth hero failed", e));
+  }, [user, db]);
+
   const updateProfileName = useCallback((newName: string) => {
     if (user) {
       updateDoc(doc(db, 'players_v5', user.uid), { displayName: newName }).catch(e => console.error("Name change failed", e));
@@ -826,7 +836,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   return (
     <GameStateContext.Provider value={{
-      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, hireStaffMember, trainStaffSkill, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, promoteYouthPlayer, removeHero, recoverAllFatigue, addHeroDirectly, updateProfileName, updateProfileCountry
+      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, hireStaffMember, trainStaffSkill, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, promoteYouthPlayer, removeHero, recoverAllFatigue, addHeroDirectly, addYouthHeroDirectly, updateProfileName, updateProfileCountry
     }}>
       {children}
     </GameStateContext.Provider>

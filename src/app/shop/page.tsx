@@ -29,7 +29,7 @@ type ShopTab =
 export default function ShopPage() {
   const { 
     language, isLoaded, credits, crystals, 
-    addCrystals, addCredits, addHeroDirectly, 
+    addCrystals, addCredits, addYouthHeroDirectly, 
     updateProfileName, updateProfileCountry, country: currentCountry 
   } = useGameState();
   const [activeTab, setActiveTab] = useState<ShopTab>('menu');
@@ -112,10 +112,11 @@ export default function ShopPage() {
     newHero.overallRating = Math.floor(Math.random() * (45 - 38) + 38); // High tier
     
     addCrystals(-500);
-    addHeroDirectly(newHero);
+    // Now adding to Youth Academy instead of main squad
+    addYouthHeroDirectly(newHero);
     
     toast({ 
-      title: language === 'ru' ? "Элитный игрок нанят!" : "Elite Hero Acquired!",
+      title: language === 'ru' ? "Элитный юнит в Академии!" : "Elite Unit Assigned to Academy!",
       description: `${newHero.name} (${newHero.role}) [OVR ${newHero.overallRating}]`
     });
     setActiveTab('menu');
@@ -191,7 +192,7 @@ export default function ShopPage() {
                </div>
                <h3 className="text-xl font-headline font-bold uppercase text-white">Elite Unit Generation</h3>
                <p className="text-xs text-muted-foreground mt-2 italic leading-relaxed">
-                 "Generate a top-tier professional unit with advanced tactical initial ratings."
+                 "Generate a top-tier professional unit. The new hero will be sent to the Youth Academy for initial processing."
                </p>
                <div className="mt-8 p-4 bg-background/50 rounded-xl border border-white/10 flex items-center justify-between">
                   <span className="text-[10px] font-black uppercase text-muted-foreground">Price</span>
