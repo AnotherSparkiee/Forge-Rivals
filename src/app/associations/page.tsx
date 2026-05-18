@@ -237,12 +237,16 @@ export default function AssociationPage() {
         );
 
       case 'create':
+        // Show restricted message ONLY if the association actually exists in our data
         if (myAssoc) return (
           <div className="py-20 text-center flex flex-col items-center gap-4">
             <ShieldCheck className="w-12 h-12 text-primary opacity-20" />
             <div className="uppercase text-xs font-bold opacity-40">
               {language === 'ru' ? 'Вы уже состоите в ассоциации.' : 'You are already in an association.'}
             </div>
+            <Button variant="outline" size="sm" onClick={() => setActiveTab('my_assoc')} className="text-[10px] uppercase font-bold">
+              {language === 'ru' ? 'ПЕРЕЙТИ В МОЙ АЛЬЯНС' : 'GO TO MY ALLIANCE'}
+            </Button>
           </div>
         );
         

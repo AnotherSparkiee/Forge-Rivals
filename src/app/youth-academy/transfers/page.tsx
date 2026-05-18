@@ -12,7 +12,6 @@ import { collection, query, doc, arrayUnion, serverTimestamp } from 'firebase/fi
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
 
 export default function YouthTransfersPage() {
@@ -23,43 +22,15 @@ export default function YouthTransfersPage() {
   const router = useRouter();
   
   const [isBidding, setIsBidding] = useState<string | null>(null);
-  const [isAuthStabilized, setIsAuthStabilized] = useState(false);
-  const [syncProgress, setSyncProgress] = useState(0);
 
-  // Authentication stabilization protocol (4.5s)
-  useEffect(() => {
-    if (!isUserLoading && user?.uid) {
-      const interval = setInterval(() => {
-        setSyncProgress(prev => Math.min(prev + 2.2, 100));
-      }, 100);
-
-      const timer = setTimeout(() => {
-        setIsAuthStabilized(true);
-        setSyncProgress(100);
-        clearInterval(interval);
-      }, 4500);
-
-      return () => {
-        clearTimeout(timer);
-        clearInterval(interval);
-      };
-    } else {
-      setIsAuthStabilized(false);
-      setSyncProgress(0);
-    }
-  }, [isUserLoading, user?.uid]);
-
-  const authReady = isAuthStabilized && !!user?.uid;
-
-  // Use a broad query without filters to prevent Permission Denied quirks on shared nodes
   const marketQuery = useMemoFirebase(() => {
-    if (!authReady) return null;
+    if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
-  }, [db, authReady]);
+  }, [db, user?.uid]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
-  const userRef = useMemoFirebase(() => (authReady ? doc(db, 'players_v5', user!.uid) : null), [db, authReady, user?.uid]);
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user!.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
   const handleBid = async (agent: any) => {
@@ -87,6 +58,8 @@ export default function YouthTransfersPage() {
         title: language === 'ru' ? "Ставка на юниора принята!" : "Youth Bid Placed!",
         description: language === 'ru' ? "Вы лидируете в торгах." : "You are the leading bidder."
       });
+    } catch (e) {
+      console.error(e);
     } finally {
       setIsBidding(null);
     }
@@ -96,13 +69,9 @@ export default function YouthTransfersPage() {
 
   const t = {
     title: language === 'ru' ? 'ТРАНСФЕРЫ ЮНИОРОВ' : 'YOUTH TRANSFERS',
-    sync: language === 'ru' ? 'Синхронизация архива...' : 'Syncing Academy Archive...',
     empty: language === 'ru' ? 'На рынке юниоров пока пусто' : 'Youth market is currently empty',
     warning: language === 'ru' ? "Юниоры требуют развития. Оценивайте потенциал!" : "Juniors require training. Assess potential limits!",
-    reconnect: language === 'ru' ? 'ПЕРЕПОДКЛЮЧИТЬСЯ' : 'RE-SYNC TERMINAL',
-    errorDesc: language === 'ru' 
-      ? 'Ошибка доступа к архиву юниоров. Требуется повторная синхронизация.' 
-      : 'Access to youth archive restricted. Terminal re-synchronization required.'
+    reconnect: language === 'ru' ? 'ПЕРЕПОДКЛЮЧИТЬСЯ' : 'RE-SYNC TERMINAL'
   };
 
   if (marketError) {
@@ -111,7 +80,7 @@ export default function YouthTransfersPage() {
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
         <h2 className="text-xl font-bold uppercase text-white">Academy Protocol Error</h2>
         <p className="text-[10px] text-muted-foreground uppercase px-10 font-black tracking-widest leading-relaxed">
-          {t.errorDesc}
+          Access to youth archive restricted. Terminal re-synchronization required.
         </p>
         <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black px-8">
           <RefreshCw className="w-3 h-3 mr-2" /> {t.reconnect}
@@ -120,25 +89,7 @@ export default function YouthTransfersPage() {
     );
   }
 
-  if (!authReady) {
-    return (
-      <div className="max-w-md mx-auto px-4 pt-40 text-center space-y-8">
-        <div className="relative w-24 h-24 mx-auto">
-          <Loader2 className="w-24 h-24 animate-spin text-primary opacity-20" />
-          <ShieldCheck className="w-10 h-10 text-primary absolute inset-0 m-auto animate-pulse" />
-        </div>
-        <div className="space-y-4">
-          <h3 className="text-sm font-headline font-bold uppercase tracking-[0.3em] text-primary">{t.sync}</h3>
-          <div className="w-56 mx-auto space-y-2">
-            <Progress value={syncProgress} className="h-1.5 bg-primary/10" />
-            <p className="text-[8px] text-muted-foreground font-black uppercase tracking-widest">Link Status: {Math.floor(syncProgress)}%</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Filter youth agents locally to avoid complex index/permission issues in Firestore
+  // Фильтруем юниоров локально
   const youthAgents = agents?.filter(a => a.isYouth === true) || [];
 
   return (

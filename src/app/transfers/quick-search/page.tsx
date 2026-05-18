@@ -14,7 +14,6 @@ import { useToast } from '@/hooks/use-toast';
 import { generateUniqueHero } from '@/app/lib/moba-data';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-import { Progress } from '@/components/ui/progress';
 
 export default function QuickSearchPage() {
   const { language, isLoaded: isStoreLoaded, credits } = useGameState();
@@ -24,57 +23,30 @@ export default function QuickSearchPage() {
   const router = useRouter();
   
   const [isBidding, setIsBidding] = useState<string | null>(null);
-  const [isAuthStabilized, setIsAuthStabilized] = useState(false);
-  const [syncProgress, setSyncProgress] = useState(0);
   const initTriggeredRef = useRef(false);
 
-  // VERSION 17: Global Shared Market Node
-  const MARKET_VERSION = 17;
-
-  useEffect(() => {
-    if (!isUserLoading && user?.uid) {
-      const interval = setInterval(() => {
-        setSyncProgress(prev => Math.min(prev + 2.2, 100));
-      }, 100);
-
-      const timer = setTimeout(() => {
-        setIsAuthStabilized(true);
-        setSyncProgress(100);
-        clearInterval(interval);
-      }, 4500); // 4.5s stabilization protocol
-
-      return () => {
-        clearTimeout(timer);
-        clearInterval(interval);
-      };
-    } else {
-      setIsAuthStabilized(false);
-      setSyncProgress(0);
-    }
-  }, [isUserLoading, user?.uid]);
-
-  const authReady = isAuthStabilized && !!user?.uid;
+  // Глобальная версия рынка для обеспечения синхронизации всех игроков
+  const MARKET_VERSION = 18;
 
   const marketQuery = useMemoFirebase(() => {
-    if (!authReady) return null;
+    if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
-  }, [db, authReady]);
+  }, [db, user?.uid]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
-  const userRef = useMemoFirebase(() => (authReady ? doc(db, 'players_v5', user!.uid) : null), [db, authReady, user?.uid]);
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
-  // GLOBAL MARKET INITIALIZATION (Deterministic for Version 17)
+  // Инициализация глобального рынка (если он пуст)
   useEffect(() => {
-    if (authReady && !isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && !marketError) {
+    if (!isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && !marketError && user?.uid) {
       initTriggeredRef.current = true;
       
       const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
       
       roles.forEach((role) => {
         for (let i = 1; i <= 3; i++) {
-          // Deterministic heroes for everyone based on role and index
           const hero = generateUniqueHero(role, i, false);
           const agentId = `global_lot_v${MARKET_VERSION}_${role.toLowerCase()}_${i}`;
           const startPrice = (hero.overallRating * 18000) + 300000;
@@ -87,14 +59,14 @@ export default function QuickSearchPage() {
             highestBidderId: null,
             highestBidderName: null,
             bidders: [],
-            expiresAt: new Date(Date.now() + 86400000 * 14).toISOString(), // 14 days season
+            expiresAt: new Date(Date.now() + 86400000 * 14).toISOString(),
             createdAt: serverTimestamp(),
             marketVersion: MARKET_VERSION
           }, { merge: true });
         }
       });
     }
-  }, [isMarketLoading, agents, authReady, db, marketError]);
+  }, [isMarketLoading, agents, user?.uid, db, marketError]);
 
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;
@@ -122,6 +94,8 @@ export default function QuickSearchPage() {
         title: language === 'ru' ? "Ставка принята!" : "Bid Placed!",
         description: language === 'ru' ? "Вы теперь лидер торгов." : "You are now the leading bidder."
       });
+    } catch (e) {
+      console.error(e);
     } finally {
       setIsBidding(null);
     }
@@ -131,14 +105,10 @@ export default function QuickSearchPage() {
 
   const t = {
     title: language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH',
-    sync: language === 'ru' ? 'Синхронизация протоколов...' : 'Global Protocol Sync...',
     warning: language === 'ru' 
       ? "ВНИМАНИЕ: Рынок един для всей лиги. Вы боретесь за одних и тех же игроков!"
       : "WARNING: Shared Global Market. You are competing for the same elite talent!",
-    reconnect: language === 'ru' ? 'ПЕРЕПОДКЛЮЧИТЬСЯ' : 'RE-SYNC TERMINAL',
-    errorDesc: language === 'ru' 
-      ? 'Ошибка доступа к глобальному узлу. Пожалуйста, перезапустите терминал.' 
-      : 'Access to global node restricted. Terminal re-synchronization required.'
+    reconnect: language === 'ru' ? 'ПЕРЕПОДКЛЮЧИТЬСЯ' : 'RE-SYNC TERMINAL'
   };
 
   if (marketError) {
@@ -147,29 +117,11 @@ export default function QuickSearchPage() {
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
         <h2 className="text-xl font-bold uppercase text-white">Market Protocol Restricted</h2>
         <p className="text-[10px] text-muted-foreground uppercase px-10 font-black tracking-widest leading-relaxed">
-          {t.errorDesc}
+          Access to global node restricted. Terminal re-synchronization required.
         </p>
         <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black px-8">
           <RefreshCw className="w-3 h-3 mr-2" /> {t.reconnect}
         </Button>
-      </div>
-    );
-  }
-
-  if (!authReady) {
-    return (
-      <div className="max-w-md mx-auto px-4 pt-40 text-center space-y-8">
-        <div className="relative w-24 h-24 mx-auto">
-          <Loader2 className="w-24 h-24 animate-spin text-primary opacity-20" />
-          <ShieldCheck className="w-10 h-10 text-primary absolute inset-0 m-auto animate-pulse" />
-        </div>
-        <div className="space-y-4">
-          <h3 className="text-sm font-headline font-bold uppercase tracking-[0.3em] text-primary">{t.sync}</h3>
-          <div className="w-56 mx-auto space-y-2">
-            <Progress value={syncProgress} className="h-1.5 bg-primary/10" />
-            <p className="text-[8px] text-muted-foreground font-black uppercase tracking-widest">Secure Link Status: {Math.floor(syncProgress)}%</p>
-          </div>
-        </div>
       </div>
     );
   }
@@ -191,7 +143,7 @@ export default function QuickSearchPage() {
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{t.title}</h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {isMarketLoading ? 'Syncing Global Archive...' : 'Shared Market Version 17 Active'}
+            {isMarketLoading ? 'Syncing Global Archive...' : 'Shared Market Version 18 Active'}
           </p>
         </div>
       </header>
@@ -213,7 +165,6 @@ export default function QuickSearchPage() {
         </div>
 
         {roleList.map((role) => {
-          // Filter agents strictly for current global version
           const roleAgents = agents?.filter(a => a.heroData?.role === role.id && a.marketVersion === MARKET_VERSION) || [];
           
           return (
@@ -287,7 +238,7 @@ export default function QuickSearchPage() {
               ) : (
                 <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
                    <ShoppingCart className="w-12 h-12" />
-                   <p className="text-[10px] uppercase font-black tracking-widest leading-relaxed text-center">Global Market Node Empty. Re-initializing v17 protocol...</p>
+                   <p className="text-[10px] uppercase font-black tracking-widest leading-relaxed text-center">Market Node Initializing...</p>
                 </div>
               )}
             </TabsContent>
