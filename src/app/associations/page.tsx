@@ -41,9 +41,11 @@ export default function AssociationPage() {
   const allAssocsQuery = useMemoFirebase(() => query(collection(db, 'associations_v1')), [db]);
   const { data: allAssocs, isLoading: isAssocsLoading } = useCollection(allAssocsQuery);
 
+  // Улучшенная проверка: считаем, что игрок в ассоциации, только если документ РЕАЛЬНО существует
   const myAssoc = useMemo(() => {
     if (!profile?.associationId || !allAssocs) return null;
-    return allAssocs.find(a => a.id === profile.associationId);
+    const found = allAssocs.find(a => a.id === profile.associationId);
+    return found || null;
   }, [profile?.associationId, allAssocs]);
 
   const isOwner = myAssoc?.ownerId === user?.uid;
@@ -121,15 +123,18 @@ export default function AssociationPage() {
         name: assocName.trim(),
         description: assocDesc.trim(),
         ownerId: user.uid,
-        ownerName: profile.displayName,
+        ownerName: profile.displayName || "Manager",
         members: [user.uid],
-        memberNames: [profile.displayName],
+        memberNames: [profile.displayName || "Manager"],
         requests: [],
         level: 1,
         createdAt: serverTimestamp()
       };
 
+      // Используем setDocumentNonBlocking для создания ассоциации
       setDocumentNonBlocking(doc(db, 'associations_v1', assocId), assocData, { merge: false });
+      
+      // Обновляем профиль игрока
       updateDocumentNonBlocking(userRef!, { associationId: assocId });
       
       addCrystals(-500);
@@ -231,7 +236,16 @@ export default function AssociationPage() {
         );
 
       case 'create':
-        if (myAssoc) return <div className="py-20 text-center uppercase text-xs font-bold opacity-40">You are already in an association.</div>;
+        // Если игрок уже в ассоциации (которая реально существует), блокируем форму
+        if (myAssoc) return (
+          <div className="py-20 text-center flex flex-col items-center gap-4">
+            <ShieldCheck className="w-12 h-12 text-primary opacity-20" />
+            <div className="uppercase text-xs font-bold opacity-40">
+              {language === 'ru' ? 'Вы уже состоите в ассоциации.' : 'You are already in an association.'}
+            </div>
+          </div>
+        );
+        
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
             <Card className="glass-card border-green-500/20 bg-green-500/5">
@@ -270,7 +284,11 @@ export default function AssociationPage() {
         );
 
       case 'my_assoc':
-        if (!myAssoc) return null;
+        if (!myAssoc) return (
+          <div className="py-20 text-center opacity-30 text-xs font-bold uppercase tracking-widest">
+            {language === 'ru' ? 'У вас пока нет ассоциации.' : 'You have no association yet.'}
+          </div>
+        );
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
             <Card className="glass-card border-primary/30 bg-primary/5 overflow-hidden">
@@ -285,7 +303,7 @@ export default function AssociationPage() {
             </Card>
 
             <div className="space-y-3">
-              <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest px-1">{t.members} ({myAssoc.members?.length})</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">{t.members} ({myAssoc.members?.length})</h3>
               <div className="grid gap-2">
                 {myAssoc.members?.map((mid: string, i: number) => (
                   <div key={mid} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between">

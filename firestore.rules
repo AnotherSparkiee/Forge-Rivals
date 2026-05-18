@@ -15,7 +15,8 @@ service cloud.firestore {
 
     // 3. ASSOCIATIONS (GUILDS)
     match /associations_v1/{assocId} {
-      allow read, write: if request.auth != null;
+      // Явно разрешаем все операции для авторизованных пользователей
+      allow get, list, create, update, delete: if request.auth != null;
     }
 
     // 4. FRIENDLY MATCHES & LOBBIES
