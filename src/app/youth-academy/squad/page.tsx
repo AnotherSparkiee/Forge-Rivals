@@ -27,8 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
-import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 export default function YouthSquadPage() {
   const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, removeHero } = useGameState();
@@ -103,13 +103,19 @@ export default function YouthSquadPage() {
         isYouth: true
       };
 
-      setDocumentNonBlocking(doc(db, 'market_v2', agentId), agentData, { merge: true });
+      // Прямая запись через SDK для максимальной надежности
+      await setDoc(doc(db, 'market_v2', agentId), agentData);
+      
+      // Удаляем из локального стора и облака через существующий метод
       removeHero(selectedHero.id, 0);
       
       toast({ 
         title: language === 'ru' ? "Юниор выставлен на трансфер" : "Junior Listed for Transfer",
       });
       setSelectedHero(null);
+    } catch (e: any) {
+      console.error("Transfer error:", e);
+      toast({ title: "Transfer Failed", description: e.message, variant: "destructive" });
     } finally {
       setIsTransferring(false);
     }
@@ -196,13 +202,13 @@ export default function YouthSquadPage() {
           <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none flex flex-col rounded-none sm:rounded-none overflow-hidden outline-none translate-x-0 translate-y-0 top-0 left-0 animate-in fade-in zoom-in duration-300">
             {selectedHero && (
               <>
-                <DialogHeader className="sr-only">
-                  <DialogTitle>{selectedHero.name}</DialogTitle>
-                  <DialogDescription>Detailed player profile and statistics</DialogDescription>
+                <DialogHeader className="p-4 pt-12 pb-0 text-center">
+                  <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{selectedHero.name}</DialogTitle>
+                  <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">Detailed player profile and statistics</DialogDescription>
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto scrollbar-hide">
-                  <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 border-b border-white/5 flex flex-col items-center text-center gap-4">
+                  <div className="p-4 py-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 flex flex-col items-center text-center gap-4">
                     <div className="relative">
                       <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-[0_0_30px_rgba(var(--primary),0.3)] bg-secondary/50">
                         <img src={selectedHero.image} alt={selectedHero.name} className="w-full h-full object-cover" />
@@ -213,8 +219,9 @@ export default function YouthSquadPage() {
                     </div>
                     
                     <div className="space-y-1">
-                      <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{selectedHero.name}</h2>
-                      <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{selectedHero.role}</Badge>
+                      <div className="flex items-center justify-center gap-2">
+                        <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{selectedHero.role}</Badge>
+                      </div>
                     </div>
 
                     <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto">

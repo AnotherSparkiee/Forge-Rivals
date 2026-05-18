@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -146,7 +146,7 @@ export default function AssociationPage() {
         createdAt: serverTimestamp()
       };
 
-      // Прямая запись через SDK для надежности
+      // Прямая запись через SDK
       await setDoc(assocRef, assocData);
       await updateDoc(userRef!, { associationId: assocId });
       
