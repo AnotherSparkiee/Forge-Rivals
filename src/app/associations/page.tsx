@@ -70,7 +70,7 @@ export default function AssociationPage() {
       tabs: {
         my_assoc: { label: "My Association", desc: "Manage your current alliance", icon: ShieldCheck, color: "text-primary" },
         all: { label: "Global Directory", desc: "Browse all available alliances", icon: Globe, color: "text-blue-400" },
-        create: { label: "Foundation", desc: "Found your own alliance network", icon: PlusCircle, color: "text-green-400" },
+        create: { label: "Create Association", desc: "Found your own alliance network", icon: PlusCircle, color: "text-green-400" },
         requests: { label: "Recruitment", desc: "Pending membership applications", icon: UserPlus, color: "text-orange-400" },
         history: { label: "War Archive", desc: "Tournament history and logs", icon: History, color: "text-accent" }
       }
@@ -80,7 +80,7 @@ export default function AssociationPage() {
       subtitle: "Центр альянсов и стратегических союзов",
       back: "Назад",
       insufficient: "Недостаточно кристаллов",
-      createTitle: "Основать ассоциацию",
+      createTitle: "Создать ассоциацию",
       namePlaceholder: "Название ассоциации...",
       descPlaceholder: "Опишите цели вашего альянса...",
       costLabel: "Стоимость: 500 💎",
@@ -96,7 +96,7 @@ export default function AssociationPage() {
       tabs: {
         my_assoc: { label: "Моя ассоциация", desc: "Управление вашим альянсом", icon: ShieldCheck, color: "text-primary" },
         all: { label: "Глобальный каталог", desc: "Список всех доступных альянсов", icon: Globe, color: "text-blue-400" },
-        create: { label: "Основание", desc: "Основать собственную сеть альянса", icon: PlusCircle, color: "text-green-400" },
+        create: { label: "Создать ассоциацию", desc: "Основать собственную сеть альянса", icon: PlusCircle, color: "text-green-400" },
         requests: { label: "Вербовка", desc: "Ожидающие заявки на вступление", icon: UserPlus, color: "text-orange-400" },
         history: { label: "Архив войн", desc: "История турниров и логов", icon: History, color: "text-accent" }
       }
@@ -211,7 +211,7 @@ export default function AssociationPage() {
                         <p className="text-[10px] text-muted-foreground">{assoc.members?.length || 1} / 20 {t.members}</p>
                       </div>
                     </div>
-                    {!profile?.associationId ? (
+                    {!myAssoc ? (
                       <Button 
                         size="sm" 
                         variant={isPending ? "outline" : "default"} 
@@ -234,7 +234,7 @@ export default function AssociationPage() {
         );
 
       case 'create':
-        if (profile?.associationId) return <div className="py-20 text-center uppercase text-xs font-bold opacity-40">You are already in an association.</div>;
+        if (myAssoc) return <div className="py-20 text-center uppercase text-xs font-bold opacity-40">You are already in an association.</div>;
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
             <Card className="glass-card border-green-500/20 bg-green-500/5">
