@@ -5,11 +5,12 @@ import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { 
   ChevronLeft, GraduationCap, User, Star, ArrowUpCircle,
   Info, TrendingUp, ShieldCheck, HeartPulse, Zap,
   Sword, Sparkles, Crosshair, Map, Eye, Target, Brain, Users,
-  ShoppingCart, Loader2, Coins
+  ShoppingCart, Loader2, Coins, Award
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -247,7 +248,7 @@ export default function YouthSquadPage() {
 
                     <section>
                       <h3 className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                        <Star className="w-3.5 h-3.5" /> {t.stats}
+                        <Award className="w-3.5 h-3.5" /> {t.stats}
                       </h3>
                       <div className="space-y-5">
                         {Object.entries(selectedHero.proStats).map(([key, value]) => {
