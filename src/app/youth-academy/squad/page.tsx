@@ -141,7 +141,7 @@ export default function YouthSquadPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2 text-primary">
-            <Users className="w-6 h-6" />
+            <Users className="w-6 h-6 text-primary" />
             {t.title}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
@@ -196,6 +196,11 @@ export default function YouthSquadPage() {
           <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none flex flex-col rounded-none sm:rounded-none overflow-hidden outline-none translate-x-0 translate-y-0 top-0 left-0 animate-in fade-in zoom-in duration-300">
             {selectedHero && (
               <>
+                <DialogHeader className="sr-only">
+                  <DialogTitle>{selectedHero.name}</DialogTitle>
+                  <DialogDescription>Detailed player profile and statistics</DialogDescription>
+                </DialogHeader>
+
                 <div className="flex-1 overflow-y-auto scrollbar-hide">
                   <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 border-b border-white/5 flex flex-col items-center text-center gap-4">
                     <div className="relative">
