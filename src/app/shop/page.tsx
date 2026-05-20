@@ -162,7 +162,6 @@ export default function ShopPage() {
       const ageVal = parseInt(heroAge);
       const country = COUNTRIES.find(c => c.code === heroCountryCode) || COUNTRIES[0];
 
-      // Generate stats based on talent
       const proStatAvg = Math.round(talentVal * 18);
 
       const newHero: Hero = {
@@ -207,7 +206,7 @@ export default function ShopPage() {
       
       toast({ 
         title: language === 'ru' ? "Элитный юнит создан!" : "Elite Unit Created!",
-        description: `${newHero.name} направлен в Академию.`
+        description: language === 'ru' ? `${newHero.name} направлен в Академию.` : `${newHero.name} deployed to Academy.`
       });
       setActiveTab('menu');
       setHeroNickname('');

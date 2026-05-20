@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { Hero, INITIAL_HEROES, generateYouthHero, StaffMember, StaffRole } from './moba-data';
 import { getMoscowTime, getMoscowDateString, isMatchDue, getGlobalSeasonInfo } from './time-utils';
 import { useUser, useFirestore, updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, arrayUnion } from 'firebase/firestore';
 import { getMockGroupTeams, LEAGUES } from './leagues-data';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2';
@@ -384,6 +384,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
       setIsLoaded(true);
     }, (error) => {
+      console.warn("Profile listener permission issue - check rules.", error);
       setIsLoaded(true);
     });
 
@@ -433,7 +434,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (lastSyncRef.current?.season === globalSeason && lastSyncRef.current?.day === completedDays && lastSyncRef.current?.leagueId === state.selectedLeagueId) return;
 
     if (state.lastProcessedSeason > 0 && globalSeason > state.lastProcessedSeason) {
-      const lastSeasonTeams = getMockGroupTeams(state.rank, profile?.displayName || "My Team", state.leagueLevel, state.divisionSubId, state.groupId, state.selectedLeagueId, groupPlayers, user.uid, 14);
+      const lastSeasonTeams = getMockGroupTeams(state.rank, state.country || "My Team", state.leagueLevel, state.divisionSubId, state.groupId, state.selectedLeagueId, groupPlayers, user.uid, 14);
       const sorted = [...lastSeasonTeams].sort((a, b) => b.points - a.points || b.wins - a.wins);
       const myPos = sorted.findIndex(t => t.id === user.uid) + 1;
       let newLevel = state.leagueLevel;
@@ -455,7 +456,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
 
     if (globalDay > 14) return;
-    const groupTeams = getMockGroupTeams(state.rank, state.displayName || "My Team", state.leagueLevel, state.divisionSubId, state.groupId, state.selectedLeagueId, groupPlayers, user.uid, completedDays);
+    const groupTeams = getMockGroupTeams(state.rank, state.country || "My Team", state.leagueLevel, state.divisionSubId, state.groupId, state.selectedLeagueId, groupPlayers, user.uid, completedDays);
     const myTeam = groupTeams.find(t => t.id === user.uid);
     const myDocInSnapshot = groupPlayers.find(p => p.id === user.uid);
     if (!myTeam || !myDocInSnapshot) return;
@@ -464,7 +465,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       lastSyncRef.current = { season: globalSeason, day: completedDays, leagueId: state.selectedLeagueId };
       updateDocumentNonBlocking(doc(db, 'players_v5', user.uid), { wins: Number(myTeam.wins || 0), draws: Number(myTeam.draws || 0), losses: Number(myTeam.losses || 0), points: Number(myTeam.points || 0), lastProcessedSeason: globalSeason });
     }
-  }, [state.selectedLeagueId, state.seasonDay, state.lastLeagueMatchDate, state.rank, state.leagueLevel, state.divisionSubId, state.groupId, state.lastProcessedSeason, state.hasEliteTrophy, user, db]);
+  }, [state.selectedLeagueId, state.seasonDay, state.lastLeagueMatchDate, state.rank, state.leagueLevel, state.divisionSubId, state.groupId, state.lastProcessedSeason, state.hasEliteTrophy, state.country, user, db]);
 
   const addCredits = useCallback((amount: number) => {
     setState(s => {
@@ -845,19 +846,17 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [user, db]);
 
   const addHeroDirectly = useCallback((hero: Hero) => {
-    setState(s => {
-      const updatedOwned = [...s.ownedHeroes, hero];
-      if (user) updateDocumentNonBlocking(doc(db, 'players_v5', user.uid), { ownedHeroes: sanitizeForFirestore(updatedOwned) });
-      return { ...s, ownedHeroes: updatedOwned };
-    });
+    if (!user) return;
+    updateDoc(doc(db, 'players_v5', user.uid), {
+      ownedHeroes: arrayUnion(sanitizeForFirestore(hero))
+    }).catch(e => console.error("Cloud direct add failed", e));
   }, [user, db]);
 
   const addYouthHeroDirectly = useCallback((hero: Hero) => {
-    setState(s => {
-      const updatedYouth = [...s.youthAcademyHeroes, hero];
-      if (user) updateDocumentNonBlocking(doc(db, 'players_v5', user.uid), { youthAcademyHeroes: sanitizeForFirestore(updatedYouth) });
-      return { ...s, youthAcademyHeroes: updatedYouth };
-    });
+    if (!user) return;
+    updateDoc(doc(db, 'players_v5', user.uid), {
+      youthAcademyHeroes: arrayUnion(sanitizeForFirestore(hero))
+    }).catch(e => console.error("Cloud youth direct add failed", e));
   }, [user, db]);
 
   const updateProfileName = useCallback((newName: string) => {

@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
-import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 
 export default function YouthSquadPage() {
@@ -210,12 +210,16 @@ export default function YouthSquadPage() {
           {selectedHero && (
             <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none flex flex-col rounded-none sm:rounded-none overflow-hidden outline-none translate-x-0 translate-y-0 top-0 left-0 animate-in fade-in zoom-in duration-300">
               <DialogHeader className="p-4 pt-12 pb-0 text-center">
-                <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{selectedHero.name}</DialogTitle>
-                <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">Detailed player profile and statistics</DialogDescription>
+                <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">
+                  {selectedHero.name}
+                </DialogTitle>
+                <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">
+                  Detailed player profile and statistics dossier.
+                </DialogDescription>
               </DialogHeader>
 
               <div className="flex-1 overflow-y-auto scrollbar-hide">
-                <div className="p-4 py-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 flex flex-col items-center text-center gap-4">
+                <div className="p-4 py-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 flex flex-col items-center text-center gap-4 border-b border-white/5">
                   <div className="relative">
                     <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-[0_0_30px_rgba(var(--primary),0.3)] bg-secondary/50">
                       <img src={selectedHero.image} alt={selectedHero.name} className="w-full h-full object-cover" />

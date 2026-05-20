@@ -1,39 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Глобальное разрешение для всех коллекций прототипа.
-    // Мы разрешаем чтение и запись для любого авторизованного пользователя,
-    // а также явно прописываем доступ к ключевым коллекциям для максимальной стабильности.
-    
+    // Глобальное разрешение для прототипа. 
+    // Разрешаем любые операции чтения и записи всем пользователям.
     match /{document=**} {
-      allow read, write: if request.auth != null || true;
-    }
-
-    match /players_v5/{userId} {
-      allow read, write: if true;
-    }
-
-    match /market_v2/{agentId} {
-      allow read, write: if true;
-    }
-
-    match /associations_v1/{assocId} {
-      allow read, write: if true;
-    }
-
-    match /global_chat/{msgId} {
-      allow read, write: if true;
-    }
-
-    match /private_messages/{msgId} {
-      allow read, write: if true;
-    }
-
-    match /friendly_lobbies/{lobbyId} {
-      allow read, write: if true;
-    }
-
-    match /cw_basket/{entryId} {
       allow read, write: if true;
     }
   }
