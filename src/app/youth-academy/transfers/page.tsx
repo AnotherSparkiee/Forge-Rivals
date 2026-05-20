@@ -1,15 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, ShoppingCart, Loader2, Gavel, ShieldCheck, Star
+  ChevronLeft, ShoppingCart, Loader2, Gavel, ShieldCheck, Star, Users, Clock
 } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, query, where, doc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { collection, query, doc, arrayUnion, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -24,13 +24,19 @@ export default function YouthTransfersPage() {
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // Real-time query for youth players on market
+  // Получаем все лоты без жесткого фильтра в запросе, чтобы избежать проблем с индексами при тесте
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
-    return query(collection(db, 'market_v2'), where('isYouth', '==', true));
+    return query(collection(db, 'market_v2'));
   }, [db, user?.uid]);
 
-  const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
+  const { data: rawAgents, isLoading: isMarketLoading } = useCollection(marketQuery);
+
+  // Фильтруем юниоров на стороне клиента
+  const agents = useMemo(() => {
+    if (!rawAgents) return [];
+    return rawAgents.filter(a => a.isYouth === true);
+  }, [rawAgents]);
 
   const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
@@ -93,7 +99,7 @@ export default function YouthTransfersPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-primary flex items-center gap-2">
-            <ShoppingCart className="w-6 h-6" />
+            <ShoppingCart className="w-6 h-6 text-primary" />
             {t.title}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">{t.subtitle}</p>
@@ -179,6 +185,7 @@ export default function YouthTransfersPage() {
           </div>
         ) : (
           <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
+            <Users className="w-16 h-16 text-muted-foreground" />
             <p className="text-[10px] uppercase font-black tracking-widest text-center leading-relaxed">
               {t.empty}
             </p>

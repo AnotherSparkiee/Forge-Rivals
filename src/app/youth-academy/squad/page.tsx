@@ -83,7 +83,6 @@ export default function YouthSquadPage() {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
       
-      // TEST: 5 minutes expiry instead of 12 hours
       const expiryTime = new Date(mskNow);
       expiryTime.setMinutes(expiryTime.getMinutes() + 5);
       
