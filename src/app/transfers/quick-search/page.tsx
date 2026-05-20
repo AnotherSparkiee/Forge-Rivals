@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, Loader2, Gavel, AlertCircle, RefreshCw, ShoppingCart, Users, ShieldCheck } from 'lucide-react';
+import { ChevronLeft, Loader2, Gavel, AlertCircle, RefreshCw, ShoppingCart, Users, ShieldCheck, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -25,8 +25,7 @@ export default function QuickSearchPage() {
   const [isBidding, setIsBidding] = useState<string | null>(null);
   const initTriggeredRef = useRef(false);
 
-  const MARKET_VERSION = 20;
-
+  // Глобальный рынок: показываем ВСЕХ взрослых игроков (не юниоров)
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
@@ -37,6 +36,7 @@ export default function QuickSearchPage() {
   const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
+  // Первичная инициализация рынка ботами, если он пуст
   useEffect(() => {
     if (!isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && !marketError && user?.uid) {
       initTriggeredRef.current = true;
@@ -44,9 +44,9 @@ export default function QuickSearchPage() {
       const initializeMarket = async () => {
         const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
         for (const role of roles) {
-          for (let i = 1; i <= 3; i++) {
+          for (let i = 1; i <= 2; i++) {
             const hero = generateUniqueHero(role, i, false);
-            const agentId = `global_v${MARKET_VERSION}_${role.toLowerCase()}_${i}`;
+            const agentId = `system_bot_${role.toLowerCase()}_${i}_${Date.now()}`;
             const startPrice = (hero.overallRating * 18000) + 300000;
             
             await setDoc(doc(db, 'market_v2', agentId), {
@@ -57,10 +57,11 @@ export default function QuickSearchPage() {
               highestBidderId: null,
               highestBidderName: null,
               bidders: [],
-              expiresAt: new Date(Date.now() + 86400000 * 14).toISOString(),
+              expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(), // 7 дней для ботов
               createdAt: serverTimestamp(),
-              marketVersion: MARKET_VERSION
-            }, { merge: true });
+              isSystem: true,
+              isYouth: false
+            });
           }
         }
       };
@@ -111,8 +112,8 @@ export default function QuickSearchPage() {
   const t = {
     title: language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH',
     warning: language === 'ru' 
-      ? "ВНИМАНИЕ: Рынок един для всей лиги. Вы боретесь за одних и тех же игроков!"
-      : "WARNING: Shared Global Market. You are competing for the same elite talent!",
+      ? "Рынок един для всей лиги. Вы боретесь за одних и тех же игроков!"
+      : "Shared Global Market. You are competing for the same elite talent!",
     reconnect: language === 'ru' ? 'ПЕРЕПОДКЛЮЧИТЬСЯ' : 'RE-SYNC TERMINAL'
   };
 
@@ -120,7 +121,7 @@ export default function QuickSearchPage() {
     return (
       <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-6">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-        <h2 className="text-xl font-bold uppercase text-white">Market Protocol Restricted</h2>
+        <h2 className="text-xl font-bold uppercase text-white">Market Sync Error</h2>
         <p className="text-[10px] text-muted-foreground uppercase px-10 font-black tracking-widest leading-relaxed">
           Access to global node restricted. Terminal re-synchronization required.
         </p>
@@ -148,7 +149,7 @@ export default function QuickSearchPage() {
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{t.title}</h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {isMarketLoading ? 'Syncing Global Archive...' : 'Shared Market Version 20 Active'}
+            {isMarketLoading ? 'Syncing Global Archive...' : 'Real-time Market Active'}
           </p>
         </div>
       </header>
@@ -170,22 +171,26 @@ export default function QuickSearchPage() {
         </div>
 
         {roleList.map((role) => {
-          const roleAgents = agents?.filter(a => a.heroData?.role === role.id && a.marketVersion === MARKET_VERSION) || [];
+          // Фильтруем: только по роли и только НЕ юниоров
+          const roleAgents = agents?.filter(a => a.heroData?.role === role.id && a.isYouth !== true) || [];
           
           return (
             <TabsContent key={role.id} value={role.id} className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
               {isMarketLoading ? (
                 <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Synchronizing Bids...</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Establishing Link...</p>
                 </div>
               ) : roleAgents.length > 0 ? (
                 roleAgents.map((agent) => {
                   const isLeading = agent.highestBidderId === user?.uid;
+                  const isOwner = agent.sellerId === user?.uid;
+                  
                   return (
                     <Card key={agent.id} className={cn(
                       "glass-card border-white/5 overflow-hidden group transition-all",
-                      isLeading ? "border-green-500/40 bg-green-500/5 ring-1 ring-green-500/20" : "hover:border-primary/30"
+                      isLeading ? "border-green-500/40 bg-green-500/5 ring-1 ring-green-500/20" : "hover:border-primary/30",
+                      isOwner && "border-blue-500/30 bg-blue-500/5"
                     )}>
                       <CardContent className="p-4">
                         <div className="flex items-center gap-4 mb-4">
@@ -194,7 +199,7 @@ export default function QuickSearchPage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <h3 className="text-base font-bold uppercase truncate text-white tracking-tight">{agent.heroData?.name}</h3>
-                            <div className="flex items-center gap-2 mt-1">
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
                               <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase font-black bg-black/20">
                                 {agent.heroData?.role}
                               </Badge>
@@ -206,31 +211,36 @@ export default function QuickSearchPage() {
                                   TOP: {agent.highestBidderName}
                                 </span>
                               )}
+                              {isOwner && (
+                                <Badge className="bg-blue-500 text-white text-[7px] font-black uppercase">YOUR LOT</Badge>
+                              )}
                             </div>
                           </div>
                           <div className="text-right flex flex-col items-end">
                             <p className="text-2xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
-                            <p className="text-[8px] font-black text-muted-foreground uppercase mt-1 tracking-tighter">OVR UNIT</p>
+                            <p className="text-[8px] font-black text-muted-foreground uppercase mt-1 tracking-tighter">OVR</p>
                           </div>
                         </div>
                         
                         <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
                           <div className="flex flex-col">
-                            <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Global Current Bid</p>
+                            <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Current Bid</p>
                             <p className="text-lg font-headline font-bold text-primary tabular-nums">€{agent.currentBid?.toLocaleString()}</p>
                           </div>
                           <Button 
                             className={cn(
-                              "h-11 font-black text-[10px] px-8 shadow-xl active:scale-95 transition-all rounded-xl",
+                              "h-11 font-black text-[10px] px-6 shadow-xl active:scale-95 transition-all rounded-xl",
                               isLeading ? "bg-green-600 hover:bg-green-700 text-white" : "hero-gradient shadow-primary/20"
                             )}
                             onClick={() => handleBid(agent)} 
-                            disabled={!!isBidding || isLeading}
+                            disabled={!!isBidding || isLeading || isOwner}
                           >
                             {isBidding === agent.id ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
                             ) : isLeading ? (
-                              <><ShieldCheck className="w-4 h-4 mr-2" /> LEADING BID</>
+                              <><ShieldCheck className="w-4 h-4 mr-2" /> LEADING</>
+                            ) : isOwner ? (
+                              'MY LOT'
                             ) : (
                               <><Gavel className="w-4 h-4 mr-2" /> BID €{Math.ceil(agent.currentBid * 1.05).toLocaleString()}</>
                             )}
@@ -243,7 +253,7 @@ export default function QuickSearchPage() {
               ) : (
                 <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
                    <ShoppingCart className="w-12 h-12" />
-                   <p className="text-[10px] uppercase font-black tracking-widest leading-relaxed text-center">Market Node Initializing...</p>
+                   <p className="text-[10px] uppercase font-black tracking-widest leading-relaxed text-center">No active listings for this role</p>
                 </div>
               )}
             </TabsContent>

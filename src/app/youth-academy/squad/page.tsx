@@ -1,21 +1,21 @@
 'use client';
 
-import { useState } from 'react';
-import { useGameState } from '../../lib/store';
+import { useState, useMemo, useRef } from 'react';
+import { useGameState, LineupSlot } from '../../lib/store';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { 
-  ChevronLeft, GraduationCap, User, Star, ArrowUpCircle,
-  Info, TrendingUp, ShieldCheck, HeartPulse, Zap,
-  Sword, Sparkles, Crosshair, Map, Eye, Target, Brain, Users,
-  ShoppingCart, Loader2, Coins, Award, Clock, AlertCircle
+  Sword, Shield, Sparkles, Plus, 
+  ChevronLeft, ChevronRight, UserPlus, X,
+  ShieldCheck, Zap, Crosshair, HeartPulse,
+  Star, Box, Undo2, Info,
+  TrendingUp, Eye, Target, Brain, Map, Users, AlertCircle, Award, Clock, ShoppingCart, Loader2, Coins
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
-import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Hero } from '../../lib/moba-data';
+import Link from 'next/link';
 import {
   Dialog,
   DialogContent,
@@ -24,18 +24,19 @@ import {
   DialogDescription,
   DialogPortal
 } from "@/components/ui/dialog";
-import { useToast } from '@/hooks/use-toast';
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
+import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function YouthSquadPage() {
   const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, updateHero } = useGameState();
   const { user } = useUser();
   const db = useFirestore();
+  const { toast } = useToast();
+  
   const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
   const [isTransferring, setIsTransferring] = useState(false);
-  const { toast } = useToast();
 
   const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
@@ -86,9 +87,12 @@ export default function YouthSquadPage() {
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
+      // Клонируем данные героя для рынка
+      const heroMarketData = JSON.parse(JSON.stringify(selectedHero));
+      
       const agentData = {
         id: agentId,
-        heroData: JSON.parse(JSON.stringify(selectedHero)),
+        heroData: heroMarketData,
         currentBid: startPrice,
         startingPrice: startPrice,
         highestBidderId: null,
@@ -99,12 +103,14 @@ export default function YouthSquadPage() {
         expiresAt: expiryTime.toISOString(),
         dropDate: today,
         dropTime: mskNow.toISOString(),
-        isYouth: true
+        isYouth: true, // КРИТИЧНО: этот флаг позволяет отображать игрока в Youth Transfers
+        createdAt: serverTimestamp()
       };
 
-      // Прямая запись в Firestore для предотвращения Permission Errors
+      // 1. Создаем лот на глобальном рынке (market_v2)
       await setDoc(doc(db, 'market_v2', agentId), agentData);
       
+      // 2. Обновляем локальный статус героя
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
         transferMarketId: agentId
@@ -112,7 +118,7 @@ export default function YouthSquadPage() {
       
       toast({ 
         title: language === 'ru' ? "Юниор выставлен на трансфер" : "Junior Listed for Transfer",
-        description: language === 'ru' ? "На аукционе 12 часов. Он останется в списке." : "On auction for 12 hours. He stays in the list."
+        description: language === 'ru' ? "Появится в списке для всех менеджеров мгновенно." : "Will appear in the market for all managers instantly."
       });
       setSelectedHero(null);
     } catch (e: any) {
@@ -138,6 +144,14 @@ export default function YouthSquadPage() {
       })}
     </div>
   );
+
+  function LoadingScreen() {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">

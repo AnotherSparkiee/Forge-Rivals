@@ -1,21 +1,21 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, Loader2, Gavel, AlertCircle, RefreshCw, ShoppingCart, Users, ShieldCheck } from 'lucide-react';
+import { ChevronLeft, Loader2, Gavel, AlertCircle, RefreshCw, ShoppingCart, Users, ShieldCheck, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useDoc } from '@/firebase';
-import { collection, query, doc, arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, query, doc, arrayUnion, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function YouthTransfersPage() {
-  const { language, isLoaded: isStoreLoaded, credits } = useGameState();
+  const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
@@ -23,6 +23,7 @@ export default function YouthTransfersPage() {
   
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
+  // Получаем ВСЕ лоты рынка
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
@@ -47,16 +48,19 @@ export default function YouthTransfersPage() {
 
     setIsBidding(agent.id);
     try {
-      updateDocumentNonBlocking(doc(db, 'market_v2', agent.id), {
+      await updateDoc(doc(db, 'market_v2', agent.id), {
         currentBid: minNextBid,
         highestBidderId: user.uid,
         highestBidderName: profile?.displayName || "Anonymous Manager",
         bidders: arrayUnion(user.uid),
         updatedAt: serverTimestamp()
       });
+      
+      addCredits(-minNextBid);
+
       toast({ 
         title: language === 'ru' ? "Ставка на юниора принята!" : "Youth Bid Placed!",
-        description: language === 'ru' ? "Вы лидируете в торгах." : "You are the leading bidder."
+        description: language === 'ru' ? "Вы лидируете в торгах." : "You are now the leading bidder."
       });
     } catch (e) {
       console.error(e);
@@ -78,7 +82,7 @@ export default function YouthTransfersPage() {
     return (
       <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-6">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-        <h2 className="text-xl font-bold uppercase text-white">Academy Protocol Error</h2>
+        <h2 className="text-xl font-bold uppercase text-white">Academy Node Error</h2>
         <p className="text-[10px] text-muted-foreground uppercase px-10 font-black tracking-widest leading-relaxed">
           Access to youth archive restricted. Terminal re-synchronization required.
         </p>
@@ -89,17 +93,15 @@ export default function YouthTransfersPage() {
     );
   }
 
-  // Фильтруем юниоров локально
+  // Фильтруем: только те, у кого стоит флаг isYouth: true
   const youthAgents = agents?.filter(a => a.isYouth === true) || [];
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center gap-4">
-        <Link href="/youth-academy">
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
-        </Link>
+        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.push('/youth-academy')}>
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{t.title}</h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
@@ -119,15 +121,18 @@ export default function YouthTransfersPage() {
         {isMarketLoading ? (
           <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Synchronizing Bids...</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Retrieving Bids...</p>
           </div>
         ) : youthAgents.length > 0 ? (
           youthAgents.map((agent) => {
             const isLeading = agent.highestBidderId === user?.uid;
+            const isOwner = agent.sellerId === user?.uid;
+
             return (
               <Card key={agent.id} className={cn(
                 "glass-card border-white/5 overflow-hidden group transition-all",
-                isLeading ? "border-green-500/40 bg-green-500/5 ring-1 ring-green-500/20" : "hover:border-primary/30"
+                isLeading ? "border-green-500/40 bg-green-500/5 ring-1 ring-green-500/20" : "hover:border-primary/30",
+                isOwner && "border-blue-500/30 bg-blue-500/5"
               )}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4 mb-4">
@@ -136,7 +141,7 @@ export default function YouthTransfersPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-base font-bold uppercase truncate text-white tracking-tight">{agent.heroData?.name}</h3>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
                         <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase font-black bg-black/20">
                           {agent.heroData?.role}
                         </Badge>
@@ -147,6 +152,9 @@ export default function YouthTransfersPage() {
                           )}>
                             TOP: {agent.highestBidderName}
                           </span>
+                        )}
+                        {isOwner && (
+                          <Badge className="bg-blue-500 text-white text-[7px] font-black uppercase">MY JUNIOR</Badge>
                         )}
                       </div>
                     </div>
@@ -163,16 +171,18 @@ export default function YouthTransfersPage() {
                     </div>
                     <Button 
                       className={cn(
-                        "h-11 font-black text-[10px] px-8 shadow-xl active:scale-95 transition-all rounded-xl",
+                        "h-11 font-black text-[10px] px-6 shadow-xl active:scale-95 transition-all rounded-xl",
                         isLeading ? "bg-green-600 hover:bg-green-700 text-white" : "hero-gradient shadow-primary/20"
                       )}
                       onClick={() => handleBid(agent)} 
-                      disabled={!!isBidding || isLeading}
+                      disabled={!!isBidding || isLeading || isOwner}
                     >
                       {isBidding === agent.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : isLeading ? (
-                        <><ShieldCheck className="w-4 h-4 mr-2" /> LEADING BID</>
+                        <><ShieldCheck className="w-4 h-4 mr-2" /> LEADING</>
+                      ) : isOwner ? (
+                        'OWNED'
                       ) : (
                         <><Gavel className="w-4 h-4 mr-2" /> BID €{Math.ceil(agent.currentBid * 1.05).toLocaleString()}</>
                       )}
