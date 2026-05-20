@@ -16,8 +16,8 @@ import Link from 'next/link';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, query, doc, serverTimestamp, arrayUnion, arrayRemove, setDoc, updateDoc } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { collection, query, doc, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
 
 type AssocTab = 'menu' | 'all' | 'create' | 'my_assoc' | 'requests' | 'history';
 
@@ -146,9 +146,8 @@ export default function AssociationPage() {
         createdAt: serverTimestamp()
       };
 
-      // Прямая запись через SDK
-      await setDoc(assocRef, assocData);
-      await updateDoc(userRef!, { associationId: assocId });
+      setDocumentNonBlocking(assocRef, assocData, {});
+      updateDocumentNonBlocking(userRef!, { associationId: assocId });
       
       addCrystals(-500);
 
@@ -166,7 +165,7 @@ export default function AssociationPage() {
     if (!user || !profile || isProcessing) return;
     setIsProcessing(true);
     try {
-      await updateDoc(doc(db, 'associations_v1', assoc.id), {
+      updateDocumentNonBlocking(doc(db, 'associations_v1', assoc.id), {
         requests: arrayUnion({ uid: user.uid, name: profile.displayName || "Manager" })
       });
       toast({ title: language === 'ru' ? "Заявка отправлена" : "Request Sent" });
@@ -184,17 +183,17 @@ export default function AssociationPage() {
     try {
       const assocRef = doc(db, 'associations_v1', myAssoc.id);
       if (accept) {
-        await updateDoc(assocRef, {
+        updateDocumentNonBlocking(assocRef, {
           members: arrayUnion(applicant.uid),
           memberNames: arrayUnion(applicant.name),
           requests: arrayRemove(applicant)
         });
-        await updateDoc(doc(db, 'players_v5', applicant.uid), {
+        updateDocumentNonBlocking(doc(db, 'players_v5', applicant.uid), {
           associationId: myAssoc.id
         });
         toast({ title: `${applicant.name} accepted` });
       } else {
-        await updateDoc(assocRef, {
+        updateDocumentNonBlocking(assocRef, {
           requests: arrayRemove(applicant)
         });
         toast({ title: `${applicant.name} rejected` });

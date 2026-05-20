@@ -10,7 +10,7 @@ import {
   ChevronLeft, GraduationCap, User, Star, ArrowUpCircle,
   Info, TrendingUp, ShieldCheck, HeartPulse, Zap,
   Sword, Sparkles, Crosshair, Map, Eye, Target, Brain, Users,
-  ShoppingCart, Loader2, Coins, Award, Clock
+  ShoppingCart, Loader2, Coins, Award, Clock, AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -26,8 +26,8 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { doc } from 'firebase/firestore';
 
 export default function YouthSquadPage() {
   const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, updateHero } = useGameState();
@@ -102,7 +102,7 @@ export default function YouthSquadPage() {
         isYouth: true
       };
 
-      await setDoc(doc(db, 'market_v2', agentId), agentData);
+      setDocumentNonBlocking(doc(db, 'market_v2', agentId), agentData, {});
       
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
@@ -148,7 +148,7 @@ export default function YouthSquadPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2 text-primary">
-            <Users className="w-6 h-6 text-primary" />
+            <GraduationCap className="w-6 h-6 text-primary" />
             {t.title}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
@@ -207,129 +207,127 @@ export default function YouthSquadPage() {
 
       <Dialog open={!!selectedHero} onOpenChange={() => setSelectedHero(null)}>
         <DialogPortal>
-          <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none flex flex-col rounded-none sm:rounded-none overflow-hidden outline-none translate-x-0 translate-y-0 top-0 left-0 animate-in fade-in zoom-in duration-300">
-            {selectedHero && (
-              <>
-                <DialogHeader className="p-4 pt-12 pb-0 text-center">
-                  <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{selectedHero.name}</DialogTitle>
-                  <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">Detailed player profile and statistics</DialogDescription>
-                </DialogHeader>
+          {selectedHero && (
+            <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none flex flex-col rounded-none sm:rounded-none overflow-hidden outline-none translate-x-0 translate-y-0 top-0 left-0 animate-in fade-in zoom-in duration-300">
+              <DialogHeader className="p-4 pt-12 pb-0 text-center">
+                <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{selectedHero.name}</DialogTitle>
+                <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">Detailed player profile and statistics</DialogDescription>
+              </DialogHeader>
 
-                <div className="flex-1 overflow-y-auto scrollbar-hide">
-                  <div className="p-4 py-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 flex flex-col items-center text-center gap-4">
-                    <div className="relative">
-                      <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-[0_0_30px_rgba(var(--primary),0.3)] bg-secondary/50">
-                        <img src={selectedHero.image} alt={selectedHero.name} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl">
-                        <span className="text-base">{selectedHero.country?.flag || '🏳️'}</span>
-                      </div>
+              <div className="flex-1 overflow-y-auto scrollbar-hide">
+                <div className="p-4 py-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 flex flex-col items-center text-center gap-4">
+                  <div className="relative">
+                    <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-[0_0_30px_rgba(var(--primary),0.3)] bg-secondary/50">
+                      <img src={selectedHero.image} alt={selectedHero.name} className="w-full h-full object-cover" />
                     </div>
-                    
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-center gap-2">
-                        <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{selectedHero.role}</Badge>
-                        {selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil) > new Date() && (
-                          <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5 flex gap-1 items-center">
-                            <Clock className="w-3 h-3" /> ON AUCTION
-                          </Badge>
-                        )}
-                      </div>
+                    <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl">
+                      <span className="text-base">{selectedHero.country?.flag || '🏳️'}</span>
                     </div>
-
-                    <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto">
-                      <div className="bg-background/40 p-3 rounded-xl border border-white/10">
-                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p>
-                        <p className="text-xl font-headline font-bold text-accent italic leading-none">{selectedHero.overallRating}</p>
-                      </div>
-                      <div className="bg-background/40 p-3 rounded-xl border border-white/10">
-                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.age}</p>
-                        <p className="text-xl font-headline font-bold text-primary italic leading-none">
-                          {calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).display}
-                        </p>
-                      </div>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-center gap-2">
+                      <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{selectedHero.role}</Badge>
+                      {selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil) > new Date() && (
+                        <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5 flex gap-1 items-center">
+                          <Clock className="w-3 h-3" /> ON AUCTION
+                        </Badge>
+                      )}
                     </div>
                   </div>
 
-                  <div className="p-4 space-y-8 pb-32">
-                    <section className="space-y-3">
-                      <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                        <Coins className="w-3.5 h-3.5" /> MARKET ACTIONS
-                      </h3>
-                      <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 flex gap-3">
-                         <Info className="w-4 h-4 text-primary shrink-0" />
-                         <p className="text-[9px] text-muted-foreground leading-tight italic">{t.transferDesc}</p>
-                       </div>
-                       <Button 
-                         variant="outline" 
-                         className="w-full h-12 border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary group" 
-                         onClick={handleTransfer}
-                         disabled={isTransferring || (selectedHero.onTransferUntil !== null && new Date(selectedHero.onTransferUntil) > new Date())}
-                       >
-                         {isTransferring ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-3" />}
-                         <span className="text-[9px] font-black uppercase tracking-widest">
-                           {selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil) > new Date() ? 'ACTIVE AUCTION' : t.onTransfer}
-                         </span>
-                       </Button>
-                    </section>
+                  <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto">
+                    <div className="bg-background/40 p-3 rounded-xl border border-white/10">
+                      <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p>
+                      <p className="text-xl font-headline font-bold text-accent italic leading-none">{selectedHero.overallRating}</p>
+                    </div>
+                    <div className="bg-background/40 p-3 rounded-xl border border-white/10">
+                      <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.age}</p>
+                      <p className="text-xl font-headline font-bold text-primary italic leading-none">
+                        {calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).display}
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
-                    <section>
-                      <h3 className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                        <Award className="w-3.5 h-3.5" /> {t.stats}
-                      </h3>
-                      <div className="space-y-5">
-                        {Object.entries(selectedHero.proStats).map(([key, value]) => {
-                          const talent = selectedHero.proTalents ? (selectedHero.proTalents as any)[key] : 3.0;
-                          const icons: Record<string, any> = {
-                            lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
-                            manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
-                            tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
-                          };
-                          const Icon = icons[key] || Info;
-                          return (
-                            <div key={key} className="space-y-2 bg-secondary/10 p-3 rounded-xl border border-white/5">
-                              <div className="flex justify-between items-center px-0.5">
-                                <div className="flex items-center gap-2">
-                                  <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
-                                  <span className="text-[10px] font-bold uppercase tracking-widest">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
-                                </div>
-                                <div className="flex flex-col items-end">
-                                  <span className="text-[10px] font-mono font-bold text-primary">{value} / 100</span>
-                                  {renderStars(talent)}
-                                </div>
+                <div className="p-4 space-y-8 pb-32">
+                  <section className="space-y-3">
+                    <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                      <Coins className="w-3.5 h-3.5" /> MARKET ACTIONS
+                    </h3>
+                    <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 flex gap-3">
+                       <Info className="w-4 h-4 text-primary shrink-0" />
+                       <p className="text-[9px] text-muted-foreground leading-tight italic">{t.transferDesc}</p>
+                     </div>
+                     <Button 
+                       variant="outline" 
+                       className="w-full h-12 border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary group" 
+                       onClick={handleTransfer}
+                       disabled={isTransferring || (selectedHero.onTransferUntil !== null && new Date(selectedHero.onTransferUntil) > new Date())}
+                     >
+                       {isTransferring ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-3" />}
+                       <span className="text-[9px] font-black uppercase tracking-widest">
+                         {selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil) > new Date() ? 'ACTIVE AUCTION' : t.onTransfer}
+                       </span>
+                     </Button>
+                  </section>
+
+                  <section>
+                    <h3 className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                      <Award className="w-3.5 h-3.5" /> {t.stats}
+                    </h3>
+                    <div className="space-y-5">
+                      {Object.entries(selectedHero.proStats).map(([key, value]) => {
+                        const talent = selectedHero.proTalents ? (selectedHero.proTalents as any)[key] : 3.0;
+                        const icons: Record<string, any> = {
+                          lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
+                          manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
+                          tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
+                        };
+                        const Icon = icons[key] || Info;
+                        return (
+                          <div key={key} className="space-y-2 bg-secondary/10 p-3 rounded-xl border border-white/5">
+                            <div className="flex justify-between items-center px-0.5">
+                              <div className="flex items-center gap-2">
+                                <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                               </div>
-                              <Progress value={value} className="h-1 rounded-full bg-secondary/40" />
+                              <div className="flex flex-col items-end">
+                                <span className="text-[10px] font-mono font-bold text-primary">{value} / 100</span>
+                                {renderStars(talent)}
+                              </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </section>
-                  </div>
+                            <Progress value={value} className="h-1 rounded-full bg-secondary/40" />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
                 </div>
+              </div>
 
-                <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-12 flex-shrink-0 z-[110] flex flex-col gap-2">
-                  <Button 
-                    className={cn(
-                      "w-full h-14 font-black text-[11px] tracking-[0.2em] shadow-xl rounded-xl active:scale-95 transition-all uppercase",
-                      (calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 && !selectedHero.onTransferUntil) ? "hero-gradient" : "bg-secondary/50 border border-white/5 text-muted-foreground cursor-not-allowed"
-                    )}
-                    disabled={calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric < 18 || !!selectedHero.onTransferUntil}
-                    onClick={() => handlePromote(selectedHero.id)}
-                  >
-                    <ArrowUpCircle className="w-4 h-4 mr-2" />
-                    {selectedHero.onTransferUntil ? 'ON AUCTION' : (calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 ? t.promote : t.notReady)}
-                  </Button>
-                  <Button 
-                    variant="ghost"
-                    className="w-full h-12 text-[9px] font-bold tracking-widest text-muted-foreground uppercase"
-                    onClick={() => setSelectedHero(null)}
-                  >
-                    {language === 'ru' ? 'ВЕРНУТЬСЯ' : 'BACK'}
-                  </Button>
-                </div>
-              </>
-            )}
-          </DialogContent>
+              <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-12 flex-shrink-0 z-[110] flex flex-col gap-2">
+                <Button 
+                  className={cn(
+                    "w-full h-14 font-black text-[11px] tracking-[0.2em] shadow-xl rounded-xl active:scale-95 transition-all uppercase",
+                    (calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 && !selectedHero.onTransferUntil) ? "hero-gradient" : "bg-secondary/50 border border-white/5 text-muted-foreground cursor-not-allowed"
+                  )}
+                  disabled={calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric < 18 || !!selectedHero.onTransferUntil}
+                  onClick={() => handlePromote(selectedHero.id)}
+                >
+                  <ArrowUpCircle className="w-4 h-4 mr-2" />
+                  {selectedHero.onTransferUntil ? 'ON AUCTION' : (calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 ? t.promote : t.notReady)}
+                </Button>
+                <Button 
+                  variant="ghost"
+                  className="w-full h-12 text-[9px] font-bold tracking-widest text-muted-foreground uppercase"
+                  onClick={() => setSelectedHero(null)}
+                >
+                  {language === 'ru' ? 'ВЕРНУТЬСЯ' : 'BACK'}
+                </Button>
+              </div>
+            </DialogContent>
+          )}
         </DialogPortal>
       </Dialog>
     </div>

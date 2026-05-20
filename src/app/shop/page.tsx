@@ -162,8 +162,7 @@ export default function ShopPage() {
       const ageVal = parseInt(heroAge);
       const country = COUNTRIES.find(c => c.code === heroCountryCode) || COUNTRIES[0];
 
-      // Generate base stats based on talent
-      const baseStatAvg = 40 + (talentVal * 10);
+      // Generate stats based on talent
       const proStatAvg = Math.round(talentVal * 18);
 
       const newHero: Hero = {
@@ -171,11 +170,7 @@ export default function ShopPage() {
         name: heroNickname.trim(),
         role: heroRole,
         baseStats: {
-          attack: heroRole === 'Carry' || heroRole === 'Jungler' ? baseStatAvg + 15 : baseStatAvg - 10,
-          defense: heroRole === 'Tank' ? baseStatAvg + 20 : baseStatAvg - 5,
-          health: heroRole === 'Tank' ? 1400 : 850,
-          abilityPower: heroRole === 'Midlaner' || heroRole === 'Support' ? baseStatAvg + 15 : 10,
-          speed: 320
+          attack: 50, defense: 50, health: 1000, abilityPower: 50, speed: 320
         },
         overallRating: Math.round(proStatAvg * 0.8),
         abilitiesFocus: 'Balanced',
@@ -207,7 +202,6 @@ export default function ShopPage() {
         }
       };
 
-      // Atomic cost deduction and hero addition in store
       addCrystals(-creationCost);
       addYouthHeroDirectly(newHero);
       
@@ -344,7 +338,7 @@ export default function ShopPage() {
                      </SelectTrigger>
                      <SelectContent className="bg-card border-white/10">
                        {[14, 15, 16, 17, 18, 19, 20, 21, 22, 25, 28].map(age => (
-                         <SelectItem key={age} value={age.toString()} className="text-xs uppercase font-bold">{age} {t.creator.age === 'Возраст' ? 'лет' : 'years'}</SelectItem>
+                         <SelectItem key={age} value={age.toString()} className="text-xs uppercase font-bold">{age} {language === 'ru' ? 'лет' : 'years'}</SelectItem>
                        ))}
                      </SelectContent>
                    </Select>
@@ -422,7 +416,7 @@ export default function ShopPage() {
               <Input 
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder={newName || "Enter name..."}
+                placeholder={currentCountry || "Enter name..."}
                 className="h-12 bg-background/50 border-white/10 text-white focus-visible:ring-accent"
                 maxLength={20}
               />
