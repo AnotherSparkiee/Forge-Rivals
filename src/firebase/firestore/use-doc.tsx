@@ -19,7 +19,7 @@ export interface UseDocResult<T> {
 
 /**
  * Hook for subscribing to a single Firestore document.
- * Refactored to avoid custom error classes that poll the SDK during construction.
+ * Refactored to decouple SDK reads from React re-renders to avoid ca9 assertion crashes.
  */
 export function useDoc<T = any>(
   memoizedDocRef: DocumentReference<DocumentData> | null | undefined,
@@ -39,26 +39,40 @@ export function useDoc<T = any>(
     setIsLoading(true);
     setError(null);
 
-    const unsubscribe = onSnapshot(
-      memoizedDocRef,
-      (snapshot: DocumentSnapshot<DocumentData>) => {
-        if (snapshot.exists()) {
-          setData({ ...(snapshot.data() as T), id: snapshot.id });
-        } else {
-          setData(null);
-        }
-        setError(null); 
-        setIsLoading(false);
-      },
-      (fError: FirestoreError) => {
-        console.error("Firestore Doc Stream Error:", fError.code, fError.message);
-        setError(fError);
-        setData(null);
-        setIsLoading(false);
-      }
-    );
+    let active = true;
 
-    return () => unsubscribe();
+    try {
+      const unsubscribe = onSnapshot(
+        memoizedDocRef,
+        (snapshot: DocumentSnapshot<DocumentData>) => {
+          if (!active) return;
+          if (snapshot.exists()) {
+            setData({ ...(snapshot.data() as T), id: snapshot.id });
+          } else {
+            setData(null);
+          }
+          setError(null); 
+          setIsLoading(false);
+        },
+        (fError: FirestoreError) => {
+          if (!active) return;
+          console.warn("Firestore Doc Stream Error:", fError.code, fError.message);
+          setError(fError);
+          setData(null);
+          setIsLoading(false);
+        }
+      );
+
+      return () => {
+        active = false;
+        unsubscribe();
+      };
+    } catch (e: any) {
+      console.error("Critical doc hook setup error:", e.message);
+      setError(e);
+      setIsLoading(false);
+      return;
+    }
   }, [memoizedDocRef]);
 
   return { data, isLoading, error };

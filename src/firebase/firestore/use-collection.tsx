@@ -21,7 +21,7 @@ export interface UseCollectionResult<T> {
 /**
  * Hook for subscribing to Firestore collections.
  * Optimized for stability with Firestore 11.9.0.
- * Ensures internal SDK state is not corrupted by improper property access.
+ * Decouples updates from the internal SDK task queue to avoid assertion errors.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
@@ -43,33 +43,41 @@ export function useCollection<T = any>(
 
     let active = true;
 
-    const unsubscribe = onSnapshot(
-      memoizedTargetRefOrQuery,
-      (snapshot: QuerySnapshot<DocumentData>) => {
-        if (!active) return;
-        
-        const results: WithId<T>[] = [];
-        snapshot.forEach((doc) => {
-          results.push({ ...(doc.data() as T), id: doc.id });
-        });
-        
-        setData(results);
-        setError(null);
-        setIsLoading(false);
-      },
-      (fError: FirestoreError) => {
-        if (!active) return;
-        // Return the error object directly. Do not access internal SDK properties.
-        setError(fError);
-        setData(null);
-        setIsLoading(false);
-      }
-    );
+    // Use a try-catch for immediate initialization errors
+    try {
+      const unsubscribe = onSnapshot(
+        memoizedTargetRefOrQuery,
+        (snapshot: QuerySnapshot<DocumentData>) => {
+          if (!active) return;
+          
+          const results: WithId<T>[] = [];
+          snapshot.forEach((doc) => {
+            results.push({ ...(doc.data() as T), id: doc.id });
+          });
+          
+          setData(results);
+          setError(null);
+          setIsLoading(false);
+        },
+        (fError: FirestoreError) => {
+          if (!active) return;
+          console.warn("Firestore Collection Stream Error:", fError.code, fError.message);
+          setError(fError);
+          setData(null);
+          setIsLoading(false);
+        }
+      );
 
-    return () => {
-      active = false;
-      unsubscribe();
-    };
+      return () => {
+        active = false;
+        unsubscribe();
+      };
+    } catch (e: any) {
+      console.error("Critical hook setup error:", e.message);
+      setError(e);
+      setIsLoading(false);
+      return;
+    }
   }, [memoizedTargetRefOrQuery]);
 
   return { data, isLoading, error };

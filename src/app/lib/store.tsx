@@ -307,6 +307,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return user ? `lote_v1_${user.uid}` : null;
   }, [user]);
 
+  // Decoupled side effect runner to avoid Firestore SDK ca9 assertion errors
+  const runCloudUpdate = useCallback((data: any) => {
+    if (!user) return;
+    setTimeout(() => {
+      updateDoc(doc(db, 'players_v5', user.uid), data)
+        .catch(e => console.warn("Cloud update failed (handled):", e.message));
+    }, 0);
+  }, [user, db]);
+
   useEffect(() => {
     if (isUserLoading) {
       setIsLoaded(false);
@@ -404,17 +413,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const newHero = generateYouthHero(state.youthAcademyHeroes.length);
         const updatedAcademy = [...state.youthAcademyHeroes, newHero];
         
-        // Side effect outside of state cycle
-        setTimeout(() => {
-          updateDoc(doc(db, 'players_v5', user.uid), {
-            youthAcademyHeroes: sanitizeForFirestore(updatedAcademy),
-            lastYouthArrivalDay: seasonDay,
-            lastYouthArrivalSeason: seasonNumber
-          }).catch(e => console.error("Youth check update failed", e));
-        }, 0);
+        runCloudUpdate({
+          youthAcademyHeroes: sanitizeForFirestore(updatedAcademy),
+          lastYouthArrivalDay: seasonDay,
+          lastYouthArrivalSeason: seasonNumber
+        });
       }
     }
-  }, [isLoaded, user, state.seasonDay, state.seasonNumber, state.lastYouthArrivalDay, state.lastYouthArrivalSeason, state.youthAcademyHeroes, db]);
+  }, [isLoaded, user, state.seasonDay, state.seasonNumber, state.lastYouthArrivalDay, state.lastYouthArrivalSeason, state.youthAcademyHeroes, runCloudUpdate]);
 
   useEffect(() => {
     const key = getStorageKey();
@@ -455,18 +461,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const results = sanitizeForFirestore({ lastRank: myPos, lastPoints: lastSeasonTeams.find(t => t.id === user.uid)?.points || 0, promoted, demoted, seasonNumber: state.lastProcessedSeason, awardedTrophy });
       lastSyncRef.current = { season: globalSeason, day: completedDays, leagueId: state.selectedLeagueId };
       
-      setTimeout(() => {
-        updateDoc(doc(db, 'players_v5', user.uid), { 
-          leagueLevel: newLevel, 
-          wins: 0, draws: 0, losses: 0, points: 0, 
-          lastProcessedSeason: globalSeason, 
-          lastLeagueMatchDate: null, 
-          lastCupMatchDate: null, 
-          lastSeenMatchDay: 0, 
-          seasonResults: results, 
-          hasEliteTrophy: awardedTrophy || state.hasEliteTrophy 
-        }).catch(e => console.error("Season sync failed", e));
-      }, 0);
+      runCloudUpdate({ 
+        leagueLevel: newLevel, 
+        wins: 0, draws: 0, losses: 0, points: 0, 
+        lastProcessedSeason: globalSeason, 
+        lastLeagueMatchDate: null, 
+        lastCupMatchDate: null, 
+        lastSeenMatchDay: 0, 
+        seasonResults: results, 
+        hasEliteTrophy: awardedTrophy || state.hasEliteTrophy 
+      });
       return; 
     }
 
@@ -478,58 +482,53 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
     if (Number(myDocInSnapshot.wins) !== Number(myTeam.wins) || Number(myDocInSnapshot.points) !== Number(myTeam.points) || state.lastProcessedSeason !== globalSeason) {
       lastSyncRef.current = { season: globalSeason, day: completedDays, leagueId: state.selectedLeagueId };
-      setTimeout(() => {
-        updateDoc(doc(db, 'players_v5', user.uid), { 
-          wins: Number(myTeam.wins || 0), 
-          draws: Number(myTeam.draws || 0), 
-          losses: Number(myTeam.losses || 0), 
-          points: Number(myTeam.points || 0), 
-          lastProcessedSeason: globalSeason 
-        }).catch(e => console.error("Daily stats sync failed", e));
-      }, 0);
+      runCloudUpdate({ 
+        wins: Number(myTeam.wins || 0), 
+        draws: Number(myTeam.draws || 0), 
+        losses: Number(myTeam.losses || 0), 
+        points: Number(myTeam.points || 0), 
+        lastProcessedSeason: globalSeason 
+      });
     }
-  }, [state.selectedLeagueId, state.seasonDay, state.lastLeagueMatchDate, state.rank, state.leagueLevel, state.divisionSubId, state.groupId, state.lastProcessedSeason, state.hasEliteTrophy, state.country, user, db]);
+  }, [state.selectedLeagueId, state.seasonDay, state.lastLeagueMatchDate, state.rank, state.leagueLevel, state.divisionSubId, state.groupId, state.lastProcessedSeason, state.hasEliteTrophy, state.country, user, runCloudUpdate]);
 
   const addCredits = useCallback((amount: number) => {
+    let newVal = 0;
     setState(s => {
-      const newVal = s.credits + amount;
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: newVal }).catch(e => console.error("Add credits failed", e));
-      }, 0);
+      newVal = s.credits + amount;
       return { ...s, credits: newVal };
     });
-  }, [user, db]);
+    runCloudUpdate({ inGameCurrency: newVal });
+  }, [runCloudUpdate]);
 
   const addCrystals = useCallback((amount: number) => {
+    let newVal = 0;
     setState(s => {
-      const newVal = s.crystals + amount;
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { crystals: newVal }).catch(e => console.error("Add crystals failed", e));
-      }, 0);
+      newVal = s.crystals + amount;
       return { ...s, crystals: newVal };
     });
-  }, [user, db]);
+    runCloudUpdate({ crystals: newVal });
+  }, [runCloudUpdate]);
 
   const claimReward = useCallback((creditsReward: number, crystalsReward: number) => {
     const today = getMoscowDateString();
+    let nCredits = 0, nCrystals = 0, nDay = 1;
     setState(s => {
       if (s.lastRewardClaimDate === today) return s;
-      const newCredits = s.credits + creditsReward; 
-      const newCrystals = s.crystals + crystalsReward;
-      const nextRewardDay = s.rewardDay >= 30 ? 1 : s.rewardDay + 1;
-      
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { 
-          inGameCurrency: newCredits, 
-          crystals: newCrystals, 
-          lastRewardClaimDate: today, 
-          rewardDay: nextRewardDay 
-        }).catch(e => console.error("Claim reward sync failed", e));
-      }, 0);
-      
-      return { ...s, credits: newCredits, crystals: newCrystals, lastRewardClaimDate: today, rewardDay: nextRewardDay };
+      nCredits = s.credits + creditsReward; 
+      nCrystals = s.crystals + crystalsReward;
+      nDay = s.rewardDay >= 30 ? 1 : s.rewardDay + 1;
+      return { ...s, credits: nCredits, crystals: nCrystals, lastRewardClaimDate: today, rewardDay: nDay };
     });
-  }, [user, db]);
+    if (nCredits > 0) {
+      runCloudUpdate({ 
+        inGameCurrency: nCredits, 
+        crystals: nCrystals, 
+        lastRewardClaimDate: today, 
+        rewardDay: nDay 
+      });
+    }
+  }, [runCloudUpdate]);
 
   const startArenaConstruction = useCallback((facility: any, cost: number) => {
     let result = false;
@@ -538,15 +537,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const hours = 4 * ((s.arena as any)[facility] + 1); const startTime = new Date(); const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true; const newCredits = s.credits - cost;
         const newArena = { ...s.arena, constructionStarts: { ...s.arena.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, [facility]: finishTime.toISOString() } };
-        setTimeout(() => {
-          if (user) updateDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: newCredits, arena: sanitizeForFirestore(newArena) }).catch(e => console.error("Arena construction failed", e));
-        }, 0);
+        runCloudUpdate({ inGameCurrency: newCredits, arena: sanitizeForFirestore(newArena) });
         return { ...s, credits: newCredits, arena: newArena };
       }
       return s;
     });
     return result;
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const startHQConstruction = useCallback((facility: any, cost: number) => {
     let result = false;
@@ -555,15 +552,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const hours = 4 * ((s.hq as any)[facility] + 1); const startTime = new Date(); const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true; const newCredits = s.credits - cost;
         const newHQ = { ...s.hq, constructionStarts: { ...s.hq.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.hq.constructionFinishes, [facility]: finishTime.toISOString() } };
-        setTimeout(() => {
-          if (user) updateDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: newCredits, hq: sanitizeForFirestore(newHQ) }).catch(e => console.error("HQ construction failed", e));
-        }, 0);
+        runCloudUpdate({ inGameCurrency: newCredits, hq: sanitizeForFirestore(newHQ) });
         return { ...s, credits: newCredits, hq: newHQ };
       }
       return s;
     });
     return result;
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const startBootcampConstruction = useCallback((facility: any, cost: number) => {
     let result = false;
@@ -572,15 +567,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const hours = 4 * ((s.bootcamp as any)[facility] + 1); const startTime = new Date(); const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true; const newCredits = s.credits - cost;
         const newBootcamp = { ...s.bootcamp, constructionStarts: { ...s.bootcamp.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.bootcamp.constructionFinishes, [facility]: finishTime.toISOString() } };
-        setTimeout(() => {
-          if (user) updateDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: newCredits, bootcamp: sanitizeForFirestore(newBootcamp) }).catch(e => console.error("Bootcamp construction failed", e));
-        }, 0);
+        runCloudUpdate({ inGameCurrency: newCredits, bootcamp: sanitizeForFirestore(newBootcamp) });
         return { ...s, credits: newCredits, bootcamp: newBootcamp };
       }
       return s;
     });
     return result;
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const startAcademyConstruction = useCallback((facility: any, cost: number) => {
     let result = false;
@@ -589,15 +582,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const hours = 4 * ((s.academy as any)[facility] + 1); const startTime = new Date(); const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true; const newCredits = s.credits - cost;
         const newAcademy = { ...s.academy, constructionStarts: { ...s.academy.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.academy.constructionFinishes, [facility]: finishTime.toISOString() } };
-        setTimeout(() => {
-          if (user) updateDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: newCredits, academy: sanitizeForFirestore(newAcademy) }).catch(e => console.error("Academy construction failed", e));
-        }, 0);
+        runCloudUpdate({ inGameCurrency: newCredits, academy: sanitizeForFirestore(newAcademy) });
         return { ...s, credits: newCredits, academy: newAcademy };
       }
       return s;
     });
     return result;
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const startMedicalConstruction = useCallback((facility: any, cost: number) => {
     let result = false;
@@ -606,15 +597,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const hours = 4 * ((s.medical as any)[facility] + 1); const startTime = new Date(); const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true; const newCredits = s.credits - cost;
         const newMedical = { ...s.medical, constructionStarts: { ...s.medical.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.medical.constructionFinishes, [facility]: finishTime.toISOString() } };
-        setTimeout(() => {
-          if (user) updateDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: newCredits, medical: sanitizeForFirestore(newMedical) }).catch(e => console.error("Medical construction failed", e));
-        }, 0);
+        runCloudUpdate({ inGameCurrency: newCredits, medical: sanitizeForFirestore(newMedical) });
         return { ...s, credits: newCredits, medical: newMedical };
       }
       return s;
     });
     return result;
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const startCapacityExpansion = useCallback((seats: number, cost: number, hours: number) => {
     let result = false;
@@ -623,26 +612,23 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const startTime = new Date(); const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true; const newCredits = s.credits - cost;
         const newArena = { ...s.arena, pendingCapacitySeats: seats, constructionStarts: { ...s.arena.constructionStarts, capacity: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, capacity: finishTime.toISOString() } };
-        setTimeout(() => {
-          if (user) updateDoc(doc(db, 'players_v5', user.uid), { inGameCurrency: newCredits, arena: sanitizeForFirestore(newArena) }).catch(e => console.error("Capacity expansion sync failed", e));
-        }, 0);
+        runCloudUpdate({ inGameCurrency: newCredits, arena: sanitizeForFirestore(newArena) });
         return { ...s, credits: newCredits, arena: newArena };
       }
       return s;
     });
     return result;
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const hireStaffMember = useCallback((member: StaffMember) => {
+    let updatedStaff, newCredits;
     setState(s => {
-      const updatedStaff = { ...s.staff, [member.role]: member };
-      const newCredits = s.credits - (member.salary / 2);
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { staff: sanitizeForFirestore(updatedStaff), inGameCurrency: newCredits }).catch(e => console.error("Hire staff failed", e));
-      }, 0);
+      updatedStaff = { ...s.staff, [member.role]: member };
+      newCredits = s.credits - (member.salary / 2);
       return { ...s, staff: updatedStaff, credits: newCredits };
     });
-  }, [user, db]);
+    runCloudUpdate({ staff: sanitizeForFirestore(updatedStaff), inGameCurrency: newCredits });
+  }, [runCloudUpdate]);
 
   const trainStaffSkill = useCallback((role: StaffRole, skillKey: 'primary' | 'secondary', cost: number) => {
     let success = false;
@@ -656,13 +642,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const updatedStaff = { ...s.staff, [role]: newMember };
       const newCrystals = s.crystals - cost;
       success = true;
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { staff: sanitizeForFirestore(updatedStaff), crystals: newCrystals }).catch(e => console.error("Train staff failed", e));
-      }, 0);
+      runCloudUpdate({ staff: sanitizeForFirestore(updatedStaff), crystals: newCrystals });
       return { ...s, staff: updatedStaff, crystals: newCrystals };
     });
     return success;
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const checkConstructions = useCallback(() => {
     setState(s => {
@@ -681,20 +665,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       };
       if (!hasChanges) return s;
       const newState = { ...s, arena: processSector(s.arena), hq: processSector(s.hq), bootcamp: processSector(s.bootcamp), academy: processSector(s.academy), medical: processSector(s.medical) };
-      setTimeout(() => {
-        if (user) {
-          updateDoc(doc(db, 'players_v5', user.uid), {
-            arena: sanitizeForFirestore(newState.arena),
-            hq: sanitizeForFirestore(newState.hq),
-            bootcamp: sanitizeForFirestore(newState.bootcamp),
-            academy: sanitizeForFirestore(newState.academy),
-            medical: sanitizeForFirestore(newState.medical)
-          }).catch(e => console.warn("Construction auto-claim cloud sync failed", e));
-        }
-      }, 0);
+      runCloudUpdate({
+        arena: sanitizeForFirestore(newState.arena),
+        hq: sanitizeForFirestore(newState.hq),
+        bootcamp: sanitizeForFirestore(newState.bootcamp),
+        academy: sanitizeForFirestore(newState.academy),
+        medical: sanitizeForFirestore(newState.medical)
+      });
       return newState;
     });
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const setLanguage = useCallback((lang: 'en' | 'ru') => setState(s => ({ ...s, language: lang })), []);
   
@@ -703,51 +683,43 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const newLineup = { ...s.lineup };
       if (heroId) { Object.keys(newLineup).forEach(k => { if (newLineup[k as LineupSlot] === heroId) newLineup[k as LineupSlot] = null; }); }
       newLineup[slot] = heroId; 
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { lineup: newLineup }).catch(e => console.error("Lineup update failed", e));
-      }, 0);
+      runCloudUpdate({ lineup: newLineup });
       const uniqueHeroIds = Array.from(new Set(Object.values(newLineup).filter(id => id !== null)));
       return { ...s, lineup: newLineup, team: s.ownedHeroes.filter(h => uniqueHeroIds.includes(h.id)), isSyncing: false };
     });
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const updateTactics = useCallback((strategy: string, lineSettings: { carry: string; mid: string; offlane: string }) => {
     setState(s => {
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { strategy, lineSettings }).catch(e => console.error("Tactics sync failed", e));
-      }, 0);
+      runCloudUpdate({ strategy, lineSettings });
       return { ...s, strategy, lineSettings, isSyncing: false };
     });
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const setTrainingFocus = useCallback((heroId: string, skillKey: string | null) => {
     setState(s => {
       const updatedOwned = s.ownedHeroes.map(h => h.id === heroId ? { ...h, trainingFocus: skillKey } : h);
       const updatedYouth = s.youthAcademyHeroes.map(h => h.id === heroId ? { ...h, trainingFocus: skillKey } : h);
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { 
-          ownedHeroes: sanitizeForFirestore(updatedOwned), 
-          youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
-        }).catch(e => console.error("Training focus sync failed", e));
-      }, 0);
+      runCloudUpdate({ 
+        ownedHeroes: sanitizeForFirestore(updatedOwned), 
+        youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
+      });
       return { ...s, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth };
     });
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const startDailyHeroTraining = useCallback((heroId: string, skillKey: string) => {
     setState(s => {
       const finishTime = new Date(Date.now() + 24 * 3600000).toISOString();
       const updatedOwned = s.ownedHeroes.map(h => h.id === heroId ? { ...h, dailyTrainingFocus: skillKey, dailyTrainingFinishTime: finishTime } : h);
       const updatedYouth = s.youthAcademyHeroes.map(h => h.id === heroId ? { ...h, dailyTrainingFocus: skillKey, dailyTrainingFinishTime: finishTime } : h);
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { 
-          ownedHeroes: sanitizeForFirestore(updatedOwned), 
-          youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
-        }).catch(e => console.error("Start daily training sync failed", e));
-      }, 0);
+      runCloudUpdate({ 
+        ownedHeroes: sanitizeForFirestore(updatedOwned), 
+        youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
+      });
       return { ...s, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth };
     });
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const claimDailyHeroTraining = useCallback((heroId: string) => {
     setState(s => {
@@ -765,15 +737,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       };
       const updatedOwned = s.ownedHeroes.map(processHero); 
       const updatedYouth = s.youthAcademyHeroes.map(processHero);
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { 
-          ownedHeroes: sanitizeForFirestore(updatedOwned), 
-          youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
-        }).catch(e => console.error("Claim training sync failed", e));
-      }, 0);
+      runCloudUpdate({ 
+        ownedHeroes: sanitizeForFirestore(updatedOwned), 
+        youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
+      });
       return { ...s, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth };
     });
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const updateHero = useCallback((heroId: string, updates: Partial<Hero>, creditCost = 0, crystalCost = 0) => {
     setState(s => {
@@ -782,17 +752,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const updatedYouth = s.youthAcademyHeroes.map(h => h.id === heroId ? { ...h, ...updates } : h);
       const newCredits = s.credits - creditCost;
       const newCrystals = s.crystals - crystalCost;
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { 
-          ownedHeroes: sanitizeForFirestore(updatedOwned), 
-          youthAcademyHeroes: sanitizeForFirestore(updatedYouth), 
-          inGameCurrency: newCredits, 
-          crystals: newCrystals 
-        }).catch(e => console.error("Update hero sync failed", e));
-      }, 0);
+      runCloudUpdate({ 
+        ownedHeroes: sanitizeForFirestore(updatedOwned), 
+        youthAcademyHeroes: sanitizeForFirestore(updatedYouth), 
+        inGameCurrency: newCredits, 
+        crystals: newCrystals 
+      });
       return { ...s, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth, credits: newCredits, crystals: newCrystals };
     });
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const promoteYouthPlayer = useCallback((heroId: string) => {
     setState(s => {
@@ -800,15 +768,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       if (!hero) return s;
       const newAcademy = s.youthAcademyHeroes.filter(h => h.id !== heroId);
       const newOwned = [...s.ownedHeroes, hero];
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { 
-          youthAcademyHeroes: sanitizeForFirestore(newAcademy), 
-          ownedHeroes: sanitizeForFirestore(newOwned) 
-        }).catch(e => console.error("Promote player sync failed", e));
-      }, 0);
+      runCloudUpdate({ 
+        youthAcademyHeroes: sanitizeForFirestore(newAcademy), 
+        ownedHeroes: sanitizeForFirestore(newOwned) 
+      });
       return { ...s, youthAcademyHeroes: newAcademy, ownedHeroes: newOwned };
     });
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const removeHero = useCallback((heroId: string, sellCreditAmount = 0) => {
     setState(s => {
@@ -817,17 +783,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const newLineup = { ...s.lineup };
       Object.keys(newLineup).forEach(k => { if (newLineup[k as LineupSlot] === heroId) newLineup[k as LineupSlot] = null; });
       const newCredits = s.credits + sellCreditAmount;
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { 
-          ownedHeroes: sanitizeForFirestore(updatedOwned), 
-          youthAcademyHeroes: sanitizeForFirestore(updatedYouth), 
-          lineup: newLineup, 
-          inGameCurrency: newCredits 
-        }).catch(e => console.error("Remove hero sync failed", e));
-      }, 0);
+      runCloudUpdate({ 
+        ownedHeroes: sanitizeForFirestore(updatedOwned), 
+        youthAcademyHeroes: sanitizeForFirestore(updatedYouth), 
+        lineup: newLineup, 
+        inGameCurrency: newCredits 
+      });
       return { ...s, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth, lineup: newLineup, credits: newCredits };
     });
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const recoverAllFatigue = useCallback((costType: 'credits' | 'crystals') => {
     let success = false;
@@ -839,18 +803,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const newCredits = s.credits - creditCost;
       const newCrystals = s.crystals - crystalCost;
       success = true;
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { 
-          ownedHeroes: sanitizeForFirestore(updatedOwned), 
-          youthAcademyHeroes: sanitizeForFirestore(updatedYouth), 
-          inGameCurrency: newCredits, 
-          crystals: newCrystals 
-        }).catch(e => console.error("Mass recover sync failed", e));
-      }, 0);
+      runCloudUpdate({ 
+        ownedHeroes: sanitizeForFirestore(updatedOwned), 
+        youthAcademyHeroes: sanitizeForFirestore(updatedYouth), 
+        inGameCurrency: newCredits, 
+        crystals: newCrystals 
+      });
       return { ...s, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth, credits: newCredits, crystals: newCrystals };
     });
     return success;
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string) => {
     if (!result) return;
@@ -889,42 +851,34 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const newLastLeagueDate = type === 'league' && matchDay === s.seasonDay ? todayStr : s.lastLeagueMatchDate;
       const newLastCupDate = type === 'tournament' ? todayStr : s.lastCupMatchDate;
 
-      setTimeout(() => {
-        if (user) {
-          updateDoc(doc(db, 'players_v5', user.uid), { 
-            inGameCurrency: newCredits, 
-            rank: newRank, 
-            lastLeagueMatchDate: newLastLeagueDate ?? null, 
-            lastCupMatchDate: newLastCupDate ?? null, 
-            matchHistory: newHistory, 
-            ownedHeroes: sanitizeForFirestore(updatedOwned), 
-            youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
-          }).catch(e => console.error("Record match sync failed", e));
-        }
-      }, 0);
+      runCloudUpdate({ 
+        inGameCurrency: newCredits, 
+        rank: newRank, 
+        lastLeagueMatchDate: newLastLeagueDate ?? null, 
+        lastCupMatchDate: newLastCupDate ?? null, 
+        matchHistory: newHistory, 
+        ownedHeroes: sanitizeForFirestore(updatedOwned), 
+        youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
+      });
       
       return { ...s, credits: newCredits, rank: newRank, matchHistory: newHistory, lastLeagueMatchDate: newLastLeagueDate, lastCupMatchDate: newLastCupDate, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth, isSyncing: false };
     });
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const markMatchAsSeen = useCallback((day: number) => {
     setState(s => {
       if (day <= s.lastSeenMatchDay) return s;
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { lastSeenMatchDay: day }).catch(e => console.error("Mark as seen failed", e));
-      }, 0);
+      runCloudUpdate({ lastSeenMatchDay: day });
       return { ...s, lastSeenMatchDay: day };
     });
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const dismissSeasonResults = useCallback(() => {
     setState(s => {
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { seasonResults: null }).catch(e => console.error("Dismiss results failed", e));
-      }, 0);
+      runCloudUpdate({ seasonResults: null });
       return { ...s, seasonResults: null };
     });
-  }, [user, db]);
+  }, [runCloudUpdate]);
 
   const addHeroDirectly = useCallback((hero: Hero) => {
     if (!user) return;
@@ -941,22 +895,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [user, db]);
 
   const updateProfileName = useCallback((newName: string) => {
-    setState(s => {
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { displayName: newName }).catch(e => console.error("Profile name sync failed", e));
-      }, 0);
-      return s;
-    });
-  }, [user, db]);
+    runCloudUpdate({ displayName: newName });
+  }, [runCloudUpdate]);
 
   const updateProfileCountry = useCallback((newCountry: string) => {
-    setState(s => {
-      setTimeout(() => {
-        if (user) updateDoc(doc(db, 'players_v5', user.uid), { country: newCountry }).catch(e => console.error("Profile country sync failed", e));
-      }, 0);
-      return { ...s, country: newCountry };
-    });
-  }, [user, db]);
+    runCloudUpdate({ country: newCountry });
+    setState(s => ({ ...s, country: newCountry }));
+  }, [runCloudUpdate]);
 
   return (
     <GameStateContext.Provider value={{

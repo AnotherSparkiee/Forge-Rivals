@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useGameState, LineupSlot } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -39,6 +39,12 @@ export default function YouthSquadPage() {
   
   const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
   const [isTransferring, setIsTransferring] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
@@ -165,7 +171,7 @@ export default function YouthSquadPage() {
         {youthAcademyHeroes.length > 0 ? youthAcademyHeroes.map((hero) => {
           const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
           const isReady = liveAge.numeric >= 18;
-          const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil) > new Date();
+          const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil).getTime() > now;
 
           return (
             <Card 
@@ -238,7 +244,7 @@ export default function YouthSquadPage() {
                   <div className="space-y-1">
                     <div className="flex items-center justify-center gap-2">
                       <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{selectedHero.role}</Badge>
-                      {selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil) > new Date() && (
+                      {selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil).getTime() > now && (
                         <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5 flex gap-1 items-center animate-pulse">
                           <Clock className="w-3 h-3" /> ON AUCTION
                         </Badge>
@@ -273,11 +279,11 @@ export default function YouthSquadPage() {
                        variant="outline" 
                        className="w-full h-12 border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary group" 
                        onClick={handleTransfer}
-                       disabled={isTransferring || (selectedHero.onTransferUntil !== null && new Date(selectedHero.onTransferUntil) > new Date())}
+                       disabled={isTransferring || (selectedHero.onTransferUntil !== null && new Date(selectedHero.onTransferUntil).getTime() > now)}
                      >
                        {isTransferring ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-3" />}
                        <span className="text-[9px] font-black uppercase tracking-widest">
-                         {selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil) > new Date() ? 'ACTIVE AUCTION' : t.onTransfer}
+                         {selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil).getTime() > now ? 'ACTIVE AUCTION' : t.onTransfer}
                        </span>
                      </Button>
                   </section>
@@ -320,13 +326,13 @@ export default function YouthSquadPage() {
                 <Button 
                   className={cn(
                     "w-full h-14 font-black text-[11px] tracking-[0.2em] shadow-xl rounded-xl active:scale-95 transition-all uppercase",
-                    (calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 && !selectedHero.onTransferUntil) ? "hero-gradient" : "bg-secondary/50 border border-white/5 text-muted-foreground cursor-not-allowed"
+                    (calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 && !(selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil).getTime() > now)) ? "hero-gradient" : "bg-secondary/50 border border-white/5 text-muted-foreground cursor-not-allowed"
                   )}
-                  disabled={calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric < 18 || !!selectedHero.onTransferUntil}
+                  disabled={calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric < 18 || (selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil).getTime() > now)}
                   onClick={() => handlePromote(selectedHero.id)}
                 >
                   <ArrowUpCircle className="w-4 h-4 mr-2" />
-                  {selectedHero.onTransferUntil ? 'ON AUCTION' : (calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 ? t.promote : t.notReady)}
+                  {selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil).getTime() > now ? 'ON AUCTION' : (calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric >= 18 ? t.promote : t.notReady)}
                 </Button>
                 <Button 
                   variant="ghost"
