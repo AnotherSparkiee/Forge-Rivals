@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
-import { useGameState, LineupSlot } from '../../lib/store';
+import { useState, useMemo } from 'react';
+import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,8 +10,8 @@ import {
   Sword, Shield, Sparkles, Plus, 
   ChevronLeft, ChevronRight, UserPlus, X,
   ShieldCheck, Zap, Crosshair, HeartPulse,
-  Star, Box, Undo2, Info,
-  TrendingUp, Eye, Target, Brain, Map, Users, AlertCircle, Award, Clock, ShoppingCart, Loader2, Coins
+  Star, Box, Undo2, Info, GraduationCap,
+  TrendingUp, Eye, Target, Brain, Map, Users, AlertCircle, Award, Clock, ShoppingCart, Loader2, Coins, ArrowUpCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -28,6 +28,7 @@ import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function YouthSquadPage() {
   const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, updateHero } = useGameState();
@@ -87,12 +88,9 @@ export default function YouthSquadPage() {
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
-      // Клонируем данные героя для рынка
-      const heroMarketData = JSON.parse(JSON.stringify(selectedHero));
-      
       const agentData = {
         id: agentId,
-        heroData: heroMarketData,
+        heroData: JSON.parse(JSON.stringify(selectedHero)),
         currentBid: startPrice,
         startingPrice: startPrice,
         highestBidderId: null,
@@ -103,14 +101,12 @@ export default function YouthSquadPage() {
         expiresAt: expiryTime.toISOString(),
         dropDate: today,
         dropTime: mskNow.toISOString(),
-        isYouth: true, // КРИТИЧНО: этот флаг позволяет отображать игрока в Youth Transfers
+        isYouth: true,
         createdAt: serverTimestamp()
       };
 
-      // 1. Создаем лот на глобальном рынке (market_v2)
       await setDoc(doc(db, 'market_v2', agentId), agentData);
       
-      // 2. Обновляем локальный статус героя
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
         transferMarketId: agentId
@@ -118,11 +114,11 @@ export default function YouthSquadPage() {
       
       toast({ 
         title: language === 'ru' ? "Юниор выставлен на трансфер" : "Junior Listed for Transfer",
-        description: language === 'ru' ? "Появится в списке для всех менеджеров мгновенно." : "Will appear in the market for all managers instantly."
+        description: language === 'ru' ? "На аукционе 12 часов. Юниор остается в академии." : "On auction for 12 hours. Junior remains in academy."
       });
       setSelectedHero(null);
     } catch (e: any) {
-      console.error("Transfer error:", e);
+      console.error(e);
       toast({ title: "Transfer Failed", description: e.message, variant: "destructive" });
     } finally {
       setIsTransferring(false);
@@ -144,14 +140,6 @@ export default function YouthSquadPage() {
       })}
     </div>
   );
-
-  function LoadingScreen() {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">

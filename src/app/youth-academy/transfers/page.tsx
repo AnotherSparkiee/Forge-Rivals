@@ -23,9 +23,9 @@ export default function YouthTransfersPage() {
   
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // Получаем ВСЕ лоты рынка
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
+    // Запрашиваем всю коллекцию, фильтруем на клиенте для мгновенного отображения всех новых лотов
     return query(collection(db, 'market_v2'));
   }, [db, user?.uid]);
 
@@ -62,8 +62,9 @@ export default function YouthTransfersPage() {
         title: language === 'ru' ? "Ставка на юниора принята!" : "Youth Bid Placed!",
         description: language === 'ru' ? "Вы лидируете в торгах." : "You are now the leading bidder."
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      toast({ title: "Bid Failed", description: e.message, variant: "destructive" });
     } finally {
       setIsBidding(null);
     }
@@ -93,7 +94,7 @@ export default function YouthTransfersPage() {
     );
   }
 
-  // Фильтруем: только те, у кого стоит флаг isYouth: true
+  // Показываем только тех, у кого isYouth: true
   const youthAgents = agents?.filter(a => a.isYouth === true) || [];
 
   return (
@@ -166,7 +167,7 @@ export default function YouthTransfersPage() {
                   
                   <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
                     <div className="flex flex-col">
-                      <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Global Current Bid</p>
+                      <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Current Bid</p>
                       <p className="text-lg font-headline font-bold text-primary tabular-nums">€{agent.currentBid?.toLocaleString()}</p>
                     </div>
                     <Button 
