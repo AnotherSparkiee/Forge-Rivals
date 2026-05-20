@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useGameState } from '../../lib/store';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useGameState, LineupSlot } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';

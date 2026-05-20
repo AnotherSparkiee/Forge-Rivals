@@ -24,7 +24,7 @@ export default function YouthTransfersPage() {
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // DEBUG: Fetch ALL market items to see if the junior document even exists
+  // Fetch all market items to ensure any newly added lot is visible immediately
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
@@ -82,6 +82,11 @@ export default function YouthTransfersPage() {
     debug: language === 'ru' ? 'РЕЖИМ ОТЛАДКИ: ПОКАЗАНЫ ВСЕ ЛОТЫ' : 'DEBUG MODE: ALL LOTS SHOWN',
   };
 
+  // Filter for youth players on client side for faster feedback
+  const youthAgents = useMemo(() => {
+    return agents?.filter(a => a.isYouth === true) || [];
+  }, [agents]);
+
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center gap-4">
@@ -94,15 +99,10 @@ export default function YouthTransfersPage() {
             {t.title}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {isMarketLoading ? t.scanning : `Active: ${agents?.length || 0}`}
+            {isMarketLoading ? t.scanning : `Active: ${youthAgents.length}`}
           </p>
         </div>
       </header>
-
-      <div className="p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mb-4 flex items-center gap-2">
-        <AlertCircle className="w-4 h-4 text-yellow-500" />
-        <p className="text-[8px] font-black text-yellow-500 uppercase tracking-widest">{t.debug}</p>
-      </div>
 
       <div className="space-y-3">
         {isMarketLoading ? (
@@ -110,8 +110,8 @@ export default function YouthTransfersPage() {
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <p className="text-[10px] uppercase font-bold tracking-[0.2em]">{t.scanning}</p>
           </div>
-        ) : agents && agents.length > 0 ? (
-          agents.map((agent) => {
+        ) : youthAgents.length > 0 ? (
+          youthAgents.map((agent) => {
             const isLeading = agent.highestBidderId === user?.uid;
             const isOwner = agent.sellerId === user?.uid;
 
@@ -132,7 +132,7 @@ export default function YouthTransfersPage() {
                         <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase font-black">
                           {agent.heroData?.role}
                         </Badge>
-                        {agent.isYouth && <Badge className="bg-accent text-accent-foreground text-[7px] font-black uppercase">YOUTH</Badge>}
+                        <Badge className="bg-accent text-accent-foreground text-[7px] font-black uppercase">YOUTH</Badge>
                         {isOwner && <Badge className="bg-blue-500 text-white text-[7px] font-black uppercase">MY LOT</Badge>}
                       </div>
                     </div>
