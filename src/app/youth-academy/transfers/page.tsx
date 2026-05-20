@@ -24,7 +24,7 @@ export default function YouthTransfersPage() {
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // Получаем все лоты без жесткого фильтра в запросе, чтобы избежать проблем с индексами при тесте
+  // Глобальный запрос всех лотов. useCollection обеспечивает обновление в реальном времени.
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
@@ -32,7 +32,7 @@ export default function YouthTransfersPage() {
 
   const { data: rawAgents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
-  // Фильтруем юниоров на стороне клиента
+  // Фильтруем юниоров на стороне клиента для мгновенного отображения.
   const agents = useMemo(() => {
     if (!rawAgents) return [];
     return rawAgents.filter(a => a.isYouth === true);
@@ -144,7 +144,7 @@ export default function YouthTransfersPage() {
                             </span>
                           )}
                           {isOwner && (
-                            <Badge className="bg-blue-500 text-white text-[7px] font-black uppercase">{t.yourLot}</Badge>
+                            <Badge className="bg-blue-500 text-white text-[7px] font-black uppercase">YOUR LOT</Badge>
                           )}
                         </div>
                       </div>
@@ -156,7 +156,7 @@ export default function YouthTransfersPage() {
                     
                     <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
                       <div className="flex flex-col">
-                        <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">{t.currentBid}</p>
+                        <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Current Bid</p>
                         <p className="text-lg font-headline font-bold text-primary tabular-nums">€{agent.currentBid?.toLocaleString()}</p>
                       </div>
                       <Button 

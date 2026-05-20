@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useGameState, LineupSlot } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,8 @@ import {
   ChevronLeft, ChevronRight, UserPlus, X,
   ShieldCheck, Zap, Crosshair, HeartPulse,
   Star, Box, Undo2, Info, GraduationCap,
-  TrendingUp, Eye, Target, Brain, Map, Users, AlertCircle, Award, Clock, ShoppingCart, Loader2, Coins, ArrowUpCircle
+  TrendingUp, Eye, Target, Brain, Map, Users, AlertCircle, Award, Clock, 
+  ShoppingCart, Loader2, Coins, ArrowUpCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -83,6 +84,7 @@ export default function YouthSquadPage() {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
       
+      // TEST: 5 minutes
       const expiryTime = new Date(mskNow);
       expiryTime.setMinutes(expiryTime.getMinutes() + 5);
       
@@ -183,7 +185,7 @@ export default function YouthSquadPage() {
                     <h3 className="text-sm font-bold truncate uppercase">{hero.name}</h3>
                     <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
                     {onAuction && (
-                      <Badge className="bg-yellow-500 text-black text-[6px] h-3 px-1 font-black animate-pulse">AUCTION</Badge>
+                      <Badge className="bg-yellow-500 text-black text-[6px] h-3 px-1 font-black animate-pulse uppercase">Auction</Badge>
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
@@ -191,7 +193,7 @@ export default function YouthSquadPage() {
                       {t.age}: {liveAge.display} {t.years}
                     </p>
                     {isReady && !onAuction && (
-                      <Badge className="bg-green-500/20 text-green-400 text-[6px] h-3 px-1 font-black animate-pulse">READY</Badge>
+                      <Badge className="bg-green-500/20 text-green-400 text-[6px] h-3 px-1 font-black animate-pulse uppercase tracking-widest">Ready</Badge>
                     )}
                   </div>
                 </div>
@@ -237,7 +239,7 @@ export default function YouthSquadPage() {
                     <div className="flex items-center justify-center gap-2">
                       <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{selectedHero.role}</Badge>
                       {selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil) > new Date() && (
-                        <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5 flex gap-1 items-center">
+                        <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5 flex gap-1 items-center animate-pulse">
                           <Clock className="w-3 h-3" /> ON AUCTION
                         </Badge>
                       )}
