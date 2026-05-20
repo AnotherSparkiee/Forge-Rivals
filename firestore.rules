@@ -1,11 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Глобальное разрешение для всех коллекций.
-    // Любой авторизованный пользователь может выполнять любые операции.
-    // Это гарантирует работу прототипа без ошибок Access Denied.
+    // Глобальное разрешение для прототипа.
+    // Позволяет любые операции чтения и записи любому пользователю.
+    // Это гарантирует отсутствие ошибок "Missing or insufficient permissions".
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
   }
 }

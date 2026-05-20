@@ -22,8 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogPortal,
-  DialogFooter
+  DialogPortal
 } from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
@@ -31,7 +30,7 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
 export default function YouthSquadPage() {
-  const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, removeHero, updateHero } = useGameState();
+  const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, updateHero } = useGameState();
   const { user } = useUser();
   const db = useFirestore();
   const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
@@ -103,10 +102,8 @@ export default function YouthSquadPage() {
         isYouth: true
       };
 
-      // 1. Create market entry
       await setDoc(doc(db, 'market_v2', agentId), agentData);
       
-      // 2. Mark hero as "on transfer" instead of removing
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
         transferMarketId: agentId
