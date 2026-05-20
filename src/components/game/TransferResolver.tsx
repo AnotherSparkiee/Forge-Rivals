@@ -8,9 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 
 /**
  * BACKGROUND RESOLVER for Transfer Market.
- * Checks for expired auctions where the user is the seller.
- * If bid exists -> transfer money and remove hero.
- * If no bid exists -> return hero to normal.
+ * TEST MODE: Interval reduced to 30 seconds for 5-min testing.
  */
 export function TransferResolver() {
   const { user, isUserLoading } = useUser();
@@ -37,15 +35,13 @@ export function TransferResolver() {
           const data = marketDoc.data();
           const expiresAt = new Date(data.expiresAt);
 
+          // Check if expired
           if (now > expiresAt) {
             const heroId = data.heroData.id;
             
             if (data.highestBidderId) {
               // SOLD!
-              // 1. Give money to seller
               addCredits(data.currentBid);
-              
-              // 2. Remove hero from seller's rosters
               removeHero(heroId, 0);
               
               toast({
@@ -73,9 +69,9 @@ export function TransferResolver() {
       }
     };
 
-    // Check every 5 minutes or on load
+    // Check every 30 seconds for testing
     const timer = setTimeout(resolveMySales, 2000);
-    const interval = setInterval(resolveMySales, 300000);
+    const interval = setInterval(resolveMySales, 30000);
     return () => {
       clearTimeout(timer);
       clearInterval(interval);

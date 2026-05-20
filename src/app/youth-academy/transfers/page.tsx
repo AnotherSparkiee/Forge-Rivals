@@ -1,14 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, ShoppingCart, Users, 
-  Loader2, Radar, Gavel, ShieldCheck, Clock,
-  Star, TrendingUp, Target
+  ChevronLeft, ShoppingCart, Loader2, Gavel, ShieldCheck, Star
 } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, where, doc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
@@ -26,7 +24,7 @@ export default function YouthTransfersPage() {
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // Query ONLY youth players (isYouth == true)
+  // Real-time query for youth players on market
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v2'), where('isYouth', '==', true));
@@ -64,7 +62,7 @@ export default function YouthTransfersPage() {
 
       toast({ 
         title: language === 'ru' ? "Ставка принята!" : "Bid Placed!",
-        description: language === 'ru' ? "Вы теперь лидер торгов за этого юниора." : "You are now the leading bidder for this junior."
+        description: language === 'ru' ? "Вы теперь лидер торгов." : "You are now the leading bidder."
       });
     } catch (e: any) {
       console.error(e);
@@ -82,7 +80,7 @@ export default function YouthTransfersPage() {
     scanning: language === 'ru' ? 'СИНХРОНИЗАЦИЯ РЫНКА...' : 'SYNCING MARKET...',
     empty: language === 'ru' ? 'На рынке юниоров пока пусто' : 'Youth market is currently empty',
     currentBid: language === 'ru' ? 'Тек. ставка' : 'Current Bid',
-    nextBid: language === 'ru' ? 'Ставка' : 'Bid',
+    nextBid: language === 'ru' ? 'Купить за' : 'Buy for',
     yourLot: language === 'ru' ? 'ВАШ ЛОТ' : 'YOUR LOT',
     leading: language === 'ru' ? 'ЛИДЕР' : 'LEADING',
   };
@@ -136,7 +134,7 @@ export default function YouthTransfersPage() {
                               "text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-sm",
                               isLeading ? "bg-green-500/20 text-green-400" : "bg-primary/20 text-primary"
                             )}>
-                              {agent.highestBidderName}
+                              TOP: {agent.highestBidderName}
                             </span>
                           )}
                           {isOwner && (
@@ -181,7 +179,6 @@ export default function YouthTransfersPage() {
           </div>
         ) : (
           <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
-            <Radar className="w-12 h-12 text-muted-foreground animate-pulse" />
             <p className="text-[10px] uppercase font-black tracking-widest text-center leading-relaxed">
               {t.empty}
             </p>

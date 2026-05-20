@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState } from 'react';
 import { useGameState, LineupSlot } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -54,7 +54,7 @@ export default function YouthSquadPage() {
     years: language === 'ru' ? "лет" : "yrs",
     stats: language === 'ru' ? "Навыки и потенциал" : "Skills & Potential",
     onTransfer: language === 'ru' ? "ВЫСТАВИТЬ НА РЫНОК" : "PUT ON TRANSFER",
-    transferDesc: language === 'ru' ? "Юниор будет выставлен на аукцион на 12 часов. Если ставок не будет, он останется в академии." : "Junior will be listed for 12 hours. If no bids are placed, he remains in the academy.",
+    transferDesc: language === 'ru' ? "Юниор будет выставлен на аукцион на 5 минут (ТЕСТ). Если ставок не будет, он останется в академии." : "Junior will be listed for 5 minutes (TEST). If no bids are placed, he remains in the academy.",
     success: language === 'ru' ? "Игрок переведен в состав!" : "Player promoted to squad!",
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
@@ -82,8 +82,10 @@ export default function YouthSquadPage() {
     try {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
+      
+      // TEST: 5 minutes expiry instead of 12 hours
       const expiryTime = new Date(mskNow);
-      expiryTime.setHours(expiryTime.getHours() + 12);
+      expiryTime.setMinutes(expiryTime.getMinutes() + 5);
       
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
       const agentId = `youth_${user.uid}_${Date.now()}`;
@@ -114,7 +116,7 @@ export default function YouthSquadPage() {
       
       toast({ 
         title: language === 'ru' ? "Юниор выставлен на трансфер" : "Junior Listed for Transfer",
-        description: language === 'ru' ? "На аукционе 12 часов. Юниор остается в академии." : "On auction for 12 hours. Junior remains in academy."
+        description: language === 'ru' ? "На аукционе 5 минут. Юниор остается в академии." : "On auction for 5 minutes. Junior remains in academy."
       });
       setSelectedHero(null);
     } catch (e: any) {
