@@ -79,7 +79,6 @@ export default function YouthTransfersPage() {
     subtitle: language === 'ru' ? 'Рынок молодых талантов' : 'Youth talent market',
     scanning: language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...',
     empty: language === 'ru' ? 'Рынок пуст' : 'Market is empty',
-    debug: language === 'ru' ? 'РЕЖИМ ОТЛАДКИ: ПОКАЗАНЫ ВСЕ ЛОТЫ' : 'DEBUG MODE: ALL LOTS SHOWN',
   };
 
   // Filter for youth players on client side for faster feedback

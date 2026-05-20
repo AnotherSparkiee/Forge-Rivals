@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { useGameState, LineupSlot } from '../../lib/store';
+import { useState, useEffect, useMemo } from 'react';
+import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,7 +28,7 @@ import {
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
-import { doc, serverTimestamp, collection } from 'firebase/firestore';
+import { doc, serverTimestamp } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function YouthSquadPage() {
@@ -89,7 +89,8 @@ export default function YouthSquadPage() {
     try {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
-      const expiryTime = new Date(mskNow.getTime() + 5 * 60 * 1000); // 5 minutes test
+      // 5 minutes for test
+      const expiryTime = new Date(mskNow.getTime() + 5 * 60 * 1000); 
       
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
       const agentId = `youth_${user.uid}_${Date.now()}`;
@@ -112,7 +113,7 @@ export default function YouthSquadPage() {
       };
 
       const agentRef = doc(db, 'market_v2', agentId);
-      setDocumentNonBlocking(agentRef, agentData, {});
+      setDocumentNonBlocking(agentRef, agentData, { merge: true });
       
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
