@@ -27,8 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
-import { doc, serverTimestamp } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
+import { doc, serverTimestamp, collection } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function YouthSquadPage() {
@@ -92,9 +92,10 @@ export default function YouthSquadPage() {
       const expiryTime = new Date(mskNow.getTime() + 5 * 60 * 1000); // 5 minutes test
       
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
+      const agentId = `youth_${user.uid}_${Date.now()}`;
       
       const agentData = {
-        id: `youth_${user.uid}_${Date.now()}`,
+        id: agentId,
         heroData: JSON.parse(JSON.stringify(selectedHero)),
         currentBid: startPrice,
         startingPrice: startPrice,
@@ -110,13 +111,12 @@ export default function YouthSquadPage() {
         createdAt: serverTimestamp()
       };
 
-      // Use a more generic collection reference to avoid any path errors
-      const marketCol = collection(db, 'market_v2');
-      await addDocumentNonBlocking(marketCol, agentData);
+      const agentRef = doc(db, 'market_v2', agentId);
+      setDocumentNonBlocking(agentRef, agentData, {});
       
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
-        transferMarketId: agentData.id
+        transferMarketId: agentId
       });
       
       toast({ 
