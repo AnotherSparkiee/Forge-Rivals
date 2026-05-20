@@ -179,7 +179,7 @@ export default function ShopPage() {
         },
         overallRating: Math.round(proStatAvg * 0.8),
         abilitiesFocus: 'Balanced',
-        image: `https://i.postimg.cc/PPS3QFFM/de-1.jpg`, // Default or based on country in future
+        image: `https://i.postimg.cc/PPS3QFFM/de-1.jpg`, 
         description: `Custom elite unit from ${country.name}.`,
         price: 0,
         baseAge: ageVal,
@@ -190,6 +190,11 @@ export default function ShopPage() {
         fatigue: 0,
         country: { code: country.code, name: country.name, flag: country.flag },
         isInjured: false,
+        trainingFocus: null,
+        dailyTrainingFocus: null,
+        dailyTrainingFinishTime: null,
+        onTransferUntil: null,
+        transferMarketId: null,
         proStats: {
           lastHitting: proStatAvg, mapAwareness: proStatAvg, positioning: proStatAvg, reflexes: proStatAvg,
           manaManagement: proStatAvg, objectiveControl: proStatAvg, communication: proStatAvg,
@@ -202,6 +207,7 @@ export default function ShopPage() {
         }
       };
 
+      // Atomic cost deduction and hero addition in store
       addCrystals(-creationCost);
       addYouthHeroDirectly(newHero);
       
@@ -416,7 +422,7 @@ export default function ShopPage() {
               <Input 
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder={t.placeholderName}
+                placeholder={newName || "Enter name..."}
                 className="h-12 bg-background/50 border-white/10 text-white focus-visible:ring-accent"
                 maxLength={20}
               />
