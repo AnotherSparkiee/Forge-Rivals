@@ -89,13 +89,11 @@ export default function YouthSquadPage() {
     try {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
-      // Test duration: 5 minutes
       const expiryTime = new Date(mskNow.getTime() + 5 * 60 * 1000); 
       
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
-      // Sanitize hero data to prevent serialization errors
       const cleanHeroData = JSON.parse(JSON.stringify(selectedHero));
 
       const agentData = {
@@ -125,7 +123,7 @@ export default function YouthSquadPage() {
       
       toast({ 
         title: language === 'ru' ? "Игрок выставлен на трансфер" : "Player Listed for Transfer",
-        description: language === 'ru' ? "Проверьте раздел Трансферы юниоров." : "Check the Youth Transfers terminal."
+        description: language === 'ru' ? "Лот появится на рынке через мгновение." : "Lot will appear on market instantly."
       });
       setSelectedHero(null);
     } catch (e: any) {

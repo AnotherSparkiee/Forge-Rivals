@@ -1,8 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Полный доступ для прототипирования - устраняет любые ошибки Access Denied
+    // Полный доступ для прототипирования во всех коллекциях
     match /{document=**} {
+      allow read, write: if true;
+    }
+    // Явное разрешение для коллекции трансферов
+    match /market_v2/{id} {
       allow read, write: if true;
     }
   }
