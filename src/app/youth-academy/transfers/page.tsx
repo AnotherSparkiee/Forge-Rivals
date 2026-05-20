@@ -24,7 +24,7 @@ export default function YouthTransfersPage() {
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // Получаем все активные лоты для максимальной скорости синхронизации
+  // Глобальный рынок - получаем все активные лоты в реальном времени
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
@@ -81,18 +81,18 @@ export default function YouthTransfersPage() {
     empty: language === 'ru' ? 'Рынок пуст' : 'Market is empty',
   };
 
-  // Фильтруем юниоров на стороне клиента для мгновенного отклика
+  // Показываем абсолютно все лоты для отладки, если они есть
   const youthAgents = useMemo(() => {
-    return (agents || []).filter(a => a.isYouth === true);
+    return (agents || []);
   }, [agents]);
 
   if (marketError) {
     return (
       <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-6">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-        <h2 className="text-xl font-bold uppercase text-white">Connection Error</h2>
+        <h2 className="text-xl font-bold uppercase text-white">Market Error</h2>
         <p className="text-[10px] text-muted-foreground uppercase px-10 font-black tracking-widest leading-relaxed">
-          Access denied or terminal desynchronized. Check security rules and connection.
+          Access denied or node connection failed. Re-sync sequence initiated.
         </p>
         <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black px-8">
           RE-SYNC TERMINAL
@@ -146,8 +146,8 @@ export default function YouthTransfersPage() {
                         <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase font-black">
                           {agent.heroData?.role}
                         </Badge>
-                        <Badge className="bg-accent text-accent-foreground text-[7px] font-black uppercase">YOUTH</Badge>
-                        {isOwner && <Badge className="bg-blue-500 text-white text-[7px] font-black uppercase">MY LOT</Badge>}
+                        <Badge className="bg-accent text-accent-foreground text-[7px] font-black uppercase">LIVE</Badge>
+                        {isOwner && <Badge className="bg-blue-500 text-white text-[7px] font-black uppercase">YOUR LOT</Badge>}
                       </div>
                     </div>
                     <div className="text-right flex flex-col items-end">

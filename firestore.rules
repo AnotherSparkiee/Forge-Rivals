@@ -1,30 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Явный доступ ко всем коллекциям для прототипирования
-    match /players_v5/{document=**} {
-      allow read, write: if true;
-    }
-    match /market_v2/{document=**} {
-      allow read, write: if true;
-    }
-    match /associations_v1/{document=**} {
-      allow read, write: if true;
-    }
-    match /global_chat/{document=**} {
-      allow read, write: if true;
-    }
-    match /private_messages/{document=**} {
-      allow read, write: if true;
-    }
-    match /friendly_lobbies/{document=**} {
-      allow read, write: if true;
-    }
-    match /cw_basket/{document=**} {
-      allow read, write: if true;
-    }
-
-    // Общее правило-заглушка
+    // Полный доступ для прототипирования - устраняет любые ошибки Access Denied
     match /{document=**} {
       allow read, write: if true;
     }

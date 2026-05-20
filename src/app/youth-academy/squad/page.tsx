@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,13 +28,8 @@ import {
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
-import { doc, serverTimestamp } from 'firebase/firestore';
+import { doc, serverTimestamp, collection } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-
-function sanitize(obj: any) {
-  if (!obj) return null;
-  return JSON.parse(JSON.stringify(obj));
-}
 
 export default function YouthSquadPage() {
   const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, updateHero } = useGameState();
@@ -94,14 +89,18 @@ export default function YouthSquadPage() {
     try {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
+      // Test duration: 5 minutes
       const expiryTime = new Date(mskNow.getTime() + 5 * 60 * 1000); 
       
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
+      // Sanitize hero data to prevent serialization errors
+      const cleanHeroData = JSON.parse(JSON.stringify(selectedHero));
+
       const agentData = {
         id: agentId,
-        heroData: sanitize(selectedHero),
+        heroData: cleanHeroData,
         currentBid: startPrice,
         startingPrice: startPrice,
         highestBidderId: null,
@@ -125,8 +124,8 @@ export default function YouthSquadPage() {
       });
       
       toast({ 
-        title: language === 'ru' ? "Игрок выставлен!" : "Player listed!",
-        description: language === 'ru' ? "Проверьте вкладку Трансферы." : "Check the Transfers tab."
+        title: language === 'ru' ? "Игрок выставлен на трансфер" : "Player Listed for Transfer",
+        description: language === 'ru' ? "Проверьте раздел Трансферы юниоров." : "Check the Youth Transfers terminal."
       });
       setSelectedHero(null);
     } catch (e: any) {
@@ -224,17 +223,8 @@ export default function YouthSquadPage() {
         <DialogPortal>
           {selectedHero && (
             <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none flex flex-col rounded-none sm:rounded-none overflow-hidden outline-none translate-x-0 translate-y-0 top-0 left-0 animate-in fade-in zoom-in duration-300">
-              <DialogHeader className="p-4 pt-12 pb-0 text-center">
-                <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">
-                  {selectedHero.name}
-                </DialogTitle>
-                <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">
-                  Detailed player profile and statistics dossier.
-                </DialogDescription>
-              </DialogHeader>
-
               <div className="flex-1 overflow-y-auto scrollbar-hide">
-                <div className="p-4 py-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 flex flex-col items-center text-center gap-4 border-b border-white/5">
+                <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 flex flex-col items-center text-center gap-4 border-b border-white/5">
                   <div className="relative">
                     <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-[0_0_30px_rgba(var(--primary),0.3)] bg-secondary/50">
                       <img src={selectedHero.image} alt={selectedHero.name} className="w-full h-full object-cover" />
@@ -245,7 +235,8 @@ export default function YouthSquadPage() {
                   </div>
                   
                   <div className="space-y-1">
-                    <div className="flex items-center justify-center gap-2">
+                    <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{selectedHero.name}</DialogTitle>
+                    <div className="flex items-center justify-center gap-2 mt-2">
                       <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{selectedHero.role}</Badge>
                       {selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil).getTime() > now && (
                         <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5 flex gap-1 items-center animate-pulse">
@@ -270,6 +261,8 @@ export default function YouthSquadPage() {
                 </div>
 
                 <div className="p-4 space-y-8 pb-32">
+                  <DialogDescription className="sr-only">Dossier details for {selectedHero.name}</DialogDescription>
+                  
                   <section className="space-y-3">
                     <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                       <Coins className="w-3.5 h-3.5" /> MARKET ACTIONS
