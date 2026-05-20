@@ -24,7 +24,7 @@ export default function YouthTransfersPage() {
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // Fetch all market items to ensure any newly added lot is visible immediately
+  // Получаем все активные лоты для максимальной скорости синхронизации
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
@@ -81,10 +81,25 @@ export default function YouthTransfersPage() {
     empty: language === 'ru' ? 'Рынок пуст' : 'Market is empty',
   };
 
-  // Filter for youth players on client side for faster feedback
+  // Фильтруем юниоров на стороне клиента для мгновенного отклика
   const youthAgents = useMemo(() => {
-    return agents?.filter(a => a.isYouth === true) || [];
+    return (agents || []).filter(a => a.isYouth === true);
   }, [agents]);
+
+  if (marketError) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-6">
+        <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
+        <h2 className="text-xl font-bold uppercase text-white">Connection Error</h2>
+        <p className="text-[10px] text-muted-foreground uppercase px-10 font-black tracking-widest leading-relaxed">
+          Access denied or terminal desynchronized. Check security rules and connection.
+        </p>
+        <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black px-8">
+          RE-SYNC TERMINAL
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
@@ -98,7 +113,7 @@ export default function YouthTransfersPage() {
             {t.title}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {isMarketLoading ? t.scanning : `Active: ${youthAgents.length}`}
+            {isMarketLoading ? t.scanning : `Active Lots: ${youthAgents.length}`}
           </p>
         </div>
       </header>
@@ -143,7 +158,7 @@ export default function YouthTransfersPage() {
                   
                   <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
                     <div className="flex flex-col">
-                      <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Bid</p>
+                      <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Current Bid</p>
                       <p className="text-lg font-headline font-bold text-primary tabular-nums">€{agent.currentBid?.toLocaleString()}</p>
                     </div>
                     <Button 

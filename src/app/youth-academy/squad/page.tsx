@@ -31,6 +31,11 @@ import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking 
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
+function sanitize(obj: any) {
+  if (!obj) return null;
+  return JSON.parse(JSON.stringify(obj));
+}
+
 export default function YouthSquadPage() {
   const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, updateHero } = useGameState();
   const { user } = useUser();
@@ -61,7 +66,7 @@ export default function YouthSquadPage() {
     years: language === 'ru' ? "лет" : "yrs",
     stats: language === 'ru' ? "Навыки и потенциал" : "Skills & Potential",
     onTransfer: language === 'ru' ? "ВЫСТАВИТЬ НА РЫНОК" : "PUT ON TRANSFER",
-    transferDesc: language === 'ru' ? "Юниор будет выставлен на аукцион на 5 минут (ТЕСТ). Если ставок не будет, он останется в академии." : "Junior will be listed for 5 minutes (TEST). If no bids are placed, he remains in the academy.",
+    transferDesc: language === 'ru' ? "Юниор будет выставлен на аукцион на 5 минут. Если ставок не будет, он останется в академии." : "Junior will be listed for 5 minutes. If no bids are placed, he remains in the academy.",
     success: language === 'ru' ? "Игрок переведен в состав!" : "Player promoted to squad!",
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
@@ -89,7 +94,6 @@ export default function YouthSquadPage() {
     try {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
-      // 5 minutes for test
       const expiryTime = new Date(mskNow.getTime() + 5 * 60 * 1000); 
       
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
@@ -97,7 +101,7 @@ export default function YouthSquadPage() {
       
       const agentData = {
         id: agentId,
-        heroData: JSON.parse(JSON.stringify(selectedHero)),
+        heroData: sanitize(selectedHero),
         currentBid: startPrice,
         startingPrice: startPrice,
         highestBidderId: null,
