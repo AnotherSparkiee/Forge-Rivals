@@ -24,7 +24,7 @@ export default function YouthTransfersPage() {
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // Глобальный запрос всех лотов. useCollection обеспечивает обновление в реальном времени.
+  // Global real-time listener for all market listings.
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
@@ -32,7 +32,7 @@ export default function YouthTransfersPage() {
 
   const { data: rawAgents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
-  // Фильтруем юниоров на стороне клиента для мгновенного отображения.
+  // Filter youth players on the client side for instant synchronization.
   const agents = useMemo(() => {
     if (!rawAgents) return [];
     return rawAgents.filter(a => a.isYouth === true);

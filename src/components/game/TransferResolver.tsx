@@ -1,82 +1,81 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { doc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, collection, query, where, deleteDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 /**
  * BACKGROUND RESOLVER for Transfer Market.
- * TEST MODE: Interval reduced to 30 seconds for 5-min testing.
+ * Uses useCollection for a stable real-time listener to avoid Firestore assertion errors.
  */
 export function TransferResolver() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { isLoaded, updateHero, removeHero, addCredits, language } = useGameState();
   const { toast } = useToast();
-  const isResolvingRef = useRef(false);
+  
+  const marketQuery = useMemoFirebase(() => {
+    if (!user?.uid) return null;
+    return query(collection(db, 'market_v2'), where('sellerId', '==', user.uid));
+  }, [db, user?.uid]);
+
+  const { data: mySales } = useCollection(marketQuery);
+  const processedIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!isLoaded || isUserLoading || !user || isResolvingRef.current) return;
+    if (!isLoaded || isUserLoading || !user || !mySales) return;
 
-    const resolveMySales = async () => {
-      isResolvingRef.current = true;
-      try {
-        const q = query(
-          collection(db, 'market_v2'),
-          where('sellerId', '==', user.uid)
-        );
+    const resolveSales = async () => {
+      const now = new Date();
+
+      for (const agent of mySales) {
+        const expiresAt = new Date(agent.expiresAt);
         
-        const snapshot = await getDocs(q);
-        const now = new Date();
-
-        for (const marketDoc of snapshot.docs) {
-          const data = marketDoc.data();
-          const expiresAt = new Date(data.expiresAt);
-
-          // Check if expired
-          if (now > expiresAt) {
-            const heroId = data.heroData.id;
-            
-            if (data.highestBidderId) {
+        // If expired and not already processed in this session
+        if (now > expiresAt && !processedIds.current.has(agent.id)) {
+          processedIds.current.add(agent.id);
+          
+          const heroId = agent.heroData.id;
+          
+          try {
+            if (agent.highestBidderId) {
               // SOLD!
-              addCredits(data.currentBid);
+              addCredits(agent.currentBid);
               removeHero(heroId, 0);
               
               toast({
                 title: language === 'ru' ? "Игрок продан!" : "Player Sold!",
-                description: `${data.heroData.name} продан за €${data.currentBid.toLocaleString()}`
+                description: `${agent.heroData.name} продан за €${agent.currentBid.toLocaleString()}`
               });
             } else {
-              // NOT SOLD - return to club
-              updateHero(heroId, { onTransferUntil: null, transferMarketId: null });
+              // NOT SOLD - return to club (clear transfer metadata)
+              updateHero(heroId, { 
+                onTransferUntil: null, 
+                transferMarketId: null 
+              });
               
               toast({
                 title: language === 'ru' ? "Аукцион завершен" : "Auction Ended",
-                description: `${data.heroData.name} остается в клубе (ставок нет).`
+                description: `${agent.heroData.name} остается в клубе (ставок нет).`
               });
             }
 
             // Clean up market entry
-            await deleteDoc(doc(db, 'market_v2', marketDoc.id));
+            await deleteDoc(doc(db, 'market_v2', agent.id));
+          } catch (e) {
+            console.error("Failed to resolve sale", e);
+            processedIds.current.delete(agent.id); // Retry next check
           }
         }
-      } catch (e) {
-        console.error("Transfer resolution failed", e);
-      } finally {
-        isResolvingRef.current = false;
       }
     };
 
-    // Check every 30 seconds for testing
-    const timer = setTimeout(resolveMySales, 2000);
-    const interval = setInterval(resolveMySales, 30000);
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
-  }, [isLoaded, isUserLoading, user, db, addCredits, removeHero, updateHero, language, toast]);
+    const interval = setInterval(resolveSales, 15000); // Check every 15 seconds
+    resolveSales();
+    return () => clearInterval(interval);
+  }, [isLoaded, isUserLoading, user, mySales, addCredits, removeHero, updateHero, language, toast, db]);
 
   return null;
 }
