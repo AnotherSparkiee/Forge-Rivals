@@ -1,202 +1,85 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, Loader2, Gavel, AlertCircle, RefreshCw, ShoppingCart, Users, ShieldCheck, Clock } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { 
+  ChevronLeft, ShoppingCart, Users, 
+  Loader2, Radar
+} from 'lucide-react';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, query, doc, arrayUnion, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function YouthTransfersPage() {
-  const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
+  const { language, isLoaded: isStoreLoaded } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
-  const { toast } = useToast();
   const router = useRouter();
-  
-  const [isBidding, setIsBidding] = useState<string | null>(null);
 
+  // Базовый запрос: ищем только юниоров
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
-    // Запрашиваем всю коллекцию, фильтруем на клиенте для мгновенного отображения всех новых лотов
-    return query(collection(db, 'market_v2'));
+    return query(collection(db, 'market_v2'), where('isYouth', '==', true));
   }, [db, user?.uid]);
 
-  const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
-
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user!.uid) : null), [db, user?.uid]);
-  const { data: profile } = useDoc(userRef);
-
-  const handleBid = async (agent: any) => {
-    if (!user || isBidding) return;
-    
-    const minNextBid = Math.ceil(agent.currentBid * 1.05);
-    if (credits < minNextBid) {
-      toast({ 
-        title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", 
-        variant: "destructive" 
-      });
-      return;
-    }
-
-    setIsBidding(agent.id);
-    try {
-      await updateDoc(doc(db, 'market_v2', agent.id), {
-        currentBid: minNextBid,
-        highestBidderId: user.uid,
-        highestBidderName: profile?.displayName || "Anonymous Manager",
-        bidders: arrayUnion(user.uid),
-        updatedAt: serverTimestamp()
-      });
-      
-      addCredits(-minNextBid);
-
-      toast({ 
-        title: language === 'ru' ? "Ставка на юниора принята!" : "Youth Bid Placed!",
-        description: language === 'ru' ? "Вы лидируете в торгах." : "You are now the leading bidder."
-      });
-    } catch (e: any) {
-      console.error(e);
-      toast({ title: "Bid Failed", description: e.message, variant: "destructive" });
-    } finally {
-      setIsBidding(null);
-    }
-  };
+  const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
 
   if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
 
   const t = {
     title: language === 'ru' ? 'ТРАНСФЕРЫ ЮНИОРОВ' : 'YOUTH TRANSFERS',
+    subtitle: language === 'ru' ? 'Рынок молодых талантов' : 'Youth talent market',
+    scanning: language === 'ru' ? 'СКАНИРОВАНИЕ РЫНКА...' : 'SCANNING MARKET...',
     empty: language === 'ru' ? 'На рынке юниоров пока пусто' : 'Youth market is currently empty',
-    warning: language === 'ru' ? "Юниоры требуют развития. Оценивайте потенциал!" : "Juniors require training. Assess potential limits!",
-    reconnect: language === 'ru' ? 'ПЕРЕПОДКЛЮЧИТЬСЯ' : 'RE-SYNC TERMINAL'
   };
-
-  if (marketError) {
-    return (
-      <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-6">
-        <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-        <h2 className="text-xl font-bold uppercase text-white">Academy Node Error</h2>
-        <p className="text-[10px] text-muted-foreground uppercase px-10 font-black tracking-widest leading-relaxed">
-          Access to youth archive restricted. Terminal re-synchronization required.
-        </p>
-        <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black px-8">
-          <RefreshCw className="w-3 h-3 mr-2" /> {t.reconnect}
-        </Button>
-      </div>
-    );
-  }
-
-  // Показываем только тех, у кого isYouth: true
-  const youthAgents = agents?.filter(a => a.isYouth === true) || [];
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
-      <header className="mb-6 flex items-center gap-4">
+      <header className="mb-8 flex items-center gap-4">
         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.push('/youth-academy')}>
           <ChevronLeft className="w-6 h-6" />
         </Button>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{t.title}</h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {isMarketLoading ? 'Syncing Academy Archive...' : 'Global Youth Market Active'}
-          </p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">{t.subtitle}</p>
         </div>
       </header>
 
-      <div className="p-3 bg-accent/5 border border-accent/20 rounded-xl mb-6 flex items-center gap-3">
-        <Users className="w-4 h-4 text-accent shrink-0" />
-        <p className="text-[9px] text-muted-foreground uppercase font-black leading-tight italic tracking-tight">
-          {t.warning}
-        </p>
-      </div>
-
-      <div className="space-y-3">
+      <div className="space-y-4">
         {isMarketLoading ? (
           <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Retrieving Bids...</p>
+            <p className="text-[10px] uppercase font-bold tracking-[0.2em]">{t.scanning}</p>
           </div>
-        ) : youthAgents.length > 0 ? (
-          youthAgents.map((agent) => {
-            const isLeading = agent.highestBidderId === user?.uid;
-            const isOwner = agent.sellerId === user?.uid;
-
-            return (
-              <Card key={agent.id} className={cn(
-                "glass-card border-white/5 overflow-hidden group transition-all",
-                isLeading ? "border-green-500/40 bg-green-500/5 ring-1 ring-green-500/20" : "hover:border-primary/30",
-                isOwner && "border-blue-500/30 bg-blue-500/5"
-              )}>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-14 h-14 rounded-2xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0 shadow-lg">
+        ) : agents && agents.length > 0 ? (
+          <div className="space-y-3">
+            {agents.map((agent) => (
+              <Card key={agent.id} className="glass-card border-white/5 overflow-hidden">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
                       <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-base font-bold uppercase truncate text-white tracking-tight">{agent.heroData?.name}</h3>
-                      <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase font-black bg-black/20">
-                          {agent.heroData?.role}
-                        </Badge>
-                        {agent.highestBidderName && (
-                          <span className={cn(
-                            "text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-sm",
-                            isLeading ? "bg-green-500/20 text-green-400" : "bg-primary/20 text-primary"
-                          )}>
-                            TOP: {agent.highestBidderName}
-                          </span>
-                        )}
-                        {isOwner && (
-                          <Badge className="bg-blue-500 text-white text-[7px] font-black uppercase">MY JUNIOR</Badge>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right flex flex-col items-end">
-                      <p className="text-2xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
-                      <p className="text-[8px] font-black text-muted-foreground uppercase mt-1 tracking-tighter">OVR UNIT</p>
+                    <div>
+                      <h3 className="text-sm font-bold uppercase text-white truncate max-w-[150px]">{agent.heroData?.name}</h3>
+                      <p className="text-[8px] text-muted-foreground font-black uppercase tracking-widest mt-0.5">{agent.heroData?.role}</p>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
-                    <div className="flex flex-col">
-                      <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Current Bid</p>
-                      <p className="text-lg font-headline font-bold text-primary tabular-nums">€{agent.currentBid?.toLocaleString()}</p>
-                    </div>
-                    <Button 
-                      className={cn(
-                        "h-11 font-black text-[10px] px-6 shadow-xl active:scale-95 transition-all rounded-xl",
-                        isLeading ? "bg-green-600 hover:bg-green-700 text-white" : "hero-gradient shadow-primary/20"
-                      )}
-                      onClick={() => handleBid(agent)} 
-                      disabled={!!isBidding || isLeading || isOwner}
-                    >
-                      {isBidding === agent.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : isLeading ? (
-                        <><ShieldCheck className="w-4 h-4 mr-2" /> LEADING</>
-                      ) : isOwner ? (
-                        'OWNED'
-                      ) : (
-                        <><Gavel className="w-4 h-4 mr-2" /> BID €{Math.ceil(agent.currentBid * 1.05).toLocaleString()}</>
-                      )}
-                    </Button>
+                  <div className="text-right">
+                    <p className="text-xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
+                    <p className="text-[10px] font-bold text-primary mt-1">€{agent.currentBid?.toLocaleString()}</p>
                   </div>
                 </CardContent>
               </Card>
-            );
-          })
+            ))}
+          </div>
         ) : (
           <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
-            <ShoppingCart className="w-12 h-12" />
-            <p className="text-[10px] uppercase font-black text-center leading-relaxed">
+            <Radar className="w-12 h-12 text-muted-foreground animate-pulse" />
+            <p className="text-[10px] uppercase font-black tracking-widest text-center leading-relaxed">
               {t.empty}
             </p>
           </div>
