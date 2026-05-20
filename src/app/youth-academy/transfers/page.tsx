@@ -6,7 +6,7 @@ import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, ShoppingCart, Loader2, Gavel, ShieldCheck, Star, Users, Clock
+  ChevronLeft, ShoppingCart, Loader2, Gavel, ShieldCheck, Star, Users, Clock, AlertCircle
 } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, doc, arrayUnion, serverTimestamp, updateDoc } from 'firebase/firestore';
@@ -24,19 +24,13 @@ export default function YouthTransfersPage() {
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // Global real-time listener for all market listings.
+  // DEBUG: Fetch ALL market items to see if the junior document even exists
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
   }, [db, user?.uid]);
 
-  const { data: rawAgents, isLoading: isMarketLoading } = useCollection(marketQuery);
-
-  // Filter youth players on the client side for instant synchronization.
-  const agents = useMemo(() => {
-    if (!rawAgents) return [];
-    return rawAgents.filter(a => a.isYouth === true);
-  }, [rawAgents]);
+  const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
   const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
@@ -83,17 +77,14 @@ export default function YouthTransfersPage() {
   const t = {
     title: language === 'ru' ? 'ТРАНСФЕРЫ ЮНИОРОВ' : 'YOUTH TRANSFERS',
     subtitle: language === 'ru' ? 'Рынок молодых талантов' : 'Youth talent market',
-    scanning: language === 'ru' ? 'СИНХРОНИЗАЦИЯ РЫНКА...' : 'SYNCING MARKET...',
-    empty: language === 'ru' ? 'На рынке юниоров пока пусто' : 'Youth market is currently empty',
-    currentBid: language === 'ru' ? 'Тек. ставка' : 'Current Bid',
-    nextBid: language === 'ru' ? 'Купить за' : 'Buy for',
-    yourLot: language === 'ru' ? 'ВАШ ЛОТ' : 'YOUR LOT',
-    leading: language === 'ru' ? 'ЛИДЕР' : 'LEADING',
+    scanning: language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...',
+    empty: language === 'ru' ? 'Рынок пуст' : 'Market is empty',
+    debug: language === 'ru' ? 'РЕЖИМ ОТЛАДКИ: ПОКАЗАНЫ ВСЕ ЛОТЫ' : 'DEBUG MODE: ALL LOTS SHOWN',
   };
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
-      <header className="mb-8 flex items-center gap-4">
+      <header className="mb-6 flex items-center gap-4">
         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.push('/youth-academy')}>
           <ChevronLeft className="w-6 h-6" />
         </Button>
@@ -102,87 +93,75 @@ export default function YouthTransfersPage() {
             <ShoppingCart className="w-6 h-6 text-primary" />
             {t.title}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">{t.subtitle}</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
+            {isMarketLoading ? t.scanning : `Active: ${agents?.length || 0}`}
+          </p>
         </div>
       </header>
 
-      <div className="space-y-4">
+      <div className="p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mb-4 flex items-center gap-2">
+        <AlertCircle className="w-4 h-4 text-yellow-500" />
+        <p className="text-[8px] font-black text-yellow-500 uppercase tracking-widest">{t.debug}</p>
+      </div>
+
+      <div className="space-y-3">
         {isMarketLoading ? (
           <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <p className="text-[10px] uppercase font-bold tracking-[0.2em]">{t.scanning}</p>
           </div>
         ) : agents && agents.length > 0 ? (
-          <div className="space-y-3">
-            {agents.map((agent) => {
-              const isLeading = agent.highestBidderId === user?.uid;
-              const isOwner = agent.sellerId === user?.uid;
+          agents.map((agent) => {
+            const isLeading = agent.highestBidderId === user?.uid;
+            const isOwner = agent.sellerId === user?.uid;
 
-              return (
-                <Card key={agent.id} className={cn(
-                  "glass-card border-white/5 overflow-hidden group transition-all",
-                  isLeading ? "border-green-500/40 bg-green-500/5 ring-1 ring-green-500/20" : "hover:border-primary/30",
-                  isOwner && "border-blue-500/30 bg-blue-500/5"
-                )}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="w-14 h-14 rounded-2xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0 shadow-lg">
-                        <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-base font-bold uppercase truncate text-white tracking-tight">{agent.heroData?.name}</h3>
-                        <div className="flex flex-wrap items-center gap-2 mt-1">
-                          <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase font-black bg-black/20">
-                            {agent.heroData?.role}
-                          </Badge>
-                          {agent.highestBidderName && (
-                            <span className={cn(
-                              "text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-sm",
-                              isLeading ? "bg-green-500/20 text-green-400" : "bg-primary/20 text-primary"
-                            )}>
-                              TOP: {agent.highestBidderName}
-                            </span>
-                          )}
-                          {isOwner && (
-                            <Badge className="bg-blue-500 text-white text-[7px] font-black uppercase">YOUR LOT</Badge>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right flex flex-col items-end">
-                        <p className="text-2xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
-                        <p className="text-[8px] font-black text-muted-foreground uppercase mt-1 tracking-tighter">OVR</p>
+            return (
+              <Card key={agent.id} className={cn(
+                "glass-card border-white/5 overflow-hidden group transition-all",
+                isLeading ? "border-green-500/40 bg-green-500/5 ring-1 ring-green-500/20" : "hover:border-primary/30",
+                isOwner && "border-blue-500/30 bg-blue-500/5"
+              )}>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-14 h-14 rounded-2xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
+                      <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-bold uppercase truncate text-white tracking-tight">{agent.heroData?.name}</h3>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase font-black">
+                          {agent.heroData?.role}
+                        </Badge>
+                        {agent.isYouth && <Badge className="bg-accent text-accent-foreground text-[7px] font-black uppercase">YOUTH</Badge>}
+                        {isOwner && <Badge className="bg-blue-500 text-white text-[7px] font-black uppercase">MY LOT</Badge>}
                       </div>
                     </div>
-                    
-                    <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
-                      <div className="flex flex-col">
-                        <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Current Bid</p>
-                        <p className="text-lg font-headline font-bold text-primary tabular-nums">€{agent.currentBid?.toLocaleString()}</p>
-                      </div>
-                      <Button 
-                        className={cn(
-                          "h-11 font-black text-[10px] px-6 shadow-xl active:scale-95 transition-all rounded-xl",
-                          isLeading ? "bg-green-600 hover:bg-green-700 text-white" : "hero-gradient shadow-primary/20"
-                        )}
-                        onClick={() => handleBid(agent)} 
-                        disabled={!!isBidding || isLeading || isOwner}
-                      >
-                        {isBidding === agent.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : isLeading ? (
-                          <><ShieldCheck className="w-4 h-4 mr-2" /> {t.leading}</>
-                        ) : isOwner ? (
-                          t.yourLot
-                        ) : (
-                          <><Gavel className="w-4 h-4 mr-2" /> {t.nextBid} €{Math.ceil(agent.currentBid * 1.05).toLocaleString()}</>
-                        )}
-                      </Button>
+                    <div className="text-right flex flex-col items-end">
+                      <p className="text-2xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
+                      <p className="text-[8px] font-black text-muted-foreground uppercase mt-1 tracking-tighter">OVR</p>
                     </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
+                    <div className="flex flex-col">
+                      <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Bid</p>
+                      <p className="text-lg font-headline font-bold text-primary tabular-nums">€{agent.currentBid?.toLocaleString()}</p>
+                    </div>
+                    <Button 
+                      className={cn(
+                        "h-11 font-black text-[10px] px-6 shadow-xl rounded-xl",
+                        isLeading ? "bg-green-600 text-white" : "hero-gradient"
+                      )}
+                      onClick={() => handleBid(agent)} 
+                      disabled={!!isBidding || isLeading || isOwner}
+                    >
+                      {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : isLeading ? 'LEADING' : <><Gavel className="w-4 h-4 mr-2" /> BID</>}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
         ) : (
           <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
             <Users className="w-16 h-16 text-muted-foreground" />

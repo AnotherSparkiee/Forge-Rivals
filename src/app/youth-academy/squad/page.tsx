@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { useGameState, LineupSlot } from '../../lib/store';
+import { useState, useEffect } from 'react';
+import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -27,8 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { doc, serverTimestamp } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function YouthSquadPage() {
@@ -89,16 +89,12 @@ export default function YouthSquadPage() {
     try {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
-      
-      // TEST: 5 minutes
-      const expiryTime = new Date(mskNow);
-      expiryTime.setMinutes(expiryTime.getMinutes() + 5);
+      const expiryTime = new Date(mskNow.getTime() + 5 * 60 * 1000); // 5 minutes test
       
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
-      const agentId = `youth_${user.uid}_${Date.now()}`;
       
       const agentData = {
-        id: agentId,
+        id: `youth_${user.uid}_${Date.now()}`,
         heroData: JSON.parse(JSON.stringify(selectedHero)),
         currentBid: startPrice,
         startingPrice: startPrice,
@@ -114,16 +110,18 @@ export default function YouthSquadPage() {
         createdAt: serverTimestamp()
       };
 
-      await setDoc(doc(db, 'market_v2', agentId), agentData);
+      // Use a more generic collection reference to avoid any path errors
+      const marketCol = collection(db, 'market_v2');
+      await addDocumentNonBlocking(marketCol, agentData);
       
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
-        transferMarketId: agentId
+        transferMarketId: agentData.id
       });
       
       toast({ 
-        title: language === 'ru' ? "Юниор выставлен на трансфер" : "Junior Listed for Transfer",
-        description: language === 'ru' ? "На аукционе 5 минут. Юниор остается в академии." : "On auction for 5 minutes. Junior remains in academy."
+        title: language === 'ru' ? "Игрок выставлен!" : "Player listed!",
+        description: language === 'ru' ? "Проверьте вкладку Трансферы." : "Check the Transfers tab."
       });
       setSelectedHero(null);
     } catch (e: any) {
@@ -208,7 +206,7 @@ export default function YouthSquadPage() {
                 </div>
               </CardContent>
             </Card>
-          );
+          )
         }) : (
           <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
             <Users className="w-16 h-16" />
@@ -246,7 +244,7 @@ export default function YouthSquadPage() {
                       <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{selectedHero.role}</Badge>
                       {selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil).getTime() > now && (
                         <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5 flex gap-1 items-center animate-pulse">
-                          <Clock className="w-3 h-3" /> ON AUCTION
+                          <Clock className="w-3 h-3" /> {language === 'ru' ? 'НА АУКЦИОНЕ' : 'ON AUCTION'}
                         </Badge>
                       )}
                     </div>
@@ -283,7 +281,7 @@ export default function YouthSquadPage() {
                      >
                        {isTransferring ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-3" />}
                        <span className="text-[9px] font-black uppercase tracking-widest">
-                         {selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil).getTime() > now ? 'ACTIVE AUCTION' : t.onTransfer}
+                         {selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil).getTime() > now ? (language === 'ru' ? 'УЖЕ НА РЫНКЕ' : 'ALREADY LISTED') : t.onTransfer}
                        </span>
                      </Button>
                   </section>
