@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { doc, collection, query, where, getDocs, deleteDoc, updateDoc } from 'firebase/firestore';
+import { doc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 /**
@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 export function TransferResolver() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
-  const { isLoaded, ownedHeroes, youthAcademyHeroes, updateHero, removeHero, addCredits, language } = useGameState();
+  const { isLoaded, updateHero, removeHero, addCredits, language } = useGameState();
   const { toast } = useToast();
   const isResolvingRef = useRef(false);
 
@@ -39,7 +39,6 @@ export function TransferResolver() {
 
           if (now > expiresAt) {
             const heroId = data.heroData.id;
-            const isJunior = data.isYouth === true;
             
             if (data.highestBidderId) {
               // SOLD!
@@ -75,9 +74,12 @@ export function TransferResolver() {
     };
 
     // Check every 5 minutes or on load
-    resolveMySales();
+    const timer = setTimeout(resolveMySales, 2000);
     const interval = setInterval(resolveMySales, 300000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, [isLoaded, isUserLoading, user, db, addCredits, removeHero, updateHero, language, toast]);
 
   return null;

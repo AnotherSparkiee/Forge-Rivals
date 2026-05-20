@@ -26,8 +26,8 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
-import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 export default function YouthSquadPage() {
   const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, updateHero } = useGameState();
@@ -102,7 +102,8 @@ export default function YouthSquadPage() {
         isYouth: true
       };
 
-      setDocumentNonBlocking(doc(db, 'market_v2', agentId), agentData, {});
+      // Прямая запись в Firestore для предотвращения Permission Errors
+      await setDoc(doc(db, 'market_v2', agentId), agentData);
       
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
