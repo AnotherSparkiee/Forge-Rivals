@@ -311,11 +311,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const runCloudUpdate = useCallback((data: any) => {
     if (!user) return;
     const profileRef = doc(db, 'players_v5', user.uid);
-    // Push update to next event loop tick to ensure isolation from React state setter logic
-    Promise.resolve().then(() => {
+    // Use timeout to decouple from React rendering cycle completely
+    setTimeout(() => {
       updateDoc(profileRef, data)
         .catch(e => console.warn("Cloud update failed (handled):", e.message));
-    });
+    }, 0);
   }, [user, db]);
 
   useEffect(() => {

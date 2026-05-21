@@ -84,8 +84,9 @@ export default function YouthSquadPage() {
   };
 
   const handleTransfer = async () => {
-    if (!selectedHero || !user || !profile) return;
+    if (!selectedHero || !user || !profile || isTransferring) return;
     setIsTransferring(true);
+    
     try {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
@@ -94,14 +95,14 @@ export default function YouthSquadPage() {
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
-      // Санация данных
-      const cleanHeroData = JSON.parse(JSON.stringify(selectedHero));
-
-      const agentData = {
+      // Глубокая очистка данных для Firestore
+      const sanitizedHero = JSON.parse(JSON.stringify(selectedHero));
+      
+      const rawData = {
         id: agentId,
-        heroData: cleanHeroData,
-        currentBid: startPrice,
-        startingPrice: startPrice,
+        heroData: sanitizedHero,
+        currentBid: Number(startPrice),
+        startingPrice: Number(startPrice),
         highestBidderId: null,
         highestBidderName: null,
         bidders: [],
@@ -110,13 +111,21 @@ export default function YouthSquadPage() {
         expiresAt: expiryTime.toISOString(),
         dropDate: today,
         dropTime: mskNow.toISOString(),
-        isYouth: true,
+        isYouth: true
+      };
+
+      // Добавляем serverTimestamp вне JSON.stringify
+      const finalData = {
+        ...rawData,
         createdAt: serverTimestamp()
       };
 
       const agentRef = doc(db, 'market_v2', agentId);
-      setDocumentNonBlocking(agentRef, agentData, { merge: true });
       
+      // Используем non-blocking метод
+      setDocumentNonBlocking(agentRef, finalData, { merge: true });
+      
+      // Обновляем метаданные героя в профиле
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
         transferMarketId: agentId
@@ -126,9 +135,10 @@ export default function YouthSquadPage() {
         title: language === 'ru' ? "Игрок выставлен на трансфер" : "Player Listed for Transfer",
         description: language === 'ru' ? "Юниор появится на рынке через мгновение." : "Junior will appear on market instantly."
       });
+      
       setSelectedHero(null);
     } catch (e: any) {
-      console.error(e);
+      console.error("Transfer error:", e);
       toast({ title: "Transfer Failed", description: e.message, variant: "destructive" });
     } finally {
       setIsTransferring(false);
