@@ -5,8 +5,12 @@ service cloud.firestore {
     match /{document=**} {
       allow read, write: if true;
     }
-    // Явное разрешение для коллекции трансферов
-    match /market_v2/{id} {
+    // Явное разрешение для рынка
+    match /market_v2/{agentId} {
+      allow read, write: if true;
+    }
+    // Явное разрешение для игроков
+    match /players_v5/{userId} {
       allow read, write: if true;
     }
   }

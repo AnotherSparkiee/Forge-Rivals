@@ -94,6 +94,7 @@ export default function YouthSquadPage() {
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
+      // CRITICAL: Clean data for Firestore to avoid Access Denied due to complex objects/undefined
       const cleanHeroData = JSON.parse(JSON.stringify(selectedHero));
 
       const agentData = {
@@ -113,6 +114,7 @@ export default function YouthSquadPage() {
         createdAt: serverTimestamp()
       };
 
+      // Use setDocumentNonBlocking for a reliable write with specific ID
       const agentRef = doc(db, 'market_v2', agentId);
       setDocumentNonBlocking(agentRef, agentData, { merge: true });
       

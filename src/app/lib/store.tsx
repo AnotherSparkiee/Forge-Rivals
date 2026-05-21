@@ -254,7 +254,7 @@ function sanitizeForFirestore(obj: any) {
   if (obj === undefined) return null;
   if (!obj) return obj;
   try {
-    return JSON.parse(JSON.stringify(obj));
+    return JSON.parse(JSON.stringify(obj, (key, value) => value === undefined ? null : value));
   } catch (e) {
     return null;
   }
@@ -307,13 +307,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return user ? `lote_v1_${user.uid}` : null;
   }, [user]);
 
-  // Decoupled side effect runner to avoid Firestore SDK ca9 assertion errors
+  // CRITICAL: Isolated cloud updater to prevent ca9 assertion errors
   const runCloudUpdate = useCallback((data: any) => {
     if (!user) return;
-    setTimeout(() => {
-      updateDoc(doc(db, 'players_v5', user.uid), data)
+    const profileRef = doc(db, 'players_v5', user.uid);
+    // Push update to next event loop tick to ensure isolation from React state setter logic
+    Promise.resolve().then(() => {
+      updateDoc(profileRef, data)
         .catch(e => console.warn("Cloud update failed (handled):", e.message));
-    }, 0);
+    });
   }, [user, db]);
 
   useEffect(() => {
