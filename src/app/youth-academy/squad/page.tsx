@@ -114,7 +114,6 @@ export default function YouthSquadPage() {
         isYouth: true
       };
 
-      // Добавляем serverTimestamp вне JSON.stringify
       const finalData = {
         ...rawData,
         createdAt: serverTimestamp()
@@ -122,8 +121,8 @@ export default function YouthSquadPage() {
 
       const agentRef = doc(db, 'market_v2', agentId);
       
-      // Используем non-blocking метод
-      setDocumentNonBlocking(agentRef, finalData, { merge: true });
+      // Используем non-blocking метод БЕЗ merge для чистого создания
+      setDocumentNonBlocking(agentRef, finalData, {});
       
       // Обновляем метаданные героя в профиле
       updateHero(selectedHero.id, { 
@@ -133,7 +132,7 @@ export default function YouthSquadPage() {
       
       toast({ 
         title: language === 'ru' ? "Игрок выставлен на трансфер" : "Player Listed for Transfer",
-        description: language === 'ru' ? "Юниор появится на рынке через мгновение." : "Junior will appear on market instantly."
+        description: language === 'ru' ? "Юниор появится на рынке мгновенно." : "Junior will appear on market instantly."
       });
       
       setSelectedHero(null);
