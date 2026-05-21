@@ -94,7 +94,7 @@ export default function YouthSquadPage() {
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
-      // CRITICAL: Clean data for Firestore to avoid Access Denied due to complex objects/undefined
+      // Санация данных
       const cleanHeroData = JSON.parse(JSON.stringify(selectedHero));
 
       const agentData = {
@@ -114,7 +114,6 @@ export default function YouthSquadPage() {
         createdAt: serverTimestamp()
       };
 
-      // Use setDocumentNonBlocking for a reliable write with specific ID
       const agentRef = doc(db, 'market_v2', agentId);
       setDocumentNonBlocking(agentRef, agentData, { merge: true });
       
@@ -125,7 +124,7 @@ export default function YouthSquadPage() {
       
       toast({ 
         title: language === 'ru' ? "Игрок выставлен на трансфер" : "Player Listed for Transfer",
-        description: language === 'ru' ? "Лот появится на рынке через мгновение." : "Lot will appear on market instantly."
+        description: language === 'ru' ? "Юниор появится на рынке через мгновение." : "Junior will appear on market instantly."
       });
       setSelectedHero(null);
     } catch (e: any) {

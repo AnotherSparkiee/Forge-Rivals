@@ -1,16 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Полный доступ для прототипирования во всех коллекциях
+    // Абсолютный доступ ко всем коллекциям для прототипирования
     match /{document=**} {
-      allow read, write: if true;
-    }
-    // Явное разрешение для рынка
-    match /market_v2/{agentId} {
-      allow read, write: if true;
-    }
-    // Явное разрешение для игроков
-    match /players_v5/{userId} {
       allow read, write: if true;
     }
   }

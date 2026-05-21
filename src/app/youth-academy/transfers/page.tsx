@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,7 @@ export default function YouthTransfersPage() {
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // Глобальный рынок - получаем все лоты
+  // Глобальный рынок - получаем все лоты для отладки
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
@@ -79,8 +79,8 @@ export default function YouthTransfersPage() {
     subtitle: language === 'ru' ? 'Рынок молодых талантов' : 'Youth talent market',
   };
 
-  // Показываем всех для отладки
-  const youthAgents = agents || [];
+  // Показываем всех активных лотов для отладки
+  const activeAgents = agents || [];
 
   if (marketError) {
     return (
@@ -109,7 +109,7 @@ export default function YouthTransfersPage() {
             {t.title}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {isMarketLoading ? 'SYNCING...' : `Active Lots: ${youthAgents.length}`}
+            {isMarketLoading ? 'SYNCING...' : `Active Lots: ${activeAgents.length}`}
           </p>
         </div>
       </header>
@@ -120,8 +120,8 @@ export default function YouthTransfersPage() {
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <p className="text-[10px] uppercase font-bold tracking-[0.2em]">Link established...</p>
           </div>
-        ) : youthAgents.length > 0 ? (
-          youthAgents.map((agent) => {
+        ) : activeAgents.length > 0 ? (
+          activeAgents.map((agent) => {
             const isLeading = agent.highestBidderId === user?.uid;
             const isOwner = agent.sellerId === user?.uid;
 
@@ -142,7 +142,9 @@ export default function YouthTransfersPage() {
                         <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase font-black">
                           {agent.heroData?.role}
                         </Badge>
-                        <Badge className="bg-accent text-accent-foreground text-[7px] font-black uppercase">LIVE</Badge>
+                        {agent.isYouth && (
+                          <Badge className="bg-accent text-accent-foreground text-[7px] font-black uppercase">YOUTH</Badge>
+                        )}
                         {isOwner && <Badge className="bg-blue-500 text-white text-[7px] font-black uppercase">YOUR LOT</Badge>}
                       </div>
                     </div>
