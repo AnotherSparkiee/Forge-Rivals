@@ -307,11 +307,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return user ? `lote_v1_${user.uid}` : null;
   }, [user]);
 
-  // CRITICAL: Isolated cloud updater to prevent ca9 assertion errors
   const runCloudUpdate = useCallback((data: any) => {
     if (!user) return;
     const profileRef = doc(db, 'players_v5', user.uid);
-    // Use timeout to decouple from React rendering cycle completely
+    // CRITICAL: Isolated from the state cycle to prevent ID: ca9 assertions
     setTimeout(() => {
       updateDoc(profileRef, data)
         .catch(e => console.warn("Cloud update failed (handled):", e.message));
@@ -415,11 +414,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const newHero = generateYouthHero(state.youthAcademyHeroes.length);
         const updatedAcademy = [...state.youthAcademyHeroes, newHero];
         
-        runCloudUpdate({
-          youthAcademyHeroes: sanitizeForFirestore(updatedAcademy),
-          lastYouthArrivalDay: seasonDay,
-          lastYouthArrivalSeason: seasonNumber
-        });
+        // Use timeout to safely escape the effect cycle
+        setTimeout(() => {
+          runCloudUpdate({
+            youthAcademyHeroes: sanitizeForFirestore(updatedAcademy),
+            lastYouthArrivalDay: seasonDay,
+            lastYouthArrivalSeason: seasonNumber
+          });
+        }, 0);
       }
     }
   }, [isLoaded, user, state.seasonDay, state.seasonNumber, state.lastYouthArrivalDay, state.lastYouthArrivalSeason, state.youthAcademyHeroes, runCloudUpdate]);
@@ -463,16 +465,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const results = sanitizeForFirestore({ lastRank: myPos, lastPoints: lastSeasonTeams.find(t => t.id === user.uid)?.points || 0, promoted, demoted, seasonNumber: state.lastProcessedSeason, awardedTrophy });
       lastSyncRef.current = { season: globalSeason, day: completedDays, leagueId: state.selectedLeagueId };
       
-      runCloudUpdate({ 
-        leagueLevel: newLevel, 
-        wins: 0, draws: 0, losses: 0, points: 0, 
-        lastProcessedSeason: globalSeason, 
-        lastLeagueMatchDate: null, 
-        lastCupMatchDate: null, 
-        lastSeenMatchDay: 0, 
-        seasonResults: results, 
-        hasEliteTrophy: awardedTrophy || state.hasEliteTrophy 
-      });
+      setTimeout(() => {
+        runCloudUpdate({ 
+          leagueLevel: newLevel, 
+          wins: 0, draws: 0, losses: 0, points: 0, 
+          lastProcessedSeason: globalSeason, 
+          lastLeagueMatchDate: null, 
+          lastCupMatchDate: null, 
+          lastSeenMatchDay: 0, 
+          seasonResults: results, 
+          hasEliteTrophy: awardedTrophy || state.hasEliteTrophy 
+        });
+      }, 0);
       return; 
     }
 
@@ -484,52 +488,51 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
     if (Number(myDocInSnapshot.wins) !== Number(myTeam.wins) || Number(myDocInSnapshot.points) !== Number(myTeam.points) || state.lastProcessedSeason !== globalSeason) {
       lastSyncRef.current = { season: globalSeason, day: completedDays, leagueId: state.selectedLeagueId };
-      runCloudUpdate({ 
-        wins: Number(myTeam.wins || 0), 
-        draws: Number(myTeam.draws || 0), 
-        losses: Number(myTeam.losses || 0), 
-        points: Number(myTeam.points || 0), 
-        lastProcessedSeason: globalSeason 
-      });
+      setTimeout(() => {
+        runCloudUpdate({ 
+          wins: Number(myTeam.wins || 0), 
+          draws: Number(myTeam.draws || 0), 
+          losses: Number(myTeam.losses || 0), 
+          points: Number(myTeam.points || 0), 
+          lastProcessedSeason: globalSeason 
+        });
+      }, 0);
     }
   }, [state.selectedLeagueId, state.seasonDay, state.lastLeagueMatchDate, state.rank, state.leagueLevel, state.divisionSubId, state.groupId, state.lastProcessedSeason, state.hasEliteTrophy, state.country, user, runCloudUpdate]);
 
   const addCredits = useCallback((amount: number) => {
-    let newVal = 0;
     setState(s => {
-      newVal = s.credits + amount;
+      const newVal = s.credits + amount;
+      setTimeout(() => runCloudUpdate({ inGameCurrency: newVal }), 0);
       return { ...s, credits: newVal };
     });
-    runCloudUpdate({ inGameCurrency: newVal });
   }, [runCloudUpdate]);
 
   const addCrystals = useCallback((amount: number) => {
-    let newVal = 0;
     setState(s => {
-      newVal = s.crystals + amount;
+      const newVal = s.crystals + amount;
+      setTimeout(() => runCloudUpdate({ crystals: newVal }), 0);
       return { ...s, crystals: newVal };
     });
-    runCloudUpdate({ crystals: newVal });
   }, [runCloudUpdate]);
 
   const claimReward = useCallback((creditsReward: number, crystalsReward: number) => {
     const today = getMoscowDateString();
-    let nCredits = 0, nCrystals = 0, nDay = 1;
     setState(s => {
       if (s.lastRewardClaimDate === today) return s;
-      nCredits = s.credits + creditsReward; 
-      nCrystals = s.crystals + crystalsReward;
-      nDay = s.rewardDay >= 30 ? 1 : s.rewardDay + 1;
+      const nCredits = s.credits + creditsReward; 
+      const nCrystals = s.crystals + crystalsReward;
+      const nDay = s.rewardDay >= 30 ? 1 : s.rewardDay + 1;
+      setTimeout(() => {
+        runCloudUpdate({ 
+          inGameCurrency: nCredits, 
+          crystals: nCrystals, 
+          lastRewardClaimDate: today, 
+          rewardDay: nDay 
+        });
+      }, 0);
       return { ...s, credits: nCredits, crystals: nCrystals, lastRewardClaimDate: today, rewardDay: nDay };
     });
-    if (nCredits > 0) {
-      runCloudUpdate({ 
-        inGameCurrency: nCredits, 
-        crystals: nCrystals, 
-        lastRewardClaimDate: today, 
-        rewardDay: nDay 
-      });
-    }
   }, [runCloudUpdate]);
 
   const startArenaConstruction = useCallback((facility: any, cost: number) => {
@@ -539,7 +542,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const hours = 4 * ((s.arena as any)[facility] + 1); const startTime = new Date(); const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true; const newCredits = s.credits - cost;
         const newArena = { ...s.arena, constructionStarts: { ...s.arena.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, [facility]: finishTime.toISOString() } };
-        runCloudUpdate({ inGameCurrency: newCredits, arena: sanitizeForFirestore(newArena) });
+        setTimeout(() => runCloudUpdate({ inGameCurrency: newCredits, arena: sanitizeForFirestore(newArena) }), 0);
         return { ...s, credits: newCredits, arena: newArena };
       }
       return s;
@@ -554,7 +557,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const hours = 4 * ((s.hq as any)[facility] + 1); const startTime = new Date(); const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true; const newCredits = s.credits - cost;
         const newHQ = { ...s.hq, constructionStarts: { ...s.hq.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.hq.constructionFinishes, [facility]: finishTime.toISOString() } };
-        runCloudUpdate({ inGameCurrency: newCredits, hq: sanitizeForFirestore(newHQ) });
+        setTimeout(() => runCloudUpdate({ inGameCurrency: newCredits, hq: sanitizeForFirestore(newHQ) }), 0);
         return { ...s, credits: newCredits, hq: newHQ };
       }
       return s;
@@ -569,7 +572,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const hours = 4 * ((s.bootcamp as any)[facility] + 1); const startTime = new Date(); const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true; const newCredits = s.credits - cost;
         const newBootcamp = { ...s.bootcamp, constructionStarts: { ...s.bootcamp.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.bootcamp.constructionFinishes, [facility]: finishTime.toISOString() } };
-        runCloudUpdate({ inGameCurrency: newCredits, bootcamp: sanitizeForFirestore(newBootcamp) });
+        setTimeout(() => runCloudUpdate({ inGameCurrency: newCredits, bootcamp: sanitizeForFirestore(newBootcamp) }), 0);
         return { ...s, credits: newCredits, bootcamp: newBootcamp };
       }
       return s;
@@ -584,7 +587,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const hours = 4 * ((s.academy as any)[facility] + 1); const startTime = new Date(); const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true; const newCredits = s.credits - cost;
         const newAcademy = { ...s.academy, constructionStarts: { ...s.academy.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.academy.constructionFinishes, [facility]: finishTime.toISOString() } };
-        runCloudUpdate({ inGameCurrency: newCredits, academy: sanitizeForFirestore(newAcademy) });
+        setTimeout(() => runCloudUpdate({ inGameCurrency: newCredits, academy: sanitizeForFirestore(newAcademy) }), 0);
         return { ...s, credits: newCredits, academy: newAcademy };
       }
       return s;
@@ -599,7 +602,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const hours = 4 * ((s.medical as any)[facility] + 1); const startTime = new Date(); const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true; const newCredits = s.credits - cost;
         const newMedical = { ...s.medical, constructionStarts: { ...s.medical.constructionStarts, [facility]: startTime.toISOString() }, constructionFinishes: { ...s.medical.constructionFinishes, [facility]: finishTime.toISOString() } };
-        runCloudUpdate({ inGameCurrency: newCredits, medical: sanitizeForFirestore(newMedical) });
+        setTimeout(() => runCloudUpdate({ inGameCurrency: newCredits, medical: sanitizeForFirestore(newMedical) }), 0);
         return { ...s, credits: newCredits, medical: newMedical };
       }
       return s;
@@ -614,7 +617,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const startTime = new Date(); const finishTime = new Date(startTime.getTime() + hours * 3600000);
         result = true; const newCredits = s.credits - cost;
         const newArena = { ...s.arena, pendingCapacitySeats: seats, constructionStarts: { ...s.arena.constructionStarts, capacity: startTime.toISOString() }, constructionFinishes: { ...s.arena.constructionFinishes, capacity: finishTime.toISOString() } };
-        runCloudUpdate({ inGameCurrency: newCredits, arena: sanitizeForFirestore(newArena) });
+        setTimeout(() => runCloudUpdate({ inGameCurrency: newCredits, arena: sanitizeForFirestore(newArena) }), 0);
         return { ...s, credits: newCredits, arena: newArena };
       }
       return s;
@@ -623,13 +626,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [runCloudUpdate]);
 
   const hireStaffMember = useCallback((member: StaffMember) => {
-    let updatedStaff, newCredits;
     setState(s => {
-      updatedStaff = { ...s.staff, [member.role]: member };
-      newCredits = s.credits - (member.salary / 2);
+      const updatedStaff = { ...s.staff, [member.role]: member };
+      const newCredits = s.credits - (member.salary / 2);
+      setTimeout(() => runCloudUpdate({ staff: sanitizeForFirestore(updatedStaff), inGameCurrency: newCredits }), 0);
       return { ...s, staff: updatedStaff, credits: newCredits };
     });
-    runCloudUpdate({ staff: sanitizeForFirestore(updatedStaff), inGameCurrency: newCredits });
   }, [runCloudUpdate]);
 
   const trainStaffSkill = useCallback((role: StaffRole, skillKey: 'primary' | 'secondary', cost: number) => {
@@ -644,7 +646,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const updatedStaff = { ...s.staff, [role]: newMember };
       const newCrystals = s.crystals - cost;
       success = true;
-      runCloudUpdate({ staff: sanitizeForFirestore(updatedStaff), crystals: newCrystals });
+      setTimeout(() => runCloudUpdate({ staff: sanitizeForFirestore(updatedStaff), crystals: newCrystals }), 0);
       return { ...s, staff: updatedStaff, crystals: newCrystals };
     });
     return success;
@@ -667,13 +669,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       };
       if (!hasChanges) return s;
       const newState = { ...s, arena: processSector(s.arena), hq: processSector(s.hq), bootcamp: processSector(s.bootcamp), academy: processSector(s.academy), medical: processSector(s.medical) };
-      runCloudUpdate({
-        arena: sanitizeForFirestore(newState.arena),
-        hq: sanitizeForFirestore(newState.hq),
-        bootcamp: sanitizeForFirestore(newState.bootcamp),
-        academy: sanitizeForFirestore(newState.academy),
-        medical: sanitizeForFirestore(newState.medical)
-      });
+      setTimeout(() => {
+        runCloudUpdate({
+          arena: sanitizeForFirestore(newState.arena),
+          hq: sanitizeForFirestore(newState.hq),
+          bootcamp: sanitizeForFirestore(newState.bootcamp),
+          academy: sanitizeForFirestore(newState.academy),
+          medical: sanitizeForFirestore(newState.medical)
+        });
+      }, 0);
       return newState;
     });
   }, [runCloudUpdate]);
@@ -685,7 +689,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const newLineup = { ...s.lineup };
       if (heroId) { Object.keys(newLineup).forEach(k => { if (newLineup[k as LineupSlot] === heroId) newLineup[k as LineupSlot] = null; }); }
       newLineup[slot] = heroId; 
-      runCloudUpdate({ lineup: newLineup });
+      setTimeout(() => runCloudUpdate({ lineup: newLineup }), 0);
       const uniqueHeroIds = Array.from(new Set(Object.values(newLineup).filter(id => id !== null)));
       return { ...s, lineup: newLineup, team: s.ownedHeroes.filter(h => uniqueHeroIds.includes(h.id)), isSyncing: false };
     });
@@ -693,7 +697,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const updateTactics = useCallback((strategy: string, lineSettings: { carry: string; mid: string; offlane: string }) => {
     setState(s => {
-      runCloudUpdate({ strategy, lineSettings });
+      setTimeout(() => runCloudUpdate({ strategy, lineSettings }), 0);
       return { ...s, strategy, lineSettings, isSyncing: false };
     });
   }, [runCloudUpdate]);
@@ -702,10 +706,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(s => {
       const updatedOwned = s.ownedHeroes.map(h => h.id === heroId ? { ...h, trainingFocus: skillKey } : h);
       const updatedYouth = s.youthAcademyHeroes.map(h => h.id === heroId ? { ...h, trainingFocus: skillKey } : h);
-      runCloudUpdate({ 
-        ownedHeroes: sanitizeForFirestore(updatedOwned), 
-        youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
-      });
+      setTimeout(() => {
+        runCloudUpdate({ 
+          ownedHeroes: sanitizeForFirestore(updatedOwned), 
+          youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
+        });
+      }, 0);
       return { ...s, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth };
     });
   }, [runCloudUpdate]);
@@ -715,10 +721,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const finishTime = new Date(Date.now() + 24 * 3600000).toISOString();
       const updatedOwned = s.ownedHeroes.map(h => h.id === heroId ? { ...h, dailyTrainingFocus: skillKey, dailyTrainingFinishTime: finishTime } : h);
       const updatedYouth = s.youthAcademyHeroes.map(h => h.id === heroId ? { ...h, dailyTrainingFocus: skillKey, dailyTrainingFinishTime: finishTime } : h);
-      runCloudUpdate({ 
-        ownedHeroes: sanitizeForFirestore(updatedOwned), 
-        youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
-      });
+      setTimeout(() => {
+        runCloudUpdate({ 
+          ownedHeroes: sanitizeForFirestore(updatedOwned), 
+          youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
+        });
+      }, 0);
       return { ...s, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth };
     });
   }, [runCloudUpdate]);
@@ -739,10 +747,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       };
       const updatedOwned = s.ownedHeroes.map(processHero); 
       const updatedYouth = s.youthAcademyHeroes.map(processHero);
-      runCloudUpdate({ 
-        ownedHeroes: sanitizeForFirestore(updatedOwned), 
-        youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
-      });
+      setTimeout(() => {
+        runCloudUpdate({ 
+          ownedHeroes: sanitizeForFirestore(updatedOwned), 
+          youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
+        });
+      }, 0);
       return { ...s, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth };
     });
   }, [runCloudUpdate]);
@@ -754,12 +764,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const updatedYouth = s.youthAcademyHeroes.map(h => h.id === heroId ? { ...h, ...updates } : h);
       const newCredits = s.credits - creditCost;
       const newCrystals = s.crystals - crystalCost;
-      runCloudUpdate({ 
-        ownedHeroes: sanitizeForFirestore(updatedOwned), 
-        youthAcademyHeroes: sanitizeForFirestore(updatedYouth), 
-        inGameCurrency: newCredits, 
-        crystals: newCrystals 
-      });
+      setTimeout(() => {
+        runCloudUpdate({ 
+          ownedHeroes: sanitizeForFirestore(updatedOwned), 
+          youthAcademyHeroes: sanitizeForFirestore(updatedYouth), 
+          inGameCurrency: newCredits, 
+          crystals: newCrystals 
+        });
+      }, 0);
       return { ...s, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth, credits: newCredits, crystals: newCrystals };
     });
   }, [runCloudUpdate]);
@@ -770,10 +782,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       if (!hero) return s;
       const newAcademy = s.youthAcademyHeroes.filter(h => h.id !== heroId);
       const newOwned = [...s.ownedHeroes, hero];
-      runCloudUpdate({ 
-        youthAcademyHeroes: sanitizeForFirestore(newAcademy), 
-        ownedHeroes: sanitizeForFirestore(newOwned) 
-      });
+      setTimeout(() => {
+        runCloudUpdate({ 
+          youthAcademyHeroes: sanitizeForFirestore(newAcademy), 
+          ownedHeroes: sanitizeForFirestore(newOwned) 
+        });
+      }, 0);
       return { ...s, youthAcademyHeroes: newAcademy, ownedHeroes: newOwned };
     });
   }, [runCloudUpdate]);
@@ -785,12 +799,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const newLineup = { ...s.lineup };
       Object.keys(newLineup).forEach(k => { if (newLineup[k as LineupSlot] === heroId) newLineup[k as LineupSlot] = null; });
       const newCredits = s.credits + sellCreditAmount;
-      runCloudUpdate({ 
-        ownedHeroes: sanitizeForFirestore(updatedOwned), 
-        youthAcademyHeroes: sanitizeForFirestore(updatedYouth), 
-        lineup: newLineup, 
-        inGameCurrency: newCredits 
-      });
+      setTimeout(() => {
+        runCloudUpdate({ 
+          ownedHeroes: sanitizeForFirestore(updatedOwned), 
+          youthAcademyHeroes: sanitizeForFirestore(updatedYouth), 
+          lineup: newLineup, 
+          inGameCurrency: newCredits 
+        });
+      }, 0);
       return { ...s, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth, lineup: newLineup, credits: newCredits };
     });
   }, [runCloudUpdate]);
@@ -805,12 +821,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const newCredits = s.credits - creditCost;
       const newCrystals = s.crystals - crystalCost;
       success = true;
-      runCloudUpdate({ 
-        ownedHeroes: sanitizeForFirestore(updatedOwned), 
-        youthAcademyHeroes: sanitizeForFirestore(updatedYouth), 
-        inGameCurrency: newCredits, 
-        crystals: newCrystals 
-      });
+      setTimeout(() => {
+        runCloudUpdate({ 
+          ownedHeroes: sanitizeForFirestore(updatedOwned), 
+          youthAcademyHeroes: sanitizeForFirestore(updatedYouth), 
+          inGameCurrency: newCredits, 
+          crystals: newCrystals 
+        });
+      }, 0);
       return { ...s, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth, credits: newCredits, crystals: newCrystals };
     });
     return success;
@@ -853,15 +871,17 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const newLastLeagueDate = type === 'league' && matchDay === s.seasonDay ? todayStr : s.lastLeagueMatchDate;
       const newLastCupDate = type === 'tournament' ? todayStr : s.lastCupMatchDate;
 
-      runCloudUpdate({ 
-        inGameCurrency: newCredits, 
-        rank: newRank, 
-        lastLeagueMatchDate: newLastLeagueDate ?? null, 
-        lastCupMatchDate: newLastCupDate ?? null, 
-        matchHistory: newHistory, 
-        ownedHeroes: sanitizeForFirestore(updatedOwned), 
-        youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
-      });
+      setTimeout(() => {
+        runCloudUpdate({ 
+          inGameCurrency: newCredits, 
+          rank: newRank, 
+          lastLeagueMatchDate: newLastLeagueDate ?? null, 
+          lastCupMatchDate: newLastCupDate ?? null, 
+          matchHistory: newHistory, 
+          ownedHeroes: sanitizeForFirestore(updatedOwned), 
+          youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
+        });
+      }, 0);
       
       return { ...s, credits: newCredits, rank: newRank, matchHistory: newHistory, lastLeagueMatchDate: newLastLeagueDate, lastCupMatchDate: newLastCupDate, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth, isSyncing: false };
     });
@@ -870,38 +890,42 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const markMatchAsSeen = useCallback((day: number) => {
     setState(s => {
       if (day <= s.lastSeenMatchDay) return s;
-      runCloudUpdate({ lastSeenMatchDay: day });
+      setTimeout(() => runCloudUpdate({ lastSeenMatchDay: day }), 0);
       return { ...s, lastSeenMatchDay: day };
     });
   }, [runCloudUpdate]);
 
   const dismissSeasonResults = useCallback(() => {
     setState(s => {
-      runCloudUpdate({ seasonResults: null });
+      setTimeout(() => runCloudUpdate({ seasonResults: null }), 0);
       return { ...s, seasonResults: null };
     });
   }, [runCloudUpdate]);
 
   const addHeroDirectly = useCallback((hero: Hero) => {
     if (!user) return;
-    updateDoc(doc(db, 'players_v5', user.uid), {
-      ownedHeroes: arrayUnion(sanitizeForFirestore(hero))
-    }).catch(e => console.error("Cloud direct add failed", e));
+    setTimeout(() => {
+      updateDoc(doc(db, 'players_v5', user.uid), {
+        ownedHeroes: arrayUnion(sanitizeForFirestore(hero))
+      }).catch(e => console.error("Cloud direct add failed", e));
+    }, 0);
   }, [user, db]);
 
   const addYouthHeroDirectly = useCallback((hero: Hero) => {
     if (!user) return;
-    updateDoc(doc(db, 'players_v5', user.uid), {
-      youthAcademyHeroes: arrayUnion(sanitizeForFirestore(hero))
-    }).catch(e => console.error("Cloud youth direct add failed", e));
+    setTimeout(() => {
+      updateDoc(doc(db, 'players_v5', user.uid), {
+        youthAcademyHeroes: arrayUnion(sanitizeForFirestore(hero))
+      }).catch(e => console.error("Cloud youth direct add failed", e));
+    }, 0);
   }, [user, db]);
 
   const updateProfileName = useCallback((newName: string) => {
-    runCloudUpdate({ displayName: newName });
+    setTimeout(() => runCloudUpdate({ displayName: newName }), 0);
   }, [runCloudUpdate]);
 
   const updateProfileCountry = useCallback((newCountry: string) => {
-    runCloudUpdate({ country: newCountry });
+    setTimeout(() => runCloudUpdate({ country: newCountry }), 0);
     setState(s => ({ ...s, country: newCountry }));
   }, [runCloudUpdate]);
 

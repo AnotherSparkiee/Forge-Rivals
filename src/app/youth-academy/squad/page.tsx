@@ -90,15 +90,16 @@ export default function YouthSquadPage() {
     try {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
+      // Test duration: 5 minutes
       const expiryTime = new Date(mskNow.getTime() + 5 * 60 * 1000); 
       
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
-      // Глубокая очистка данных для Firestore
+      // Deep data cleaning to ensure Firestore compatibility
       const sanitizedHero = JSON.parse(JSON.stringify(selectedHero));
       
-      const rawData = {
+      const finalData = {
         id: agentId,
         heroData: sanitizedHero,
         currentBid: Number(startPrice),
@@ -111,20 +112,16 @@ export default function YouthSquadPage() {
         expiresAt: expiryTime.toISOString(),
         dropDate: today,
         dropTime: mskNow.toISOString(),
-        isYouth: true
-      };
-
-      const finalData = {
-        ...rawData,
+        isYouth: true,
         createdAt: serverTimestamp()
       };
 
       const agentRef = doc(db, 'market_v2', agentId);
       
-      // Используем non-blocking метод БЕЗ merge для чистого создания
+      // Atomic non-blocking write
       setDocumentNonBlocking(agentRef, finalData, {});
       
-      // Обновляем метаданные героя в профиле
+      // Update local and cloud metadata for the hero
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
         transferMarketId: agentId
@@ -283,7 +280,7 @@ export default function YouthSquadPage() {
                        variant="outline" 
                        className="w-full h-12 border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary group" 
                        onClick={handleTransfer}
-                       disabled={isTransferring || (selectedHero.onTransferUntil !== null && new Date(selectedHero.onTransferUntil).getTime() > now)}
+                       disabled={isTransferring || (selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil).getTime() > now)}
                      >
                        {isTransferring ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-3" />}
                        <span className="text-[9px] font-black uppercase tracking-widest">

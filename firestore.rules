@@ -1,7 +1,29 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Полный доступ для прототипирования: устраняет любые ошибки Access Denied
+    // Explicit rules for prototyping to prevent Access Denied errors
+    match /players_v5/{allPaths=**} {
+      allow read, write: if true;
+    }
+    match /market_v2/{allPaths=**} {
+      allow read, write: if true;
+    }
+    match /associations_v1/{allPaths=**} {
+      allow read, write: if true;
+    }
+    match /global_chat/{allPaths=**} {
+      allow read, write: if true;
+    }
+    match /private_messages/{allPaths=**} {
+      allow read, write: if true;
+    }
+    match /friendly_lobbies/{allPaths=**} {
+      allow read, write: if true;
+    }
+    match /cw_basket/{allPaths=**} {
+      allow read, write: if true;
+    }
+    // General fallback
     match /{document=**} {
       allow read, write: if true;
     }
