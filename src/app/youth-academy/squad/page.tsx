@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useGameState } from '../../lib/store';
+import { useGameState, LineupSlot } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -94,7 +94,7 @@ export default function YouthSquadPage() {
       const startPrice = Math.floor((selectedHero.overallRating * 5000) + 25000);
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
-      // СТРОЖАЙШАЯ СТЕРИЛИЗАЦИЯ ДАННЫХ ДЛЯ СХЕМЫ
+      // СТРОЖАЙШАЯ СТЕРИЛИЗАЦИЯ ДАННЫХ ДЛЯ СХЕМЫ docs/backend.json
       const sanitizedHero = {
         id: String(selectedHero.id),
         name: String(selectedHero.name),
@@ -107,9 +107,7 @@ export default function YouthSquadPage() {
           code: String(selectedHero.country.code),
           name: String(selectedHero.country.name),
           flag: String(selectedHero.country.flag)
-        },
-        proStats: JSON.parse(JSON.stringify(selectedHero.proStats)),
-        proTalents: JSON.parse(JSON.stringify(selectedHero.proTalents))
+        }
       };
       
       const agentData = {
@@ -127,9 +125,10 @@ export default function YouthSquadPage() {
         dropTime: mskNow.toISOString()
       };
 
-      // Прямая запись без флагов merge
+      // Прямая запись документа. Поля в точности соответствуют MarketAgent в docs/backend.json
       setDocumentNonBlocking(doc(db, 'market_v2', agentId), agentData);
       
+      // Обновляем статус героя в профиле игрока
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
         transferMarketId: agentId
@@ -137,7 +136,7 @@ export default function YouthSquadPage() {
       
       toast({ 
         title: language === 'ru' ? "Игрок выставлен на трансфер" : "Player Listed for Transfer",
-        description: language === 'ru' ? "Лот появится на рынке через мгновение." : "Lot will appear on market instantly."
+        description: language === 'ru' ? "Юниор появится на рынке через мгновение." : "Junior will appear on market instantly."
       });
       
       setSelectedHero(null);

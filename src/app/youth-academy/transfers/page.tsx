@@ -24,7 +24,7 @@ export default function YouthTransfersPage() {
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // Прямой стрим всей коллекции без сложных фильтров (фильтруем на клиенте для стабильности)
+  // Прямой стрим всей коллекции для гарантированной видимости
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
@@ -32,7 +32,7 @@ export default function YouthTransfersPage() {
 
   const { data: allAgents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
-  // Фильтруем юниоров (учеников академии) по возрасту
+  // Фильтруем юниоров по возрасту на клиенте
   const youthAgents = allAgents?.filter(a => a.heroData?.baseAge && Number(a.heroData.baseAge) < 18) || [];
 
   const handleBid = async (agent: any) => {
@@ -85,7 +85,7 @@ export default function YouthTransfersPage() {
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
         <h2 className="text-xl font-bold uppercase text-white">Market Archive Error</h2>
         <p className="text-[10px] text-muted-foreground uppercase px-10 font-black tracking-widest leading-relaxed">
-          The market data node is currently unavailable. Ensure your operational clearance is active.
+          Access to the market data node was denied. Re-authentication sequence or session refresh required.
         </p>
         <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black px-8">
           RE-SYNC TERMINAL
