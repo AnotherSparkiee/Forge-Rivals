@@ -27,8 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
-import { doc, collection, serverTimestamp } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
+import { doc, collection } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function YouthSquadPage() {
@@ -61,7 +61,7 @@ export default function YouthSquadPage() {
     years: language === 'ru' ? "лет" : "yrs",
     stats: language === 'ru' ? "Навыки и потенциал" : "Skills & Potential",
     onTransfer: language === 'ru' ? "ВЫСТАВИТЬ НА РЫНОК" : "PUT ON TRANSFER",
-    transferDesc: language === 'ru' ? "Юниор будет выставлен на аукцион на 12 часов. После этого он вернется в академию или будет продан." : "Junior will be listed for 12 hours. After that, he will return to the academy or be sold.",
+    transferDesc: language === 'ru' ? "Юниор будет выставлен на аукцион на 12 часов. Если ставок не будет, он останется в академии." : "Junior will be listed for 12 hours. If no bids are placed, he remains in the academy.",
     success: language === 'ru' ? "Игрок переведен в состав!" : "Player promoted to squad!",
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
@@ -90,18 +90,17 @@ export default function YouthSquadPage() {
     try {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
-      // Выставляем на 12 часов
       const expiryTime = new Date(mskNow.getTime() + 12 * 60 * 60 * 1000); 
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
+      const agentId = `youth_${user.uid}_${Date.now()}`;
       
-      // Глубокая очистка данных героя. Оставляем только то, что нужно для рынка.
       const sanitizedHero = {
         id: selectedHero.id,
         name: selectedHero.name,
         role: selectedHero.role,
-        overallRating: selectedHero.overallRating,
+        overallRating: Number(selectedHero.overallRating),
         image: selectedHero.image,
-        baseAge: selectedHero.baseAge,
+        baseAge: Number(selectedHero.baseAge),
         hiredAt: selectedHero.hiredAt,
         country: selectedHero.country,
         proStats: selectedHero.proStats,
@@ -110,6 +109,7 @@ export default function YouthSquadPage() {
       
       // СТРОГОЕ СООТВЕТСТВИЕ СХЕМЕ MarketAgent (docs/backend.json)
       const agentData = {
+        id: agentId,
         heroData: sanitizedHero,
         currentBid: Number(startPrice),
         startingPrice: Number(startPrice),
@@ -123,20 +123,17 @@ export default function YouthSquadPage() {
         dropTime: mskNow.toISOString()
       };
 
-      const marketCol = collection(db, 'market_v2');
+      // Используем setDocumentNonBlocking для создания записи с явным ID
+      setDocumentNonBlocking(doc(db, 'market_v2', agentId), agentData);
       
-      // Используем addDocumentNonBlocking для автоматической генерации ID
-      const docRef = await addDocumentNonBlocking(marketCol, agentData);
-      
-      // Обновляем локальные данные героя в профиле пользователя
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
-        transferMarketId: docRef?.id || `temp_${Date.now()}`
+        transferMarketId: agentId
       });
       
       toast({ 
         title: language === 'ru' ? "Игрок выставлен на трансфер" : "Player Listed for Transfer",
-        description: language === 'ru' ? "Юниор появится на рынке мгновенно." : "Junior will appear on market instantly."
+        description: language === 'ru' ? "Лот появится на рынке через мгновение." : "Lot will appear on market instantly."
       });
       
       setSelectedHero(null);
