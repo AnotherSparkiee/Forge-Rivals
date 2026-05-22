@@ -24,13 +24,16 @@ export default function YouthTransfersPage() {
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // ПОЛНОЕ ОТОБРАЖЕНИЕ: Слушаем всю коллекцию market_v2 для проверки записи
+  // Global market stream: Listen to all entries for debug and live visibility
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
   }, [db, user?.uid]);
 
-  const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
+  const { data: allAgents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
+
+  // Filter juniors locally based on age (reliable way since schema is strict)
+  const youthAgents = allAgents?.filter(a => a.heroData?.baseAge < 18) || [];
 
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;
@@ -52,6 +55,7 @@ export default function YouthTransfersPage() {
         highestBidderId: user.uid,
         highestBidderName: "Manager",
         bidders: arrayUnion(user.uid),
+        // Use standard updatedAt if available or serverTimestamp
         updatedAt: serverTimestamp()
       });
       
@@ -62,7 +66,7 @@ export default function YouthTransfersPage() {
         description: language === 'ru' ? "Вы теперь лидер торгов." : "You are now the leading bidder."
       });
     } catch (e: any) {
-      console.error(e);
+      console.error("Bid operation fail:", e);
       toast({ title: "Bid Failed", description: e.message, variant: "destructive" });
     } finally {
       setIsBidding(null);
@@ -74,6 +78,7 @@ export default function YouthTransfersPage() {
   const t = {
     title: language === 'ru' ? 'ТРАНСФЕРЫ ЮНИОРОВ' : 'YOUTH TRANSFERS',
     subtitle: language === 'ru' ? 'Рынок молодых талантов' : 'Youth talent market',
+    activeCount: language === 'ru' ? 'Активных лотов' : 'Active Lots'
   };
 
   if (marketError) {
@@ -103,7 +108,7 @@ export default function YouthTransfersPage() {
             {t.title}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {isMarketLoading ? 'SYNCING...' : `Operational Active: ${agents?.length || 0}`}
+            {isMarketLoading ? 'SYNCING...' : `${t.activeCount}: ${youthAgents.length}`}
           </p>
         </div>
       </header>
@@ -114,8 +119,8 @@ export default function YouthTransfersPage() {
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Establishing Link...</p>
           </div>
-        ) : agents && agents.length > 0 ? (
-          agents.map((agent) => {
+        ) : youthAgents.length > 0 ? (
+          youthAgents.map((agent) => {
             const isLeading = agent.highestBidderId === user?.uid;
             const isOwner = agent.sellerId === user?.uid;
 
@@ -136,9 +141,7 @@ export default function YouthTransfersPage() {
                         <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase font-black">
                           {agent.heroData?.role}
                         </Badge>
-                        {agent.isYouth && (
-                          <Badge className="bg-accent text-accent-foreground text-[7px] font-black uppercase">YOUTH</Badge>
-                        )}
+                        <Badge className="bg-accent text-accent-foreground text-[7px] font-black uppercase">YOUTH</Badge>
                         {isOwner && <Badge className="bg-blue-500 text-white text-[7px] font-black uppercase">YOUR LOT</Badge>}
                       </div>
                     </div>

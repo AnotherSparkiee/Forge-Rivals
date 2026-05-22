@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useGameState } from '../../lib/store';
+import { useGameState, LineupSlot } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,7 +28,7 @@ import {
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
-import { doc, serverTimestamp, collection } from 'firebase/firestore';
+import { doc, collection } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function YouthSquadPage() {
@@ -90,38 +90,37 @@ export default function YouthSquadPage() {
     try {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
-      // Тестовая длительность: 5 минут
       const expiryTime = new Date(mskNow.getTime() + 5 * 60 * 1000); 
       
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
-      // ГЛУБОКАЯ СЕРИАЛИЗАЦИЯ для исключения любых невалидных данных
+      // Strict POJO cleaning for Firestore
       const sanitizedHero = JSON.parse(JSON.stringify(selectedHero));
       
+      // STRICT ALIGNMENT WITH MarketAgent SCHEMA in docs/backend.json
       const finalData = {
         id: agentId,
         heroData: sanitizedHero,
         currentBid: Number(startPrice),
         startingPrice: Number(startPrice),
-        highestBidderId: null,
-        highestBidderName: null,
+        highestBidderId: "", // String required, using empty instead of null
+        highestBidderName: "", // String required
         bidders: [],
         sellerId: user.uid,
         sellerName: profile.displayName || "Manager",
         expiresAt: expiryTime.toISOString(),
         dropDate: today,
-        dropTime: mskNow.toISOString(),
-        isYouth: true,
-        createdAt: serverTimestamp()
+        dropTime: mskNow.toISOString()
+        // Removed non-schema fields like isYouth, createdAt, updatedAt
       };
 
       const agentRef = doc(db, 'market_v2', agentId);
       
-      // Используем прямой setDocumentNonBlocking без лишних флагов
+      // Use setDocumentNonBlocking for clean creation
       setDocumentNonBlocking(agentRef, finalData, {});
       
-      // Обновляем метаданные героя в профиле игрока
+      // Update local hero metadata
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
         transferMarketId: agentId
@@ -134,7 +133,7 @@ export default function YouthSquadPage() {
       
       setSelectedHero(null);
     } catch (e: any) {
-      console.error("Transfer error:", e);
+      console.error("Transfer submission sequence fail:", e);
       toast({ title: "Transfer Failed", description: e.message, variant: "destructive" });
     } finally {
       setIsTransferring(false);
