@@ -27,8 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
-import { doc, collection } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function YouthSquadPage() {
@@ -61,7 +61,7 @@ export default function YouthSquadPage() {
     years: language === 'ru' ? "лет" : "yrs",
     stats: language === 'ru' ? "Навыки и потенциал" : "Skills & Potential",
     onTransfer: language === 'ru' ? "ВЫСТАВИТЬ НА РЫНОК" : "PUT ON TRANSFER",
-    transferDesc: language === 'ru' ? "Юниор будет выставлен на аукцион на 5 минут. После этого он вернется в академию или будет продан." : "Junior will be listed for 5 minutes. After that, he will return to the academy or be sold.",
+    transferDesc: language === 'ru' ? "Юниор будет выставлен на аукцион на 12 часов. После этого он вернется в академию или будет продан." : "Junior will be listed for 12 hours. After that, he will return to the academy or be sold.",
     success: language === 'ru' ? "Игрок переведен в состав!" : "Player promoted to squad!",
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
@@ -90,18 +90,26 @@ export default function YouthSquadPage() {
     try {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
-      // Устанавливаем истечение через 5 минут
-      const expiryTime = new Date(mskNow.getTime() + 5 * 60 * 1000); 
+      // Выставляем на 12 часов
+      const expiryTime = new Date(mskNow.getTime() + 12 * 60 * 60 * 1000); 
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
-      const agentId = `youth_${user.uid}_${Date.now()}`;
       
-      // Глубокая очистка данных героя для Firestore
-      const sanitizedHero = JSON.parse(JSON.stringify(selectedHero));
+      // Глубокая очистка данных героя. Оставляем только то, что нужно для рынка.
+      const sanitizedHero = {
+        id: selectedHero.id,
+        name: selectedHero.name,
+        role: selectedHero.role,
+        overallRating: selectedHero.overallRating,
+        image: selectedHero.image,
+        baseAge: selectedHero.baseAge,
+        hiredAt: selectedHero.hiredAt,
+        country: selectedHero.country,
+        proStats: selectedHero.proStats,
+        proTalents: selectedHero.proTalents
+      };
       
       // СТРОГОЕ СООТВЕТСТВИЕ СХЕМЕ MarketAgent (docs/backend.json)
-      // Ошибка Access Denied часто вызвана лишними полями или неверными типами (null вместо string)
       const agentData = {
-        id: agentId,
         heroData: sanitizedHero,
         currentBid: Number(startPrice),
         startingPrice: Number(startPrice),
@@ -115,15 +123,15 @@ export default function YouthSquadPage() {
         dropTime: mskNow.toISOString()
       };
 
-      const agentRef = doc(db, 'market_v2', agentId);
+      const marketCol = collection(db, 'market_v2');
       
-      // Выполняем запись без merge, чтобы гарантировать чистоту документа
-      setDocumentNonBlocking(agentRef, agentData);
+      // Используем addDocumentNonBlocking для автоматической генерации ID
+      const docRef = await addDocumentNonBlocking(marketCol, agentData);
       
-      // Обновляем локальные данные героя
+      // Обновляем локальные данные героя в профиле пользователя
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
-        transferMarketId: agentId
+        transferMarketId: docRef?.id || `temp_${Date.now()}`
       });
       
       toast({ 

@@ -24,7 +24,7 @@ export default function YouthTransfersPage() {
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // Global market stream
+  // Global market stream: просто слушаем всю коллекцию без сложных фильтров для стабильности
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
@@ -32,7 +32,7 @@ export default function YouthTransfersPage() {
 
   const { data: allAgents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
-  // Мы определяем юниоров по их возрасту (< 18), так как это самый надежный способ.
+  // Фильтруем юниоров по возрасту на уровне клиента
   const youthAgents = allAgents?.filter(a => a.heroData?.baseAge < 18) || [];
 
   const handleBid = async (agent: any) => {
@@ -53,7 +53,7 @@ export default function YouthTransfersPage() {
       await updateDoc(agentRef, {
         currentBid: minNextBid,
         highestBidderId: user.uid,
-        highestBidderName: "Manager",
+        highestBidderName: "Manager", // Упрощенное имя для прохождения валидации
         bidders: arrayUnion(user.uid),
         updatedAt: serverTimestamp()
       });
