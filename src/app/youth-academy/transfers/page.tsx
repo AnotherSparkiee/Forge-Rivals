@@ -51,11 +51,10 @@ export default function YouthTransfersPage() {
     try {
       const agentRef = doc(db, 'market_v2', agent.id);
       await updateDoc(agentRef, {
-        currentBid: minNextBid,
+        currentBid: Number(minNextBid),
         highestBidderId: user.uid,
-        highestBidderName: "Manager", // Упрощенное имя для прохождения валидации
-        bidders: arrayUnion(user.uid),
-        updatedAt: serverTimestamp()
+        highestBidderName: "Manager", 
+        bidders: arrayUnion(user.uid)
       });
       
       addCredits(-minNextBid);

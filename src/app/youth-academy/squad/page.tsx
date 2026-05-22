@@ -28,7 +28,7 @@ import {
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
-import { doc, collection } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function YouthSquadPage() {
@@ -108,6 +108,7 @@ export default function YouthSquadPage() {
       };
       
       // СТРОГОЕ СООТВЕТСТВИЕ СХЕМЕ MarketAgent (docs/backend.json)
+      // ВАЖНО: Используем ISO строки вместо serverTimestamp(), так как схема требует string (date-time)
       const agentData = {
         id: agentId,
         heroData: sanitizedHero,
@@ -123,7 +124,6 @@ export default function YouthSquadPage() {
         dropTime: mskNow.toISOString()
       };
 
-      // Используем setDocumentNonBlocking для создания записи с явным ID
       setDocumentNonBlocking(doc(db, 'market_v2', agentId), agentData);
       
       updateHero(selectedHero.id, { 
