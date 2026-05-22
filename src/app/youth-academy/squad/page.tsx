@@ -28,7 +28,7 @@ import {
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { doc, collection } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function YouthSquadPage() {
@@ -91,39 +91,43 @@ export default function YouthSquadPage() {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
       const expiryTime = new Date(mskNow.getTime() + 12 * 60 * 60 * 1000); 
-      const startPrice = (selectedHero.overallRating * 5000) + 25000;
+      const startPrice = Math.floor((selectedHero.overallRating * 5000) + 25000);
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
+      // СТРОЖАЙШАЯ СТЕРИЛИЗАЦИЯ ДАННЫХ ДЛЯ СХЕМЫ
       const sanitizedHero = {
-        id: selectedHero.id,
-        name: selectedHero.name,
-        role: selectedHero.role,
+        id: String(selectedHero.id),
+        name: String(selectedHero.name),
+        role: String(selectedHero.role),
         overallRating: Number(selectedHero.overallRating),
-        image: selectedHero.image,
+        image: String(selectedHero.image),
         baseAge: Number(selectedHero.baseAge),
-        hiredAt: selectedHero.hiredAt,
-        country: selectedHero.country,
-        proStats: selectedHero.proStats,
-        proTalents: selectedHero.proTalents
+        hiredAt: String(selectedHero.hiredAt),
+        country: {
+          code: String(selectedHero.country.code),
+          name: String(selectedHero.country.name),
+          flag: String(selectedHero.country.flag)
+        },
+        proStats: JSON.parse(JSON.stringify(selectedHero.proStats)),
+        proTalents: JSON.parse(JSON.stringify(selectedHero.proTalents))
       };
       
-      // СТРОГОЕ СООТВЕТСТВИЕ СХЕМЕ MarketAgent (docs/backend.json)
-      // ВАЖНО: Используем ISO строки вместо serverTimestamp(), так как схема требует string (date-time)
       const agentData = {
-        id: agentId,
+        id: String(agentId),
         heroData: sanitizedHero,
         currentBid: Number(startPrice),
         startingPrice: Number(startPrice),
         highestBidderId: "", 
         highestBidderName: "",
         bidders: [],
-        sellerId: user.uid,
-        sellerName: profile.displayName || "Manager",
+        sellerId: String(user.uid),
+        sellerName: String(profile.displayName || "Manager"),
         expiresAt: expiryTime.toISOString(),
-        dropDate: today,
+        dropDate: String(today),
         dropTime: mskNow.toISOString()
       };
 
+      // Прямая запись без флагов merge
       setDocumentNonBlocking(doc(db, 'market_v2', agentId), agentData);
       
       updateHero(selectedHero.id, { 

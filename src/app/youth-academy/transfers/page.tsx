@@ -9,7 +9,7 @@ import {
   ChevronLeft, ShoppingCart, Loader2, Gavel, ShieldCheck, Clock, AlertCircle, Users
 } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, doc, arrayUnion, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, query, doc, arrayUnion, updateDoc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -24,7 +24,7 @@ export default function YouthTransfersPage() {
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // Global market stream: просто слушаем всю коллекцию без сложных фильтров для стабильности
+  // Прямой стрим всей коллекции без сложных фильтров (фильтруем на клиенте для стабильности)
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
@@ -32,8 +32,8 @@ export default function YouthTransfersPage() {
 
   const { data: allAgents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
-  // Фильтруем юниоров по возрасту на уровне клиента
-  const youthAgents = allAgents?.filter(a => a.heroData?.baseAge < 18) || [];
+  // Фильтруем юниоров (учеников академии) по возрасту
+  const youthAgents = allAgents?.filter(a => a.heroData?.baseAge && Number(a.heroData.baseAge) < 18) || [];
 
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;
@@ -52,7 +52,7 @@ export default function YouthTransfersPage() {
       const agentRef = doc(db, 'market_v2', agent.id);
       await updateDoc(agentRef, {
         currentBid: Number(minNextBid),
-        highestBidderId: user.uid,
+        highestBidderId: String(user.uid),
         highestBidderName: "Manager", 
         bidders: arrayUnion(user.uid)
       });
