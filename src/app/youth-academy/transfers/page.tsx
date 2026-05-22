@@ -24,7 +24,7 @@ export default function YouthTransfersPage() {
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // Global market stream: Listen to all entries for debug and live visibility
+  // Global market stream
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
@@ -32,7 +32,7 @@ export default function YouthTransfersPage() {
 
   const { data: allAgents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
-  // Filter juniors locally based on age (reliable way since schema is strict)
+  // Фильтруем юниоров по возрасту для надежности (схема может не содержать флаг isYouth)
   const youthAgents = allAgents?.filter(a => a.heroData?.baseAge < 18) || [];
 
   const handleBid = async (agent: any) => {
@@ -55,7 +55,6 @@ export default function YouthTransfersPage() {
         highestBidderId: user.uid,
         highestBidderName: "Manager",
         bidders: arrayUnion(user.uid),
-        // Use standard updatedAt if available or serverTimestamp
         updatedAt: serverTimestamp()
       });
       
@@ -132,7 +131,7 @@ export default function YouthTransfersPage() {
               )}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4 mb-4">
-                    <div className="w-14 h-14 rounded-2xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
+                    <div className="w-14 h-14 rounded-2xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0 shadow-lg">
                       <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 min-w-0">

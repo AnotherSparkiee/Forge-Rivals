@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useGameState, LineupSlot } from '../../lib/store';
+import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -91,36 +91,35 @@ export default function YouthSquadPage() {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
       const expiryTime = new Date(mskNow.getTime() + 5 * 60 * 1000); 
-      
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
-      // Strict POJO cleaning for Firestore
+      // Глубокая очистка данных героя
       const sanitizedHero = JSON.parse(JSON.stringify(selectedHero));
       
-      // STRICT ALIGNMENT WITH MarketAgent SCHEMA in docs/backend.json
+      // СТРОГОЕ СООТВЕТСТВИЕ СХЕМЕ MarketAgent (docs/backend.json)
+      // Исключаем все опциональные или несуществующие в схеме поля для прохождения валидации
       const finalData = {
         id: agentId,
         heroData: sanitizedHero,
         currentBid: Number(startPrice),
         startingPrice: Number(startPrice),
-        highestBidderId: "", // String required, using empty instead of null
-        highestBidderName: "", // String required
+        highestBidderId: "", 
+        highestBidderName: "",
         bidders: [],
         sellerId: user.uid,
         sellerName: profile.displayName || "Manager",
         expiresAt: expiryTime.toISOString(),
         dropDate: today,
         dropTime: mskNow.toISOString()
-        // Removed non-schema fields like isYouth, createdAt, updatedAt
       };
 
       const agentRef = doc(db, 'market_v2', agentId);
       
-      // Use setDocumentNonBlocking for clean creation
-      setDocumentNonBlocking(agentRef, finalData, {});
+      // Используем прямое сохранение без лишних опций
+      setDocumentNonBlocking(agentRef, finalData);
       
-      // Update local hero metadata
+      // Обновляем статус героя локально и в профиле
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
         transferMarketId: agentId
@@ -133,7 +132,7 @@ export default function YouthSquadPage() {
       
       setSelectedHero(null);
     } catch (e: any) {
-      console.error("Transfer submission sequence fail:", e);
+      console.error("Critical transfer failure:", e);
       toast({ title: "Transfer Failed", description: e.message, variant: "destructive" });
     } finally {
       setIsTransferring(false);
