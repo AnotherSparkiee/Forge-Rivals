@@ -61,7 +61,7 @@ export default function YouthSquadPage() {
     years: language === 'ru' ? "лет" : "yrs",
     stats: language === 'ru' ? "Навыки и потенциал" : "Skills & Potential",
     onTransfer: language === 'ru' ? "ВЫСТАВИТЬ НА РЫНОК" : "PUT ON TRANSFER",
-    transferDesc: language === 'ru' ? "Юниор будет выставлен на аукцион на 5 минут. Если ставок не будет, он останется в академии." : "Junior will be listed for 5 minutes. If no bids are placed, he remains in the academy.",
+    transferDesc: language === 'ru' ? "Юниор будет выставлен на аукцион на 5 минут. После этого он вернется в академию или будет продан." : "Junior will be listed for 5 minutes. After that, he will return to the academy or be sold.",
     success: language === 'ru' ? "Игрок переведен в состав!" : "Player promoted to squad!",
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
@@ -90,16 +90,17 @@ export default function YouthSquadPage() {
     try {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
+      // Устанавливаем истечение через 5 минут
       const expiryTime = new Date(mskNow.getTime() + 5 * 60 * 1000); 
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
-      // Глубокая очистка данных героя
+      // Глубокая очистка данных героя для Firestore
       const sanitizedHero = JSON.parse(JSON.stringify(selectedHero));
       
       // СТРОГОЕ СООТВЕТСТВИЕ СХЕМЕ MarketAgent (docs/backend.json)
-      // Исключаем все опциональные или несуществующие в схеме поля для прохождения валидации
-      const finalData = {
+      // Ошибка Access Denied часто вызвана лишними полями или неверными типами (null вместо string)
+      const agentData = {
         id: agentId,
         heroData: sanitizedHero,
         currentBid: Number(startPrice),
@@ -116,10 +117,10 @@ export default function YouthSquadPage() {
 
       const agentRef = doc(db, 'market_v2', agentId);
       
-      // Используем прямое сохранение без лишних опций
-      setDocumentNonBlocking(agentRef, finalData);
+      // Выполняем запись без merge, чтобы гарантировать чистоту документа
+      setDocumentNonBlocking(agentRef, agentData);
       
-      // Обновляем статус героя локально и в профиле
+      // Обновляем локальные данные героя
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
         transferMarketId: agentId
@@ -132,7 +133,7 @@ export default function YouthSquadPage() {
       
       setSelectedHero(null);
     } catch (e: any) {
-      console.error("Critical transfer failure:", e);
+      console.error("Transfer error:", e);
       toast({ title: "Transfer Failed", description: e.message, variant: "destructive" });
     } finally {
       setIsTransferring(false);

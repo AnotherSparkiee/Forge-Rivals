@@ -32,7 +32,7 @@ export default function YouthTransfersPage() {
 
   const { data: allAgents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
-  // Фильтруем юниоров по возрасту для надежности (схема может не содержать флаг isYouth)
+  // Мы определяем юниоров по их возрасту (< 18), так как это самый надежный способ.
   const youthAgents = allAgents?.filter(a => a.heroData?.baseAge < 18) || [];
 
   const handleBid = async (agent: any) => {
