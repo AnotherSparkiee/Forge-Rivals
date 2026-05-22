@@ -1,17 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Market: Absolute open access for testing
-    match /market_v2/{allPaths=**} {
-      allow read, write: if true;
-    }
-    
-    // Players: Open access for profile updates
-    match /players_v5/{allPaths=**} {
-      allow read, write: if true;
-    }
-    
-    // General fallback for other collections
+    // Глобальное разрешение для всех коллекций на время разработки и отладки
     match /{document=**} {
       allow read, write: if true;
     }

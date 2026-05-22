@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, ShoppingCart, Loader2, Gavel, ShieldCheck, Clock, AlertCircle, Users
 } from 'lucide-react';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, doc, arrayUnion, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
@@ -24,16 +24,13 @@ export default function YouthTransfersPage() {
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // GLOBAL FEED - Show everything to confirm write works
+  // ПОЛНОЕ ОТОБРАЖЕНИЕ: Слушаем всю коллекцию market_v2 для проверки записи
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v2'));
   }, [db, user?.uid]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
-
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
-  const { data: profile } = useDoc(userRef);
 
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;
@@ -53,7 +50,7 @@ export default function YouthTransfersPage() {
       await updateDoc(agentRef, {
         currentBid: minNextBid,
         highestBidderId: user.uid,
-        highestBidderName: profile?.displayName || "Anonymous Manager",
+        highestBidderName: "Manager",
         bidders: arrayUnion(user.uid),
         updatedAt: serverTimestamp()
       });
@@ -78,9 +75,6 @@ export default function YouthTransfersPage() {
     title: language === 'ru' ? 'ТРАНСФЕРЫ ЮНИОРОВ' : 'YOUTH TRANSFERS',
     subtitle: language === 'ru' ? 'Рынок молодых талантов' : 'Youth talent market',
   };
-
-  // DEBUG: Show everything
-  const activeAgents = agents || [];
 
   if (marketError) {
     return (
@@ -109,7 +103,7 @@ export default function YouthTransfersPage() {
             {t.title}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {isMarketLoading ? 'SYNCING...' : `Operational Active: ${activeAgents.length}`}
+            {isMarketLoading ? 'SYNCING...' : `Operational Active: ${agents?.length || 0}`}
           </p>
         </div>
       </header>
@@ -118,10 +112,10 @@ export default function YouthTransfersPage() {
         {isMarketLoading ? (
           <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <p className="text-[10px] uppercase font-bold tracking-[0.2em]">Establishing Link...</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Establishing Link...</p>
           </div>
-        ) : activeAgents.length > 0 ? (
-          activeAgents.map((agent) => {
+        ) : agents && agents.length > 0 ? (
+          agents.map((agent) => {
             const isLeading = agent.highestBidderId === user?.uid;
             const isOwner = agent.sellerId === user?.uid;
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useGameState, LineupSlot } from '../../lib/store';
+import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -90,13 +90,13 @@ export default function YouthSquadPage() {
     try {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
-      // Test duration: 5 minutes
+      // Тестовая длительность: 5 минут
       const expiryTime = new Date(mskNow.getTime() + 5 * 60 * 1000); 
       
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
-      // DEEP CLEANING to prevent any non-serializable data errors
+      // ГЛУБОКАЯ СЕРИАЛИЗАЦИЯ для исключения любых невалидных данных
       const sanitizedHero = JSON.parse(JSON.stringify(selectedHero));
       
       const finalData = {
@@ -118,10 +118,10 @@ export default function YouthSquadPage() {
 
       const agentRef = doc(db, 'market_v2', agentId);
       
-      // Use direct set with no complex side effects
+      // Используем прямой setDocumentNonBlocking без лишних флагов
       setDocumentNonBlocking(agentRef, finalData, {});
       
-      // Update local and cloud metadata for the hero
+      // Обновляем метаданные героя в профиле игрока
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
         transferMarketId: agentId
