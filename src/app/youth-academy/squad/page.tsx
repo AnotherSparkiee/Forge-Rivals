@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useGameState } from '../../lib/store';
+import { useGameState, LineupSlot } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -96,7 +96,7 @@ export default function YouthSquadPage() {
       const startPrice = (selectedHero.overallRating * 5000) + 25000;
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
-      // Deep data cleaning to ensure Firestore compatibility
+      // DEEP CLEANING to prevent any non-serializable data errors
       const sanitizedHero = JSON.parse(JSON.stringify(selectedHero));
       
       const finalData = {
@@ -118,7 +118,7 @@ export default function YouthSquadPage() {
 
       const agentRef = doc(db, 'market_v2', agentId);
       
-      // Atomic non-blocking write
+      // Use direct set with no complex side effects
       setDocumentNonBlocking(agentRef, finalData, {});
       
       // Update local and cloud metadata for the hero
