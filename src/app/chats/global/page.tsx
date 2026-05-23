@@ -103,10 +103,10 @@ export default function GlobalChatPage() {
       const requestId = `req_${user.uid}_${selectedUser.id}`;
       const requestRef = doc(db, 'friend_requests_v1', requestId);
       
-      // Используем максимально чистый формат даты ISO без миллисекунд для совместимости со схемой
       const nowIso = new Date().toISOString().split('.')[0] + 'Z';
 
       const requestData = {
+        id: requestId,
         fromId: String(user.uid),
         fromName: String(profile.displayName || "Manager"),
         toId: String(selectedUser.id),

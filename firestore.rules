@@ -1,11 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Явные правила для коллекции заявок в друзья
-    match /friend_requests_v1/{requestId} {
-      allow read, write, delete: if true;
-    }
-    // Глобальные правила для остальных коллекций
+    // Полный доступ ко всем коллекциям для тестирования и бесперебойной работы всех систем
     match /{document=**} {
       allow read, write, delete: if true;
     }

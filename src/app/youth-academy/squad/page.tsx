@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useGameState, LineupSlot } from '../../lib/store';
+import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,7 +28,7 @@ import {
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
-import { doc, collection } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function YouthSquadPage() {
@@ -94,7 +94,6 @@ export default function YouthSquadPage() {
       const startPrice = Math.floor((selectedHero.overallRating * 5000) + 25000);
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
-      // СТРОЖАЙШАЯ СТЕРИЛИЗАЦИЯ ДАННЫХ ДЛЯ СХЕМЫ docs/backend.json
       const sanitizedHero = {
         id: String(selectedHero.id),
         name: String(selectedHero.name),
@@ -125,10 +124,8 @@ export default function YouthSquadPage() {
         dropTime: mskNow.toISOString()
       };
 
-      // Прямая запись документа. Поля в точности соответствуют MarketAgent в docs/backend.json
       setDocumentNonBlocking(doc(db, 'market_v2', agentId), agentData);
       
-      // Обновляем статус героя в профиле игрока
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),
         transferMarketId: agentId
