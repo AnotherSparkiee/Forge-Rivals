@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Явные правила для всех игровых коллекций
+    // Explicit rules for all game collections with full access
     match /players_v5/{document=**} {
       allow read, write, delete: if true;
     }
@@ -27,7 +27,7 @@ service cloud.firestore {
       allow read, write, delete: if true;
     }
     
-    // Глобальное разрешение (fallback)
+    // Global fallback rule
     match /{document=**} {
       allow read, write, delete: if true;
     }

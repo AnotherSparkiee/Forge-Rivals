@@ -26,7 +26,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 
 export default function GlobalChatPage() {
-  const { user, isUserLoading } = user;
   const { user, isUserLoading: userIsLoading } = useUser();
   const router = useRouter();
   const db = useFirestore();
@@ -101,7 +100,7 @@ export default function GlobalChatPage() {
     
     setIsActionProcessing(true);
     try {
-      // Check duplicate with error suppression
+      // Check existing with minimal requirements
       let alreadyPending = false;
       try {
         const q = query(
@@ -112,7 +111,7 @@ export default function GlobalChatPage() {
         const snap = await getDocs(q);
         alreadyPending = snap.docs.some(d => d.data().status === 'pending');
       } catch (e) {
-        console.warn("Permission restricted on duplicate check, sending anyway.");
+        console.warn("Permissions may restrict read check, continuing with write.");
       }
       
       if (alreadyPending) {
