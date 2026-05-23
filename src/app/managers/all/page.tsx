@@ -39,6 +39,7 @@ export default function AllManagersPage() {
 
   const { data: managers, isLoading: isManagersLoading } = useCollection(managersQuery);
 
+  // Background listener for accepted requests
   useEffect(() => {
     if (!user?.uid) return;
     
@@ -59,7 +60,8 @@ export default function AllManagersPage() {
                 ? `${data.toName} теперь ваш друг.` 
                 : `${data.toName} is now your friend.`,
             });
-            deleteDoc(change.doc.ref);
+            // Mark as acknowledged by updating or removing, but let's avoid multiple deletions
+            deleteDoc(change.doc.ref).catch(() => {});
           }
         }
       });
@@ -79,15 +81,16 @@ export default function AllManagersPage() {
     
     setIsActionProcessing(targetId);
     try {
+      // Direct check to avoid complex query indexing issues
       const q = query(
         collection(db, 'friend_requests_v1'),
         where('fromId', '==', user.uid),
-        where('toId', '==', targetId),
-        where('status', '==', 'pending')
+        where('toId', '==', targetId)
       );
       const snap = await getDocs(q);
       
-      if (!snap.empty) {
+      const alreadyPending = snap.docs.some(d => d.data().status === 'pending');
+      if (alreadyPending) {
         toast({ 
           title: language === 'ru' ? "Заявка уже отправлена" : "Already Sent",
           description: language === 'ru' ? "Ожидайте ответа от менеджера." : "Wait for the manager to respond."
@@ -95,7 +98,7 @@ export default function AllManagersPage() {
         return;
       }
 
-      addDocumentNonBlocking(collection(db, 'friend_requests_v1'), {
+      await addDocumentNonBlocking(collection(db, 'friend_requests_v1'), {
         fromId: user.uid,
         fromName: profile.displayName || "Manager",
         toId: targetId,
@@ -109,6 +112,7 @@ export default function AllManagersPage() {
         description: language === 'ru' ? `Вы предложили дружбу ${targetName}` : `Friendship proposed to ${targetName}`
       });
     } catch (e: any) {
+      console.error("Failed to add friend:", e);
       toast({ variant: "destructive", title: "Error", description: e.message });
     } finally {
       setIsActionProcessing(null);

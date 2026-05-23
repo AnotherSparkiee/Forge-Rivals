@@ -12,7 +12,7 @@ import {
   CornerUpLeft, ChevronRight, UserPlus, Check
 } from 'lucide-react';
 import Link from 'next/link';
-import { collection, query, orderBy, limit, addDoc, serverTimestamp, doc, where, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, limit, serverTimestamp, doc, where, getDocs } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
 import {
@@ -68,7 +68,7 @@ export default function GlobalChatPage() {
 
     setIsSending(true);
     try {
-      addDocumentNonBlocking(collection(db, 'global_chat'), {
+      await addDocumentNonBlocking(collection(db, 'global_chat'), {
         userId: user.uid,
         userName: profile.displayName || "Manager",
         text: message.trim(),
@@ -103,12 +103,12 @@ export default function GlobalChatPage() {
       const q = query(
         collection(db, 'friend_requests_v1'),
         where('fromId', '==', user.uid),
-        where('toId', '==', selectedUser.id),
-        where('status', '==', 'pending')
+        where('toId', '==', selectedUser.id)
       );
       const snap = await getDocs(q);
       
-      if (!snap.empty) {
+      const alreadyPending = snap.docs.some(d => d.data().status === 'pending');
+      if (alreadyPending) {
         toast({ 
           title: language === 'ru' ? "Заявка уже отправлена" : "Already Sent",
           description: language === 'ru' ? "Ожидайте ответа от менеджера." : "Wait for the manager to respond."
@@ -116,7 +116,7 @@ export default function GlobalChatPage() {
         return;
       }
 
-      addDocumentNonBlocking(collection(db, 'friend_requests_v1'), {
+      await addDocumentNonBlocking(collection(db, 'friend_requests_v1'), {
         fromId: user.uid,
         fromName: profile.displayName || "Manager",
         toId: selectedUser.id,
@@ -131,6 +131,7 @@ export default function GlobalChatPage() {
       });
       setSelectedUser(null);
     } catch (e: any) {
+      console.error("Failed to add friend from chat:", e);
       toast({ variant: "destructive", title: "Error", description: e.message });
     } finally {
       setIsActionProcessing(false);
