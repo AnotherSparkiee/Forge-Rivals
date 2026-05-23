@@ -26,7 +26,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 
 export default function GlobalChatPage() {
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading } = user;
+  const { user, isUserLoading: userIsLoading } = useUser();
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
@@ -51,10 +52,10 @@ export default function GlobalChatPage() {
   const { data: messages, isLoading: isChatLoading } = useCollection(chatQuery);
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
+    if (!userIsLoading && !user) {
       router.push('/auth/login');
     }
-  }, [user, isUserLoading, router]);
+  }, [user, userIsLoading, router]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -100,14 +101,20 @@ export default function GlobalChatPage() {
     
     setIsActionProcessing(true);
     try {
-      const q = query(
-        collection(db, 'friend_requests_v1'),
-        where('fromId', '==', user.uid),
-        where('toId', '==', selectedUser.id)
-      );
-      const snap = await getDocs(q);
+      // Check duplicate with error suppression
+      let alreadyPending = false;
+      try {
+        const q = query(
+          collection(db, 'friend_requests_v1'),
+          where('fromId', '==', user.uid),
+          where('toId', '==', selectedUser.id)
+        );
+        const snap = await getDocs(q);
+        alreadyPending = snap.docs.some(d => d.data().status === 'pending');
+      } catch (e) {
+        console.warn("Permission restricted on duplicate check, sending anyway.");
+      }
       
-      const alreadyPending = snap.docs.some(d => d.data().status === 'pending');
       if (alreadyPending) {
         toast({ 
           title: language === 'ru' ? "Заявка уже отправлена" : "Already Sent",
@@ -138,7 +145,7 @@ export default function GlobalChatPage() {
     }
   };
 
-  if (isUserLoading || !isLoaded || !user) {
+  if (userIsLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
 

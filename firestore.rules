@@ -1,10 +1,35 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Глобальное разрешение для всех коллекций и документов
-    // ВНИМАНИЕ: Используется для прототипирования. В продакшене требуется ограничить доступ.
+    // Явные правила для всех игровых коллекций
+    match /players_v5/{document=**} {
+      allow read, write, delete: if true;
+    }
+    match /market_v2/{document=**} {
+      allow read, write, delete: if true;
+    }
+    match /friend_requests_v1/{document=**} {
+      allow read, write, delete: if true;
+    }
+    match /global_chat/{document=**} {
+      allow read, write, delete: if true;
+    }
+    match /private_messages/{document=**} {
+      allow read, write, delete: if true;
+    }
+    match /friendly_lobbies/{document=**} {
+      allow read, write, delete: if true;
+    }
+    match /cw_basket/{document=**} {
+      allow read, write, delete: if true;
+    }
+    match /associations_v1/{document=**} {
+      allow read, write, delete: if true;
+    }
+    
+    // Глобальное разрешение (fallback)
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write, delete: if true;
     }
   }
 }

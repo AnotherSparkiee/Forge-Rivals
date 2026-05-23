@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, addDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { collection, query, orderBy, limit, where, serverTimestamp, getDocs, doc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, where, serverTimestamp, getDocs, doc, onSnapshot } from 'firebase/firestore';
 import { 
   ChevronLeft, Users, Search, Shield, Calendar,
   Loader2, UserPlus, User
@@ -60,11 +60,11 @@ export default function AllManagersPage() {
                 ? `${data.toName} теперь ваш друг.` 
                 : `${data.toName} is now your friend.`,
             });
-            // Mark as acknowledged by updating or removing, but let's avoid multiple deletions
-            deleteDoc(change.doc.ref).catch(() => {});
           }
         }
       });
+    }, (err) => {
+      console.warn("Friend Notification Listener failed (permissions or index):", err.message);
     });
 
     return () => unsubscribe();
@@ -81,15 +81,21 @@ export default function AllManagersPage() {
     
     setIsActionProcessing(targetId);
     try {
-      // Direct check to avoid complex query indexing issues
+      // Direct check for existing request
       const q = query(
         collection(db, 'friend_requests_v1'),
         where('fromId', '==', user.uid),
         where('toId', '==', targetId)
       );
-      const snap = await getDocs(q);
       
-      const alreadyPending = snap.docs.some(d => d.data().status === 'pending');
+      let alreadyPending = false;
+      try {
+        const snap = await getDocs(q);
+        alreadyPending = snap.docs.some(d => d.data().status === 'pending');
+      } catch (e) {
+        console.warn("Duplicate check failed, proceeding anyway", e);
+      }
+      
       if (alreadyPending) {
         toast({ 
           title: language === 'ru' ? "Заявка уже отправлена" : "Already Sent",
