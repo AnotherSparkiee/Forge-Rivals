@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, addDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, setDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { collection, query, orderBy, limit, where, serverTimestamp, getDocs, doc, onSnapshot } from 'firebase/firestore';
 import { 
@@ -64,7 +64,7 @@ export default function AllManagersPage() {
         }
       });
     }, (err) => {
-      console.warn("Friend Notification Listener failed (permissions or index):", err.message);
+      console.warn("Friend Notification Listener failed:", err.message);
     });
 
     return () => unsubscribe();
@@ -81,37 +81,21 @@ export default function AllManagersPage() {
     
     setIsActionProcessing(targetId);
     try {
-      // Direct check for existing request
-      const q = query(
-        collection(db, 'friend_requests_v1'),
-        where('fromId', '==', user.uid),
-        where('toId', '==', targetId)
-      );
+      const requestId = `req_${user.uid}_${targetId}`;
+      const requestRef = doc(db, 'friend_requests_v1', requestId);
       
-      let alreadyPending = false;
-      try {
-        const snap = await getDocs(q);
-        alreadyPending = snap.docs.some(d => d.data().status === 'pending');
-      } catch (e) {
-        console.warn("Duplicate check failed, proceeding anyway", e);
-      }
-      
-      if (alreadyPending) {
-        toast({ 
-          title: language === 'ru' ? "Заявка уже отправлена" : "Already Sent",
-          description: language === 'ru' ? "Ожидайте ответа от менеджера." : "Wait for the manager to respond."
-        });
-        return;
-      }
-
-      await addDocumentNonBlocking(collection(db, 'friend_requests_v1'), {
+      const requestData = {
+        id: requestId,
         fromId: user.uid,
         fromName: profile.displayName || "Manager",
         toId: targetId,
         toName: targetName,
         status: 'pending',
-        createdAt: serverTimestamp()
-      });
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      setDocumentNonBlocking(requestRef, requestData);
 
       toast({ 
         title: language === 'ru' ? "Заявка отправлена!" : "Request Sent!",

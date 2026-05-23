@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, addDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -100,36 +100,22 @@ export default function GlobalChatPage() {
     
     setIsActionProcessing(true);
     try {
-      // Check existing with minimal requirements
-      let alreadyPending = false;
-      try {
-        const q = query(
-          collection(db, 'friend_requests_v1'),
-          where('fromId', '==', user.uid),
-          where('toId', '==', selectedUser.id)
-        );
-        const snap = await getDocs(q);
-        alreadyPending = snap.docs.some(d => d.data().status === 'pending');
-      } catch (e) {
-        console.warn("Permissions may restrict read check, continuing with write.");
-      }
+      // Use deterministic ID to prevent duplicates and simplify rules validation
+      const requestId = `req_${user.uid}_${selectedUser.id}`;
+      const requestRef = doc(db, 'friend_requests_v1', requestId);
       
-      if (alreadyPending) {
-        toast({ 
-          title: language === 'ru' ? "Заявка уже отправлена" : "Already Sent",
-          description: language === 'ru' ? "Ожидайте ответа от менеджера." : "Wait for the manager to respond."
-        });
-        return;
-      }
-
-      await addDocumentNonBlocking(collection(db, 'friend_requests_v1'), {
+      const requestData = {
+        id: requestId,
         fromId: user.uid,
         fromName: profile.displayName || "Manager",
         toId: selectedUser.id,
         toName: selectedUser.name,
         status: 'pending',
-        createdAt: serverTimestamp()
-      });
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      setDocumentNonBlocking(requestRef, requestData);
 
       toast({ 
         title: language === 'ru' ? "Заявка отправлена!" : "Request Sent!",

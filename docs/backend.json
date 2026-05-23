@@ -35,7 +35,8 @@
               "status": { "type": "string", "enum": ["completed", "abandoned", "eliminated", "active"] }
             }
           }
-        }
+        },
+        "associationId": { "type": "string" }
       },
       "required": ["id", "displayName", "email", "inGameCurrency", "experiencePoints", "lastLoginDate", "createdAt", "ownedHeroIds"]
     },
@@ -58,6 +59,23 @@
         "dropDate": { "type": "string" },
         "dropTime": { "type": "string", "format": "date-time" }
       }
+    },
+    "FriendRequest": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FriendRequest",
+      "type": "object",
+      "description": "A friendship proposal between two managers.",
+      "properties": {
+        "id": { "type": "string" },
+        "fromId": { "type": "string" },
+        "fromName": { "type": "string" },
+        "toId": { "type": "string" },
+        "toName": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromId", "toId", "status"]
     }
   },
   "auth": {
@@ -72,6 +90,10 @@
       {
         "path": "/market_v2/{agentId}",
         "definition": { "entityName": "MarketAgent" }
+      },
+      {
+        "path": "/friend_requests_v1/{requestId}",
+        "definition": { "entityName": "FriendRequest" }
       }
     ]
   }
