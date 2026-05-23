@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
@@ -94,24 +94,22 @@ export default function YouthSquadPage() {
       const startPrice = Math.floor((selectedHero.overallRating * 5000) + 25000);
       const agentId = `youth_${user.uid}_${Date.now()}`;
       
-      const sanitizedHero = {
-        id: String(selectedHero.id),
-        name: String(selectedHero.name),
-        role: String(selectedHero.role),
-        overallRating: Number(selectedHero.overallRating),
-        image: String(selectedHero.image),
-        baseAge: Number(selectedHero.baseAge),
-        hiredAt: String(selectedHero.hiredAt),
-        country: {
-          code: String(selectedHero.country.code),
-          name: String(selectedHero.country.name),
-          flag: String(selectedHero.country.flag)
-        }
-      };
-      
       const agentData = {
         id: String(agentId),
-        heroData: sanitizedHero,
+        heroData: {
+          id: String(selectedHero.id),
+          name: String(selectedHero.name),
+          role: String(selectedHero.role),
+          overallRating: Number(selectedHero.overallRating),
+          image: String(selectedHero.image),
+          baseAge: Number(selectedHero.baseAge),
+          hiredAt: String(selectedHero.hiredAt),
+          country: {
+            code: String(selectedHero.country.code),
+            name: String(selectedHero.country.name),
+            flag: String(selectedHero.country.flag)
+          }
+        },
         currentBid: Number(startPrice),
         startingPrice: Number(startPrice),
         highestBidderId: "", 
@@ -133,7 +131,7 @@ export default function YouthSquadPage() {
       
       toast({ 
         title: language === 'ru' ? "Игрок выставлен на трансфер" : "Player Listed for Transfer",
-        description: language === 'ru' ? "Юниор появится на рынке через мгновение." : "Junior will appear on market instantly."
+        description: language === 'ru' ? "Юниор появится на рынке мгновенно." : "Junior will appear on market instantly."
       });
       
       setSelectedHero(null);
