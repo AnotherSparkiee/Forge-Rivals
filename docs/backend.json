@@ -4,7 +4,6 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
-      "description": "Represents a player's profile in the game, holding personal data, currency, and references to their owned heroes and teams.",
       "properties": {
         "id": { "type": "string" },
         "displayName": { "type": "string" },
@@ -22,29 +21,14 @@
         "country": { "type": "string" },
         "selectedLeagueId": { "type": "string" },
         "tournaments": { "type": "array", "items": { "type": "string" } },
-        "tournamentHistory": { 
-          "type": "array", 
-          "items": {
-            "type": "object",
-            "properties": {
-              "tournamentId": { "type": "string" },
-              "tournamentName": { "type": "string" },
-              "result": { "type": "string" },
-              "startDate": { "type": "string", "format": "date-time" },
-              "endDate": { "type": "string", "format": "date-time" },
-              "status": { "type": "string", "enum": ["completed", "abandoned", "eliminated", "active"] }
-            }
-          }
-        },
         "associationId": { "type": "string" }
       },
-      "required": ["id", "displayName", "email", "inGameCurrency", "experiencePoints", "lastLoginDate", "createdAt", "ownedHeroIds"]
+      "required": ["id", "displayName", "email", "inGameCurrency", "experiencePoints"]
     },
     "MarketAgent": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "MarketAgent",
       "type": "object",
-      "description": "A free agent or player-listed auction item on the transfer market.",
       "properties": {
         "id": { "type": "string" },
         "heroData": { "type": "object" },
@@ -64,9 +48,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "FriendRequest",
       "type": "object",
-      "description": "A friendship proposal between two managers.",
       "properties": {
-        "id": { "type": "string" },
         "fromId": { "type": "string" },
         "fromName": { "type": "string" },
         "toId": { "type": "string" },
@@ -76,6 +58,16 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["fromId", "toId", "status"]
+    },
+    "Association": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "members": { "type": "array", "items": { "type": "string" } }
+      }
     }
   },
   "auth": {
@@ -94,6 +86,22 @@
       {
         "path": "/friend_requests_v1/{requestId}",
         "definition": { "entityName": "FriendRequest" }
+      },
+      {
+        "path": "/associations_v1/{assocId}",
+        "definition": { "entityName": "Association" }
+      },
+      {
+        "path": "/global_chat/{msgId}",
+        "definition": { "type": "object" }
+      },
+      {
+        "path": "/private_messages/{msgId}",
+        "definition": { "type": "object" }
+      },
+      {
+        "path": "/friendly_lobbies/{lobbyId}",
+        "definition": { "type": "object" }
       }
     ]
   }

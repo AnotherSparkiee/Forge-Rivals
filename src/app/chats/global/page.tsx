@@ -12,7 +12,7 @@ import {
   CornerUpLeft, ChevronRight, UserPlus, Check
 } from 'lucide-react';
 import Link from 'next/link';
-import { collection, query, orderBy, limit, serverTimestamp, doc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
 import {
@@ -68,11 +68,12 @@ export default function GlobalChatPage() {
 
     setIsSending(true);
     try {
+      const now = new Date().toISOString();
       await addDocumentNonBlocking(collection(db, 'global_chat'), {
         userId: user.uid,
         userName: profile.displayName || "Manager",
         text: message.trim(),
-        createdAt: serverTimestamp()
+        createdAt: now
       });
       setMessage('');
     } catch (e) {
@@ -102,18 +103,16 @@ export default function GlobalChatPage() {
     try {
       const requestId = `req_${user.uid}_${selectedUser.id}`;
       const requestRef = doc(db, 'friend_requests_v1', requestId);
-      
-      const nowIso = new Date().toISOString().split('.')[0] + 'Z';
+      const now = new Date().toISOString();
 
       const requestData = {
-        id: requestId,
         fromId: String(user.uid),
         fromName: String(profile.displayName || "Manager"),
         toId: String(selectedUser.id),
         toName: String(selectedUser.name),
         status: 'pending',
-        createdAt: nowIso,
-        updatedAt: nowIso
+        createdAt: now,
+        updatedAt: now
       };
 
       setDocumentNonBlocking(requestRef, requestData);
@@ -179,8 +178,8 @@ export default function GlobalChatPage() {
   const t = translations[language as keyof typeof translations] || translations.ru;
 
   const sortedMessages = messages ? [...messages].sort((a, b) => {
-    const timeA = a.createdAt?.toMillis?.() || 0;
-    const timeB = b.createdAt?.toMillis?.() || 0;
+    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
     return timeA - timeB;
   }) : [];
 
@@ -224,7 +223,7 @@ export default function GlobalChatPage() {
                     {isMe ? 'YOU' : msg.userName}
                   </span>
                   <span className="text-[8px] text-muted-foreground font-mono opacity-50">
-                    {msg.createdAt ? new Date(msg.createdAt.toMillis()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                    {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                   </span>
                 </div>
                 <div className={cn(
