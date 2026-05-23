@@ -2,17 +2,17 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, addDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
   ChevronLeft, Send, Loader2, MessageSquare, 
   User, Mail, Shield, History, AlertTriangle, 
-  CornerUpLeft, ChevronRight
+  CornerUpLeft, ChevronRight, UserPlus, Check
 } from 'lucide-react';
 import Link from 'next/link';
-import { collection, query, orderBy, limit, addDoc, serverTimestamp, doc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, addDoc, serverTimestamp, doc, where, getDocs } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
 import {
@@ -23,14 +23,17 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Card, CardContent } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
 
 export default function GlobalChatPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const db = useFirestore();
+  const { toast } = useToast();
   const { language, isLoaded } = useGameState();
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isActionProcessing, setIsActionProcessing] = useState(false);
   const [selectedUser, setSelectedUser] = useState<{id: string, name: string} | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -92,6 +95,49 @@ export default function GlobalChatPage() {
     }
   };
 
+  const handleAddFriend = async () => {
+    if (!selectedUser || !user || !profile || isActionProcessing) return;
+    
+    setIsActionProcessing(true);
+    try {
+      // Check if request already exists
+      const q = query(
+        collection(db, 'friend_requests_v1'),
+        where('fromId', '==', user.uid),
+        where('toId', '==', selectedUser.id),
+        where('status', '==', 'pending')
+      );
+      const snap = await getDocs(q);
+      
+      if (!snap.empty) {
+        toast({ 
+          title: language === 'ru' ? "Заявка уже отправлена" : "Already Sent",
+          description: language === 'ru' ? "Ожидайте ответа от менеджера." : "Wait for the manager to respond."
+        });
+        return;
+      }
+
+      await addDoc(collection(db, 'friend_requests_v1'), {
+        fromId: user.uid,
+        fromName: profile.displayName || "Manager",
+        toId: selectedUser.id,
+        toName: selectedUser.name,
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+
+      toast({ 
+        title: language === 'ru' ? "Заявка отправлена!" : "Request Sent!",
+        description: language === 'ru' ? `Вы предложили дружбу ${selectedUser.name}` : `Friendship proposed to ${selectedUser.name}`
+      });
+      setSelectedUser(null);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    } finally {
+      setIsActionProcessing(false);
+    }
+  };
+
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
@@ -107,6 +153,7 @@ export default function GlobalChatPage() {
       userMenu: "Operational Dossier",
       userMenuDesc: "Direct command options for",
       actions: [
+        { label: 'Add Friend', desc: 'Send friendship request', icon: UserPlus, action: handleAddFriend, color: 'text-green-400' },
         { label: 'Reply', desc: 'Direct mention in public chat', icon: CornerUpLeft, action: handleReply },
         { label: 'Private Messages', desc: 'Direct encrypted transmission', icon: Mail, action: handlePrivateMessage },
         { label: 'Player Page', desc: 'Detailed manager statistics', icon: User, disabled: true },
@@ -125,6 +172,7 @@ export default function GlobalChatPage() {
       userMenu: "Оперативное досье",
       userMenuDesc: "Команды взаимодействия с",
       actions: [
+        { label: 'Добавить в друзья', desc: 'Отправить запрос на дружбу', icon: UserPlus, action: handleAddFriend, color: 'text-green-400' },
         { label: 'Ответить', desc: 'Упомянуть в общем канале', icon: CornerUpLeft, action: handleReply },
         { label: 'Личные сообщения', desc: 'Прямая зашифрованная связь', icon: Mail, action: handlePrivateMessage },
         { label: 'Страница игрока', desc: 'Детальная статистика менеджера', icon: User, disabled: true },
@@ -258,7 +306,11 @@ export default function GlobalChatPage() {
                 <CardContent className="p-3 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="p-2 rounded-lg bg-secondary/50">
-                      <item.icon className={cn("w-5 h-5", item.color || "text-primary")} />
+                      {isActionProcessing && item.label === t.actions[0].label ? (
+                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                      ) : (
+                        <item.icon className={cn("w-5 h-5", item.color || "text-primary")} />
+                      )}
                     </div>
                     <div>
                       <h3 className={cn("text-xs font-bold uppercase", item.color)}>{item.label}</h3>

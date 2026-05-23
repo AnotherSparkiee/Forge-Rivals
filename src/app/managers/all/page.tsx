@@ -1,15 +1,14 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { collection, query, orderBy, limit, where, addDoc, serverTimestamp, getDocs, doc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { 
   ChevronLeft, Users, Globe, Search, 
   ChevronRight, User, Shield, Calendar,
-  Loader2
+  Loader2, UserPlus, Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,13 +17,19 @@ import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 export default function AllManagersPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const db = useFirestore();
+  const { toast } = useToast();
   const { language, isLoaded } = useGameState();
   const [search, setSearch] = useState('');
+  const [isActionProcessing, setIsActionProcessing] = useState<string | null>(null);
+
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
+  const { data: profile } = useDoc(userRef);
 
   // Сортировка по возрастанию даты: от старых к новым
   const managersQuery = useMemoFirebase(() => {
@@ -37,11 +42,85 @@ export default function AllManagersPage() {
 
   const { data: managers, isLoading: isManagersLoading } = useCollection(managersQuery);
 
+  // Monitor accepted friend requests to show notification
+  useEffect(() => {
+    if (!user?.uid) return;
+    
+    // Query for recently accepted requests SENT BY ME
+    const q = query(
+      collection(db, 'friend_requests_v1'),
+      where('fromId', '==', user.uid),
+      where('status', '==', 'accepted')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added' || change.type === 'modified') {
+          const data = change.doc.data();
+          if (data.status === 'accepted') {
+            toast({
+              title: language === 'ru' ? "Запрос принят!" : "Request Accepted!",
+              description: language === 'ru' 
+                ? `${data.toName} теперь ваш друг.` 
+                : `${data.toName} is now your friend.`,
+            });
+            // Clean up the request after notifying
+            deleteDoc(change.doc.ref);
+          }
+        }
+      });
+    });
+
+    return () => unsubscribe();
+  }, [db, user?.uid, language, toast]);
+
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push('/auth/login');
     }
   }, [user, isUserLoading, router]);
+
+  const handleAddFriend = async (targetId: string, targetName: string) => {
+    if (!user || !profile || isActionProcessing) return;
+    
+    setIsActionProcessing(targetId);
+    try {
+      // Check if request already exists
+      const q = query(
+        collection(db, 'friend_requests_v1'),
+        where('fromId', '==', user.uid),
+        where('toId', '==', targetId),
+        where('status', '==', 'pending')
+      );
+      const snap = await getDocs(q);
+      
+      if (!snap.empty) {
+        toast({ 
+          title: language === 'ru' ? "Заявка уже отправлена" : "Already Sent",
+          description: language === 'ru' ? "Ожидайте ответа от менеджера." : "Wait for the manager to respond."
+        });
+        return;
+      }
+
+      await addDoc(collection(db, 'friend_requests_v1'), {
+        fromId: user.uid,
+        fromName: profile.displayName || "Manager",
+        toId: targetId,
+        toName: targetName,
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+
+      toast({ 
+        title: language === 'ru' ? "Заявка отправлена!" : "Request Sent!",
+        description: language === 'ru' ? `Вы предложили дружбу ${targetName}` : `Friendship proposed to ${targetName}`
+      });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    } finally {
+      setIsActionProcessing(null);
+    }
+  };
 
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
@@ -55,7 +134,8 @@ export default function AllManagersPage() {
       registered: "Joined",
       div: "Div",
       noResults: "No managers found matching search.",
-      viewDossier: "View Comms"
+      viewDossier: "View Comms",
+      addFriend: "Add"
     },
     ru: {
       title: "ВСЕ МЕНЕДЖЕРЫ",
@@ -64,7 +144,8 @@ export default function AllManagersPage() {
       registered: "В лиге с",
       div: "Див",
       noResults: "Менеджеры не найдены.",
-      viewDossier: "Связаться"
+      viewDossier: "Связаться",
+      addFriend: "Добавить"
     }
   };
 
@@ -125,11 +206,25 @@ export default function AllManagersPage() {
                     </div>
                   </div>
                 </div>
-                <Link href={`/chats/private?uid=${manager.id}&name=${encodeURIComponent(manager.displayName || 'Manager')}`}>
-                  <Button variant="outline" size="sm" className="h-8 text-[8px] font-black uppercase border-white/10 shrink-0 px-3">
-                    {t.viewDossier}
-                  </Button>
-                </Link>
+                
+                <div className="flex items-center gap-2 shrink-0">
+                  {manager.id !== user.uid && (
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8 border-green-500/20 bg-green-500/5 hover:bg-green-500/20 text-green-400"
+                      onClick={() => handleAddFriend(manager.id, manager.displayName)}
+                      disabled={isActionProcessing === manager.id}
+                    >
+                      {isActionProcessing === manager.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                    </Button>
+                  )}
+                  <Link href={`/chats/private?uid=${manager.id}&name=${encodeURIComponent(manager.displayName || 'Manager')}`}>
+                    <Button variant="outline" size="sm" className="h-8 text-[8px] font-black uppercase border-white/10 px-3">
+                      {t.viewDossier}
+                    </Button>
+                  </Link>
+                </div>
               </CardContent>
             </Card>
           ))

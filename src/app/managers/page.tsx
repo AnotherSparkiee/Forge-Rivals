@@ -1,9 +1,8 @@
-
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,11 +14,24 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { collection, query, where } from 'firebase/firestore';
 
 export default function ManagersHubPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const db = useFirestore();
   const { language, isLoaded } = useGameState();
+
+  const requestsQuery = useMemoFirebase(() => {
+    if (!user?.uid) return null;
+    return query(
+      collection(db, 'friend_requests_v1'),
+      where('toId', '==', user.uid),
+      where('status', '==', 'pending')
+    );
+  }, [db, user?.uid]);
+
+  const { data: requests } = useCollection(requestsQuery);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -42,7 +54,7 @@ export default function ManagersHubPage() {
         { label: 'Friend News', desc: 'Recent activity from your contacts', icon: Newspaper, active: false },
         { label: 'Blacklist', desc: 'Banned and restricted managers', icon: Ban, active: false },
         { label: 'Ignore List', desc: 'Muted transmissions from managers', icon: VolumeX, active: false },
-        { label: 'Friend Requests', desc: 'Incoming friendship proposals', icon: UserPlus, active: false, badge: 'NEW' },
+        { label: 'Friend Requests', desc: 'Incoming friendship proposals', icon: UserPlus, active: true, href: '/managers/requests', badge: requests?.length ? requests.length.toString() : null },
       ]
     },
     ru: {
@@ -55,7 +67,7 @@ export default function ManagersHubPage() {
         { label: 'Новости друзей', desc: 'Активность ваших контактов', icon: Newspaper, active: false },
         { label: 'Черный список', desc: 'Заблокированные менеджеры', icon: Ban, active: false },
         { label: 'Игнор-лист', desc: 'Скрытые передачи от менеджеров', icon: VolumeX, active: false },
-        { label: 'Хотят дружить', desc: 'Входящие запросы на дружбу', icon: UserPlus, active: false, badge: 'НОВОЕ' },
+        { label: 'Хотят дружить', desc: 'Входящие запросы на дружбу', icon: UserPlus, active: true, href: '/managers/requests', badge: requests?.length ? requests.length.toString() : null },
       ]
     }
   };
@@ -94,7 +106,7 @@ export default function ManagersHubPage() {
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-bold uppercase">{item.label}</h3>
                       {item.badge && (
-                        <Badge className="bg-primary text-primary-foreground text-[8px] h-4 px-1 font-black">
+                        <Badge className="bg-primary text-primary-foreground text-[8px] h-4 px-1.5 font-black animate-pulse">
                           {item.badge}
                         </Badge>
                       )}
