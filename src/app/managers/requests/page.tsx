@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { collection, query, where, doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { 
   ChevronLeft, UserPlus, Shield, User,
-  Check, X, Loader2, Signal
+  Check, X, Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -76,9 +76,10 @@ export default function FriendRequestsPage() {
     try {
       const requestRef = doc(db, 'friend_requests_v1', requestId);
       if (accept) {
+        // Use ISO string instead of serverTimestamp to match schema
         await updateDoc(requestRef, {
           status: 'accepted',
-          updatedAt: serverTimestamp()
+          updatedAt: new Date().toISOString()
         });
         toast({ title: t.success });
       } else {
@@ -86,6 +87,7 @@ export default function FriendRequestsPage() {
         toast({ title: t.rejected });
       }
     } catch (e: any) {
+      console.error("Failed to process request:", e);
       toast({ variant: "destructive", title: "Error", description: e.message });
     } finally {
       setIsProcessing(null);

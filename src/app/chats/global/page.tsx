@@ -12,7 +12,7 @@ import {
   CornerUpLeft, ChevronRight, UserPlus, Check
 } from 'lucide-react';
 import Link from 'next/link';
-import { collection, query, orderBy, limit, serverTimestamp, doc, where, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, limit, serverTimestamp, doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
 import {
@@ -100,7 +100,6 @@ export default function GlobalChatPage() {
     
     setIsActionProcessing(true);
     try {
-      // Use deterministic ID to prevent duplicates and simplify rules validation
       const requestId = `req_${user.uid}_${selectedUser.id}`;
       const requestRef = doc(db, 'friend_requests_v1', requestId);
       
