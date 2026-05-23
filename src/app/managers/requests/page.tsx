@@ -76,10 +76,10 @@ export default function FriendRequestsPage() {
     try {
       const requestRef = doc(db, 'friend_requests_v1', requestId);
       if (accept) {
-        // Use ISO string instead of serverTimestamp to match schema
+        const nowIso = new Date().toISOString().split('.')[0] + 'Z';
         await updateDoc(requestRef, {
           status: 'accepted',
-          updatedAt: new Date().toISOString()
+          updatedAt: nowIso
         });
         toast({ title: t.success });
       } else {

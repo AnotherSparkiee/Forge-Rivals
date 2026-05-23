@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, setDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { collection, query, orderBy, limit, where, serverTimestamp, getDocs, doc, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, where, doc, onSnapshot } from 'firebase/firestore';
 import { 
   ChevronLeft, Users, Search, Shield, Calendar,
   Loader2, UserPlus, User
@@ -84,15 +84,16 @@ export default function AllManagersPage() {
       const requestId = `req_${user.uid}_${targetId}`;
       const requestRef = doc(db, 'friend_requests_v1', requestId);
       
+      const nowIso = new Date().toISOString().split('.')[0] + 'Z';
+
       const requestData = {
-        id: requestId,
-        fromId: user.uid,
-        fromName: profile.displayName || "Manager",
-        toId: targetId,
-        toName: targetName,
+        fromId: String(user.uid),
+        fromName: String(profile.displayName || "Manager"),
+        toId: String(targetId),
+        toName: String(targetName),
         status: 'pending',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: nowIso,
+        updatedAt: nowIso
       };
 
       setDocumentNonBlocking(requestRef, requestData);

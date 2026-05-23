@@ -103,15 +103,17 @@ export default function GlobalChatPage() {
       const requestId = `req_${user.uid}_${selectedUser.id}`;
       const requestRef = doc(db, 'friend_requests_v1', requestId);
       
+      // Используем максимально чистый формат даты ISO без миллисекунд для совместимости со схемой
+      const nowIso = new Date().toISOString().split('.')[0] + 'Z';
+
       const requestData = {
-        id: requestId,
-        fromId: user.uid,
-        fromName: profile.displayName || "Manager",
-        toId: selectedUser.id,
-        toName: selectedUser.name,
+        fromId: String(user.uid),
+        fromName: String(profile.displayName || "Manager"),
+        toId: String(selectedUser.id),
+        toName: String(selectedUser.name),
         status: 'pending',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: nowIso,
+        updatedAt: nowIso
       };
 
       setDocumentNonBlocking(requestRef, requestData);
