@@ -1,73 +1,8 @@
 {
   "entities": {
-    "UserProfile": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "UserProfile",
+    "GenericObject": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "displayName": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
-        "inGameCurrency": { "type": "number" },
-        "crystals": { "type": "number" },
-        "experiencePoints": { "type": "number" },
-        "lastLoginDate": { "type": "string", "format": "date-time" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "ownedHeroIds": { "type": "array", "items": { "type": "string" } },
-        "ownedHeroes": { "type": "array", "items": { "type": "object" } },
-        "leagueLevel": { "type": "number" },
-        "divisionSubId": { "type": "number" },
-        "groupId": { "type": "number" },
-        "country": { "type": "string" },
-        "selectedLeagueId": { "type": "string" },
-        "tournaments": { "type": "array", "items": { "type": "string" } },
-        "associationId": { "type": "string" }
-      },
-      "required": ["id", "displayName", "email", "inGameCurrency", "experiencePoints"]
-    },
-    "MarketAgent": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "MarketAgent",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "heroData": { "type": "object" },
-        "currentBid": { "type": "number" },
-        "startingPrice": { "type": "number" },
-        "highestBidderId": { "type": "string" },
-        "highestBidderName": { "type": "string" },
-        "bidders": { "type": "array", "items": { "type": "string" } },
-        "sellerId": { "type": "string" },
-        "sellerName": { "type": "string" },
-        "expiresAt": { "type": "string", "format": "date-time" },
-        "dropDate": { "type": "string" },
-        "dropTime": { "type": "string", "format": "date-time" }
-      }
-    },
-    "FriendRequest": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "FriendRequest",
-      "type": "object",
-      "properties": {
-        "fromId": { "type": "string" },
-        "fromName": { "type": "string" },
-        "toId": { "type": "string" },
-        "toName": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "accepted", "rejected"] },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["fromId", "toId", "status"]
-    },
-    "Association": {
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "description": { "type": "string" },
-        "ownerId": { "type": "string" },
-        "members": { "type": "array", "items": { "type": "string" } }
-      }
+      "additionalProperties": true
     }
   },
   "auth": {
@@ -77,19 +12,19 @@
     "structure": [
       {
         "path": "/players_v5/{userId}",
-        "definition": { "entityName": "UserProfile" }
+        "definition": { "type": "object" }
       },
       {
         "path": "/market_v2/{agentId}",
-        "definition": { "entityName": "MarketAgent" }
+        "definition": { "type": "object" }
       },
       {
         "path": "/friend_requests_v1/{requestId}",
-        "definition": { "entityName": "FriendRequest" }
+        "definition": { "type": "object" }
       },
       {
         "path": "/associations_v1/{assocId}",
-        "definition": { "entityName": "Association" }
+        "definition": { "type": "object" }
       },
       {
         "path": "/global_chat/{msgId}",
@@ -101,6 +36,10 @@
       },
       {
         "path": "/friendly_lobbies/{lobbyId}",
+        "definition": { "type": "object" }
+      },
+      {
+        "path": "/cw_basket/{userId}",
         "definition": { "type": "object" }
       }
     ]
