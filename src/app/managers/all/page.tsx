@@ -1,14 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, addDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { collection, query, orderBy, limit, where, addDoc, serverTimestamp, getDocs, doc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, where, serverTimestamp, getDocs, doc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { 
-  ChevronLeft, Users, Globe, Search, 
-  ChevronRight, User, Shield, Calendar,
-  Loader2, UserPlus, Check
+  ChevronLeft, Users, Search, Shield, Calendar,
+  Loader2, UserPlus, User
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,7 +15,6 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
 export default function AllManagersPage() {
@@ -31,7 +29,6 @@ export default function AllManagersPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  // Сортировка по возрастанию даты: от старых к новым
   const managersQuery = useMemoFirebase(() => {
     return query(
       collection(db, 'players_v5'),
@@ -42,11 +39,9 @@ export default function AllManagersPage() {
 
   const { data: managers, isLoading: isManagersLoading } = useCollection(managersQuery);
 
-  // Monitor accepted friend requests to show notification
   useEffect(() => {
     if (!user?.uid) return;
     
-    // Query for recently accepted requests SENT BY ME
     const q = query(
       collection(db, 'friend_requests_v1'),
       where('fromId', '==', user.uid),
@@ -64,7 +59,6 @@ export default function AllManagersPage() {
                 ? `${data.toName} теперь ваш друг.` 
                 : `${data.toName} is now your friend.`,
             });
-            // Clean up the request after notifying
             deleteDoc(change.doc.ref);
           }
         }
@@ -85,7 +79,6 @@ export default function AllManagersPage() {
     
     setIsActionProcessing(targetId);
     try {
-      // Check if request already exists
       const q = query(
         collection(db, 'friend_requests_v1'),
         where('fromId', '==', user.uid),
@@ -102,7 +95,7 @@ export default function AllManagersPage() {
         return;
       }
 
-      await addDoc(collection(db, 'friend_requests_v1'), {
+      addDocumentNonBlocking(collection(db, 'friend_requests_v1'), {
         fromId: user.uid,
         fromName: profile.displayName || "Manager",
         toId: targetId,

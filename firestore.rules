@@ -9,6 +9,25 @@ service cloud.firestore {
     match /players_v5/{userId} {
       allow read, write: if true;
     }
+    // Разрешение для чатов
+    match /global_chat/{msgId} {
+      allow read, write: if true;
+    }
+    match /private_messages/{msgId} {
+      allow read, write: if true;
+    }
+    // Разрешение для запросов в друзья
+    match /friend_requests_v1/{requestId} {
+      allow read, write: if true;
+    }
+    // Разрешение для лобби матчей
+    match /friendly_lobbies/{lobbyId} {
+      allow read, write: if true;
+    }
+    // Разрешение для корзины КВ
+    match /cw_basket/{basketId} {
+      allow read, write: if true;
+    }
     // Глобальное разрешение для всех остальных коллекций
     match /{document=**} {
       allow read, write: if true;

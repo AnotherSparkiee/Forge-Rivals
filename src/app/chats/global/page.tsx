@@ -68,7 +68,7 @@ export default function GlobalChatPage() {
 
     setIsSending(true);
     try {
-      await addDoc(collection(db, 'global_chat'), {
+      addDocumentNonBlocking(collection(db, 'global_chat'), {
         userId: user.uid,
         userName: profile.displayName || "Manager",
         text: message.trim(),
@@ -100,7 +100,6 @@ export default function GlobalChatPage() {
     
     setIsActionProcessing(true);
     try {
-      // Check if request already exists
       const q = query(
         collection(db, 'friend_requests_v1'),
         where('fromId', '==', user.uid),
@@ -117,7 +116,7 @@ export default function GlobalChatPage() {
         return;
       }
 
-      await addDoc(collection(db, 'friend_requests_v1'), {
+      addDocumentNonBlocking(collection(db, 'friend_requests_v1'), {
         fromId: user.uid,
         fromName: profile.displayName || "Manager",
         toId: selectedUser.id,
@@ -253,7 +252,6 @@ export default function GlobalChatPage() {
         )}
       </div>
 
-      {/* Input bar positioned higher above bottom navigation */}
       <div className="fixed bottom-20 left-0 right-0 z-30 flex justify-center px-0 pointer-events-none">
         <div className="w-full max-w-md pointer-events-auto bg-background/95 backdrop-blur-xl border-t border-white/10 p-2 pb-1.5 shadow-[0_-10px_20px_rgba(0,0,0,0.4)]">
           <form onSubmit={handleSendMessage} className="flex gap-2">
