@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { 
   ChevronLeft, Send, Loader2, MessageSquare, 
   User, Mail, Shield, History, AlertTriangle, 
-  CornerUpLeft, ChevronRight, UserPlus, Check
+  CornerUpLeft, ChevronRight, UserPlus
 } from 'lucide-react';
 import Link from 'next/link';
 import { collection, query, orderBy, limit, doc } from 'firebase/firestore';
@@ -70,9 +70,9 @@ export default function GlobalChatPage() {
     try {
       const now = new Date().toISOString();
       await addDocumentNonBlocking(collection(db, 'global_chat'), {
-        userId: user.uid,
-        userName: profile.displayName || "Manager",
-        text: message.trim(),
+        userId: String(user.uid),
+        userName: String(profile.displayName || "Manager"),
+        text: String(message.trim()),
         createdAt: now
       });
       setMessage('');

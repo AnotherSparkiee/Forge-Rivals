@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 

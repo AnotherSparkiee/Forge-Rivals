@@ -1,10 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ПОЛНЫЙ ДОСТУП КО ВСЕМ КОЛЛЕКЦИЯМ
-    // Это отключает проверку разрешений на стороне сервера для всех путей.
     match /{document=**} {
-      allow read, write, delete: if true;
+      allow read, write: if true;
     }
   }
 }
