@@ -115,7 +115,6 @@ export default function GlobalChatPage() {
         updatedAt: now
       };
 
-      // Используем setDocumentNonBlocking для детерминированного ID
       await setDocumentNonBlocking(requestRef, requestData);
 
       toast({ 

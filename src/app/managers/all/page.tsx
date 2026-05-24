@@ -94,7 +94,6 @@ export default function AllManagersPage() {
         updatedAt: now
       };
 
-      // Используем setDocumentNonBlocking для предотвращения дублей и ошибок прав
       await setDocumentNonBlocking(requestRef, requestData);
 
       toast({ 
