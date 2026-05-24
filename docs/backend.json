@@ -12,35 +12,35 @@
     "structure": [
       {
         "path": "/players_v5/{userId}",
-        "definition": { "$ref": "#/entities/GenericObject" }
+        "definition": { "type": "object", "additionalProperties": true }
       },
       {
         "path": "/market_v2/{agentId}",
-        "definition": { "$ref": "#/entities/GenericObject" }
+        "definition": { "type": "object", "additionalProperties": true }
       },
       {
         "path": "/friend_requests_v1/{requestId}",
-        "definition": { "$ref": "#/entities/GenericObject" }
+        "definition": { "type": "object", "additionalProperties": true }
       },
       {
         "path": "/associations_v1/{assocId}",
-        "definition": { "$ref": "#/entities/GenericObject" }
+        "definition": { "type": "object", "additionalProperties": true }
       },
       {
         "path": "/global_chat/{msgId}",
-        "definition": { "$ref": "#/entities/GenericObject" }
+        "definition": { "type": "object", "additionalProperties": true }
       },
       {
         "path": "/private_messages/{msgId}",
-        "definition": { "$ref": "#/entities/GenericObject" }
+        "definition": { "type": "object", "additionalProperties": true }
       },
       {
         "path": "/friendly_lobbies/{lobbyId}",
-        "definition": { "$ref": "#/entities/GenericObject" }
+        "definition": { "type": "object", "additionalProperties": true }
       },
       {
         "path": "/cw_basket/{userId}",
-        "definition": { "$ref": "#/entities/GenericObject" }
+        "definition": { "type": "object", "additionalProperties": true }
       }
     ]
   }
