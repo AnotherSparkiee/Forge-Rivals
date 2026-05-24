@@ -2,16 +2,28 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Правила для коллекции заявок в друзья
+    // ПРАВИЛА ДЛЯ ЗАЯВОК В ДРУЗЬЯ (friend_requests_v1)
     match /friend_requests_v1/{requestId} {
-      // Создать может любой авторизованный, если он указывает свой ID как отправителя
-      allow create: if request.auth != null && request.resource.data.fromId == request.auth.uid;
       
-      // Читать, обновлять и удалять могут только участники сделки (отправитель или получатель)
-      allow read, update, delete: if request.auth != null && (
-        resource.data.fromId == request.auth.uid || 
-        resource.data.toId == request.auth.uid
-      );
+      // ВАРИАНТ 1: ПРОСТОЙ (разрешает всё любому вошедшему пользователю)
+      // allow read, write: if request.auth != null;
+
+      // ВАРИАНТ 2: БЕЗОПАСНЫЙ (рекомендуемый)
+      // Разрешить создание, если пользователь авторизован и он является отправителем
+      allow create: if request.auth != null 
+                    && request.resource.data.fromId == request.auth.uid;
+      
+      // Разрешить чтение, если пользователь — отправитель или получатель
+      allow read: if request.auth != null 
+                  && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
+      
+      // Разрешить обновление (например, смену статуса), если пользователь — участник сделки
+      allow update: if request.auth != null 
+                    && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
+
+      // Разрешить удаление только участникам
+      allow delete: if request.auth != null 
+                    && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
     }
 
     // Глобальные правила для остальных коллекций (в целях разработки)
