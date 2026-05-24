@@ -94,7 +94,8 @@ export default function AllManagersPage() {
         updatedAt: now
       };
 
-      setDocumentNonBlocking(requestRef, requestData);
+      // Используем setDocumentNonBlocking для предотвращения дублей и ошибок прав
+      await setDocumentNonBlocking(requestRef, requestData);
 
       toast({ 
         title: language === 'ru' ? "Заявка отправлена!" : "Request Sent!",

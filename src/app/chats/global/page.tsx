@@ -115,7 +115,8 @@ export default function GlobalChatPage() {
         updatedAt: now
       };
 
-      setDocumentNonBlocking(requestRef, requestData);
+      // Используем setDocumentNonBlocking для детерминированного ID
+      await setDocumentNonBlocking(requestRef, requestData);
 
       toast({ 
         title: language === 'ru' ? "Заявка отправлена!" : "Request Sent!",

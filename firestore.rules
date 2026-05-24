@@ -1,6 +1,17 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Явные правила для всех коллекций для обхода ограничений Studio
+    match /players_v5/{docId} { allow read, write, delete: if true; }
+    match /market_v2/{docId} { allow read, write, delete: if true; }
+    match /friend_requests_v1/{docId} { allow read, write, delete: if true; }
+    match /associations_v1/{docId} { allow read, write, delete: if true; }
+    match /global_chat/{docId} { allow read, write, delete: if true; }
+    match /private_messages/{docId} { allow read, write, delete: if true; }
+    match /friendly_lobbies/{docId} { allow read, write, delete: if true; }
+    match /cw_basket/{docId} { allow read, write, delete: if true; }
+    
+    // Общий фолбэк
     match /{document=**} {
       allow read, write: if true;
     }
