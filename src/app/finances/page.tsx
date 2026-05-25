@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -8,9 +7,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, ChevronRight, Coins, AlertTriangle, 
   TrendingUp, FileText, BarChart3, Wallet, 
-  Landmark, PiggyBank,
+  Landmark, PiggyBank, History,
   CheckCircle2, XCircle, ArrowUpRight,
-  ShoppingCart
+  ShoppingCart, Info
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
@@ -105,7 +104,6 @@ export default function FinancesPage() {
 
   const t = translations[language as keyof typeof translations] || translations.ru;
 
-  // Mock data for charts
   const chartData = [
     { day: "1", credits: credits * 0.7 },
     { day: "2", credits: credits * 0.8 },
@@ -276,7 +274,7 @@ export default function FinancesPage() {
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div className="p-6 bg-primary/5 rounded-2xl border border-primary/20 text-center">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-2">Total Salary Bill</p>
-              <p className="text-3xl font-headline font-black italic text-white">{totalSalary.toLocaleString()} €</p>
+              <p className="text-3xl font-headline font-bold text-white">{totalSalary.toLocaleString()} €</p>
               <Badge className="mt-4 bg-primary text-primary-foreground text-[8px] font-black uppercase">Weekly Payment Cycle</Badge>
             </div>
 

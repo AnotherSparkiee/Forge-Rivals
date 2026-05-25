@@ -155,7 +155,9 @@ export default function TournamentsPage() {
 
     setIsActionLoading(true);
     try {
-      const botId = `bot${Math.floor(Math.random() * 9000) + 1000}`;
+      const div = Math.floor(Math.random() * 9) + 1;
+      const botId = `bot_${Math.random().toString(36).substr(2, 5)}`;
+      const botName = `Bot Elite Div ${div}`;
       
       const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
         ...h,
@@ -172,7 +174,7 @@ export default function TournamentsPage() {
       const result = await simulateMobaMatch({
         teamA: { name: profile.displayName || "Manager", strategy, heroes: squad },
         teamB: { 
-          name: botId, 
+          name: botName, 
           strategy: "Standard Training", 
           heroes: botSquad
         },
@@ -182,12 +184,13 @@ export default function TournamentsPage() {
       const safeResult = sanitizeForFirestore(result);
       if (!safeResult) throw new Error("Simulation failed");
 
+      // Мгновенная постановка в лобби со статусом 'accepted'
       await setDoc(doc(db, 'friendly_lobbies', user.uid), {
         hostId: user.uid,
         hostName: profile.displayName || "Manager",
         status: 'accepted',
         challengerId: botId,
-        challengerName: botId,
+        challengerName: botName,
         matchResult: safeResult,
         acceptedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
