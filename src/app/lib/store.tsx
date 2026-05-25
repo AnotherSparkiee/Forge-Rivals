@@ -93,6 +93,14 @@ interface GameState {
   credits: number;
   crystals: number;
   experiencePoints: number;
+  managerLevel: number;
+  skillPoints: number;
+  managerSkills: {
+    sponsors: number;
+    agents: number;
+    training: number;
+    medical: number;
+  };
   activeLicenseTier: number | null;
   ownedHeroes: Hero[];
   youthAcademyHeroes: Hero[];
@@ -206,6 +214,14 @@ const DEFAULT_STATE: GameState = {
   credits: START_CREDITS,
   crystals: 0,
   experiencePoints: 0,
+  managerLevel: 1,
+  skillPoints: 0,
+  managerSkills: {
+    sponsors: 0,
+    agents: 0,
+    training: 0,
+    medical: 0,
+  },
   activeLicenseTier: null,
   ownedHeroes: INITIAL_HEROES,
   youthAcademyHeroes: [],
@@ -298,6 +314,7 @@ interface GameStateContextType extends GameState {
   updateProfileName: (name: string) => void;
   updateProfileCountry: (countryName: string) => void;
   purchaseLicense: (tier: number, cost: number) => boolean;
+  upgradeManagerSkill: (skillKey: keyof GameState['managerSkills']) => void;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
@@ -361,6 +378,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             credits: profileData.inGameCurrency ?? s.credits ?? 0,
             crystals: profileData.crystals ?? s.crystals ?? 0,
             experiencePoints: profileData.experiencePoints ?? s.experiencePoints ?? 0,
+            managerLevel: profileData.managerLevel ?? s.managerLevel ?? 1,
+            skillPoints: profileData.skillPoints ?? s.skillPoints ?? 0,
+            managerSkills: profileData.managerSkills || s.managerSkills || DEFAULT_STATE.managerSkills,
             activeLicenseTier: profileData.activeLicenseTier ?? s.activeLicenseTier ?? null,
             ownedHeroes: cloudHeroes,
             youthAcademyHeroes: cloudYouth,
@@ -871,18 +891,36 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       else if (s.activeLicenseTier === 1) licenseMultiplier = 8;
 
       const totalXPToGain = Math.round(baseManagerXP * hqMultiplier * licenseMultiplier);
-      const newTotalXP = s.experiencePoints + totalXPToGain;
+      let newTotalXP = s.experiencePoints + totalXPToGain;
+      let newLevel = s.managerLevel;
+      let newSkillPoints = s.skillPoints;
 
+      // Level-up cycle (700 XP threshold)
+      while (newTotalXP >= 700) {
+        newTotalXP -= 700;
+        newLevel += 1;
+        newSkillPoints += 1;
+      }
+
+      // Hero XP Logic with Training Skill bonus
+      const trainingBonus = 1 + (s.managerSkills.training * 0.1);
       const xpRange = isOfficial ? { min: 2, max: 4 } : { min: 1, max: 1 };
+      
       const applyXP = (hero: Hero) => {
         const isHeroActive = Object.values(s.lineup).includes(hero.id);
         if (isHeroActive && hero.trainingFocus) {
           const skillKey = hero.trainingFocus; const currentVal = (hero.proStats as any)[skillKey] || 0;
           const talentLimit = (hero.proTalents ? (hero.proTalents as any)[skillKey] || 3.0 : 3.0) * 20;
-          if (currentVal < talentLimit) { const gain = Math.floor(Math.random() * (xpRange.max - xpRange.min + 1)) + xpRange.min; const newVal = Math.min(talentLimit, currentVal + gain); return { ...hero, proStats: { ...hero.proStats, [skillKey]: newVal } }; }
+          if (currentVal < talentLimit) { 
+            const baseGain = Math.floor(Math.random() * (xpRange.max - xpRange.min + 1)) + xpRange.min; 
+            const totalGain = Math.round(baseGain * trainingBonus);
+            const newVal = Math.min(talentLimit, currentVal + totalGain); 
+            return { ...hero, proStats: { ...hero.proStats, [skillKey]: newVal } }; 
+          }
         }
         return hero;
       };
+
       const updatedOwned = s.ownedHeroes.map(applyXP); const updatedYouth = s.youthAcademyHeroes.map(applyXP);
       const matchEntry: MatchResultEntry = { id: matchId, day: matchDay, type, opponentName, winner, scoreA, scoreB, matchSummary: result.matchSummary || "", teamStats: sanitizeForFirestore(result.teamStats || {}), heroPerformance: sanitizeForFirestore(result.heroPerformance || []), playedAt: customPlayedAt || new Date().toISOString(), duration: result.duration || "", mvp: result.mvp || "", preview: sanitizeForFirestore(result.preview || null), timeline: sanitizeForFirestore(result.timeline || []), postMatch: sanitizeForFirestore(result.postMatch || null) };
       if (type === 'league' || type === 'tournament') matchEntry.seasonNumber = s.seasonNumber;
@@ -899,6 +937,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           inGameCurrency: newCredits, 
           rank: newRank, 
           experiencePoints: newTotalXP,
+          managerLevel: newLevel,
+          skillPoints: newSkillPoints,
           lastLeagueMatchDate: newLastLeagueDate ?? null, 
           lastCupMatchDate: newLastCupDate ?? null, 
           matchHistory: newHistory, 
@@ -907,7 +947,17 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         });
       }, 0);
       
-      return { ...s, credits: newCredits, rank: newRank, experiencePoints: newTotalXP, matchHistory: newHistory, lastLeagueMatchDate: newLastLeagueDate, lastCupMatchDate: newLastCupDate, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth, isSyncing: false };
+      return { ...s, credits: newCredits, rank: newRank, experiencePoints: newTotalXP, managerLevel: newLevel, skillPoints: newSkillPoints, matchHistory: newHistory, lastLeagueMatchDate: newLastLeagueDate, lastCupMatchDate: newLastCupDate, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth, isSyncing: false };
+    });
+  }, [runCloudUpdate]);
+
+  const upgradeManagerSkill = useCallback((skillKey: keyof GameState['managerSkills']) => {
+    setState(s => {
+      if (s.skillPoints <= 0) return s;
+      const newSkills = { ...s.managerSkills, [skillKey]: s.managerSkills[skillKey] + 1 };
+      const newPoints = s.skillPoints - 1;
+      setTimeout(() => runCloudUpdate({ managerSkills: newSkills, skillPoints: newPoints }), 0);
+      return { ...s, managerSkills: newSkills, skillPoints: newPoints };
     });
   }, [runCloudUpdate]);
 
@@ -969,7 +1019,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   return (
     <GameStateContext.Provider value={{
-      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, hireStaffMember, trainStaffSkill, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, promoteYouthPlayer, removeHero, recoverAllFatigue, addHeroDirectly, addYouthHeroDirectly, updateProfileName, updateProfileCountry, purchaseLicense
+      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, hireStaffMember, trainStaffSkill, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, promoteYouthPlayer, removeHero, recoverAllFatigue, addHeroDirectly, addYouthHeroDirectly, updateProfileName, updateProfileCountry, purchaseLicense, upgradeManagerSkill
     }}>
       {children}
     </GameStateContext.Provider>

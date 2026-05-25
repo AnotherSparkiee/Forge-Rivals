@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -7,8 +8,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, ChevronRight, Coins, AlertTriangle, 
   TrendingUp, FileText, BarChart3, Wallet, 
-  HandCoins, History, Info, Landmark, PiggyBank,
-  CheckCircle2, XCircle, ArrowUpRight, ArrowDownRight,
+  Landmark, PiggyBank,
+  CheckCircle2, XCircle, ArrowUpRight,
   ShoppingCart
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -21,7 +22,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 type FinanceTab = 
   | 'menu'
@@ -34,7 +35,7 @@ type FinanceTab =
   | 'match_reports';
 
 export default function FinancesPage() {
-  const { language, isLoaded, credits, ownedHeroes, matchHistory, arena, hq, staff } = useGameState();
+  const { language, isLoaded, credits, ownedHeroes, arena, managerSkills } = useGameState();
   const [activeTab, setActiveTab] = useState<FinanceTab>('menu');
 
   if (!isLoaded) return <LoadingScreen />;
@@ -66,7 +67,8 @@ export default function FinancesPage() {
         tickets: "Ticket Sales (AVG)",
         sponsors: "League Sponsorship",
         merch: "Merchandise & Sales",
-        total: "Total Projected Daily"
+        total: "Total Projected Daily",
+        skillBonus: "Sponsor Skill Bonus"
       }
     },
     ru: {
@@ -95,7 +97,8 @@ export default function FinancesPage() {
         tickets: "Продажа билетов (сред.)",
         sponsors: "Спонсорство Лиги",
         merch: "Мерч и атрибутика",
-        total: "Итоговая проекция"
+        total: "Итоговая проекция",
+        skillBonus: "Бонус Спонсоров"
       }
     }
   };
@@ -156,9 +159,14 @@ export default function FinancesPage() {
         );
 
       case 'income':
-        const ticketIncome = (arena?.capacity || 5000) * 15;
-        const merchIncome = (arena?.shopLevel || 0) * 12000 + 5000;
-        const sponsorIncome = 250000;
+        const sponsorBonusMultiplier = 1 + (managerSkills.sponsors * 0.1);
+        const ticketBase = (arena?.capacity || 5000) * 15;
+        const merchBase = (arena?.shopLevel || 0) * 12000 + 5000;
+        const sponsorBase = 250000;
+
+        const ticketIncome = Math.round(ticketBase * sponsorBonusMultiplier);
+        const merchIncome = Math.round(merchBase * sponsorBonusMultiplier);
+        const sponsorIncome = Math.round(sponsorBase * sponsorBonusMultiplier);
 
         return (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -185,6 +193,14 @@ export default function FinancesPage() {
                 </div>
                 <span className="text-sm font-bold text-white">+{merchIncome.toLocaleString()} €</span>
               </div>
+
+              {managerSkills.sponsors > 0 && (
+                <div className="p-3 bg-accent/10 border border-accent/20 rounded-xl flex items-center justify-between">
+                  <span className="text-[9px] font-black uppercase text-accent">{t.incomeInfo.skillBonus}</span>
+                  <Badge className="bg-accent text-accent-foreground text-[8px] font-black">+{managerSkills.sponsors * 10}%</Badge>
+                </div>
+              )}
+
               <div className="bg-primary/10 p-5 rounded-xl border border-primary/20 flex items-center justify-between mt-4">
                 <span className="text-sm font-black uppercase tracking-widest text-primary">{t.incomeInfo.total}</span>
                 <span className="text-xl font-headline font-black italic text-primary">

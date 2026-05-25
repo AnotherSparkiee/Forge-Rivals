@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -10,7 +11,7 @@ import {
   ChevronLeft, Scroll, User, Star, Trash2, 
   Coins, Gem, HeartPulse, ShieldAlert, Award,
   Info, TrendingUp, Eye, Target, Brain, Map, Users,
-  Zap, Sparkles, Sword, Crosshair, Activity, ShoppingCart, Loader2, Clock
+  Zap, Sword, Crosshair, Activity, ShoppingCart, Loader2, Clock, UserCog
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
@@ -31,7 +32,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { getMoscowDateString, getMoscowTime, calculateLiveAge } from '@/app/lib/time-utils';
 
 export default function ContractsPage() {
-  const { ownedHeroes, language, isLoaded, credits, crystals, updateHero, removeHero } = useGameState();
+  const { ownedHeroes, language, isLoaded, credits, crystals, updateHero, removeHero, managerSkills } = useGameState();
   const { user } = useUser();
   const db = useFirestore();
   const [profileHero, setProfileHero] = useState<Hero | null>(null);
@@ -75,6 +76,8 @@ export default function ContractsPage() {
   const handleAction = async (action: string) => {
     if (!profileHero) return;
 
+    const agentSkillBonus = 1 + (managerSkills.agents * 0.1);
+
     switch (action) {
       case 'onTransfer':
         if (!user || !profile) return;
@@ -103,10 +106,8 @@ export default function ContractsPage() {
             dropTime: mskNow.toISOString()
           };
 
-          // 1. Create market entry
           await setDoc(doc(db, 'market_v2', agentId), agentData);
           
-          // 2. Mark hero as "on transfer" instead of removing
           updateHero(profileHero.id, { 
             onTransferUntil: expiryTime.toISOString(),
             transferMarketId: agentId
@@ -125,8 +126,18 @@ export default function ContractsPage() {
         }
         break;
       case 'sell':
-        removeHero(profileHero.id, 50000);
-        toast({ title: language === 'ru' ? "Игрок продан" : "Hero Sold", description: "+50,000 €" });
+        // Agents Skill: Chance for 200% buyout
+        const buyoutChance = managerSkills.agents * 0.05; // 5% per level
+        const isBuyout = Math.random() < buyoutChance;
+        const baseSaleAmount = 50000;
+        const totalSaleAmount = Math.round(baseSaleAmount * agentSkillBonus * (isBuyout ? 2 : 1));
+
+        removeHero(profileHero.id, totalSaleAmount);
+        
+        toast({ 
+          title: isBuyout ? (language === 'ru' ? "ВЫКУП АГЕНТОМ (200%)!" : "AGENT BUYOUT (200%)!") : (language === 'ru' ? "Игрок продан" : "Hero Sold"), 
+          description: `+${totalSaleAmount.toLocaleString()} €` 
+        });
         setProfileHero(null);
         break;
       case 'dismiss':
@@ -150,9 +161,12 @@ export default function ContractsPage() {
         break;
       case 'boostForm':
         if (credits >= 10000) {
-          updateHero(profileHero.id, { form: Math.min(100, profileHero.form + 15) }, 10000, 0);
+          // Medical skill: chance to boost form further
+          const medicalBonus = managerSkills.medical;
+          const boostAmount = 15 + (medicalBonus > 0 ? Math.floor(Math.random() * (medicalBonus + 1)) : 0);
+          updateHero(profileHero.id, { form: Math.min(100 + medicalBonus, profileHero.form + boostAmount) }, 10000, 0);
           toast({ title: language === 'ru' ? "Форма улучшена" : "Form Boosted" });
-          setProfileHero(prev => prev ? { ...prev, form: Math.min(100, prev.form + 15) } : null);
+          setProfileHero(prev => prev ? { ...prev, form: Math.min(100 + medicalBonus, prev.form + boostAmount) } : null);
         } else toast({ title: t.insufficient, variant: "destructive" });
         break;
       case 'heal':
@@ -190,7 +204,7 @@ export default function ContractsPage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2">
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2 text-primary">
             <Scroll className="w-6 h-6 text-primary" />
             {t.title}
           </h1>
@@ -219,7 +233,7 @@ export default function ContractsPage() {
                     <h3 className="text-sm font-bold truncate uppercase">{hero.name}</h3>
                     <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
                     {onAuction && (
-                      <Badge className="bg-yellow-500 text-black text-[6px] h-3 px-1 font-black animate-pulse">AUCTION</Badge>
+                      <Badge className="bg-yellow-500 text-black text-[6px] h-3 px-1 font-black animate-pulse uppercase">Auction</Badge>
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
@@ -309,7 +323,7 @@ export default function ContractsPage() {
                             <p className="text-[7px] font-black text-muted-foreground uppercase">Form</p>
                             <p className="text-[9px] font-bold text-primary">{profileHero.form}%</p>
                           </div>
-                          <Progress value={profileHero.form} className="h-1" />
+                          <Progress value={profileHero.form} max={100 + managerSkills.medical} className="h-1" />
                         </div>
                         <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-2">
                           <div className="flex justify-between items-center">
@@ -382,7 +396,7 @@ export default function ContractsPage() {
                             onClick={() => handleAction('sell')}
                             disabled={profileHero.onTransferUntil !== null && new Date(profileHero.onTransferUntil) > new Date()}
                           >
-                            <Coins className="w-4 h-4 mr-2" /> {t.sell}
+                            <UserCog className="w-4 h-4 mr-2" /> {t.sell}
                           </Button>
                           <Button 
                             variant="outline" 

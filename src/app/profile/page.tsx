@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { 
-  User, Settings, ShieldCheck, History, LogOut, 
-  ChevronRight, Mail, ChevronLeft, Check, Loader2,
-  Trophy, Star, Wallet, Gem, Flag, Zap, Trash2, AlertTriangle,
+  User, ShieldCheck, LogOut, 
+  ChevronRight, Mail, ChevronLeft, Loader2,
+  Trophy, Star, Wallet, Gem, Flag, Zap, 
   BookOpen, Users, LayoutDashboard, Newspaper, Gift, Package, Heart,
-  Coins, Lock, CheckCircle2, Sparkles, Award, ScrollText, ZapIcon
+  Lock, CheckCircle2, Sparkles, Award, ScrollText, ZapIcon,
+  CircleDollarSign, UserCog, HeartPulse, GraduationCap, ArrowUpCircle
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -21,14 +22,22 @@ import { useToast } from '@/hooks/use-toast';
 import { doc } from 'firebase/firestore';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 type ProfileTab = 'menu' | 'training' | 'team' | 'page' | 'news' | 'daily' | 'bonuses' | 'gift';
 
 export default function ProfilePage() {
   const { 
-    ownedHeroes, rank, language, setLanguage, isLoaded: isStoreLoaded, 
+    ownedHeroes, rank, language, isLoaded: isStoreLoaded, 
     credits, crystals, leagueLevel, divisionSubId, groupId, rewardDay, 
-    hasEliteTrophy, experiencePoints, activeLicenseTier, hq
+    hasEliteTrophy, experiencePoints, activeLicenseTier, hq, managerLevel,
+    skillPoints, managerSkills, upgradeManagerSkill
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
@@ -38,6 +47,7 @@ export default function ProfilePage() {
   
   const [activeTab, setActiveTab] = useState<ProfileTab>('menu');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [showSkillTree, setShowSkillTree] = useState(false);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -47,6 +57,12 @@ export default function ProfilePage() {
       router.push('/auth/login');
     }
   }, [user, isUserLoading, router]);
+
+  useEffect(() => {
+    if (skillPoints > 0) {
+      setShowSkillTree(true);
+    }
+  }, [skillPoints]);
 
   const calendarRewards = useMemo(() => {
     return Array.from({ length: 30 }, (_, i) => {
@@ -72,8 +88,8 @@ export default function ProfilePage() {
       rosterInfo: "Roster Status",
       heroes: "Heroes",
       mmr: "MMR Points",
-      level: "Level",
-      nextLevel: "Next Level",
+      level: "Manager Level",
+      nextLevel: "Next Skill Point",
       balance: "Financial Status",
       currency: "Balance €",
       crystals: "Crystals",
@@ -88,9 +104,17 @@ export default function ProfilePage() {
       multiplier: "XP Multiplier",
       noLicense: "None",
       hqBonus: "HQ Admin Bonus",
+      skills: {
+        title: "STRATEGIC DEVELOPMENT",
+        points: "Skill Points Available",
+        sponsors: { name: "Sponsors", desc: "+10% Income per level" },
+        agents: { name: "Agents", desc: "+10% Sale profit & Agent Buyouts" },
+        training: { name: "Training", desc: "+10% Player XP from matches" },
+        medical: { name: "Medical", desc: "-10% Injury chance & Form boost" }
+      },
       menu: [
         { id: 'training', label: "Training Task", desc: "Tutorial and progression rewards", icon: BookOpen },
-        { id: 'team', label: "My Team", desc: "Personal stats, finances and settings", icon: Users },
+        { id: 'team', label: "My Team", desc: "Personal stats, finances and skills", icon: Users },
         { id: 'page', label: "My Page", desc: "Manager profile and achievements", icon: LayoutDashboard },
         { id: 'news', label: "My News", desc: "Personal achievement feed", icon: Newspaper },
         { id: 'daily', label: "Daily Bonuses", desc: "Claim login rewards", icon: Gift },
@@ -104,8 +128,8 @@ export default function ProfilePage() {
       rosterInfo: "Информация о Росторе",
       heroes: "Героев",
       mmr: "Очки MMR",
-      level: "Уровень",
-      nextLevel: "След. Уровень",
+      level: "Уровень менеджера",
+      nextLevel: "До очка навыков",
       balance: "Финансовый баланс",
       currency: "Баланс €",
       crystals: "Кристаллы",
@@ -120,9 +144,17 @@ export default function ProfilePage() {
       multiplier: "Множитель XP",
       noLicense: "Отсутствует",
       hqBonus: "Бонус Администрации",
+      skills: {
+        title: "ОЧКИ РАЗВИТИЯ",
+        points: "Доступно очков навыков",
+        sponsors: { name: "Спонсоры", desc: "+10% ко всем доходам за уровень" },
+        agents: { name: "Агенты", desc: "+10% к продаже и шанс выкупа 200%" },
+        training: { name: "Тренировка", desc: "+10% опыта игрокам за матчи" },
+        medical: { name: "Медицина", desc: "-10% шанс травм и буст формы" }
+      },
       menu: [
         { id: 'training', label: "Задание обучения", desc: "Обучающие квесты и награды", icon: BookOpen },
-        { id: 'team', label: "Моя команда", desc: "Статистика, финансы и настройки", icon: Users },
+        { id: 'team', label: "Моя команда", desc: "Статистика, навыки и настройки", icon: Users },
         { id: 'page', label: "Моя страница", desc: "Профиль и достижения", icon: LayoutDashboard },
         { id: 'news', label: "Мои новости", desc: "Лента ваших достижений", icon: Newspaper },
         { id: 'daily', label: "Дневные бонусы", desc: "Получить награды за вход", icon: Gift },
@@ -147,8 +179,7 @@ export default function ProfilePage() {
 
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
   const currentExp = experiencePoints || 0;
-  const xpLevel = Math.floor(currentExp / 1000) + 1;
-  const progress = (currentExp % 1000 / 1000) * 100;
+  const progress = (currentExp / 700) * 100;
 
   // Multiplier Breakdown
   const hqAdminLevel = hq?.adminLevel || 0;
@@ -161,6 +192,13 @@ export default function ProfilePage() {
   else if (activeLicenseTier === 1) licenseMultiplier = 8;
 
   const totalMultiplier = hqMultiplier * licenseMultiplier;
+
+  const skillList = [
+    { key: 'sponsors', icon: CircleDollarSign, color: 'text-yellow-400', label: t.skills.sponsors.name, desc: t.skills.sponsors.desc },
+    { key: 'agents', icon: UserCog, color: 'text-blue-400', label: t.skills.agents.name, desc: t.skills.agents.desc },
+    { key: 'training', icon: GraduationCap, color: 'text-green-400', label: t.skills.training.name, desc: t.skills.training.desc },
+    { key: 'medical', icon: HeartPulse, color: 'text-red-400', label: t.skills.medical.name, desc: t.skills.medical.desc },
+  ];
 
   const renderContent = () => {
     if (activeTab === 'menu') {
@@ -198,15 +236,15 @@ export default function ProfilePage() {
               <div className="p-4 bg-primary/5 border-b border-white/5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center font-headline font-bold text-primary text-xl">
-                    {xpLevel}
+                    {managerLevel}
                   </div>
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase font-bold">{t.level}</p>
-                    <p className="text-xs font-headline">Next: 1000 XP</p>
+                    <p className="text-xs font-headline">{t.nextLevel}: 700 XP</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-bold text-primary">{currentExp % 1000} / 1000 XP</p>
+                  <p className="text-xs font-bold text-primary">{currentExp} / 700 XP</p>
                 </div>
               </div>
               <div className="px-4 py-2">
@@ -231,6 +269,38 @@ export default function ProfilePage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* SKILLS OVERVIEW */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent flex items-center gap-2">
+                <ArrowUpCircle className="w-3 h-3" /> {t.skills.title}
+              </h2>
+              {skillPoints > 0 && (
+                <Badge className="bg-primary text-primary-foreground text-[8px] animate-pulse">
+                  {skillPoints} POINTS
+                </Badge>
+              )}
+            </div>
+            <Card className="glass-card border-white/10 hover:border-primary/30 transition-all cursor-pointer" onClick={() => setShowSkillTree(true)}>
+              <CardContent className="p-4">
+                 <div className="grid grid-cols-2 gap-4">
+                   {skillList.map(s => (
+                     <div key={s.key} className="flex items-center gap-2">
+                       <s.icon className={cn("w-3.5 h-3.5", s.color)} />
+                       <div className="flex-1">
+                         <div className="flex justify-between items-center">
+                           <span className="text-[9px] font-bold uppercase">{s.label}</span>
+                           <span className="text-[9px] font-mono font-bold text-white">LVL {(managerSkills as any)[s.key]}</span>
+                         </div>
+                         <Progress value={((managerSkills as any)[s.key] / 10) * 100} className="h-0.5 mt-1" />
+                       </div>
+                     </div>
+                   ))}
+                 </div>
+              </CardContent>
+            </Card>
+          </div>
 
           {/* XP MULTIPLIERS SECTION */}
           <div className="space-y-3">
@@ -367,7 +437,7 @@ export default function ProfilePage() {
                   <span className={cn("text-[8px] font-black uppercase tracking-tighter mb-1", isToday ? "text-primary" : "text-muted-foreground")}>Day {reward.day}</span>
                   <div className="space-y-1 text-center">
                     <div className="flex items-center justify-center gap-1">
-                      <Coins className={cn("w-2.5 h-2.5", isToday ? "text-yellow-500" : "text-muted-foreground")} />
+                      <CircleDollarSign className={cn("w-2.5 h-2.5", isToday ? "text-yellow-500" : "text-muted-foreground")} />
                       <span className="text-[9px] font-bold">{formatCurrency(reward.credits)}</span>
                     </div>
                     <div className="flex items-center justify-center gap-1">
@@ -409,6 +479,61 @@ export default function ProfilePage() {
         <p className="text-muted-foreground text-[10px] flex items-center gap-1 mt-1 opacity-70 uppercase font-bold tracking-widest"><Mail className="w-2 h-2" /> {user?.email}</p>
       </header>
       {renderContent()}
+
+      <Dialog open={showSkillTree} onOpenChange={setShowSkillTree}>
+        <DialogContent className="max-w-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
+          <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
+            <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">
+              {t.skills.title}
+            </DialogTitle>
+            <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">
+              {t.skills.points}: {skillPoints}
+            </DialogDescription>
+          </div>
+
+          <div className="p-4 space-y-3">
+             {skillList.map((skill) => {
+               const currentLvl = (managerSkills as any)[skill.key];
+               return (
+                 <Card key={skill.key} className="glass-card border-white/5 bg-secondary/10">
+                   <CardContent className="p-4 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className={cn("p-2 rounded-lg bg-secondary/50", skill.color)}>
+                          <skill.icon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-[10px] font-black uppercase text-white">{skill.label}</h4>
+                          <p className="text-[8px] text-muted-foreground italic leading-tight">{skill.desc}</p>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <Progress value={(currentLvl / 10) * 100} className="h-0.5 w-20" />
+                            <span className="text-[8px] font-black text-primary">LVL {currentLvl} / 10</span>
+                          </div>
+                        </div>
+                      </div>
+                      <Button 
+                        size="icon" 
+                        className={cn(
+                          "w-8 h-8 rounded-lg hero-gradient shadow-lg",
+                          (skillPoints <= 0 || currentLvl >= 10) && "opacity-20 grayscale"
+                        )}
+                        disabled={skillPoints <= 0 || currentLvl >= 10}
+                        onClick={() => upgradeManagerSkill(skill.key as any)}
+                      >
+                        <Zap className="w-4 h-4" />
+                      </Button>
+                   </CardContent>
+                 </Card>
+               );
+             })}
+          </div>
+
+          <div className="p-4 bg-secondary/20 border-t border-white/5">
+             <Button variant="outline" className="w-full h-11 text-[10px] font-bold uppercase border-white/10" onClick={() => setShowSkillTree(false)}>
+               {language === 'ru' ? 'ЗАКРЫТЬ' : 'CLOSE'}
+             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
