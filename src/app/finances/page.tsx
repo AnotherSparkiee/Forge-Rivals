@@ -8,7 +8,8 @@ import {
   ChevronLeft, ChevronRight, Coins, AlertTriangle, 
   TrendingUp, FileText, BarChart3, Wallet, 
   HandCoins, History, Info, Landmark, PiggyBank,
-  CheckCircle2, XCircle, ArrowUpRight, ArrowDownRight
+  CheckCircle2, XCircle, ArrowUpRight, ArrowDownRight,
+  ShoppingCart
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';

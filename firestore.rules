@@ -2,33 +2,35 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // ПРАВИЛА ДЛЯ ЗАЯВОК В ДРУЗЬЯ (friend_requests_v1)
-    match /friend_requests_v1/{requestId} {
-      
-      // ВАРИАНТ 1: ПРОСТОЙ (разрешает всё любому вошедшему пользователю)
-      // allow read, write: if request.auth != null;
-
-      // ВАРИАНТ 2: БЕЗОПАСНЫЙ (рекомендуемый)
-      // Разрешить создание, если пользователь авторизован и он является отправителем
-      allow create: if request.auth != null 
-                    && request.resource.data.fromId == request.auth.uid;
-      
-      // Разрешить чтение, если пользователь — отправитель или получатель
-      allow read: if request.auth != null 
-                  && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
-      
-      // Разрешить обновление (например, смену статуса), если пользователь — участник сделки
-      allow update: if request.auth != null 
-                    && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
-
-      // Разрешить удаление только участникам
-      allow delete: if request.auth != null 
-                    && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
+    // Абсолютно открытые правила для прототипирования
+    // Разрешает чтение, запись и удаление всем авторизованным пользователям в любой коллекции
+    match /{document=**} {
+      allow read, write, delete: if request.auth != null;
     }
 
-    // Глобальные правила для остальных коллекций (в целях разработки)
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    // Явные правила для критических коллекций (на случай, если рекурсивный поиск не сработает в Studio)
+    match /friend_requests_v1/{requestId} {
+      allow read, write, delete: if request.auth != null;
+    }
+    
+    match /market_v2/{agentId} {
+      allow read, write, delete: if request.auth != null;
+    }
+
+    match /associations_v1/{assocId} {
+      allow read, write, delete: if request.auth != null;
+    }
+
+    match /global_chat/{msgId} {
+      allow read, write, delete: if request.auth != null;
+    }
+    
+    match /private_messages/{msgId} {
+      allow read, write, delete: if request.auth != null;
+    }
+
+    match /players_v5/{userId} {
+      allow read, write, delete: if request.auth != null;
     }
   }
 }

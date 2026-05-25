@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "GenericObject": {
@@ -13,14 +12,7 @@
     "structure": [
       {
         "path": "/players_v5/{userId}",
-        "definition": { 
-          "type": "object", 
-          "additionalProperties": true,
-          "properties": {
-            "experiencePoints": { "type": "number" },
-            "activeLicenseTier": { "type": ["number", "null"] }
-          }
-        }
+        "definition": { "type": "object", "additionalProperties": true }
       },
       {
         "path": "/market_v2/{agentId}",
