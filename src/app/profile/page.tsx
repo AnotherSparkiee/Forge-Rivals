@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -9,7 +10,7 @@ import {
   ChevronRight, Mail, ChevronLeft, Check, Loader2,
   Trophy, Star, Wallet, Gem, Flag, Zap, Trash2, AlertTriangle,
   BookOpen, Users, LayoutDashboard, Newspaper, Gift, Package, Heart,
-  Coins, Lock, CheckCircle2, Sparkles, Award
+  Coins, Lock, CheckCircle2, Sparkles, Award, ScrollText, ZapIcon
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -19,13 +20,15 @@ import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { doc } from 'firebase/firestore';
 import { COUNTRIES } from '@/app/lib/countries-data';
+import { Badge } from '@/components/ui/badge';
 
 type ProfileTab = 'menu' | 'training' | 'team' | 'page' | 'news' | 'daily' | 'bonuses' | 'gift';
 
 export default function ProfilePage() {
   const { 
     ownedHeroes, rank, language, setLanguage, isLoaded: isStoreLoaded, 
-    credits, crystals, leagueLevel, divisionSubId, groupId, rewardDay, hasEliteTrophy 
+    credits, crystals, leagueLevel, divisionSubId, groupId, rewardDay, 
+    hasEliteTrophy, experiencePoints, activeLicenseTier, hq
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
@@ -81,6 +84,10 @@ export default function ProfilePage() {
       eliteTrophyDesc: "Awarded for winning Div 9 Group 1",
       noTrophies: "No Trophies Yet",
       logout: "LOG OUT",
+      license: "Active License",
+      multiplier: "XP Multiplier",
+      noLicense: "None",
+      hqBonus: "HQ Admin Bonus",
       menu: [
         { id: 'training', label: "Training Task", desc: "Tutorial and progression rewards", icon: BookOpen },
         { id: 'team', label: "My Team", desc: "Personal stats, finances and settings", icon: Users },
@@ -109,6 +116,10 @@ export default function ProfilePage() {
       eliteTrophyDesc: "Награда за победу в Дивизионе 9 Группе 1",
       noTrophies: "Трофеев пока нет",
       logout: "ВЫЙТИ ИЗ СИСТЕМЫ",
+      license: "Активная лицензия",
+      multiplier: "Множитель XP",
+      noLicense: "Отсутствует",
+      hqBonus: "Бонус Администрации",
       menu: [
         { id: 'training', label: "Задание обучения", desc: "Обучающие квесты и награды", icon: BookOpen },
         { id: 'team', label: "Моя команда", desc: "Статистика, финансы и настройки", icon: Users },
@@ -135,9 +146,21 @@ export default function ProfilePage() {
   };
 
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
-  const currentExp = profile?.experiencePoints || 0;
+  const currentExp = experiencePoints || 0;
   const xpLevel = Math.floor(currentExp / 1000) + 1;
   const progress = (currentExp % 1000 / 1000) * 100;
+
+  // Multiplier Breakdown
+  const hqAdminLevel = hq?.adminLevel || 0;
+  const hqBonus = Math.floor(hqAdminLevel / 10) * 0.5;
+  const hqMultiplier = 1 + hqBonus;
+
+  let licenseMultiplier = 1;
+  if (activeLicenseTier === 3) licenseMultiplier = 2;
+  else if (activeLicenseTier === 2) licenseMultiplier = 4;
+  else if (activeLicenseTier === 1) licenseMultiplier = 8;
+
+  const totalMultiplier = hqMultiplier * licenseMultiplier;
 
   const renderContent = () => {
     if (activeTab === 'menu') {
@@ -146,7 +169,7 @@ export default function ProfilePage() {
           {t.menu.map((item) => (
             <Card 
               key={item.id} 
-              className="glass-card hover:bg-white/5 transition-colors border-white/5 cursor-pointer"
+              className="glass-card hover:bg-white/5 transition-all border-white/5 cursor-pointer"
               onClick={() => setActiveTab(item.id as ProfileTab)}
             >
               <CardContent className="p-4 flex items-center justify-between">
@@ -178,7 +201,7 @@ export default function ProfilePage() {
                     {xpLevel}
                   </div>
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">Level</p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">{t.level}</p>
                     <p className="text-xs font-headline">Next: 1000 XP</p>
                   </div>
                 </div>
@@ -208,6 +231,39 @@ export default function ProfilePage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* XP MULTIPLIERS SECTION */}
+          <div className="space-y-3">
+            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent px-1 flex items-center gap-2">
+               <ZapIcon className="w-3 h-3" /> {t.multiplier}
+            </h2>
+            <Card className="glass-card bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
+               <CardContent className="p-4 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                       <ScrollText className="w-4 h-4 text-red-400" />
+                       <span className="text-xs font-bold uppercase">{t.license}</span>
+                    </div>
+                    <Badge variant="outline" className={cn("text-[10px] font-black", activeLicenseTier ? "border-red-500/50 text-red-400" : "opacity-30")}>
+                       {activeLicenseTier ? `TIER ${activeLicenseTier} (x${licenseMultiplier})` : t.noLicense}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                       <ShieldCheck className="w-4 h-4 text-blue-400" />
+                       <span className="text-xs font-bold uppercase">{t.hqBonus}</span>
+                    </div>
+                    <Badge variant="outline" className={cn("text-[10px] font-black", hqBonus > 0 ? "border-blue-500/50 text-blue-400" : "opacity-30")}>
+                       LVL {hqAdminLevel} (+{hqBonus}x)
+                    </Badge>
+                  </div>
+                  <div className="pt-2 border-t border-white/5 flex justify-between items-center">
+                     <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Final Boost</span>
+                     <span className="text-lg font-headline font-black italic text-primary">x{totalMultiplier.toFixed(1)}</span>
+                  </div>
+               </CardContent>
+            </Card>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <Card className="glass-card text-center bg-gradient-to-b from-primary/10 to-transparent border-primary/20">

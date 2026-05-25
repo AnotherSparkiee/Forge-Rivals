@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
@@ -91,6 +92,8 @@ export interface MatchResultEntry {
 interface GameState {
   credits: number;
   crystals: number;
+  experiencePoints: number;
+  activeLicenseTier: number | null;
   ownedHeroes: Hero[];
   youthAcademyHeroes: Hero[];
   team: Hero[];
@@ -202,6 +205,8 @@ const START_CREDITS = 10000000;
 const DEFAULT_STATE: GameState = {
   credits: START_CREDITS,
   crystals: 0,
+  experiencePoints: 0,
+  activeLicenseTier: null,
   ownedHeroes: INITIAL_HEROES,
   youthAcademyHeroes: [],
   team: INITIAL_HEROES.slice(0, 5),
@@ -292,6 +297,7 @@ interface GameStateContextType extends GameState {
   addYouthHeroDirectly: (hero: Hero) => void;
   updateProfileName: (name: string) => void;
   updateProfileCountry: (countryName: string) => void;
+  purchaseLicense: (tier: number, cost: number) => boolean;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
@@ -310,7 +316,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const runCloudUpdate = useCallback((data: any) => {
     if (!user) return;
     const profileRef = doc(db, 'players_v5', user.uid);
-    // CRITICAL: Isolated from the state cycle to prevent ID: ca9 assertions
     setTimeout(() => {
       updateDoc(profileRef, data)
         .catch(e => console.warn("Cloud update failed (handled):", e.message));
@@ -355,6 +360,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             ...s,
             credits: profileData.inGameCurrency ?? s.credits ?? 0,
             crystals: profileData.crystals ?? s.crystals ?? 0,
+            experiencePoints: profileData.experiencePoints ?? s.experiencePoints ?? 0,
+            activeLicenseTier: profileData.activeLicenseTier ?? s.activeLicenseTier ?? null,
             ownedHeroes: cloudHeroes,
             youthAcademyHeroes: cloudYouth,
             lineup: profileData.lineup || s.lineup,
@@ -414,7 +421,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const newHero = generateYouthHero(state.youthAcademyHeroes.length);
         const updatedAcademy = [...state.youthAcademyHeroes, newHero];
         
-        // Use timeout to safely escape the effect cycle
         setTimeout(() => {
           runCloudUpdate({
             youthAcademyHeroes: sanitizeForFirestore(updatedAcademy),
@@ -850,7 +856,24 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       else if (scoreA === 1 && scoreB === 1) { creditsEarned = 100; rankChange = 5; }
       else if (scoreA > scoreB) { creditsEarned = 150; rankChange = 10; }
       else if (scoreA === scoreB) rankChange = 0;
-      const xpRange = (type === 'league' || type === 'tournament') ? { min: 2, max: 4 } : { min: 1, max: 1 };
+
+      // MANAGER XP LOGIC
+      const isOfficial = type === 'league' || type === 'tournament';
+      const baseManagerXP = isOfficial ? 100 : 25;
+      
+      // HQ Admin Multiplier: Every 10 levels = +0.5x
+      const hqMultiplier = 1 + (Math.floor((s.hq?.adminLevel || 0) / 10) * 0.5);
+      
+      // License Multiplier: T3=2x, T2=4x, T1=8x
+      let licenseMultiplier = 1;
+      if (s.activeLicenseTier === 3) licenseMultiplier = 2;
+      else if (s.activeLicenseTier === 2) licenseMultiplier = 4;
+      else if (s.activeLicenseTier === 1) licenseMultiplier = 8;
+
+      const totalXPToGain = Math.round(baseManagerXP * hqMultiplier * licenseMultiplier);
+      const newTotalXP = s.experiencePoints + totalXPToGain;
+
+      const xpRange = isOfficial ? { min: 2, max: 4 } : { min: 1, max: 1 };
       const applyXP = (hero: Hero) => {
         const isHeroActive = Object.values(s.lineup).includes(hero.id);
         if (isHeroActive && hero.trainingFocus) {
@@ -875,6 +898,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         runCloudUpdate({ 
           inGameCurrency: newCredits, 
           rank: newRank, 
+          experiencePoints: newTotalXP,
           lastLeagueMatchDate: newLastLeagueDate ?? null, 
           lastCupMatchDate: newLastCupDate ?? null, 
           matchHistory: newHistory, 
@@ -883,7 +907,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         });
       }, 0);
       
-      return { ...s, credits: newCredits, rank: newRank, matchHistory: newHistory, lastLeagueMatchDate: newLastLeagueDate, lastCupMatchDate: newLastCupDate, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth, isSyncing: false };
+      return { ...s, credits: newCredits, rank: newRank, experiencePoints: newTotalXP, matchHistory: newHistory, lastLeagueMatchDate: newLastLeagueDate, lastCupMatchDate: newLastCupDate, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth, isSyncing: false };
     });
   }, [runCloudUpdate]);
 
@@ -929,9 +953,23 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(s => ({ ...s, country: newCountry }));
   }, [runCloudUpdate]);
 
+  const purchaseLicense = useCallback((tier: number, cost: number) => {
+    let success = false;
+    setState(s => {
+      if (s.crystals >= cost) {
+        success = true;
+        const newCrystals = s.crystals - cost;
+        setTimeout(() => runCloudUpdate({ crystals: newCrystals, activeLicenseTier: tier }), 0);
+        return { ...s, crystals: newCrystals, activeLicenseTier: tier };
+      }
+      return s;
+    });
+    return success;
+  }, [runCloudUpdate]);
+
   return (
     <GameStateContext.Provider value={{
-      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, hireStaffMember, trainStaffSkill, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, promoteYouthPlayer, removeHero, recoverAllFatigue, addHeroDirectly, addYouthHeroDirectly, updateProfileName, updateProfileCountry
+      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, hireStaffMember, trainStaffSkill, checkConstructions, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, promoteYouthPlayer, removeHero, recoverAllFatigue, addHeroDirectly, addYouthHeroDirectly, updateProfileName, updateProfileCountry, purchaseLicense
     }}>
       {children}
     </GameStateContext.Provider>
