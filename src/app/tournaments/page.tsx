@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -154,10 +155,15 @@ export default function TournamentsPage() {
     }
 
     setIsActionLoading(true);
+    
+    // Simulate instant search delay
+    await new Promise(resolve => setTimeout(resolve, 2500));
+
     try {
-      const div = Math.floor(Math.random() * 9) + 1;
-      const botId = `bot_${Math.random().toString(36).substr(2, 5)}`;
-      const botName = `Bot Elite Div ${div}`;
+      // Standard League Bot Naming: bot[ID]
+      const botIdNum = Math.floor(Math.random() * 9000) + 1000;
+      const botId = `bot${botIdNum}`;
+      const botName = `bot${botIdNum}`;
       
       const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
         ...h,
@@ -184,7 +190,7 @@ export default function TournamentsPage() {
       const safeResult = sanitizeForFirestore(result);
       if (!safeResult) throw new Error("Simulation failed");
 
-      // Мгновенная постановка в лобби со статусом 'accepted'
+      // Immediate lobby setup with 'accepted' status
       await setDoc(doc(db, 'friendly_lobbies', user.uid), {
         hostId: user.uid,
         hostName: profile.displayName || "Manager",
@@ -198,6 +204,7 @@ export default function TournamentsPage() {
       });
 
       toast({ title: t.toastTrial, description: t.toastTrialDesc });
+      router.push('/'); // Redirect to dashboard to see the new opponent
     } catch (e) {
       console.error(e);
       toast({ variant: "destructive", title: "Simulation Error", description: "Failed to initiate tactical trial." });

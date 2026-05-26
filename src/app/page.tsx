@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -154,7 +155,13 @@ export default function Home() {
   const displayMatchInfo = useMemo(() => {
     if (activeFriendly) {
       const acceptedAt = activeFriendly.acceptedAt?.toMillis() || Date.now();
-      return { opponent: { name: activeFriendly.hostId === user?.uid ? activeFriendly.challengerName : activeFriendly.hostName, isPlayer: true }, isFriendly: true, acceptedAt };
+      const name = activeFriendly.hostId === user?.uid ? activeFriendly.challengerName : activeFriendly.hostName;
+      return { 
+        opponent: { name, isPlayer: !activeFriendly.isTrial }, 
+        isFriendly: true, 
+        acceptedAt,
+        isTrial: activeFriendly.isTrial 
+      };
     }
     if (tournamentNextMatch) return { ...tournamentNextMatch, isTournament: true };
     if (basketEntry?.status === 'matched') return { opponent: { name: basketEntry.matchedWithName, isPlayer: true }, isBasket: true, startTime: new Date(basketEntry.matchStartTime).getTime() };
@@ -206,7 +213,7 @@ export default function Home() {
 
   const translations = {
     en: { 
-      nextMatch: (displayMatchInfo as any)?.isFriendly ? "Live Friendly" : ((displayMatchInfo as any)?.isTournament ? "Tournament Battle" : ((displayMatchInfo as any)?.isBasket ? "CW Basket Engagement" : ((displayMatchInfo as any)?.isCup ? "Pyramid Cup Round" : "Next Engagement"))), 
+      nextMatch: (displayMatchInfo as any)?.isFriendly ? ((displayMatchInfo as any)?.isTrial ? "Trial Battle" : "Live Friendly") : ((displayMatchInfo as any)?.isTournament ? "Tournament Battle" : ((displayMatchInfo as any)?.isBasket ? "CW Basket Engagement" : ((displayMatchInfo as any)?.isCup ? "Pyramid Cup Round" : "Next Engagement"))), 
       vs: "VS", today: "TODAY", tomorrow: "TOMORROW", battleBtn: "MATCH REVIEW", navTitle: "Navigation Terminals", 
       interSeason: "Inter-season", interSeasonDesc: "Calculating new hierarchies.", preSeason: "Pre-season Readiness", preSeasonDesc: "Matches resume soon.", 
       startsIn: ((displayMatchInfo as any)?.isFriendly || (displayMatchInfo as any)?.isBasket) ? "REMAINING TIME:" : "TIME UNTIL MATCH:",
@@ -230,7 +237,7 @@ export default function Home() {
       ]
     },
     ru: { 
-      nextMatch: (displayMatchInfo as any)?.isFriendly ? "Текущий матч" : ((displayMatchInfo as any)?.isTournament ? "Турнирный бой" : ((displayMatchInfo as any)?.isBasket ? "Бой из КВ корзины" : ((displayMatchInfo as any)?.isCup ? "Раунд Кубка Пирамиды" : "Следующий матч"))), 
+      nextMatch: (displayMatchInfo as any)?.isFriendly ? ((displayMatchInfo as any)?.isTrial ? "Пробный бой" : "Текущий матч") : ((displayMatchInfo as any)?.isTournament ? "Турнирный бой" : ((displayMatchInfo as any)?.isBasket ? "Бой из КВ корзины" : ((displayMatchInfo as any)?.isCup ? "Раунд Кубка Пирамиды" : "Следующий матч"))), 
       vs: "ПРОТИВ", today: "СЕГОДНЯ", tomorrow: "ЗАВТРА", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Тактические Терминалы", 
       interSeason: "Межсезонье", interSeasonDesc: "Формирование новых групп.", preSeason: "Подготовка к лиге", preSeasonDesc: "Первая игра начнется завтра.", 
       startsIn: ((displayMatchInfo as any)?.isFriendly || (displayMatchInfo as any)?.isBasket) ? "ВРЕМЯ ДО КОНЦА:" : "ДО МАТЧА ОСТАЛОСЬ:",
@@ -303,7 +310,7 @@ export default function Home() {
                   <div className={cn("text-[10px] font-bold", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-accent")}>
                     {(displayMatchInfo as any).isCup ? (displayMatchInfo as any).label : 
                      (displayMatchInfo as any).tourName || 
-                     ((displayMatchInfo as any).isFriendly ? (language === 'ru' ? 'ТОВАРИЩЕСКИЙ МАТЧ' : 'FRIENDLY MATCH') : 
+                     ((displayMatchInfo as any).isFriendly ? ((displayMatchInfo as any).isTrial ? (language === 'ru' ? 'ПРОБНЫЙ МАТЧ' : 'TRIAL MATCH') : (language === 'ru' ? 'ТОВАРИЩЕСКИЙ МАТЧ' : 'FRIENDLY MATCH')) : 
                      ((displayMatchInfo as any).isBasket ? (language === 'ru' ? 'МАТЧ КВ КОРЗИНЫ' : 'CW BASKET MATCH') :
                      `DIV ${leagueLevel}.${divisionSubId} | Day ${(displayMatchInfo as any).day}`))}
                   </div>
