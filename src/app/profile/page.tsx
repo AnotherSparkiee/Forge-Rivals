@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useGameState } from '../lib/store';
+import { useGameState, getLevelThreshold } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -179,7 +179,8 @@ export default function ProfilePage() {
 
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
   const currentExp = experiencePoints || 0;
-  const progress = (currentExp / 700) * 100;
+  const currentThreshold = getLevelThreshold(managerLevel);
+  const progress = (currentExp / currentThreshold) * 100;
 
   // Multiplier Breakdown
   const hqAdminLevel = hq?.adminLevel || 0;
@@ -240,11 +241,11 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase font-bold">{t.level}</p>
-                    <p className="text-xs font-headline">{t.nextLevel}: 700 XP</p>
+                    <p className="text-xs font-headline">{t.nextLevel}: {currentThreshold} XP</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-bold text-primary">{currentExp} / 700 XP</p>
+                  <p className="text-xs font-bold text-primary">{currentExp} / {currentThreshold} XP</p>
                 </div>
               </div>
               <div className="px-4 py-2">
@@ -293,7 +294,7 @@ export default function ProfilePage() {
                            <span className="text-[9px] font-bold uppercase">{s.label}</span>
                            <span className="text-[9px] font-mono font-bold text-white">LVL {(managerSkills as any)[s.key]}</span>
                          </div>
-                         <Progress value={((managerSkills as any)[s.key] / 10) * 100} className="h-0.5 mt-1" />
+                         <Progress value={((managerSkills as any)[s.key] / 100) * 100} className="h-0.5 mt-1" />
                        </div>
                      </div>
                    ))}
@@ -354,7 +355,7 @@ export default function ProfilePage() {
 
           <div className="space-y-4">
             <h2 className="text-xs font-headline font-bold text-accent uppercase tracking-[0.2em] px-1 flex items-center gap-2">
-              <Wallet className="w-3 h-3" /> {t.balance}
+              <Wallet className="w-3_3" /> {t.balance}
             </h2>
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-secondary/30 rounded-xl border border-white/5 p-4 flex items-center gap-3">
@@ -491,7 +492,7 @@ export default function ProfilePage() {
             </DialogDescription>
           </div>
 
-          <div className="p-4 space-y-3">
+          <div className="p-4 space-y-3 overflow-y-auto max-h-[60vh] scrollbar-hide">
              {skillList.map((skill) => {
                const currentLvl = (managerSkills as any)[skill.key];
                return (
@@ -505,8 +506,8 @@ export default function ProfilePage() {
                           <h4 className="text-[10px] font-black uppercase text-white">{skill.label}</h4>
                           <p className="text-[8px] text-muted-foreground italic leading-tight">{skill.desc}</p>
                           <div className="flex items-center gap-2 mt-1.5">
-                            <Progress value={(currentLvl / 10) * 100} className="h-0.5 w-20" />
-                            <span className="text-[8px] font-black text-primary">LVL {currentLvl} / 10</span>
+                            <Progress value={(currentLvl / 100) * 100} className="h-0.5 w-20" />
+                            <span className="text-[8px] font-black text-primary">LVL {currentLvl} / 100</span>
                           </div>
                         </div>
                       </div>
@@ -514,9 +515,9 @@ export default function ProfilePage() {
                         size="icon" 
                         className={cn(
                           "w-8 h-8 rounded-lg hero-gradient shadow-lg",
-                          (skillPoints <= 0 || currentLvl >= 10) && "opacity-20 grayscale"
+                          (skillPoints <= 0 || currentLvl >= 100) && "opacity-20 grayscale"
                         )}
-                        disabled={skillPoints <= 0 || currentLvl >= 10}
+                        disabled={skillPoints <= 0 || currentLvl >= 100}
                         onClick={() => upgradeManagerSkill(skill.key as any)}
                       >
                         <Zap className="w-4 h-4" />

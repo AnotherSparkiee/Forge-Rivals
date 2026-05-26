@@ -281,6 +281,18 @@ function sanitizeForFirestore(obj: any) {
   }
 }
 
+/**
+ * Calculates XP threshold for the NEXT level.
+ * Formula matches user requirement: L1=700, L2=1400, L3=3800...
+ */
+export function getLevelThreshold(level: number): number {
+  if (level <= 1) return 700;
+  if (level === 2) return 1400;
+  if (level === 3) return 3800;
+  // Exponential growth for L4+
+  return Math.floor(700 * Math.pow(level, 1.8));
+}
+
 interface GameStateContextType extends GameState {
   isLoaded: boolean;
   addCredits: (amount: number) => void;
@@ -895,11 +907,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       let newLevel = s.managerLevel;
       let newSkillPoints = s.skillPoints;
 
-      // Level-up cycle (700 XP threshold)
-      while (newTotalXP >= 700) {
-        newTotalXP -= 700;
-        newLevel += 1;
-        newSkillPoints += 1;
+      // Dynamic Level-up cycle with progressive thresholds
+      while (true) {
+        const threshold = getLevelThreshold(newLevel);
+        if (newTotalXP >= threshold) {
+          newTotalXP -= threshold;
+          newLevel += 1;
+          newSkillPoints += 1;
+        } else {
+          break;
+        }
       }
 
       // Hero XP Logic with Training Skill bonus
@@ -954,7 +971,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const upgradeManagerSkill = useCallback((skillKey: keyof GameState['managerSkills']) => {
     setState(s => {
       if (s.skillPoints <= 0) return s;
-      const newSkills = { ...s.managerSkills, [skillKey]: s.managerSkills[skillKey] + 1 };
+      const currentVal = s.managerSkills[skillKey] || 0;
+      if (currentVal >= 100) return s;
+      
+      const newSkills = { ...s.managerSkills, [skillKey]: currentVal + 1 };
       const newPoints = s.skillPoints - 1;
       setTimeout(() => runCloudUpdate({ managerSkills: newSkills, skillPoints: newPoints }), 0);
       return { ...s, managerSkills: newSkills, skillPoints: newPoints };
