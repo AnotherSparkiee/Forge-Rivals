@@ -1,8 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // АБСОЛЮТНО ОТКРЫТЫЕ ПРАВИЛА ДЛЯ ПРОТОТИПИРОВАНИЯ
-    // Разрешает любые операции всем пользователям без ограничений
+    // АБСОЛЮТНО ОТКРЫТЫЕ ПРАВИЛА
+    // Разрешает любые операции всем пользователям для стабильной работы прототипа
     match /{document=**} {
       allow read, write, delete: if true;
     }

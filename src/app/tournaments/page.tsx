@@ -35,7 +35,7 @@ export default function TournamentsPage() {
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
-  const { language, isLoaded, strategy, team, ownedHeroes, lineup } = useGameState();
+  const { language, isLoaded, strategy, ownedHeroes, lineup } = useGameState();
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies', user.uid) : null, [db, user]);
@@ -155,11 +155,11 @@ export default function TournamentsPage() {
 
     setIsActionLoading(true);
     
-    // Мгновенная имитация "подбора" за 2.5 секунды
-    await new Promise(resolve => setTimeout(resolve, 2500));
+    // Simulated fast matchmaking delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     try {
-      // Имя бота по стандарту лиги: botXXXX
+      // League bot format: botXXXX
       const botIdNum = Math.floor(Math.random() * 9000) + 1000;
       const botId = `bot${botIdNum}`;
       const botName = `bot${botIdNum}`;
@@ -188,8 +188,7 @@ export default function TournamentsPage() {
       const safeResult = sanitizeForFirestore(result);
       if (!safeResult) throw new Error("Simulation failed");
 
-      // Мгновенная запись принятого лобби (статус accepted сразу)
-      // Игра будет "длиться" 15 минут, таймер будет тикать до конца (начала записи в историю)
+      // IMMEDIATE schedule in accepted status (15 mins preparation)
       await setDoc(doc(db, 'friendly_lobbies', user.uid), {
         hostId: user.uid,
         hostName: profile.displayName || "Manager",
@@ -203,7 +202,7 @@ export default function TournamentsPage() {
       });
 
       toast({ title: t.toastTrial, description: t.toastTrialDesc });
-      router.push('/'); // Возвращаем на главную, чтобы увидеть нового соперника
+      router.push('/'); 
     } catch (e) {
       console.error(e);
       toast({ variant: "destructive", title: "Simulation Error", description: "Failed to initiate tactical trial." });
