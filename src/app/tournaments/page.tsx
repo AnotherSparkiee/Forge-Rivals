@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -156,11 +155,11 @@ export default function TournamentsPage() {
 
     setIsActionLoading(true);
     
-    // Simulate instant search delay
+    // Мгновенная имитация "подбора" за 2.5 секунды
     await new Promise(resolve => setTimeout(resolve, 2500));
 
     try {
-      // Standard League Bot Naming: bot[ID]
+      // Имя бота по стандарту лиги: botXXXX
       const botIdNum = Math.floor(Math.random() * 9000) + 1000;
       const botId = `bot${botIdNum}`;
       const botName = `bot${botIdNum}`;
@@ -170,7 +169,6 @@ export default function TournamentsPage() {
         isSub: h.id === lineup.sub1 || h.id === lineup.sub2
       }));
 
-      // Generate full squad for bot (7 heroes)
       const botSquad = getRandomStartingSquad().map((h, i) => ({
         ...h,
         name: `${h.name} AI`,
@@ -190,7 +188,8 @@ export default function TournamentsPage() {
       const safeResult = sanitizeForFirestore(result);
       if (!safeResult) throw new Error("Simulation failed");
 
-      // Immediate lobby setup with 'accepted' status
+      // Мгновенная запись принятого лобби (статус accepted сразу)
+      // Игра будет "длиться" 15 минут, таймер будет тикать до конца (начала записи в историю)
       await setDoc(doc(db, 'friendly_lobbies', user.uid), {
         hostId: user.uid,
         hostName: profile.displayName || "Manager",
@@ -204,7 +203,7 @@ export default function TournamentsPage() {
       });
 
       toast({ title: t.toastTrial, description: t.toastTrialDesc });
-      router.push('/'); // Redirect to dashboard to see the new opponent
+      router.push('/'); // Возвращаем на главную, чтобы увидеть нового соперника
     } catch (e) {
       console.error(e);
       toast({ variant: "destructive", title: "Simulation Error", description: "Failed to initiate tactical trial." });
