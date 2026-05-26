@@ -12,35 +12,35 @@
     "structure": [
       {
         "path": "/players_v5/{userId}",
-        "definition": { "type": "object", "additionalProperties": true }
+        "definition": "GenericObject"
       },
       {
         "path": "/market_v2/{agentId}",
-        "definition": { "type": "object", "additionalProperties": true }
+        "definition": "GenericObject"
       },
       {
         "path": "/friend_requests_v1/{requestId}",
-        "definition": { "type": "object", "additionalProperties": true }
+        "definition": "GenericObject"
       },
       {
         "path": "/associations_v1/{assocId}",
-        "definition": { "type": "object", "additionalProperties": true }
+        "definition": "GenericObject"
       },
       {
         "path": "/global_chat/{msgId}",
-        "definition": { "type": "object", "additionalProperties": true }
+        "definition": "GenericObject"
       },
       {
         "path": "/private_messages/{msgId}",
-        "definition": { "type": "object", "additionalProperties": true }
+        "definition": "GenericObject"
       },
       {
         "path": "/friendly_lobbies/{lobbyId}",
-        "definition": { "type": "object", "additionalProperties": true }
+        "definition": "GenericObject"
       },
       {
         "path": "/cw_basket/{userId}",
-        "definition": { "type": "object", "additionalProperties": true }
+        "definition": "GenericObject"
       }
     ]
   }

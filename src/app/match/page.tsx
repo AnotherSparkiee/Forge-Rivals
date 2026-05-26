@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
@@ -49,14 +50,14 @@ function MatchContent() {
       if (match) return match;
     }
     
-    // Find the oldest league match that hasn't been seen yet
+    // Find the OLDEST league match that hasn't been seen yet
     const unseenLeagueMatches = matchHistory
       .filter(m => m.type === 'league' && m.day > lastSeenMatchDay)
       .sort((a, b) => a.day - b.day);
 
     if (unseenLeagueMatches.length > 0) return unseenLeagueMatches[0];
 
-    // Fallback to latest simulated match
+    // Fallback to latest simulated match if none unseen in league
     const sortedHistory = [...matchHistory].sort((a, b) => {
       const timeA = new Date(a.playedAt).getTime();
       const timeB = new Date(b.playedAt).getTime();
@@ -74,6 +75,7 @@ function MatchContent() {
 
   const handleAcknowledgeMatch = () => {
     if (currentResult && !isHistoricalViewing && currentResult.type === 'league') {
+      // Mark strictly only this match's day as seen to allow next match to be reviewed
       markMatchAsSeen(currentResult.day);
       router.push('/');
     } else {
