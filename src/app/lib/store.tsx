@@ -282,13 +282,13 @@ function sanitizeForFirestore(obj: any) {
 
 /**
  * Calculates XP threshold for the NEXT level.
- * User requirement: L1=700, L2=1400, L3=3800...
+ * User requirement: L1=700, L2=1400, L3=3800... No upper limit.
  */
 export function getLevelThreshold(level: number): number {
   if (level <= 1) return 700;
   if (level === 2) return 1400;
   if (level === 3) return 3800;
-  // Exponential growth for L4+ to maintain long-term progression
+  // Exponential growth for L4+
   return Math.floor(3800 * Math.pow(1.5, level - 3));
 }
 
@@ -982,10 +982,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const markMatchAsSeen = useCallback((day: number) => {
     setState(s => {
-      // Incremental seen to ensure sequential review
       const nextDay = s.lastSeenMatchDay + 1;
       if (day < nextDay) return s;
-      
       const actualNewDay = Math.min(day, nextDay);
       setTimeout(() => runCloudUpdate({ lastSeenMatchDay: actualNewDay }), 0);
       return { ...s, lastSeenMatchDay: actualNewDay };

@@ -326,11 +326,7 @@ export default function FinancesPage() {
     return (
       <div className="max-w-md mx-auto px-4 pt-8 pb-32">
         <header className="mb-8 flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ChevronLeft className="w-6 h-6" />
-            </Button>
-          </Link>
+          <Link href="/"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
           <div>
             <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2">
               <Coins className="w-6 h-6 text-primary" />

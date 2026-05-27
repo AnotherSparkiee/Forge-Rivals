@@ -155,11 +155,11 @@ export default function TournamentsPage() {
 
     setIsActionLoading(true);
     
-    // Simulated fast matchmaking delay
+    // Simulate searching delay
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     try {
-      // League bot format: botXXXX
+      // Bot generation in league format: botXXXX
       const botIdNum = Math.floor(Math.random() * 9000) + 1000;
       const botId = `bot${botIdNum}`;
       const botName = `bot${botIdNum}`;
@@ -188,7 +188,7 @@ export default function TournamentsPage() {
       const safeResult = sanitizeForFirestore(result);
       if (!safeResult) throw new Error("Simulation failed");
 
-      // IMMEDIATE schedule in accepted status (15 mins preparation)
+      // Set immediately to accepted status with bot as challenger
       await setDoc(doc(db, 'friendly_lobbies', user.uid), {
         hostId: user.uid,
         hostName: profile.displayName || "Manager",
@@ -205,7 +205,7 @@ export default function TournamentsPage() {
       router.push('/'); 
     } catch (e) {
       console.error(e);
-      toast({ variant: "destructive", title: "Simulation Error", description: "Failed to initiate tactical trial." });
+      toast({ variant: "destructive", title: "Trial Error", description: "Failed to schedule bot engagement." });
     } finally {
       setIsActionLoading(false);
     }
@@ -213,18 +213,25 @@ export default function TournamentsPage() {
 
   const menu = [
     { 
-      label: myLobby ? t.cancel : t.schedule, 
-      desc: myLobby ? t.descCancel : t.descSchedule, 
-      icon: myLobby ? XCircle : UserPlus, 
+      label: (myLobby && !myLobby.isTrial) ? t.cancel : t.schedule, 
+      desc: (myLobby && !myLobby.isTrial) ? t.descCancel : t.descSchedule, 
+      icon: (myLobby && !myLobby.isTrial) ? XCircle : UserPlus, 
       active: true, 
       onClick: handleToggleLobby,
-      color: myLobby ? "text-red-400" : "text-primary"
+      color: (myLobby && !myLobby.isTrial) ? "text-red-400" : "text-primary"
     },
     { label: t.open, desc: t.descOpen, icon: Search, active: true, href: '/tournaments/open-friendlies' },
     { label: t.cw, desc: t.descCW, icon: ShoppingBasket, active: true, href: '/tournaments/cw-basket' },
     { label: t.tournaments, desc: language === 'ru' ? "Активные чемпионаты и кубки" : "Active championships", icon: Trophy, active: true, href: '/tournaments/open' },
     { label: t.history, desc: language === 'ru' ? "Архив ваших выступлений" : "Archive of your battles", icon: History, active: true, href: '/tournaments/history' },
-    { label: t.trial, desc: t.descTrial, icon: Gamepad2, active: true, onClick: handleStartTrial, color: "text-accent" },
+    { 
+      label: (myLobby && myLobby.isTrial) ? (language === 'ru' ? 'ОТМЕНИТЬ ПРОБУ' : 'CANCEL TRIAL') : t.trial, 
+      desc: t.descTrial, 
+      icon: (myLobby && myLobby.isTrial) ? XCircle : Gamepad2, 
+      active: true, 
+      onClick: (myLobby && myLobby.isTrial) ? handleToggleLobby : handleStartTrial, 
+      color: (myLobby && myLobby.isTrial) ? "text-red-400" : "text-accent" 
+    },
   ];
 
   return (
