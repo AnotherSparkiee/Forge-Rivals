@@ -117,7 +117,6 @@ export default function TournamentsPage() {
   const handleToggleLobby = async () => {
     if (!user || !profile || isActionLoading) return;
     
-    // If trying to start a new search while busy with Trial or Basket
     if (!myLobby && isBusy) {
       toast({ title: t.busy, description: t.busyDesc, variant: "destructive" });
       return;
@@ -130,8 +129,8 @@ export default function TournamentsPage() {
         toast({ title: t.toastCancelled, description: t.toastCancelledDesc });
       } else {
         await setDoc(doc(db, 'friendly_lobbies', user.uid), {
-          hostId: user.uid,
-          hostName: profile.displayName || "Manager",
+          hostId: String(user.uid),
+          hostName: String(profile.displayName || "Manager"),
           status: 'searching',
           challengerId: null,
           challengerName: null,
@@ -158,10 +157,8 @@ export default function TournamentsPage() {
     setIsActionLoading(true);
     
     try {
-      // Имитация "быстрого подбора" 1.5 секунды
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      // Генерация бота по стандарту лиги: botXXXX
       const botIdNum = Math.floor(Math.random() * 9000) + 1000;
       const botId = `bot${botIdNum}`;
       const botName = `bot${botIdNum}`;
@@ -177,11 +174,10 @@ export default function TournamentsPage() {
         isSub: i > 4
       }));
 
-      // Мгновенная симуляция результата
       const result = await simulateMobaMatch({
-        teamA: { name: profile.displayName || "Manager", strategy, heroes: squad },
+        teamA: { name: String(profile.displayName || "Manager"), strategy, heroes: squad },
         teamB: { 
-          name: botName, 
+          name: String(botName), 
           strategy: "Standard Training", 
           heroes: botSquad
         },
@@ -191,14 +187,12 @@ export default function TournamentsPage() {
       const safeResult = sanitizeForFirestore(result);
       if (!safeResult) throw new Error("Simulation failed");
 
-      // Сразу переводим в статус accepted с пометкой isTrial
-      // Это исключает попадание в общую очередь поиска
       await setDoc(doc(db, 'friendly_lobbies', user.uid), {
-        hostId: user.uid,
-        hostName: profile.displayName || "Manager",
+        hostId: String(user.uid),
+        hostName: String(profile.displayName || "Manager"),
         status: 'accepted',
-        challengerId: botId,
-        challengerName: botName,
+        challengerId: String(botId),
+        challengerName: String(botName),
         matchResult: safeResult,
         acceptedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -207,9 +201,9 @@ export default function TournamentsPage() {
 
       toast({ title: t.toastTrial, description: t.toastTrialDesc });
       router.push('/'); 
-    } catch (e) {
+    } catch (e: any) {
       console.error("Trial start error:", e);
-      toast({ variant: "destructive", title: "Trial Error", description: "Failed to schedule bot engagement." });
+      toast({ variant: "destructive", title: "Trial Error", description: e.message });
     } finally {
       setIsActionLoading(false);
     }
@@ -220,7 +214,7 @@ export default function TournamentsPage() {
       label: (myLobby && !myLobby.isTrial) ? t.cancel : t.schedule, 
       desc: (myLobby && !myLobby.isTrial) ? t.descCancel : t.descSchedule, 
       icon: (myLobby && !myLobby.isTrial) ? XCircle : UserPlus, 
-      active: !(myLobby && myLobby.isTrial), // Отключаем, если идет пробный матч
+      active: !(myLobby && myLobby.isTrial),
       onClick: handleToggleLobby,
       color: (myLobby && !myLobby.isTrial) ? "text-red-400" : "text-primary"
     },
@@ -232,7 +226,7 @@ export default function TournamentsPage() {
       label: (myLobby && myLobby.isTrial) ? (language === 'ru' ? 'ОТМЕНИТЬ ПРОБУ' : 'CANCEL TRIAL') : t.trial, 
       desc: t.descTrial, 
       icon: (myLobby && myLobby.isTrial) ? XCircle : Gamepad2, 
-      active: !(myLobby && !myLobby.isTrial), // Отключаем, если идет обычный поиск
+      active: !(myLobby && !myLobby.isTrial), 
       onClick: (myLobby && myLobby.isTrial) ? handleToggleLobby : handleStartTrial, 
       color: (myLobby && myLobby.isTrial) ? "text-red-400" : "text-accent" 
     },

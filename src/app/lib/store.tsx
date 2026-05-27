@@ -282,13 +282,12 @@ function sanitizeForFirestore(obj: any) {
 
 /**
  * Calculates XP threshold for the NEXT level.
- * User requirement: L1=700, L2=1400, L3=3800... No upper limit.
+ * Fixed Requirements: L1=700, L2=1400, L3=3800
  */
 export function getLevelThreshold(level: number): number {
   if (level <= 1) return 700;
   if (level === 2) return 1400;
   if (level === 3) return 3800;
-  // Exponential growth for L4+
   return Math.floor(3800 * Math.pow(1.5, level - 3));
 }
 
@@ -892,10 +891,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const isOfficial = type === 'league' || type === 'tournament';
       const baseManagerXP = isOfficial ? 100 : 25;
       
-      // HQ Admin Multiplier: Every 10 levels = +0.5x
       const hqMultiplier = 1 + (Math.floor((s.hq?.adminLevel || 0) / 10) * 0.5);
       
-      // License Multiplier: T3=2x, T2=4x, T1=8x
       let licenseMultiplier = 1;
       if (s.activeLicenseTier === 3) licenseMultiplier = 2;
       else if (s.activeLicenseTier === 2) licenseMultiplier = 4;
@@ -906,7 +903,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       let newLevel = s.managerLevel;
       let newSkillPoints = s.skillPoints;
 
-      // Dynamic Level-up cycle with progressive thresholds
       while (true) {
         const threshold = getLevelThreshold(newLevel);
         if (newTotalXP >= threshold) {
@@ -918,7 +914,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Hero XP Logic with Training Skill bonus
       const trainingBonus = 1 + (s.managerSkills.training * 0.1);
       const xpRange = isOfficial ? { min: 2, max: 4 } : { min: 1, max: 1 };
       

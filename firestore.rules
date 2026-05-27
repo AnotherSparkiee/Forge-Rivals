@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // АБСОЛЮТНО ОТКРЫТЫЕ ПРАВИЛА ДЛЯ ПРОТОТИПА
+    // АБСОЛЮТНО ОТКРЫТЫЕ ПРАВИЛА ДЛЯ УСТРАНЕНИЯ ACCESS DENIED
     match /{document=**} {
       allow read, write, delete: if true;
     }
