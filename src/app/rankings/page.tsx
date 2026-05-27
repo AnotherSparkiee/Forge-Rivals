@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -14,7 +15,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { Header, CardTitle } from '@/components/ui/card'; // Adjusted if necessary, but using provided structure
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import { getMockGroupTeams, LEAGUES, getMatchResult } from '../lib/leagues-data';
@@ -84,7 +86,6 @@ export default function RankingsPage() {
     return getGlobalCupParticipants(allLeaguePlayers, seasonNumber);
   }, [isLoaded, allLeaguePlayers, seasonNumber]);
 
-  // Cup specific logic: Results are final after 07:00 MSK
   const effectiveDayForCup = useMemo(() => {
     const mskNow = getMoscowTime();
     const isCupPassedToday = mskNow.getHours() >= 7;
@@ -124,7 +125,26 @@ export default function RankingsPage() {
 
       let sH = 0;
       let sA = 0;
-      if (isPlayed && isRealMatch && h && a) {
+
+      // Synchronization: If it's my match, try to get score from History first
+      if (isPlayed && isMyMatch) {
+        const historical = matchHistory.find(match => 
+          match.type === 'cup' && 
+          match.day === round && 
+          match.seasonNumber === seasonNumber
+        );
+
+        if (historical) {
+          sH = h?.id === user?.uid ? historical.scoreA : historical.scoreB;
+          sA = a?.id === user?.uid ? historical.scoreA : historical.scoreB;
+        } else if (isRealMatch && h && a) {
+          [sH, sA] = getMatchResult(h.id, a.id, round, true);
+        } else if (h && !a) {
+          sH = 2; sA = 0;
+        } else if (!h && a) {
+          sH = 0; sA = 2;
+        }
+      } else if (isPlayed && isRealMatch && h && a) {
         [sH, sA] = getMatchResult(h.id, a.id, round, true);
       } else if (isPlayed && h && !a) {
         sH = 2; sA = 0;
@@ -155,7 +175,7 @@ export default function RankingsPage() {
     }
     
     return matches.sort((a, b) => (a.isMyMatch ? -1 : b.isMyMatch ? 1 : 0));
-  }, [cupParticipants, activeRoundToShow, searchQuery, user?.uid, effectiveDayForCup]);
+  }, [cupParticipants, activeRoundToShow, searchQuery, user?.uid, effectiveDayForCup, matchHistory, seasonNumber]);
 
   const paginatedMatches = useMemo(() => {
     const start = cupPage * MATCHES_PER_PAGE;
@@ -224,7 +244,7 @@ export default function RankingsPage() {
   };
 
   const t = labels[language as keyof typeof labels] || labels.ru;
-  const cupTime = "07:00"; // Fixed Cup time
+  const cupTime = "07:00"; 
 
   const handleOpenReport = (match: any) => {
     if (!match.isPlayed || !match.isRealMatch) return;
@@ -232,7 +252,7 @@ export default function RankingsPage() {
   };
 
   const getMatchSummary = (match: any) => {
-    const historical = matchHistory.find(m => m.type === 'tournament' && m.day === match.round && m.seasonNumber === seasonNumber);
+    const historical = matchHistory.find(m => m.type === 'cup' && m.day === match.round && m.seasonNumber === seasonNumber);
     if (historical) return historical.matchSummary;
 
     const summaries = [

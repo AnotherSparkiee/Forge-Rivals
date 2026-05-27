@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -64,6 +65,9 @@ export function AutoMatchManager() {
     if (!groupPlayers || !user || !profile || simulationLockRef.current) return;
     
     const detId = `league_S${targetSeason}_D${targetDay}`;
+    const alreadyRecorded = matchHistory.some(m => m.id === detId);
+    if (alreadyRecorded) return;
+
     simulationLockRef.current = true;
     setIsSimulating(true);
     setSyncing(true);
@@ -82,13 +86,12 @@ export function AutoMatchManager() {
       const forcedScoreB = targetMatch.away.id === user.uid ? detScoreH : detScoreA;
       
       const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
-        ...h,
+        name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
         isSub: h.id === lineup.sub1 || h.id === lineup.sub2
       }));
 
       const botSquad = getRandomStartingSquad().map((h, i) => ({
-        ...h,
-        name: `${h.name} AI`,
+        name: `${h.name} AI`, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
         isSub: i > 4
       }));
 
@@ -108,10 +111,11 @@ export function AutoMatchManager() {
           customPlayedAt = d.toISOString();
         }
 
-        recordMatch(result.winner, result, targetDay, opponent.name || "Opponent", 'league', customPlayedAt, detId);
+        const canonicalWinner = forcedScoreA > forcedScoreB ? (profile.displayName || "Manager") : (forcedScoreA < forcedScoreB ? (opponent.name || "Opponent") : "Draw");
+        recordMatch(canonicalWinner, { ...result, scoreA: forcedScoreA, scoreB: forcedScoreB }, targetDay, opponent.name || "Opponent", 'league', customPlayedAt, detId);
         
         if (!isCatchUp) {
-          setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, type: 'league' });
+          setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, type: 'league', scoreA: forcedScoreA, scoreB: forcedScoreB });
           setShowResultDialog(true);
         }
       }
@@ -122,12 +126,15 @@ export function AutoMatchManager() {
       simulationLockRef.current = false;
       setSyncing(false);
     }
-  }, [groupPlayers, user, profile, strategy, rank, leagueLevel, divisionSubId, groupId, ownedHeroes, lineup, seasonStartDate, recordMatch, setSyncing]);
+  }, [groupPlayers, user, profile, strategy, rank, leagueLevel, divisionSubId, groupId, ownedHeroes, lineup, seasonStartDate, recordMatch, setSyncing, matchHistory]);
 
   const simulateOneCupMatch = useCallback(async (targetSeason: number, targetDay: number, isCatchUp: boolean) => {
     if (!user || !profile || !allLeaguePlayers || simulationLockRef.current) return;
     
     const detId = `cup_S${targetSeason}_D${targetDay}`;
+    const alreadyRecorded = matchHistory.some(m => m.id === detId);
+    if (alreadyRecorded) return;
+
     simulationLockRef.current = true;
     setIsSimulating(true);
     setSyncing(true);
@@ -166,13 +173,12 @@ export function AutoMatchManager() {
 
       const [forcedA, forcedB] = getMatchResult(user.uid, opponent.id, targetDay, true);
       const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
-        ...h,
+        name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
         isSub: h.id === lineup.sub1 || h.id === lineup.sub2
       }));
 
       const botSquad = getRandomStartingSquad().map((h, i) => ({
-        ...h,
-        name: `${h.name} AI`,
+        name: `${h.name} AI`, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
         isSub: i > 4
       }));
 
@@ -183,10 +189,11 @@ export function AutoMatchManager() {
       });
       
       if (result && result.winner) {
-        recordMatch(result.winner, result, targetDay, opponent.name, 'cup', undefined, detId);
+        const canonicalWinner = forcedA > forcedB ? (profile.displayName || "Manager") : (forcedA < forcedB ? opponent.name : "Draw");
+        recordMatch(canonicalWinner, { ...result, scoreA: forcedA, scoreB: forcedB }, targetDay, opponent.name, 'cup', undefined, detId);
         
         if (!isCatchUp) {
-          setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, type: 'cup' }); 
+          setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, type: 'cup', scoreA: forcedA, scoreB: forcedB }); 
           setShowResultDialog(true); 
         }
       }
@@ -197,7 +204,7 @@ export function AutoMatchManager() {
       simulationLockRef.current = false;
       setSyncing(false);
     }
-  }, [allLeaguePlayers, user, profile, strategy, ownedHeroes, lineup, recordMatch, setSyncing]);
+  }, [allLeaguePlayers, user, profile, strategy, ownedHeroes, lineup, recordMatch, setSyncing, matchHistory]);
 
   useEffect(() => {
     if (!isLoaded || isUserLoading || isSimulating || !profile?.selectedLeagueId || !user) return;
