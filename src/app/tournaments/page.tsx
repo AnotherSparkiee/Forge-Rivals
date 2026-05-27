@@ -163,14 +163,22 @@ export default function TournamentsPage() {
       const botId = `bot${botIdNum}`;
       const botName = `bot${botIdNum}`;
       
-      const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
-        ...h,
-        isSub: h.id === lineup.sub1 || h.id === lineup.sub2
-      }));
+      // Minimize payload: Send only required stats to prevent 'Failed to fetch' size limits
+      const squad = ownedHeroes
+        .filter(h => Object.values(lineup).includes(h.id))
+        .map(h => ({
+          name: h.name,
+          role: h.role,
+          overallRating: h.overallRating,
+          proStats: h.proStats,
+          isSub: h.id === lineup.sub1 || h.id === lineup.sub2
+        }));
 
       const botSquad = getRandomStartingSquad().map((h, i) => ({
-        ...h,
         name: `${h.name} AI`,
+        role: h.role,
+        overallRating: h.overallRating,
+        proStats: h.proStats,
         isSub: i > 4
       }));
 
@@ -228,7 +236,7 @@ export default function TournamentsPage() {
       icon: (myLobby && myLobby.isTrial) ? XCircle : Gamepad2, 
       active: !(myLobby && !myLobby.isTrial), 
       onClick: (myLobby && myLobby.isTrial) ? handleToggleLobby : handleStartTrial, 
-      color: (myLobby && myLobby.isTrial) ? "text-red-400" : "text-accent" 
+      color: (myLobby && !myLobby.isTrial) ? "text-red-400" : "text-accent" 
     },
   ];
 

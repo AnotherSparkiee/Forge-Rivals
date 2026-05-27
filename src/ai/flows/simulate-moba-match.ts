@@ -111,7 +111,8 @@ function generateFallbackSimulation(input: SimulateMobaMatchInput): SimulateMoba
   const winner = forcedScoreA > forcedScoreB ? input.teamA.name : (forcedScoreA < forcedScoreB ? input.teamB.name : "Draw");
 
   return {
-    winner, scoreA: forcedScoreA, scoreB: forcedScoreB, duration: "34:12", mvp: input.teamA.heroes[0].name,
+    winner, scoreA: forcedScoreA, scoreB: forcedScoreB, duration: "34:12", 
+    mvp: input.teamA.heroes[0]?.name || "Unknown Unit",
     matchSummary: "Fallback simulation active due to AI unavailability.",
     preview: { teamAOrv: 35, teamBOrv: 35, keyMatchup: "Midlane battle", winProbabilityA: 50 },
     timeline: [{ phase: 'Mid', time: '15:00', event: 'Equal trade in jungle', score: `${forcedScoreA}:${forcedScoreB}` }],
@@ -131,7 +132,7 @@ export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<
     if (!output) return generateFallbackSimulation(input);
     return output;
   } catch (error: any) {
-    console.warn("AI Simulation failed. Fallback active.", error.message);
+    console.error("AI Simulation failed. Fallback active.", error.message);
     return generateFallbackSimulation(input);
   }
 }
