@@ -3,6 +3,7 @@
  * @fileOverview Архитектурный модуль симуляции матчей Lines of Enmity.
  * 
  * Генерирует данные пошагово: Превью, 2D-Обзор, Итоговая статистика.
+ * Оптимизирован для стабильности в Next.js 15 Server Actions.
  */
 
 import {ai} from '@/ai/genkit';
@@ -53,7 +54,6 @@ const SimulateMobaMatchOutputSchema = z.object({
   mvp: z.string(),
   matchSummary: z.string(),
   
-  // ЭТАП 1: ПРЕВЬЮ
   preview: z.object({
     teamAOrv: z.number(),
     teamBOrv: z.number(),
@@ -61,7 +61,6 @@ const SimulateMobaMatchOutputSchema = z.object({
     winProbabilityA: z.number().describe('Вероятность победы команды А в %.'),
   }),
 
-  // ЭТАП 2: 2D-ОБЗОР (Timeline)
   timeline: z.array(z.object({
     phase: z.enum(['Early', 'Mid', 'Late']),
     time: z.string(),
@@ -69,7 +68,6 @@ const SimulateMobaMatchOutputSchema = z.object({
     score: z.string().describe('Текущий счет на момент события.'),
   })),
 
-  // ЭТАП 3: ПОСЛЕМАТЧЕВАЯ СТАТИСТИКА
   postMatch: z.object({
     lineRatings: z.object({
       laning: z.object({ a: z.number(), b: z.number() }),
@@ -86,7 +84,6 @@ const SimulateMobaMatchOutputSchema = z.object({
     analysis: z.string().describe('Математический вывод причины победы на основе 10 статов.'),
   }),
   
-  // Backward compatibility
   teamStats: z.object({
     teamA: z.object({ kills: z.number(), towersDestroyed: z.number() }),
     teamB: z.object({ kills: z.number(), towersDestroyed: z.number() }),
@@ -96,23 +93,29 @@ const SimulateMobaMatchOutputSchema = z.object({
 export type SimulateMobaMatchOutput = z.infer<typeof SimulateMobaMatchOutputSchema>;
 
 /**
- * Процедурный откат. Теперь включает структуру scoreboard.
+ * Процедурный откат. Гарантирует возврат валидного объекта даже при пустых входных данных.
  */
 function generateFallbackSimulation(input: SimulateMobaMatchInput): SimulateMobaMatchOutput {
-  const scoreboard = [...input.teamA.heroes, ...input.teamB.heroes].map(h => ({
-    name: h.name,
-    team: input.teamA.heroes.some(th => th.name === h.name) ? 'A' : 'B',
+  const heroesA = input.teamA?.heroes || [];
+  const heroesB = input.teamB?.heroes || [];
+
+  const scoreboard = [...heroesA, ...heroesB].map(h => ({
+    name: h.name || "Unknown Unit",
+    team: heroesA.some(th => th.name === h.name) ? 'A' : 'B',
     kda: "0/0/0",
     gpm: 450
   }));
 
   const forcedScoreA = input.scoreA !== undefined ? input.scoreA : 1;
   const forcedScoreB = input.scoreB !== undefined ? input.scoreB : 1;
-  const winner = forcedScoreA > forcedScoreB ? input.teamA.name : (forcedScoreA < forcedScoreB ? input.teamB.name : "Draw");
+  const winner = forcedScoreA > forcedScoreB ? (input.teamA?.name || "Team A") : (forcedScoreA < forcedScoreB ? (input.teamB?.name || "Team B") : "Draw");
 
   return {
-    winner, scoreA: forcedScoreA, scoreB: forcedScoreB, duration: "34:12", 
-    mvp: input.teamA.heroes[0]?.name || "Unknown Unit",
+    winner, 
+    scoreA: forcedScoreA, 
+    scoreB: forcedScoreB, 
+    duration: "34:12", 
+    mvp: heroesA[0]?.name || "Unknown Unit",
     matchSummary: "Fallback simulation active due to AI unavailability.",
     preview: { teamAOrv: 35, teamBOrv: 35, keyMatchup: "Midlane battle", winProbabilityA: 50 },
     timeline: [{ phase: 'Mid', time: '15:00', event: 'Equal trade in jungle', score: `${forcedScoreA}:${forcedScoreB}` }],
@@ -126,14 +129,20 @@ function generateFallbackSimulation(input: SimulateMobaMatchInput): SimulateMoba
   };
 }
 
+/**
+ * Обертка для вызова потока. 
+ * В Next.js 15 Server Actions мы должны гарантировать, что возвращаем чистый JSON-объект без undefined.
+ */
 export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<SimulateMobaMatchOutput> {
   try {
     const {output} = await simulateMobaMatchFlow(input);
-    if (!output) return generateFallbackSimulation(input);
-    return output;
+    const finalResult = output ? output : generateFallbackSimulation(input);
+    
+    // Глубокая очистка объекта от undefined для предотвращения ошибок сериализации в Server Actions
+    return JSON.parse(JSON.stringify(finalResult));
   } catch (error: any) {
     console.error("AI Simulation failed. Fallback active.", error.message);
-    return generateFallbackSimulation(input);
+    return JSON.parse(JSON.stringify(generateFallbackSimulation(input)));
   }
 }
 
@@ -182,6 +191,7 @@ const simulateMobaMatchFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await prompt(input);
-    return output!;
+    if (!output) throw new Error("AI returned empty output");
+    return output;
   }
 );
