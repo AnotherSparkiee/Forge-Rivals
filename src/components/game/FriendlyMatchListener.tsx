@@ -121,6 +121,7 @@ export function FriendlyMatchListener() {
     if (data.status === 'accepted' && data.matchResult) {
       const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); 
       const matchType = data.isTrial ? 'trial' : 'friendly';
+      // Deterministic unique ID for trial/friendly matches
       const matchUniqueId = `${matchType}_${data.id}_${acceptedAt}`;
       
       const alreadyProcessed = matchHistory.some(m => m.id === matchUniqueId);
@@ -133,7 +134,9 @@ export function FriendlyMatchListener() {
       
       const checkAndComplete = () => {
         const now = Date.now();
+        // ONLY GRANT XP AND RECORD WHEN TIMER EXPIRES
         if (now >= finishTime) {
+          // Double check existence in history before recording
           if (matchHistory.some(m => m.id === matchUniqueId)) {
             if (isHost) deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
             return;
@@ -148,6 +151,8 @@ export function FriendlyMatchListener() {
           };
           
           const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
+          
+          // recordMatch handles the 25 XP logic internally for 'trial' type
           recordMatch(finalResult.winner, finalResult, 0, opponentName, matchType, new Date().toISOString(), matchUniqueId);
           
           toast({

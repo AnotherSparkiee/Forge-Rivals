@@ -874,10 +874,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     
     setState(s => {
       const existingIdx = s.matchHistory.findIndex(m => m.id === matchId);
-      if (existingIdx !== -1) {
-        const existing = s.matchHistory[existingIdx];
-        if (existing.preview !== undefined && result.preview !== undefined && existing.winner === winner) return s;
-      }
+      // STRICT UNIQUE CHECK: If ID already exists, do absolutely nothing (prevent duplicate XP/Credits)
+      if (existingIdx !== -1) return s;
+      
       const scoreA = result.scoreA || 0; const scoreB = result.scoreB || 0;
       let creditsEarned = 50; let rankChange = -15;
       if (scoreA === 2 && scoreB === 0) { creditsEarned = 200; rankChange = 25; }
@@ -931,9 +930,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
       const updatedOwned = s.ownedHeroes.map(applyXP); const updatedYouth = s.youthAcademyHeroes.map(applyXP);
       const matchEntry: MatchResultEntry = { id: matchId, day: matchDay, type, opponentName, winner, scoreA, scoreB, matchSummary: result.matchSummary || "", teamStats: sanitizeForFirestore(result.teamStats || {}), heroPerformance: sanitizeForFirestore(result.heroPerformance || []), playedAt: customPlayedAt || new Date().toISOString(), duration: result.duration || "", mvp: result.mvp || "", preview: sanitizeForFirestore(result.preview || null), timeline: sanitizeForFirestore(result.timeline || []), postMatch: sanitizeForFirestore(result.postMatch || null) };
-      if (type === 'league' || type === 'tournament' || type === 'cup') matchEntry.seasonNumber = s.seasonNumber;
-      let newHistory = existingIdx !== -1 ? [...s.matchHistory] : [matchEntry, ...s.matchHistory].slice(0, 100);
-      if (existingIdx !== -1) newHistory[existingIdx] = matchEntry;
+      if (isOfficial) matchEntry.seasonNumber = s.seasonNumber;
+      
+      let newHistory = [matchEntry, ...s.matchHistory].slice(0, 100);
       const todayStr = getMoscowDateString(); 
       const newCredits = s.credits + creditsEarned;
       const newRank = s.rank + rankChange;
@@ -949,7 +948,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           skillPoints: newSkillPoints,
           lastLeagueMatchDate: newLastLeagueDate ?? null, 
           lastCupMatchDate: newLastCupDate ?? null, 
-          matchHistory: newHistory, 
+          matchHistory: sanitizeForFirestore(newHistory), 
           ownedHeroes: sanitizeForFirestore(updatedOwned), 
           youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
         });
