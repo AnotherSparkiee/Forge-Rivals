@@ -688,21 +688,55 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const checkConstructions = useCallback(() => {
     setState(s => {
-      const nowTime = Date.now(); let hasChanges = false;
+      const nowTime = Date.now(); 
+      let globalChanges = false;
+
       const processSector = (sector: any) => {
-        const updated = { ...sector }; const finishes = { ...(sector.constructionFinishes || {}) }; const starts = { ...(sector.constructionStarts || {}) };
+        let sectorChanges = false;
+        const updated = { ...sector }; 
+        const finishes = { ...(sector.constructionFinishes || {}) }; 
+        const starts = { ...(sector.constructionStarts || {}) };
+
         Object.entries(finishes).forEach(([id, finishTime]) => {
           if (finishTime && nowTime >= new Date(finishTime as string).getTime()) {
-            if (id === 'capacity') { updated.capacity += (updated.pendingCapacitySeats || 0); updated.capacity = Number(updated.capacity); updated.pendingCapacitySeats = null; }
-            else { updated[id] = Number((updated[id] || 0) + 1); }
-            finishes[id] = null; starts[id] = null; hasChanges = true;
+            if (id === 'capacity') { 
+              updated.capacity = Number(updated.capacity || 5000) + Number(updated.pendingCapacitySeats || 0); 
+              updated.pendingCapacitySeats = null; 
+            } else { 
+              updated[id] = Number((updated[id] || 0) + 1); 
+            }
+            finishes[id] = null; 
+            starts[id] = null; 
+            sectorChanges = true;
+            globalChanges = true;
           }
         });
-        updated.constructionFinishes = finishes; updated.constructionStarts = starts;
-        return updated;
+
+        if (sectorChanges) {
+          updated.constructionFinishes = finishes;
+          updated.constructionStarts = starts;
+          return updated;
+        }
+        return sector;
       };
-      if (!hasChanges) return s;
-      const newState = { ...s, arena: processSector(s.arena), hq: processSector(s.hq), bootcamp: processSector(s.bootcamp), academy: processSector(s.academy), medical: processSector(s.medical) };
+
+      const newArena = processSector(s.arena);
+      const newHQ = processSector(s.hq);
+      const newBootcamp = processSector(s.bootcamp);
+      const newAcademy = processSector(s.academy);
+      const newMedical = processSector(s.medical);
+
+      if (!globalChanges) return s;
+
+      const newState = { 
+        ...s, 
+        arena: newArena, 
+        hq: newHQ, 
+        bootcamp: newBootcamp, 
+        academy: newAcademy, 
+        medical: newMedical 
+      };
+
       setTimeout(() => {
         runCloudUpdate({
           arena: sanitizeForFirestore(newState.arena),
@@ -712,6 +746,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           medical: sanitizeForFirestore(newState.medical)
         });
       }, 0);
+
       return newState;
     });
   }, [runCloudUpdate]);
