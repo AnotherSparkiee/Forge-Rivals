@@ -148,7 +148,7 @@ export function FriendlyMatchListener() {
           };
           
           const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
-          recordMatch(finalResult.winner, finalResult, 0, opponentName, matchType, undefined, matchUniqueId);
+          recordMatch(finalResult.winner, finalResult, 0, opponentName, matchType, new Date().toISOString(), matchUniqueId);
           
           toast({
             title: language === 'ru' ? (data.isTrial ? "Тренировка завершена" : "Матч завершен") : (data.isTrial ? "Training Finished" : "Match Completed"),
@@ -176,13 +176,18 @@ export function FriendlyMatchListener() {
       const lobbyRef = doc(db, 'friendly_lobbies', activeLobby.id);
       if (accept) {
         const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
-          ...h,
+          name: h.name,
+          role: h.role,
+          overallRating: h.overallRating,
+          proStats: h.proStats,
           isSub: h.id === lineup.sub1 || h.id === lineup.sub2
         }));
 
         const rivalSquad = getRandomStartingSquad().map((h, i) => ({
-          ...h,
           name: `${h.name} Rival`,
+          role: h.role,
+          overallRating: h.overallRating,
+          proStats: h.proStats,
           isSub: i > 4
         }));
 

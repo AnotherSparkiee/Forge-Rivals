@@ -30,7 +30,7 @@ function MatchContent() {
     matchHistory
   } = useGameState();
 
-  const matchId = searchParams.get('id');
+  const matchIdFromUrl = searchParams.get('id');
   const [step, setStep] = useState<MatchStep>('preview');
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
@@ -43,17 +43,20 @@ function MatchContent() {
   }, [user, isUserLoading, router]);
 
   const currentResult = useMemo(() => {
-    if (matchId) {
-      const match = matchHistory.find(m => m.id === matchId);
+    // 1. Прямой ID из URL (просмотр из истории)
+    if (matchIdFromUrl) {
+      const match = matchHistory.find(m => m.id === matchIdFromUrl);
       if (match) return match;
     }
     
+    // 2. Поиск самого старого непросмотренного матча ЛИГИ
     const unseenLeagueMatches = matchHistory
       .filter(m => m.type === 'league' && m.day > lastSeenMatchDay)
       .sort((a, b) => a.day - b.day);
 
     if (unseenLeagueMatches.length > 0) return unseenLeagueMatches[0];
 
+    // 3. Поиск любого самого свежего матча (включая пробные), если ничего другого нет
     const sortedHistory = [...matchHistory].sort((a, b) => {
       const timeA = new Date(a.playedAt).getTime();
       const timeB = new Date(b.playedAt).getTime();
@@ -61,9 +64,9 @@ function MatchContent() {
     });
 
     return sortedHistory.find(m => m.preview !== undefined) || sortedHistory[0] || null;
-  }, [matchHistory, matchId, lastSeenMatchDay]);
+  }, [matchHistory, matchIdFromUrl, lastSeenMatchDay]);
 
-  const isHistoricalViewing = !!matchId;
+  const isHistoricalViewing = !!matchIdFromUrl;
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });

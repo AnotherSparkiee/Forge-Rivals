@@ -144,6 +144,7 @@ export default function Home() {
   }, [isLoaded, profile, globeParticipants, brickParticipants, user, language]);
 
   const displayMatchInfo = useMemo(() => {
+    // 1. ПРИОРИТЕТ: Активные дружеские или пробные матчи
     if (activeFriendly) {
       const acceptedAt = activeFriendly.acceptedAt?.toMillis() || Date.now();
       const name = activeFriendly.hostId === user?.uid ? activeFriendly.challengerName : activeFriendly.hostName;
@@ -151,14 +152,18 @@ export default function Home() {
         opponent: { name, isPlayer: !activeFriendly.isTrial }, 
         isFriendly: true, 
         acceptedAt,
+        time: activeFriendly.acceptedAt ? new Date(acceptedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '??:??',
         isTrial: activeFriendly.isTrial 
       };
     }
     
+    // 2. Турниры
     if (tournamentNextMatch) return { ...tournamentNextMatch, isTournament: true };
     
-    if (basketEntry?.status === 'matched') return { opponent: { name: basketEntry.matchedWithName, isPlayer: true }, isBasket: true, startTime: new Date(basketEntry.matchStartTime).getTime() };
+    // 3. КВ Корзина
+    if (basketEntry?.status === 'matched') return { opponent: { name: basketEntry.matchedWithName, isPlayer: true }, isBasket: true, startTime: new Date(basketEntry.matchStartTime).getTime(), time: new Date(basketEntry.matchStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
     
+    // 4. Лига и Кубок (тот, что ближе по времени)
     if (cupNextMatch && leagueNextMatch) {
       const mskNow = getMoscowTime();
       const getMs = (time: string, nextDay: boolean) => {
@@ -179,25 +184,28 @@ export default function Home() {
     if (!displayMatchInfo) return;
     const interval = setInterval(() => {
       const info = displayMatchInfo as any;
+      const mskNow = getMoscowTime();
+
       if (info.isFriendly) {
+        // Пробные/Товарищеские: 15 минут с момента принятия (acceptedAt)
         const diff = (info.acceptedAt + 15 * 60 * 1000) - Date.now();
-        if (diff <= 0) setCountdown('00:00');
+        if (diff <= 0) setCountdown('00:00:00');
         else {
-          const m = Math.floor(diff / 60000);
+          const h = Math.floor(diff / 3600000);
+          const m = Math.floor((diff % 3600000) / 60000);
           const s = Math.floor((diff % 60000) / 1000);
-          setCountdown(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+          setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
         }
       } else if (info.isBasket) {
         const diff = info.startTime - Date.now();
-        if (diff <= 0) setCountdown('00:00');
+        if (diff <= 0) setCountdown('00:00:00');
         else {
-          const m = Math.floor(diff / 60000);
+          const h = Math.floor(diff / 3600000);
+          const m = Math.floor((diff % 3600000) / 60000);
           const s = Math.floor((diff % 60000) / 1000);
-          setCountdown(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+          setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
         }
-      } else {
-        const mskNow = getMoscowTime();
-        if (!info.time) return;
+      } else if (info.time) {
         const [h, m] = info.time.split(':').map(Number);
         const targetDate = new Date(mskNow); targetDate.setHours(h, m, 0, 0);
         if (info.isNextDay) targetDate.setDate(targetDate.getDate() + 1);
@@ -209,7 +217,12 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [displayMatchInfo]);
 
-  const unseenCount = useMemo(() => matchHistory.filter(m => m.type === 'league' && m.day > lastSeenMatchDay).length, [matchHistory, lastSeenMatchDay]);
+  // Счётчик непросмотренных матчей (включая пробные)
+  const unseenCount = useMemo(() => {
+    const unseenLeague = matchHistory.filter(m => m.type === 'league' && m.day > lastSeenMatchDay).length;
+    // Можно добавить логику для пробных, если мы хотим, чтобы они тоже "висели" красным кружком
+    return unseenLeague;
+  }, [matchHistory, lastSeenMatchDay]);
 
   if (isUserLoading || !isLoaded || !user || isProfileLoading || isGroupLoading) return <LoadingScreen />;
 
@@ -289,7 +302,7 @@ export default function Home() {
                     {(displayMatchInfo as any).isLive ? t.tourLive : t.startsIn}
                   </span>
                   <span className={cn("text-4xl font-headline font-bold tabular-nums tracking-tighter", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-primary")}>
-                    {(displayMatchInfo as any).isLive ? 'LIVE' : countdown || '00:00'}
+                    {(displayMatchInfo as any).isLive ? 'LIVE' : countdown || '00:00:00'}
                   </span>
                 </div>
               </div>
