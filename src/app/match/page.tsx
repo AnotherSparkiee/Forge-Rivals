@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
@@ -43,21 +42,18 @@ function MatchContent() {
     }
   }, [user, isUserLoading, router]);
 
-  // Sequential match picker: finds the OLDEST unseen match across all types
   const currentResult = useMemo(() => {
     if (matchId) {
       const match = matchHistory.find(m => m.id === matchId);
       if (match) return match;
     }
     
-    // Find the OLDEST league match that hasn't been seen yet
     const unseenLeagueMatches = matchHistory
       .filter(m => m.type === 'league' && m.day > lastSeenMatchDay)
       .sort((a, b) => a.day - b.day);
 
     if (unseenLeagueMatches.length > 0) return unseenLeagueMatches[0];
 
-    // Fallback to latest simulated match if none unseen in league
     const sortedHistory = [...matchHistory].sort((a, b) => {
       const timeA = new Date(a.playedAt).getTime();
       const timeB = new Date(b.playedAt).getTime();
@@ -75,7 +71,6 @@ function MatchContent() {
 
   const handleAcknowledgeMatch = () => {
     if (currentResult && !isHistoricalViewing && currentResult.type === 'league') {
-      // Mark strictly only this match's day as seen to allow next match to be reviewed
       markMatchAsSeen(currentResult.day);
       router.push('/');
     } else {
@@ -113,7 +108,14 @@ function MatchContent() {
       duration: "Duration", mvp: "Unit MVP", orv: "AVG OVR",
       home: "HOME", away: "AWAY", arena: "ARENA", spectators: "SPECTATORS",
       technicalWin: "TECHNICAL PROGRESSION", clickToContinue: "TAP ANYWHERE TO CONTINUE",
-      tournamentTypes: { league: "PRO LEAGUE", tournament: "PYRAMID CUP", friendly: "FRIENDLY MATCH", basket: "CW BASKET" }
+      tournamentTypes: { 
+        league: "PRO LEAGUE", 
+        cup: "PYRAMID CUP", 
+        friendly: "FRIENDLY MATCH", 
+        basket: "CW BASKET",
+        tournament: "TOURNAMENT",
+        trial: "TRIAL MATCH"
+      }
     },
     ru: {
       reportTitle: "ТАКТИЧЕСКИЙ ОТЧЕТ ПОСЛЕ БОЯ",
@@ -124,7 +126,14 @@ function MatchContent() {
       duration: "Длительность", mvp: "MVP отряда", orv: "Средний OVR",
       home: "ДОМА", away: "В ГОСТЯХ", arena: "АРЕНА", spectators: "ЗРИТЕЛИ",
       technicalWin: "ТЕХНИЧЕСКАЯ ПРОГРЕССИЯ", clickToContinue: "НАЖМИТЕ В ЛЮБОМ МЕСТЕ ДЛЯ ПРОДОЛЖЕНИЯ",
-      tournamentTypes: { league: "ПРОФ. ЛИГА", tournament: "КУБОК ПИРАМИДЫ", friendly: "ТОВ. МАТЧ", basket: "КВ КОРЗИНА" }
+      tournamentTypes: { 
+        league: "ПРОФ. ЛИГА", 
+        cup: "КУБОК ПИРАМИДЫ", 
+        friendly: "ТОВ. МАТЧ", 
+        basket: "КВ КОРЗИНА",
+        tournament: "ТУРНИР",
+        trial: "ПРОБНЫЙ МАТЧ"
+      }
     }
   };
 

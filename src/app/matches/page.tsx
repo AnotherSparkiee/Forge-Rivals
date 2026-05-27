@@ -61,7 +61,6 @@ export default function MatchesPage() {
 
   const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
 
-  // Active Friendly or Trial Match
   const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies', user.uid) : null, [db, user]);
   const { data: myLobby } = useDoc(myLobbyRef);
 
@@ -120,7 +119,6 @@ export default function MatchesPage() {
     return getSchedule(groupTeams);
   }, [groupTeams]);
 
-  // Priority 1: Friendly or Trial
   const friendlyInfo = useMemo(() => {
     const activeLobby = (myLobby?.status === 'accepted') ? myLobby : (challengerLobbies?.[0]);
     if (activeLobby && activeLobby.acceptedAt) {
@@ -132,7 +130,7 @@ export default function MatchesPage() {
             isPlayer: !activeLobby.isTrial 
           },
           time: new Date(acceptedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          type: 'friendly',
+          type: activeLobby.isTrial ? 'trial' : 'friendly',
           acceptedAt
         };
       }
@@ -140,14 +138,12 @@ export default function MatchesPage() {
     return null;
   }, [myLobby, challengerLobbies, user]);
 
-  // Priority 2: Tournament (Globe / Brick)
   const tournamentInfo = useMemo(() => {
     if (!isLoaded || !user) return null;
     const mskNow = getMoscowTime();
     const dateStr = getMoscowDateString();
     const totalMins = mskNow.getHours() * 60 + mskNow.getMinutes();
 
-    // Check Globe
     if (profile?.tournaments?.includes('iron-globe')) {
       if (totalMins >= (20 * 60 + 50) && totalMins < (21 * 60 + 40)) {
         const isLive = totalMins >= (21 * 60 + 5);
@@ -156,13 +152,12 @@ export default function MatchesPage() {
           opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
           time: "21:05",
           isLive,
-          type: 'tournament_special',
+          type: 'tournament',
           tourName: language === 'ru' ? 'ЧУГУННЫЙ ГЛОБУС' : 'CAST IRON GLOBE'
         };
       }
     }
 
-    // Check Brick
     if (profile?.tournaments?.includes('iron-brick')) {
       if (totalMins >= (21 * 60 + 20) && totalMins < (22 * 60 + 10)) {
         const isLive = totalMins >= (21 * 60 + 35);
@@ -171,7 +166,7 @@ export default function MatchesPage() {
           opponent: tour.myOpponent || { name: "Bot Team", isPlayer: false },
           time: "21:35",
           isLive,
-          type: 'tournament_special',
+          type: 'tournament',
           tourName: language === 'ru' ? 'ЧУГУННЫЙ КИРПИЧ' : 'CAST IRON BRICK'
         };
       }
@@ -180,7 +175,6 @@ export default function MatchesPage() {
     return null;
   }, [isLoaded, profile, globeParticipants, brickParticipants, user, language]);
 
-  // Priority 3: CW Basket
   const basketInfo = useMemo(() => {
     if (basketEntry?.status === 'matched' && basketEntry.matchStartTime) {
       const startTime = new Date(basketEntry.matchStartTime).getTime();
@@ -196,13 +190,11 @@ export default function MatchesPage() {
     return null;
   }, [basketEntry]);
 
-  // Priority 4: Official (League or Pyramid Cup)
   const cupNextMatch = useMemo(() => {
     if (!isLoaded || !profile || seasonDay > 14) return null;
     
-    // STRICT ELIMINATION CHECK: If user has ANY loss in tournament for this season, hide cup.
     const wasEliminated = matchHistory.some(m => 
-      m.type === 'tournament' && 
+      (m.type === 'cup' || m.type === 'tournament') && 
       m.seasonNumber === seasonNumber && 
       m.opponentName !== 'SEEDED' && 
       m.opponentName !== 'WAITING' &&
@@ -216,7 +208,7 @@ export default function MatchesPage() {
       opponent: { name: "Tournament Rival", isPlayer: false },
       time: cupTime,
       isNextDay: isCupPlayedToday,
-      type: 'tournament',
+      type: 'cup',
       isCup: true,
       label: language === 'ru' ? 'КУБОК ПИРАМИДЫ' : 'PYRAMID CUP'
     };
@@ -245,13 +237,11 @@ export default function MatchesPage() {
     };
   }, [isLoaded, profile, groupTeams, schedule, seasonDay, isTodayPlayed, league, user?.uid]);
 
-  // Final Priority Resolver
   const nextMatchInfo = useMemo(() => {
     if (friendlyInfo) return friendlyInfo;
     if (tournamentInfo) return tournamentInfo;
     if (basketInfo) return basketInfo;
     
-    // Choose between League and Cup based on which is sooner
     if (cupNextMatch && leagueNextMatch) {
       const mskNow = getMoscowTime();
       const getMs = (time: string, nextDay: boolean) => {
@@ -274,7 +264,7 @@ export default function MatchesPage() {
       const info = nextMatchInfo as any;
       if (!info) return;
       
-      if (info.type === 'friendly') {
+      if (info.type === 'friendly' || info.type === 'trial') {
         const diff = (info.acceptedAt + 15 * 60 * 1000) - Date.now();
         if (diff <= 0) setCountdown('00:00:00');
         else {
@@ -480,7 +470,7 @@ export default function MatchesPage() {
           <div className="flex flex-col items-center w-16 flex-shrink-0 border-r border-white/5 pr-2">
             <span className="text-[10px] font-mono font-bold text-accent whitespace-nowrap">{dateStr}</span>
             <span className="text-[7px] uppercase font-black text-muted-foreground text-center leading-none mt-1">
-              {match.type === 'league' ? `DAY ${match.day}` : (match.type === 'tournament' ? 'TOURN' : (match.type === 'basket' ? 'BASKET' : 'FRIENDLY'))}
+              {match.type === 'league' ? `DAY ${match.day}` : (match.type === 'cup' ? 'CUP' : (match.type === 'basket' ? 'BASKET' : (match.type === 'trial' ? 'TRIAL' : 'FRIENDLY')))}
             </span>
           </div>
           <div className="flex-1 flex items-center justify-between gap-1 min-w-0 px-2">
@@ -524,11 +514,12 @@ export default function MatchesPage() {
         
         const info = nextMatchInfo as any;
         const opponent = info.opponent;
-        const isTourSpecial = info.type === 'tournament_special';
+        const isTourSpecial = info.type === 'tournament';
         const isBasket = info.type === 'basket';
         const isFriendly = info.type === 'friendly';
+        const isTrial = info.type === 'trial';
         const isCup = info.isCup;
-        const isLive = info.isLive || isFriendly;
+        const isLive = info.isLive || isFriendly || isTrial;
         
         return (
           <div className="space-y-6 animate-in fade-in duration-500">
@@ -544,12 +535,12 @@ export default function MatchesPage() {
                 </CardTitle>
                 <div className="flex flex-col items-center gap-2 mt-4">
                   <div className="bg-background/50 px-6 py-2 rounded-xl border border-white/5">
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase text-center mb-1">{isLive ? (isFriendly ? t.friendlyLive : t.tourLive) : t.startsIn}</p>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase text-center mb-1">{isLive ? (isFriendly || isTrial ? t.friendlyLive : t.tourLive) : t.startsIn}</p>
                     <p className={cn(
                       "text-3xl font-headline font-bold tabular-nums tracking-tighter",
                       isLive ? "text-green-400" : "text-primary"
                     )}>
-                      {isLive ? (isFriendly ? countdown || '00:00' : 'LIVE') : countdown || '00:00:00'}
+                      {isLive ? (isFriendly || isTrial ? countdown || '00:00' : 'LIVE') : countdown || '00:00:00'}
                     </p>
                   </div>
                 </div>
@@ -557,16 +548,16 @@ export default function MatchesPage() {
               <CardContent className="flex flex-col items-center space-y-4">
                 <div className={cn(
                   "w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 shadow-[0_0_15px_rgba(var(--accent),0.2)]",
-                  (isTourSpecial || isBasket || isFriendly || isCup) ? "border-accent" : "border-primary"
+                  (isTourSpecial || isBasket || isFriendly || isTrial || isCup) ? "border-accent" : "border-primary"
                 )}>
                   {isCup ? <Trophy className="w-10 h-10 text-accent" /> : 
-                   (isBasket || isFriendly ? <Swords className="w-10 h-10 text-green-400" /> : 
+                   (isBasket || isFriendly || isTrial ? <Swords className="w-10 h-10 text-green-400" /> : 
                     <Shield className="w-10 h-10 text-primary" />)}
                 </div>
                 <div className="text-center">
-                  <h3 className={cn("text-xl font-headline font-bold italic uppercase truncate max-w-[250px]", (isBasket || isFriendly) ? "text-green-400" : "text-primary")}>{opponent.name}</h3>
+                  <h3 className={cn("text-xl font-headline font-bold italic uppercase truncate max-w-[250px]", (isBasket || isFriendly || isTrial) ? "text-green-400" : "text-primary")}>{opponent.name}</h3>
                   <Badge variant="secondary" className="mt-2 text-[10px]">
-                    {opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'} | {info.label || (isBasket ? 'CW BASKET' : (isFriendly ? 'FRIENDLY MATCH' : `DIV ${leagueLevel}.${divisionSubId}`))}
+                    {opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'} | {info.label || (isBasket ? 'CW BASKET' : (isFriendly ? 'FRIENDLY MATCH' : (isTrial ? 'TRIAL MATCH' : `DIV ${leagueLevel}.${divisionSubId}`)))}
                   </Badge>
                 </div>
                 
@@ -575,7 +566,7 @@ export default function MatchesPage() {
                     <Calendar className="w-3 h-3" /> {t.matchTime}
                   </p>
                   <p className="text-xl font-headline font-bold tracking-tight">
-                    {(isBasket || isFriendly) ? 'IN 15 MIN' : (info.isCup ? t.today : (info.isNextDay ? t.tomorrow : t.today))} {(isBasket || isFriendly) ? '' : (info.type === 'league' ? getDateForDay(info.day) : '')} @ {info.time}
+                    {(isBasket || isFriendly || isTrial) ? 'IN 15 MIN' : (info.isCup ? t.today : (info.isNextDay ? t.tomorrow : t.today))} {(isBasket || isFriendly || isTrial) ? '' : (info.type === 'league' ? getDateForDay(info.day) : '')} @ {info.time}
                   </p>
                 </div>
               </CardContent>

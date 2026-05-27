@@ -92,7 +92,7 @@ export default function Home() {
   const cupNextMatch = useMemo(() => {
     if (!isLoaded || !profile || seasonDay > 14) return null;
     const wasEliminated = matchHistory.some(m => 
-      m.type === 'tournament' && 
+      (m.type === 'cup' || m.type === 'tournament') && 
       m.seasonNumber === seasonNumber && 
       m.opponentName !== 'SEEDED' && 
       m.opponentName !== 'WAITING' &&
@@ -144,7 +144,6 @@ export default function Home() {
   }, [isLoaded, profile, globeParticipants, brickParticipants, user, language]);
 
   const displayMatchInfo = useMemo(() => {
-    // 1. HIGHEST PRIORITY: Active Trial or Friendly
     if (activeFriendly) {
       const acceptedAt = activeFriendly.acceptedAt?.toMillis() || Date.now();
       const name = activeFriendly.hostId === user?.uid ? activeFriendly.challengerName : activeFriendly.hostName;
@@ -156,13 +155,10 @@ export default function Home() {
       };
     }
     
-    // 2. SECOND PRIORITY: Global Live Tournaments
     if (tournamentNextMatch) return { ...tournamentNextMatch, isTournament: true };
     
-    // 3. THIRD PRIORITY: CW Basket
     if (basketEntry?.status === 'matched') return { opponent: { name: basketEntry.matchedWithName, isPlayer: true }, isBasket: true, startTime: new Date(basketEntry.matchStartTime).getTime() };
     
-    // 4. FOURTH PRIORITY: Official League or Cup
     if (cupNextMatch && leagueNextMatch) {
       const mskNow = getMoscowTime();
       const getMs = (time: string, nextDay: boolean) => {

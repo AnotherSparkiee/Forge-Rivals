@@ -68,11 +68,13 @@ interface StaffState {
   financier: StaffMember | null;
 }
 
+export type MatchType = 'league' | 'cup' | 'friendly' | 'basket' | 'tournament' | 'trial';
+
 export interface MatchResultEntry {
   id: string; 
   day: number; 
   seasonNumber?: number;
-  type: 'league' | 'friendly' | 'tournament' | 'basket';
+  type: MatchType;
   opponentName: string;
   winner: string;
   scoreA: number;
@@ -280,10 +282,6 @@ function sanitizeForFirestore(obj: any) {
   }
 }
 
-/**
- * Calculates XP threshold for the NEXT level.
- * Fixed Requirements: L1=700, L2=1400, L3=3800
- */
 export function getLevelThreshold(level: number): number {
   if (level <= 1) return 700;
   if (level === 2) return 1400;
@@ -872,7 +870,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string) => {
     if (!result) return;
-    const matchId = customId || `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const matchId = customId || `match_${type}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     
     setState(s => {
       const existingIdx = s.matchHistory.findIndex(m => m.id === matchId);
@@ -887,8 +885,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       else if (scoreA > scoreB) { creditsEarned = 150; rankChange = 10; }
       else if (scoreA === scoreB) rankChange = 0;
 
-      // MANAGER XP LOGIC
-      const isOfficial = type === 'league' || type === 'tournament';
+      const isOfficial = type === 'league' || type === 'tournament' || type === 'cup';
       const baseManagerXP = isOfficial ? 100 : 25;
       
       const hqMultiplier = 1 + (Math.floor((s.hq?.adminLevel || 0) / 10) * 0.5);
@@ -934,14 +931,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
       const updatedOwned = s.ownedHeroes.map(applyXP); const updatedYouth = s.youthAcademyHeroes.map(applyXP);
       const matchEntry: MatchResultEntry = { id: matchId, day: matchDay, type, opponentName, winner, scoreA, scoreB, matchSummary: result.matchSummary || "", teamStats: sanitizeForFirestore(result.teamStats || {}), heroPerformance: sanitizeForFirestore(result.heroPerformance || []), playedAt: customPlayedAt || new Date().toISOString(), duration: result.duration || "", mvp: result.mvp || "", preview: sanitizeForFirestore(result.preview || null), timeline: sanitizeForFirestore(result.timeline || []), postMatch: sanitizeForFirestore(result.postMatch || null) };
-      if (type === 'league' || type === 'tournament') matchEntry.seasonNumber = s.seasonNumber;
+      if (type === 'league' || type === 'tournament' || type === 'cup') matchEntry.seasonNumber = s.seasonNumber;
       let newHistory = existingIdx !== -1 ? [...s.matchHistory] : [matchEntry, ...s.matchHistory].slice(0, 100);
       if (existingIdx !== -1) newHistory[existingIdx] = matchEntry;
       const todayStr = getMoscowDateString(); 
       const newCredits = s.credits + creditsEarned;
       const newRank = s.rank + rankChange;
       const newLastLeagueDate = type === 'league' && matchDay === s.seasonDay ? todayStr : s.lastLeagueMatchDate;
-      const newLastCupDate = type === 'tournament' ? todayStr : s.lastCupMatchDate;
+      const newLastCupDate = type === 'cup' ? todayStr : s.lastCupMatchDate;
 
       setTimeout(() => {
         runCloudUpdate({ 

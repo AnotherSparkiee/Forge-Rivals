@@ -119,9 +119,9 @@ export function FriendlyMatchListener() {
     }
 
     if (data.status === 'accepted' && data.matchResult) {
-      // Use unique ID to prevent collision with previous trials
       const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); 
-      const matchUniqueId = `friendly_${data.id}_${acceptedAt}`;
+      const matchType = data.isTrial ? 'trial' : 'friendly';
+      const matchUniqueId = `${matchType}_${data.id}_${acceptedAt}`;
       
       const alreadyProcessed = matchHistory.some(m => m.id === matchUniqueId);
       if (alreadyProcessed) {
@@ -148,7 +148,7 @@ export function FriendlyMatchListener() {
           };
           
           const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
-          recordMatch(finalResult.winner, finalResult, 0, opponentName, 'friendly', undefined, matchUniqueId);
+          recordMatch(finalResult.winner, finalResult, 0, opponentName, matchType, undefined, matchUniqueId);
           
           toast({
             title: language === 'ru' ? (data.isTrial ? "Тренировка завершена" : "Матч завершен") : (data.isTrial ? "Training Finished" : "Match Completed"),

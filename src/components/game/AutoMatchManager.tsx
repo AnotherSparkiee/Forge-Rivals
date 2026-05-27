@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -15,7 +14,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Zap, ArrowRight, FileText, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getGlobalSeasonInfo as getSeasonInfoHelper } from '@/app/lib/time-utils';
 import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant, getEntryRound } from '@/app/lib/cup-utils';
 import { useRouter } from 'next/navigation';
 
@@ -65,7 +63,7 @@ export function AutoMatchManager() {
   const simulateOneLeagueMatch = useCallback(async (targetSeason: number, targetDay: number, isCatchUp: boolean) => {
     if (!groupPlayers || !user || !profile || simulationLockRef.current) return;
     
-    const detId = `league_${targetSeason}_${targetDay}`;
+    const detId = `league_S${targetSeason}_D${targetDay}`;
     simulationLockRef.current = true;
     setIsSimulating(true);
     setSyncing(true);
@@ -113,7 +111,7 @@ export function AutoMatchManager() {
         recordMatch(result.winner, result, targetDay, opponent.name || "Opponent", 'league', customPlayedAt, detId);
         
         if (!isCatchUp) {
-          setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, isCup: false });
+          setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, type: 'league' });
           setShowResultDialog(true);
         }
       }
@@ -129,7 +127,7 @@ export function AutoMatchManager() {
   const simulateOneCupMatch = useCallback(async (targetSeason: number, targetDay: number, isCatchUp: boolean) => {
     if (!user || !profile || !allLeaguePlayers || simulationLockRef.current) return;
     
-    const detId = `cup_${targetSeason}_${targetDay}`;
+    const detId = `cup_S${targetSeason}_D${targetDay}`;
     simulationLockRef.current = true;
     setIsSimulating(true);
     setSyncing(true);
@@ -146,7 +144,7 @@ export function AutoMatchManager() {
           matchSummary: "Seeded progression.", teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
           heroPerformance: [], preview: null, timeline: [], postMatch: null
         };
-        recordMatch(seededResult.winner, seededResult, targetDay, "SEEDED", 'tournament', undefined, detId);
+        recordMatch(seededResult.winner, seededResult, targetDay, "SEEDED", 'cup', undefined, detId);
         return;
       }
 
@@ -162,7 +160,7 @@ export function AutoMatchManager() {
           matchSummary: "Automatic progression.", teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
           heroPerformance: [], preview: null, timeline: [], postMatch: null
         };
-        recordMatch(waitResult.winner, waitResult, targetDay, "WAITING", 'tournament', undefined, detId);
+        recordMatch(waitResult.winner, waitResult, targetDay, "WAITING", 'cup', undefined, detId);
         return;
       }
 
@@ -185,10 +183,10 @@ export function AutoMatchManager() {
       });
       
       if (result && result.winner) {
-        recordMatch(result.winner, result, targetDay, opponent.name, 'tournament', undefined, detId);
+        recordMatch(result.winner, result, targetDay, opponent.name, 'cup', undefined, detId);
         
         if (!isCatchUp) {
-          setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, isCup: true }); 
+          setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, type: 'cup' }); 
           setShowResultDialog(true); 
         }
       }
@@ -207,7 +205,7 @@ export function AutoMatchManager() {
     const findAndSimulateNext = async () => {
       if (lastProcessedSeason > 0 && lastProcessedSeason < seasonNumber) {
         for (let d = 1; d <= 14; d++) {
-          const detId = `league_${lastProcessedSeason}_${d}`;
+          const detId = `league_S${lastProcessedSeason}_D${d}`;
           const existing = matchHistory.find(m => m.id === detId);
           if (!existing || existing.preview === undefined) {
             await simulateOneLeagueMatch(lastProcessedSeason, d, true);
@@ -222,7 +220,7 @@ export function AutoMatchManager() {
         const cupTime = "07:00";
 
         for (let d = 1; d <= seasonDay; d++) {
-          const lId = `league_${seasonNumber}_${d}`;
+          const lId = `league_S${seasonNumber}_D${d}`;
           const lMatch = matchHistory.find(m => m.id === lId);
           const lDue = (d < seasonDay) || isMatchDue(leagueTime, lastLeagueMatchDate);
           const isFadedWaiting = lMatch?.opponentName === 'WAITING' && d < seasonDay;
@@ -232,12 +230,12 @@ export function AutoMatchManager() {
             return; 
           }
 
-          const cId = `cup_${seasonNumber}_${d}`;
+          const cId = `cup_S${seasonNumber}_D${d}`;
           const cMatch = matchHistory.find(m => m.id === cId);
           const cDue = (d < seasonDay) || isMatchDue(cupTime, lastCupMatchDate);
           
           const eliminated = matchHistory.some(m => 
-            m.type === 'tournament' && 
+            (m.type === 'cup' || m.type === 'tournament') && 
             m.seasonNumber === seasonNumber && 
             m.day < d && 
             m.opponentName !== 'SEEDED' && 
@@ -262,7 +260,7 @@ export function AutoMatchManager() {
   const handleGoToReport = () => {
     setShowResultDialog(false);
     const targetId = currentResult?.id;
-    if (currentResult && !currentResult.isCup) markMatchAsSeen(currentResult.day);
+    if (currentResult && currentResult.type === 'league') markMatchAsSeen(currentResult.day);
     if (targetId) router.push(`/match?id=${targetId}`);
   };
 
