@@ -119,19 +119,22 @@ export function FriendlyMatchListener() {
     }
 
     if (data.status === 'accepted' && data.matchResult) {
-      const alreadyProcessed = matchHistory.some(m => m.id === data.id);
+      // Use unique ID to prevent collision with previous trials
+      const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); 
+      const matchUniqueId = `friendly_${data.id}_${acceptedAt}`;
+      
+      const alreadyProcessed = matchHistory.some(m => m.id === matchUniqueId);
       if (alreadyProcessed) {
         if (isHost) deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
         return;
       }
 
-      const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); 
       const finishTime = acceptedAt + MATCH_DURATION_MS;
       
       const checkAndComplete = () => {
         const now = Date.now();
         if (now >= finishTime) {
-          if (matchHistory.some(m => m.id === data.id)) {
+          if (matchHistory.some(m => m.id === matchUniqueId)) {
             if (isHost) deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
             return;
           }
@@ -145,7 +148,7 @@ export function FriendlyMatchListener() {
           };
           
           const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
-          recordMatch(finalResult.winner, finalResult, 0, opponentName, 'friendly', undefined, data.id);
+          recordMatch(finalResult.winner, finalResult, 0, opponentName, 'friendly', undefined, matchUniqueId);
           
           toast({
             title: language === 'ru' ? (data.isTrial ? "Тренировка завершена" : "Матч завершен") : (data.isTrial ? "Training Finished" : "Match Completed"),
@@ -177,7 +180,6 @@ export function FriendlyMatchListener() {
           isSub: h.id === lineup.sub1 || h.id === lineup.sub2
         }));
 
-        // Bot squad for rival if any
         const rivalSquad = getRandomStartingSquad().map((h, i) => ({
           ...h,
           name: `${h.name} Rival`,

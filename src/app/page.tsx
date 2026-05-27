@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -90,11 +89,8 @@ export default function Home() {
   const isTodayPlayed = useMemo(() => lastLeagueMatchDate === getMoscowDateString(), [lastLeagueMatchDate]);
   const isCupPlayedToday = useMemo(() => lastCupMatchDate === getMoscowDateString(), [lastCupMatchDate]);
 
-  // Priority 1: Pyramid Cup (Closest knockout)
   const cupNextMatch = useMemo(() => {
     if (!isLoaded || !profile || seasonDay > 14) return null;
-    
-    // STRICT ELIMINATION CHECK: If user has ANY loss in tournament for this season, hide cup.
     const wasEliminated = matchHistory.some(m => 
       m.type === 'tournament' && 
       m.seasonNumber === seasonNumber && 
@@ -102,12 +98,9 @@ export default function Home() {
       m.opponentName !== 'WAITING' &&
       m.scoreA < m.scoreB
     );
-    
     if (wasEliminated) return null;
-
     const leagueInfo = LEAGUES.find(l => l.id === profile.selectedLeagueId) || LEAGUES[0];
     const cupTime = getPyramidCupTime(leagueInfo.startTime);
-    
     return { 
       opponent: { name: "Tournament Rival", isPlayer: false },
       time: cupTime,
@@ -128,13 +121,11 @@ export default function Home() {
     return { opponent: myMatch.home.id === user?.uid ? myMatch.away : myMatch.home, day: targetDay, time: league.startTime, isNextDay: targetDay > seasonDay, isCup: false };
   }, [isLoaded, profile, groupPlayers, seasonDay, isTodayPlayed, rank, leagueLevel, divisionSubId, groupId, user?.uid]);
 
-  // Order of priority: Friendly > Tournament > Basket > (Cup vs League based on time)
   const tournamentNextMatch = useMemo(() => {
     if (!isLoaded || !user) return null;
     const mskNow = getMoscowTime();
     const dateStr = getMoscowDateString();
     const totalMins = mskNow.getHours() * 60 + mskNow.getMinutes();
-
     if (profile?.tournaments?.includes('iron-globe')) {
       const startTotal = 21 * 60 + 5;
       if (totalMins >= (20 * 60 + 50) && totalMins < (21 * 60 + 40)) {
@@ -153,6 +144,7 @@ export default function Home() {
   }, [isLoaded, profile, globeParticipants, brickParticipants, user, language]);
 
   const displayMatchInfo = useMemo(() => {
+    // 1. HIGHEST PRIORITY: Active Trial or Friendly
     if (activeFriendly) {
       const acceptedAt = activeFriendly.acceptedAt?.toMillis() || Date.now();
       const name = activeFriendly.hostId === user?.uid ? activeFriendly.challengerName : activeFriendly.hostName;
@@ -163,10 +155,14 @@ export default function Home() {
         isTrial: activeFriendly.isTrial 
       };
     }
+    
+    // 2. SECOND PRIORITY: Global Live Tournaments
     if (tournamentNextMatch) return { ...tournamentNextMatch, isTournament: true };
+    
+    // 3. THIRD PRIORITY: CW Basket
     if (basketEntry?.status === 'matched') return { opponent: { name: basketEntry.matchedWithName, isPlayer: true }, isBasket: true, startTime: new Date(basketEntry.matchStartTime).getTime() };
     
-    // Choose between League and Cup based on which is sooner
+    // 4. FOURTH PRIORITY: Official League or Cup
     if (cupNextMatch && leagueNextMatch) {
       const mskNow = getMoscowTime();
       const getMs = (time: string, nextDay: boolean) => {
@@ -189,10 +185,20 @@ export default function Home() {
       const info = displayMatchInfo as any;
       if (info.isFriendly) {
         const diff = (info.acceptedAt + 15 * 60 * 1000) - Date.now();
-        setCountdown(diff <= 0 ? '00:00' : `${String(Math.floor(diff / 60000)).padStart(2, '0')}:${String(Math.floor((diff % 60000) / 1000)).padStart(2, '0')}`);
+        if (diff <= 0) setCountdown('00:00');
+        else {
+          const m = Math.floor(diff / 60000);
+          const s = Math.floor((diff % 60000) / 1000);
+          setCountdown(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+        }
       } else if (info.isBasket) {
         const diff = info.startTime - Date.now();
-        setCountdown(diff <= 0 ? '00:00' : `${String(Math.floor(diff / 60000)).padStart(2, '0')}:${String(Math.floor((diff % 60000) / 1000)).padStart(2, '0')}`);
+        if (diff <= 0) setCountdown('00:00');
+        else {
+          const m = Math.floor(diff / 60000);
+          const s = Math.floor((diff % 60000) / 1000);
+          setCountdown(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+        }
       } else {
         const mskNow = getMoscowTime();
         if (!info.time) return;
@@ -287,7 +293,7 @@ export default function Home() {
                     {(displayMatchInfo as any).isLive ? t.tourLive : t.startsIn}
                   </span>
                   <span className={cn("text-4xl font-headline font-bold tabular-nums tracking-tighter", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-primary")}>
-                    {(displayMatchInfo as any).isLive ? 'LIVE' : countdown || '00:00:00'}
+                    {(displayMatchInfo as any).isLive ? 'LIVE' : countdown || '00:00'}
                   </span>
                 </div>
               </div>
