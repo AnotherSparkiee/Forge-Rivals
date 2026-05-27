@@ -117,6 +117,7 @@ export default function TournamentsPage() {
   const handleToggleLobby = async () => {
     if (!user || !profile || isActionLoading) return;
     
+    // If trying to start a new search while busy with Trial or Basket
     if (!myLobby && isBusy) {
       toast({ title: t.busy, description: t.busyDesc, variant: "destructive" });
       return;
@@ -134,6 +135,7 @@ export default function TournamentsPage() {
           status: 'searching',
           challengerId: null,
           challengerName: null,
+          isTrial: false,
           updatedAt: serverTimestamp()
         });
         toast({ title: t.toastPosted, description: t.toastPostedDesc });
@@ -155,11 +157,11 @@ export default function TournamentsPage() {
 
     setIsActionLoading(true);
     
-    // Simulate searching delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
     try {
-      // Bot generation in league format: botXXXX
+      // Имитация "быстрого подбора" 1.5 секунды
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Генерация бота по стандарту лиги: botXXXX
       const botIdNum = Math.floor(Math.random() * 9000) + 1000;
       const botId = `bot${botIdNum}`;
       const botName = `bot${botIdNum}`;
@@ -175,6 +177,7 @@ export default function TournamentsPage() {
         isSub: i > 4
       }));
 
+      // Мгновенная симуляция результата
       const result = await simulateMobaMatch({
         teamA: { name: profile.displayName || "Manager", strategy, heroes: squad },
         teamB: { 
@@ -188,7 +191,8 @@ export default function TournamentsPage() {
       const safeResult = sanitizeForFirestore(result);
       if (!safeResult) throw new Error("Simulation failed");
 
-      // Set immediately to accepted status with bot as challenger
+      // Сразу переводим в статус accepted с пометкой isTrial
+      // Это исключает попадание в общую очередь поиска
       await setDoc(doc(db, 'friendly_lobbies', user.uid), {
         hostId: user.uid,
         hostName: profile.displayName || "Manager",
@@ -204,7 +208,7 @@ export default function TournamentsPage() {
       toast({ title: t.toastTrial, description: t.toastTrialDesc });
       router.push('/'); 
     } catch (e) {
-      console.error(e);
+      console.error("Trial start error:", e);
       toast({ variant: "destructive", title: "Trial Error", description: "Failed to schedule bot engagement." });
     } finally {
       setIsActionLoading(false);
@@ -216,7 +220,7 @@ export default function TournamentsPage() {
       label: (myLobby && !myLobby.isTrial) ? t.cancel : t.schedule, 
       desc: (myLobby && !myLobby.isTrial) ? t.descCancel : t.descSchedule, 
       icon: (myLobby && !myLobby.isTrial) ? XCircle : UserPlus, 
-      active: true, 
+      active: !(myLobby && myLobby.isTrial), // Отключаем, если идет пробный матч
       onClick: handleToggleLobby,
       color: (myLobby && !myLobby.isTrial) ? "text-red-400" : "text-primary"
     },
@@ -228,7 +232,7 @@ export default function TournamentsPage() {
       label: (myLobby && myLobby.isTrial) ? (language === 'ru' ? 'ОТМЕНИТЬ ПРОБУ' : 'CANCEL TRIAL') : t.trial, 
       desc: t.descTrial, 
       icon: (myLobby && myLobby.isTrial) ? XCircle : Gamepad2, 
-      active: true, 
+      active: !(myLobby && !myLobby.isTrial), // Отключаем, если идет обычный поиск
       onClick: (myLobby && myLobby.isTrial) ? handleToggleLobby : handleStartTrial, 
       color: (myLobby && myLobby.isTrial) ? "text-red-400" : "text-accent" 
     },
@@ -258,9 +262,9 @@ export default function TournamentsPage() {
               key={item.label}
               className={cn(
                 "glass-card border-white/5 transition-all overflow-hidden",
-                item.active ? "hover:bg-white/5 cursor-pointer" : "opacity-60"
+                item.active ? "hover:bg-white/5 cursor-pointer" : "opacity-40 grayscale cursor-not-allowed"
               )}
-              onClick={item.onClick}
+              onClick={item.active ? item.onClick : undefined}
             >
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -289,7 +293,7 @@ export default function TournamentsPage() {
             return <Link key={item.label} href={item.href} className="block">{Content}</Link>;
           }
 
-          return <div key={item.label} className={cn("block", !item.active && "cursor-not-allowed")}>{Content}</div>;
+          return <div key={item.label} className="block">{Content}</div>;
         })}
       </div>
     </div>
