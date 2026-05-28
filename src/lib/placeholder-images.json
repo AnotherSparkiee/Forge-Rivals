@@ -41,6 +41,12 @@
       "description": "Turkish professional player portrait v1",
       "imageUrl": "https://i.postimg.cc/MHvbRpyd/tr-1.jpg",
       "imageHint": "turkish gamer"
+    },
+    {
+      "id": "arena-starter",
+      "description": "High resolution starter arena visual v3",
+      "imageUrl": "https://i.postimg.cc/75TSz68F/compressed-image-(2).jpg",
+      "imageHint": "stadium arena"
     }
   ]
 }
