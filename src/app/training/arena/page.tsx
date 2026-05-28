@@ -209,11 +209,11 @@ export default function ArenaPage() {
       )}>
         <CardContent className="p-0">
           {showStarterImage && starterImage && (
-            <div className="w-full bg-black/40">
+            <div className="w-full">
                <img 
                 src={starterImage} 
                 alt="Arena Preview" 
-                className="w-full h-auto block"
+                className="w-full h-auto block shadow-2xl"
                 loading="eager"
                />
             </div>
