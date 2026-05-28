@@ -13,14 +13,14 @@ import { Progress } from '@/components/ui/progress';
 import { 
   ChevronLeft, MessageSquare, Coffee, ShoppingBag, 
   Monitor, Home, Lightbulb, Wallet, Clock,
-  Hammer, Users, MinusCircle, PlusCircle, ImageIcon
+  Hammer, Users, MinusCircle, PlusCircle
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { getMoscowTime } from '@/app/lib/time-utils';
 import { PlaceHolderImages } from '@/app/lib/placeholder-images';
+import Image from 'next/image';
 
 export default function ArenaPage() {
   const { 
@@ -204,27 +204,24 @@ export default function ArenaPage() {
         </div>
       </header>
 
-      {/* Main Visual & Capacity Card */}
       <Card className={cn(
         "glass-card mb-6 border-white/10 bg-card overflow-hidden transition-all duration-700",
         isCapacityConstructing && "border-orange-500/30 ring-1 ring-orange-500/20"
       )}>
         <CardContent className="p-0">
-          {/* IMAGE FIRST - FULL RESOLUTION */}
           {showStarterImage && starterImage && (
-            <div className="animate-in fade-in duration-1000">
-               <div className="relative">
-                 <img 
-                  src={starterImage} 
-                  alt="Arena Visual" 
-                  className="w-full h-auto block" 
-                  loading="eager"
-                 />
-               </div>
+            <div className="animate-in fade-in duration-1000 w-full relative h-[250px]">
+               <Image 
+                src={starterImage} 
+                alt="Arena Visual" 
+                fill
+                className="object-cover" 
+                priority
+                data-ai-hint="stadium arena"
+               />
             </div>
           )}
 
-          {/* CAPACITY INFO BELOW */}
           <div className="p-6 cursor-pointer hover:bg-white/5 transition-all" onClick={() => setShowCapacityDialog(true)}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-5">
@@ -328,7 +325,6 @@ export default function ArenaPage() {
         })}
       </div>
 
-      {/* Capacity Dialog */}
       <Dialog open={showCapacityDialog} onOpenChange={(open) => { setShowCapacityDialog(open); if(!open) setIsExpanding(false); }}>
         <DialogContent className="max-w-xs bg-card border-white/5 p-6">
           <DialogHeader>
@@ -395,7 +391,6 @@ export default function ArenaPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Facility Dialog */}
       <Dialog open={!!selectedFacility} onOpenChange={() => setSelectedFacility(null)}>
         {selectedFacility && (
           <DialogContent className="max-w-xs bg-card border-white/5 p-6">
