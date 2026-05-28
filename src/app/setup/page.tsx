@@ -13,8 +13,6 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useGameState } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
@@ -46,12 +44,8 @@ export default function SetupPage() {
     }
   };
 
-  /**
-   * Calculates inherited stats if joining mid-season
-   */
   const calculateInheritedStats = (leagueId: string, level: number, group: number, day: number) => {
     if (day <= 1) return { wins: 0, draws: 0, losses: 0, points: 0 };
-    // Simulate what a bot would have earned by this day in this group
     const groupTeams = getMockGroupTeams(1000, "Template", level, 1, group, leagueId, [], undefined, day - 1);
     const replacedBot = groupTeams.length > 0 ? groupTeams[groupTeams.length - 1] : { wins: 0, draws: 0, losses: 0, points: 0 };
     return {
@@ -67,11 +61,7 @@ export default function SetupPage() {
 
     setIsUpdating(true);
     try {
-      // 1. Рандомный выбор дивизиона от 1 до 9
       const targetLevel = Math.floor(Math.random() * 9) + 1;
-      
-      // 2. Рандомный выбор группы внутри этого дивизиона
-      // В пирамиде количество групп = 2^(level - 1)
       const maxGroupsInDiv = Math.pow(2, targetLevel - 1);
       const targetGroup = Math.floor(Math.random() * maxGroupsInDiv) + 1;
 
@@ -97,7 +87,6 @@ export default function SetupPage() {
         lastProcessedSeason: 0
       };
       
-      // Non-blocking write with contextual error emission
       setDocumentNonBlocking(profileRef, updateData, { merge: true });
       
       toast({
@@ -119,7 +108,7 @@ export default function SetupPage() {
 
   if (isUserLoading || !isLoaded) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen h-screen flex items-center justify-center bg-background overflow-hidden">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-primary" />
           <p className="text-[10px] uppercase font-black tracking-[0.3em] text-muted-foreground animate-pulse">СИНХРОНИЗАЦИЯ СПУТНИКОВЫХ ДАННЫХ</p>
@@ -129,79 +118,81 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)] overflow-y-auto py-12">
-      <div className="w-full max-w-lg space-y-8 animate-in fade-in duration-700">
-        <header className="text-center space-y-4">
+    <div className="min-h-screen h-screen flex items-center justify-center p-4 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)] overflow-hidden">
+      <div className="w-full max-w-lg flex flex-col h-full max-h-[90vh] space-y-6 animate-in fade-in duration-700">
+        <header className="text-center space-y-2 flex-shrink-0">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary mb-2">
             <ShieldCheck className="w-4 h-4" />
             <span className="text-[10px] font-black uppercase tracking-widest">Фаза настройки</span>
           </div>
-          <h1 className="text-3xl font-headline font-bold text-white tracking-tighter uppercase">
+          <h1 className="text-3xl font-headline font-bold text-white tracking-tighter uppercase leading-none">
             {step === 'league' ? 'Выберите график лиги' : 'Подтвердите страну'}
           </h1>
-          <p className="text-muted-foreground text-xs uppercase tracking-widest font-bold opacity-60 px-4">
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60 px-4 leading-relaxed">
             {step === 'league' 
               ? 'Синхронизируйте ваш центр управления с мировым временем матчей.' 
               : 'Ваш флаг определит визуальный облик клуба в глобальных рейтингах.'}
           </p>
         </header>
 
-        {step === 'league' ? (
-          <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1 scrollbar-hide">
-            {LEAGUES.map((league) => (
-              <Card 
-                key={league.id} 
-                className={cn(
-                  "glass-card cursor-pointer transition-all border-white/5", 
-                  selectedLeagueId === league.id ? "ring-2 ring-primary border-primary bg-primary/10 shadow-[0_0_30px_rgba(var(--primary),0.2)]" : "hover:border-white/20"
-                )} 
-                onClick={() => setSelectedLeagueId(league.id)}
-              >
-                <CardHeader className="pb-1 p-4">
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="font-headline text-base font-bold">{league.id}</CardTitle>
-                    <Clock className={cn("w-3.5 h-3.5", selectedLeagueId === league.id ? "text-primary" : "text-muted-foreground")} />
-                  </div>
-                  <CardDescription className="text-accent font-black uppercase text-[8px] tracking-widest">{league.startTime} MSK</CardDescription>
-                </CardHeader>
-                <CardContent className="px-4 pb-4">
-                  <p className="text-[9px] text-muted-foreground leading-relaxed italic line-clamp-2">{league.description}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1 scrollbar-hide">
-            {COUNTRIES.map((country) => (
-              <Card 
-                key={country.code} 
-                className={cn(
-                  "glass-card cursor-pointer transition-all hover:bg-white/5 border-white/5", 
-                  selectedCountryCode === country.code ? "ring-2 ring-primary border-primary bg-primary/10 shadow-[0_0_30px_rgba(var(--primary),0.2)]" : "hover:border-white/20"
-                )} 
-                onClick={() => setSelectedCountryCode(country.code)}
-              >
-                <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
-                  <span className="text-4xl">{country.flag}</span>
-                  <span className="text-[9px] font-black uppercase tracking-widest text-center">{country.name}</span>
-                  {selectedCountryCode === country.code && <CheckCircle2 className="text-primary w-4 h-4 absolute top-2 right-2 animate-in zoom-in" />}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        <div className="flex-1 overflow-y-auto scrollbar-hide pr-1">
+          {step === 'league' ? (
+            <div className="grid grid-cols-2 gap-3 pb-4">
+              {LEAGUES.map((league) => (
+                <Card 
+                  key={league.id} 
+                  className={cn(
+                    "glass-card cursor-pointer transition-all border-white/5", 
+                    selectedLeagueId === league.id ? "ring-2 ring-primary border-primary bg-primary/10 shadow-[0_0_30px_rgba(var(--primary),0.2)]" : "hover:border-white/20"
+                  )} 
+                  onClick={() => setSelectedLeagueId(league.id)}
+                >
+                  <CardHeader className="pb-1 p-4">
+                    <div className="flex justify-between items-start">
+                      <CardTitle className="font-headline text-base font-bold">{league.id}</CardTitle>
+                      <Clock className={cn("w-3.5 h-3.5", selectedLeagueId === league.id ? "text-primary" : "text-muted-foreground")} />
+                    </div>
+                    <CardDescription className="text-accent font-black uppercase text-[8px] tracking-widest">{league.startTime} MSK</CardDescription>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4">
+                    <p className="text-[9px] text-muted-foreground leading-relaxed italic line-clamp-2">Операционное окно для проведения ежедневных матчей в данном часовом поясе.</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 pb-4">
+              {COUNTRIES.map((country) => (
+                <Card 
+                  key={country.code} 
+                  className={cn(
+                    "glass-card cursor-pointer transition-all hover:bg-white/5 border-white/5", 
+                    selectedCountryCode === country.code ? "ring-2 ring-primary border-primary bg-primary/10 shadow-[0_0_30px_rgba(var(--primary),0.2)]" : "hover:border-white/20"
+                  )} 
+                  onClick={() => setSelectedCountryCode(country.code)}
+                >
+                  <CardContent className="flex flex-col items-center justify-center p-6 gap-3 relative">
+                    <span className="text-4xl">{country.flag}</span>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-center">{country.name}</span>
+                    {selectedCountryCode === country.code && <CheckCircle2 className="text-primary w-4 h-4 absolute top-2 right-2 animate-in zoom-in" />}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
 
-        <div className="flex flex-col gap-3 px-4">
+        <div className="flex flex-col gap-3 px-4 flex-shrink-0 pt-2">
           <Button 
             size="lg" 
             disabled={isUpdating || (step === 'league' ? !selectedLeagueId : !selectedCountryCode)} 
             onClick={step === 'league' ? handleNextStep : handleCompleteSetup} 
-            className="w-full hero-gradient text-xs font-headline font-black h-14 tracking-[0.2em] shadow-2xl shadow-primary/20"
+            className="w-full hero-gradient text-xs font-headline font-black h-14 tracking-[0.2em] shadow-2xl shadow-primary/20 rounded-xl"
           >
             {isUpdating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (step === 'league' ? 'ПРОДОЛЖИТЬ' : 'УСТАНОВИТЬ СВЯЗЬ')}
           </Button>
           {step === 'country' && (
-            <Button variant="ghost" onClick={() => setStep('league')} className="w-full h-10 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+            <Button variant="ghost" onClick={() => setStep('league')} className="w-full h-10 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-white">
               Назад к выбору лиги
             </Button>
           )}
