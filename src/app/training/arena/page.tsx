@@ -62,7 +62,6 @@ export default function ArenaPage() {
     );
   }, [arena]);
 
-  // Уровни 0-10 показывают стартовую картинку
   const showStarterImage = maxArenaLevel >= 0 && maxArenaLevel <= 10;
   const starterImage = (PlaceHolderImages || []).find(img => img.id === 'arena-starter')?.imageUrl;
 
@@ -205,17 +204,16 @@ export default function ArenaPage() {
       </header>
 
       <Card className={cn(
-        "glass-card mb-6 border-white/10 bg-card overflow-hidden transition-all duration-700",
+        "glass-card mb-6 border-white/10 bg-card overflow-hidden transition-all",
         isCapacityConstructing && "border-orange-500/30 ring-1 ring-orange-500/20"
       )}>
         <CardContent className="p-0">
-          {/* Визуальное превью Арены */}
           {showStarterImage && starterImage && (
-            <div className="w-full relative min-h-[220px] bg-secondary/10 flex items-center justify-center overflow-hidden border-b border-white/5 animate-in fade-in duration-1000">
+            <div className="w-full bg-black/40">
                <img 
                 src={starterImage} 
-                alt="Arena Baseline Visual" 
-                className="w-full h-auto object-contain block"
+                alt="Arena Preview" 
+                className="w-full h-auto block"
                 loading="eager"
                />
             </div>
@@ -351,7 +349,7 @@ export default function ArenaPage() {
             ) : (
               <div className="space-y-6 animate-in fade-in zoom-in duration-300">
                 <div className="space-y-4">
-                  <div className="flex justify-between text-[10px] font-black uppercase text-primary tracking-widest">
+                  <div className="flex justify-between text-10 font-black uppercase text-primary tracking-widest">
                     <span>+ {expansionSeats[0]} {t.seats}</span>
                     <span className="opacity-40">Max +5000</span>
                   </div>
