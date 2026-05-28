@@ -212,23 +212,23 @@ export default function ArenaPage() {
         isCapacityConstructing && "border-orange-500/30 bg-orange-500/5"
       )} onClick={() => setShowCapacityDialog(true)}>
         <CardContent className="p-0">
-          {/* IMAGE FIRST - FULL RESOLUTION */}
+          {/* IMAGE FIRST - FULL RESOLUTION NO OVERLAYS */}
           {showStarterImage && starterImage && (
             <div className="animate-in fade-in duration-700">
-               <div className="relative group">
-                 <div className="relative overflow-hidden border-b border-white/10 bg-secondary/50">
+               <div className="relative">
+                 <div className="relative overflow-hidden border-b border-white/10">
                    <img 
                     src={starterImage} 
                     alt="Arena Visual" 
                     className="w-full h-auto block" 
+                    loading="eager"
                     data-ai-hint="dusty garage" 
                    />
-                   <div className="absolute inset-0 bg-gradient-to-t from-background/40 via-transparent to-transparent"></div>
                    <div className="absolute bottom-2 left-3 flex items-center gap-2">
-                     <div className="p-1 rounded bg-black/60 backdrop-blur-sm border border-white/10">
+                     <div className="p-1 rounded bg-black/80 backdrop-blur-md border border-white/10">
                         <ImageIcon className="w-3 h-3 text-primary" />
                      </div>
-                     <span className="text-[8px] font-black uppercase text-white/90 tracking-widest drop-shadow-md">{t.visualPreview}</span>
+                     <span className="text-[8px] font-black uppercase text-white tracking-widest drop-shadow-md">{t.visualPreview}</span>
                    </div>
                  </div>
                </div>
