@@ -12,7 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { 
   ChevronLeft, MessageSquare, Coffee, ShoppingBag, 
   Monitor, Home, Lightbulb, Wallet, Clock,
-  Hammer, Users, MinusCircle, PlusCircle
+  Hammer, MinusCircle, PlusCircle
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
@@ -85,7 +85,7 @@ export default function ArenaPage() {
       finishAt: "Ready at",
       crewBusy: "Arena Crew Busy",
       facilities: "Facility Upgrades",
-      match: "MATCH",
+      match: "SUPPORT",
       max: "Max",
       back: "Back",
       items: {
@@ -118,7 +118,7 @@ export default function ArenaPage() {
       finishAt: "Готовность в",
       crewBusy: "Бригада Арены занята",
       facilities: "Улучшение объектов",
-      match: "МАТЧ",
+      match: "ПОДДЕРЖКА",
       max: "Макс",
       back: "Назад",
       items: {
@@ -228,17 +228,11 @@ export default function ArenaPage() {
           <div className="p-4 cursor-pointer hover:bg-white/5 transition-all" onClick={() => setShowCapacityDialog(true)}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-4">
-                <div className={cn(
-                  "p-3 rounded-xl bg-secondary/50 border border-white/5 shadow-inner transition-colors",
-                  isCapacityConstructing ? "text-orange-400 animate-pulse border-orange-500/20" : "text-primary"
-                )}>
-                  <Users className="w-6 h-6" />
-                </div>
                 <div>
                   <p className="text-[7px] uppercase font-black text-muted-foreground tracking-[0.05em] mb-0.5 leading-none">{t.items.capacity.label}</p>
                   <div className="flex items-baseline gap-1.5">
                     <p className="text-2xl font-headline font-bold text-white tracking-tighter leading-none">{arena.capacity.toLocaleString()}</p>
-                    <span className="text-[8px] font-black text-primary/40 uppercase">{t.seats}</span>
+                    <span className="text-[8px] font-black text-primary/40 uppercase">{t.seats.toUpperCase()}</span>
                   </div>
                 </div>
               </div>
