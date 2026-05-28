@@ -3,7 +3,7 @@
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { Gem, Mail, Home, Radio } from 'lucide-react';
+import { Gem, Mail, Home, Radio, Bell } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -47,6 +47,18 @@ export function TopBar() {
     if (!allMessages || !user) return false;
     return allMessages.some(msg => msg.receiverId === user.uid && !msg.read);
   }, [allMessages, user]);
+
+  const notificationsQuery = useMemoFirebase(() => {
+    if (!user?.uid || !profile) return null;
+    return query(
+      collection(db, 'friend_requests_v1'),
+      where('toId', '==', user.uid),
+      where('status', '==', 'pending')
+    );
+  }, [db, user?.uid, !!profile]);
+
+  const { data: friendRequests } = useCollection(notificationsQuery);
+  const hasNotifications = (friendRequests?.length || 0) > 0;
 
   useEffect(() => {
     if (groupPlayers && groupPlayers.length > 0) {
@@ -100,6 +112,19 @@ export function TopBar() {
               <Mail className={cn("w-4 h-4", hasUnread ? "text-accent" : "text-muted-foreground")} />
               {hasUnread && (
                 <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-background"></div>
+              )}
+            </div>
+          </Link>
+
+          <Link href="/managers/requests">
+            <div className={cn(
+              itemBaseClass,
+              "w-8 rounded-full relative bg-secondary/50 border-white/5 hover:bg-white/5",
+              hasNotifications && "bg-primary/20 border-primary/50 animate-pulse"
+            )}>
+              <Bell className={cn("w-4 h-4", hasNotifications ? "text-primary" : "text-muted-foreground")} />
+              {hasNotifications && (
+                <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-background shadow-[0_0_5px_rgba(239,68,68,0.5)]"></div>
               )}
             </div>
           </Link>
