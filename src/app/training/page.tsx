@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, Castle, Building2, Zap, 
-  GraduationCap, HeartPulse, ChevronRight, BadgeCheck,
+  GraduationCap, HeartPulse, ChevronRight,
   ShieldAlert
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -118,12 +118,6 @@ export default function TrainingPage() {
             </Card>
           </Link>
         ))}
-      </div>
-
-      <div className="mt-8 p-4 bg-primary/5 rounded-xl border border-primary/20 text-center">
-        <p className="text-[10px] uppercase text-primary font-bold tracking-[0.2em] flex items-center justify-center gap-2">
-          <BadgeCheck className="w-4 h-4" /> Operational Efficiency: 100%
-        </p>
       </div>
     </div>
   );
