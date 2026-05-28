@@ -594,7 +594,13 @@ export default function MatchesPage() {
       }
 
       case 'my_played': {
-        if (matchHistory.length === 0) return (
+        const history = [...matchHistory].sort((a, b) => {
+          const timeA = a.playedAt ? new Date(a.playedAt).getTime() : 0;
+          const timeB = b.playedAt ? new Date(b.playedAt).getTime() : 0;
+          return timeB - timeA;
+        }).slice(0, 50);
+
+        if (history.length === 0) return (
           <div className="text-center py-20 opacity-50 space-y-4">
             <History className="w-12 h-12 mx-auto" />
             <p className="text-xs uppercase font-bold tracking-widest">{t.noData}</p>
@@ -603,7 +609,7 @@ export default function MatchesPage() {
 
         return (
           <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-500">
-            {matchHistory.map((match, index) => renderHistoryRow(match, index))}
+            {history.map((match, index) => renderHistoryRow(match, index))}
           </div>
         );
       }

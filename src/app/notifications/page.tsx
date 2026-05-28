@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { 
   Bell, ChevronLeft, Trash2, 
   CheckCircle2, Clock, Info, 
-  Swords, ShoppingCart, UserPlus, Zap, Trophy, ShieldAlert
+  Swords, ShoppingCart, UserPlus, Zap, Trophy, ShieldAlert, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -73,8 +73,8 @@ export default function NotificationsPage() {
       subtitle: "Operational Event Log",
       markAllRead: "Read All",
       clearAll: "Clear All",
-      noNotifs: "No active notifications.",
-      noNotifsDesc: "Operational events will be logged here as they occur.",
+      noNotifs: "Operational status quiet",
+      noNotifsDesc: "No significant tactical events or transmissions detected on this frequency.",
       typeMatch: "Match Event",
       typeMarket: "Market Update",
       typeSocial: "Social Activity",
@@ -86,8 +86,8 @@ export default function NotificationsPage() {
       subtitle: "Журнал оперативных событий",
       markAllRead: "Прочитать всё",
       clearAll: "Очистить всё",
-      noNotifs: "Уведомлений пока нет.",
-      noNotifsDesc: "Здесь будут отображаться важные события вашего клуба.",
+      noNotifs: "Важных событий нет",
+      noNotifsDesc: "На данный момент в вашем клубе не зафиксировано значимых оперативных событий.",
       typeMatch: "Матчи",
       typeMarket: "Рынок",
       typeSocial: "Друзья",
@@ -137,7 +137,7 @@ export default function NotificationsPage() {
         </div>
       </header>
 
-      {notifications && notifications.length > 0 && (
+      {notifications && notifications.length > 0 ? (
         <div className="flex gap-2 mb-6">
           <Button variant="outline" size="sm" className="h-8 text-[8px] font-black uppercase flex-1 border-white/5 bg-secondary/20" onClick={handleMarkAllRead}>
             <CheckCircle2 className="w-3 h-3 mr-2" /> {t.markAllRead}
@@ -146,7 +146,7 @@ export default function NotificationsPage() {
             <Trash2 className="w-3 h-3 mr-2" /> {t.clearAll}
           </Button>
         </div>
-      )}
+      ) : null}
 
       <div className="space-y-2">
         {isNotifsLoading ? (
@@ -160,7 +160,7 @@ export default function NotificationsPage() {
               <Card 
                 key={notif.id} 
                 className={cn(
-                  "glass-card border-white/5 transition-all overflow-hidden relative",
+                  "glass-card border-white/5 transition-all overflow-hidden relative cursor-pointer active:scale-[0.98]",
                   !notif.read && "border-primary/20 bg-primary/5"
                 )}
                 onClick={() => !notif.read && handleMarkAsRead(notif.id)}
@@ -189,12 +189,19 @@ export default function NotificationsPage() {
             );
           })
         ) : (
-          <div className="py-20 flex flex-col items-center justify-center text-center opacity-30">
-            <ShieldAlert className="w-16 h-16 mb-4" />
-            <h2 className="text-lg font-headline font-bold uppercase">{t.noNotifs}</h2>
-            <p className="text-[10px] uppercase font-bold tracking-[0.2em] mt-2 max-w-[200px]">
+          <div className="py-20 flex flex-col items-center justify-center text-center animate-in fade-in duration-700">
+            <div className="w-24 h-24 rounded-full bg-secondary/10 border-2 border-dashed border-white/5 flex items-center justify-center mb-6">
+              <ShieldAlert className="w-12 h-12 text-muted-foreground opacity-20" />
+            </div>
+            <h2 className="text-xl font-headline font-bold uppercase text-white tracking-tight">{t.noNotifs}</h2>
+            <p className="text-xs text-muted-foreground mt-2 max-w-[240px] leading-relaxed italic">
               {t.noNotifsDesc}
             </p>
+            <Link href="/" className="mt-8">
+              <Button variant="outline" className="h-10 text-[9px] font-black uppercase tracking-widest border-white/10 px-8">
+                Вернуться в хаб
+              </Button>
+            </Link>
           </div>
         )}
       </div>
