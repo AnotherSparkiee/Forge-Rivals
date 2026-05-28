@@ -85,6 +85,9 @@ export default function ArenaPage() {
       finishAt: "Ready at",
       crewBusy: "Arena Crew Busy",
       facilities: "Facility Upgrades",
+      match: "MATCH",
+      max: "Max",
+      back: "Back",
       items: {
         capacity: { label: "Stadium Capacity", desc: "Current stadium seating capacity." },
         pressCenterLevel: { label: "Press Center", desc: "Increases media coverage and attracts more elite fans." },
@@ -115,6 +118,9 @@ export default function ArenaPage() {
       finishAt: "Готовность в",
       crewBusy: "Бригада Арены занята",
       facilities: "Улучшение объектов",
+      match: "МАТЧ",
+      max: "Макс",
+      back: "Назад",
       items: {
         capacity: { label: "Вместимость стадиона", desc: "Текущая вместимость зрительских мест." },
         pressCenterLevel: { label: "Пресс-центр", desc: "Улучшает освещение в СМИ и привлекает больше фанатов." },
@@ -232,7 +238,7 @@ export default function ArenaPage() {
                   <p className="text-[7px] uppercase font-black text-muted-foreground tracking-[0.05em] mb-0.5 leading-none">{t.items.capacity.label}</p>
                   <div className="flex items-baseline gap-1.5">
                     <p className="text-2xl font-headline font-bold text-white tracking-tighter leading-none">{arena.capacity.toLocaleString()}</p>
-                    <span className="text-[8px] font-black text-primary/40 uppercase">SEATS</span>
+                    <span className="text-[8px] font-black text-primary/40 uppercase">{t.seats}</span>
                   </div>
                 </div>
               </div>
@@ -251,7 +257,7 @@ export default function ArenaPage() {
             <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-widest pt-2 border-t border-white/5">
               <span className="text-muted-foreground/60">{t.currentStatus}: {arena.capacity.toLocaleString()}</span>
               <span className="text-accent flex items-center gap-1">
-                <Wallet className="w-2.5 h-2.5" /> 30k € / MATCH
+                <Wallet className="w-2.5 h-2.5" /> 30k € / {t.match}
               </span>
             </div>
             
@@ -327,14 +333,14 @@ export default function ArenaPage() {
           <DialogHeader>
             <DialogTitle className="text-center font-headline font-bold text-xl uppercase tracking-tighter">{t.capacityTitle}</DialogTitle>
             <DialogDescription className="text-center text-[10px] mt-2 font-bold uppercase tracking-widest opacity-60">
-              {t.currentStatus}: {arena.capacity} SEATS
+              {t.currentStatus}: {arena.capacity} {t.seats.toUpperCase()}
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-4 space-y-6">
             <div className="flex flex-col gap-2 p-4 bg-secondary/30 rounded-2xl border border-white/5 text-center shadow-inner">
                <p className="text-[9px] uppercase font-black text-muted-foreground tracking-[0.2em]">{t.maintenance}</p>
-               <p className="text-lg font-headline font-bold text-accent">30,000 € / MATCH</p>
+               <p className="text-lg font-headline font-bold text-accent">30,000 € / {t.match}</p>
             </div>
 
             {!isExpanding ? (
@@ -351,7 +357,7 @@ export default function ArenaPage() {
                 <div className="space-y-4">
                   <div className="flex justify-between text-10 font-black uppercase text-primary tracking-widest">
                     <span>+ {expansionSeats[0]} {t.seats}</span>
-                    <span className="opacity-40">Max +5000</span>
+                    <span className="opacity-40">{t.max} +5000</span>
                   </div>
                   <Slider 
                     value={expansionSeats} 
@@ -380,7 +386,7 @@ export default function ArenaPage() {
                   {isAnyConstructing ? t.crewBusy : t.confirm}
                 </Button>
                 <Button variant="ghost" className="w-full text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setIsExpanding(false)}>
-                  Back to stats
+                  {t.back}
                 </Button>
               </div>
             )}
