@@ -212,18 +212,23 @@ export default function ArenaPage() {
         isCapacityConstructing && "border-orange-500/30 bg-orange-500/5"
       )} onClick={() => setShowCapacityDialog(true)}>
         <CardContent className="p-0">
-          {/* IMAGE FIRST */}
+          {/* IMAGE FIRST - FULL RESOLUTION */}
           {showStarterImage && starterImage && (
-            <div className="animate-in fade-in zoom-in duration-700">
+            <div className="animate-in fade-in duration-700">
                <div className="relative group">
-                 <div className="relative overflow-hidden border-b border-white/10 aspect-video bg-secondary/50">
-                   <img src={starterImage} alt="Arena Visual" className="w-full h-full object-cover" data-ai-hint="dusty garage" />
-                   <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent"></div>
+                 <div className="relative overflow-hidden border-b border-white/10 bg-secondary/50">
+                   <img 
+                    src={starterImage} 
+                    alt="Arena Visual" 
+                    className="w-full h-auto block" 
+                    data-ai-hint="dusty garage" 
+                   />
+                   <div className="absolute inset-0 bg-gradient-to-t from-background/40 via-transparent to-transparent"></div>
                    <div className="absolute bottom-2 left-3 flex items-center gap-2">
                      <div className="p-1 rounded bg-black/60 backdrop-blur-sm border border-white/10">
                         <ImageIcon className="w-3 h-3 text-primary" />
                      </div>
-                     <span className="text-[8px] font-black uppercase text-white/70 tracking-widest">{t.visualPreview}</span>
+                     <span className="text-[8px] font-black uppercase text-white/90 tracking-widest drop-shadow-md">{t.visualPreview}</span>
                    </div>
                  </div>
                </div>
@@ -250,13 +255,13 @@ export default function ArenaPage() {
               )}
             </div>
 
-            <div className="flex items-center justify-between text-[10px] uppercase font-bold text-muted-foreground mb-4">
+            <div className="flex items-center justify-between text-[10px] uppercase font-bold text-muted-foreground mb-2">
               <span>{t.currentStatus}: {arena.capacity.toLocaleString()}</span>
               <span className="text-accent">{t.maintenance}: 30,000€</span>
             </div>
             
             {isCapacityConstructing && (
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 mt-4">
                 <div className="flex justify-between text-[8px] uppercase font-bold text-orange-400">
                   <span>{t.improving}</span>
                   <span>{Math.floor(calculateProgress('capacity'))}%</span>
