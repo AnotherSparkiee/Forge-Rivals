@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -65,8 +66,6 @@ export default function ArenaPage() {
   const showStarterImage = maxArenaLevel >= 1 && maxArenaLevel <= 10;
   const starterImage = (PlaceHolderImages || []).find(img => img.id === 'arena-starter')?.imageUrl;
 
-  if (!isLoaded) return null;
-
   const labels = {
     en: {
       title: "ARENA MANAGEMENT",
@@ -133,6 +132,8 @@ export default function ArenaPage() {
   };
 
   const t = labels[language as keyof typeof labels] || labels.ru;
+
+  if (!isLoaded) return null;
 
   const calculateProgress = (id: string) => {
     const start = arena.constructionStarts?.[id];
@@ -210,30 +211,12 @@ export default function ArenaPage() {
         "glass-card mb-6 border-primary/20 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-all overflow-hidden",
         isCapacityConstructing && "border-orange-500/30 bg-orange-500/5"
       )} onClick={() => setShowCapacityDialog(true)}>
-        <CardContent className="p-6 relative">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <div className={cn("p-3 rounded-2xl bg-primary/20", isCapacityConstructing && "animate-pulse text-orange-400")}>
-                <Users className="w-8 h-8" />
-              </div>
-              <div>
-                <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest">{t.items.capacity.label}</p>
-                <p className="text-3xl font-headline font-bold text-primary">{arena.capacity.toLocaleString()}</p>
-              </div>
-            </div>
-            {isCapacityConstructing && (
-              <div className="text-right">
-                <p className="text-[7px] uppercase text-muted-foreground font-bold">{t.inProgress}</p>
-                <p className="text-[9px] font-mono font-bold text-orange-400">{formatFinishTime(arena.constructionFinishes.capacity!)}</p>
-              </div>
-            )}
-          </div>
-          
+        <CardContent className="p-0">
+          {/* IMAGE FIRST */}
           {showStarterImage && starterImage && (
-            <div className="mb-4 animate-in fade-in zoom-in duration-700">
+            <div className="animate-in fade-in zoom-in duration-700">
                <div className="relative group">
-                 <div className="absolute -inset-0.5 bg-primary/20 rounded-xl blur opacity-30 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-                 <div className="relative overflow-hidden rounded-xl border border-white/10 aspect-video bg-secondary/50">
+                 <div className="relative overflow-hidden border-b border-white/10 aspect-video bg-secondary/50">
                    <img src={starterImage} alt="Arena Visual" className="w-full h-full object-cover" data-ai-hint="dusty garage" />
                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent"></div>
                    <div className="absolute bottom-2 left-3 flex items-center gap-2">
@@ -247,19 +230,41 @@ export default function ArenaPage() {
             </div>
           )}
 
-          <div className="flex items-center justify-between text-[10px] uppercase font-bold text-muted-foreground mb-4">
-            <span>{t.currentStatus}: {arena.capacity.toLocaleString()}</span>
-            <span className="text-accent">{t.maintenance}: 30,000€</span>
-          </div>
-          {isCapacityConstructing && (
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-[8px] uppercase font-bold text-orange-400">
-                <span>{t.improving}</span>
-                <span>{Math.floor(calculateProgress('capacity'))}%</span>
+          {/* CAPACITY INFO BELOW */}
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-4">
+                <div className={cn("p-3 rounded-2xl bg-primary/20", isCapacityConstructing && "animate-pulse text-orange-400")}>
+                  <Users className="w-8 h-8" />
+                </div>
+                <div>
+                  <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest">{t.items.capacity.label}</p>
+                  <p className="text-3xl font-headline font-bold text-primary">{arena.capacity.toLocaleString()}</p>
+                </div>
               </div>
-              <Progress value={calculateProgress('capacity')} className="h-1 bg-orange-500/20" />
+              {isCapacityConstructing && (
+                <div className="text-right">
+                  <p className="text-[7px] uppercase text-muted-foreground font-bold">{t.inProgress}</p>
+                  <p className="text-[9px] font-mono font-bold text-orange-400">{formatFinishTime(arena.constructionFinishes.capacity!)}</p>
+                </div>
+              )}
             </div>
-          )}
+
+            <div className="flex items-center justify-between text-[10px] uppercase font-bold text-muted-foreground mb-4">
+              <span>{t.currentStatus}: {arena.capacity.toLocaleString()}</span>
+              <span className="text-accent">{t.maintenance}: 30,000€</span>
+            </div>
+            
+            {isCapacityConstructing && (
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-[8px] uppercase font-bold text-orange-400">
+                  <span>{t.improving}</span>
+                  <span>{Math.floor(calculateProgress('capacity'))}%</span>
+                </div>
+                <Progress value={calculateProgress('capacity')} className="h-1 bg-orange-500/20" />
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
