@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -220,45 +219,45 @@ export default function ArenaPage() {
             </div>
           )}
 
-          <div className="p-6 cursor-pointer hover:bg-white/5 transition-all" onClick={() => setShowCapacityDialog(true)}>
+          <div className="p-4 cursor-pointer hover:bg-white/5 transition-all" onClick={() => setShowCapacityDialog(true)}>
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-5">
+              <div className="flex items-center gap-4">
                 <div className={cn(
-                  "p-4 rounded-2xl bg-secondary/50 border border-white/5 shadow-inner transition-colors",
+                  "p-3 rounded-xl bg-secondary/50 border border-white/5 shadow-inner transition-colors",
                   isCapacityConstructing ? "text-orange-400 animate-pulse border-orange-500/20" : "text-primary"
                 )}>
-                  <Users className="w-8 h-8" />
+                  <Users className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-[8px] uppercase font-black text-muted-foreground tracking-[0.1em] mb-1 leading-none">{t.items.capacity.label}</p>
-                  <div className="flex items-baseline gap-2">
-                    <p className="text-4xl font-headline font-bold text-white tracking-tighter leading-none">{arena.capacity.toLocaleString()}</p>
-                    <span className="text-[10px] font-black text-primary/40 uppercase">SEATS</span>
+                  <p className="text-[7px] uppercase font-black text-muted-foreground tracking-[0.05em] mb-0.5 leading-none">{t.items.capacity.label}</p>
+                  <div className="flex items-baseline gap-1.5">
+                    <p className="text-2xl font-headline font-bold text-white tracking-tighter leading-none">{arena.capacity.toLocaleString()}</p>
+                    <span className="text-[8px] font-black text-primary/40 uppercase">SEATS</span>
                   </div>
                 </div>
               </div>
               {isCapacityConstructing ? (
                 <div className="text-right">
-                  <p className="text-[8px] uppercase text-orange-400 font-black tracking-widest mb-1">{t.inProgress}</p>
-                  <p className="text-xs font-mono font-bold text-white">{formatFinishTime(arena.constructionFinishes.capacity!)}</p>
+                  <p className="text-[7px] uppercase text-orange-400 font-black tracking-widest mb-0.5">{t.inProgress}</p>
+                  <p className="text-[10px] font-mono font-bold text-white">{formatFinishTime(arena.constructionFinishes.capacity!)}</p>
                 </div>
               ) : (
-                <div className="p-2 rounded-full bg-white/5 border border-white/5">
-                  <PlusCircle className="w-5 h-5 text-primary/50" />
+                <div className="p-1.5 rounded-full bg-white/5 border border-white/5">
+                  <PlusCircle className="w-4 h-4 text-primary/50" />
                 </div>
               )}
             </div>
 
-            <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest pt-2 border-t border-white/5">
+            <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-widest pt-2 border-t border-white/5">
               <span className="text-muted-foreground/60">{t.currentStatus}: {arena.capacity.toLocaleString()}</span>
-              <span className="text-accent flex items-center gap-1.5">
-                <Wallet className="w-3 h-3" /> 30,000 € / MATCH
+              <span className="text-accent flex items-center gap-1">
+                <Wallet className="w-2.5 h-2.5" /> 30k € / MATCH
               </span>
             </div>
             
             {isCapacityConstructing && (
-              <div className="space-y-1.5 mt-6">
-                <div className="flex justify-between text-[8px] uppercase font-black text-orange-400 tracking-widest">
+              <div className="space-y-1 mt-4">
+                <div className="flex justify-between text-[7px] uppercase font-black text-orange-400 tracking-widest">
                   <span>{t.improving}</span>
                   <span>{Math.floor(calculateProgress('capacity'))}%</span>
                 </div>
