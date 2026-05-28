@@ -1,3 +1,4 @@
+
 {
   "placeholderImages": [
     {
@@ -44,8 +45,8 @@
     },
     {
       "id": "arena-starter",
-      "description": "High resolution starter arena visual v2",
-      "imageUrl": "https://i.ibb.co/Y7Y8dWfS/arena-starter.jpg",
+      "description": "High resolution starter arena visual v3",
+      "imageUrl": "https://i.ibb.co/X7fFqjL/arena-starter-new.jpg",
       "imageHint": "stadium arena"
     }
   ]

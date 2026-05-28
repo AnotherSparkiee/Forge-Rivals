@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -203,7 +204,7 @@ export default function ArenaPage() {
       </header>
 
       <Card className={cn(
-        "glass-card mb-6 border-white/10 bg-card overflow-hidden transition-all",
+        "glass-card mb-6 border-white/10 bg-black overflow-hidden transition-all",
         isCapacityConstructing && "border-orange-500/30 ring-1 ring-orange-500/20"
       )}>
         <CardContent className="p-0">
@@ -214,7 +215,7 @@ export default function ArenaPage() {
                 alt="Arena Preview" 
                 className="w-full h-full object-contain block"
                 style={{ 
-                  imageRendering: 'auto'
+                  imageRendering: 'high-quality'
                 }}
                 loading="eager"
                />
