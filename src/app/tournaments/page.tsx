@@ -66,6 +66,8 @@ export default function TournamentsPage() {
       locked: "Locked",
       busy: "Operational Conflict",
       busyDesc: "Complete or cancel current engagement before starting a new one.",
+      openTour: "Open Tournaments",
+      descOpenTour: "Official league championships and cups",
       schedule: "Schedule Friendly",
       cancel: "Cancel Friendly Match",
       open: "Open Friendlies",
@@ -90,6 +92,8 @@ export default function TournamentsPage() {
       locked: "Закрыто",
       busy: "Оперативный конфликт",
       busyDesc: "Завершите или отмените текущую операцию перед началом новой.",
+      openTour: "Открытые турниры",
+      descOpenTour: "Официальные чемпионаты и кубки лиги",
       schedule: "Назначить тов. Матч",
       cancel: "Отменить тов. Матч",
       open: "Открытые тов. Матчи",
@@ -103,7 +107,7 @@ export default function TournamentsPage() {
       descTrial: "Мгновенный тренировочный бой с ботом (15 мин подгот.)",
       toastPosted: "Заявка размещена",
       toastPostedDesc: "Ваш вызов теперь виден в списке открытых матчей.",
-      toastCancelled: "Заявка отменена",
+      toastCancelled: "Заявка отмена",
       toastCancelledDesc: "Ваша запись удалена из лобби.",
       toastTrial: "Пробный матч назначен",
       toastTrialDesc: "Бой с ботом начнется через 15 минут."
@@ -215,6 +219,7 @@ export default function TournamentsPage() {
   };
 
   const menu = [
+    { label: t.openTour, desc: t.descOpenTour, icon: Trophy, active: true, href: '/tournaments/open', color: "text-yellow-500" },
     { 
       label: (myLobby && !myLobby.isTrial) ? t.cancel : t.schedule, 
       desc: (myLobby && !myLobby.isTrial) ? t.descCancel : t.descSchedule, 

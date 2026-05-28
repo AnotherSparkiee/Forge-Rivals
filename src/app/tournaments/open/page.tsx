@@ -1,59 +1,27 @@
-
 'use client';
 
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, ChevronRight, Trophy, Clock, Users, Coins } from 'lucide-react';
+import { ChevronLeft, Trophy, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
-import { Badge } from '@/components/ui/badge';
-import { getMoscowTime } from '@/app/lib/time-utils';
-import { useMemo } from 'react';
 
+/**
+ * Open Tournaments Placeholder (Stub).
+ * Displays a clean UI state when no official tournaments are scheduled.
+ */
 export default function OpenTournamentsPage() {
   const { language } = useGameState();
 
-  const mskNow = getMoscowTime();
-  const currentHour = mskNow.getHours();
-  const currentMin = mskNow.getMinutes();
-  const totalMins = currentHour * 60 + currentMin;
-  
-  // Registration for Iron Globe closes at 20:50 MSK (1250 mins)
-  const isIronGlobeClosed = totalMins >= (20 * 60 + 50);
-  // Registration for Iron Brick closes at 21:20 MSK (1280 mins)
-  const isIronBrickClosed = totalMins >= (21 * 60 + 20);
-
   const t = {
     title: language === 'ru' ? "ОТКРЫТЫЕ ТУРНИРЫ" : "OPEN TOURNAMENTS",
-    subtitle: language === 'ru' ? "Список доступных соревнований" : "Available competitive events",
-    entry: language === 'ru' ? "Взнос" : "Entry Fee",
-    time: language === 'ru' ? "Начало" : "Starts at",
-    participants: language === 'ru' ? "Участников" : "Teams",
+    subtitle: language === 'ru' ? "Список официальных соревнований" : "List of official competitions",
     noTours: language === 'ru' ? "Нет открытых турниров" : "No open tournaments",
-    noToursDesc: language === 'ru' ? "В данный момент нет турниров, доступных для регистрации. Проверьте историю на наличие активных событий." : "Currently no tournaments available for registration. Check history for active events.",
-    tournaments: [
-      {
-        id: 'iron-globe',
-        name: language === 'ru' ? 'Чугунный Глобус' : 'Cast Iron Globe',
-        desc: language === 'ru' ? 'Престижный кубок для закаленных менеджеров.' : 'A prestigious cup for battle-hardened managers.',
-        fee: 90000,
-        startTime: '21:05',
-        active: !isIronGlobeClosed,
-        href: '/tournaments/iron-globe'
-      },
-      {
-        id: 'iron-brick',
-        name: language === 'ru' ? 'Чугунный Кирпич' : 'Cast Iron Brick',
-        desc: language === 'ru' ? 'Вечерний турнир для тех, кто не боится трудностей.' : 'Late evening tournament for those who fear no obstacles.',
-        fee: 90000,
-        startTime: '21:35',
-        active: !isIronBrickClosed,
-        href: '/tournaments/iron-brick'
-      }
-    ]
+    noToursDesc: language === 'ru' 
+      ? "В данный момент регистрация на новые чемпионаты закрыта. Следите за лентой уведомлений, чтобы не пропустить следующие игры." 
+      : "Registration for new championships is currently closed. Follow the notification feed for upcoming operational events.",
+    back: language === 'ru' ? "Вернуться в хаб" : "Back to Hub"
   };
-
-  const visibleTournaments = t.tournaments.filter(tour => tour.active);
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-20">
@@ -64,63 +32,40 @@ export default function OpenTournamentsPage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1>
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{t.title}</h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
         </div>
       </header>
 
-      <div className="space-y-4">
-        {visibleTournaments.length > 0 ? (
-          visibleTournaments.map((tour) => (
-            <Link key={tour.id} href={tour.href}>
-              <Card className="glass-card hover:bg-white/5 transition-all overflow-hidden border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-                <CardContent className="p-5">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-xl bg-primary/20">
-                        <Trophy className="w-6 h-6 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-headline font-bold uppercase text-primary">{tour.name}</h3>
-                        <p className="text-[10px] text-muted-foreground italic">{tour.desc}</p>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground mt-1" />
-                  </div>
+      <div className="space-y-6">
+        <Card className="glass-card border-white/5 bg-secondary/10 overflow-hidden py-12">
+          <CardContent className="flex flex-col items-center justify-center text-center space-y-6">
+            <div className="relative">
+              <div className="absolute inset-0 bg-primary/10 rounded-full blur-2xl animate-pulse"></div>
+              <div className="w-24 h-24 rounded-full bg-secondary/50 border-2 border-dashed border-white/10 flex items-center justify-center relative z-10">
+                <Trophy className="w-12 h-12 text-muted-foreground opacity-20" />
+              </div>
+            </div>
+            
+            <div className="space-y-2 px-6">
+              <h2 className="text-xl font-headline font-bold uppercase text-white">{t.noTours}</h2>
+              <p className="text-xs text-muted-foreground leading-relaxed italic opacity-70">
+                "{t.noToursDesc}"
+              </p>
+            </div>
 
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-secondary/40 p-2 rounded-lg text-center border border-white/5">
-                      <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1 flex items-center justify-center gap-1">
-                        <Coins className="w-2.5 h-2.5" /> {t.entry}
-                      </p>
-                      <p className="text-xs font-bold text-accent">{tour.fee.toLocaleString()} €</p>
-                    </div>
-                    <div className="bg-secondary/40 p-2 rounded-lg text-center border border-white/5">
-                      <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1 flex items-center justify-center gap-1">
-                        <Clock className="w-2.5 h-2.5" /> {t.time}
-                      </p>
-                      <p className="text-xs font-bold text-primary">{tour.startTime}</p>
-                    </div>
-                    <div className="bg-secondary/40 p-2 rounded-lg text-center border border-white/5">
-                      <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1 flex items-center justify-center gap-1">
-                        <Users className="w-2.5 h-2.5" /> {t.participants}
-                      </p>
-                      <p className="text-xs font-bold">16</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))
-        ) : (
-          <div className="py-20 flex flex-col items-center justify-center text-center opacity-40">
-            <Trophy className="w-16 h-16 text-muted-foreground mb-4" />
-            <h2 className="text-lg font-headline font-bold uppercase">{t.noTours}</h2>
-            <p className="text-[10px] uppercase font-bold tracking-widest mt-2 max-w-[250px]">
-              {t.noToursDesc}
-            </p>
-          </div>
-        )}
+            <div className="pt-4 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-primary/50">
+              <ShieldAlert className="w-3 h-3" />
+              Operational Standby
+            </div>
+          </CardContent>
+        </Card>
+
+        <Link href="/tournaments" className="block">
+          <Button variant="outline" className="w-full h-12 border-white/10 text-[10px] font-black uppercase tracking-[0.2em] hover:bg-white/5">
+            {t.back}
+          </Button>
+        </Link>
       </div>
     </div>
   );
