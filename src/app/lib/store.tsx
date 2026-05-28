@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
@@ -485,13 +486,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const sorted = [...lastSeasonTeams].sort((a, b) => b.points - a.points || b.wins - a.wins);
       const myPos = sorted.findIndex(t => t.id === user.uid) + 1;
       let newLevel = state.leagueLevel;
-      let promoted = false; let demoted = false; let awardedTrophy = false;
+      let promoted = false; 
+      let demoted = false; 
+      let awardedTrophy = false;
 
+      // PROMOTION: 1st place
       if (myPos === 1) {
         newLevel = Math.max(newLevel - 1, 1);
         if (newLevel < state.leagueLevel) promoted = true;
         if (state.leagueLevel === 1 && state.groupId === 1) awardedTrophy = true;
-      } else if (myPos >= 7) {
+      } 
+      // RELEGATION: 7th or 8th place
+      else if (myPos >= 7) {
         newLevel = Math.min(newLevel + 1, 9);
         if (newLevel > state.leagueLevel) demoted = true;
       }

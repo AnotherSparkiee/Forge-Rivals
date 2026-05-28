@@ -11,7 +11,7 @@ import {
   Search, Radio, Target, Zap, ShieldAlert,
   CheckCircle2, Timer, ChevronsLeft, ChevronsRight,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
-  Skull, Crosshair, FileText, ArrowRight
+  Skull, Crosshair, FileText, ArrowRight, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -207,6 +207,8 @@ export default function RankingsPage() {
       victory: "VICTORY",
       defeat: "DEFEAT",
       draw: "DRAW",
+      promotion: "PROMOTION",
+      relegation: "RELEGATION",
       tabs: {
         my_league: { label: "My League", desc: "Group standings", icon: Trophy },
         my_pyramid: { label: "My Pyramid", desc: "Live global hierarchy", icon: LayoutDashboard },
@@ -235,6 +237,8 @@ export default function RankingsPage() {
       victory: "ПОБЕДА",
       defeat: "ПОРАЖЕНИЕ",
       draw: "НИЧЬЯ",
+      promotion: "ПОВЫШЕНИЕ",
+      relegation: "ВЫЛЕТ",
       tabs: {
         my_league: { label: "Своя лига", desc: "Рейтинг группы", icon: Trophy },
         my_pyramid: { label: "Своя пирамида", desc: "Глобальная иерархия", icon: LayoutDashboard },
@@ -277,24 +281,35 @@ export default function RankingsPage() {
         <div className="w-16 text-center">W-D-L</div>
         <div className="w-12 text-right">Pts</div>
       </div>
-      {rankingsData.map((entry, i) => (
-        <div key={entry.id} className={cn(
-          "flex items-center gap-3 p-3 rounded-xl border transition-all", 
-          entry.isMe ? "bg-primary/20 border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-secondary/20 border-white/5"
-        )}>
-          <div className="w-6 text-center font-black text-xs">
-            {i < 3 ? <Medal className={cn("w-4 h-4 mx-auto", i === 0 ? "text-yellow-500" : i === 1 ? "text-slate-400" : "text-amber-600")} /> : i + 1}
+      {rankingsData.map((entry, i) => {
+        const isPromotion = i === 0;
+        const isRelegation = i === 6 || i === 7;
+
+        return (
+          <div key={entry.id} className={cn(
+            "flex items-center gap-3 p-3 rounded-xl border transition-all relative overflow-hidden", 
+            entry.isMe ? "bg-primary/20 border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-secondary/20 border-white/5",
+            isPromotion && !entry.isMe && "border-green-500/20 bg-green-500/5",
+            isRelegation && !entry.isMe && "border-red-500/20 bg-red-500/5"
+          )}>
+            <div className="w-6 text-center font-black text-xs flex flex-col items-center justify-center gap-0.5">
+              {i < 3 ? <Medal className={cn("w-4 h-4 mx-auto", i === 0 ? "text-yellow-500" : i === 1 ? "text-slate-400" : "text-amber-600")} /> : i + 1}
+              {isPromotion && <ArrowUp className="w-3 h-3 text-green-500 animate-bounce" />}
+              {isRelegation && <ArrowDown className="w-3 h-3 text-red-500 animate-bounce" />}
+            </div>
+            <div className="flex-1 truncate">
+              <span className={cn("font-bold text-[11px] uppercase flex items-center gap-2", entry.isMe ? "text-white" : "text-muted-foreground")}>
+                {entry.name}
+                {entry.isPlayer && !entry.isMe && <Badge variant="outline" className="text-[7px] h-4 px-1.5 border-accent/40 text-accent font-black bg-accent/5">USER</Badge>}
+                {isPromotion && <span className="text-[6px] font-black text-green-500/60 tracking-tighter">{t.promotion}</span>}
+                {isRelegation && <span className="text-[6px] font-black text-red-500/60 tracking-tighter">{t.relegation}</span>}
+              </span>
+            </div>
+            <div className="w-16 text-center text-[9px] font-mono font-bold opacity-50">{entry.wins}-{entry.draws || 0}-{entry.losses}</div>
+            <div className="w-10 text-right"><p className={cn("text-sm font-headline font-black italic", entry.points > 0 ? "text-accent" : "text-muted-foreground")}>{entry.points}</p></div>
           </div>
-          <div className="flex-1 truncate">
-            <span className={cn("font-bold text-[11px] uppercase flex items-center gap-2", entry.isMe ? "text-white" : "text-muted-foreground")}>
-              {entry.name}
-              {entry.isPlayer && !entry.isMe && <Badge variant="outline" className="text-[7px] h-4 px-1.5 border-accent/40 text-accent font-black bg-accent/5">USER</Badge>}
-            </span>
-          </div>
-          <div className="w-16 text-center text-[9px] font-mono font-bold opacity-50">{entry.wins}-{entry.draws || 0}-{entry.losses}</div>
-          <div className="w-10 text-right"><p className={cn("text-sm font-headline font-black italic", entry.points > 0 ? "text-accent" : "text-muted-foreground")}>{entry.points}</p></div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 
