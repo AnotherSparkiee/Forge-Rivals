@@ -53,12 +53,12 @@ export default function ArenaPage() {
   const maxArenaLevel = useMemo(() => {
     if (!arena) return 0;
     return Math.max(
-      arena.pressCenterLevel || 0,
-      arena.cafeLevel || 0,
-      arena.shopLevel || 0,
-      arena.screensLevel || 0,
-      arena.roofLevel || 0,
-      arena.lightingLevel || 0
+      Number(arena.pressCenterLevel || 0),
+      Number(arena.cafeLevel || 0),
+      Number(arena.shopLevel || 0),
+      Number(arena.screensLevel || 0),
+      Number(arena.roofLevel || 0),
+      Number(arena.lightingLevel || 0)
     );
   }, [arena]);
 
@@ -131,8 +131,6 @@ export default function ArenaPage() {
 
   const t = labels[language as keyof typeof labels] || labels.ru;
 
-  if (!isLoaded) return null;
-
   const calculateProgress = (id: string) => {
     const start = arena.constructionStarts?.[id];
     const finish = arena.constructionFinishes?.[id];
@@ -188,6 +186,8 @@ export default function ArenaPage() {
     });
   };
 
+  if (!isLoaded) return null;
+
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-20">
       <header className="mb-6 flex items-center justify-between">
@@ -209,12 +209,12 @@ export default function ArenaPage() {
         isCapacityConstructing && "border-orange-500/30 ring-1 ring-orange-500/20"
       )}>
         <CardContent className="p-0">
-          {/* Изображение Арены */}
+          {/* Визуальное превью Арены */}
           {showStarterImage && starterImage && (
-            <div className="w-full bg-black flex items-center justify-center overflow-hidden animate-in fade-in duration-1000">
+            <div className="w-full relative min-h-[220px] bg-secondary/10 flex items-center justify-center overflow-hidden border-b border-white/5 animate-in fade-in duration-1000">
                <img 
                 src={starterImage} 
-                alt="Arena Visual" 
+                alt="Arena Baseline Visual" 
                 className="w-full h-auto object-contain block"
                 loading="eager"
                />
