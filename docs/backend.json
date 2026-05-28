@@ -41,6 +41,10 @@
       {
         "path": "/cw_basket/{userId}",
         "definition": "GenericObject"
+      },
+      {
+        "path": "/notifications_v1/{notifId}",
+        "definition": "GenericObject"
       }
     ]
   }
