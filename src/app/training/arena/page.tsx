@@ -87,7 +87,6 @@ export default function ArenaPage() {
       finishAt: "Ready at",
       crewBusy: "Arena Crew Busy",
       facilities: "Facility Upgrades",
-      visualPreview: "Operational Visual Signal",
       items: {
         capacity: { label: "Stadium Capacity", desc: "Current stadium seating capacity." },
         pressCenterLevel: { label: "Press Center", desc: "Increases media coverage and attracts more elite fans." },
@@ -118,7 +117,6 @@ export default function ArenaPage() {
       finishAt: "Готовность в",
       crewBusy: "Бригада Арены занята",
       facilities: "Улучшение объектов",
-      visualPreview: "Визуальный сигнал объекта",
       items: {
         capacity: { label: "Вместимость стадиона", desc: "Текущая вместимость зрительских мест." },
         pressCenterLevel: { label: "Пресс-центр", desc: "Улучшает освещение в СМИ и привлекает больше фанатов." },
@@ -212,7 +210,7 @@ export default function ArenaPage() {
         isCapacityConstructing && "border-orange-500/30 ring-1 ring-orange-500/20"
       )}>
         <CardContent className="p-0">
-          {/* IMAGE FIRST - FULL RESOLUTION NO OVERLAYS */}
+          {/* IMAGE FIRST - FULL RESOLUTION */}
           {showStarterImage && starterImage && (
             <div className="animate-in fade-in duration-1000">
                <div className="relative">
@@ -221,14 +219,7 @@ export default function ArenaPage() {
                   alt="Arena Visual" 
                   className="w-full h-auto block" 
                   loading="eager"
-                  data-ai-hint="dusty garage" 
                  />
-                 <div className="absolute bottom-4 left-4 flex items-center gap-2">
-                   <div className="p-1.5 rounded-lg bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl">
-                      <ImageIcon className="w-4 h-4 text-primary" />
-                   </div>
-                   <span className="text-[10px] font-black uppercase text-white tracking-[0.2em] drop-shadow-lg">{t.visualPreview}</span>
-                 </div>
                </div>
             </div>
           )}
