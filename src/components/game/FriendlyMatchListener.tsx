@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useUser, useFirestore } from '@/firebase';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { doc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { 
@@ -44,6 +44,17 @@ export function FriendlyMatchListener() {
   const handledChallengeIdRef = useRef<string | null>(null);
   const isSimulatingRef = useRef(false);
 
+  const sendNotification = useCallback((targetUserId: string, title: string, description: string) => {
+    addDocumentNonBlocking(collection(db, 'notifications_v1'), {
+      userId: targetUserId,
+      title,
+      description,
+      type: 'match',
+      read: false,
+      createdAt: new Date().toISOString()
+    });
+  }, [db]);
+
   useEffect(() => {
     if (isUserLoading || !user) return;
     const lobbyRef = doc(db, 'friendly_lobbies', user.uid);
@@ -81,12 +92,19 @@ export function FriendlyMatchListener() {
       if (handledChallengeIdRef.current !== challengeId) {
         setShowChallengeModal(true);
         handledChallengeIdRef.current = challengeId;
+        
+        // Notify host about challenge
+        sendNotification(
+          activeLobby.hostId, 
+          language === 'ru' ? "Получен вызов!" : "Challenge Received!", 
+          language === 'ru' ? `Менеджер ${activeLobby.challengerName} бросил вам вызов.` : `Manager ${activeLobby.challengerName} challenged you.`
+        );
       }
     } else if (activeLobby?.status !== 'challenged') {
       setShowChallengeModal(false);
       handledChallengeIdRef.current = null;
     }
-  }, [activeLobby]);
+  }, [activeLobby, language, sendNotification]);
 
   useEffect(() => {
     const data = activeLobby || challengeResult;
@@ -219,6 +237,13 @@ export function FriendlyMatchListener() {
           updatedAt: serverTimestamp()
         });
         
+        // Notify challenger about acceptance
+        sendNotification(
+          activeLobby.challengerId,
+          language === 'ru' ? "Вызов принят!" : "Challenge Accepted!",
+          language === 'ru' ? `Менеджер ${activeLobby.hostName} готов к бою.` : `Manager ${activeLobby.hostName} is ready for battle.`
+        );
+
         toast({
           title: language === 'ru' ? "Матч начат" : "Match Started",
           description: language === 'ru' ? "Игра отображается на главной странице." : "Match is visible on the home page.",

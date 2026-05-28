@@ -43,7 +43,7 @@ export function TopBar() {
 
   const { data: allMessages } = useCollection(unreadMessagesQuery);
   
-  const hasUnread = useMemo(() => {
+  const hasUnreadMessages = useMemo(() => {
     if (!allMessages || !user) return false;
     return allMessages.some(msg => msg.receiverId === user.uid && !msg.read);
   }, [allMessages, user]);
@@ -51,14 +51,14 @@ export function TopBar() {
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid || !profile) return null;
     return query(
-      collection(db, 'friend_requests_v1'),
-      where('toId', '==', user.uid),
-      where('status', '==', 'pending')
+      collection(db, 'notifications_v1'),
+      where('userId', '==', user.uid),
+      where('read', '==', false)
     );
   }, [db, user?.uid, !!profile]);
 
-  const { data: friendRequests } = useCollection(notificationsQuery);
-  const hasNotifications = (friendRequests?.length || 0) > 0;
+  const { data: notifications } = useCollection(notificationsQuery);
+  const unreadNotifCount = notifications?.length || 0;
 
   useEffect(() => {
     if (groupPlayers && groupPlayers.length > 0) {
@@ -107,24 +107,26 @@ export function TopBar() {
             <div className={cn(
               itemBaseClass,
               "w-8 rounded-full relative bg-secondary/50 border-white/5 hover:bg-white/5",
-              hasUnread && "bg-accent/20 border-accent/50 animate-pulse"
+              hasUnreadMessages && "bg-accent/20 border-accent/50 animate-pulse"
             )}>
-              <Mail className={cn("w-4 h-4", hasUnread ? "text-accent" : "text-muted-foreground")} />
-              {hasUnread && (
+              <Mail className={cn("w-4 h-4", hasUnreadMessages ? "text-accent" : "text-muted-foreground")} />
+              {hasUnreadMessages && (
                 <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-background"></div>
               )}
             </div>
           </Link>
 
-          <Link href="/managers/requests">
+          <Link href="/notifications">
             <div className={cn(
               itemBaseClass,
               "w-8 rounded-full relative bg-secondary/50 border-white/5 hover:bg-white/5",
-              hasNotifications && "bg-primary/20 border-primary/50 animate-pulse"
+              unreadNotifCount > 0 && "bg-primary/20 border-primary/50 animate-pulse"
             )}>
-              <Bell className={cn("w-4 h-4", hasNotifications ? "text-primary" : "text-muted-foreground")} />
-              {hasNotifications && (
-                <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-background shadow-[0_0_5px_rgba(239,68,68,0.5)]"></div>
+              <Bell className={cn("w-4 h-4", unreadNotifCount > 0 ? "text-primary" : "text-muted-foreground")} />
+              {unreadNotifCount > 0 && (
+                <div className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-1 bg-red-500 rounded-full border border-background flex items-center justify-center">
+                  <span className="text-[7px] font-black text-white leading-none">{unreadNotifCount}</span>
+                </div>
               )}
             </div>
           </Link>

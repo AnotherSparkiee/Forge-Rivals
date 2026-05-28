@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { collection, query, where, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { 
@@ -35,6 +35,17 @@ export default function FriendRequestsPage() {
   }, [db, user?.uid]);
 
   const { data: requests, isLoading: isRequestsLoading } = useCollection(requestsQuery);
+
+  const sendNotification = useCallback((targetUserId: string, title: string, description: string) => {
+    addDocumentNonBlocking(collection(db, 'notifications_v1'), {
+      userId: targetUserId,
+      title,
+      description,
+      type: 'social',
+      read: false,
+      createdAt: new Date().toISOString()
+    });
+  }, [db]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -71,16 +82,24 @@ export default function FriendRequestsPage() {
 
   const t = translations[language as keyof typeof translations] || translations.ru;
 
-  const handleRequest = async (requestId: string, accept: boolean) => {
-    setIsProcessing(requestId);
+  const handleRequest = async (request: any, accept: boolean) => {
+    setIsProcessing(request.id);
     try {
-      const requestRef = doc(db, 'friend_requests_v1', requestId);
+      const requestRef = doc(db, 'friend_requests_v1', request.id);
       if (accept) {
-        const nowIso = new Date().toISOString().split('.')[0] + 'Z';
+        const nowIso = new Date().toISOString();
         await updateDoc(requestRef, {
           status: 'accepted',
           updatedAt: nowIso
         });
+        
+        // Notify the requester
+        sendNotification(
+          request.fromId,
+          language === 'ru' ? "Запрос принят!" : "Request Accepted!",
+          language === 'ru' ? `Менеджер ${request.toName} теперь ваш друг.` : `Manager ${request.toName} is now your friend.`
+        );
+
         toast({ title: t.success });
       } else {
         await deleteDoc(requestRef);
@@ -112,7 +131,7 @@ export default function FriendRequestsPage() {
         {isRequestsLoading ? (
           <div className="py-20 flex flex-col items-center justify-center space-y-4 opacity-50">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <p className="text-[10px] uppercase font-bold tracking-widest">Scanning network...</p>
+            <p className="text-[10px] uppercase font-black tracking-widest">Scanning network...</p>
           </div>
         ) : requests && requests.length > 0 ? (
           requests.map((request) => (
@@ -135,7 +154,7 @@ export default function FriendRequestsPage() {
                     size="sm" 
                     className="h-10 hero-gradient font-black text-[10px] uppercase"
                     disabled={!!isProcessing}
-                    onClick={() => handleRequest(request.id, true)}
+                    onClick={() => handleRequest(request, true)}
                   >
                     {isProcessing === request.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3 mr-2" />}
                     {t.accept}
@@ -145,7 +164,7 @@ export default function FriendRequestsPage() {
                     variant="outline" 
                     className="h-10 border-white/10 font-black text-[10px] uppercase text-muted-foreground"
                     disabled={!!isProcessing}
-                    onClick={() => handleRequest(request.id, false)}
+                    onClick={() => handleRequest(request, false)}
                   >
                     <X className="w-3 h-3 mr-2" />
                     {t.reject}

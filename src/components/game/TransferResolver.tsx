@@ -1,15 +1,11 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useEffect, useRef, useCallback } from 'react';
+import { useUser, useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { doc, collection, query, where, deleteDoc, updateDoc } from 'firebase/firestore';
+import { doc, collection, query, where, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
-/**
- * BACKGROUND RESOLVER for Transfer Market.
- * Uses useCollection for a stable real-time listener to avoid Firestore assertion errors.
- */
 export function TransferResolver() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
@@ -24,6 +20,18 @@ export function TransferResolver() {
   const { data: mySales } = useCollection(marketQuery);
   const processedIds = useRef<Set<string>>(new Set());
 
+  const sendNotification = useCallback((title: string, description: string) => {
+    if (!user) return;
+    addDocumentNonBlocking(collection(db, 'notifications_v1'), {
+      userId: user.uid,
+      title,
+      description,
+      type: 'market',
+      read: false,
+      createdAt: new Date().toISOString()
+    });
+  }, [user, db]);
+
   useEffect(() => {
     if (!isLoaded || isUserLoading || !user || !mySales) return;
 
@@ -33,7 +41,6 @@ export function TransferResolver() {
       for (const agent of mySales) {
         const expiresAt = new Date(agent.expiresAt);
         
-        // If expired and not already processed in this session
         if (now > expiresAt && !processedIds.current.has(agent.id)) {
           processedIds.current.add(agent.id);
           
@@ -45,37 +52,44 @@ export function TransferResolver() {
               addCredits(agent.currentBid);
               removeHero(heroId, 0);
               
-              toast({
-                title: language === 'ru' ? "Игрок продан!" : "Player Sold!",
-                description: `${agent.heroData.name} продан за €${agent.currentBid.toLocaleString()}`
-              });
+              const title = language === 'ru' ? "Игрок продан!" : "Player Sold!";
+              const desc = language === 'ru' 
+                ? `${agent.heroData.name} продан за €${agent.currentBid.toLocaleString()}`
+                : `${agent.heroData.name} sold for €${agent.currentBid.toLocaleString()}`;
+              
+              sendNotification(title, desc);
+              
+              toast({ title, description: desc });
             } else {
-              // NOT SOLD - return to club (clear transfer metadata)
+              // NOT SOLD
               updateHero(heroId, { 
                 onTransferUntil: null, 
                 transferMarketId: null 
               });
               
-              toast({
-                title: language === 'ru' ? "Аукцион завершен" : "Auction Ended",
-                description: `${agent.heroData.name} остается в клубе (ставок нет).`
-              });
+              const title = language === 'ru' ? "Аукцион завершен" : "Auction Ended";
+              const desc = language === 'ru' 
+                ? `${agent.heroData.name} остается в клубе (ставок нет).`
+                : `${agent.heroData.name} remains in club (no bids).`;
+
+              sendNotification(title, desc);
+              
+              toast({ title, description: desc });
             }
 
-            // Clean up market entry
             await deleteDoc(doc(db, 'market_v2', agent.id));
           } catch (e) {
             console.error("Failed to resolve sale", e);
-            processedIds.current.delete(agent.id); // Retry next check
+            processedIds.current.delete(agent.id);
           }
         }
       }
     };
 
-    const interval = setInterval(resolveSales, 15000); // Check every 15 seconds
+    const interval = setInterval(resolveSales, 15000);
     resolveSales();
     return () => clearInterval(interval);
-  }, [isLoaded, isUserLoading, user, mySales, addCredits, removeHero, updateHero, language, toast, db]);
+  }, [isLoaded, isUserLoading, user, mySales, addCredits, removeHero, updateHero, language, toast, db, sendNotification]);
 
   return null;
 }

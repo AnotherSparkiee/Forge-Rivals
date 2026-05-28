@@ -3,8 +3,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { Hero, INITIAL_HEROES, generateYouthHero, StaffMember, StaffRole } from './moba-data';
 import { getMoscowTime, getMoscowDateString, isMatchDue, getGlobalSeasonInfo } from './time-utils';
-import { useUser, useFirestore, updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
-import { doc, onSnapshot, updateDoc, arrayUnion } from 'firebase/firestore';
+import { useUser, useFirestore, updateDocumentNonBlocking, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
+import { doc, onSnapshot, updateDoc, arrayUnion, collection } from 'firebase/firestore';
 import { getMockGroupTeams, LEAGUES } from './leagues-data';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2';
@@ -347,6 +347,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }, 0);
   }, [user, db]);
 
+  const sendNotification = useCallback((title: string, description: string, type: string) => {
+    if (!user) return;
+    addDocumentNonBlocking(collection(db, 'notifications_v1'), {
+      userId: user.uid,
+      title,
+      description,
+      type,
+      read: false,
+      createdAt: new Date().toISOString()
+    });
+  }, [user, db]);
+
   useEffect(() => {
     if (isUserLoading) {
       setIsLoaded(false);
@@ -478,15 +490,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const currentMins = mskNow.getHours() * 60 + mskNow.getMinutes();
     const RECALC_TIME = 16 * 60; // 16:00 MSK
 
-    // Season Recalculation Trigger (Promotion/Demotion)
-    // Happens on Day 15 AFTER 16:00 MSK
     const isRecalcDue = globalDay === 15 && currentMins >= RECALC_TIME;
     const isNewSeasonStarted = globalDay === 16 || globalDay < 15;
 
     const needsRecalc = (isRecalcDue || isNewSeasonStarted) && state.lastProcessedSeason < globalSeason;
 
     if (needsRecalc) {
-      // Use full 14 days of simulation for last season results
       const lastSeasonTeams = getMockGroupTeams(state.rank, state.country || "My Team", state.leagueLevel, state.divisionSubId, state.groupId, state.selectedLeagueId, groupPlayers, user.uid, 14);
       const sorted = [...lastSeasonTeams].sort((a, b) => b.points - a.points || b.wins - a.wins);
       const myPos = sorted.findIndex(t => t.id === user.uid) + 1;
@@ -496,13 +505,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       let demoted = false; 
       let awardedTrophy = false;
 
-      // PROMOTION: 1st place
       if (myPos === 1) {
         newLevel = Math.max(newLevel - 1, 1);
         if (newLevel < state.leagueLevel) promoted = true;
         if (state.leagueLevel === 1 && state.groupId === 1) awardedTrophy = true;
       } 
-      // RELEGATION: 7th or 8th place
       else if (myPos >= 7) {
         newLevel = Math.min(newLevel + 1, 9);
         if (newLevel > state.leagueLevel) demoted = true;
@@ -516,6 +523,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         seasonNumber: globalSeason, 
         awardedTrophy 
       });
+
+      // Notification for league results
+      const resTitle = state.language === 'ru' ? "Сезон завершен!" : "Season Finished!";
+      const resDesc = state.language === 'ru' 
+        ? `Вы заняли ${myPos} место. ${promoted ? 'Повышение!' : (demoted ? 'Понижение в классе.' : 'Вы остались в дивизионе.')}`
+        : `You finished ${myPos}. ${promoted ? 'Promotion!' : (demoted ? 'Relegation.' : 'Staying in the division.')}`;
+      
+      sendNotification(resTitle, resDesc, 'league');
 
       setTimeout(() => {
         runCloudUpdate({ 
@@ -532,7 +547,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return; 
     }
 
-    // Daily Sync during match days
     if (globalDay <= 14) {
       const league = LEAGUES.find(l => l.id === state.selectedLeagueId);
       const isPlayedToday = isMatchDue(league?.startTime || "23:00", state.lastLeagueMatchDate);
@@ -557,7 +571,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         }, 0);
       }
     }
-  }, [state.selectedLeagueId, state.seasonDay, state.lastLeagueMatchDate, state.rank, state.leagueLevel, state.divisionSubId, state.groupId, state.lastProcessedSeason, state.hasEliteTrophy, state.country, user, runCloudUpdate]);
+  }, [state.selectedLeagueId, state.seasonDay, state.lastLeagueMatchDate, state.rank, state.leagueLevel, state.divisionSubId, state.groupId, state.lastProcessedSeason, state.hasEliteTrophy, state.country, user, runCloudUpdate, sendNotification, state.language]);
 
   const addCredits = useCallback((amount: number) => {
     setState(s => {
@@ -716,7 +730,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const nowTime = Date.now(); 
       let globalChanges = false;
 
-      const processSector = (sector: any) => {
+      const processSector = (sector: any, sectorName: string) => {
         let sectorChanges = false;
         const updated = { ...sector }; 
         const finishes = { ...(sector.constructionFinishes || {}) }; 
@@ -734,6 +748,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             starts[id] = null; 
             sectorChanges = true;
             globalChanges = true;
+
+            // Notify about completion
+            const title = s.language === 'ru' ? "Объект готов!" : "Construction Finished!";
+            const desc = s.language === 'ru' 
+              ? `Модернизация объекта в секторе "${sectorName}" завершена.` 
+              : `Upgrade in "${sectorName}" sector is complete.`;
+            sendNotification(title, desc, 'infrastructure');
           }
         });
 
@@ -745,11 +766,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         return sector;
       };
 
-      const newArena = processSector(s.arena);
-      const newHQ = processSector(s.hq);
-      const newBootcamp = processSector(s.bootcamp);
-      const newAcademy = processSector(s.academy);
-      const newMedical = processSector(s.medical);
+      const newArena = processSector(s.arena, s.language === 'ru' ? 'Арена' : 'Arena');
+      const newHQ = processSector(s.hq, s.language === 'ru' ? 'Офис' : 'HQ');
+      const newBootcamp = processSector(s.bootcamp, s.language === 'ru' ? 'Буткемп' : 'Bootcamp');
+      const newAcademy = processSector(s.academy, s.language === 'ru' ? 'Академия' : 'Academy');
+      const newMedical = processSector(s.medical, s.language === 'ru' ? 'Медицина' : 'Medical');
 
       if (!globalChanges) return s;
 
@@ -774,7 +795,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
       return newState;
     });
-  }, [runCloudUpdate]);
+  }, [runCloudUpdate, sendNotification]);
 
   const setLanguage = useCallback((lang: 'en' | 'ru') => setState(s => ({ ...s, language: lang })), []);
   
@@ -934,7 +955,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     
     setState(s => {
       const existingIdx = s.matchHistory.findIndex(m => m.id === matchId);
-      // STRICT UNIQUE CHECK: If ID already exists, do absolutely nothing (prevent duplicate XP/Credits)
       if (existingIdx !== -1) return s;
       
       const scoreA = result.scoreA || 0; const scoreB = result.scoreB || 0;
@@ -999,6 +1019,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const newLastLeagueDate = type === 'league' && matchDay === s.seasonDay ? todayStr : s.lastLeagueMatchDate;
       const newLastCupDate = type === 'cup' ? todayStr : s.lastCupMatchDate;
 
+      // Notification for match results
+      const mTitle = s.language === 'ru' ? "Матч завершен" : "Match Finished";
+      const mDesc = s.language === 'ru' 
+        ? `Результат боя против ${opponentName}: ${scoreA}:${scoreB}.`
+        : `Battle result vs ${opponentName}: ${scoreA}:${scoreB}.`;
+      sendNotification(mTitle, mDesc, 'match');
+
       setTimeout(() => {
         runCloudUpdate({ 
           inGameCurrency: newCredits, 
@@ -1016,7 +1043,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       
       return { ...s, credits: newCredits, rank: newRank, experiencePoints: newTotalXP, managerLevel: newLevel, skillPoints: newSkillPoints, matchHistory: newHistory, lastLeagueMatchDate: newLastLeagueDate, lastCupMatchDate: newLastCupDate, ownedHeroes: updatedOwned, youthAcademyHeroes: updatedYouth, isSyncing: false };
     });
-  }, [runCloudUpdate]);
+  }, [runCloudUpdate, sendNotification]);
 
   const upgradeManagerSkill = useCallback((skillKey: keyof GameState['managerSkills']) => {
     setState(s => {
