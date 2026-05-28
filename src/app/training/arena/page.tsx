@@ -20,7 +20,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { PlaceHolderImages } from '@/app/lib/placeholder-images';
-import Image from 'next/image';
 
 export default function ArenaPage() {
   const { 
@@ -63,7 +62,8 @@ export default function ArenaPage() {
     );
   }, [arena]);
 
-  const showStarterImage = maxArenaLevel >= 1 && maxArenaLevel <= 10;
+  // Уровни 0-10 показывают стартовую картинку
+  const showStarterImage = maxArenaLevel >= 0 && maxArenaLevel <= 10;
   const starterImage = (PlaceHolderImages || []).find(img => img.id === 'arena-starter')?.imageUrl;
 
   const labels = {
@@ -209,15 +209,14 @@ export default function ArenaPage() {
         isCapacityConstructing && "border-orange-500/30 ring-1 ring-orange-500/20"
       )}>
         <CardContent className="p-0">
+          {/* Изображение Арены */}
           {showStarterImage && starterImage && (
-            <div className="animate-in fade-in duration-1000 w-full relative h-[250px]">
-               <Image 
+            <div className="w-full bg-black flex items-center justify-center overflow-hidden animate-in fade-in duration-1000">
+               <img 
                 src={starterImage} 
                 alt="Arena Visual" 
-                fill
-                className="object-cover" 
-                priority
-                data-ai-hint="stadium arena"
+                className="w-full h-auto object-contain block"
+                loading="eager"
                />
             </div>
           )}
@@ -326,7 +325,7 @@ export default function ArenaPage() {
       </div>
 
       <Dialog open={showCapacityDialog} onOpenChange={(open) => { setShowCapacityDialog(open); if(!open) setIsExpanding(false); }}>
-        <DialogContent className="max-w-xs bg-card border-white/5 p-6">
+        <DialogContent className="max-w-xs bg-card border-white/10 p-6">
           <DialogHeader>
             <DialogTitle className="text-center font-headline font-bold text-xl uppercase tracking-tighter">{t.capacityTitle}</DialogTitle>
             <DialogDescription className="text-center text-[10px] mt-2 font-bold uppercase tracking-widest opacity-60">
@@ -393,7 +392,7 @@ export default function ArenaPage() {
 
       <Dialog open={!!selectedFacility} onOpenChange={() => setSelectedFacility(null)}>
         {selectedFacility && (
-          <DialogContent className="max-w-xs bg-card border-white/5 p-6">
+          <DialogContent className="max-w-xs bg-card border-white/10 p-6">
             <DialogHeader>
               <DialogTitle className="text-center font-headline font-bold text-xl uppercase tracking-tight">
                 {t.items[selectedFacility as keyof typeof t.items].label}

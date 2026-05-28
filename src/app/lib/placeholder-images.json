@@ -45,9 +45,9 @@
     },
     {
       "id": "arena-starter",
-      "description": "Starter arena for levels 1-10",
+      "description": "High resolution starter arena visual",
       "imageUrl": "https://i.postimg.cc/02Wfndm3/compressed-image.jpg",
-      "imageHint": "dusty garage"
+      "imageHint": "stadium arena"
     }
   ]
 }
