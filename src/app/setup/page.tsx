@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -102,16 +101,16 @@ export default function SetupPage() {
       setDocumentNonBlocking(profileRef, updateData, { merge: true });
       
       toast({
-        title: "Profile Synchronized",
-        description: `Deployment successful. Assigned to Division ${targetLevel}, Group ${targetGroup}.`,
+        title: "Профиль синхронизирован",
+        description: `Развертывание успешно. Вы назначены в Дивизион ${targetLevel}, Группа ${targetGroup}.`,
       });
       router.push('/');
     } catch (error: any) {
       console.error("Setup sequence fail:", error);
       toast({
         variant: "destructive",
-        title: "Transmission Error",
-        description: "Failed to initiate operational profile.",
+        title: "Ошибка передачи",
+        description: "Не удалось инициировать операционный профиль.",
       });
     } finally {
       setIsUpdating(false);
@@ -123,90 +122,89 @@ export default function SetupPage() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-[10px] uppercase font-black tracking-[0.3em] text-muted-foreground animate-pulse">Syncing Satellite Data</p>
+          <p className="text-[10px] uppercase font-black tracking-[0.3em] text-muted-foreground animate-pulse">СИНХРОНИЗАЦИЯ СПУТНИКОВЫХ ДАННЫХ</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)]">
-      <div className="w-full max-w-4xl space-y-12 animate-in fade-in duration-700">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)] overflow-y-auto py-12">
+      <div className="w-full max-w-lg space-y-8 animate-in fade-in duration-700">
         <header className="text-center space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary mb-2">
             <ShieldCheck className="w-4 h-4" />
-            <span className="text-[10px] font-black uppercase tracking-widest">Commissioning Phase</span>
+            <span className="text-[10px] font-black uppercase tracking-widest">Фаза настройки</span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-headline font-bold text-white tracking-tighter uppercase">
-            {step === 'league' ? 'Select Operational Window' : 'Confirm Jurisdiction'}
+          <h1 className="text-3xl font-headline font-bold text-white tracking-tighter uppercase">
+            {step === 'league' ? 'Выберите график лиги' : 'Подтвердите страну'}
           </h1>
-          <p className="text-muted-foreground text-sm uppercase tracking-widest font-bold opacity-60">
+          <p className="text-muted-foreground text-xs uppercase tracking-widest font-bold opacity-60 px-4">
             {step === 'league' 
-              ? 'Synchronize your command center with a global league shift.' 
-              : 'Your flag will define your club\'s visual signature in the rankings.'}
+              ? 'Синхронизируйте ваш центр управления с мировым временем матчей.' 
+              : 'Ваш флаг определит визуальный облик клуба в глобальных рейтингах.'}
           </p>
         </header>
 
         {step === 'league' ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1 scrollbar-hide">
             {LEAGUES.map((league) => (
               <Card 
                 key={league.id} 
                 className={cn(
-                  "glass-card cursor-pointer transition-all hover:scale-[1.02] border-white/5", 
+                  "glass-card cursor-pointer transition-all border-white/5", 
                   selectedLeagueId === league.id ? "ring-2 ring-primary border-primary bg-primary/10 shadow-[0_0_30px_rgba(var(--primary),0.2)]" : "hover:border-white/20"
                 )} 
                 onClick={() => setSelectedLeagueId(league.id)}
               >
-                <CardHeader className="pb-2 p-4">
+                <CardHeader className="pb-1 p-4">
                   <div className="flex justify-between items-start">
-                    <CardTitle className="font-headline text-lg font-bold">{league.id}</CardTitle>
-                    <Clock className={cn("w-4 h-4", selectedLeagueId === league.id ? "text-primary" : "text-muted-foreground")} />
+                    <CardTitle className="font-headline text-base font-bold">{league.id}</CardTitle>
+                    <Clock className={cn("w-3.5 h-3.5", selectedLeagueId === league.id ? "text-primary" : "text-muted-foreground")} />
                   </div>
-                  <CardDescription className="text-accent font-black uppercase text-[9px] tracking-widest">{league.startTime} MSK</CardDescription>
+                  <CardDescription className="text-accent font-black uppercase text-[8px] tracking-widest">{league.startTime} MSK</CardDescription>
                 </CardHeader>
                 <CardContent className="px-4 pb-4">
-                  <p className="text-[10px] text-muted-foreground leading-relaxed italic line-clamp-2">{league.description}</p>
-                  {selectedLeagueId === league.id && <div className="mt-3 flex justify-center"><CheckCircle2 className="text-primary w-5 h-5 animate-in zoom-in" /></div>}
+                  <p className="text-[9px] text-muted-foreground leading-relaxed italic line-clamp-2">{league.description}</p>
                 </CardContent>
               </Card>
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-h-[50vh] overflow-y-auto pr-2 scrollbar-hide">
+          <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1 scrollbar-hide">
             {COUNTRIES.map((country) => (
               <Card 
                 key={country.code} 
                 className={cn(
                   "glass-card cursor-pointer transition-all hover:bg-white/5 border-white/5", 
-                  selectedCountryCode === country.code ? "ring-2 ring-primary border-primary bg-primary/10" : "hover:border-white/20"
+                  selectedCountryCode === country.code ? "ring-2 ring-primary border-primary bg-primary/10 shadow-[0_0_30px_rgba(var(--primary),0.2)]" : "hover:border-white/20"
                 )} 
                 onClick={() => setSelectedCountryCode(country.code)}
               >
                 <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
-                  <span className="text-5xl">{country.flag}</span>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-center">{country.name}</span>
-                  {selectedCountryCode === country.code && <CheckCircle2 className="text-primary w-5 h-5 absolute top-2 right-2 animate-in zoom-in" />}
+                  <span className="text-4xl">{country.flag}</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-center">{country.name}</span>
+                  {selectedCountryCode === country.code && <CheckCircle2 className="text-primary w-4 h-4 absolute top-2 right-2 animate-in zoom-in" />}
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
 
-        <div className="flex flex-col md:flex-row justify-center items-center gap-4">
-          {step === 'country' && (
-            <Button variant="ghost" onClick={() => setStep('league')} className="w-full md:w-40 h-14 text-xs font-black uppercase tracking-widest">
-              Reconfigure
-            </Button>
-          )}
+        <div className="flex flex-col gap-3 px-4">
           <Button 
             size="lg" 
             disabled={isUpdating || (step === 'league' ? !selectedLeagueId : !selectedCountryCode)} 
             onClick={step === 'league' ? handleNextStep : handleCompleteSetup} 
-            className="w-full max-w-sm hero-gradient text-sm font-headline font-black h-14 tracking-[0.2em] shadow-2xl shadow-primary/20"
+            className="w-full hero-gradient text-xs font-headline font-black h-14 tracking-[0.2em] shadow-2xl shadow-primary/20"
           >
-            {isUpdating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (step === 'league' ? 'CONTINUE SEQUENCE' : 'ESTABLISH LINK')}
+            {isUpdating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (step === 'league' ? 'ПРОДОЛЖИТЬ' : 'УСТАНОВИТЬ СВЯЗЬ')}
           </Button>
+          {step === 'country' && (
+            <Button variant="ghost" onClick={() => setStep('league')} className="w-full h-10 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              Назад к выбору лиги
+            </Button>
+          )}
         </div>
       </div>
     </div>
