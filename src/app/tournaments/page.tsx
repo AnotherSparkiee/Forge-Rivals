@@ -70,7 +70,6 @@ export default function TournamentsPage() {
       cancel: "Cancel Friendly Match",
       open: "Open Friendlies",
       cw: "CW Basket",
-      tournaments: "Open Tournaments",
       history: "Tournament History",
       trial: "Trial Match",
       descSchedule: "Post a request for a friendly encounter",
@@ -95,7 +94,6 @@ export default function TournamentsPage() {
       cancel: "Отменить тов. Матч",
       open: "Открытые тов. Матчи",
       cw: "КВ корзина",
-      tournaments: "Открытые турниры",
       history: "История турниров",
       trial: "Пробный матч",
       descSchedule: "Разместить заявку на проведение встречи",
@@ -163,7 +161,6 @@ export default function TournamentsPage() {
       const botId = `bot${botIdNum}`;
       const botName = `bot${botIdNum}`;
       
-      // Minimize payload: Send only required stats to prevent 'Failed to fetch' size limits
       const squad = ownedHeroes
         .filter(h => Object.values(lineup).includes(h.id))
         .map(h => ({
@@ -228,7 +225,6 @@ export default function TournamentsPage() {
     },
     { label: t.open, desc: t.descOpen, icon: Search, active: true, href: '/tournaments/open-friendlies' },
     { label: t.cw, desc: t.descCW, icon: ShoppingBasket, active: true, href: '/tournaments/cw-basket' },
-    { label: t.tournaments, desc: language === 'ru' ? "Активные чемпионаты и кубки" : "Active championships", icon: Trophy, active: true, href: '/tournaments/open' },
     { label: t.history, desc: language === 'ru' ? "Архив ваших выступлений" : "Archive of your battles", icon: History, active: true, href: '/tournaments/history' },
     { 
       label: (myLobby && myLobby.isTrial) ? (language === 'ru' ? 'ОТМЕНИТЬ ПРОБУ' : 'CANCEL TRIAL') : t.trial, 
