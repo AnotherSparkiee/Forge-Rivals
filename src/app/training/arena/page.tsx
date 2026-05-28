@@ -206,67 +206,77 @@ export default function ArenaPage() {
         </div>
       </header>
 
-      {/* Capacity Card */}
+      {/* Main Visual & Capacity Card */}
       <Card className={cn(
-        "glass-card mb-6 border-primary/20 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-all overflow-hidden",
-        isCapacityConstructing && "border-orange-500/30 bg-orange-500/5"
-      )} onClick={() => setShowCapacityDialog(true)}>
+        "glass-card mb-6 border-white/10 bg-card overflow-hidden transition-all duration-700",
+        isCapacityConstructing && "border-orange-500/30 ring-1 ring-orange-500/20"
+      )}>
         <CardContent className="p-0">
           {/* IMAGE FIRST - FULL RESOLUTION NO OVERLAYS */}
           {showStarterImage && starterImage && (
-            <div className="animate-in fade-in duration-700">
+            <div className="animate-in fade-in duration-1000">
                <div className="relative">
-                 <div className="relative overflow-hidden border-b border-white/10">
-                   <img 
-                    src={starterImage} 
-                    alt="Arena Visual" 
-                    className="w-full h-auto block" 
-                    loading="eager"
-                    data-ai-hint="dusty garage" 
-                   />
-                   <div className="absolute bottom-2 left-3 flex items-center gap-2">
-                     <div className="p-1 rounded bg-black/80 backdrop-blur-md border border-white/10">
-                        <ImageIcon className="w-3 h-3 text-primary" />
-                     </div>
-                     <span className="text-[8px] font-black uppercase text-white tracking-widest drop-shadow-md">{t.visualPreview}</span>
+                 <img 
+                  src={starterImage} 
+                  alt="Arena Visual" 
+                  className="w-full h-auto block" 
+                  loading="eager"
+                  data-ai-hint="dusty garage" 
+                 />
+                 <div className="absolute bottom-4 left-4 flex items-center gap-2">
+                   <div className="p-1.5 rounded-lg bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl">
+                      <ImageIcon className="w-4 h-4 text-primary" />
                    </div>
+                   <span className="text-[10px] font-black uppercase text-white tracking-[0.2em] drop-shadow-lg">{t.visualPreview}</span>
                  </div>
                </div>
             </div>
           )}
 
           {/* CAPACITY INFO BELOW */}
-          <div className="p-6">
+          <div className="p-6 cursor-pointer hover:bg-white/5 transition-all" onClick={() => setShowCapacityDialog(true)}>
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-4">
-                <div className={cn("p-3 rounded-2xl bg-primary/20", isCapacityConstructing && "animate-pulse text-orange-400")}>
+              <div className="flex items-center gap-5">
+                <div className={cn(
+                  "p-4 rounded-2xl bg-secondary/50 border border-white/5 shadow-inner transition-colors",
+                  isCapacityConstructing ? "text-orange-400 animate-pulse border-orange-500/20" : "text-primary"
+                )}>
                   <Users className="w-8 h-8" />
                 </div>
                 <div>
-                  <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest">{t.items.capacity.label}</p>
-                  <p className="text-3xl font-headline font-bold text-primary">{arena.capacity.toLocaleString()}</p>
+                  <p className="text-[10px] uppercase font-black text-muted-foreground tracking-[0.2em] mb-1">{t.items.capacity.label}</p>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-4xl font-headline font-bold text-white tracking-tighter leading-none">{arena.capacity.toLocaleString()}</p>
+                    <span className="text-xs font-black text-primary/40 uppercase">SEATS</span>
+                  </div>
                 </div>
               </div>
-              {isCapacityConstructing && (
+              {isCapacityConstructing ? (
                 <div className="text-right">
-                  <p className="text-[7px] uppercase text-muted-foreground font-bold">{t.inProgress}</p>
-                  <p className="text-[9px] font-mono font-bold text-orange-400">{formatFinishTime(arena.constructionFinishes.capacity!)}</p>
+                  <p className="text-[8px] uppercase text-orange-400 font-black tracking-widest mb-1">{t.inProgress}</p>
+                  <p className="text-xs font-mono font-bold text-white">{formatFinishTime(arena.constructionFinishes.capacity!)}</p>
+                </div>
+              ) : (
+                <div className="p-2 rounded-full bg-white/5 border border-white/5">
+                  <PlusCircle className="w-5 h-5 text-primary/50" />
                 </div>
               )}
             </div>
 
-            <div className="flex items-center justify-between text-[10px] uppercase font-bold text-muted-foreground mb-2">
-              <span>{t.currentStatus}: {arena.capacity.toLocaleString()}</span>
-              <span className="text-accent">{t.maintenance}: 30,000€</span>
+            <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest pt-2 border-t border-white/5">
+              <span className="text-muted-foreground/60">{t.currentStatus}: {arena.capacity.toLocaleString()}</span>
+              <span className="text-accent flex items-center gap-1.5">
+                <Wallet className="w-3 h-3" /> 30,000 € / MATCH
+              </span>
             </div>
             
             {isCapacityConstructing && (
-              <div className="space-y-1.5 mt-4">
-                <div className="flex justify-between text-[8px] uppercase font-bold text-orange-400">
+              <div className="space-y-1.5 mt-6">
+                <div className="flex justify-between text-[8px] uppercase font-black text-orange-400 tracking-widest">
                   <span>{t.improving}</span>
                   <span>{Math.floor(calculateProgress('capacity'))}%</span>
                 </div>
-                <Progress value={calculateProgress('capacity')} className="h-1 bg-orange-500/20" />
+                <Progress value={calculateProgress('capacity')} className="h-1 bg-orange-500/10" />
               </div>
             )}
           </div>
@@ -284,38 +294,41 @@ export default function ArenaPage() {
           
           return (
             <Card key={item.id} className={cn(
-              "glass-card border-white/5 overflow-hidden",
+              "glass-card border-white/5 overflow-hidden transition-all",
               isConstructing && "bg-orange-500/5 border-orange-500/20"
             )}>
               <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-0">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className={cn("p-2.5 rounded-xl bg-secondary/50", isConstructing ? "text-orange-400 animate-pulse" : item.color)}>
+                    <div className={cn(
+                      "p-2.5 rounded-xl bg-secondary/50 border border-white/5", 
+                      isConstructing ? "text-orange-400 animate-pulse" : item.color
+                    )}>
                       {isConstructing ? <Hammer className="w-5 h-5" /> : <item.icon className="w-5 h-5" />}
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold uppercase">{t.items[item.id as keyof typeof t.items].label}</h3>
-                      <Badge variant="secondary" className="text-[9px] h-4 py-0 uppercase mt-1">LVL {level}</Badge>
+                      <h3 className="text-sm font-bold uppercase tracking-tight">{t.items[item.id as keyof typeof t.items].label}</h3>
+                      <Badge variant="outline" className="text-[8px] h-4 py-0 uppercase font-black tracking-widest mt-1 border-white/10 opacity-60">LVL {level}</Badge>
                     </div>
                   </div>
                   {isConstructing ? (
                     <div className="text-right">
-                      <p className="text-[7px] uppercase text-muted-foreground font-bold">{t.finishAt}</p>
-                      <p className="text-[9px] font-mono font-bold text-orange-400">{formatFinishTime(finishTime)}</p>
+                      <p className="text-[7px] uppercase text-muted-foreground font-black tracking-widest">{t.finishAt}</p>
+                      <p className="text-[10px] font-mono font-bold text-orange-400">{formatFinishTime(finishTime)}</p>
                     </div>
                   ) : (
-                    <Button size="sm" variant="outline" className="h-9 px-3" onClick={() => setSelectedFacility(item.id)}>
-                      <span className="text-[9px] uppercase font-bold text-primary">{t.upgrade}</span>
+                    <Button size="sm" variant="outline" className="h-9 px-4 border-white/10 hover:bg-primary/10 hover:text-primary transition-all" onClick={() => setSelectedFacility(item.id)}>
+                      <span className="text-[9px] uppercase font-black tracking-widest">{t.upgrade}</span>
                     </Button>
                   )}
                 </div>
                 {isConstructing && (
-                  <div className="mt-3 space-y-1">
-                    <div className="flex justify-between text-[7px] uppercase font-bold text-orange-400">
+                  <div className="mt-4 space-y-1.5">
+                    <div className="flex justify-between text-[7px] uppercase font-black text-orange-400 tracking-widest">
                       <span>{t.improving}</span>
                       <span>{Math.floor(progress)}%</span>
                     </div>
-                    <Progress value={progress} className="h-1 bg-orange-500/20" />
+                    <Progress value={progress} className="h-1 bg-orange-500/10" />
                   </div>
                 )}
               </CardContent>
@@ -328,33 +341,33 @@ export default function ArenaPage() {
       <Dialog open={showCapacityDialog} onOpenChange={(open) => { setShowCapacityDialog(open); if(!open) setIsExpanding(false); }}>
         <DialogContent className="max-w-xs bg-card border-white/5 p-6">
           <DialogHeader>
-            <DialogTitle className="text-center font-headline font-bold text-xl uppercase">{t.capacityTitle}</DialogTitle>
-            <DialogDescription className="text-center text-xs mt-2">
-              {t.currentStatus}: {t.items.capacity.label} {arena.capacity}
+            <DialogTitle className="text-center font-headline font-bold text-xl uppercase tracking-tighter">{t.capacityTitle}</DialogTitle>
+            <DialogDescription className="text-center text-[10px] mt-2 font-bold uppercase tracking-widest opacity-60">
+              {t.currentStatus}: {arena.capacity} SEATS
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-4 space-y-6">
-            <div className="flex flex-col gap-2 p-3 bg-secondary/30 rounded-xl border border-white/5 text-center">
-               <p className="text-[10px] uppercase font-bold text-muted-foreground">{t.maintenance}</p>
-               <p className="text-sm font-headline font-bold text-accent">30,000€</p>
+            <div className="flex flex-col gap-2 p-4 bg-secondary/30 rounded-2xl border border-white/5 text-center shadow-inner">
+               <p className="text-[9px] uppercase font-black text-muted-foreground tracking-[0.2em]">{t.maintenance}</p>
+               <p className="text-lg font-headline font-bold text-accent">30,000 € / MATCH</p>
             </div>
 
             {!isExpanding ? (
               <div className="grid grid-cols-2 gap-3">
-                <Button className="hero-gradient font-bold h-12" onClick={() => setIsExpanding(true)} disabled={isAnyConstructing}>
+                <Button className="hero-gradient font-black text-[10px] uppercase h-12 shadow-lg shadow-primary/20" onClick={() => setIsExpanding(true)} disabled={isAnyConstructing}>
                   <PlusCircle className="w-4 h-4 mr-2" /> {t.expand}
                 </Button>
-                <Button variant="outline" className="font-bold h-12 border-white/10" disabled>
+                <Button variant="outline" className="font-black text-[10px] uppercase h-12 border-white/10 text-muted-foreground" disabled>
                   <MinusCircle className="w-4 h-4 mr-2" /> {t.decrease}
                 </Button>
               </div>
             ) : (
               <div className="space-y-6 animate-in fade-in zoom-in duration-300">
                 <div className="space-y-4">
-                  <div className="flex justify-between text-[10px] uppercase font-bold text-primary">
+                  <div className="flex justify-between text-[10px] font-black uppercase text-primary tracking-widest">
                     <span>+ {expansionSeats[0]} {t.seats}</span>
-                    <span>Max +5000</span>
+                    <span className="opacity-40">Max +5000</span>
                   </div>
                   <Slider 
                     value={expansionSeats} 
@@ -368,22 +381,22 @@ export default function ArenaPage() {
                 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
-                     <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.cost}</p>
+                     <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-tighter">{t.cost}</p>
                      <p className="text-sm font-bold text-accent">€ {((expansionSeats[0] / 500) * 125000).toLocaleString()}</p>
                   </div>
                   <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
-                     <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.duration}</p>
+                     <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-tighter">{t.duration}</p>
                      <p className="text-sm font-bold text-primary flex items-center justify-center gap-1">
                        <Clock className="w-3 h-3" /> {(expansionSeats[0] / 500) * 6} {t.hours}
                      </p>
                   </div>
                 </div>
 
-                <Button className="w-full hero-gradient font-bold h-12" onClick={handleExpansion} disabled={isAnyConstructing}>
+                <Button className="w-full hero-gradient font-black text-[10px] uppercase h-14 shadow-2xl shadow-primary/30 active:scale-95 transition-all" onClick={handleExpansion} disabled={isAnyConstructing}>
                   {isAnyConstructing ? t.crewBusy : t.confirm}
                 </Button>
-                <Button variant="ghost" className="w-full text-[10px] uppercase font-bold" onClick={() => setIsExpanding(false)}>
-                  Back
+                <Button variant="ghost" className="w-full text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setIsExpanding(false)}>
+                  Back to stats
                 </Button>
               </div>
             )}
@@ -396,29 +409,29 @@ export default function ArenaPage() {
         {selectedFacility && (
           <DialogContent className="max-w-xs bg-card border-white/5 p-6">
             <DialogHeader>
-              <DialogTitle className="text-center font-headline font-bold text-xl uppercase">
+              <DialogTitle className="text-center font-headline font-bold text-xl uppercase tracking-tight">
                 {t.items[selectedFacility as keyof typeof t.items].label}
               </DialogTitle>
-              <DialogDescription className="text-center text-xs mt-2 italic">
-                {t.items[selectedFacility as keyof typeof t.items].desc}
+              <DialogDescription className="text-center text-xs mt-3 italic text-muted-foreground leading-relaxed">
+                "{t.items[selectedFacility as keyof typeof t.items].desc}"
               </DialogDescription>
             </DialogHeader>
 
-            <div className="grid grid-cols-2 gap-3 mt-6">
-              <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
-                 <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.cost}</p>
-                 <p className="text-sm font-bold text-accent">€ {(15000 * (((arena as any)[selectedFacility] || 0) + 1)).toLocaleString()}</p>
+            <div className="grid grid-cols-2 gap-3 mt-8">
+              <div className="bg-secondary/30 p-4 rounded-2xl text-center border border-white/5 shadow-inner">
+                 <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-widest">{t.cost}</p>
+                 <p className="text-sm font-bold text-accent italic">€ {(15000 * (((arena as any)[selectedFacility] || 0) + 1)).toLocaleString()}</p>
               </div>
-              <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
-                 <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.duration}</p>
-                 <p className="text-sm font-bold text-primary flex items-center justify-center gap-1">
-                   <Clock className="w-3 h-3" /> {4 * (((arena as any)[selectedFacility] || 0) + 1)} {t.hours}
+              <div className="bg-secondary/30 p-4 rounded-2xl text-center border border-white/5 shadow-inner">
+                 <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-widest">{t.duration}</p>
+                 <p className="text-sm font-bold text-primary flex items-center justify-center gap-1.5">
+                   <Clock className="w-3.5 h-3.5" /> {4 * (((arena as any)[selectedFacility] || 0) + 1)} {t.hours}
                  </p>
               </div>
             </div>
 
-            <DialogFooter className="mt-6">
-              <Button className="w-full hero-gradient font-bold h-12" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
+            <DialogFooter className="mt-8">
+              <Button className="w-full h-14 hero-gradient font-black text-[10px] uppercase tracking-[0.2em] shadow-2xl shadow-primary/30 active:scale-95 transition-all" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
                 {isAnyConstructing ? t.crewBusy : t.confirm}
               </Button>
             </DialogFooter>
