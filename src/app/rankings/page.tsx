@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -16,7 +15,6 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Header, CardTitle } from '@/components/ui/card'; // Adjusted if necessary, but using provided structure
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import { getMockGroupTeams, LEAGUES, getMatchResult } from '../lib/leagues-data';
@@ -126,7 +124,6 @@ export default function RankingsPage() {
       let sH = 0;
       let sA = 0;
 
-      // Synchronization: If it's my match, try to get score from History first
       if (isPlayed && isMyMatch) {
         const historical = matchHistory.find(match => 
           match.type === 'cup' && 
@@ -209,6 +206,9 @@ export default function RankingsPage() {
       draw: "DRAW",
       promotion: "PROMOTION",
       relegation: "RELEGATION",
+      clubName: "Club Name",
+      wdl: "W-D-L",
+      pointsShort: "Pts",
       tabs: {
         my_league: { label: "My League", desc: "Group standings", icon: Trophy },
         my_pyramid: { label: "My Pyramid", desc: "Live global hierarchy", icon: LayoutDashboard },
@@ -239,6 +239,9 @@ export default function RankingsPage() {
       draw: "НИЧЬЯ",
       promotion: "ПОВЫШЕНИЕ",
       relegation: "ВЫЛЕТ",
+      clubName: "Название клуба",
+      wdl: "В-Н-П",
+      pointsShort: "Очк",
       tabs: {
         my_league: { label: "Своя лига", desc: "Рейтинг группы", icon: Trophy },
         my_pyramid: { label: "Своя пирамида", desc: "Глобальная иерархия", icon: LayoutDashboard },
@@ -277,9 +280,9 @@ export default function RankingsPage() {
     <div className="space-y-2 animate-in fade-in duration-300">
       <div className="flex items-center px-4 text-[9px] uppercase font-black text-muted-foreground/50 mb-1 tracking-widest">
         <div className="w-8">#</div>
-        <div className="flex-1">Operational ID</div>
-        <div className="w-16 text-center">W-D-L</div>
-        <div className="w-12 text-right">Pts</div>
+        <div className="flex-1">{t.clubName}</div>
+        <div className="w-16 text-center">{t.wdl}</div>
+        <div className="w-12 text-right">{t.pointsShort}</div>
       </div>
       {rankingsData.map((entry, i) => {
         const isPromotion = i === 0;
@@ -293,7 +296,7 @@ export default function RankingsPage() {
             isRelegation && !entry.isMe && "border-red-500/20 bg-red-500/5"
           )}>
             <div className="w-6 text-center font-black text-xs flex flex-col items-center justify-center gap-0.5">
-              {i < 3 ? <Medal className={cn("w-4 h-4 mx-auto", i === 0 ? "text-yellow-500" : i === 1 ? "text-slate-400" : "text-amber-600")} /> : i + 1}
+              {i + 1}
               {isPromotion && <ArrowUp className="w-3 h-3 text-green-500 animate-bounce" />}
               {isRelegation && <ArrowDown className="w-3 h-3 text-red-500 animate-bounce" />}
             </div>
@@ -318,19 +321,6 @@ export default function RankingsPage() {
       case 'my_league':
         return (
           <div className="space-y-6">
-            <Card className="bg-secondary/30 border-white/5 shadow-xl">
-              <CardContent className="p-5 flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span className="text-[10px] uppercase font-black text-accent tracking-[0.2em]">Bo2 Format</span>
-                  <span className="text-xs font-mono font-bold text-primary flex items-center gap-2 mt-2 bg-primary/10 px-2 py-1 rounded-md w-fit">
-                    <Clock className="w-3.5 h-3.5" /> {league.startTime} MSK
-                  </span>
-                </div>
-                <Badge variant="outline" className={cn("text-[10px] font-black px-3 py-1 border-white/10 uppercase tracking-widest", isTodayPlayed ? "bg-green-500/20 border-green-500/30 text-green-400" : "bg-primary/10 text-primary border-primary/20")}>
-                  {seasonDay === 0 ? 'Season Tomorrow' : (isTodayPlayed ? 'Match Done' : 'Waiting...')}
-                </Badge>
-              </CardContent>
-            </Card>
             {isLeaguePlayersLoading ? (
               <div className="py-20 text-center opacity-50"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
             ) : renderRankingTable(getMockGroupTeams(rank, profile?.displayName || "My Team", leagueLevel, divisionSubId, groupId, profile?.selectedLeagueId || "ALPHA", allLeaguePlayers?.filter(p => Number(p.leagueLevel) === leagueLevel && Number(p.groupId) === groupId) || [], user?.uid, isTodayPlayed ? seasonDay : Math.max(0, seasonDay - 1)))}

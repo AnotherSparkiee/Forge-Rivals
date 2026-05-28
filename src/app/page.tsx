@@ -8,7 +8,7 @@ import {
   Users, Trophy, Zap, Clock,
   UserSearch, ShieldAlert, Medal, User, Swords, ChevronRight,
   CalendarDays, PlayCircle, Loader2, MessageSquare, UsersRound, Target, ShoppingCart,
-  GraduationCap, UserCog, Coins, Heart, Store, Shield
+  GraduationCap, UserCog, Coins, Heart, Store, Shield, Radar, Timer
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -144,7 +144,6 @@ export default function Home() {
   }, [isLoaded, profile, globeParticipants, brickParticipants, user, language]);
 
   const displayMatchInfo = useMemo(() => {
-    // 1. ПРИОРИТЕТ: Активные дружеские или пробные матчи
     if (activeFriendly) {
       const acceptedAt = activeFriendly.acceptedAt?.toMillis() || Date.now();
       const name = activeFriendly.hostId === user?.uid ? activeFriendly.challengerName : activeFriendly.hostName;
@@ -156,14 +155,8 @@ export default function Home() {
         isTrial: activeFriendly.isTrial 
       };
     }
-    
-    // 2. Турниры
     if (tournamentNextMatch) return { ...tournamentNextMatch, isTournament: true };
-    
-    // 3. КВ Корзина
     if (basketEntry?.status === 'matched') return { opponent: { name: basketEntry.matchedWithName, isPlayer: true }, isBasket: true, startTime: new Date(basketEntry.matchStartTime).getTime(), time: new Date(basketEntry.matchStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-    
-    // 4. Лига и Кубок (тот, что ближе по времени)
     if (cupNextMatch && leagueNextMatch) {
       const mskNow = getMoscowTime();
       const getMs = (time: string, nextDay: boolean) => {
@@ -176,18 +169,34 @@ export default function Home() {
       const leagueMs = getMs(leagueNextMatch.time, leagueNextMatch.isNextDay);
       return cupMs < leagueMs ? cupNextMatch : leagueNextMatch;
     }
-    
     return leagueNextMatch || cupNextMatch;
   }, [activeFriendly, tournamentNextMatch, basketEntry, cupNextMatch, leagueNextMatch, user]);
 
   useEffect(() => {
-    if (!displayMatchInfo) return;
     const interval = setInterval(() => {
-      const info = displayMatchInfo as any;
       const mskNow = getMoscowTime();
+      
+      // Off-season logic
+      if (seasonDay === 15) {
+        const targetDate = new Date(mskNow);
+        targetDate.setHours(16, 0, 0, 0); // Recalc at 16:00 MSK
+        
+        const diff = targetDate.getTime() - mskNow.getTime();
+        if (diff <= 0) {
+          setCountdown('00:00:00');
+        } else {
+          const h = Math.floor(diff / 3600000);
+          const m = Math.floor((diff % 3600000) / 60000);
+          const s = Math.floor((diff % 60000) / 1000);
+          setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+        }
+        return;
+      }
+
+      if (!displayMatchInfo) return;
+      const info = displayMatchInfo as any;
 
       if (info.isFriendly) {
-        // Пробные/Товарищеские: 15 минут с момента принятия (acceptedAt)
         const diff = (info.acceptedAt + 15 * 60 * 1000) - Date.now();
         if (diff <= 0) setCountdown('00:00:00');
         else {
@@ -215,13 +224,10 @@ export default function Home() {
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [displayMatchInfo]);
+  }, [displayMatchInfo, seasonDay]);
 
-  // Счётчик непросмотренных матчей (включая пробные)
   const unseenCount = useMemo(() => {
-    const unseenLeague = matchHistory.filter(m => m.type === 'league' && m.day > lastSeenMatchDay).length;
-    // Можно добавить логику для пробных, если мы хотим, чтобы они тоже "висели" красным кружком
-    return unseenLeague;
+    return matchHistory.filter(m => m.type === 'league' && m.day > lastSeenMatchDay).length;
   }, [matchHistory, lastSeenMatchDay]);
 
   if (isUserLoading || !isLoaded || !user || isProfileLoading || isGroupLoading) return <LoadingScreen />;
@@ -232,6 +238,7 @@ export default function Home() {
       vs: "VS", today: "TODAY", tomorrow: "TOMORROW", battleBtn: "MATCH REVIEW", navTitle: "Navigation Terminals", 
       interSeason: "Inter-season", interSeasonDesc: "Calculating new hierarchies.", preSeason: "Pre-season Readiness", preSeasonDesc: "Matches resume soon.", 
       startsIn: ((displayMatchInfo as any)?.isFriendly || (displayMatchInfo as any)?.isBasket) ? "REMAINING TIME:" : "TIME UNTIL MATCH:",
+      recalcIn: "DISTRIBUTION BEGINS IN:",
       tourLive: "LIVE ENGAGEMENT",
       menu: [ 
         { label: 'Roster', href: '/roster', icon: Users, desc: 'Manage lineup' }, 
@@ -256,6 +263,7 @@ export default function Home() {
       vs: "ПРОТИВ", today: "СЕГОДНЯ", tomorrow: "ЗАВТРА", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Тактические Терминалы", 
       interSeason: "Межсезонье", interSeasonDesc: "Формирование новых групп.", preSeason: "Подготовка к лиге", preSeasonDesc: "Первая игра начнется завтра.", 
       startsIn: ((displayMatchInfo as any)?.isFriendly || (displayMatchInfo as any)?.isBasket) ? "ВРЕМЯ ДО КОНЦА:" : "ДО МАТЧА ОСТАЛОСЬ:",
+      recalcIn: "РАСПРЕДЕЛЕНИЕ НАЧНЕТСЯ ЧЕРЕЗ:",
       tourLive: "В ЭФИРЕ",
       menu: [ 
         { label: 'Ростер', href: '/roster', icon: Users, desc: 'Состав команды' }, 
@@ -283,13 +291,40 @@ export default function Home() {
     <div className="max-w-md mx-auto px-4 pt-8 pb-12">
       <header className="mb-6">
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
-          {(displayMatchInfo as any)?.isFriendly || (displayMatchInfo as any)?.isLive || (displayMatchInfo as any)?.isBasket ? <PlayCircle className="w-6 h-6 text-green-400 animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />}
-          {t.nextMatch}
+          {seasonDay === 15 ? <Radar className="w-6 h-6 text-accent animate-spin" /> : 
+           (displayMatchInfo as any)?.isFriendly || (displayMatchInfo as any)?.isLive || (displayMatchInfo as any)?.isBasket ? <PlayCircle className="w-6 h-6 text-green-400 animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />}
+          {seasonDay === 15 ? t.interSeason : t.nextMatch}
         </h1>
       </header>
       
       <section className="mb-8">
-        {displayMatchInfo ? (
+        {seasonDay === 15 ? (
+          <Card className="glass-card border-accent/20 bg-accent/5 overflow-hidden">
+            <CardContent className="p-0">
+               <div className="p-4 border-b border-white/5 flex items-center justify-center">
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] font-bold uppercase tracking-tighter mb-1 text-accent">
+                      {t.recalcIn}
+                    </span>
+                    <span className="text-4xl font-headline font-bold tabular-nums tracking-tighter text-white">
+                      {countdown || '00:00:00'}
+                    </span>
+                  </div>
+               </div>
+               <div className="p-6 text-center space-y-4">
+                  <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 border-accent mx-auto shadow-[0_0_20px_rgba(var(--accent),0.2)]">
+                     <Timer className="w-10 h-10 text-accent animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-headline font-bold uppercase text-white">{t.interSeason}</h3>
+                    <p className="text-xs text-muted-foreground mt-1 px-8 leading-relaxed italic opacity-70">
+                      "{t.interSeasonDesc}"
+                    </p>
+                  </div>
+               </div>
+            </CardContent>
+          </Card>
+        ) : displayMatchInfo ? (
           <Card className={cn(
             "glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden", 
             ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) && "border-green-500/30 bg-green-500/5",
@@ -336,9 +371,7 @@ export default function Home() {
         ) : (
           <Card className="glass-card border-accent/20 bg-accent/5">
             <CardContent className="p-8 flex flex-col items-center text-center space-y-4">
-              {seasonDay === 15 ? (
-                <><Loader2 className="w-12 h-12 text-accent animate-spin" /><div><h3 className="text-lg font-headline font-bold uppercase">{t.interSeason}</h3><p className="text-xs text-muted-foreground mt-1">{t.interSeasonDesc}</p></div></>
-              ) : seasonDay === 16 ? (
+              {seasonDay === 16 ? (
                 <><Clock className="w-12 h-12 text-primary animate-pulse" /><div><h3 className="text-lg font-headline font-bold uppercase">{t.preSeason}</h3><p className="text-xs text-muted-foreground mt-1">{t.preSeasonDesc}</p></div></>
               ) : (
                 <><ShieldAlert className="w-12 h-12 text-muted-foreground" /><div><h3 className="text-lg font-headline font-bold uppercase">No Scheduled Match</h3><p className="text-xs text-muted-foreground mt-1">Operational status normal.</p></div></>

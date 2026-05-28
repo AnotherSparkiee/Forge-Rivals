@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
@@ -475,16 +474,23 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const syncStats = useCallback((groupPlayers: any[]) => {
     if (!state.selectedLeagueId || !state.seasonDay || !user) return;
     const { seasonNumber: globalSeason, seasonDay: globalDay } = getGlobalSeasonInfo();
-    const league = LEAGUES.find(l => l.id === state.selectedLeagueId);
-    const isPlayedToday = isMatchDue(league?.startTime || "23:00", state.lastLeagueMatchDate);
-    const completedDays = isPlayedToday ? globalDay : Math.max(0, globalDay - 1);
+    const mskNow = getMoscowTime();
+    const currentMins = mskNow.getHours() * 60 + mskNow.getMinutes();
+    const RECALC_TIME = 16 * 60; // 16:00 MSK
 
-    if (lastSyncRef.current?.season === globalSeason && lastSyncRef.current?.day === completedDays && lastSyncRef.current?.leagueId === state.selectedLeagueId) return;
+    // Season Recalculation Trigger (Promotion/Demotion)
+    // Happens on Day 15 AFTER 16:00 MSK
+    const isRecalcDue = globalDay === 15 && currentMins >= RECALC_TIME;
+    const isNewSeasonStarted = globalDay === 16 || globalDay < 15;
 
-    if (state.lastProcessedSeason > 0 && globalSeason > state.lastProcessedSeason) {
+    const needsRecalc = (isRecalcDue || isNewSeasonStarted) && state.lastProcessedSeason < globalSeason;
+
+    if (needsRecalc) {
+      // Use full 14 days of simulation for last season results
       const lastSeasonTeams = getMockGroupTeams(state.rank, state.country || "My Team", state.leagueLevel, state.divisionSubId, state.groupId, state.selectedLeagueId, groupPlayers, user.uid, 14);
       const sorted = [...lastSeasonTeams].sort((a, b) => b.points - a.points || b.wins - a.wins);
       const myPos = sorted.findIndex(t => t.id === user.uid) + 1;
+      
       let newLevel = state.leagueLevel;
       let promoted = false; 
       let demoted = false; 
@@ -502,9 +508,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         if (newLevel > state.leagueLevel) demoted = true;
       }
 
-      const results = sanitizeForFirestore({ lastRank: myPos, lastPoints: lastSeasonTeams.find(t => t.id === user.uid)?.points || 0, promoted, demoted, seasonNumber: state.lastProcessedSeason, awardedTrophy });
-      lastSyncRef.current = { season: globalSeason, day: completedDays, leagueId: state.selectedLeagueId };
-      
+      const results = sanitizeForFirestore({ 
+        lastRank: myPos, 
+        lastPoints: lastSeasonTeams.find(t => t.id === user.uid)?.points || 0, 
+        promoted, 
+        demoted, 
+        seasonNumber: globalSeason, 
+        awardedTrophy 
+      });
+
       setTimeout(() => {
         runCloudUpdate({ 
           leagueLevel: newLevel, 
@@ -520,23 +532,30 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return; 
     }
 
-    if (globalDay > 14) return;
-    const groupTeams = getMockGroupTeams(state.rank, state.country || "My Team", state.leagueLevel, state.divisionSubId, state.groupId, state.selectedLeagueId, groupPlayers, user.uid, completedDays);
-    const myTeam = groupTeams.find(t => t.id === user.uid);
-    const myDocInSnapshot = groupPlayers.find(p => p.id === user.uid);
-    if (!myTeam || !myDocInSnapshot) return;
+    // Daily Sync during match days
+    if (globalDay <= 14) {
+      const league = LEAGUES.find(l => l.id === state.selectedLeagueId);
+      const isPlayedToday = isMatchDue(league?.startTime || "23:00", state.lastLeagueMatchDate);
+      const completedDays = isPlayedToday ? globalDay : Math.max(0, globalDay - 1);
 
-    if (Number(myDocInSnapshot.wins) !== Number(myTeam.wins) || Number(myDocInSnapshot.points) !== Number(myTeam.points) || state.lastProcessedSeason !== globalSeason) {
-      lastSyncRef.current = { season: globalSeason, day: completedDays, leagueId: state.selectedLeagueId };
-      setTimeout(() => {
-        runCloudUpdate({ 
-          wins: Number(myTeam.wins || 0), 
-          draws: Number(myTeam.draws || 0), 
-          losses: Number(myTeam.losses || 0), 
-          points: Number(myTeam.points || 0), 
-          lastProcessedSeason: globalSeason 
-        });
-      }, 0);
+      if (lastSyncRef.current?.season === globalSeason && lastSyncRef.current?.day === completedDays && lastSyncRef.current?.leagueId === state.selectedLeagueId) return;
+
+      const groupTeams = getMockGroupTeams(state.rank, state.country || "My Team", state.leagueLevel, state.divisionSubId, state.groupId, state.selectedLeagueId, groupPlayers, user.uid, completedDays);
+      const myTeam = groupTeams.find(t => t.id === user.uid);
+      const myDocInSnapshot = groupPlayers.find(p => p.id === user.uid);
+      if (!myTeam || !myDocInSnapshot) return;
+
+      if (Number(myDocInSnapshot.wins) !== Number(myTeam.wins) || Number(myDocInSnapshot.points) !== Number(myTeam.points)) {
+        lastSyncRef.current = { season: globalSeason, day: completedDays, leagueId: state.selectedLeagueId };
+        setTimeout(() => {
+          runCloudUpdate({ 
+            wins: Number(myTeam.wins || 0), 
+            draws: Number(myTeam.draws || 0), 
+            losses: Number(myTeam.losses || 0), 
+            points: Number(myTeam.points || 0)
+          });
+        }, 0);
+      }
     }
   }, [state.selectedLeagueId, state.seasonDay, state.lastLeagueMatchDate, state.rank, state.leagueLevel, state.divisionSubId, state.groupId, state.lastProcessedSeason, state.hasEliteTrophy, state.country, user, runCloudUpdate]);
 
