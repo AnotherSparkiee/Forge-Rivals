@@ -208,11 +208,11 @@ export default function ArenaPage() {
       )}>
         <CardContent className="p-0">
           {showStarterImage && starterImage && (
-            <div className="w-full relative overflow-hidden bg-black aspect-video border-b border-white/5">
+            <div className="w-full relative overflow-hidden bg-background aspect-video border-b border-white/5">
                <img 
                 src={starterImage} 
                 alt="Arena Preview" 
-                className="w-full h-full object-cover block"
+                className="w-full h-full object-contain block"
                 style={{ 
                   imageRendering: 'auto'
                 }}
