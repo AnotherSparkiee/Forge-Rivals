@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -64,7 +63,7 @@ export default function ArenaPage() {
   }, [arena]);
 
   const showStarterImage = maxArenaLevel >= 1 && maxArenaLevel <= 10;
-  const starterImage = PlaceHolderImages.find(img => img.id === 'arena-starter')?.imageUrl;
+  const starterImage = (PlaceHolderImages || []).find(img => img.id === 'arena-starter')?.imageUrl;
 
   if (!isLoaded) return null;
 
