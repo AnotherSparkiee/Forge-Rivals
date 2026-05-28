@@ -70,18 +70,37 @@ export default function Home() {
 
   useEffect(() => {
     if (!user || isUserLoading) return;
-    const q = query(collection(db, 'friendly_lobbies'), where('status', '==', 'accepted'));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const matchDoc = snapshot.docs.find(d => {
-        const data = d.data();
-        return data.hostId === user.uid || data.challengerId === user.uid;
-      });
-      if (matchDoc) {
-        const data = matchDoc.data();
-        const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); 
-        if (Date.now() - acceptedAt < 16 * 60 * 1000) setActiveFriendly({ ...data, id: matchDoc.id });
-        else setActiveFriendly(null);
-      } else setActiveFriendly(null);
+    // Listen to personal friendly lobby specifically
+    const unsub = onSnapshot(doc(db, 'friendly_lobbies', user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.status === 'accepted') {
+          const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); 
+          if (Date.now() - acceptedAt < 16 * 60 * 1000) {
+            setActiveFriendly({ ...data, id: docSnap.id });
+          } else {
+            setActiveFriendly(null);
+          }
+        } else {
+          setActiveFriendly(null);
+        }
+      } else {
+        // Also check if I am a challenger in someone else's lobby
+        const q = query(collection(db, 'friendly_lobbies'), where('challengerId', '==', user.uid), where('status', '==', 'accepted'));
+        onSnapshot(q, (snap) => {
+          if (!snap.empty) {
+            const d = snap.docs[0].data();
+            const acceptedAt = d.acceptedAt?.toMillis() || Date.now();
+            if (Date.now() - acceptedAt < 16 * 60 * 1000) {
+              setActiveFriendly({ ...d, id: snap.docs[0].id });
+            } else {
+              setActiveFriendly(null);
+            }
+          } else {
+            setActiveFriendly(null);
+          }
+        });
+      }
     });
     return () => unsub();
   }, [user, isUserLoading, db]);
@@ -176,6 +195,40 @@ export default function Home() {
     const interval = setInterval(() => {
       const mskNow = getMoscowTime();
       
+      // Handle Active Matches first (they override the inter-season static state in terms of priority)
+      if (displayMatchInfo) {
+        const info = displayMatchInfo as any;
+        if (info.isFriendly) {
+          const diff = (info.acceptedAt + 15 * 60 * 1000) - Date.now();
+          if (diff <= 0) setCountdown('00:00:00');
+          else {
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
+            setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+          }
+          return;
+        } else if (info.isBasket) {
+          const diff = info.startTime - Date.now();
+          if (diff <= 0) setCountdown('00:00:00');
+          else {
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
+            setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+          }
+          return;
+        } else if (info.time) {
+          const [h, m] = info.time.split(':').map(Number);
+          const targetDate = new Date(mskNow); targetDate.setHours(h, m, 0, 0);
+          if (info.isNextDay) targetDate.setDate(targetDate.getDate() + 1);
+          const diff = targetDate.getTime() - mskNow.getTime();
+          if (diff <= 0) setCountdown('00:00:00');
+          else setCountdown(`${String(Math.floor(diff / 3600000)).padStart(2, '0')}:${String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0')}:${String(Math.floor((diff % 60000) / 1000)).padStart(2, '0')}`);
+          return;
+        }
+      }
+
       // Off-season logic
       if (seasonDay === 15) {
         const targetDate = new Date(mskNow);
@@ -183,44 +236,13 @@ export default function Home() {
         
         const diff = targetDate.getTime() - mskNow.getTime();
         if (diff <= 0) {
-          setCountdown('00:00:00');
+          setCountdown('PROCESSING');
         } else {
           const h = Math.floor(diff / 3600000);
           const m = Math.floor((diff % 3600000) / 60000);
           const s = Math.floor((diff % 60000) / 1000);
           setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
         }
-        return;
-      }
-
-      if (!displayMatchInfo) return;
-      const info = displayMatchInfo as any;
-
-      if (info.isFriendly) {
-        const diff = (info.acceptedAt + 15 * 60 * 1000) - Date.now();
-        if (diff <= 0) setCountdown('00:00:00');
-        else {
-          const h = Math.floor(diff / 3600000);
-          const m = Math.floor((diff % 3600000) / 60000);
-          const s = Math.floor((diff % 60000) / 1000);
-          setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
-        }
-      } else if (info.isBasket) {
-        const diff = info.startTime - Date.now();
-        if (diff <= 0) setCountdown('00:00:00');
-        else {
-          const h = Math.floor(diff / 3600000);
-          const m = Math.floor((diff % 3600000) / 60000);
-          const s = Math.floor((diff % 60000) / 1000);
-          setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
-        }
-      } else if (info.time) {
-        const [h, m] = info.time.split(':').map(Number);
-        const targetDate = new Date(mskNow); targetDate.setHours(h, m, 0, 0);
-        if (info.isNextDay) targetDate.setDate(targetDate.getDate() + 1);
-        const diff = targetDate.getTime() - mskNow.getTime();
-        if (diff <= 0) setCountdown('00:00:00');
-        else setCountdown(`${String(Math.floor(diff / 3600000)).padStart(2, '0')}:${String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0')}:${String(Math.floor((diff % 60000) / 1000)).padStart(2, '0')}`);
       }
     }, 1000);
     return () => clearInterval(interval);
@@ -240,6 +262,7 @@ export default function Home() {
       startsIn: ((displayMatchInfo as any)?.isFriendly || (displayMatchInfo as any)?.isBasket) ? "REMAINING TIME:" : "TIME UNTIL MATCH:",
       recalcIn: "DISTRIBUTION BEGINS IN:",
       tourLive: "LIVE ENGAGEMENT",
+      processing: "SYNCING RESULTS...",
       menu: [ 
         { label: 'Roster', href: '/roster', icon: Users, desc: 'Manage lineup' }, 
         { label: 'Infrastructure', href: '/training', icon: Zap, desc: 'Improve base' }, 
@@ -265,6 +288,7 @@ export default function Home() {
       startsIn: ((displayMatchInfo as any)?.isFriendly || (displayMatchInfo as any)?.isBasket) ? "ВРЕМЯ ДО КОНЦА:" : "ДО МАТЧА ОСТАЛОСЬ:",
       recalcIn: "РАСПРЕДЕЛЕНИЕ НАЧНЕТСЯ ЧЕРЕЗ:",
       tourLive: "В ЭФИРЕ",
+      processing: "ИДЕТ РАСПРЕДЕЛЕНИЕ...",
       menu: [ 
         { label: 'Ростер', href: '/roster', icon: Users, desc: 'Состав команды' }, 
         { label: 'Инфраструктура', href: '/training', icon: Zap, desc: 'Улучшение базы' }, 
@@ -291,40 +315,17 @@ export default function Home() {
     <div className="max-w-md mx-auto px-4 pt-8 pb-12">
       <header className="mb-6">
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
-          {seasonDay === 15 ? <Radar className="w-6 h-6 text-accent animate-spin" /> : 
-           (displayMatchInfo as any)?.isFriendly || (displayMatchInfo as any)?.isLive || (displayMatchInfo as any)?.isBasket ? <PlayCircle className="w-6 h-6 text-green-400 animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />}
-          {seasonDay === 15 ? t.interSeason : t.nextMatch}
+          {displayMatchInfo ? (
+             (displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket ? <PlayCircle className="w-6 h-6 text-green-400 animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />
+          ) : seasonDay === 15 ? (
+             <Radar className="w-6 h-6 text-accent animate-spin" />
+          ) : <UserSearch className="w-6 h-6 text-accent" />}
+          {displayMatchInfo ? t.nextMatch : (seasonDay === 15 ? t.interSeason : t.nextMatch)}
         </h1>
       </header>
       
       <section className="mb-8">
-        {seasonDay === 15 ? (
-          <Card className="glass-card border-accent/20 bg-accent/5 overflow-hidden">
-            <CardContent className="p-0">
-               <div className="p-4 border-b border-white/5 flex items-center justify-center">
-                  <div className="flex flex-col items-center">
-                    <span className="text-[10px] font-bold uppercase tracking-tighter mb-1 text-accent">
-                      {t.recalcIn}
-                    </span>
-                    <span className="text-4xl font-headline font-bold tabular-nums tracking-tighter text-white">
-                      {countdown || '00:00:00'}
-                    </span>
-                  </div>
-               </div>
-               <div className="p-6 text-center space-y-4">
-                  <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 border-accent mx-auto shadow-[0_0_20px_rgba(var(--accent),0.2)]">
-                     <Timer className="w-10 h-10 text-accent animate-pulse" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-headline font-bold uppercase text-white">{t.interSeason}</h3>
-                    <p className="text-xs text-muted-foreground mt-1 px-8 leading-relaxed italic opacity-70">
-                      "{t.interSeasonDesc}"
-                    </p>
-                  </div>
-               </div>
-            </CardContent>
-          </Card>
-        ) : displayMatchInfo ? (
+        {displayMatchInfo ? (
           <Card className={cn(
             "glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden", 
             ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) && "border-green-500/30 bg-green-500/5",
@@ -366,6 +367,35 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        ) : seasonDay === 15 ? (
+          <Card className="glass-card border-accent/20 bg-accent/5 overflow-hidden">
+            <CardContent className="p-0">
+               <div className="p-4 border-b border-white/5 flex items-center justify-center">
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] font-bold uppercase tracking-tighter mb-1 text-accent">
+                      {t.recalcIn}
+                    </span>
+                    <span className={cn(
+                      "text-4xl font-headline font-bold tabular-nums tracking-tighter text-white",
+                      countdown === 'PROCESSING' && "text-sm"
+                    )}>
+                      {countdown === 'PROCESSING' ? t.processing : (countdown || '00:00:00')}
+                    </span>
+                  </div>
+               </div>
+               <div className="p-6 text-center space-y-4">
+                  <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 border-accent mx-auto shadow-[0_0_20px_rgba(var(--accent),0.2)]">
+                     <Timer className="w-10 h-10 text-accent animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-headline font-bold uppercase text-white">{t.interSeason}</h3>
+                    <p className="text-xs text-muted-foreground mt-1 px-8 leading-relaxed italic opacity-70">
+                      "{t.interSeasonDesc}"
+                    </p>
+                  </div>
+               </div>
             </CardContent>
           </Card>
         ) : (
