@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -215,9 +216,6 @@ export default function ArenaPage() {
                 className="w-full h-auto block"
                 loading="eager"
                 decoding="sync"
-                style={{ 
-                  imageRendering: 'auto'
-                }}
                />
             </div>
           )}
@@ -232,10 +230,10 @@ export default function ArenaPage() {
                   <Users className="w-8 h-8" />
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase font-black text-muted-foreground tracking-[0.2em] mb-1">{t.items.capacity.label}</p>
+                  <p className="text-[8px] uppercase font-black text-muted-foreground tracking-[0.1em] mb-1 leading-none">{t.items.capacity.label}</p>
                   <div className="flex items-baseline gap-2">
                     <p className="text-4xl font-headline font-bold text-white tracking-tighter leading-none">{arena.capacity.toLocaleString()}</p>
-                    <span className="text-xs font-black text-primary/40 uppercase">SEATS</span>
+                    <span className="text-[10px] font-black text-primary/40 uppercase">SEATS</span>
                   </div>
                 </div>
               </div>
