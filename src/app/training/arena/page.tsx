@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -209,11 +208,15 @@ export default function ArenaPage() {
       )}>
         <CardContent className="p-0">
           {showStarterImage && starterImage && (
-            <div className="w-full">
+            <div className="w-full relative bg-black">
                <img 
                 src={starterImage} 
                 alt="Arena Preview" 
-                className="w-full h-auto block shadow-2xl"
+                className="w-full h-auto block"
+                style={{ 
+                  imageRendering: 'auto',
+                  display: 'block'
+                }}
                 loading="eager"
                />
             </div>
@@ -343,7 +346,7 @@ export default function ArenaPage() {
                   <PlusCircle className="w-4 h-4 mr-2" /> {t.expand}
                 </Button>
                 <Button variant="outline" className="font-black text-[10px] uppercase h-12 border-white/10 text-muted-foreground" disabled>
-                  <MinusCircle className="w-4 h-4 mr-2" /> {t.decrease}
+                  <span className="flex items-center gap-2"><MinusCircle className="w-4 h-4" /> {t.decrease}</span>
                 </Button>
               </div>
             ) : (
