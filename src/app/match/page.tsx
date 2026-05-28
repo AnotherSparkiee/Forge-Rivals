@@ -43,7 +43,7 @@ function MatchContent() {
   }, [user, isUserLoading, router]);
 
   const currentResult = useMemo(() => {
-    // 1. Прямой ID из URL (просмотр из истории)
+    // 1. Прямой ID из URL (просмотр конкретного матча)
     if (matchIdFromUrl) {
       const match = matchHistory.find(m => m.id === matchIdFromUrl);
       if (match) return match;
@@ -56,14 +56,14 @@ function MatchContent() {
 
     if (unseenLeagueMatches.length > 0) return unseenLeagueMatches[0];
 
-    // 3. Поиск любого самого свежего матча (включая пробные), если ничего другого нет
+    // 3. Поиск любого самого свежего матча из истории (включая пробные/товарищеские)
     const sortedHistory = [...matchHistory].sort((a, b) => {
       const timeA = new Date(a.playedAt).getTime();
       const timeB = new Date(b.playedAt).getTime();
       return timeB - timeA;
     });
 
-    return sortedHistory.find(m => m.preview !== undefined) || sortedHistory[0] || null;
+    return sortedHistory[0] || null;
   }, [matchHistory, matchIdFromUrl, lastSeenMatchDay]);
 
   const isHistoricalViewing = !!matchIdFromUrl;
@@ -143,7 +143,13 @@ function MatchContent() {
   const t = labels[language as keyof typeof labels] || labels.ru;
   const isTechnicalResult = currentResult?.opponentName === 'WAITING' || currentResult?.opponentName === 'SEEDED' || !currentResult?.preview;
 
-  if (!currentResult) return <div className="min-h-screen flex items-center justify-center p-6 text-center"><Zap className="w-12 h-12 text-primary animate-pulse" /></div>;
+  if (!currentResult) return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4">
+      <ShieldAlert className="w-16 h-16 text-muted-foreground opacity-20" />
+      <p className="text-xs uppercase font-black text-muted-foreground tracking-widest">No combat data available</p>
+      <Button variant="outline" size="sm" onClick={() => router.push('/')} className="h-10 border-white/10 uppercase text-[9px] font-bold">Return to Hub</Button>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-32 cursor-pointer select-none" onClick={handleNext}>
@@ -152,7 +158,7 @@ function MatchContent() {
       <div className="max-w-md mx-auto relative z-10 px-4 pt-6">
         <header className="text-center space-y-4 mb-8">
           <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary text-[8px] font-black uppercase tracking-[0.2em] px-3">
-            {t.tournamentTypes[currentResult.type as keyof typeof t.tournamentTypes]} ENGAGEMENT
+            {t.tournamentTypes[currentResult.type as keyof typeof t.tournamentTypes] || "ENGAGEMENT"}
           </Badge>
           <h1 className="text-sm font-headline font-bold text-white uppercase tracking-tighter">{t.reportTitle}</h1>
           <div className="flex items-center justify-center gap-2 max-w-[240px] mx-auto">
@@ -214,8 +220,8 @@ function MatchContent() {
                 <span className="opacity-20">:</span>
                 <span className={cn(currentResult.scoreB > currentResult.scoreA && "text-primary")}>{currentResult.scoreB}</span>
               </div>
-              <Badge className={cn("mt-4 text-[10px] font-black px-6", currentResult.scoreA > currentResult.scoreB ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400")}>
-                {currentResult.scoreA > currentResult.scoreB ? "VICTORY" : "DEFEAT"}
+              <Badge className={cn("mt-4 text-[10px] font-black px-6", currentResult.scoreA > currentResult.scoreB ? "bg-green-500/20 text-green-400" : (currentResult.scoreA === currentResult.scoreB ? "bg-accent/20 text-accent" : "bg-red-500/20 text-red-400"))}>
+                {currentResult.scoreA > currentResult.scoreB ? "VICTORY" : (currentResult.scoreA === currentResult.scoreB ? "DRAW" : "DEFEAT")}
               </Badge>
             </div>
             <Card className="glass-card p-6 bg-primary/5 border-primary/20"><p className="text-xs leading-relaxed italic text-center text-primary-foreground/80">"{currentResult.matchSummary}"</p></Card>

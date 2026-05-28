@@ -5,13 +5,14 @@ import { useUser, useFirestore } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { doc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { 
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription 
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Swords, Loader2, XCircle, ShieldCheck, Clock } from 'lucide-react';
+import { Swords, Loader2, XCircle, ShieldCheck, Clock, ArrowRight, FileText } from 'lucide-react';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 const MATCH_DURATION_MS = 15 * 60 * 1000; 
 const LOBBY_EXPIRATION_MS = 60 * 1000; 
@@ -28,6 +29,7 @@ function sanitizeForFirestore(obj: any) {
 export function FriendlyMatchListener() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
+  const router = useRouter();
   const { language, team, strategy, recordMatch, ownedHeroes, lineup, matchHistory } = useGameState();
   const { toast } = useToast();
 
@@ -36,7 +38,11 @@ export function FriendlyMatchListener() {
   const [isProcessing, setIsActionLoading] = useState(false);
   
   const [showChallengeModal, setShowChallengeModal] = useState(false);
+  const [showFinishedModal, setShowFinishedModal] = useState(false);
+  const [finishedMatchData, setFinishedMatchData] = useState<any | null>(null);
+  
   const handledChallengeIdRef = useRef<string | null>(null);
+  const isSimulatingRef = useRef(false);
 
   useEffect(() => {
     if (isUserLoading || !user) return;
@@ -121,7 +127,6 @@ export function FriendlyMatchListener() {
     if (data.status === 'accepted' && data.matchResult) {
       const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); 
       const matchType = data.isTrial ? 'trial' : 'friendly';
-      // Deterministic unique ID for trial/friendly matches
       const matchUniqueId = `${matchType}_${data.id}_${acceptedAt}`;
       
       const alreadyProcessed = matchHistory.some(m => m.id === matchUniqueId);
@@ -132,16 +137,17 @@ export function FriendlyMatchListener() {
 
       const finishTime = acceptedAt + MATCH_DURATION_MS;
       
-      const checkAndComplete = () => {
+      const checkAndComplete = async () => {
+        if (isSimulatingRef.current) return;
         const now = Date.now();
-        // ONLY GRANT XP AND RECORD WHEN TIMER EXPIRES
+
         if (now >= finishTime) {
-          // Double check existence in history before recording
           if (matchHistory.some(m => m.id === matchUniqueId)) {
             if (isHost) deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
             return;
           }
 
+          isSimulatingRef.current = true;
           const result = data.matchResult;
           const finalResult = isHost ? result : {
             ...result,
@@ -152,23 +158,23 @@ export function FriendlyMatchListener() {
           
           const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
           
-          // recordMatch handles the 25 XP logic internally for 'trial' type
           recordMatch(finalResult.winner, finalResult, 0, opponentName, matchType, new Date().toISOString(), matchUniqueId);
           
-          toast({
-            title: language === 'ru' ? (data.isTrial ? "Тренировка завершена" : "Матч завершен") : (data.isTrial ? "Training Finished" : "Match Completed"),
-            description: language === 'ru' ? `Игра против ${opponentName} окончена.` : `Match vs ${opponentName} finished.`,
+          setFinishedMatchData({
+            id: matchUniqueId,
+            opponentName,
+            isTrial: data.isTrial
           });
+          setShowFinishedModal(true);
 
           if (isHost) {
-            setTimeout(() => {
-              deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
-            }, 5000); 
+            await deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
           }
+          isSimulatingRef.current = false;
         }
       };
 
-      const timer = setInterval(checkAndComplete, 10000);
+      const timer = setInterval(checkAndComplete, 5000);
       checkAndComplete();
       return () => clearInterval(timer);
     }
@@ -231,47 +237,98 @@ export function FriendlyMatchListener() {
     }
   };
 
+  const handleGoToReport = () => {
+    if (finishedMatchData) {
+      router.push(`/match?id=${finishedMatchData.id}`);
+    }
+    setShowFinishedModal(false);
+  };
+
   const t = {
     hostTitle: language === 'ru' ? "ПОЛУЧЕН ВЫЗОВ" : "CHALLENGE RECEIVED",
     hostDesc: language === 'ru' ? `Менеджер ${activeLobby?.challengerName} хочет провести товарищеский матч.` : `Manager ${activeLobby?.challengerName} wants a friendly match.`,
     accept: language === 'ru' ? "ПРИНЯТЬ" : "ACCEPT",
     decline: language === 'ru' ? "ОТКЛОНИТЬ" : "DECLINE",
+    finishTitle: language === 'ru' ? "БОЙ ЗАВЕРШЕН" : "ENGAGEMENT OVER",
+    finishDesc: language === 'ru' ? "Тактический отчет готов к расшифровке." : "Tactical report ready for decryption.",
+    proceed: language === 'ru' ? "ПЕРЕЙТИ К ОТЧЕТУ" : "PROCEED TO REPORT",
   };
 
   return (
-    <Dialog open={showChallengeModal} onOpenChange={setShowChallengeModal}>
-      <DialogContent className="max-w-xs bg-card border-white/10 p-6">
-        <DialogHeader>
-          <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 border border-primary/20">
-            <Swords className="w-8 h-8 text-primary animate-pulse" />
+    <>
+      <Dialog open={showChallengeModal} onOpenChange={setShowChallengeModal}>
+        <DialogContent className="max-w-xs bg-card border-white/10 p-6">
+          <DialogHeader>
+            <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 border border-primary/20">
+              <Swords className="w-8 h-8 text-primary animate-pulse" />
+            </div>
+            <DialogTitle className="text-center font-headline font-bold uppercase tracking-tight text-primary">
+              {t.hostTitle}
+            </DialogTitle>
+            <DialogDescription className="text-center text-xs text-muted-foreground mt-2">
+              {t.hostDesc}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 mt-6">
+            <Button 
+              className="hero-gradient font-bold uppercase text-[10px] h-12" 
+              onClick={() => handleHostRespond(true)}
+              disabled={isProcessing}
+            >
+              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+              {t.accept}
+            </Button>
+            <Button 
+              variant="outline" 
+              className="font-bold uppercase text-[10px] h-12 border-white/10" 
+              onClick={() => handleHostRespond(false)}
+              disabled={isProcessing}
+            >
+              <XCircle className="w-4 h-4 mr-2 text-red-400" />
+              {t.decline}
+            </Button>
           </div>
-          <DialogTitle className="text-center font-headline font-bold uppercase tracking-tight text-primary">
-            {t.hostTitle}
-          </DialogTitle>
-          <DialogDescription className="text-center text-xs text-muted-foreground mt-2">
-            {t.hostDesc}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-2 mt-6">
-          <Button 
-            className="hero-gradient font-bold uppercase text-[10px] h-12" 
-            onClick={() => handleHostRespond(true)}
-            disabled={isProcessing}
-          >
-            {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
-            {t.accept}
-          </Button>
-          <Button 
-            variant="outline" 
-            className="font-bold uppercase text-[10px] h-12 border-white/10" 
-            onClick={() => handleHostRespond(false)}
-            disabled={isProcessing}
-          >
-            <XCircle className="w-4 h-4 mr-2 text-red-400" />
-            {t.decline}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showFinishedModal} onOpenChange={setShowFinishedModal}>
+        <DialogContent className="max-w-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
+          <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
+            <div className="mx-auto w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary shadow-[0_0_20px_rgba(var(--primary),0.3)]">
+              <ShieldCheck className="w-8 h-8 text-primary animate-pulse" />
+            </div>
+            <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">
+              {t.finishTitle}
+            </DialogTitle>
+            <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">
+              {t.finishDesc}
+            </DialogDescription>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="bg-secondary/30 rounded-xl border border-white/5 p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/20">
+                  <FileText className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-[8px] uppercase font-black text-muted-foreground">
+                    {finishedMatchData?.isTrial ? (language === 'ru' ? 'ТРЕНИРОВКА' : 'TRIAL') : (language === 'ru' ? 'ТОВ. МАТЧ' : 'FRIENDLY')}
+                  </p>
+                  <p className="text-sm font-headline font-bold text-white uppercase italic">{finishedMatchData?.opponentName}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5">
+            <Button 
+              className="w-full h-12 hero-gradient font-bold uppercase text-xs tracking-widest" 
+              onClick={handleGoToReport}
+            >
+              <ArrowRight className="w-4 h-4 mr-2" /> {t.proceed}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
