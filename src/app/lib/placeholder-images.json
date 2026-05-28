@@ -47,6 +47,12 @@
       "description": "High resolution starter arena visual v3",
       "imageUrl": "https://iili.io/C2cBhIj.md.jpg",
       "imageHint": "stadium arena"
+    },
+    {
+      "id": "hq-starter",
+      "description": "High resolution starter headquarters visual",
+      "imageUrl": "https://iili.io/C217fx2.md.jpg",
+      "imageHint": "office building"
     }
   ]
 }

@@ -16,7 +16,7 @@ import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { getMoscowTime } from '@/app/lib/time-utils';
+import { PlaceHolderImages } from '@/app/lib/placeholder-images';
 
 export default function HQPage() {
   const { 
@@ -37,6 +37,20 @@ export default function HQPage() {
     }
   }, [isLoaded, checkConstructions]);
 
+  const maxHQLevel = useMemo(() => {
+    if (!hq) return 0;
+    return Math.max(
+      Number(hq.hrLevel || 0),
+      Number(hq.financeLevel || 0),
+      Number(hq.scoutsLevel || 0),
+      Number(hq.pressOfficeLevel || 0),
+      Number(hq.adminLevel || 0)
+    );
+  }, [hq]);
+
+  const showStarterImage = Number(maxHQLevel) >= 0 && Number(maxHQLevel) <= 10;
+  const starterImage = (PlaceHolderImages || []).find(img => img.id === 'hq-starter')?.imageUrl;
+
   const isAnyConstructing = useMemo(() => {
     if (!hq) return false;
     return Object.values(hq.constructionFinishes).some(v => v !== null && v !== undefined);
@@ -46,6 +60,8 @@ export default function HQPage() {
     en: {
       title: "HEADQUARTERS",
       subtitle: "Management and Administration Hub",
+      hqObject: "Central Office",
+      hqObjectDesc: "Club Management HQ",
       confirm: "Initiate Project",
       cost: "Investment",
       duration: "Timeframe",
@@ -68,6 +84,8 @@ export default function HQPage() {
     ru: {
       title: "ГЛАВНЫЙ ОФИС",
       subtitle: "Центр управления и администрации",
+      hqObject: "Центральный офис",
+      hqObjectDesc: "Штаб управления клубом",
       confirm: "Начать проект",
       cost: "Инвестиции",
       duration: "Срок",
@@ -152,6 +170,26 @@ export default function HQPage() {
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
         </div>
       </header>
+
+      <Card className="glass-card mb-6 border-white/10 bg-black overflow-hidden transition-all">
+        <CardContent className="p-0">
+          {showStarterImage && starterImage && (
+            <div className="w-full bg-background border-b border-white/5 overflow-hidden">
+               <img 
+                src={starterImage} 
+                alt="HQ Preview" 
+                className="w-full h-auto block"
+                loading="eager"
+                decoding="sync"
+               />
+            </div>
+          )}
+          <div className="p-4">
+             <h2 className="text-sm font-headline font-bold text-white uppercase tracking-tight">{t.hqObject}</h2>
+             <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mt-1">{t.hqObjectDesc}</p>
+          </div>
+        </CardContent>
+      </Card>
 
       <h2 className="text-xs font-headline font-bold text-accent uppercase tracking-[0.2em] mb-4 px-1">{t.facilities}</h2>
 
