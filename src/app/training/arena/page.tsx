@@ -61,7 +61,7 @@ export default function ArenaPage() {
     );
   }, [arena]);
 
-  const showStarterImage = maxArenaLevel >= 0 && maxArenaLevel <= 10;
+  const showStarterImage = Number(maxArenaLevel) >= 0 && Number(maxArenaLevel) <= 10;
   const starterImage = (PlaceHolderImages || []).find(img => img.id === 'arena-starter')?.imageUrl;
 
   const labels = {
@@ -208,14 +208,13 @@ export default function ArenaPage() {
       )}>
         <CardContent className="p-0">
           {showStarterImage && starterImage && (
-            <div className="w-full relative overflow-hidden bg-background aspect-video">
+            <div className="w-full relative overflow-hidden bg-black aspect-video border-b border-white/5">
                <img 
                 src={starterImage} 
                 alt="Arena Preview" 
                 className="w-full h-full object-cover block"
                 style={{ 
-                  imageRendering: 'crisp-edges',
-                  display: 'block'
+                  imageRendering: 'auto'
                 }}
                 loading="eager"
                />
