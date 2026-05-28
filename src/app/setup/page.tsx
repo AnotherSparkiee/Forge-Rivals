@@ -119,59 +119,59 @@ export default function SetupPage() {
 
   return (
     <div className="min-h-screen h-screen flex items-center justify-center p-4 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)] overflow-hidden">
-      <div className="w-full max-w-lg flex flex-col h-full space-y-4 animate-in fade-in duration-700">
+      <div className="w-full max-w-lg flex flex-col h-full space-y-3 animate-in fade-in duration-700">
         
-        <header className="text-center flex-shrink-0">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary mb-2">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span className="text-[8px] font-black uppercase tracking-widest">Инициация профиля</span>
+        <header className="text-center flex-shrink-0 pt-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary mb-1">
+            <ShieldCheck className="w-3 h-3" />
+            <span className="text-[7px] font-black uppercase tracking-widest">Инициация профиля</span>
           </div>
-          <h1 className="text-xl font-headline font-bold text-white tracking-tighter uppercase leading-tight">
-            {step === 'league' ? 'Выберите лигу по времени' : 'Выберите флаг клуба'}
+          <h1 className="text-lg font-headline font-bold text-white tracking-tighter uppercase leading-tight">
+            {step === 'league' ? 'Выберите время матчей' : 'Выберите флаг клуба'}
           </h1>
         </header>
 
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center py-2">
           {step === 'league' ? (
-            <div className="grid grid-cols-4 gap-2 w-full">
+            <div className="grid grid-cols-4 grid-rows-4 gap-2 w-full h-full max-h-[500px]">
               {LEAGUES.map((league) => (
                 <Card 
                   key={league.id} 
                   className={cn(
-                    "glass-card cursor-pointer transition-all border-white/5 active:scale-95 h-16 flex flex-col items-center justify-center p-1", 
+                    "glass-card cursor-pointer transition-all border-white/5 active:scale-95 flex flex-col items-center justify-center p-2", 
                     selectedLeagueId === league.id ? "ring-2 ring-primary border-primary bg-primary/20 shadow-[0_0_20px_rgba(var(--primary),0.3)]" : "hover:border-white/10"
                   )} 
                   onClick={() => setSelectedLeagueId(league.id)}
                 >
-                  <CardContent className="p-0 text-center">
-                    <p className={cn("font-headline text-[8px] font-bold tracking-tighter mb-0.5", selectedLeagueId === league.id ? "text-white" : "text-muted-foreground")}>{league.id}</p>
-                    <div className="flex items-center justify-center gap-1">
-                      <Clock className={cn("w-2 h-2", selectedLeagueId === league.id ? "text-primary" : "text-muted-foreground/40")} />
-                      <span className="text-primary font-black text-[9px] font-mono leading-none">{league.startTime}</span>
+                  <CardContent className="p-0 text-center flex flex-col items-center justify-center gap-1">
+                    <p className={cn("font-headline text-[10px] font-bold tracking-tighter", selectedLeagueId === league.id ? "text-white" : "text-muted-foreground")}>{league.id}</p>
+                    <div className="flex items-center justify-center gap-1.5 bg-background/40 px-2 py-0.5 rounded-full border border-white/5">
+                      <Clock className={cn("w-2.5 h-2.5", selectedLeagueId === league.id ? "text-primary" : "text-muted-foreground/40")} />
+                      <span className="text-primary font-black text-[10px] font-mono leading-none">{league.startTime}</span>
                     </div>
                   </CardContent>
                 </Card>
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-4 gap-2 w-full">
+            <div className="grid grid-cols-4 grid-rows-4 gap-2 w-full h-full max-h-[500px]">
               {COUNTRIES.map((country) => (
                 <Card 
                   key={country.code} 
                   className={cn(
-                    "glass-card cursor-pointer transition-all active:scale-95 border-white/5 h-16 flex flex-col items-center justify-center p-1", 
+                    "glass-card cursor-pointer transition-all active:scale-95 border-white/5 flex flex-col items-center justify-center p-2", 
                     selectedCountryCode === country.code ? "ring-2 ring-primary border-primary bg-primary/20 shadow-[0_0_20px_rgba(var(--primary),0.3)]" : "hover:border-white/10"
                   )} 
                   onClick={() => setSelectedCountryCode(country.code)}
                 >
-                  <CardContent className="flex flex-col items-center justify-center p-0 gap-1 relative w-full">
-                    <span className="text-2xl leading-none">{country.flag}</span>
-                    <span className="text-[7px] font-black uppercase tracking-tighter text-center line-clamp-1 w-full px-0.5">
+                  <CardContent className="flex flex-col items-center justify-center p-0 gap-1.5 relative w-full h-full">
+                    <span className="text-3xl leading-none">{country.flag}</span>
+                    <span className="text-[8px] font-black uppercase tracking-tighter text-center line-clamp-1 w-full px-0.5">
                       {country.name}
                     </span>
                     {selectedCountryCode === country.code && (
                       <div className="absolute -top-1 -right-1">
-                        <CheckCircle2 className="text-primary w-2.5 h-2.5 bg-background rounded-full" />
+                        <CheckCircle2 className="text-primary w-3 h-3 bg-background rounded-full" />
                       </div>
                     )}
                   </CardContent>
@@ -181,12 +181,12 @@ export default function SetupPage() {
           )}
         </div>
 
-        <div className="flex flex-col gap-2 flex-shrink-0 pb-2">
+        <div className="flex flex-col gap-2 flex-shrink-0 pb-4">
           <Button 
             size="lg" 
             disabled={isUpdating || (step === 'league' ? !selectedLeagueId : !selectedCountryCode)} 
             onClick={step === 'league' ? handleNextStep : handleCompleteSetup} 
-            className="w-full hero-gradient text-[10px] font-headline font-black h-12 tracking-[0.2em] shadow-xl rounded-xl uppercase"
+            className="w-full hero-gradient text-[11px] font-headline font-black h-14 tracking-[0.2em] shadow-xl rounded-xl uppercase"
           >
             {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (step === 'league' ? 'ПРОДОЛЖИТЬ' : 'УСТАНОВИТЬ СВЯЗЬ')}
           </Button>
@@ -194,7 +194,7 @@ export default function SetupPage() {
             <Button 
               variant="ghost" 
               onClick={() => setStep('league')} 
-              className="w-full h-8 text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground hover:text-white"
+              className="w-full h-8 text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground hover:text-white"
             >
               ← НАЗАД К ВЫБОРУ ЛИГИ
             </Button>
