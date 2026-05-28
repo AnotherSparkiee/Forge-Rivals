@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -12,13 +13,14 @@ import { Progress } from '@/components/ui/progress';
 import { 
   ChevronLeft, MessageSquare, Coffee, ShoppingBag, 
   Monitor, Home, Lightbulb, Wallet, Clock,
-  Hammer, Users, MinusCircle, PlusCircle
+  Hammer, Users, MinusCircle, PlusCircle, ImageIcon
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { getMoscowTime } from '@/app/lib/time-utils';
+import { PlaceHolderImages } from '@/app/lib/placeholder-images';
 
 export default function ArenaPage() {
   const { 
@@ -49,6 +51,21 @@ export default function ArenaPage() {
 
   const isCapacityConstructing = !!arena.constructionFinishes?.capacity;
 
+  const maxArenaLevel = useMemo(() => {
+    if (!arena) return 0;
+    return Math.max(
+      arena.pressCenterLevel || 0,
+      arena.cafeLevel || 0,
+      arena.shopLevel || 0,
+      arena.screensLevel || 0,
+      arena.roofLevel || 0,
+      arena.lightingLevel || 0
+    );
+  }, [arena]);
+
+  const showStarterImage = maxArenaLevel >= 1 && maxArenaLevel <= 10;
+  const starterImage = PlaceHolderImages.find(img => img.id === 'arena-starter')?.imageUrl;
+
   if (!isLoaded) return null;
 
   const labels = {
@@ -72,6 +89,7 @@ export default function ArenaPage() {
       finishAt: "Ready at",
       crewBusy: "Arena Crew Busy",
       facilities: "Facility Upgrades",
+      visualPreview: "Operational Visual Signal",
       items: {
         capacity: { label: "Stadium Capacity", desc: "Current stadium seating capacity." },
         pressCenterLevel: { label: "Press Center", desc: "Increases media coverage and attracts more elite fans." },
@@ -102,6 +120,7 @@ export default function ArenaPage() {
       finishAt: "Готовность в",
       crewBusy: "Бригада Арены занята",
       facilities: "Улучшение объектов",
+      visualPreview: "Визуальный сигнал объекта",
       items: {
         capacity: { label: "Вместимость стадиона", desc: "Текущая вместимость зрительских мест." },
         pressCenterLevel: { label: "Пресс-центр", desc: "Улучшает освещение в СМИ и привлекает больше фанатов." },
@@ -119,19 +138,13 @@ export default function ArenaPage() {
   const calculateProgress = (id: string) => {
     const start = arena.constructionStarts?.[id];
     const finish = arena.constructionFinishes?.[id];
-    
     if (!finish || !start) return 0;
-    
     const startTime = new Date(start).getTime();
     const finishTime = new Date(finish).getTime();
-    
     const total = finishTime - startTime;
     const elapsed = Date.now() - startTime;
-    
     if (total <= 0) return 100;
-    const prog = (elapsed / total) * 100;
-    
-    return Math.min(Math.max(prog, 0), 100);
+    return Math.min(Math.max((elapsed / total) * 100, 0), 100);
   };
 
   const handleFacilityUpgrade = () => {
@@ -216,6 +229,25 @@ export default function ArenaPage() {
               </div>
             )}
           </div>
+          
+          {showStarterImage && starterImage && (
+            <div className="mb-4 animate-in fade-in zoom-in duration-700">
+               <div className="relative group">
+                 <div className="absolute -inset-0.5 bg-primary/20 rounded-xl blur opacity-30 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+                 <div className="relative overflow-hidden rounded-xl border border-white/10 aspect-video bg-secondary/50">
+                   <img src={starterImage} alt="Arena Visual" className="w-full h-full object-cover" data-ai-hint="dusty garage" />
+                   <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent"></div>
+                   <div className="absolute bottom-2 left-3 flex items-center gap-2">
+                     <div className="p-1 rounded bg-black/60 backdrop-blur-sm border border-white/10">
+                        <ImageIcon className="w-3 h-3 text-primary" />
+                     </div>
+                     <span className="text-[8px] font-black uppercase text-white/70 tracking-widest">{t.visualPreview}</span>
+                   </div>
+                 </div>
+               </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between text-[10px] uppercase font-bold text-muted-foreground mb-4">
             <span>{t.currentStatus}: {arena.capacity.toLocaleString()}</span>
             <span className="text-accent">{t.maintenance}: 30,000€</span>

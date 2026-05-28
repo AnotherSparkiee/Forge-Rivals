@@ -42,6 +42,12 @@
       "description": "Turkish professional player portrait v1",
       "imageUrl": "https://i.postimg.cc/MHvbRpyd/tr-1.jpg",
       "imageHint": "turkish gamer"
+    },
+    {
+      "id": "arena-starter",
+      "description": "Starter dusty garage arena for levels 1-10",
+      "imageUrl": "https://i.postimg.cc/BvMswhV3/arena-level-1-10.jpg",
+      "imageHint": "dusty garage"
     }
   ]
 }
