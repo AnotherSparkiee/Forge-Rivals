@@ -12,19 +12,19 @@
   "firestore": {
     "structure": [
       {
-        "path": "players_v5/{userId}",
+        "path": "players_v6/{userId}",
         "definition": "GenericObject"
       },
       {
-        "path": "market_v2/{agentId}",
+        "path": "market_v3/{agentId}",
         "definition": "GenericObject"
       },
       {
-        "path": "friend_requests_v1/{requestId}",
+        "path": "friend_requests_v2/{requestId}",
         "definition": "GenericObject"
       },
       {
-        "path": "associations_v1/{assocId}",
+        "path": "associations_v2/{assocId}",
         "definition": "GenericObject"
       },
       {
@@ -44,7 +44,7 @@
         "definition": "GenericObject"
       },
       {
-        "path": "notifications_v1/{notifId}",
+        "path": "notifications_v2/{notifId}",
         "definition": "GenericObject"
       }
     ]

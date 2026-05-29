@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -26,12 +27,12 @@ export default function AllManagersPage() {
   const [search, setSearch] = useState('');
   const [isActionProcessing, setIsActionProcessing] = useState<string | null>(null);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v6', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const managersQuery = useMemoFirebase(() => {
     return query(
-      collection(db, 'players_v5'),
+      collection(db, 'players_v6'),
       orderBy('createdAt', 'asc'),
       limit(200)
     );
@@ -43,7 +44,7 @@ export default function AllManagersPage() {
     if (!user?.uid) return;
     
     const q = query(
-      collection(db, 'friend_requests_v1'),
+      collection(db, 'friend_requests_v2'),
       where('fromId', '==', user.uid),
       where('status', '==', 'accepted')
     );
@@ -81,7 +82,7 @@ export default function AllManagersPage() {
     setIsActionProcessing(targetId);
     try {
       const requestId = `req_${user.uid}_${targetId}`;
-      const requestRef = doc(db, 'friend_requests_v1', requestId);
+      const requestRef = doc(db, 'friend_requests_v2', requestId);
       const now = new Date().toISOString();
 
       const requestData = {

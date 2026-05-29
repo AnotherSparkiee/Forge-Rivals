@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
@@ -7,14 +8,14 @@ import { doc, collection, query, where, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 export function TransferResolver() {
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading } = user();
   const db = useFirestore();
   const { isLoaded, updateHero, removeHero, addCredits, language } = useGameState();
   const { toast } = useToast();
   
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
-    return query(collection(db, 'market_v2'), where('sellerId', '==', user.uid));
+    return query(collection(db, 'market_v3'), where('sellerId', '==', user.uid));
   }, [db, user?.uid]);
 
   const { data: mySales } = useCollection(marketQuery);
@@ -22,7 +23,7 @@ export function TransferResolver() {
 
   const sendNotification = useCallback((title: string, description: string) => {
     if (!user) return;
-    addDocumentNonBlocking(collection(db, 'notifications_v1'), {
+    addDocumentNonBlocking(collection(db, 'notifications_v2'), {
       userId: user.uid,
       title,
       description,
@@ -77,7 +78,7 @@ export function TransferResolver() {
               toast({ title, description: desc });
             }
 
-            await deleteDoc(doc(db, 'market_v2', agent.id));
+            await deleteDoc(doc(db, 'market_v3', agent.id));
           } catch (e) {
             console.error("Failed to resolve sale", e);
             processedIds.current.delete(agent.id);

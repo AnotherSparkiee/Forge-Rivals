@@ -33,7 +33,7 @@ import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function YouthSquadPage() {
   const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, updateHero } = useGameState();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
   
@@ -46,10 +46,10 @@ export default function YouthSquadPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v5', user.uid) : null), [db, user?.uid]);
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v6', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
-  if (!isLoaded) return <LoadingScreen />;
+  if (!isLoaded || isUserLoading) return <LoadingScreen />;
 
   const t = {
     title: language === 'ru' ? "СОСТАВ АКАДЕМИИ" : "ACADEMY SQUAD",
@@ -122,7 +122,7 @@ export default function YouthSquadPage() {
         dropTime: mskNow.toISOString()
       };
 
-      setDocumentNonBlocking(doc(db, 'market_v2', agentId), agentData);
+      setDocumentNonBlocking(doc(db, 'market_v3', agentId), agentData);
       
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),

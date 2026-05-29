@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -17,7 +18,7 @@ import { cn } from '@/lib/utils';
 
 export default function YouthTransfersPage() {
   const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading } = user();
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
@@ -27,7 +28,7 @@ export default function YouthTransfersPage() {
   // Прямой стрим всей коллекции для гарантированной видимости
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
-    return query(collection(db, 'market_v2'));
+    return query(collection(db, 'market_v3'));
   }, [db, user?.uid]);
 
   const { data: allAgents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
@@ -49,7 +50,7 @@ export default function YouthTransfersPage() {
 
     setIsBidding(agent.id);
     try {
-      const agentRef = doc(db, 'market_v2', agent.id);
+      const agentRef = doc(db, 'market_v3', agent.id);
       await updateDoc(agentRef, {
         currentBid: Number(minNextBid),
         highestBidderId: String(user.uid),

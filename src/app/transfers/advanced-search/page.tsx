@@ -30,7 +30,7 @@ export default function AdvancedSearchPage() {
 
   const marketQuery = useMemoFirebase(() => {
     if (!authReady) return null;
-    return query(collection(db, 'market_v2'));
+    return query(collection(db, 'market_v3'));
   }, [db, authReady]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);

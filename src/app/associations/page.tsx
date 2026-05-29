@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -33,10 +34,10 @@ export default function AssociationPage() {
   const [assocName, setAssocName] = useState('');
   const [assocDesc, setAssocDesc] = useState('');
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v6', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  const allAssocsQuery = useMemoFirebase(() => query(collection(db, 'associations_v1')), [db]);
+  const allAssocsQuery = useMemoFirebase(() => query(collection(db, 'associations_v2')), [db]);
   const { data: allAssocs, isLoading: isAssocsLoading } = useCollection(allAssocsQuery);
 
   const myAssoc = useMemo(() => {
@@ -131,7 +132,7 @@ export default function AssociationPage() {
     setIsProcessing(true);
     try {
       const assocId = `assoc_${Date.now()}`;
-      const assocRef = doc(db, 'associations_v1', assocId);
+      const assocRef = doc(db, 'associations_v2', assocId);
       
       const assocData = {
         id: assocId,
@@ -165,7 +166,7 @@ export default function AssociationPage() {
     if (!user || !profile || isProcessing) return;
     setIsProcessing(true);
     try {
-      updateDocumentNonBlocking(doc(db, 'associations_v1', assoc.id), {
+      updateDocumentNonBlocking(doc(db, 'associations_v2', assoc.id), {
         requests: arrayUnion({ uid: user.uid, name: profile.displayName || "Manager" })
       });
       toast({ title: language === 'ru' ? "Заявка отправлена" : "Request Sent" });
@@ -181,14 +182,14 @@ export default function AssociationPage() {
     if (!myAssoc || !isOwner || isProcessing) return;
     setIsProcessing(true);
     try {
-      const assocRef = doc(db, 'associations_v1', myAssoc.id);
+      const assocRef = doc(db, 'associations_v2', myAssoc.id);
       if (accept) {
         updateDocumentNonBlocking(assocRef, {
           members: arrayUnion(applicant.uid),
           memberNames: arrayUnion(applicant.name),
           requests: arrayRemove(applicant)
         });
-        updateDocumentNonBlocking(doc(db, 'players_v5', applicant.uid), {
+        updateDocumentNonBlocking(doc(db, 'players_v6', applicant.uid), {
           associationId: myAssoc.id
         });
         toast({ title: `${applicant.name} accepted` });

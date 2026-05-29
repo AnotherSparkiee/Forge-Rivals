@@ -16,7 +16,7 @@ export function TopBar() {
   const { credits, crystals, syncStats, isSyncing, language } = useGameState();
   const db = useFirestore();
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v6', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
@@ -24,7 +24,7 @@ export function TopBar() {
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId || !user?.uid) return null;
     return query(
-      collection(db, 'players_v5'),
+      collection(db, 'players_v6'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -51,7 +51,7 @@ export function TopBar() {
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid || !profile) return null;
     return query(
-      collection(db, 'notifications_v1'),
+      collection(db, 'notifications_v2'),
       where('userId', '==', user.uid),
       where('read', '==', false)
     );

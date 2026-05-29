@@ -37,7 +37,7 @@ export default function GlobalChatPage() {
   const [selectedUser, setSelectedUser] = useState<{id: string, name: string} | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v5', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v6', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const chatQuery = useMemoFirebase(() => {
@@ -102,7 +102,7 @@ export default function GlobalChatPage() {
     setIsActionProcessing(true);
     try {
       const requestId = `req_${user.uid}_${selectedUser.id}`;
-      const requestRef = doc(db, 'friend_requests_v1', requestId);
+      const requestRef = doc(db, 'friend_requests_v2', requestId);
       const now = new Date().toISOString();
 
       const requestData = {

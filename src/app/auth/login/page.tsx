@@ -104,7 +104,7 @@ export default function LoginPage() {
 
     try {
       if (!identifier.includes('@')) {
-        const usersRef = collection(db, 'players_v5');
+        const usersRef = collection(db, 'players_v6');
         const q = query(usersRef, where('displayName', '==', identifier), limit(1));
         
         try {
@@ -117,7 +117,7 @@ export default function LoginPage() {
         } catch (serverError: any) {
           if (serverError.code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({
-              path: 'players_v5',
+              path: 'players_v6',
               operation: 'list',
             });
             errorEmitter.emit('permission-error', permissionError);
@@ -149,7 +149,7 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      const userProfileRef = doc(db, 'players_v5', user.uid);
+      const userProfileRef = doc(db, 'players_v6', user.uid);
       
       let userSnap;
       try {

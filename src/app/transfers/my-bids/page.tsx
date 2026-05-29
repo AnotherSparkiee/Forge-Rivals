@@ -31,7 +31,7 @@ export default function MyBidsPage() {
 
   const marketQuery = useMemoFirebase(() => {
     if (!authReady) return null;
-    return query(collection(db, 'market_v2'), where('bidders', 'array-contains', user!.uid));
+    return query(collection(db, 'market_v3'), where('bidders', 'array-contains', user!.uid));
   }, [db, user?.uid, authReady]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -82,7 +83,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const usersRef = collection(db, 'players_v5');
+      const usersRef = collection(db, 'players_v6');
       const q = query(usersRef, where('displayName', '==', username.trim()), limit(1));
       const querySnapshot = await getDocs(q);
       
@@ -129,7 +130,7 @@ export default function RegisterPage() {
         points: 0
       };
 
-      await setDoc(doc(db, 'players_v5', user.uid), profileData);
+      await setDoc(doc(db, 'players_v6', user.uid), profileData);
 
       toast({ title: t.successTitle, description: t.successDesc });
       router.push('/setup');

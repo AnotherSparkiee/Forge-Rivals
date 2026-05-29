@@ -68,7 +68,7 @@ export function CWBasketListener() {
 
               const rivalSquad = getRandomStartingSquad().map((h, i) => ({
                 ...h,
-                name: `${h.name} CW`,
+                name: `${h.name} AI`,
                 isSub: i > 4
               }));
 

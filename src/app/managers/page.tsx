@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useMemo } from 'react';
@@ -25,7 +26,7 @@ export default function ManagersHubPage() {
   const requestsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'friend_requests_v1'),
+      collection(db, 'friend_requests_v2'),
       where('toId', '==', user.uid),
       where('status', '==', 'pending')
     );
