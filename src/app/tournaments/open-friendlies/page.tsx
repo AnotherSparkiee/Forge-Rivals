@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -41,7 +42,7 @@ export default function OpenFriendliesPage() {
   const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket', user.uid) : null, [db, user]);
   const { data: myBasket } = useDoc(myBasketRef);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v6', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v7', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   // Filter out lobbies older than 60 seconds

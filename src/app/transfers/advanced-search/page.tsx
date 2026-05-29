@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -30,7 +31,7 @@ export default function AdvancedSearchPage() {
 
   const marketQuery = useMemoFirebase(() => {
     if (!authReady) return null;
-    return query(collection(db, 'market_v3'));
+    return query(collection(db, 'market_v4'));
   }, [db, authReady]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);

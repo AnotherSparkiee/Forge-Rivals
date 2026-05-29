@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth, useFirestore, setDocumentNonBlocking } from '@/firebase';
+import { useAuth, useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
 import { collection, query, where, getDocs, limit, doc, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -104,7 +104,7 @@ export default function LoginPage() {
 
     try {
       if (!identifier.includes('@')) {
-        const usersRef = collection(db, 'players_v6');
+        const usersRef = collection(db, 'players_v7');
         const q = query(usersRef, where('displayName', '==', identifier), limit(1));
         
         try {
@@ -117,7 +117,7 @@ export default function LoginPage() {
         } catch (serverError: any) {
           if (serverError.code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({
-              path: 'players_v6',
+              path: 'players_v7',
               operation: 'list',
             });
             errorEmitter.emit('permission-error', permissionError);
@@ -149,7 +149,7 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      const userProfileRef = doc(db, 'players_v6', user.uid);
+      const userProfileRef = doc(db, 'players_v7', user.uid);
       
       let userSnap;
       try {

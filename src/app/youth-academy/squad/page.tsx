@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -46,7 +47,7 @@ export default function YouthSquadPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v6', user.uid) : null), [db, user?.uid]);
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v7', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
   if (!isLoaded || isUserLoading) return <LoadingScreen />;
@@ -122,7 +123,7 @@ export default function YouthSquadPage() {
         dropTime: mskNow.toISOString()
       };
 
-      setDocumentNonBlocking(doc(db, 'market_v3', agentId), agentData);
+      setDocumentNonBlocking(doc(db, 'market_v4', agentId), agentData);
       
       updateHero(selectedHero.id, { 
         onTransferUntil: expiryTime.toISOString(),

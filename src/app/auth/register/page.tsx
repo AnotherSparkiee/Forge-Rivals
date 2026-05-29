@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth, useFirestore } from '@/firebase';
+import { useAuth, useFirestore, useUser } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -83,7 +83,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const usersRef = collection(db, 'players_v6');
+      const usersRef = collection(db, 'players_v7');
       const q = query(usersRef, where('displayName', '==', username.trim()), limit(1));
       const querySnapshot = await getDocs(q);
       
@@ -130,7 +130,7 @@ export default function RegisterPage() {
         points: 0
       };
 
-      await setDoc(doc(db, 'players_v6', user.uid), profileData);
+      await setDoc(doc(db, 'players_v7', user.uid), profileData);
 
       toast({ title: t.successTitle, description: t.successDesc });
       router.push('/setup');

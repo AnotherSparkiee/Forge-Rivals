@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -64,12 +65,12 @@ export default function RankingsPage() {
     }
   }, [user, isUserLoading, router]);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v6', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v7', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const allLeaguePlayersQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
-    return query(collection(db, 'players_v6'), where('selectedLeagueId', '==', profile.selectedLeagueId));
+    return query(collection(db, 'players_v7'), where('selectedLeagueId', '==', profile.selectedLeagueId));
   }, [db, profile?.selectedLeagueId]);
 
   const { data: allLeaguePlayers, isLoading: isLeaguePlayersLoading } = useCollection(allLeaguePlayersQuery);

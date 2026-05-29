@@ -47,13 +47,13 @@ export default function MatchesPage() {
     }
   }, [user, isUserLoading, router]);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v6', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v7', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
-      collection(db, 'players_v6'),
+      collection(db, 'players_v7'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -76,12 +76,12 @@ export default function MatchesPage() {
   const { data: challengerLobbies } = useCollection(challengerLobbyQuery);
 
   const globeParticipantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v6'), where('tournaments', 'array-contains', 'iron-globe'));
+    return query(collection(db, 'players_v7'), where('tournaments', 'array-contains', 'iron-globe'));
   }, [db]);
   const { data: globeParticipants } = useCollection(globeParticipantsQuery);
 
   const brickParticipantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v6'), where('tournaments', 'array-contains', 'iron-brick'));
+    return query(collection(db, 'players_v7'), where('tournaments', 'array-contains', 'iron-brick'));
   }, [db]);
   const { data: brickParticipants } = useCollection(brickParticipantsQuery);
 
