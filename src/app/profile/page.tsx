@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState, getLevelThreshold } from '../lib/store';
@@ -50,7 +49,7 @@ export default function ProfilePage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showSkillTree, setShowSkillTree] = useState(false);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v6', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v7', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   useEffect(() => {

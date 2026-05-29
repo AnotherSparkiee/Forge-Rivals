@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -27,7 +26,7 @@ export default function NotificationsPage() {
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'notifications_v2'),
+      collection(db, 'notifications_v3'),
       where('userId', '==', user.uid),
       orderBy('createdAt', 'desc')
     );
@@ -42,7 +41,7 @@ export default function NotificationsPage() {
   }, [user, isUserLoading, router]);
 
   const handleMarkAsRead = (id: string) => {
-    updateDocumentNonBlocking(doc(db, 'notifications_v2', id), { read: true });
+    updateDocumentNonBlocking(doc(db, 'notifications_v3', id), { read: true });
   };
 
   const handleMarkAllRead = async () => {
@@ -50,7 +49,7 @@ export default function NotificationsPage() {
     const batch = writeBatch(db);
     const unread = notifications.filter(n => !n.read);
     unread.forEach(n => {
-      batch.update(doc(db, 'notifications_v2', n.id), { read: true });
+      batch.update(doc(db, 'notifications_v3', n.id), { read: true });
     });
     await batch.commit();
   };
@@ -59,7 +58,7 @@ export default function NotificationsPage() {
     if (!notifications || !user) return;
     const batch = writeBatch(db);
     notifications.forEach(n => {
-      batch.delete(doc(db, 'notifications_v2', n.id));
+      batch.delete(doc(db, 'notifications_v3', n.id));
     });
     await batch.commit();
   };

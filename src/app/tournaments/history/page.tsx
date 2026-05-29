@@ -19,7 +19,7 @@ export default function TournamentHistoryPage() {
   const db = useFirestore();
   const { language, isLoaded } = useGameState();
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v6', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v7', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   if (isUserLoading || !isLoaded || isProfileLoading) {
@@ -171,7 +171,7 @@ export default function TournamentHistoryPage() {
             <History className="w-10 h-10" />
           </div>
           <h2 className="text-xl font-headline font-bold uppercase tracking-tight">{t.noHistory}</h2>
-          <p className="text-[10px] uppercase font-bold tracking-[0.2em] mt-2 max-w-[200px]">
+          <p className="text-[10px] uppercase font-bold tracking-[0.2em] mt-2 max-w-[250px]">
             {t.noHistoryDesc}
           </p>
         </div>

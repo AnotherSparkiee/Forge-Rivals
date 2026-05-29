@@ -1,11 +1,10 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { Hero, INITIAL_HEROES, generateYouthHero, StaffMember, StaffMember as StaffMemberType, StaffRole } from './moba-data';
 import { getMoscowTime, getMoscowDateString, isMatchDue, getGlobalSeasonInfo } from './time-utils';
 import { useUser, useFirestore, updateDocumentNonBlocking, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
-import { doc, onSnapshot, updateDoc, arrayUnion, collection } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, arrayUnion, collection } from 'firebase/firestore';
 import { getMockGroupTeams, LEAGUES } from './leagues-data';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2';
@@ -343,7 +342,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     const profileRef = doc(db, 'players_v7', user.uid);
     setTimeout(() => {
-      updateDoc(profileRef, data)
+      setDoc(profileRef, data, { merge: true })
         .catch(e => console.warn("Cloud update failed (handled):", e.message));
     }, 0);
   }, [user, db]);
@@ -1076,18 +1075,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const addHeroDirectly = useCallback((hero: Hero) => {
     if (!user) return;
     setTimeout(() => {
-      updateDoc(doc(db, 'players_v7', user.uid), {
+      setDoc(doc(db, 'players_v7', user.uid), {
         ownedHeroes: arrayUnion(sanitizeForFirestore(hero))
-      }).catch(e => console.error("Cloud direct add failed", e));
+      }, { merge: true }).catch(e => console.error("Cloud direct add failed", e));
     }, 0);
   }, [user, db]);
 
   const addYouthHeroDirectly = useCallback((hero: Hero) => {
     if (!user) return;
     setTimeout(() => {
-      updateDoc(doc(db, 'players_v7', user.uid), {
+      setDoc(doc(db, 'players_v7', user.uid), {
         youthAcademyHeroes: arrayUnion(sanitizeForFirestore(hero))
-      }).catch(e => console.error("Cloud youth direct add failed", e));
+      }, { merge: true }).catch(e => console.error("Cloud youth direct add failed", e));
     }, 0);
   }, [user, db]);
 
