@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState, getLevelThreshold } from '../lib/store';
@@ -11,7 +10,8 @@ import {
   Trophy, Star, Wallet, Gem, Flag, Zap, 
   BookOpen, Users, LayoutDashboard, Newspaper, Gift, Package, Heart,
   Lock, CheckCircle2, Sparkles, Award, ScrollText, ZapIcon,
-  CircleDollarSign, UserCog, HeartPulse, GraduationCap, ArrowUpCircle
+  CircleDollarSign, UserCog, HeartPulse, GraduationCap, ArrowUpCircle,
+  TrendingUp
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -34,10 +34,10 @@ type ProfileTab = 'menu' | 'training' | 'team' | 'page' | 'news' | 'daily' | 'bo
 
 export default function ProfilePage() {
   const { 
-    ownedHeroes, rank, language, isLoaded: isStoreLoaded, 
+    ownedHeroes, language, isLoaded: isStoreLoaded, 
     credits, crystals, leagueLevel, divisionSubId, groupId, rewardDay, 
     hasEliteTrophy, experiencePoints, activeLicenseTier, hq, managerLevel,
-    skillPoints, managerSkills, upgradeManagerSkill
+    skillPoints, managerSkills, upgradeManagerSkill, arena, bootcamp, academy, medical
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
@@ -73,6 +73,39 @@ export default function ProfilePage() {
     });
   }, []);
 
+  // Popularity Calculation
+  const popularity = useMemo(() => {
+    // 1. Infrastructure: +1 for every 11 building levels total
+    const totalInfraLevels = (
+      (arena.pressCenterLevel || 0) + (arena.cafeLevel || 0) + (arena.shopLevel || 0) + 
+      (arena.screensLevel || 0) + (arena.roofLevel || 0) + (arena.lightingLevel || 0) +
+      (hq.hrLevel || 0) + (hq.financeLevel || 0) + (hq.scoutsLevel || 0) + 
+      (hq.pressOfficeLevel || 0) + (hq.adminLevel || 0) +
+      (bootcamp.bootcampLevel || 0) + (bootcamp.tacticsHallLevel || 0) + 
+      (bootcamp.poolLevel || 0) + (bootcamp.researchLevel || 0) +
+      (academy.youthBootcampLevel || 0) + (academy.streamingLevel || 0) + 
+      (academy.scoutsLevel || 0) + (academy.discoLevel || 0) +
+      (medical.physiotherapyLevel || 0) + (medical.massageLevel || 0) + 
+      (medical.psychiatristLevel || 0) + (medical.labLevel || 0) + (medical.psychologistLevel || 0)
+    );
+    const infraBonus = Math.floor(totalInfraLevels / 11);
+
+    // 2. Licenses: +3 for each license (3 -> 2 -> 1)
+    let licenseBonus = 0;
+    if (activeLicenseTier === 3) licenseBonus = 3;
+    else if (activeLicenseTier === 2) licenseBonus = 6;
+    else if (activeLicenseTier === 1) licenseBonus = 9;
+
+    // 3. Fans: +1 for every 1000 fans (Assume fans = capacity * 1.5)
+    const fanCount = (arena.capacity || 5000) * 1.5;
+    const fanBonus = Math.floor(fanCount / 1000);
+
+    // 4. League: (10 - leagueLevel) * 2
+    const leagueBonus = (10 - leagueLevel) * 2;
+
+    return 10 + infraBonus + licenseBonus + fanBonus + leagueBonus;
+  }, [arena, hq, bootcamp, academy, medical, activeLicenseTier, leagueLevel]);
+
   if (!isStoreLoaded || isUserLoading || isProfileLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -87,7 +120,7 @@ export default function ProfilePage() {
       backToMenu: "Back to Hub",
       rosterInfo: "Roster Status",
       heroes: "Heroes",
-      mmr: "MMR Points",
+      popularity: "Club Popularity",
       level: "Manager Level",
       nextLevel: "Next Skill Point",
       balance: "Financial Status",
@@ -127,7 +160,7 @@ export default function ProfilePage() {
       backToMenu: "Вернуться в хаб",
       rosterInfo: "Информация о Росторе",
       heroes: "Героев",
-      mmr: "Очки MMR",
+      popularity: "Популярность клуба",
       level: "Уровень менеджера",
       nextLevel: "До очка навыков",
       balance: "Финансовый баланс",
@@ -339,9 +372,9 @@ export default function ProfilePage() {
           <div className="grid grid-cols-2 gap-3">
             <Card className="glass-card text-center bg-gradient-to-b from-primary/10 to-transparent border-primary/20">
               <CardContent className="p-4 flex flex-col items-center gap-1">
-                <Star className="w-4 h-4 text-primary" />
-                <p className="text-2xl font-headline font-bold text-primary">{rank}</p>
-                <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest">MMR</p>
+                <TrendingUp className="w-4 h-4 text-primary" />
+                <p className="text-2xl font-headline font-bold text-primary">{popularity}</p>
+                <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest">{t.popularity}</p>
               </CardContent>
             </Card>
             <Card className="glass-card text-center bg-gradient-to-b from-accent/10 to-transparent border-accent/20">
@@ -355,7 +388,7 @@ export default function ProfilePage() {
 
           <div className="space-y-4">
             <h2 className="text-xs font-headline font-bold text-accent uppercase tracking-[0.2em] px-1 flex items-center gap-2">
-              <Wallet className="w-3_3" /> {t.balance}
+              <Wallet className="w-3.5 h-3.5" /> {t.balance}
             </h2>
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-secondary/30 rounded-xl border border-white/5 p-4 flex items-center gap-3">

@@ -1105,6 +1105,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const purchaseLicense = useCallback((tier: number, cost: number) => {
     let success = false;
     setState(s => {
+      // License sequential order: 3 -> 2 -> 1
+      const currentTier = s.activeLicenseTier || 4; // 4 means none
+      if (tier !== currentTier - 1) return s;
+
       if (s.crystals >= cost) {
         success = true;
         const newCrystals = s.crystals - cost;

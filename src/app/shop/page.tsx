@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -10,7 +9,7 @@ import {
   ChevronLeft, ChevronRight, Gem, UserPlus, 
   Edit3, Flag, Coins, Star,
   Loader2, Info, Sparkles, ShoppingCart,
-  ArrowRightLeft, Target, Calendar, User, ScrollText, ShieldCheck
+  ArrowRightLeft, Target, Calendar, User, ScrollText, ShieldCheck, Lock
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
@@ -106,9 +105,10 @@ export default function ShopPage() {
       ],
       licenses: [
         { tier: 3, label: "Tier 3 License", multiplier: "2x", cost: 500, desc: "Double XP gain for all matches." },
-        { tier: 2, label: "Tier 2 License", multiplier: "4x", cost: 1500, desc: "Quadruple XP gain for all matches." },
-        { tier: 1, label: "Tier 1 License", multiplier: "8x", cost: 5000, desc: "Massive 8x XP gain for all matches." }
+        { tier: 2, label: "Tier 2 License", multiplier: "4x", cost: 500, desc: "Quadruple XP gain for all matches." },
+        { tier: 1, label: "Tier 1 License", multiplier: "8x", cost: 500, desc: "Massive 8x XP gain for all matches." }
       ],
+      licenseOrder: "Licenses must be acquired in order: Tier 3 -> Tier 2 -> Tier 1.",
       exchangeRate: "1 💎 = 10,000 €",
       confirm: "CONFIRM TRANSACTION",
       rebrandSuccess: "Rebranding synchronized",
@@ -144,9 +144,10 @@ export default function ShopPage() {
       ],
       licenses: [
         { tier: 3, label: "Tier 3 Лицензия", multiplier: "2x", cost: 500, desc: "Удваивает получаемый опыт." },
-        { tier: 2, label: "Tier 2 Лицензия", multiplier: "4x", cost: 1500, desc: "В 4 раза больше опыта за матчи." },
-        { tier: 1, label: "Tier 1 Лицензия", multiplier: "8x", cost: 5000, desc: "Максимальный буст опыта в 8 раз." }
+        { tier: 2, label: "Tier 2 Лицензия", multiplier: "4x", cost: 500, desc: "В 4 раза больше опыта за матчи." },
+        { tier: 1, label: "Tier 1 Лицензия", multiplier: "8x", cost: 500, desc: "Максимальный буст опыта в 8 раз." }
       ],
+      licenseOrder: "Лицензии приобретаются по порядку: Tier 3 -> Tier 2 -> Tier 1.",
       exchangeRate: "1 💎 = 10,000 €",
       confirm: "ПОДТВЕРДИТЬ ТРАНЗАКЦИЮ",
       rebrandSuccess: "Данные синхронизированы",
@@ -162,8 +163,9 @@ export default function ShopPage() {
   };
 
   const handleBuyLicense = (tier: number, cost: number) => {
-    if (activeLicenseTier && activeLicenseTier <= tier) {
-       toast({ title: language === 'ru' ? "У вас уже есть такая или лучшая лицензия" : "You already have this or a better license", variant: "destructive" });
+    const currentTier = activeLicenseTier || 4; // 4 means none
+    if (tier !== currentTier - 1) {
+       toast({ title: language === 'ru' ? "Сначала купите предыдущую лицензию" : "Purchase previous license first", variant: "destructive" });
        return;
     }
     if (purchaseLicense(tier, cost)) {
@@ -308,27 +310,31 @@ export default function ShopPage() {
         );
 
       case 'licenses':
+        const currentOwnedTier = activeLicenseTier || 4;
         return (
           <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl flex gap-4 mb-2">
                <Info className="w-5 h-5 text-primary shrink-0" />
                <p className="text-[10px] text-muted-foreground italic leading-relaxed">
-                 {language === 'ru' 
-                   ? "Лицензии — это постоянный бонус к получаемому опыту менеджера. Они суммируются с бонусами администрации."
-                   : "Licenses provide a permanent multiplier to Manager XP. They stack with Administration bonuses."}
+                 {t.licenseOrder}
                </p>
             </div>
             {t.licenses.map((lic, idx) => {
               const isOwned = activeLicenseTier && activeLicenseTier <= lic.tier;
+              const isLocked = lic.tier < currentOwnedTier - 1;
+              const isNext = lic.tier === currentOwnedTier - 1;
+
               return (
                 <Card key={idx} className={cn(
-                  "glass-card border-red-500/20 bg-red-500/5 hover:bg-red-500/10 transition-all cursor-pointer group",
-                  isOwned && "opacity-60 border-green-500/30 bg-green-500/5"
-                )} onClick={() => !isOwned && handleBuyLicense(lic.tier, lic.cost)}>
+                  "glass-card border-red-500/20 bg-red-500/5 transition-all overflow-hidden",
+                  !isOwned && !isLocked && "hover:bg-red-500/10 cursor-pointer",
+                  isOwned && "opacity-60 border-green-500/30 bg-green-500/5",
+                  isLocked && "opacity-40 grayscale grayscale-[0.5]"
+                )} onClick={() => !isOwned && !isLocked && handleBuyLicense(lic.tier, lic.cost)}>
                   <CardContent className="p-5 flex items-center justify-between">
                     <div className="flex items-center gap-4 flex-1">
-                      <div className={cn("p-3 rounded-xl bg-red-500/20 border border-red-500/30", isOwned && "bg-green-500/20 border-green-500/30")}>
-                         <ScrollText className={cn("w-6 h-6 text-red-400", isOwned && "text-green-400")} />
+                      <div className={cn("p-3 rounded-xl border", isOwned ? "bg-green-500/20 border-green-500/30" : "bg-red-500/20 border-red-500/30")}>
+                         {isLocked ? <Lock className="w-6 h-6 text-muted-foreground" /> : <ScrollText className={cn("w-6 h-6 text-red-400", isOwned && "text-green-400")} />}
                       </div>
                       <div className="min-w-0">
                         <h3 className="text-sm font-bold uppercase text-white truncate">{lic.label}</h3>
@@ -336,12 +342,14 @@ export default function ShopPage() {
                         <Badge className="mt-2 bg-primary/20 text-primary text-[8px] font-black">{lic.multiplier} XP MULTIPLIER</Badge>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
+                    <div className="text-right shrink-0 ml-4">
                       {isOwned ? (
                         <div className="flex flex-col items-center gap-1">
                           <ShieldCheck className="w-5 h-5 text-green-400" />
                           <span className="text-[8px] font-black uppercase text-green-400">ACTIVE</span>
                         </div>
+                      ) : isLocked ? (
+                        <span className="text-[8px] font-black uppercase text-muted-foreground">LOCKED</span>
                       ) : (
                         <Button className="h-10 px-4 hero-gradient font-black text-[10px] uppercase shadow-lg">
                           <Gem className="w-3 h-3 mr-1" /> {lic.cost}
