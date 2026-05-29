@@ -40,39 +40,54 @@ export function useDoc<T = any>(
     setError(null);
 
     let active = true;
+    let unsubscribe: (() => void) | null = null;
 
-    try {
-      const unsubscribe = onSnapshot(
-        memoizedDocRef,
-        (snapshot: DocumentSnapshot<DocumentData>) => {
-          if (!active) return;
-          if (snapshot.exists()) {
-            setData({ ...(snapshot.data() as T), id: snapshot.id });
-          } else {
+    const timer = setTimeout(() => {
+      try {
+        if (!active) return;
+
+        unsubscribe = onSnapshot(
+          memoizedDocRef,
+          (snapshot: DocumentSnapshot<DocumentData>) => {
+            if (!active) return;
+            
+            const docData = snapshot.exists() 
+              ? { ...(snapshot.data() as T), id: snapshot.id }
+              : null;
+
+            // Decouple from snapshot processing loop
+            Promise.resolve().then(() => {
+              if (active) {
+                setData(docData);
+                setError(null); 
+                setIsLoading(false);
+              }
+            });
+          },
+          (fError: FirestoreError) => {
+            if (!active) return;
+            console.warn("Firestore Doc Stream Error:", fError.code, fError.message);
+            setError(fError);
             setData(null);
+            setIsLoading(false);
           }
-          setError(null); 
-          setIsLoading(false);
-        },
-        (fError: FirestoreError) => {
-          if (!active) return;
-          console.warn("Firestore Doc Stream Error:", fError.code, fError.message);
-          setError(fError);
-          setData(null);
+        );
+      } catch (e: any) {
+        if (active) {
+          console.error("Critical doc hook setup error:", e.message);
+          setError(e);
           setIsLoading(false);
         }
-      );
+      }
+    }, 10);
 
-      return () => {
-        active = false;
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      if (unsubscribe) {
         unsubscribe();
-      };
-    } catch (e: any) {
-      console.error("Critical doc hook setup error:", e.message);
-      setError(e);
-      setIsLoading(false);
-      return;
-    }
+      }
+    };
   }, [memoizedDocRef]);
 
   return { data, isLoading, error };

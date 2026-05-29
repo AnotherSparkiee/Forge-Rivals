@@ -21,7 +21,7 @@ export interface UseCollectionResult<T> {
 /**
  * Hook for subscribing to Firestore collections.
  * Optimized for stability with Firestore 11.9.0.
- * Decouples updates from the internal SDK task queue to avoid assertion errors.
+ * Decouples updates from the internal SDK task queue to avoid ID: ca9 assertion errors.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
@@ -42,42 +42,56 @@ export function useCollection<T = any>(
     setError(null);
 
     let active = true;
+    let unsubscribe: (() => void) | null = null;
 
-    // Use a try-catch for immediate initialization errors
-    try {
-      const unsubscribe = onSnapshot(
-        memoizedTargetRefOrQuery,
-        (snapshot: QuerySnapshot<DocumentData>) => {
-          if (!active) return;
-          
-          const results: WithId<T>[] = [];
-          snapshot.forEach((doc) => {
-            results.push({ ...(doc.data() as T), id: doc.id });
-          });
-          
-          setData(results);
-          setError(null);
-          setIsLoading(false);
-        },
-        (fError: FirestoreError) => {
-          if (!active) return;
-          console.warn("Firestore Collection Stream Error:", fError.code, fError.message);
-          setError(fError);
-          setData(null);
+    // Small delay to ensure any previous unsubscriptions are processed by the SDK
+    const timer = setTimeout(() => {
+      try {
+        if (!active) return;
+        
+        unsubscribe = onSnapshot(
+          memoizedTargetRefOrQuery,
+          (snapshot: QuerySnapshot<DocumentData>) => {
+            if (!active) return;
+            
+            const results: WithId<T>[] = [];
+            snapshot.forEach((doc) => {
+              results.push({ ...(doc.data() as T), id: doc.id });
+            });
+            
+            // Decouple from snapshot processing loop
+            Promise.resolve().then(() => {
+              if (active) {
+                setData(results);
+                setError(null);
+                setIsLoading(false);
+              }
+            });
+          },
+          (fError: FirestoreError) => {
+            if (!active) return;
+            console.warn("Firestore Collection Stream Error:", fError.code, fError.message);
+            setError(fError);
+            setData(null);
+            setIsLoading(false);
+          }
+        );
+      } catch (e: any) {
+        if (active) {
+          console.error("Critical hook setup error:", e.message);
+          setError(e);
           setIsLoading(false);
         }
-      );
+      }
+    }, 10);
 
-      return () => {
-        active = false;
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      if (unsubscribe) {
         unsubscribe();
-      };
-    } catch (e: any) {
-      console.error("Critical hook setup error:", e.message);
-      setError(e);
-      setIsLoading(false);
-      return;
-    }
+      }
+    };
   }, [memoizedTargetRefOrQuery]);
 
   return { data, isLoading, error };

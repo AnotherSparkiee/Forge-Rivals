@@ -34,12 +34,12 @@ export function TopBar() {
   const { data: groupPlayers } = useCollection(groupQuery);
 
   const unreadMessagesQuery = useMemoFirebase(() => {
-    if (!user?.uid || !profile) return null;
+    if (!user?.uid) return null;
     return query(
       collection(db, 'private_messages'),
       where('participants', 'array-contains', user.uid)
     );
-  }, [db, user?.uid, !!profile]);
+  }, [db, user?.uid]);
 
   const { data: allMessages } = useCollection(unreadMessagesQuery);
   
@@ -49,20 +49,24 @@ export function TopBar() {
   }, [allMessages, user]);
 
   const notificationsQuery = useMemoFirebase(() => {
-    if (!user?.uid || !profile) return null;
+    if (!user?.uid) return null;
     return query(
       collection(db, 'notifications_v2'),
       where('userId', '==', user.uid),
       where('read', '==', false)
     );
-  }, [db, user?.uid, !!profile]);
+  }, [db, user?.uid]);
 
   const { data: notifications } = useCollection(notificationsQuery);
   const unreadNotifCount = notifications?.length || 0;
 
   useEffect(() => {
     if (groupPlayers && groupPlayers.length > 0) {
-      syncStats(groupPlayers);
+      // Decouple write (sync) from render/snapshot cycle to prevent ca9 error
+      const timer = setTimeout(() => {
+        syncStats(groupPlayers);
+      }, 500);
+      return () => clearTimeout(timer);
     }
   }, [groupPlayers, syncStats]);
 
