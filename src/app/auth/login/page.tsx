@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -41,7 +40,7 @@ export default function LoginPage() {
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const { language, isLoaded } = useGameState();
+  const { language } = useGameState();
 
   const translations = {
     en: {
@@ -238,8 +237,6 @@ export default function LoginPage() {
       setIsForgotLoading(false);
     }
   };
-
-  if (!isLoaded) return null;
 
   return (
     <div className="space-y-4">
