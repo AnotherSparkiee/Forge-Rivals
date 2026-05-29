@@ -5,10 +5,10 @@ import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { doc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { 
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription 
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Swords, Loader2, XCircle, ShieldCheck, Clock, ArrowRight, FileText } from 'lucide-react';
+import { Swords, Loader2, XCircle, ShieldCheck } from 'lucide-react';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
@@ -38,8 +38,6 @@ export function FriendlyMatchListener() {
   const [isProcessing, setIsActionLoading] = useState(false);
   
   const [showChallengeModal, setShowChallengeModal] = useState(false);
-  const [showFinishedModal, setShowFinishedModal] = useState(false);
-  const [finishedMatchData, setFinishedMatchData] = useState<any | null>(null);
   
   const handledChallengeIdRef = useRef<string | null>(null);
   const isSimulatingRef = useRef(false);
@@ -93,7 +91,6 @@ export function FriendlyMatchListener() {
         setShowChallengeModal(true);
         handledChallengeIdRef.current = challengeId;
         
-        // Notify host about challenge
         sendNotification(
           activeLobby.hostId, 
           language === 'ru' ? "Получен вызов!" : "Challenge Received!", 
@@ -178,12 +175,10 @@ export function FriendlyMatchListener() {
           
           recordMatch(finalResult.winner, finalResult, 0, opponentName, matchType, new Date().toISOString(), matchUniqueId);
           
-          setFinishedMatchData({
-            id: matchUniqueId,
-            opponentName,
-            isTrial: data.isTrial
+          toast({
+            title: language === 'ru' ? "Матч завершен" : "Match Finished",
+            description: language === 'ru' ? `Отчет боя против ${opponentName} готов.` : `Battle report vs ${opponentName} is ready.`,
           });
-          setShowFinishedModal(true);
 
           if (isHost) {
             await deleteDoc(doc(db, 'friendly_lobbies', data.id)).catch(() => {});
@@ -196,7 +191,7 @@ export function FriendlyMatchListener() {
       checkAndComplete();
       return () => clearInterval(timer);
     }
-  }, [activeLobby, challengeResult, user, language, recordMatch, db, toast, matchHistory]);
+  }, [activeLobby, challengeResult, user, language, recordMatch, db, toast, matchHistory, ownedHeroes, lineup]);
 
   const handleHostRespond = async (accept: boolean) => {
     if (!activeLobby) return;
@@ -237,7 +232,6 @@ export function FriendlyMatchListener() {
           updatedAt: serverTimestamp()
         });
         
-        // Notify challenger about acceptance
         sendNotification(
           activeLobby.challengerId,
           language === 'ru' ? "Вызов принят!" : "Challenge Accepted!",
@@ -262,21 +256,11 @@ export function FriendlyMatchListener() {
     }
   };
 
-  const handleGoToReport = () => {
-    if (finishedMatchData) {
-      router.push(`/match?id=${finishedMatchData.id}`);
-    }
-    setShowFinishedModal(false);
-  };
-
   const t = {
     hostTitle: language === 'ru' ? "ПОЛУЧЕН ВЫЗОВ" : "CHALLENGE RECEIVED",
     hostDesc: language === 'ru' ? `Менеджер ${activeLobby?.challengerName} хочет провести товарищеский матч.` : `Manager ${activeLobby?.challengerName} wants a friendly match.`,
     accept: language === 'ru' ? "ПРИНЯТЬ" : "ACCEPT",
     decline: language === 'ru' ? "ОТКЛОНИТЬ" : "DECLINE",
-    finishTitle: language === 'ru' ? "БОЙ ЗАВЕРШЕН" : "ENGAGEMENT OVER",
-    finishDesc: language === 'ru' ? "Тактический отчет готов к расшифровке." : "Tactical report ready for decryption.",
-    proceed: language === 'ru' ? "ПЕРЕЙТИ К ОТЧЕТУ" : "PROCEED TO REPORT",
   };
 
   return (
@@ -313,45 +297,6 @@ export function FriendlyMatchListener() {
               {t.decline}
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showFinishedModal} onOpenChange={setShowFinishedModal}>
-        <DialogContent className="max-w-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
-          <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
-            <div className="mx-auto w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary shadow-[0_0_20px_rgba(var(--primary),0.3)]">
-              <ShieldCheck className="w-8 h-8 text-primary animate-pulse" />
-            </div>
-            <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">
-              {t.finishTitle}
-            </DialogTitle>
-            <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">
-              {t.finishDesc}
-            </DialogDescription>
-          </div>
-          <div className="p-6 space-y-4">
-            <div className="bg-secondary/30 rounded-xl border border-white/5 p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/20">
-                  <FileText className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-[8px] uppercase font-black text-muted-foreground">
-                    {finishedMatchData?.isTrial ? (language === 'ru' ? 'ТРЕНИРОВКА' : 'TRIAL') : (language === 'ru' ? 'ТОВ. МАТЧ' : 'FRIENDLY')}
-                  </p>
-                  <p className="text-sm font-headline font-bold text-white uppercase italic">{finishedMatchData?.opponentName}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5">
-            <Button 
-              className="w-full h-12 hero-gradient font-bold uppercase text-xs tracking-widest" 
-              onClick={handleGoToReport}
-            >
-              <ArrowRight className="w-4 h-4 mr-2" /> {t.proceed}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
