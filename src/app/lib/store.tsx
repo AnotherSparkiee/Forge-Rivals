@@ -336,12 +336,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const lastSyncRef = useRef<{ season: number, day: number, leagueId: string | null } | null>(null);
 
   const getStorageKey = useCallback(() => {
-    return user ? `lote_v6_${user.uid}` : null;
+    return user ? `lote_v7_${user.uid}` : null;
   }, [user]);
 
   const runCloudUpdate = useCallback((data: any) => {
     if (!user) return;
-    const profileRef = doc(db, 'players_v6', user.uid);
+    const profileRef = doc(db, 'players_v7', user.uid);
     setTimeout(() => {
       updateDoc(profileRef, data)
         .catch(e => console.warn("Cloud update failed (handled):", e.message));
@@ -350,7 +350,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const sendNotification = useCallback((title: string, description: string, type: string) => {
     if (!user) return;
-    addDocumentNonBlocking(collection(db, 'notifications_v2'), {
+    addDocumentNonBlocking(collection(db, 'notifications_v3'), {
       userId: user.uid,
       title,
       description,
@@ -383,7 +383,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const profileRef = doc(db, 'players_v6', user.uid);
+    const profileRef = doc(db, 'players_v7', user.uid);
     const unsubscribe = onSnapshot(profileRef, (docSnap) => {
       if (docSnap.exists()) {
         const profileData = docSnap.data();
@@ -489,7 +489,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const { seasonNumber: globalSeason, seasonDay: globalDay } = getGlobalSeasonInfo();
     const mskNow = getMoscowTime();
     const currentMins = mskNow.getHours() * 60 + mskNow.getMinutes();
-    const RECALC_TIME = 16 * 60; // 16:00 MSK
+    const RECALC_TIME = 16 * 60; 
 
     const isRecalcDue = globalDay === 15 && currentMins >= RECALC_TIME;
     const isNewSeasonStarted = globalDay === 16 || globalDay < 15;
@@ -525,7 +525,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         awardedTrophy 
       });
 
-      // Notification for league results
       const resTitle = state.language === 'ru' ? "Сезон завершен!" : "Season Finished!";
       const resDesc = state.language === 'ru' 
         ? `Вы заняли ${myPos} место. ${promoted ? 'Повышение!' : (demoted ? 'Понижение в классе.' : 'Вы остались в дивизионе.')}`
@@ -750,7 +749,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             sectorChanges = true;
             globalChanges = true;
 
-            // Notify about completion
             const title = s.language === 'ru' ? "Объект готов!" : "Construction Finished!";
             const desc = s.language === 'ru' 
               ? `Модернизация объекта в секторе "${sectorName}" завершена.` 
@@ -1020,7 +1018,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const newLastLeagueDate = type === 'league' && matchDay === s.seasonDay ? todayStr : s.lastLeagueMatchDate;
       const newLastCupDate = type === 'cup' ? todayStr : s.lastCupMatchDate;
 
-      // Notification for match results
       const mTitle = s.language === 'ru' ? "Матч завершен" : "Match Finished";
       const mDesc = s.language === 'ru' 
         ? `Результат боя против ${opponentName}: ${scoreA}:${scoreB}.`
@@ -1079,7 +1076,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const addHeroDirectly = useCallback((hero: Hero) => {
     if (!user) return;
     setTimeout(() => {
-      updateDoc(doc(db, 'players_v6', user.uid), {
+      updateDoc(doc(db, 'players_v7', user.uid), {
         ownedHeroes: arrayUnion(sanitizeForFirestore(hero))
       }).catch(e => console.error("Cloud direct add failed", e));
     }, 0);
@@ -1088,7 +1085,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const addYouthHeroDirectly = useCallback((hero: Hero) => {
     if (!user) return;
     setTimeout(() => {
-      updateDoc(doc(db, 'players_v6', user.uid), {
+      updateDoc(doc(db, 'players_v7', user.uid), {
         youthAcademyHeroes: arrayUnion(sanitizeForFirestore(hero))
       }).catch(e => console.error("Cloud youth direct add failed", e));
     }, 0);
@@ -1106,8 +1103,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const purchaseLicense = useCallback((tier: number, cost: number) => {
     let success = false;
     setState(s => {
-      // License sequential order: 3 -> 2 -> 1
-      const currentTier = s.activeLicenseTier || 4; // 4 means none
+      const currentTier = s.activeLicenseTier || 4; 
       if (tier !== currentTier - 1) return s;
 
       if (s.crystals >= cost) {

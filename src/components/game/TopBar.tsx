@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
@@ -5,7 +6,7 @@ import { useGameState } from '@/app/lib/store';
 import { doc, collection, query, where } from 'firebase/firestore';
 import { Gem, Mail, Home, Radio, Bell } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import Link from 'next/link';
@@ -15,16 +16,18 @@ export function TopBar() {
   const { user, isUserLoading } = useUser();
   const { credits, crystals, syncStats, isSyncing, language } = useGameState();
   const db = useFirestore();
+  const lastSyncTriggerRef = useRef<string>("");
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v6', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v7', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
 
+  // Group Query - used for stat syncing
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId || !user?.uid) return null;
     return query(
-      collection(db, 'players_v6'),
+      collection(db, 'players_v7'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -33,6 +36,7 @@ export function TopBar() {
 
   const { data: groupPlayers } = useCollection(groupQuery);
 
+  // Messages Query
   const unreadMessagesQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
@@ -48,10 +52,11 @@ export function TopBar() {
     return allMessages.some(msg => msg.receiverId === user.uid && !msg.read);
   }, [allMessages, user]);
 
+  // Notifications Query
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'notifications_v2'),
+      collection(db, 'notifications_v3'),
       where('userId', '==', user.uid),
       where('read', '==', false)
     );
@@ -62,10 +67,14 @@ export function TopBar() {
 
   useEffect(() => {
     if (groupPlayers && groupPlayers.length > 0) {
-      // Decouple write (sync) from render/snapshot cycle to prevent ca9 error
+      // Check if we already synced for this exact group data to prevent infinite loops
+      const currentSyncKey = groupPlayers.map(p => `${p.id}-${p.wins}-${p.points}`).join('|');
+      if (lastSyncTriggerRef.current === currentSyncKey) return;
+      
+      lastSyncTriggerRef.current = currentSyncKey;
       const timer = setTimeout(() => {
         syncStats(groupPlayers);
-      }, 500);
+      }, 1000);
       return () => clearTimeout(timer);
     }
   }, [groupPlayers, syncStats]);
@@ -80,7 +89,6 @@ export function TopBar() {
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-white/10 h-14 flex items-center">
       <div className="w-full max-w-lg mx-auto px-4 flex items-center justify-between gap-2">
         
-        {/* Left: Team Identity & Connection */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-[10px]" role="img" aria-label="flag">
@@ -95,7 +103,6 @@ export function TopBar() {
           )}
         </div>
 
-        {/* Right: Tools & Balances */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <Link href="/">
             <div className={cn(

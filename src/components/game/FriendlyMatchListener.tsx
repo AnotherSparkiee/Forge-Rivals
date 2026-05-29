@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -43,7 +44,7 @@ export function FriendlyMatchListener() {
   const isSimulatingRef = useRef(false);
 
   const sendNotification = useCallback((targetUserId: string, title: string, description: string) => {
-    addDocumentNonBlocking(collection(db, 'notifications_v1'), {
+    addDocumentNonBlocking(collection(db, 'notifications_v3'), {
       userId: targetUserId,
       title,
       description,
