@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
@@ -8,7 +7,7 @@ import { doc, collection, query, where, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 export function TransferResolver() {
-  const { user, isUserLoading } = user();
+  const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { isLoaded, updateHero, removeHero, addCredits, language } = useGameState();
   const { toast } = useToast();

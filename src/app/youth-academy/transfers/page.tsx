@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -18,7 +17,7 @@ import { cn } from '@/lib/utils';
 
 export default function YouthTransfersPage() {
   const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
-  const { user, isUserLoading } = user();
+  const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
