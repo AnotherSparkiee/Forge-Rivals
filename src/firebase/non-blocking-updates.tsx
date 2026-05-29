@@ -1,8 +1,9 @@
+
 'use client';
     
 import {
   setDoc,
-  addDoc,
+  doc,
   updateDoc,
   deleteDoc,
   CollectionReference,
@@ -32,10 +33,12 @@ export function setDocumentNonBlocking(docRef: DocumentReference, data: any, opt
 
 
 /**
- * Initiates an addDoc operation for a collection reference.
+ * Initiates an add operation by generating a document ID and using setDoc.
+ * This is more robust in some environments than addDoc.
  */
 export function addDocumentNonBlocking(colRef: CollectionReference, data: any) {
-  const promise = addDoc(colRef, data)
+  const newDocRef = doc(colRef);
+  const promise = setDoc(newDocRef, { ...data, id: newDocRef.id })
     .catch(error => {
       errorEmitter.emit(
         'permission-error',
