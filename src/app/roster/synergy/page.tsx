@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from '../../lib/store';
@@ -22,7 +21,7 @@ export default function SynergyPage() {
   const db = useFirestore();
   const { matchHistory, language, isLoaded } = useGameState();
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v7', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const officialMatches = useMemo(() => {
@@ -31,14 +30,9 @@ export default function SynergyPage() {
     const regDate = profile.createdAt ? new Date(profile.createdAt).getTime() : 0;
 
     return matchHistory.filter(m => {
-      // 1. Only official types
       const isOfficial = m.type === 'league' || m.type === 'tournament';
-      
-      // 2. Only matches after registration (real games)
       const playedDate = m.playedAt ? new Date(m.playedAt).getTime() : 0;
       const isPostRegistration = playedDate >= regDate;
-
-      // 3. Exclude technical/seeded entries where team didn't actually play
       const isRealMatch = m.opponentName !== 'SEEDED' && m.opponentName !== 'WAITING';
 
       return isOfficial && isPostRegistration && isRealMatch;
@@ -46,8 +40,6 @@ export default function SynergyPage() {
   }, [matchHistory, profile]);
 
   const matchCount = officialMatches.length;
-  
-  // Synergy calculation based on 50 games being 100% (Elite level)
   const synergyScore = Math.min(100, Math.floor((matchCount / 50) * 100));
 
   const t = {

@@ -19,7 +19,7 @@ export default function TournamentHistoryPage() {
   const db = useFirestore();
   const { language, isLoaded } = useGameState();
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v7', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   if (isUserLoading || !isLoaded || isProfileLoading) {
@@ -48,7 +48,6 @@ export default function TournamentHistoryPage() {
   const rawHistory = profile?.tournamentHistory || [];
   let displayHistory = [...rawHistory];
 
-  // Auto-detect active Iron Globe
   if (profile?.tournaments?.includes('iron-globe') && isIronGlobeActiveTime) {
     const alreadyHasActive = displayHistory.some(h => h.tournamentId === 'iron-globe' && h.status === 'active');
     if (!alreadyHasActive) {
@@ -63,7 +62,6 @@ export default function TournamentHistoryPage() {
     }
   }
 
-  // Auto-detect active Iron Brick
   if (profile?.tournaments?.includes('iron-brick') && isIronBrickActiveTime) {
     const alreadyHasActive = displayHistory.some(h => h.tournamentId === 'iron-brick' && h.status === 'active');
     if (!alreadyHasActive) {

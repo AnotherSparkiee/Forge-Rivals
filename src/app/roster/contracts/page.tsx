@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -39,7 +38,7 @@ export default function ContractsPage() {
   const [isTransferring, setIsTransferring] = useState(false);
   const { toast } = useToast();
 
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v7', user.uid) : null), [db, user?.uid]);
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v8', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
   if (!isLoaded) return <LoadingScreen />;
@@ -106,7 +105,7 @@ export default function ContractsPage() {
             dropTime: mskNow.toISOString()
           };
 
-          await setDoc(doc(db, 'market_v4', agentId), agentData);
+          await setDoc(doc(db, 'market_v5', agentId), agentData);
           
           updateHero(profileHero.id, { 
             onTransferUntil: expiryTime.toISOString(),
@@ -126,8 +125,7 @@ export default function ContractsPage() {
         }
         break;
       case 'sell':
-        // Agents Skill: Chance for 200% buyout
-        const buyoutChance = managerSkills.agents * 0.05; // 5% per level
+        const buyoutChance = managerSkills.agents * 0.05; 
         const isBuyout = Math.random() < buyoutChance;
         const baseSaleAmount = 50000;
         const totalSaleAmount = Math.round(baseSaleAmount * agentSkillBonus * (isBuyout ? 2 : 1));
@@ -161,7 +159,6 @@ export default function ContractsPage() {
         break;
       case 'boostForm':
         if (credits >= 10000) {
-          // Medical skill: chance to boost form further
           const medicalBonus = managerSkills.medical;
           const boostAmount = 15 + (medicalBonus > 0 ? Math.floor(Math.random() * (medicalBonus + 1)) : 0);
           updateHero(profileHero.id, { form: Math.min(100 + medicalBonus, profileHero.form + boostAmount) }, 10000, 0);

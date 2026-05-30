@@ -8,7 +8,7 @@ import { useGameState } from '@/app/lib/store';
 
 /**
  * Route protection guard.
- * Manages redirects to /auth/login or /setup based on user state.
+ * Manages redirects to /auth/register or /setup based on user state.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
@@ -28,7 +28,8 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     }
 
     if (!user) {
-      router.replace('/auth/login');
+      // If unauthorized, go to register as requested
+      router.replace('/auth/register');
       setIsInitialCheckDone(true);
       return;
     }

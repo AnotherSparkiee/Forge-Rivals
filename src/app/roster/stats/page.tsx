@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useEffect } from 'react';
@@ -22,7 +21,7 @@ export default function PlayerStatsPage() {
   const db = useFirestore();
   const { ownedHeroes, matchHistory, language, isLoaded } = useGameState();
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v7', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const playerStats = useMemo(() => {
@@ -37,14 +36,10 @@ export default function PlayerStatsPage() {
       let assists = 0;
 
       matchHistory.forEach(match => {
-        // 1. Only official games (League and Tournament)
         const isOfficial = match.type === 'league' || match.type === 'tournament';
-        
-        // 2. Only games played after registration
         const playedDate = match.playedAt ? new Date(match.playedAt).getTime() : 0;
         
         if (isOfficial && playedDate >= regDate) {
-          // Find this hero in the match performance report
           const performance = match.heroPerformance?.find(p => p.heroName === hero.name);
           if (performance) {
             matches++;

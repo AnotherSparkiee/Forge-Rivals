@@ -42,13 +42,13 @@ export default function PrivateMessagesPage() {
   const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v7', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const messagesQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'private_messages'),
+      collection(db, 'private_messages_v2'),
       where('participants', 'array-contains', user.uid),
       limit(500)
     );
@@ -103,7 +103,7 @@ export default function PrivateMessagesPage() {
       );
 
       unreadFromTarget.forEach((msg) => {
-        const msgRef = doc(db, 'private_messages', msg.id);
+        const msgRef = doc(db, 'private_messages_v2', msg.id);
         updateDocumentNonBlocking(msgRef, { read: true });
       });
     }
@@ -121,7 +121,7 @@ export default function PrivateMessagesPage() {
 
     setIsSending(true);
     try {
-      addDocumentNonBlocking(collection(db, 'private_messages'), {
+      addDocumentNonBlocking(collection(db, 'private_messages_v2'), {
         senderId: user.uid,
         senderName: profile.displayName || "Manager",
         receiverId: selectedChatId,

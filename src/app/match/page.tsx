@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
@@ -34,30 +33,27 @@ function MatchContent() {
   const matchIdFromUrl = searchParams.get('id');
   const [step, setStep] = useState<MatchStep>('preview');
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v7', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      router.push('/auth/login');
+      router.push('/auth/register');
     }
   }, [user, isUserLoading, router]);
 
   const currentResult = useMemo(() => {
-    // 1. Прямой ID из URL (просмотр конкретного матча)
     if (matchIdFromUrl) {
       const match = matchHistory.find(m => m.id === matchIdFromUrl);
       if (match) return match;
     }
     
-    // 2. Поиск самого старого непросмотренного матча ЛИГИ
     const unseenLeagueMatches = matchHistory
       .filter(m => m.type === 'league' && m.day > lastSeenMatchDay)
       .sort((a, b) => a.day - b.day);
 
     if (unseenLeagueMatches.length > 0) return unseenLeagueMatches[0];
 
-    // 3. Поиск любого самого свежего матча из истории (включая пробные/товарищеские)
     const sortedHistory = [...matchHistory].sort((a, b) => {
       const timeA = new Date(a.playedAt).getTime();
       const timeB = new Date(b.playedAt).getTime();

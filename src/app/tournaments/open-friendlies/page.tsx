@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -27,25 +26,23 @@ export default function OpenFriendliesPage() {
   const [isChallenging, setIsChallenging] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
-  // Update "now" periodically to trigger re-filtering of expired lobbies
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 5000);
     return () => clearInterval(timer);
   }, []);
 
   const lobbiesQuery = useMemoFirebase(() => {
-    return query(collection(db, 'friendly_lobbies'), where('status', '==', 'searching'));
+    return query(collection(db, 'friendly_lobbies_v2'), where('status', '==', 'searching'));
   }, [db]);
 
   const { data: rawLobbies, isLoading: isLobbiesLoading } = useCollection(lobbiesQuery);
   
-  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket', user.uid) : null, [db, user]);
+  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v2', user.uid) : null, [db, user]);
   const { data: myBasket } = useDoc(myBasketRef);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v7', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  // Filter out lobbies older than 60 seconds
   const lobbies = useMemo(() => {
     if (!rawLobbies) return [];
     return rawLobbies.filter(lobby => {
@@ -56,7 +53,7 @@ export default function OpenFriendliesPage() {
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      router.push('/auth/login');
+      router.push('/auth/register');
     }
   }, [user, isUserLoading, router]);
 
@@ -69,145 +66,63 @@ export default function OpenFriendliesPage() {
       title: "OPEN FRIENDLIES",
       subtitle: "Tactical match-making hub",
       noLobbies: "No Active Requests",
-      noLobbiesDesc: "No managers are currently seeking practice matches. Post your own request!",
       challenge: "CHALLENGE",
-      wait: "WAITING...",
       selfRequest: "This is your request",
       toastSent: "Challenge Sent",
-      toastSentDesc: "Manager is reviewing your request. Stand by for response.",
-      expiresIn: "Expires in",
-      busy: "Operational Conflict",
-      busyDesc: "You are currently in CW Basket or have another scheduled match."
+      busy: "Operational Conflict"
     },
     ru: {
       title: "ОТКРЫТЫЕ МАТЧИ",
       subtitle: "Хаб тактического подбора игроков",
       noLobbies: "Нет активных заявок",
-      noLobbiesDesc: "В данный момент никто не ищет тренировочных игр. Разместите свою заявку!",
       challenge: "ВЫЗВАТЬ",
-      wait: "ОЖИДАНИЕ...",
       selfRequest: "Это ваша заявка",
       toastSent: "Вызов отправлен",
-      toastSentDesc: "Менеджер рассматривает ваш запрос. Ожидайте ответа.",
-      expiresIn: "Истечет через",
-      busy: "Оперативный конфликт",
-      busyDesc: "Вы сейчас находитесь в КВ корзине или у вас уже запланирован другой матч."
+      busy: "Оперативный конфликт"
     }
   };
 
   const t = translations[language as keyof typeof translations] || translations.ru;
 
   const handleChallenge = async (lobbyId: string, hostName: string) => {
-    if (!user || !profile) return;
-    
-    // Check if I have anything in CW basket
-    if (myBasket) {
-      toast({ title: t.busy, description: t.busyDesc, variant: "destructive" });
+    if (!user || !profile || myBasket) {
+      if (myBasket) toast({ title: t.busy, variant: "destructive" });
       return;
     }
-
     setIsChallenging(lobbyId);
     try {
-      const lobbyRef = doc(db, 'friendly_lobbies', lobbyId);
-      await updateDoc(lobbyRef, {
+      await updateDoc(doc(db, 'friendly_lobbies_v2', lobbyId), {
         status: 'challenged',
         challengerId: user.uid,
         challengerName: profile.displayName || "Manager",
         updatedAt: serverTimestamp()
       });
-      toast({
-        title: t.toastSent,
-        description: `${t.toastSentDesc} (${hostName})`,
-      });
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsChallenging(null);
-    }
+      toast({ title: t.toastSent });
+    } finally { setIsChallenging(null); }
   };
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-20">
       <header className="mb-6 flex items-center gap-4">
-        <Link href="/tournaments">
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2">
-            <Search className="w-6 h-6 text-accent" />
-            {t.title}
-          </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
-        </div>
+        <Link href="/tournaments"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+        <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase">{t.subtitle}</p></div>
       </header>
-
-      {lobbies && lobbies.length > 0 ? (
+      {lobbies.length > 0 ? (
         <div className="space-y-3">
-          {lobbies.map((lobby) => {
-            const createdAt = lobby.updatedAt?.toMillis() || now;
-            const secondsLeft = Math.max(0, Math.floor((60000 - (now - createdAt)) / 1000));
-            
-            return (
-              <Card key={lobby.id} className={cn(
-                "glass-card border-white/5 overflow-hidden transition-all",
-                lobby.hostId === user.uid && "opacity-60 grayscale border-primary/20"
-              )}>
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="w-12 h-12 rounded-full bg-secondary/50 flex items-center justify-center border border-white/10 shadow-inner shrink-0">
-                      <User className="w-6 h-6 text-muted-foreground" />
-                    </div>
-                    <div className="truncate">
-                      <h3 className="text-sm font-bold uppercase tracking-tight flex items-center gap-2 truncate">
-                        {lobby.hostName}
-                        {lobby.hostId === user.uid && <Badge variant="outline" className="text-[7px] py-0 border-primary text-primary">YOU</Badge>}
-                      </h3>
-                      <div className="flex items-center gap-2">
-                        <p className="text-[9px] text-accent font-bold uppercase tracking-widest flex items-center gap-1">
-                          <Target className="w-3 h-3" /> Training
-                        </p>
-                        <span className="text-[8px] font-mono text-muted-foreground flex items-center gap-1">
-                          <Clock className="w-2.5 h-2.5" /> {secondsLeft}s
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {lobby.hostId === user.uid ? (
-                    <span className="text-[8px] font-black text-muted-foreground uppercase">{t.selfRequest}</span>
-                  ) : (
-                    <Button 
-                      size="sm" 
-                      className="hero-gradient font-bold text-[10px] h-9 px-4 shrink-0"
-                      disabled={!!isChallenging || secondsLeft <= 0}
-                      onClick={() => handleChallenge(lobby.id, lobby.hostName)}
-                    >
-                      {isChallenging === lobby.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Swords className="w-3 h-3 mr-2" />}
-                      {t.challenge}
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+          {lobbies.map((lobby) => (
+            <Card key={lobby.id} className="glass-card">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <User className="w-10 h-10 text-muted-foreground" />
+                  <div><h3 className="text-sm font-bold uppercase">{lobby.hostName}</h3></div>
+                </div>
+                {lobby.hostId === user.uid ? <span className="text-[8px] uppercase">{t.selfRequest}</span> : <Button size="sm" className="hero-gradient" onClick={() => handleChallenge(lobby.id, lobby.hostName)} disabled={!!isChallenging}>{t.challenge}</Button>}
+              </CardContent>
+            </Card>
+          ))}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-          <ShieldAlert className="w-16 h-16 text-muted-foreground opacity-20" />
-          <div>
-            <h2 className="text-lg font-headline font-bold uppercase">{t.noLobbies}</h2>
-            <p className="text-xs text-muted-foreground mt-2 max-w-[200px] mx-auto leading-relaxed">
-              {t.noLobbiesDesc}
-            </p>
-          </div>
-          <Link href="/tournaments" className="pt-4">
-            <Button variant="outline" className="text-[10px] font-bold uppercase border-white/10">
-              {language === 'ru' ? 'РАЗМЕСТИТЬ ЗАЯВКУ' : 'POST REQUEST'}
-            </Button>
-          </Link>
-        </div>
+        <div className="py-20 text-center opacity-30"><ShieldAlert className="w-16 h-16 mx-auto mb-4" /><p>{t.noLobbies}</p></div>
       )}
     </div>
   );

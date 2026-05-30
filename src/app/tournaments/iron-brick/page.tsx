@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -42,11 +41,11 @@ export default function IronBrickPage() {
   const activeRecordRef = useRef(false);
   const finalResultRef = useRef(false);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v7', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const participantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v7'), where('tournaments', 'array-contains', TOUR_ID));
+    return query(collection(db, 'players_v8'), where('tournaments', 'array-contains', TOUR_ID));
   }, [db]);
 
   const { data: participants, isLoading: isParticipantsLoading } = useCollection(participantsQuery);
@@ -57,7 +56,6 @@ export default function IronBrickPage() {
   }, [profile]);
 
   const currentCount = participants?.length || 0;
-  const spotsLeft = Math.max(0, MAX_PARTICIPANTS - currentCount);
 
   useEffect(() => {
     const updateTime = () => {
@@ -116,7 +114,7 @@ export default function IronBrickPage() {
   const tournamentData = useMemo(() => {
     if (!isRegClosed || !user) return null;
     return getDeterministicTournament(getMoscowDateString(), participants || [], user.uid, getMoscowTime(), START_TIME);
-  }, [isRegClosed, participants, user, countdown]);
+  }, [isRegClosed, participants, user]);
 
   useEffect(() => {
     if (isRegClosed && isJoined && !hasFinished && !activeRecordRef.current && userRef && profile) {
@@ -223,7 +221,7 @@ export default function IronBrickPage() {
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
       <header className="mb-6 flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Link href="/tournaments/history">
+          <Link href="/tournaments">
             <Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button>
           </Link>
           <div>

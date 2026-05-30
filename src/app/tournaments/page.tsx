@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -26,7 +25,6 @@ function sanitizeForFirestore(obj: any) {
   try {
     return JSON.parse(JSON.stringify(obj));
   } catch (e) {
-    console.error("Sanitization failed", e);
     return null;
   }
 }
@@ -39,18 +37,18 @@ export default function TournamentsPage() {
   const { language, isLoaded, strategy, ownedHeroes, lineup } = useGameState();
   const [isActionLoading, setIsActionLoading] = useState(false);
 
-  const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies', user.uid) : null, [db, user]);
+  const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies_v2', user.uid) : null, [db, user]);
   const { data: myLobby, isLoading: isLobbyLoading } = useDoc(myLobbyRef);
 
-  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket', user.uid) : null, [db, user]);
+  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v2', user.uid) : null, [db, user]);
   const { data: myBasket } = useDoc(myBasketRef);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v7', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      router.push('/auth/login');
+      router.push('/auth/register');
     }
   }, [user, isUserLoading, router]);
 
@@ -64,54 +62,30 @@ export default function TournamentsPage() {
     en: {
       title: "TOURNAMENT HUB",
       subtitle: "Global Competitions & Friendly Matches",
-      locked: "Locked",
       busy: "Operational Conflict",
-      busyDesc: "Complete or cancel current engagement before starting a new one.",
-      openTour: "Open Tournaments",
-      descOpenTour: "Official league championships and cups",
       schedule: "Schedule Friendly",
       cancel: "Cancel Friendly Match",
       open: "Open Friendlies",
       cw: "CW Basket",
       history: "Tournament History",
       trial: "Trial Match",
-      descSchedule: "Post a request for a friendly encounter",
-      descCancel: "Withdraw your current match request",
-      descOpen: "Find managers looking for practice",
-      descCW: "Quick random matchmaking system",
-      descTrial: "Immediate training match with a bot (15m prep)",
       toastPosted: "Request Posted",
-      toastPostedDesc: "Your challenge is now visible in the lobby.",
       toastCancelled: "Request Withdrawn",
-      toastCancelledDesc: "The lobby entry has been deleted.",
-      toastTrial: "Trial Scheduled",
-      toastTrialDesc: "Bot engagement begins in 15 minutes."
+      toastTrial: "Trial Scheduled"
     },
     ru: {
       title: "ТУРНИРНЫЙ ХАБ",
       subtitle: "Глобальные соревнования и товарищеские игры",
-      locked: "Закрыто",
       busy: "Оперативный конфликт",
-      busyDesc: "Завершите или отмените текущую операцию перед началом новой.",
-      openTour: "Открытые турниры",
-      descOpenTour: "Официальные чемпионаты и кубки лиги",
       schedule: "Назначить тов. Матч",
       cancel: "Отменить тов. Матч",
       open: "Открытые тов. Матчи",
       cw: "КВ корзина",
       history: "История турниров",
       trial: "Пробный матч",
-      descSchedule: "Разместить заявку на проведение встречи",
-      descCancel: "Удалить вашу текущую заявку из списка",
-      descOpen: "Поиск менеджеров для тренировки",
-      descCW: "Система быстрого случайного подбора",
-      descTrial: "Мгновенный тренировочный бой с ботом (15 мин подгот.)",
       toastPosted: "Заявка размещена",
-      toastPostedDesc: "Ваш вызов теперь виден в списке открытых матчей.",
       toastCancelled: "Заявка отмена",
-      toastCancelledDesc: "Ваша запись удалена из лобби.",
-      toastTrial: "Пробный матч назначен",
-      toastTrialDesc: "Бой с ботом начнется через 15 минут."
+      toastTrial: "Пробный матч назначен"
     }
   };
 
@@ -119,186 +93,48 @@ export default function TournamentsPage() {
 
   const handleToggleLobby = async () => {
     if (!user || !profile || isActionLoading) return;
-    
-    if (!myLobby && isBusy) {
-      toast({ title: t.busy, description: t.busyDesc, variant: "destructive" });
-      return;
-    }
-
+    if (!myLobby && isBusy) { toast({ title: t.busy, variant: "destructive" }); return; }
     setIsActionLoading(true);
     try {
       if (myLobby) {
-        await deleteDoc(doc(db, 'friendly_lobbies', user.uid));
-        toast({ title: t.toastCancelled, description: t.toastCancelledDesc });
+        await deleteDoc(doc(db, 'friendly_lobbies_v2', user.uid));
+        toast({ title: t.toastCancelled });
       } else {
-        await setDoc(doc(db, 'friendly_lobbies', user.uid), {
-          hostId: String(user.uid),
-          hostName: String(profile.displayName || "Manager"),
-          status: 'searching',
-          challengerId: null,
-          challengerName: null,
-          isTrial: false,
-          updatedAt: serverTimestamp()
+        await setDoc(doc(db, 'friendly_lobbies_v2', user.uid), {
+          hostId: String(user.uid), hostName: String(profile.displayName || "Manager"),
+          status: 'searching', challengerId: null, challengerName: null, isTrial: false, updatedAt: serverTimestamp()
         });
-        toast({ title: t.toastPosted, description: t.toastPostedDesc });
+        toast({ title: t.toastPosted });
       }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsActionLoading(false);
-    }
+    } finally { setIsActionLoading(false); }
   };
 
   const handleStartTrial = async () => {
-    if (!user || !profile || isActionLoading) return;
-    
-    if (isBusy) {
-      toast({ title: t.busy, description: t.busyDesc, variant: "destructive" });
-      return;
-    }
-
+    if (!user || !profile || isActionLoading || isBusy) return;
     setIsActionLoading(true);
-    
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      const botIdNum = Math.floor(Math.random() * 9000) + 1000;
-      const botId = `bot${botIdNum}`;
-      const botName = `bot${botIdNum}`;
-      
-      const squad = ownedHeroes
-        .filter(h => Object.values(lineup).includes(h.id))
-        .map(h => ({
-          name: h.name,
-          role: h.role,
-          overallRating: h.overallRating,
-          proStats: h.proStats,
-          isSub: h.id === lineup.sub1 || h.id === lineup.sub2
-        }));
-
-      const botSquad = getRandomStartingSquad().map((h, i) => ({
-        name: `${h.name} AI`,
-        role: h.role,
-        overallRating: h.overallRating,
-        proStats: h.proStats,
-        isSub: i > 4
-      }));
-
-      const result = await simulateMobaMatch({
-        teamA: { name: String(profile.displayName || "Manager"), strategy, heroes: squad },
-        teamB: { 
-          name: String(botName), 
-          strategy: "Standard Training", 
-          heroes: botSquad
-        },
-        isBo2: false
-      });
-
-      const safeResult = sanitizeForFirestore(result);
-      if (!safeResult) throw new Error("Simulation failed");
-
-      await setDoc(doc(db, 'friendly_lobbies', user.uid), {
-        hostId: String(user.uid),
-        hostName: String(profile.displayName || "Manager"),
-        status: 'accepted',
-        challengerId: String(botId),
-        challengerName: String(botName),
-        matchResult: safeResult,
-        acceptedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        isTrial: true
-      });
-
-      toast({ title: t.toastTrial, description: t.toastTrialDesc });
-      router.push('/'); 
-    } catch (e: any) {
-      console.error("Trial start error:", e);
-      toast({ variant: "destructive", title: "Trial Error", description: e.message });
-    } finally {
-      setIsActionLoading(false);
-    }
+      const botId = `bot${Math.floor(Math.random() * 9000)}`;
+      const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({ name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats, isSub: h.id === lineup.sub1 || h.id === lineup.sub2 }));
+      const result = await simulateMobaMatch({ teamA: { name: String(profile.displayName || "Manager"), strategy, heroes: squad }, teamB: { name: botId, strategy: "Training", heroes: squad }, isBo2: false });
+      await setDoc(doc(db, 'friendly_lobbies_v2', user.uid), { hostId: String(user.uid), hostName: String(profile.displayName || "Manager"), status: 'accepted', challengerId: botId, challengerName: botId, matchResult: sanitizeForFirestore(result), acceptedAt: serverTimestamp(), updatedAt: serverTimestamp(), isTrial: true });
+      toast({ title: t.toastTrial });
+      router.push('/');
+    } finally { setIsActionLoading(false); }
   };
-
-  const menu = [
-    { label: t.openTour, desc: t.descOpenTour, icon: Trophy, active: true, href: '/tournaments/open', color: "text-yellow-500" },
-    { 
-      label: (myLobby && !myLobby.isTrial) ? t.cancel : t.schedule, 
-      desc: (myLobby && !myLobby.isTrial) ? t.descCancel : t.descSchedule, 
-      icon: (myLobby && !myLobby.isTrial) ? XCircle : UserPlus, 
-      active: !(myLobby && myLobby.isTrial),
-      onClick: handleToggleLobby,
-      color: (myLobby && !myLobby.isTrial) ? "text-red-400" : "text-primary"
-    },
-    { label: t.open, desc: t.descOpen, icon: Search, active: true, href: '/tournaments/open-friendlies' },
-    { label: t.cw, desc: t.descCW, icon: ShoppingBasket, active: true, href: '/tournaments/cw-basket' },
-    { label: t.history, desc: language === 'ru' ? "Архив ваших выступлений" : "Archive of your battles", icon: History, active: true, href: '/tournaments/history' },
-    { 
-      label: (myLobby && myLobby.isTrial) ? (language === 'ru' ? 'ОТМЕНИТЬ ПРОБУ' : 'CANCEL TRIAL') : t.trial, 
-      desc: t.descTrial, 
-      icon: (myLobby && myLobby.isTrial) ? XCircle : Gamepad2, 
-      active: !(myLobby && !myLobby.isTrial), 
-      onClick: (myLobby && myLobby.isTrial) ? handleToggleLobby : handleStartTrial, 
-      color: (myLobby && !myLobby.isTrial) ? "text-red-400" : "text-accent" 
-    },
-  ];
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-20">
       <header className="mb-6 flex items-center gap-4">
-        <Link href="/">
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2">
-            <Medal className="w-6 h-6 text-primary" />
-            {t.title}
-          </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
-        </div>
+        <Link href="/"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+        <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase">{t.subtitle}</p></div>
       </header>
-
       <div className="space-y-2">
-        {menu.map((item) => {
-          const Content = (
-            <Card 
-              key={item.label}
-              className={cn(
-                "glass-card border-white/5 transition-all overflow-hidden",
-                item.active ? "hover:bg-white/5 cursor-pointer" : "opacity-40 grayscale cursor-not-allowed"
-              )}
-              onClick={item.active ? item.onClick : undefined}
-            >
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-2 rounded-lg bg-secondary/50">
-                    {isActionLoading && item.onClick ? (
-                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                    ) : (
-                      <item.icon className={cn("w-5 h-5", item.color || "text-primary")} />
-                    )}
-                  </div>
-                  <div>
-                    <h3 className={cn("text-sm font-bold uppercase", item.color)}>{item.label}</h3>
-                    <p className="text-[10px] text-muted-foreground leading-tight max-w-[200px]">{item.desc}</p>
-                  </div>
-                </div>
-                {item.active ? (
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                ) : (
-                  <Badge variant="outline" className="text-[8px] uppercase">{t.locked}</Badge>
-                )}
-              </CardContent>
-            </Card>
-          );
-
-          if (item.href && item.active) {
-            return <Link key={item.label} href={item.href} className="block">{Content}</Link>;
-          }
-
-          return <div key={item.label} className="block">{Content}</div>;
-        })}
+        <Link href="/tournaments/open"><Card className="glass-card p-4 flex items-center justify-between"><div className="flex items-center gap-4"><Trophy className="text-yellow-500 w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">Open Tournaments</h3></div></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Card></Link>
+        <Card className="glass-card p-4 flex items-center justify-between cursor-pointer" onClick={handleToggleLobby}><div className="flex items-center gap-4"><UserPlus className="text-primary w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">{myLobby ? t.cancel : t.schedule}</h3></div></div>{isActionLoading && <Loader2 className="w-4 h-4 animate-spin" />}</Card>
+        <Link href="/tournaments/open-friendlies"><Card className="glass-card p-4 flex items-center justify-between"><div className="flex items-center gap-4"><Search className="text-accent w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">{t.open}</h3></div></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Card></Link>
+        <Link href="/tournaments/cw-basket"><Card className="glass-card p-4 flex items-center justify-between"><div className="flex items-center gap-4"><ShoppingBasket className="text-green-400 w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">{t.cw}</h3></div></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Card></Link>
+        <Link href="/tournaments/history"><Card className="glass-card p-4 flex items-center justify-between"><div className="flex items-center gap-4"><History className="text-muted-foreground w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">{t.history}</h3></div></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Card></Link>
+        <Card className="glass-card p-4 flex items-center justify-between cursor-pointer" onClick={handleStartTrial}><div className="flex items-center gap-4"><Gamepad2 className="text-accent w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">{t.trial}</h3></div></div></Card>
       </div>
     </div>
   );
