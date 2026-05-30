@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -23,8 +24,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('');
@@ -58,7 +57,7 @@ export default function LoginPage() {
       successTitle: "Access Granted",
       successDesc: "Welcome back to the Command Center.",
       errorTitle: "Access Denied",
-      userNotFound: "Team name not found. Please check spelling or use email.",
+      userNotFound: "Team name not found or access restricted. Please use email.",
       invalidCredentials: "Invalid login or access key. Please verify your data.",
       forgotTitle: "Recover Access",
       forgotDesc: "Enter the email linked to your profile to receive a reset transmission.",
@@ -82,7 +81,7 @@ export default function LoginPage() {
       successTitle: "Доступ разрешен",
       successDesc: "Добро пожаловать в Командный Центр.",
       errorTitle: "Доступ запрещен",
-      userNotFound: "Команда не найдена. Проверьте написание или используйте почту.",
+      userNotFound: "Команда не найдена или доступ ограничен. Используйте почту.",
       invalidCredentials: "Неверный логин или пароль. Проверьте правильность ввода.",
       forgotTitle: "Восстановление доступа",
       forgotDesc: "Введите почту вашего профиля для получения ссылки на сброс пароля.",
@@ -103,10 +102,9 @@ export default function LoginPage() {
 
     try {
       if (!identifier.includes('@')) {
-        const usersRef = collection(db, 'players_v8');
-        const q = query(usersRef, where('displayName', '==', identifier), limit(1));
-        
         try {
+          const usersRef = collection(db, 'players_v8');
+          const q = query(usersRef, where('displayName', '==', identifier), limit(1));
           const querySnapshot = await getDocs(q);
           if (querySnapshot.empty) {
             throw new Error(t.userNotFound);
@@ -114,15 +112,8 @@ export default function LoginPage() {
           const userData = querySnapshot.docs[0].data();
           emailToUse = userData.email;
         } catch (serverError: any) {
-          if (serverError.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({
-              path: 'players_v8',
-              operation: 'list',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            return;
-          }
-          throw serverError;
+          // If searching by team name fails due to permissions, prompt to use email
+          throw new Error(t.userNotFound);
         }
       }
 
@@ -149,21 +140,7 @@ export default function LoginPage() {
       const user = result.user;
 
       const userProfileRef = doc(db, 'players_v8', user.uid);
-      
-      let userSnap;
-      try {
-        userSnap = await getDoc(userProfileRef);
-      } catch (serverError: any) {
-        if (serverError.code === 'permission-denied') {
-          const permissionError = new FirestorePermissionError({
-            path: userProfileRef.path,
-            operation: 'get',
-          });
-          errorEmitter.emit('permission-error', permissionError);
-          return;
-        }
-        throw serverError;
-      }
+      const userSnap = await getDoc(userProfileRef);
 
       if (!userSnap.exists()) {
         const uniqueSquad = getRandomStartingSquad();

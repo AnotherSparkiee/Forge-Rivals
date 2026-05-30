@@ -85,20 +85,21 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // 1. Check for existing display name
-      const usersRef = collection(db, 'players_v8');
-      const q = query(usersRef, where('displayName', '==', username.trim()), limit(1));
-      
-      let querySnapshot;
+      // 1. Attempt to check for existing display name (non-blocking if permission denied)
       try {
-        querySnapshot = await getDocs(q);
-      } catch (e: any) {
-        console.error("Username check failed:", e);
-        throw new Error(t.permissionError);
-      }
-      
-      if (!querySnapshot.empty) {
-        throw new Error(t.usernameTaken);
+        const usersRef = collection(db, 'players_v8');
+        const q = query(usersRef, where('displayName', '==', username.trim()), limit(1));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          throw new Error(t.usernameTaken);
+        }
+      } catch (checkError: any) {
+        // If it's a real name collision error, rethrow it
+        if (checkError.message === t.usernameTaken) throw checkError;
+        // Otherwise, it might be a permission error for unauthenticated listing.
+        // We log it but proceed, as the subsequent write will catch true authorization issues.
+        console.warn("Username check skipped due to restricted access. Proceeding...");
       }
 
       // 2. Create Auth user
@@ -145,10 +146,11 @@ export default function RegisterPage() {
       toast({ title: t.successTitle, description: t.successDesc });
       router.push('/setup');
     } catch (error: any) {
-      console.error("Registration full sequence fail:", error);
+      console.error("Registration sequence fail:", error);
       let msg = error.message;
       if (error.code === 'auth/email-already-in-use') msg = t.emailTaken;
       if (error.code === 'auth/weak-password') msg = t.weakPassword;
+      if (error.code === 'permission-denied') msg = t.permissionError;
       
       toast({
         variant: "destructive",

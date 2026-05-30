@@ -12,10 +12,6 @@
   "firestore": {
     "structure": [
       {
-        "path": "players_v8",
-        "definition": "GenericObject"
-      },
-      {
         "path": "players_v8/{userId}",
         "definition": "GenericObject"
       },
