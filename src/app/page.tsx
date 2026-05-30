@@ -34,13 +34,13 @@ export default function Home() {
   const [countdown, setCountdown] = useState<string>('');
   const [activeFriendly, setActiveFriendly] = useState<any | null>(null);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v7', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
-      collection(db, 'players_v7'),
+      collection(db, 'players_v8'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -50,16 +50,16 @@ export default function Home() {
   const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
 
   const globeParticipantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v7'), where('tournaments', 'array-contains', 'iron-globe'));
+    return query(collection(db, 'players_v8'), where('tournaments', 'array-contains', 'iron-globe'));
   }, [db]);
   const { data: globeParticipants } = useCollection(globeParticipantsQuery);
 
   const brickParticipantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v7'), where('tournaments', 'array-contains', 'iron-brick'));
+    return query(collection(db, 'players_v8'), where('tournaments', 'array-contains', 'iron-brick'));
   }, [db]);
   const { data: brickParticipants } = useCollection(brickParticipantsQuery);
 
-  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket', user.uid) : null, [db, user]);
+  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v2', user.uid) : null, [db, user]);
   const { data: basketEntry } = useDoc(myBasketRef);
 
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function Home() {
   useEffect(() => {
     if (!user || isUserLoading) return;
     // Listen to personal friendly lobby specifically
-    const unsub = onSnapshot(doc(db, 'friendly_lobbies', user.uid), (docSnap) => {
+    const unsub = onSnapshot(doc(db, 'friendly_lobbies_v2', user.uid), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.status === 'accepted') {
@@ -86,7 +86,7 @@ export default function Home() {
         }
       } else {
         // Also check if I am a challenger in someone else's lobby
-        const q = query(collection(db, 'friendly_lobbies'), where('challengerId', '==', user.uid), where('status', '==', 'accepted'));
+        const q = query(collection(db, 'friendly_lobbies_v2'), where('challengerId', '==', user.uid), where('status', '==', 'accepted'));
         onSnapshot(q, (snap) => {
           if (!snap.empty) {
             const d = snap.docs[0].data();
@@ -195,7 +195,6 @@ export default function Home() {
     const interval = setInterval(() => {
       const mskNow = getMoscowTime();
       
-      // Handle Active Matches first (they override the inter-season static state in terms of priority)
       if (displayMatchInfo) {
         const info = displayMatchInfo as any;
         if (info.isFriendly) {
@@ -229,15 +228,12 @@ export default function Home() {
         }
       }
 
-      // Off-season logic
       if (seasonDay === 15) {
         const targetDate = new Date(mskNow);
-        targetDate.setHours(16, 0, 0, 0); // Recalc at 16:00 MSK
-        
+        targetDate.setHours(16, 0, 0, 0);
         const diff = targetDate.getTime() - mskNow.getTime();
-        if (diff <= 0) {
-          setCountdown('PROCESSING');
-        } else {
+        if (diff <= 0) setCountdown('PROCESSING');
+        else {
           const h = Math.floor(diff / 3600000);
           const m = Math.floor((diff % 3600000) / 60000);
           const s = Math.floor((diff % 60000) / 1000);
