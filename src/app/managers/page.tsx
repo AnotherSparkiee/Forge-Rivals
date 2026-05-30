@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useMemo } from 'react';
@@ -26,7 +25,7 @@ export default function ManagersHubPage() {
   const requestsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'friend_requests_v3'),
+      collection(db, 'friend_requests_v4'),
       where('toId', '==', user.uid),
       where('status', '==', 'pending')
     );
@@ -93,6 +92,7 @@ export default function ManagersHubPage() {
         {t.menu.map((item) => {
           const content = (
             <Card 
+              key={item.label}
               className={cn(
                 "glass-card border-white/5 transition-all",
                 item.active ? "hover:bg-white/5 cursor-pointer" : "opacity-60"

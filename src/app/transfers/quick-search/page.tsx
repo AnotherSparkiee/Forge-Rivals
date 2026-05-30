@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -26,18 +25,16 @@ export default function QuickSearchPage() {
   const [isBidding, setIsBidding] = useState<string | null>(null);
   const initTriggeredRef = useRef(false);
 
-  // Глобальный рынок: показываем ВСЕХ взрослых игроков (не юниоров)
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
-    return query(collection(db, 'market_v4'));
+    return query(collection(db, 'market_v5'));
   }, [db, user?.uid]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v7', user.uid) : null), [db, user?.uid]);
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v8', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
-  // Первичная инициализация рынка ботами, если он пуст
   useEffect(() => {
     if (!isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && !marketError && user?.uid) {
       initTriggeredRef.current = true;
@@ -50,7 +47,7 @@ export default function QuickSearchPage() {
             const agentId = `system_bot_${role.toLowerCase()}_${i}_${Date.now()}`;
             const startPrice = (hero.overallRating * 18000) + 300000;
             
-            await setDoc(doc(db, 'market_v4', agentId), {
+            await setDoc(doc(db, 'market_v5', agentId), {
               id: agentId,
               heroData: JSON.parse(JSON.stringify(hero)),
               currentBid: startPrice,
@@ -58,7 +55,7 @@ export default function QuickSearchPage() {
               highestBidderId: null,
               highestBidderName: null,
               bidders: [],
-              expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(), // 7 дней для ботов
+              expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(), 
               createdAt: serverTimestamp(),
               isSystem: true,
               isYouth: false
@@ -85,7 +82,7 @@ export default function QuickSearchPage() {
 
     setIsBidding(agent.id);
     try {
-      const agentRef = doc(db, 'market_v4', agent.id);
+      const agentRef = doc(db, 'market_v5', agent.id);
       await updateDoc(agentRef, {
         currentBid: minNextBid,
         highestBidderId: user.uid,
@@ -172,7 +169,6 @@ export default function QuickSearchPage() {
         </div>
 
         {roleList.map((role) => {
-          // Фильтруем: только по роли и только НЕ юниоров
           const roleAgents = agents?.filter(a => a.heroData?.role === role.id && a.isYouth !== true) || [];
           
           return (

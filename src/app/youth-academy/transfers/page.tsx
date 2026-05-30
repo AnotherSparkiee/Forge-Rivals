@@ -1,15 +1,14 @@
-
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, ShoppingCart, Loader2, Gavel, ShieldCheck, Clock, AlertCircle, Users
 } from 'lucide-react';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, doc, arrayUnion, updateDoc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
@@ -25,15 +24,13 @@ export default function YouthTransfersPage() {
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
 
-  // Прямой стрим всей коллекции для гарантированной видимости
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
-    return query(collection(db, 'market_v4'));
+    return query(collection(db, 'market_v5'));
   }, [db, user?.uid]);
 
-  const { data: allAgents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
+  const { data: allAgents, isLoading: isMarketLoading, error: marketError } = useCollection(allAgentsQuery);
 
-  // Фильтруем юниоров по возрасту на клиенте
   const youthAgents = allAgents?.filter(a => a.heroData?.baseAge && Number(a.heroData.baseAge) < 18) || [];
 
   const handleBid = async (agent: any) => {
@@ -50,7 +47,7 @@ export default function YouthTransfersPage() {
 
     setIsBidding(agent.id);
     try {
-      const agentRef = doc(db, 'market_v4', agent.id);
+      const agentRef = doc(db, 'market_v5', agent.id);
       await updateDoc(agentRef, {
         currentBid: Number(minNextBid),
         highestBidderId: String(user.uid),

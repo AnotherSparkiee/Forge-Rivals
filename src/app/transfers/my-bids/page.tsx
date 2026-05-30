@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -18,7 +17,6 @@ export default function MyBidsPage() {
   const db = useFirestore();
   const [isAuthStabilized, setIsAuthStabilized] = useState(false);
 
-  // Authentication stabilization delay (1200ms) to ensure token sync and prevent permission race conditions
   useEffect(() => {
     if (!isUserLoading && user?.uid) {
       const timer = setTimeout(() => setIsAuthStabilized(true), 1200);
@@ -32,7 +30,7 @@ export default function MyBidsPage() {
 
   const marketQuery = useMemoFirebase(() => {
     if (!authReady) return null;
-    return query(collection(db, 'market_v4'), where('bidders', 'array-contains', user!.uid));
+    return query(collection(db, 'market_v5'), where('bidders', 'array-contains', user!.uid));
   }, [db, user?.uid, authReady]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);

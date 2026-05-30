@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -34,10 +33,10 @@ export default function AssociationPage() {
   const [assocName, setAssocName] = useState('');
   const [assocDesc, setAssocDesc] = useState('');
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v7', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  const allAssocsQuery = useMemoFirebase(() => query(collection(db, 'associations_v3')), [db]);
+  const allAssocsQuery = useMemoFirebase(() => query(collection(db, 'associations_v4')), [db]);
   const { data: allAssocs, isLoading: isAssocsLoading } = useCollection(allAssocsQuery);
 
   const myAssoc = useMemo(() => {
@@ -96,30 +95,7 @@ export default function AssociationPage() {
         history: { label: "Архив войн", desc: "История турниров и логов", icon: History, color: "text-accent" }
       }
     }
-  }[language as 'en' | 'ru'] || {
-    title: "ASSOCIATION",
-    subtitle: "Alliances",
-    back: "Back",
-    insufficient: "No crystals",
-    createTitle: "Create",
-    namePlaceholder: "Name",
-    descPlaceholder: "Desc",
-    costLabel: "500",
-    confirmCreate: "CREATE",
-    noAssocs: "None",
-    join: "Join",
-    pending: "Wait",
-    members: "Members",
-    owner: "Owner",
-    requests: "Reqs",
-    tabs: {
-      my_assoc: { label: "My Assoc", desc: "Manage", icon: ShieldCheck, color: "text-primary" },
-      all: { label: "All", desc: "Browse", icon: Globe, color: "text-blue-400" },
-      create: { label: "Create", desc: "New", icon: PlusCircle, color: "text-green-400" },
-      requests: { label: "Reqs", desc: "Applicants", icon: UserPlus, color: "text-orange-400" },
-      history: { label: "History", desc: "Logs", icon: History, color: "text-accent" }
-    }
-  };
+  }[language as 'en' | 'ru'];
 
   const handleCreateAssoc = async () => {
     if (!user || !profile || isProcessing) return;
@@ -132,7 +108,7 @@ export default function AssociationPage() {
     setIsProcessing(true);
     try {
       const assocId = `assoc_${Date.now()}`;
-      const assocRef = doc(db, 'associations_v3', assocId);
+      const assocRef = doc(db, 'associations_v4', assocId);
       
       const assocData = {
         id: assocId,
@@ -166,7 +142,7 @@ export default function AssociationPage() {
     if (!user || !profile || isProcessing) return;
     setIsProcessing(true);
     try {
-      updateDocumentNonBlocking(doc(db, 'associations_v3', assoc.id), {
+      updateDocumentNonBlocking(doc(db, 'associations_v4', assoc.id), {
         requests: arrayUnion({ uid: user.uid, name: profile.displayName || "Manager" })
       });
       toast({ title: language === 'ru' ? "Заявка отправлена" : "Request Sent" });
@@ -182,14 +158,14 @@ export default function AssociationPage() {
     if (!myAssoc || !isOwner || isProcessing) return;
     setIsProcessing(true);
     try {
-      const assocRef = doc(db, 'associations_v3', myAssoc.id);
+      const assocRef = doc(db, 'associations_v4', myAssoc.id);
       if (accept) {
         updateDocumentNonBlocking(assocRef, {
           members: arrayUnion(applicant.uid),
           memberNames: arrayUnion(applicant.name),
           requests: arrayRemove(applicant)
         });
-        updateDocumentNonBlocking(doc(db, 'players_v7', applicant.uid), {
+        updateDocumentNonBlocking(doc(db, 'players_v8', applicant.uid), {
           associationId: myAssoc.id
         });
         toast({ title: `${applicant.name} accepted` });

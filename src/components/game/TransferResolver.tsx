@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
@@ -15,7 +14,7 @@ export function TransferResolver() {
   
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
-    return query(collection(db, 'market_v4'), where('sellerId', '==', user.uid));
+    return query(collection(db, 'market_v5'), where('sellerId', '==', user.uid));
   }, [db, user?.uid]);
 
   const { data: mySales } = useCollection(marketQuery);
@@ -23,7 +22,7 @@ export function TransferResolver() {
 
   const sendNotification = useCallback((title: string, description: string) => {
     if (!user) return;
-    addDocumentNonBlocking(collection(db, 'notifications_v3'), {
+    addDocumentNonBlocking(collection(db, 'notifications_v4'), {
       userId: user.uid,
       title,
       description,
@@ -78,7 +77,7 @@ export function TransferResolver() {
               toast({ title, description: desc });
             }
 
-            await deleteDoc(doc(db, 'market_v4', agent.id));
+            await deleteDoc(doc(db, 'market_v5', agent.id));
           } catch (e) {
             console.error("Failed to resolve sale", e);
             processedIds.current.delete(agent.id);
