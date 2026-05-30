@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -34,7 +35,7 @@ export function CWBasketListener() {
   const notifiedMatchIdRef = useRef<string | null>(null);
   const isSimulatingRef = useRef(false);
 
-  const myEntryRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v2', user.uid) : null, [db, user]);
+  const myEntryRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v3', user.uid) : null, [db, user]);
   const { data: myEntry } = useDoc(myEntryRef);
 
   useEffect(() => {
@@ -55,7 +56,7 @@ export function CWBasketListener() {
         const checkAndSimulate = async () => {
           if (Date.now() >= startTime && !isSimulatingRef.current) {
             if (matchHistory.some(m => m.id === currentMatchId)) {
-              await deleteDoc(doc(db, 'cw_basket_v2', user!.uid));
+              await deleteDoc(doc(db, 'cw_basket_v3', user!.uid));
               return;
             }
 
@@ -100,7 +101,7 @@ export function CWBasketListener() {
                 description: language === 'ru' ? `Результаты боя против ${myEntry.matchedWithName} сохранены.` : `Battle results vs ${myEntry.matchedWithName} archived.`,
               });
 
-              await deleteDoc(doc(db, 'cw_basket_v2', user!.uid));
+              await deleteDoc(doc(db, 'cw_basket_v3', user!.uid));
             } catch (e) {
               console.error("CW Auto-sim failed", e);
             } finally {
@@ -170,7 +171,7 @@ export function CWBasketListener() {
 
         <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5">
           <Button 
-            className="w-full h-12 hero-gradient font-bold uppercase text-xs tracking-widest" 
+            className="w-full h-12 hero-gradient font-black text-xs tracking-widest" 
             onClick={handleAcknowledge}
           >
             {t.close}

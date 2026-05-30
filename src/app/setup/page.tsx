@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -83,7 +84,7 @@ export default function SetupPage() {
       const { seasonDay, seasonStartDate } = getGlobalSeasonInfo();
       const inheritedStats = calculateInheritedStats(selectedLeagueId, targetLevel, targetGroup, seasonDay);
 
-      const profileRef = doc(db, 'players_v8', user.uid);
+      const profileRef = doc(db, 'players_v10', user.uid);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       
       const updateData = {

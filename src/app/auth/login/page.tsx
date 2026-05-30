@@ -103,7 +103,7 @@ export default function LoginPage() {
     try {
       if (!identifier.includes('@')) {
         try {
-          const usersRef = collection(db, 'players_v8');
+          const usersRef = collection(db, 'players_v10');
           const q = query(usersRef, where('displayName', '==', identifier), limit(1));
           const querySnapshot = await getDocs(q);
           if (querySnapshot.empty) {
@@ -112,7 +112,6 @@ export default function LoginPage() {
           const userData = querySnapshot.docs[0].data();
           emailToUse = userData.email;
         } catch (serverError: any) {
-          // If searching by team name fails due to permissions, prompt to use email
           throw new Error(t.userNotFound);
         }
       }
@@ -139,7 +138,7 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      const userProfileRef = doc(db, 'players_v8', user.uid);
+      const userProfileRef = doc(db, 'players_v10', user.uid);
       const userSnap = await getDoc(userProfileRef);
 
       if (!userSnap.exists()) {
@@ -176,12 +175,12 @@ export default function LoginPage() {
           losses: 0,
           points: 0
         };
-        setDocumentNonBlocking(userProfileRef, profileData, {});
+        await setDoc(userProfileRef, profileData);
         router.push('/setup');
       } else {
         const data = userSnap.data();
         if (!data?.displayName) {
-          setDocumentNonBlocking(userProfileRef, { displayName: user.displayName || `Manager_${user.uid.slice(0, 5)}` }, { merge: true });
+          await setDoc(userProfileRef, { displayName: user.displayName || `Manager_${user.uid.slice(0, 5)}` }, { merge: true });
         }
         
         if (data?.selectedLeagueId && data?.country) {

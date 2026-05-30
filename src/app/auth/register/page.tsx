@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useFirestore, useUser } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -85,28 +85,11 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // 1. Attempt to check for existing display name (non-blocking if permission denied)
-      try {
-        const usersRef = collection(db, 'players_v8');
-        const q = query(usersRef, where('displayName', '==', username.trim()), limit(1));
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          throw new Error(t.usernameTaken);
-        }
-      } catch (checkError: any) {
-        // If it's a real name collision error, rethrow it
-        if (checkError.message === t.usernameTaken) throw checkError;
-        // Otherwise, it might be a permission error for unauthenticated listing.
-        // We log it but proceed, as the subsequent write will catch true authorization issues.
-        console.warn("Username check skipped due to restricted access. Proceeding...");
-      }
-
-      // 2. Create Auth user
+      // 1. Create Auth user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // 3. Generate initial squad
+      // 2. Generate initial squad
       const uniqueSquad = getRandomStartingSquad();
       const initialLineup = {
         offlane: uniqueSquad[0].id,
@@ -140,8 +123,8 @@ export default function RegisterPage() {
         points: 0
       };
 
-      // 4. Create Firestore profile
-      await setDoc(doc(db, 'players_v8', user.uid), profileData);
+      // 3. Create Firestore profile (v10)
+      await setDoc(doc(db, 'players_v10', user.uid), profileData);
 
       toast({ title: t.successTitle, description: t.successDesc });
       router.push('/setup');

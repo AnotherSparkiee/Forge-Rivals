@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -35,13 +36,13 @@ export function AutoMatchManager() {
   const simulationLockRef = useRef(false);
   const winnersCache = useRef<Map<string, CupParticipant | null>>(new Map());
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId || !user?.uid) return null;
     return query(
-      collection(db, 'players_v8'),
+      collection(db, 'players_v10'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -53,7 +54,7 @@ export function AutoMatchManager() {
   const allLeaguePlayersQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId || !user?.uid) return null;
     return query(
-      collection(db, 'players_v8'),
+      collection(db, 'players_v10'),
       where('selectedLeagueId', '==', profile.selectedLeagueId)
     );
   }, [db, profile?.selectedLeagueId, user?.uid]);
@@ -305,7 +306,7 @@ export function AutoMatchManager() {
       </Dialog>
 
       <Dialog open={!!seasonResults} onOpenChange={(open) => !open && dismissSeasonResults()}>
-        <DialogContent className="max-w-md p-0 overflow-hidden bg-background border-white/10 shadow-2xl">
+        <DialogContent className="max-md p-0 overflow-hidden bg-background border-white/10 shadow-2xl">
           <div className="p-8 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
             <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-primary">{t.congrats}</DialogTitle>
           </div>

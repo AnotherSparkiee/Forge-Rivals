@@ -12,39 +12,39 @@
   "firestore": {
     "structure": [
       {
-        "path": "players_v8/{userId}",
+        "path": "players_v10/{userId}",
         "definition": "GenericObject"
       },
       {
-        "path": "market_v5/{agentId}",
+        "path": "market_v7/{agentId}",
         "definition": "GenericObject"
       },
       {
-        "path": "friend_requests_v4/{requestId}",
+        "path": "friend_requests_v5/{requestId}",
         "definition": "GenericObject"
       },
       {
-        "path": "associations_v4/{assocId}",
+        "path": "associations_v5/{assocId}",
         "definition": "GenericObject"
       },
       {
-        "path": "global_chat_v2/{msgId}",
+        "path": "global_chat_v3/{msgId}",
         "definition": "GenericObject"
       },
       {
-        "path": "private_messages_v2/{msgId}",
+        "path": "private_messages_v3/{msgId}",
         "definition": "GenericObject"
       },
       {
-        "path": "friendly_lobbies_v2/{lobbyId}",
+        "path": "friendly_lobbies_v3/{lobbyId}",
         "definition": "GenericObject"
       },
       {
-        "path": "cw_basket_v2/{userId}",
+        "path": "cw_basket_v3/{userId}",
         "definition": "GenericObject"
       },
       {
-        "path": "notifications_v4/{notifId}",
+        "path": "notifications_v6/{notifId}",
         "definition": "GenericObject"
       }
     ]

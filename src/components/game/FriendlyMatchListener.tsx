@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -43,7 +44,7 @@ export function FriendlyMatchListener() {
   const isSimulatingRef = useRef(false);
 
   const sendNotification = useCallback((targetUserId: string, title: string, description: string) => {
-    addDocumentNonBlocking(collection(db, 'notifications_v4'), {
+    addDocumentNonBlocking(collection(db, 'notifications_v6'), {
       userId: targetUserId,
       title,
       description,
@@ -55,7 +56,7 @@ export function FriendlyMatchListener() {
 
   useEffect(() => {
     if (isUserLoading || !user) return;
-    const lobbyRef = doc(db, 'friendly_lobbies_v2', user.uid);
+    const lobbyRef = doc(db, 'friendly_lobbies_v3', user.uid);
     const unsubscribe = onSnapshot(lobbyRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -70,7 +71,7 @@ export function FriendlyMatchListener() {
   useEffect(() => {
     if (isUserLoading || !user) return;
     const q = query(
-      collection(db, 'friendly_lobbies_v2'), 
+      collection(db, 'friendly_lobbies_v3'), 
       where('challengerId', '==', user.uid)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -113,7 +114,7 @@ export function FriendlyMatchListener() {
       const createdAt = data.updatedAt?.toMillis() || Date.now();
       const checkExpiration = () => {
         if (Date.now() - createdAt > LOBBY_EXPIRATION_MS) {
-          deleteDoc(doc(db, 'friendly_lobbies_v2', data.id)).catch(() => {});
+          deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
           toast({
             title: language === 'ru' ? "Заявка истекла" : "Request Expired",
             description: language === 'ru' ? "Никто не принял ваш вызов в течение минуты." : "No one accepted your challenge within a minute.",
@@ -134,7 +135,7 @@ export function FriendlyMatchListener() {
         });
       }
       if (isHost) {
-        deleteDoc(doc(db, 'friendly_lobbies_v2', data.id)).catch(() => {});
+        deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
       }
       return;
     }
@@ -146,7 +147,7 @@ export function FriendlyMatchListener() {
       
       const alreadyProcessed = matchHistory.some(m => m.id === matchUniqueId);
       if (alreadyProcessed) {
-        if (isHost) deleteDoc(doc(db, 'friendly_lobbies_v2', data.id)).catch(() => {});
+        if (isHost) deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
         return;
       }
 
@@ -158,7 +159,7 @@ export function FriendlyMatchListener() {
 
         if (now >= finishTime) {
           if (matchHistory.some(m => m.id === matchUniqueId)) {
-            if (isHost) deleteDoc(doc(db, 'friendly_lobbies_v2', data.id)).catch(() => {});
+            if (isHost) deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
             return;
           }
 
@@ -181,7 +182,7 @@ export function FriendlyMatchListener() {
           });
 
           if (isHost) {
-            await deleteDoc(doc(db, 'friendly_lobbies_v2', data.id)).catch(() => {});
+            await deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
           }
           isSimulatingRef.current = false;
         }
@@ -197,7 +198,7 @@ export function FriendlyMatchListener() {
     if (!activeLobby) return;
     setIsActionLoading(true);
     try {
-      const lobbyRef = doc(db, 'friendly_lobbies_v2', activeLobby.id);
+      const lobbyRef = doc(db, 'friendly_lobbies_v3', activeLobby.id);
       if (accept) {
         const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
           name: h.name,

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -26,7 +27,7 @@ export default function NotificationsPage() {
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'notifications_v4'),
+      collection(db, 'notifications_v6'),
       where('userId', '==', user.uid),
       orderBy('createdAt', 'desc')
     );
@@ -41,7 +42,7 @@ export default function NotificationsPage() {
   }, [user, isUserLoading, router]);
 
   const handleMarkAsRead = (id: string) => {
-    updateDocumentNonBlocking(doc(db, 'notifications_v4', id), { read: true });
+    updateDocumentNonBlocking(doc(db, 'notifications_v6', id), { read: true });
   };
 
   const handleMarkAllRead = async () => {
@@ -49,7 +50,7 @@ export default function NotificationsPage() {
     const batch = writeBatch(db);
     const unread = notifications.filter(n => !n.read);
     unread.forEach(n => {
-      batch.update(doc(db, 'notifications_v4', n.id), { read: true });
+      batch.update(doc(db, 'notifications_v6', n.id), { read: true });
     });
     await batch.commit();
   };
@@ -58,7 +59,7 @@ export default function NotificationsPage() {
     if (!notifications || !user) return;
     const batch = writeBatch(db);
     notifications.forEach(n => {
-      batch.delete(doc(db, 'notifications_v4', n.id));
+      batch.delete(doc(db, 'notifications_v6', n.id));
     });
     await batch.commit();
   };
@@ -94,19 +95,7 @@ export default function NotificationsPage() {
       typeInfra: "Инфраструктура",
       typeLeague: "Лига",
     }
-  }[language as 'en' | 'ru'] || {
-    title: "NOTIFICATIONS",
-    subtitle: "Log",
-    markAllRead: "Read All",
-    clearAll: "Clear",
-    noNotifs: "Empty",
-    noNotifsDesc: "Check back later.",
-    typeMatch: "Match",
-    typeMarket: "Market",
-    typeSocial: "Social",
-    typeInfra: "Infra",
-    typeLeague: "League",
-  };
+  }[language as 'en' | 'ru'];
 
   const getIcon = (type: string) => {
     switch (type) {

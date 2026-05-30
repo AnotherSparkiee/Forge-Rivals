@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
@@ -17,7 +18,7 @@ export function TopBar() {
   const db = useFirestore();
   const lastSyncTriggerRef = useRef<string>("");
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
@@ -26,7 +27,7 @@ export function TopBar() {
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId || !user?.uid) return null;
     return query(
-      collection(db, 'players_v8'),
+      collection(db, 'players_v10'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -39,7 +40,7 @@ export function TopBar() {
   const unreadMessagesQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'private_messages_v2'),
+      collection(db, 'private_messages_v3'),
       where('participants', 'array-contains', user.uid)
     );
   }, [db, user?.uid]);
@@ -55,7 +56,7 @@ export function TopBar() {
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'notifications_v4'),
+      collection(db, 'notifications_v6'),
       where('userId', '==', user.uid),
       where('read', '==', false)
     );
@@ -66,7 +67,6 @@ export function TopBar() {
 
   useEffect(() => {
     if (groupPlayers && groupPlayers.length > 0) {
-      // Check if we already synced for this exact group data to prevent infinite loops
       const currentSyncKey = groupPlayers.map(p => `${p.id}-${p.wins}-${p.points}`).join('|');
       if (lastSyncTriggerRef.current === currentSyncKey) return;
       
@@ -78,7 +78,7 @@ export function TopBar() {
     }
   }, [groupPlayers, syncStats]);
 
-  if (isUserLoading || !user || pathname?.startsWith('/auth') || pathname === '/setup') {
+  if (isUserLoading || !user || !profile) {
     return null;
   }
 

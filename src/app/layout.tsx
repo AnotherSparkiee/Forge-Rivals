@@ -5,7 +5,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
-import { GameStateProvider } from "@/app/lib/store";
+import { GameStateProvider, useGameState } from "@/app/lib/store";
 import { TopBar } from "@/components/game/TopBar";
 import { BottomNav } from "@/components/game/BottomNav";
 import { AutoMatchManager } from "@/components/game/AutoMatchManager";
@@ -17,15 +17,46 @@ import { AuthGuard } from "@/components/game/AuthGuard";
 import { Suspense } from 'react';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { usePathname } from 'next/navigation';
+import { useUser } from '@/firebase';
+
+function GameInterface({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const { user } = useUser();
+  const { isLoaded, selectedLeagueId } = useGameState();
+  const isAuthOrSetup = pathname?.startsWith('/auth') || pathname === '/setup';
+
+  // Strict check: only render game systems if the user is logged in, profile loaded, and NOT on auth/setup pages
+  const shouldRenderGameSystems = !!user && isLoaded && !!selectedLeagueId && !isAuthOrSetup;
+
+  return (
+    <>
+      {shouldRenderGameSystems && (
+        <>
+          <TopBar />
+          <AutoMatchManager />
+          <FriendlyMatchListener />
+          <CWBasketListener />
+          <DailyRewardManager />
+          <TransferResolver />
+        </>
+      )}
+      
+      <Suspense fallback={<LoadingScreen />}>
+        <main>
+          {children}
+        </main>
+      </Suspense>
+
+      {shouldRenderGameSystems && <BottomNav />}
+    </>
+  );
+}
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const pathname = usePathname();
-  const isAuthOrSetup = pathname?.startsWith('/auth') || pathname === '/setup';
-
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
@@ -37,25 +68,9 @@ export default function RootLayout({
         <FirebaseClientProvider>
           <GameStateProvider>
             <AuthGuard>
-              {/* Only render game-wide UI components if we're NOT on auth/setup pages */}
-              {!isAuthOrSetup && (
-                <>
-                  <TopBar />
-                  <AutoMatchManager />
-                  <FriendlyMatchListener />
-                  <CWBasketListener />
-                  <DailyRewardManager />
-                  <TransferResolver />
-                </>
-              )}
-              
-              <Suspense fallback={<LoadingScreen />}>
-                <main>
-                  {children}
-                </main>
-              </Suspense>
-
-              {!isAuthOrSetup && <BottomNav />}
+              <GameInterface>
+                {children}
+              </GameInterface>
               <Toaster />
             </AuthGuard>
           </GameStateProvider>

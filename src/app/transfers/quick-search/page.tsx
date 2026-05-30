@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -27,12 +28,12 @@ export default function QuickSearchPage() {
 
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
-    return query(collection(db, 'market_v5'));
+    return query(collection(db, 'market_v7'));
   }, [db, user?.uid]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v8', user.uid) : null), [db, user?.uid]);
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v10', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
@@ -47,7 +48,7 @@ export default function QuickSearchPage() {
             const agentId = `system_bot_${role.toLowerCase()}_${i}_${Date.now()}`;
             const startPrice = (hero.overallRating * 18000) + 300000;
             
-            await setDoc(doc(db, 'market_v5', agentId), {
+            await setDoc(doc(db, 'market_v7', agentId), {
               id: agentId,
               heroData: JSON.parse(JSON.stringify(hero)),
               currentBid: startPrice,
@@ -82,7 +83,7 @@ export default function QuickSearchPage() {
 
     setIsBidding(agent.id);
     try {
-      const agentRef = doc(db, 'market_v5', agent.id);
+      const agentRef = doc(db, 'market_v7', agent.id);
       await updateDoc(agentRef, {
         currentBid: minNextBid,
         highestBidderId: user.uid,
