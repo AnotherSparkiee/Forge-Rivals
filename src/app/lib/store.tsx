@@ -335,12 +335,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const lastSyncRef = useRef<{ season: number, day: number, leagueId: string | null } | null>(null);
 
   const getStorageKey = useCallback(() => {
-    return user ? `lote_v7_${user.uid}` : null;
+    return user ? `lote_v8_${user.uid}` : null;
   }, [user]);
 
   const runCloudUpdate = useCallback((data: any) => {
     if (!user) return;
-    const profileRef = doc(db, 'players_v7', user.uid);
+    const profileRef = doc(db, 'players_v8', user.uid);
     setTimeout(() => {
       setDoc(profileRef, data, { merge: true })
         .catch(e => console.warn("Cloud update failed (handled):", e.message));
@@ -349,7 +349,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const sendNotification = useCallback((title: string, description: string, type: string) => {
     if (!user) return;
-    addDocumentNonBlocking(collection(db, 'notifications_v3'), {
+    addDocumentNonBlocking(collection(db, 'notifications_v4'), {
       userId: user.uid,
       title,
       description,
@@ -382,7 +382,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const profileRef = doc(db, 'players_v7', user.uid);
+    const profileRef = doc(db, 'players_v8', user.uid);
     const unsubscribe = onSnapshot(profileRef, (docSnap) => {
       if (docSnap.exists()) {
         const profileData = docSnap.data();
@@ -1075,7 +1075,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const addHeroDirectly = useCallback((hero: Hero) => {
     if (!user) return;
     setTimeout(() => {
-      setDoc(doc(db, 'players_v7', user.uid), {
+      setDoc(doc(db, 'players_v8', user.uid), {
         ownedHeroes: arrayUnion(sanitizeForFirestore(hero))
       }, { merge: true }).catch(e => console.error("Cloud direct add failed", e));
     }, 0);
@@ -1084,7 +1084,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const addYouthHeroDirectly = useCallback((hero: Hero) => {
     if (!user) return;
     setTimeout(() => {
-      setDoc(doc(db, 'players_v7', user.uid), {
+      setDoc(doc(db, 'players_v8', user.uid), {
         youthAcademyHeroes: arrayUnion(sanitizeForFirestore(hero))
       }, { merge: true }).catch(e => console.error("Cloud youth direct add failed", e));
     }, 0);

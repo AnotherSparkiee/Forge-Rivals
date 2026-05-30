@@ -1,9 +1,6 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* Включаем статический экспорт */
-  output: 'export', 
-  
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -11,7 +8,6 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    /* Для статического экспорта нужно отключить стандартную оптимизацию картинок Next.js */
     unoptimized: true, 
     remotePatterns: [
       {

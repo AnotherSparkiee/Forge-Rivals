@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "GenericObject": {
@@ -12,39 +11,39 @@
   "firestore": {
     "structure": [
       {
-        "path": "players_v7/{userId}",
+        "path": "players_v8/{userId}",
         "definition": "GenericObject"
       },
       {
-        "path": "market_v4/{agentId}",
+        "path": "market_v5/{agentId}",
         "definition": "GenericObject"
       },
       {
-        "path": "friend_requests_v3/{requestId}",
+        "path": "friend_requests_v4/{requestId}",
         "definition": "GenericObject"
       },
       {
-        "path": "associations_v3/{assocId}",
+        "path": "associations_v4/{assocId}",
         "definition": "GenericObject"
       },
       {
-        "path": "global_chat/{msgId}",
+        "path": "global_chat_v2/{msgId}",
         "definition": "GenericObject"
       },
       {
-        "path": "private_messages/{msgId}",
+        "path": "private_messages_v2/{msgId}",
         "definition": "GenericObject"
       },
       {
-        "path": "friendly_lobbies/{lobbyId}",
+        "path": "friendly_lobbies_v2/{lobbyId}",
         "definition": "GenericObject"
       },
       {
-        "path": "cw_basket/{userId}",
+        "path": "cw_basket_v2/{userId}",
         "definition": "GenericObject"
       },
       {
-        "path": "notifications_v3/{notifId}",
+        "path": "notifications_v4/{notifId}",
         "definition": "GenericObject"
       }
     ]
