@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useAuth, setDocumentNonBlocking } from '@/firebase';
+import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LEAGUES, getMockGroupTeams } from '@/app/lib/leagues-data';
 import { COUNTRIES } from '@/app/lib/countries-data';
-import { Loader2, Clock, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Loader2, Clock, CheckCircle2, ShieldCheck, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useGameState } from '@/app/lib/store';
@@ -16,6 +17,7 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
+  const auth = useAuth();
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
@@ -25,10 +27,11 @@ export default function SetupPage() {
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      router.push('/auth/login');
+      router.push('/auth/register');
     }
   }, [user, isUserLoading, router]);
 
@@ -41,6 +44,18 @@ export default function SetupPage() {
   const handleNextStep = () => {
     if (selectedLeagueId) {
       setStep('country');
+    }
+  };
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await signOut(auth);
+      router.replace('/auth/register');
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -184,21 +199,34 @@ export default function SetupPage() {
         <div className="flex flex-col gap-2 flex-shrink-0 pb-4">
           <Button 
             size="lg" 
-            disabled={isUpdating || (step === 'league' ? !selectedLeagueId : !selectedCountryCode)} 
+            disabled={isUpdating || isLoggingOut || (step === 'league' ? !selectedLeagueId : !selectedCountryCode)} 
             onClick={step === 'league' ? handleNextStep : handleCompleteSetup} 
             className="w-full hero-gradient text-[11px] font-headline font-black h-14 tracking-[0.2em] shadow-xl rounded-xl uppercase"
           >
             {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (step === 'league' ? 'ПРОДОЛЖИТЬ' : 'УСТАНОВИТЬ СВЯЗЬ')}
           </Button>
-          {step === 'country' && (
+          
+          <div className="flex flex-col gap-1">
+            {step === 'country' && (
+              <Button 
+                variant="ghost" 
+                onClick={() => setStep('league')} 
+                className="w-full h-8 text-[9px] font-black uppercase tracking-[0.1em] text-muted-foreground hover:text-white"
+              >
+                ← НАЗАД К ВЫБОРУ ЛИГИ
+              </Button>
+            )}
+            
             <Button 
               variant="ghost" 
-              onClick={() => setStep('league')} 
-              className="w-full h-8 text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground hover:text-white"
+              onClick={handleLogout}
+              disabled={isLoggingOut || isUpdating}
+              className="w-full h-8 text-[9px] font-black uppercase tracking-[0.1em] text-red-400/70 hover:text-red-400 hover:bg-red-400/5"
             >
-              ← НАЗАД К ВЫБОРУ ЛИГИ
+              {isLoggingOut ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <LogOut className="w-3 h-3 mr-2" />}
+              ВЕРНУТЬСЯ К РЕГИСТРАЦИИ
             </Button>
-          )}
+          </div>
         </div>
       </div>
     </div>
