@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -41,9 +42,10 @@ export default function RegisterPage() {
       successDesc: "Welcome to the league, Commander.",
       errorTitle: "Operation Failed",
       usernameTaken: "This team name is already assigned.",
-      usernameInvalid: "Please enter a valid Team Name.",
+      usernameInvalid: "Please enter a valid Team Name (min 2 characters).",
       emailTaken: "Email already associated with a profile.",
-      weakPassword: "Password must be at least 6 characters."
+      weakPassword: "Password must be at least 6 characters.",
+      permissionError: "Insufficient clearance to access server records. Please try again."
     },
     ru: {
       title: "Инициация профиля",
@@ -58,9 +60,10 @@ export default function RegisterPage() {
       successDesc: "Добро пожаловать в лигу, Командир.",
       errorTitle: "Ошибка операции",
       usernameTaken: "Это название команды уже занято.",
-      usernameInvalid: "Пожалуйста, введите корректное название команды.",
+      usernameInvalid: "Пожалуйста, введите корректное название команды (минимум 2 символа).",
       emailTaken: "Этот Email уже используется другим менеджером.",
-      weakPassword: "Пароль должен содержать минимум 6 символов."
+      weakPassword: "Пароль должен содержать минимум 6 символов.",
+      permissionError: "Ошибка прав доступа к серверу. Попробуйте еще раз."
     }
   };
 
@@ -82,29 +85,36 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
+      // 1. Check for existing display name
       const usersRef = collection(db, 'players_v8');
       const q = query(usersRef, where('displayName', '==', username.trim()), limit(1));
-      const querySnapshot = await getDocs(q);
+      
+      let querySnapshot;
+      try {
+        querySnapshot = await getDocs(q);
+      } catch (e: any) {
+        console.error("Username check failed:", e);
+        throw new Error(t.permissionError);
+      }
       
       if (!querySnapshot.empty) {
         throw new Error(t.usernameTaken);
       }
 
+      // 2. Create Auth user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Generate randomized balanced squad (targets 29-38 team rating)
+      // 3. Generate initial squad
       const uniqueSquad = getRandomStartingSquad();
-      
-      // Auto-assign heroes based on roles
       const initialLineup = {
-        offlane: uniqueSquad[0].id,      // Tank
-        carry: uniqueSquad[1].id,        // Carry
-        mid: uniqueSquad[2].id,          // Midlaner
-        support: uniqueSquad[3].id,      // Jungler (Pos 4)
-        full_support: uniqueSquad[4].id, // Support (Pos 5)
-        sub1: uniqueSquad[5].id,         // Extra Carry
-        sub2: uniqueSquad[6].id          // Extra Tank
+        offlane: uniqueSquad[0].id,
+        carry: uniqueSquad[1].id,
+        mid: uniqueSquad[2].id,
+        support: uniqueSquad[3].id,
+        full_support: uniqueSquad[4].id,
+        sub1: uniqueSquad[5].id,
+        sub2: uniqueSquad[6].id
       };
 
       const profileData = {
@@ -129,11 +139,13 @@ export default function RegisterPage() {
         points: 0
       };
 
+      // 4. Create Firestore profile
       await setDoc(doc(db, 'players_v8', user.uid), profileData);
 
       toast({ title: t.successTitle, description: t.successDesc });
       router.push('/setup');
     } catch (error: any) {
+      console.error("Registration full sequence fail:", error);
       let msg = error.message;
       if (error.code === 'auth/email-already-in-use') msg = t.emailTaken;
       if (error.code === 'auth/weak-password') msg = t.weakPassword;

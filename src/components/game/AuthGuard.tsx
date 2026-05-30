@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser } from '@/firebase';
@@ -8,7 +9,7 @@ import { useGameState } from '@/app/lib/store';
 
 /**
  * Route protection guard.
- * Manages redirects to /auth/register or /setup based on user state.
+ * Manages redirects and conditional rendering of game-wide listeners.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
@@ -28,7 +29,6 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     }
 
     if (!user) {
-      // If unauthorized, go to register as requested
       router.replace('/auth/register');
       setIsInitialCheckDone(true);
       return;
@@ -47,9 +47,14 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     }
   }, [user, isUserLoading, isLoaded, selectedLeagueId, country, router, pathname]);
 
-  // Always render auth children immediately to avoid blank screens on login/register
-  if (pathname?.startsWith('/auth')) {
-    return <>{children}</>;
+  const isAuthPage = pathname?.startsWith('/auth');
+  const isSetupPage = pathname === '/setup';
+
+  // If we are on an auth page, we only render the page content, NO matching listeners or top bars
+  if (isAuthPage) {
+    // Find the actual page content among children (it's the Suspense wrapped children in layout.tsx)
+    // Actually, layout.tsx passes everything as children. We need to filter what to show.
+    return <div className="animate-in fade-in duration-500">{children}</div>;
   }
 
   if (!isInitialCheckDone || isUserLoading || (user && !isLoaded)) {

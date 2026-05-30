@@ -1,4 +1,7 @@
-import type {Metadata} from 'next';
+
+'use client';
+
+import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
@@ -13,17 +16,16 @@ import { TransferResolver } from "@/components/game/TransferResolver";
 import { AuthGuard } from "@/components/game/AuthGuard";
 import { Suspense } from 'react';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-
-export const metadata: Metadata = {
-  title: 'Lines of the Enmity',
-  description: 'The ultimate MOBA manager game',
-};
+import { usePathname } from 'next/navigation';
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const pathname = usePathname();
+  const isAuthOrSetup = pathname?.startsWith('/auth') || pathname === '/setup';
+
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
@@ -35,16 +37,25 @@ export default function RootLayout({
         <FirebaseClientProvider>
           <GameStateProvider>
             <AuthGuard>
-              <TopBar />
-              <AutoMatchManager />
-              <FriendlyMatchListener />
-              <CWBasketListener />
-              <DailyRewardManager />
-              <TransferResolver />
+              {/* Only render game-wide UI components if we're NOT on auth/setup pages */}
+              {!isAuthOrSetup && (
+                <>
+                  <TopBar />
+                  <AutoMatchManager />
+                  <FriendlyMatchListener />
+                  <CWBasketListener />
+                  <DailyRewardManager />
+                  <TransferResolver />
+                </>
+              )}
+              
               <Suspense fallback={<LoadingScreen />}>
-                {children}
+                <main>
+                  {children}
+                </main>
               </Suspense>
-              <BottomNav />
+
+              {!isAuthOrSetup && <BottomNav />}
               <Toaster />
             </AuthGuard>
           </GameStateProvider>

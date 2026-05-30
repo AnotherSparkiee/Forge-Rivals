@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -29,7 +30,7 @@ export default function YouthTransfersPage() {
     return query(collection(db, 'market_v5'));
   }, [db, user?.uid]);
 
-  const { data: allAgents, isLoading: isMarketLoading, error: marketError } = useCollection(allAgentsQuery);
+  const { data: allAgents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
   const youthAgents = allAgents?.filter(a => a.heroData?.baseAge && Number(a.heroData.baseAge) < 18) || [];
 
