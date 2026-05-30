@@ -121,8 +121,8 @@ interface GameState {
   groupId: number;
   selectedLeagueId: string | null;
   country: string | null;
-  lastLeagueMatchDate: string | null;
-  lastCupMatchDate: string | null;
+  lastLeagueMatchDate: null | string;
+  lastCupMatchDate: null | string;
   lastSeenMatchDay: number;
   seasonDay: number;
   seasonNumber: number;
@@ -333,6 +333,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const [isLoaded, setIsLoaded] = useState(false);
   const lastSyncRef = useRef<{ season: number, day: number, leagueId: string | null } | null>(null);
+  const lastWritePayloadRef = useRef<string>("");
 
   const getStorageKey = useCallback(() => {
     return user ? `lote_v8_${user.uid}` : null;
@@ -341,10 +342,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const runCloudUpdate = useCallback((data: any) => {
     if (!user) return;
     const profileRef = doc(db, 'players_v8', user.uid);
+    
+    // Prevent redundant writes of the same data which can cause ID: ca9 assertions
+    const payloadStr = JSON.stringify(data);
+    if (lastWritePayloadRef.current === payloadStr) return;
+    lastWritePayloadRef.current = payloadStr;
+
     setTimeout(() => {
       setDoc(profileRef, data, { merge: true })
         .catch(e => console.warn("Cloud update failed (handled):", e.message));
-    }, 0);
+    }, 100); // Decouple slightly more for stability
   }, [user, db]);
 
   const sendNotification = useCallback((title: string, description: string, type: string) => {
@@ -387,59 +394,63 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       if (docSnap.exists()) {
         const profileData = docSnap.data();
         
-        setState(s => {
-          const { seasonDay: globalDay, seasonNumber: globalSeason, seasonStartDate: globalStart } = getGlobalSeasonInfo();
-          const history = profileData.matchHistory || s.matchHistory || [];
-          const cloudHeroes = profileData.ownedHeroes || s.ownedHeroes;
-          const cloudYouth = profileData.youthAcademyHeroes || s.youthAcademyHeroes;
+        setTimeout(() => {
+          setState(s => {
+            const { seasonDay: globalDay, seasonNumber: globalSeason, seasonStartDate: globalStart } = getGlobalSeasonInfo();
+            const history = profileData.matchHistory || s.matchHistory || [];
+            const cloudHeroes = profileData.ownedHeroes || s.ownedHeroes;
+            const cloudYouth = profileData.youthAcademyHeroes || s.youthAcademyHeroes;
 
-          return {
-            ...s,
-            credits: profileData.inGameCurrency ?? s.credits ?? 0,
-            crystals: profileData.crystals ?? s.crystals ?? 0,
-            experiencePoints: profileData.experiencePoints ?? s.experiencePoints ?? 0,
-            managerLevel: profileData.managerLevel ?? s.managerLevel ?? 1,
-            skillPoints: profileData.skillPoints ?? s.skillPoints ?? 0,
-            managerSkills: profileData.managerSkills || s.managerSkills || DEFAULT_STATE.managerSkills,
-            activeLicenseTier: profileData.activeLicenseTier ?? s.activeLicenseTier ?? null,
-            ownedHeroes: cloudHeroes,
-            youthAcademyHeroes: cloudYouth,
-            lineup: profileData.lineup || s.lineup,
-            strategy: profileData.strategy || s.strategy,
-            lineSettings: profileData.lineSettings || s.lineSettings,
-            wins: profileData.wins ?? s.wins ?? 0,
-            draws: profileData.draws ?? s.draws ?? 0,
-            losses: profileData.losses ?? s.losses ?? 0,
-            points: profileData.points ?? s.points ?? 0,
-            leagueLevel: profileData.leagueLevel ?? s.leagueLevel ?? 9,
-            groupId: profileData.groupId ?? s.groupId ?? 1,
-            divisionSubId: profileData.divisionSubId ?? s.divisionSubId ?? 1,
-            selectedLeagueId: profileData.selectedLeagueId ?? s.selectedLeagueId ?? null,
-            country: profileData.country ?? s.country ?? null,
-            lastSeenMatchDay: profileData.lastSeenMatchDay ?? s.lastSeenMatchDay ?? 0,
-            lastLeagueMatchDate: profileData.lastLeagueMatchDate ?? s.lastLeagueMatchDate ?? null,
-            lastCupMatchDate: profileData.lastCupMatchDate ?? s.lastCupMatchDate ?? null,
-            matchHistory: history,
-            seasonStartDate: globalStart,
-            seasonDay: globalDay,
-            seasonNumber: globalSeason,
-            lastProcessedSeason: profileData.lastProcessedSeason ?? s.lastProcessedSeason ?? 0,
-            lastYouthArrivalDay: profileData.lastYouthArrivalDay ?? s.lastYouthArrivalDay ?? 0,
-            lastYouthArrivalSeason: profileData.lastYouthArrivalSeason ?? s.lastYouthArrivalSeason ?? 0,
-            lastRewardClaimDate: profileData.lastRewardClaimDate ?? s.lastRewardClaimDate ?? null,
-            rewardDay: profileData.rewardDay ?? s.rewardDay ?? 1,
-            arena: profileData.arena || s.arena,
-            hq: profileData.hq || s.hq,
-            bootcamp: profileData.bootcamp || s.bootcamp,
-            academy: profileData.academy || s.academy,
-            medical: profileData.medical || s.medical,
-            staff: profileData.staff || s.staff || DEFAULT_STAFF,
-            seasonResults: profileData.seasonResults ?? s.seasonResults ?? null,
-            hasEliteTrophy: profileData.hasEliteTrophy ?? s.hasEliteTrophy ?? false,
-          };
-        });
+            return {
+              ...s,
+              credits: profileData.inGameCurrency ?? s.credits ?? 0,
+              crystals: profileData.crystals ?? s.crystals ?? 0,
+              experiencePoints: profileData.experiencePoints ?? s.experiencePoints ?? 0,
+              managerLevel: profileData.managerLevel ?? s.managerLevel ?? 1,
+              skillPoints: profileData.skillPoints ?? s.skillPoints ?? 0,
+              managerSkills: profileData.managerSkills || s.managerSkills || DEFAULT_STATE.managerSkills,
+              activeLicenseTier: profileData.activeLicenseTier ?? s.activeLicenseTier ?? null,
+              ownedHeroes: cloudHeroes,
+              youthAcademyHeroes: cloudYouth,
+              lineup: profileData.lineup || s.lineup,
+              strategy: profileData.strategy || s.strategy,
+              lineSettings: profileData.lineSettings || s.lineSettings,
+              wins: profileData.wins ?? s.wins ?? 0,
+              draws: profileData.draws ?? s.draws ?? 0,
+              losses: profileData.losses ?? s.losses ?? 0,
+              points: profileData.points ?? s.points ?? 0,
+              leagueLevel: profileData.leagueLevel ?? s.leagueLevel ?? 9,
+              groupId: profileData.groupId ?? s.groupId ?? 1,
+              divisionSubId: profileData.divisionSubId ?? s.divisionSubId ?? 1,
+              selectedLeagueId: profileData.selectedLeagueId ?? s.selectedLeagueId ?? null,
+              country: profileData.country ?? s.country ?? null,
+              lastSeenMatchDay: profileData.lastSeenMatchDay ?? s.lastSeenMatchDay ?? 0,
+              lastLeagueMatchDate: profileData.lastLeagueMatchDate ?? s.lastLeagueMatchDate ?? null,
+              lastCupMatchDate: profileData.lastCupMatchDate ?? s.lastCupMatchDate ?? null,
+              matchHistory: history,
+              seasonStartDate: globalStart,
+              seasonDay: globalDay,
+              seasonNumber: globalSeason,
+              lastProcessedSeason: profileData.lastProcessedSeason ?? s.lastProcessedSeason ?? 0,
+              lastYouthArrivalDay: profileData.lastYouthArrivalDay ?? s.lastYouthArrivalDay ?? 0,
+              lastYouthArrivalSeason: profileData.lastYouthArrivalSeason ?? s.lastYouthArrivalSeason ?? 0,
+              lastRewardClaimDate: profileData.lastRewardClaimDate ?? s.lastRewardClaimDate ?? null,
+              rewardDay: profileData.rewardDay ?? s.rewardDay ?? 1,
+              arena: profileData.arena || s.arena,
+              hq: profileData.hq || s.hq,
+              bootcamp: profileData.bootcamp || s.bootcamp,
+              academy: profileData.academy || s.academy,
+              medical: profileData.medical || s.medical,
+              staff: profileData.staff || s.staff || DEFAULT_STAFF,
+              seasonResults: profileData.seasonResults ?? s.seasonResults ?? null,
+              hasEliteTrophy: profileData.hasEliteTrophy ?? s.hasEliteTrophy ?? false,
+            };
+          });
+          setIsLoaded(true);
+        }, 0);
+      } else {
+        setIsLoaded(true);
       }
-      setIsLoaded(true);
     }, (error) => {
       console.warn("Profile listener error", error);
       setIsLoaded(true);

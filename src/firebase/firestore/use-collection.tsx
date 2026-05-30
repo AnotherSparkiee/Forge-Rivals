@@ -20,8 +20,9 @@ export interface UseCollectionResult<T> {
 
 /**
  * Hook for subscribing to Firestore collections.
- * Optimized for stability with Firestore 11.9.0.
- * Decouples updates from the internal SDK task queue to avoid ID: ca9 assertion errors.
+ * Optimized for stability with Firestore 11.9.0 and React 19.
+ * Uses a safe timeout to decouple SDK internals from React render cycles, 
+ * preventing "Unexpected state (ID: ca9)" errors.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
@@ -59,14 +60,14 @@ export function useCollection<T = any>(
               results.push({ ...(doc.data() as T), id: doc.id });
             });
             
-            // Decouple from snapshot processing loop
-            Promise.resolve().then(() => {
+            // Decouple state update from snapshot callback to avoid ID: ca9/b815
+            setTimeout(() => {
               if (active) {
                 setData(results);
                 setError(null);
                 setIsLoading(false);
               }
-            });
+            }, 0);
           },
           (fError: FirestoreError) => {
             if (!active) return;
@@ -83,7 +84,7 @@ export function useCollection<T = any>(
           setIsLoading(false);
         }
       }
-    }, 10);
+    }, 20);
 
     return () => {
       active = false;

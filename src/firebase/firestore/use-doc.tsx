@@ -55,14 +55,14 @@ export function useDoc<T = any>(
               ? { ...(snapshot.data() as T), id: snapshot.id }
               : null;
 
-            // Decouple from snapshot processing loop
-            Promise.resolve().then(() => {
+            // Decouple from snapshot processing loop using a safe delay
+            setTimeout(() => {
               if (active) {
                 setData(docData);
                 setError(null); 
                 setIsLoading(false);
               }
-            });
+            }, 0);
           },
           (fError: FirestoreError) => {
             if (!active) return;
@@ -79,7 +79,7 @@ export function useDoc<T = any>(
           setIsLoading(false);
         }
       }
-    }, 10);
+    }, 20);
 
     return () => {
       active = false;
