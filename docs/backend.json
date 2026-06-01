@@ -46,6 +46,10 @@
       {
         "path": "notifications_v6/{notifId}",
         "definition": "GenericObject"
+      },
+      {
+        "path": "league_groups_v1/{groupId}",
+        "definition": "GenericObject"
       }
     ]
   }

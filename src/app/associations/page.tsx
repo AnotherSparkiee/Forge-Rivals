@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -33,10 +34,10 @@ export default function AssociationPage() {
   const [assocName, setAssocName] = useState('');
   const [assocDesc, setAssocDesc] = useState('');
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  const allAssocsQuery = useMemoFirebase(() => query(collection(db, 'associations_v4')), [db]);
+  const allAssocsQuery = useMemoFirebase(() => query(collection(db, 'associations_v5')), [db]);
   const { data: allAssocs, isLoading: isAssocsLoading } = useCollection(allAssocsQuery);
 
   const myAssoc = useMemo(() => {
@@ -108,7 +109,7 @@ export default function AssociationPage() {
     setIsProcessing(true);
     try {
       const assocId = `assoc_${Date.now()}`;
-      const assocRef = doc(db, 'associations_v4', assocId);
+      const assocRef = doc(db, 'associations_v5', assocId);
       
       const assocData = {
         id: assocId,
@@ -142,7 +143,7 @@ export default function AssociationPage() {
     if (!user || !profile || isProcessing) return;
     setIsProcessing(true);
     try {
-      updateDocumentNonBlocking(doc(db, 'associations_v4', assoc.id), {
+      updateDocumentNonBlocking(doc(db, 'associations_v5', assoc.id), {
         requests: arrayUnion({ uid: user.uid, name: profile.displayName || "Manager" })
       });
       toast({ title: language === 'ru' ? "Заявка отправлена" : "Request Sent" });
@@ -158,14 +159,14 @@ export default function AssociationPage() {
     if (!myAssoc || !isOwner || isProcessing) return;
     setIsProcessing(true);
     try {
-      const assocRef = doc(db, 'associations_v4', myAssoc.id);
+      const assocRef = doc(db, 'associations_v5', myAssoc.id);
       if (accept) {
         updateDocumentNonBlocking(assocRef, {
           members: arrayUnion(applicant.uid),
           memberNames: arrayUnion(applicant.name),
           requests: arrayRemove(applicant)
         });
-        updateDocumentNonBlocking(doc(db, 'players_v8', applicant.uid), {
+        updateDocumentNonBlocking(doc(db, 'players_v10', applicant.uid), {
           associationId: myAssoc.id
         });
         toast({ title: `${applicant.name} accepted` });
@@ -288,7 +289,7 @@ export default function AssociationPage() {
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
             <Card className="glass-card border-primary/30 bg-primary/5 overflow-hidden">
                <CardContent className="p-8 text-center flex flex-col items-center">
-                  <div className="w-20 h-20 rounded-full bg-secondary/50 border-2 border-primary flex items-center justify-center mb-4 shadow-xl">
+                  <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center mb-4 shadow-xl">
                     <Shield className="w-10 h-10 text-primary" />
                   </div>
                   <h2 className="text-2xl font-headline font-bold text-white uppercase italic">{myAssoc.name}</h2>
