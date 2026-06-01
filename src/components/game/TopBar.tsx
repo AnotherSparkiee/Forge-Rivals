@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
@@ -48,9 +47,13 @@ export function TopBar() {
   const { data: allMessages } = useCollection(unreadMessagesQuery);
   
   const hasUnreadMessages = useMemo(() => {
-    if (!allMessages || !user) return false;
-    return allMessages.some(msg => msg.receiverId === user.uid && !msg.read);
-  }, [allMessages, user]);
+    if (!allMessages || !user || !profile) return false;
+    const filterTime = profile.setupDate ? new Date(profile.setupDate).getTime() : (profile.createdAt ? new Date(profile.createdAt).getTime() : 0);
+    return allMessages.some(msg => {
+      const msgTime = msg.createdAt?.toMillis?.() || 0;
+      return msg.receiverId === user.uid && !msg.read && msgTime >= filterTime;
+    });
+  }, [allMessages, user, profile]);
 
   // Notifications Query
   const notificationsQuery = useMemoFirebase(() => {
@@ -63,7 +66,12 @@ export function TopBar() {
   }, [db, user?.uid]);
 
   const { data: notifications } = useCollection(notificationsQuery);
-  const unreadNotifCount = notifications?.length || 0;
+  
+  const unreadNotifCount = useMemo(() => {
+    if (!notifications || !profile) return 0;
+    const filterTime = profile.setupDate ? new Date(profile.setupDate).getTime() : (profile.createdAt ? new Date(profile.createdAt).getTime() : 0);
+    return notifications.filter(n => new Date(n.createdAt).getTime() >= filterTime).length;
+  }, [notifications, profile]);
 
   useEffect(() => {
     if (groupPlayers && groupPlayers.length > 0) {

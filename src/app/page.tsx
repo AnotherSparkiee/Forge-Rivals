@@ -34,13 +34,13 @@ export default function Home() {
   const [countdown, setCountdown] = useState<string>('');
   const [activeFriendly, setActiveFriendly] = useState<any | null>(null);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
-      collection(db, 'players_v8'),
+      collection(db, 'players_v10'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -50,16 +50,16 @@ export default function Home() {
   const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
 
   const globeParticipantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v8'), where('tournaments', 'array-contains', 'iron-globe'));
+    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', 'iron-globe'));
   }, [db]);
   const { data: globeParticipants } = useCollection(globeParticipantsQuery);
 
   const brickParticipantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v8'), where('tournaments', 'array-contains', 'iron-brick'));
+    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', 'iron-brick'));
   }, [db]);
   const { data: brickParticipants } = useCollection(brickParticipantsQuery);
 
-  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v2', user.uid) : null, [db, user]);
+  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v3', user.uid) : null, [db, user]);
   const { data: basketEntry } = useDoc(myBasketRef);
 
   useEffect(() => {
@@ -70,8 +70,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!user || isUserLoading) return;
-    // Listen to personal friendly lobby specifically
-    const unsub = onSnapshot(doc(db, 'friendly_lobbies_v2', user.uid), (docSnap) => {
+    const unsub = onSnapshot(doc(db, 'friendly_lobbies_v3', user.uid), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.status === 'accepted') {
@@ -85,8 +84,7 @@ export default function Home() {
           setActiveFriendly(null);
         }
       } else {
-        // Also check if I am a challenger in someone else's lobby
-        const q = query(collection(db, 'friendly_lobbies_v2'), where('challengerId', '==', user.uid), where('status', '==', 'accepted'));
+        const q = query(collection(db, 'friendly_lobbies_v3'), where('challengerId', '==', user.uid), where('status', '==', 'accepted'));
         onSnapshot(q, (snap) => {
           if (!snap.empty) {
             const d = snap.docs[0].data();
@@ -245,8 +243,13 @@ export default function Home() {
   }, [displayMatchInfo, seasonDay]);
 
   const unseenCount = useMemo(() => {
-    return matchHistory.filter(m => m.type === 'league' && m.day > lastSeenMatchDay).length;
-  }, [matchHistory, lastSeenMatchDay]);
+    if (!profile) return 0;
+    const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : (profile.createdAt ? new Date(profile.createdAt).getTime() : 0);
+    return matchHistory.filter(m => {
+      const matchTime = m.playedAt ? new Date(m.playedAt).getTime() : 0;
+      return m.type === 'league' && m.day > lastSeenMatchDay && matchTime >= setupTime;
+    }).length;
+  }, [matchHistory, lastSeenMatchDay, profile]);
 
   if (isUserLoading || !isLoaded || !user || isProfileLoading || isGroupLoading) return <LoadingScreen />;
 

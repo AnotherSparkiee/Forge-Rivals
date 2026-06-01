@@ -33,7 +33,7 @@ function MatchContent() {
   const matchIdFromUrl = searchParams.get('id');
   const [step, setStep] = useState<MatchStep>('preview');
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
@@ -43,25 +43,36 @@ function MatchContent() {
   }, [user, isUserLoading, router]);
 
   const currentResult = useMemo(() => {
+    if (!profile) return null;
+    const filterTime = profile.setupDate ? new Date(profile.setupDate).getTime() : (profile.createdAt ? new Date(profile.createdAt).getTime() : 0);
+
     if (matchIdFromUrl) {
       const match = matchHistory.find(m => m.id === matchIdFromUrl);
       if (match) return match;
     }
     
     const unseenLeagueMatches = matchHistory
-      .filter(m => m.type === 'league' && m.day > lastSeenMatchDay)
+      .filter(m => {
+        const matchTime = m.playedAt ? new Date(m.playedAt).getTime() : 0;
+        return m.type === 'league' && m.day > lastSeenMatchDay && matchTime >= filterTime;
+      })
       .sort((a, b) => a.day - b.day);
 
     if (unseenLeagueMatches.length > 0) return unseenLeagueMatches[0];
 
-    const sortedHistory = [...matchHistory].sort((a, b) => {
-      const timeA = new Date(a.playedAt).getTime();
-      const timeB = new Date(b.playedAt).getTime();
-      return timeB - timeA;
-    });
+    const sortedHistory = [...matchHistory]
+      .filter(m => {
+        const matchTime = m.playedAt ? new Date(m.playedAt).getTime() : 0;
+        return matchTime >= filterTime;
+      })
+      .sort((a, b) => {
+        const timeA = new Date(a.playedAt).getTime();
+        const timeB = new Date(b.playedAt).getTime();
+        return timeB - timeA;
+      });
 
     return sortedHistory[0] || null;
-  }, [matchHistory, matchIdFromUrl, lastSeenMatchDay]);
+  }, [matchHistory, matchIdFromUrl, lastSeenMatchDay, profile]);
 
   const isHistoricalViewing = !!matchIdFromUrl;
 

@@ -46,13 +46,13 @@ export default function MatchesPage() {
     }
   }, [user, isUserLoading, router]);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
-      collection(db, 'players_v8'),
+      collection(db, 'players_v10'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -61,13 +61,13 @@ export default function MatchesPage() {
 
   const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
 
-  const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies_v2', user.uid) : null, [db, user]);
+  const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies_v3', user.uid) : null, [db, user]);
   const { data: myLobby } = useDoc(myLobbyRef);
 
   const challengerLobbyQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'friendly_lobbies_v2'), 
+      collection(db, 'friendly_lobbies_v3'), 
       where('challengerId', '==', user.uid), 
       where('status', '==', 'accepted')
     );
@@ -75,16 +75,16 @@ export default function MatchesPage() {
   const { data: challengerLobbies } = useCollection(challengerLobbyQuery);
 
   const globeParticipantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v8'), where('tournaments', 'array-contains', 'iron-globe'));
+    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', 'iron-globe'));
   }, [db]);
   const { data: globeParticipants } = useCollection(globeParticipantsQuery);
 
   const brickParticipantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v8'), where('tournaments', 'array-contains', 'iron-brick'));
+    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', 'iron-brick'));
   }, [db]);
   const { data: brickParticipants } = useCollection(brickParticipantsQuery);
 
-  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v2', user.uid) : null, [db, user]);
+  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v3', user.uid) : null, [db, user]);
   const { data: basketEntry } = useDoc(myBasketRef);
 
   const league = useMemo(() => {
@@ -336,7 +336,7 @@ export default function MatchesPage() {
       vs: "VS",
       matchTime: "Deployment Window",
       startTime: "Start Time",
-      noData: "No records found for this sector.",
+      noData: "No records found since club commission.",
       today: "TODAY",
       tomorrow: "TOMORROW",
       startsIn: "TIME UNTIL MATCH:",
@@ -361,7 +361,7 @@ export default function MatchesPage() {
       vs: "ПРОТИВ",
       matchTime: "Окно развертывания",
       startTime: "Начало",
-      noData: "Записей в данном секторе не обнаружено.",
+      noData: "Записей с момента создания клуба не обнаружено.",
       today: "СЕГОДНЯ",
       tomorrow: "ЗАВТРА",
       startsIn: "ДО МАТЧА ОСТАЛОСЬ:",
@@ -379,6 +379,19 @@ export default function MatchesPage() {
   };
 
   const t = translations[language as keyof typeof translations] || translations.ru;
+
+  const displayHistory = useMemo(() => {
+    if (!profile) return [];
+    const filterTime = profile.setupDate ? new Date(profile.setupDate).getTime() : (profile.createdAt ? new Date(profile.createdAt).getTime() : 0);
+    return matchHistory.filter(m => {
+      const matchTime = m.playedAt ? new Date(m.playedAt).getTime() : 0;
+      return matchTime >= filterTime;
+    }).sort((a, b) => {
+      const timeA = a.playedAt ? new Date(a.playedAt).getTime() : 0;
+      const timeB = b.playedAt ? new Date(b.playedAt).getTime() : 0;
+      return timeB - timeA;
+    }).slice(0, 50);
+  }, [matchHistory, profile]);
 
   const renderMatchRow = (match: any, dayIdx: number) => {
     const day = dayIdx + 1;
@@ -594,13 +607,7 @@ export default function MatchesPage() {
       }
 
       case 'my_played': {
-        const history = [...matchHistory].sort((a, b) => {
-          const timeA = a.playedAt ? new Date(a.playedAt).getTime() : 0;
-          const timeB = b.playedAt ? new Date(b.playedAt).getTime() : 0;
-          return timeB - timeA;
-        }).slice(0, 50);
-
-        if (history.length === 0) return (
+        if (displayHistory.length === 0) return (
           <div className="text-center py-20 opacity-50 space-y-4">
             <History className="w-12 h-12 mx-auto" />
             <p className="text-xs uppercase font-bold tracking-widest">{t.noData}</p>
@@ -609,7 +616,7 @@ export default function MatchesPage() {
 
         return (
           <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-500">
-            {history.map((match, index) => renderHistoryRow(match, index))}
+            {displayHistory.map((match, index) => renderHistoryRow(match, index))}
           </div>
         );
       }

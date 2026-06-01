@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -24,6 +23,9 @@ export default function NotificationsPage() {
   const db = useFirestore();
   const { language, isLoaded } = useGameState();
 
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const { data: profile } = useDoc(userRef);
+
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
@@ -34,6 +36,19 @@ export default function NotificationsPage() {
   }, [db, user?.uid]);
 
   const { data: notifications, isLoading: isNotifsLoading } = useCollection(notificationsQuery);
+
+  const displayNotifs = useMemo(() => {
+    if (!notifications || !profile) return notifications;
+    // Filter out notifications from before the club was fully set up
+    const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : 0;
+    const registrationTime = profile.createdAt ? new Date(profile.createdAt).getTime() : 0;
+    const filterTime = setupTime || registrationTime;
+    
+    return notifications.filter(n => {
+      const notifTime = new Date(n.createdAt).getTime();
+      return notifTime >= filterTime;
+    });
+  }, [notifications, profile]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -46,9 +61,9 @@ export default function NotificationsPage() {
   };
 
   const handleMarkAllRead = async () => {
-    if (!notifications || !user) return;
+    if (!displayNotifs || !user) return;
     const batch = writeBatch(db);
-    const unread = notifications.filter(n => !n.read);
+    const unread = displayNotifs.filter(n => !n.read);
     unread.forEach(n => {
       batch.update(doc(db, 'notifications_v6', n.id), { read: true });
     });
@@ -56,9 +71,9 @@ export default function NotificationsPage() {
   };
 
   const handleClearAll = async () => {
-    if (!notifications || !user) return;
+    if (!displayNotifs || !user) return;
     const batch = writeBatch(db);
-    notifications.forEach(n => {
+    displayNotifs.forEach(n => {
       batch.delete(doc(db, 'notifications_v6', n.id));
     });
     await batch.commit();
@@ -75,7 +90,7 @@ export default function NotificationsPage() {
       markAllRead: "Read All",
       clearAll: "Clear All",
       noNotifs: "Operational status quiet",
-      noNotifsDesc: "No significant tactical events or transmissions detected on this frequency.",
+      noNotifsDesc: "No significant tactical events detected since your club was commissioned.",
       typeMatch: "Match Event",
       typeMarket: "Market Update",
       typeSocial: "Social Activity",
@@ -88,7 +103,7 @@ export default function NotificationsPage() {
       markAllRead: "Прочитать всё",
       clearAll: "Очистить всё",
       noNotifs: "Важных событий нет",
-      noNotifsDesc: "На данный момент в вашем клубе не зафиксировано значимых оперативных событий.",
+      noNotifsDesc: "С момента ввода клуба в эксплуатацию значимых оперативных событий не зафиксировано.",
       typeMatch: "Матчи",
       typeMarket: "Рынок",
       typeSocial: "Друзья",
@@ -126,7 +141,7 @@ export default function NotificationsPage() {
         </div>
       </header>
 
-      {notifications && notifications.length > 0 ? (
+      {displayNotifs && displayNotifs.length > 0 ? (
         <div className="flex gap-2 mb-6">
           <Button variant="outline" size="sm" className="h-8 text-[8px] font-black uppercase flex-1 border-white/5 bg-secondary/20" onClick={handleMarkAllRead}>
             <CheckCircle2 className="w-3 h-3 mr-2" /> {t.markAllRead}
@@ -140,8 +155,8 @@ export default function NotificationsPage() {
       <div className="space-y-2">
         {isNotifsLoading ? (
           <div className="py-20 text-center opacity-50"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
-        ) : notifications && notifications.length > 0 ? (
-          notifications.map((notif) => {
+        ) : displayNotifs && displayNotifs.length > 0 ? (
+          displayNotifs.map((notif) => {
             const config = getIcon(notif.type);
             const Icon = config.icon;
             
@@ -188,7 +203,7 @@ export default function NotificationsPage() {
             </p>
             <Link href="/" className="mt-8">
               <Button variant="outline" className="h-10 text-[9px] font-black uppercase tracking-widest border-white/10 px-8">
-                Вернуться в хаб
+                {language === 'ru' ? 'Вернуться в хаб' : 'Return to Hub'}
               </Button>
             </Link>
           </div>
