@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -14,7 +13,7 @@ import { cn } from '@/lib/utils';
 
 export default function MyBidsPage() {
   const { language, isLoaded: isStoreLoaded } = useGameState();
-  const { user, isUserLoading } = userUser();
+  const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const [isAuthStabilized, setIsAuthStabilized] = useState(false);
 

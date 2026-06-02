@@ -21,7 +21,7 @@ export default function PlayerStatsPage() {
   const db = useFirestore();
   const { ownedHeroes, matchHistory, language, isLoaded } = useGameState();
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const playerStats = useMemo(() => {

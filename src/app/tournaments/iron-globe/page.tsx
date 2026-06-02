@@ -94,11 +94,11 @@ export default function IronGlobePage() {
   const activeRecordRef = useRef(false);
   const finalResultRef = useRef(false);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const participantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', 'iron-globe'));
+    return query(collection(db, 'players_v11'), where('tournaments', 'array-contains', 'iron-globe'));
   }, [db]);
 
   const { data: participants, isLoading: isParticipantsLoading } = useCollection(participantsQuery);

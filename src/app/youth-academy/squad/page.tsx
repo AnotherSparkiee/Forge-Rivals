@@ -44,7 +44,7 @@ export default function YouthSquadPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v10', user.uid) : null), [db, user?.uid]);
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v11', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
   const t = {
@@ -104,7 +104,7 @@ export default function YouthSquadPage() {
         isYouth: true
       };
       
-      setDocumentNonBlocking(doc(db, 'market_v7', agentId), agentData);
+      setDocumentNonBlocking(doc(db, 'market_v8', agentId), agentData);
       updateHero(selectedHero.id, { onTransferUntil: expiryTime.toISOString(), transferMarketId: agentId });
       toast({ title: language === 'ru' ? "Выставлен на рынок" : "Listed on Market" });
       setSelectedHero(null);

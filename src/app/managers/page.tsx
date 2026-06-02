@@ -25,7 +25,7 @@ export default function ManagersHubPage() {
   const requestsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'friend_requests_v5'),
+      collection(db, 'friend_requests_v6'),
       where('toId', '==', user.uid),
       where('status', '==', 'pending')
     );

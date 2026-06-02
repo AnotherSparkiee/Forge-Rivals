@@ -21,7 +21,7 @@ export default function SynergyPage() {
   const db = useFirestore();
   const { matchHistory, language, isLoaded } = useGameState();
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const officialMatches = useMemo(() => {
@@ -88,7 +88,7 @@ export default function SynergyPage() {
           <CardContent className="p-8 text-center flex flex-col items-center">
             <div className="relative mb-6">
               <div className="w-32 h-32 rounded-full border-4 border-white/5 flex items-center justify-center relative">
-                <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin duration-[4s]" />
+                <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin [animation-duration:4s]" />
                 <span className="text-5xl font-headline font-bold italic text-primary">{synergyScore}%</span>
               </div>
               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-background px-4 py-1 rounded-full border border-white/10 shadow-xl">
@@ -145,8 +145,7 @@ export default function SynergyPage() {
                 </p>
               </div>
             </CardContent>
-          </Card>
-        </section>
+          </section>
 
         <section className="space-y-2">
           <div className="flex items-center justify-between px-1">
