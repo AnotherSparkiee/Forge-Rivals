@@ -1,16 +1,16 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { useGameState, LineupSlot } from '../../lib/store';
+import { useState, useEffect } from 'react';
+import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { 
-  ChevronLeft, Star, Clock, ShoppingCart, Loader2, 
+  ChevronLeft, Star, ShoppingCart, Loader2, 
   ArrowUpCircle, Info, Award, Target, Eye, Map, 
   Zap, Sparkles, Brain, TrendingUp, Crosshair, Sword,
-  ShieldCheck, AlertCircle
+  ShieldCheck, Clock, Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -57,6 +57,7 @@ export default function YouthSquadPage() {
     stats: language === 'ru' ? "Навыки и таланты" : "Skills & Talents",
     salary: language === 'ru' ? "Зарплата" : "Salary",
     status: language === 'ru' ? "Статус" : "Status",
+    close: language === 'ru' ? "ЗАКРЫТЬ ДОСЬЕ" : "CLOSE DOSSIER",
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
       mapAwareness: language === 'ru' ? "Контроль карты" : "Map Awareness",
@@ -115,10 +116,10 @@ export default function YouthSquadPage() {
       {Array.from({ length: 5 }).map((_, i) => {
         const fill = Math.min(Math.max(rating - i, 0), 1);
         return (
-          <div key={i} className="relative w-2 h-2">
-            <Star className="absolute inset-0 w-2 h-2 text-muted-foreground/20" />
+          <div key={i} className="relative w-2.5 h-2.5">
+            <Star className="absolute inset-0 w-2.5 h-2.5 text-muted-foreground/20" />
             <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
-              <Star className="w-2 h-2 text-yellow-500 fill-yellow-500" />
+              <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />
             </div>
           </div>
         );
@@ -298,7 +299,7 @@ export default function YouthSquadPage() {
                   className="w-full h-10 text-[9px] font-black uppercase tracking-widest text-muted-foreground" 
                   onClick={() => setSelectedHero(null)}
                 >
-                  {language === 'ru' ? 'ЗАКРЫТЬ' : 'CLOSE'}
+                  {t.close}
                 </Button>
               </div>
             </DialogContent>

@@ -38,13 +38,14 @@ function MatchContent() {
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      router.push('/auth/register');
+      router.push('/auth/login');
     }
   }, [user, isUserLoading, router]);
 
   const currentResult = useMemo(() => {
     if (!profile) return null;
-    const filterTime = profile.setupDate ? new Date(profile.setupDate).getTime() : (profile.createdAt ? new Date(profile.createdAt).getTime() : 0);
+    // ФИЛЬТР: Только матчи ПОСЛЕ полной регистрации команды
+    const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : 0;
 
     if (matchIdFromUrl) {
       const match = matchHistory.find(m => m.id === matchIdFromUrl);
@@ -54,7 +55,7 @@ function MatchContent() {
     const unseenLeagueMatches = matchHistory
       .filter(m => {
         const matchTime = m.playedAt ? new Date(m.playedAt).getTime() : 0;
-        return m.type === 'league' && m.day > lastSeenMatchDay && matchTime >= filterTime;
+        return m.type === 'league' && m.day > lastSeenMatchDay && matchTime >= setupTime;
       })
       .sort((a, b) => a.day - b.day);
 
@@ -63,7 +64,7 @@ function MatchContent() {
     const sortedHistory = [...matchHistory]
       .filter(m => {
         const matchTime = m.playedAt ? new Date(m.playedAt).getTime() : 0;
-        return matchTime >= filterTime;
+        return matchTime >= setupTime;
       })
       .sort((a, b) => {
         const timeA = new Date(a.playedAt).getTime();

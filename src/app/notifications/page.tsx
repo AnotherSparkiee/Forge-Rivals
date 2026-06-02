@@ -8,14 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   Bell, ChevronLeft, Trash2, 
-  CheckCircle2, Clock, Info, 
+  CheckCircle2, Info, 
   Swords, ShoppingCart, UserPlus, Zap, Trophy, ShieldAlert, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { collection, query, where, orderBy, doc, deleteDoc, writeBatch, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, doc, writeBatch } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { Badge } from '@/components/ui/badge';
 
 export default function NotificationsPage() {
   const { user, isUserLoading } = useUser();
@@ -38,15 +37,14 @@ export default function NotificationsPage() {
   const { data: notifications, isLoading: isNotifsLoading } = useCollection(notificationsQuery);
 
   const displayNotifs = useMemo(() => {
-    if (!notifications || !profile) return notifications;
-    // Filter out notifications from before the club was fully set up
+    if (!notifications || !profile) return [];
+    
+    // ФИЛЬТР: Только уведомления ПОСЛЕ полной регистрации команды (setupDate)
     const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : 0;
-    const registrationTime = profile.createdAt ? new Date(profile.createdAt).getTime() : 0;
-    const filterTime = setupTime || registrationTime;
     
     return notifications.filter(n => {
       const notifTime = new Date(n.createdAt).getTime();
-      return notifTime >= filterTime;
+      return notifTime >= setupTime;
     });
   }, [notifications, profile]);
 

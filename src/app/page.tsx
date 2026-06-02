@@ -7,7 +7,7 @@ import { useGameState } from './lib/store';
 import { 
   Users, Trophy, Zap, Clock,
   UserSearch, ShieldAlert, Medal, User, Swords, ChevronRight,
-  CalendarDays, PlayCircle, Loader2, MessageSquare, UsersRound, Target, ShoppingCart,
+  CalendarDays, PlayCircle, MessageSquare, UsersRound, Target, ShoppingCart,
   GraduationCap, UserCog, Coins, Heart, Store, Shield, Radar, Timer
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -244,7 +244,9 @@ export default function Home() {
 
   const unseenCount = useMemo(() => {
     if (!profile) return 0;
-    const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : (profile.createdAt ? new Date(profile.createdAt).getTime() : 0);
+    // ФИЛЬТР: Только матчи ПОСЛЕ полной регистрации команды
+    const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : 0;
+    
     return matchHistory.filter(m => {
       const matchTime = m.playedAt ? new Date(m.playedAt).getTime() : 0;
       return m.type === 'league' && m.day > lastSeenMatchDay && matchTime >= setupTime;

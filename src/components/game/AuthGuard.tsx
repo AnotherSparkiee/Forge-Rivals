@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser } from '@/firebase';
@@ -24,12 +23,15 @@ export function AuthGuard({ children }: { children: ReactNode }) {
 
     // Allow auth pages without redirect
     if (pathname?.startsWith('/auth')) {
+      if (user && isLoaded && selectedLeagueId && country) {
+        router.replace('/');
+      }
       setIsInitialCheckDone(true);
       return;
     }
 
     if (!user) {
-      router.replace('/auth/register');
+      router.replace('/auth/login');
       setIsInitialCheckDone(true);
       return;
     }
@@ -48,12 +50,8 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   }, [user, isUserLoading, isLoaded, selectedLeagueId, country, router, pathname]);
 
   const isAuthPage = pathname?.startsWith('/auth');
-  const isSetupPage = pathname === '/setup';
 
-  // If we are on an auth page, we only render the page content, NO matching listeners or top bars
   if (isAuthPage) {
-    // Find the actual page content among children (it's the Suspense wrapped children in layout.tsx)
-    // Actually, layout.tsx passes everything as children. We need to filter what to show.
     return <div className="animate-in fade-in duration-500">{children}</div>;
   }
 
