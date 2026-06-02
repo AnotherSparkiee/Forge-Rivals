@@ -49,7 +49,7 @@ export default function ProfilePage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showSkillTree, setShowSkillTree] = useState(false);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   useEffect(() => {
@@ -129,9 +129,8 @@ export default function ProfilePage() {
         </div>
       ) : (
         <div className="animate-in fade-in duration-500">
-           {/* Tab content logic here, truncated for brevity in this fix but ensuring correct db paths */}
            <div className="bg-secondary/20 p-8 text-center rounded-xl border border-white/5">
-             <p className="text-xs text-muted-foreground">Operational Data Node Synchronized (v8)</p>
+             <p className="text-xs text-muted-foreground">Operational Data Node Synchronized (v10)</p>
              <Button variant="ghost" className="mt-4 uppercase text-[10px] font-black" onClick={() => setActiveTab('menu')}>Return to Menu</Button>
            </div>
         </div>

@@ -28,7 +28,7 @@ export default function FriendRequestsPage() {
   const requestsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'friend_requests_v4'),
+      collection(db, 'friend_requests_v5'),
       where('toId', '==', user.uid),
       where('status', '==', 'pending')
     );
@@ -37,7 +37,7 @@ export default function FriendRequestsPage() {
   const { data: requests, isLoading: isRequestsLoading } = useCollection(requestsQuery);
 
   const sendNotification = useCallback((targetUserId: string, title: string, description: string) => {
-    addDocumentNonBlocking(collection(db, 'notifications_v4'), {
+    addDocumentNonBlocking(collection(db, 'notifications_v6'), {
       userId: targetUserId,
       title,
       description,
@@ -85,7 +85,7 @@ export default function FriendRequestsPage() {
   const handleRequest = async (request: any, accept: boolean) => {
     setIsProcessing(request.id);
     try {
-      const requestRef = doc(db, 'friend_requests_v4', request.id);
+      const requestRef = doc(db, 'friend_requests_v5', request.id);
       if (accept) {
         const nowIso = new Date().toISOString();
         await updateDoc(requestRef, {

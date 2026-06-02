@@ -19,7 +19,7 @@ export default function TournamentHistoryPage() {
   const db = useFirestore();
   const { language, isLoaded } = useGameState();
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v8', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   if (isUserLoading || !isLoaded || isProfileLoading) {
