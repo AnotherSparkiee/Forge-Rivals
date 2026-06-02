@@ -251,9 +251,9 @@ const DEFAULT_STATE: GameState = {
   groupId: 1,
   selectedLeagueId: null,
   country: null,
+  lastSeenMatchDay: 0,
   lastLeagueMatchDate: null,
   lastCupMatchDate: null,
-  lastSeenMatchDay: 0,
   seasonDay: 0,
   seasonNumber: 0,
   lastProcessedSeason: 0,
@@ -337,12 +337,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const lastWritePayloadRef = useRef<string>("");
 
   const getStorageKey = useCallback(() => {
-    return user ? `lote_v10_${user.uid}` : null;
+    return user ? `lote_v11_${user.uid}` : null;
   }, [user]);
 
   const runCloudUpdate = useCallback((data: any) => {
     if (!user) return;
-    const profileRef = doc(db, 'players_v10', user.uid);
+    const profileRef = doc(db, 'players_v11', user.uid);
     
     const payloadStr = JSON.stringify(data);
     if (lastWritePayloadRef.current === payloadStr) return;
@@ -356,7 +356,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const sendNotification = useCallback((title: string, description: string, type: string) => {
     if (!user) return;
-    addDocumentNonBlocking(collection(db, 'notifications_v6'), {
+    addDocumentNonBlocking(collection(db, 'notifications_v7'), {
       userId: user.uid,
       title,
       description,
@@ -389,7 +389,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const profileRef = doc(db, 'players_v10', user.uid);
+    const profileRef = doc(db, 'players_v11', user.uid);
     const unsubscribe = onSnapshot(profileRef, (docSnap) => {
       if (docSnap.exists()) {
         const profileData = docSnap.data();
@@ -1042,7 +1042,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           managerLevel: newLevel,
           skillPoints: newSkillPoints,
           lastLeagueMatchDate: newLastLeagueDate ?? null, 
-          lastCupMatchDate: newLastCupDate ?? null, 
+          lastCupMatchDate: newLastCupMatchDate ?? null, 
           matchHistory: sanitizeForFirestore(newHistory), 
           ownedHeroes: sanitizeForFirestore(updatedOwned), 
           youthAcademyHeroes: sanitizeForFirestore(updatedYouth) 
@@ -1086,7 +1086,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const addHeroDirectly = useCallback((hero: Hero) => {
     if (!user) return;
     setTimeout(() => {
-      setDoc(doc(db, 'players_v10', user.uid), {
+      setDoc(doc(db, 'players_v11', user.uid), {
         ownedHeroes: arrayUnion(sanitizeForFirestore(hero))
       }, { merge: true }).catch(e => console.error("Cloud direct add failed", e));
     }, 0);
@@ -1095,7 +1095,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const addYouthHeroDirectly = useCallback((hero: Hero) => {
     if (!user) return;
     setTimeout(() => {
-      setDoc(doc(db, 'players_v10', user.uid), {
+      setDoc(doc(db, 'players_v11', user.uid), {
         youthAcademyHeroes: arrayUnion(sanitizeForFirestore(hero))
       }, { merge: true }).catch(e => console.error("Cloud youth direct add failed", e));
     }, 0);

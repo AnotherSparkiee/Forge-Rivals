@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useAuth, setDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { doc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LEAGUES, getMockGroupTeams } from '@/app/lib/leagues-data';
@@ -83,7 +84,7 @@ export default function SetupPage() {
       const { seasonDay, seasonStartDate, seasonNumber } = getGlobalSeasonInfo();
       const inheritedStats = calculateInheritedStats(selectedLeagueId, targetLevel, targetGroup, seasonDay);
 
-      const profileRef = doc(db, 'players_v10', user.uid);
+      const profileRef = doc(db, 'players_v11', user.uid);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       
       const updateData = {
@@ -99,10 +100,11 @@ export default function SetupPage() {
         points: Number(inheritedStats.points || 0),
         setupDate: new Date().toISOString(),
         seasonStartDate: seasonStartDate || new Date().toISOString(),
-        lastProcessedSeason: Number(seasonNumber) // Start with current season to avoid "Season Finished" popup
+        lastProcessedSeason: Number(seasonNumber)
       };
       
-      setDocumentNonBlocking(profileRef, updateData, { merge: true });
+      // CRITICAL: Use await to ensure doc is created before navigating
+      await setDoc(profileRef, updateData, { merge: true });
       
       toast({
         title: "Профиль синхронизирован",

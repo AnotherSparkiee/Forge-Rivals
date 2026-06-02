@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -22,13 +23,13 @@ export default function NotificationsPage() {
   const db = useFirestore();
   const { language, isLoaded } = useGameState();
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'notifications_v6'),
+      collection(db, 'notifications_v7'),
       where('userId', '==', user.uid),
       orderBy('createdAt', 'desc')
     );
@@ -38,10 +39,7 @@ export default function NotificationsPage() {
 
   const displayNotifs = useMemo(() => {
     if (!notifications || !profile) return [];
-    
-    // ФИЛЬТР: Только уведомления ПОСЛЕ полной регистрации команды (setupDate)
     const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : 0;
-    
     return notifications.filter(n => {
       const notifTime = new Date(n.createdAt).getTime();
       return notifTime >= setupTime;
@@ -55,7 +53,7 @@ export default function NotificationsPage() {
   }, [user, isUserLoading, router]);
 
   const handleMarkAsRead = (id: string) => {
-    updateDocumentNonBlocking(doc(db, 'notifications_v6', id), { read: true });
+    updateDocumentNonBlocking(doc(db, 'notifications_v7', id), { read: true });
   };
 
   const handleMarkAllRead = async () => {
@@ -63,7 +61,7 @@ export default function NotificationsPage() {
     const batch = writeBatch(db);
     const unread = displayNotifs.filter(n => !n.read);
     unread.forEach(n => {
-      batch.update(doc(db, 'notifications_v6', n.id), { read: true });
+      batch.update(doc(db, 'notifications_v7', n.id), { read: true });
     });
     await batch.commit();
   };
@@ -72,7 +70,7 @@ export default function NotificationsPage() {
     if (!displayNotifs || !user) return;
     const batch = writeBatch(db);
     displayNotifs.forEach(n => {
-      batch.delete(doc(db, 'notifications_v6', n.id));
+      batch.delete(doc(db, 'notifications_v7', n.id));
     });
     await batch.commit();
   };

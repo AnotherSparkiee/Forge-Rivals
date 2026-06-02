@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -87,11 +88,9 @@ export default function RegisterPage() {
     try {
       const { seasonNumber } = getGlobalSeasonInfo();
       
-      // 1. Create Auth user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // 2. Generate initial squad
       const uniqueSquad = getRandomStartingSquad();
       const initialLineup = {
         offlane: uniqueSquad[0].id,
@@ -126,8 +125,7 @@ export default function RegisterPage() {
         lastProcessedSeason: Number(seasonNumber)
       };
 
-      // 3. Create Firestore profile (v10)
-      await setDoc(doc(db, 'players_v10', user.uid), profileData);
+      await setDoc(doc(db, 'players_v11', user.uid), profileData);
 
       toast({ title: t.successTitle, description: t.successDesc });
       router.push('/setup');
