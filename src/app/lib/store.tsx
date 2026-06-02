@@ -2,11 +2,12 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
-import { Hero, INITIAL_HEROES, generateYouthHero, StaffMember, StaffMember as StaffMemberType, StaffRole } from './moba-data';
+import { Hero, INITIAL_HEROES, generateYouthHero, StaffMember, StaffRole } from './moba-data';
 import { getMoscowTime, getMoscowDateString, isMatchDue, getGlobalSeasonInfo } from './time-utils';
-import { useUser, useFirestore, updateDocumentNonBlocking, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 import { doc, onSnapshot, setDoc, arrayUnion, collection } from 'firebase/firestore';
 import { getMockGroupTeams, LEAGUES } from './leagues-data';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2';
 

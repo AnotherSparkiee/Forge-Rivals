@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser } from '@/firebase';
@@ -27,10 +28,8 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     // 1. ПРИНУДИТЕЛЬНАЯ АВТОРИЗАЦИЯ
     if (!user) {
       if (!isAuthPage) {
-        // Если не в сети и не на странице логина — уходим на регистрацию
         router.replace('/auth/register');
       } else {
-        // Если на странице логина — всё ок
         setIsInitialCheckDone(true);
       }
       return;
@@ -41,14 +40,12 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       const isSetupComplete = !!(selectedLeagueId && country);
       
       if (!isSetupComplete) {
-        // Если не настроен — только страница /setup или выход
         if (!isSetupPage && !isAuthPage) {
           router.replace('/setup');
         } else {
           setIsInitialCheckDone(true);
         }
       } else {
-        // Если всё настроено — не пускаем на страницы входа/настройки
         if (isAuthPage || isSetupPage) {
           router.replace('/');
         } else {
@@ -58,19 +55,17 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     }
   }, [user, isUserLoading, isLoaded, selectedLeagueId, country, router, pathname]);
 
-  // Пока идет проверка или загрузка данных — показываем только сплэш-скрин
   if (isUserLoading || !isInitialCheckDone) {
     return <LoadingScreen />;
   }
 
-  // Дополнительная проверка безопасности перед рендерингом контента
   const isAuthPage = pathname?.startsWith('/auth');
   if (!user && !isAuthPage) {
     return <LoadingScreen />;
   }
 
   return (
-    <div className="animate-in fade-in duration-500">
+    <div className="animate-in fade-in duration-500 h-full">
       {children}
     </div>
   );

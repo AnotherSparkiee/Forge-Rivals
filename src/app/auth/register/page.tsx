@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth, useFirestore, useUser } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -125,6 +125,7 @@ export default function RegisterPage() {
         lastProcessedSeason: Number(seasonNumber)
       };
 
+      // USE players_v11 explicitly
       await setDoc(doc(db, 'players_v11', user.uid), profileData);
 
       toast({ title: t.successTitle, description: t.successDesc });
