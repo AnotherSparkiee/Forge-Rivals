@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -6,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
-import { collection, query, where, getDocs, limit, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, doc, getDoc, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +15,7 @@ import { Loader2, Chrome, HelpCircle } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
+import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import {
   Dialog,
   DialogContent,
@@ -143,6 +143,7 @@ export default function LoginPage() {
 
       if (!userSnap.exists()) {
         const uniqueSquad = getRandomStartingSquad();
+        const { seasonNumber } = getGlobalSeasonInfo();
         
         const initialLineup = {
           offlane: uniqueSquad[0].id,
@@ -173,7 +174,8 @@ export default function LoginPage() {
           wins: 0,
           draws: 0,
           losses: 0,
-          points: 0
+          points: 0,
+          lastProcessedSeason: Number(seasonNumber)
         };
         await setDoc(userProfileRef, profileData);
         router.push('/setup');

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -15,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, UserPlus } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
+import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -85,6 +85,8 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
+      const { seasonNumber } = getGlobalSeasonInfo();
+      
       // 1. Create Auth user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
@@ -120,7 +122,8 @@ export default function RegisterPage() {
         wins: 0,
         draws: 0,
         losses: 0,
-        points: 0
+        points: 0,
+        lastProcessedSeason: Number(seasonNumber)
       };
 
       // 3. Create Firestore profile (v10)

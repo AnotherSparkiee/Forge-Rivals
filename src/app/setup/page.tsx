@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -81,7 +80,7 @@ export default function SetupPage() {
       const maxGroupsInDiv = Math.pow(2, targetLevel - 1);
       const targetGroup = Math.floor(Math.random() * maxGroupsInDiv) + 1;
 
-      const { seasonDay, seasonStartDate } = getGlobalSeasonInfo();
+      const { seasonDay, seasonStartDate, seasonNumber } = getGlobalSeasonInfo();
       const inheritedStats = calculateInheritedStats(selectedLeagueId, targetLevel, targetGroup, seasonDay);
 
       const profileRef = doc(db, 'players_v10', user.uid);
@@ -100,7 +99,7 @@ export default function SetupPage() {
         points: Number(inheritedStats.points || 0),
         setupDate: new Date().toISOString(),
         seasonStartDate: seasonStartDate || new Date().toISOString(),
-        lastProcessedSeason: 0
+        lastProcessedSeason: Number(seasonNumber) // Start with current season to avoid "Season Finished" popup
       };
       
       setDocumentNonBlocking(profileRef, updateData, { merge: true });
