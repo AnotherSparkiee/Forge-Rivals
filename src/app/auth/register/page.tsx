@@ -19,19 +19,12 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 /**
  * Defensive cleaning of document data for Firestore.
+ * Removes undefined values to prevent errors.
  */
 function cleanData(obj: any) {
-  const clean: any = {};
-  Object.keys(obj).forEach(key => {
-    if (obj[key] !== undefined) {
-      if (typeof obj[key] === 'object' && obj[key] !== null) {
-        clean[key] = JSON.parse(JSON.stringify(obj[key]));
-      } else {
-        clean[key] = obj[key];
-      }
-    }
-  });
-  return clean;
+  return JSON.parse(JSON.stringify(obj, (key, value) => 
+    value === undefined ? null : value
+  ));
 }
 
 export default function RegisterPage() {
@@ -63,7 +56,7 @@ export default function RegisterPage() {
       usernameInvalid: "Please enter a valid Team Name (min 2 characters).",
       emailTaken: "Email already associated with a profile.",
       weakPassword: "Password must be at least 6 characters.",
-      permissionError: "Insufficient clearance to access server records. Check security rule sync."
+      permissionError: "Access Denied: Insufficient clearance. Please refresh and retry."
     },
     ru: {
       title: "Инициация профиля",
@@ -81,7 +74,7 @@ export default function RegisterPage() {
       usernameInvalid: "Пожалуйста, введите корректное название команды (минимум 2 символа).",
       emailTaken: "Этот Email уже используется другим менеджером.",
       weakPassword: "Пароль должен содержать минимум 6 символов.",
-      permissionError: "Ошибка прав доступа к серверу. Проверьте синхронизацию прав."
+      permissionError: "Ошибка прав доступа к серверу. Попробуйте обновить страницу."
     }
   };
 
@@ -143,14 +136,13 @@ export default function RegisterPage() {
       };
 
       // USE blocking setDoc to ensure document exists before route change
+      // Using players_v11 collection
       await setDoc(doc(db, 'players_v11', user.uid), cleanData(profileData));
 
       toast({ title: t.successTitle, description: t.successDesc });
       
-      // Delay redirect slightly to allow Firestore to propagate the new document
-      setTimeout(() => {
-        router.replace('/setup');
-      }, 500);
+      // Navigate to setup
+      router.replace('/setup');
       
     } catch (error: any) {
       console.error("Registration sequence fail:", error);
