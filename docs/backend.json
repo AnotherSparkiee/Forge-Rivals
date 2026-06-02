@@ -1,8 +1,13 @@
 
 {
   "entities": {
-    "GenericObject": {
+    "PlayerProfile": {
       "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" }
+      },
       "additionalProperties": true
     }
   },
@@ -13,43 +18,43 @@
     "structure": [
       {
         "path": "players_v11/{userId}",
-        "definition": "GenericObject"
+        "definition": "PlayerProfile"
       },
       {
         "path": "market_v8/{agentId}",
-        "definition": "GenericObject"
+        "definition": "PlayerProfile"
       },
       {
         "path": "friend_requests_v6/{requestId}",
-        "definition": "GenericObject"
+        "definition": "PlayerProfile"
       },
       {
         "path": "associations_v6/{assocId}",
-        "definition": "GenericObject"
+        "definition": "PlayerProfile"
       },
       {
         "path": "global_chat_v4/{msgId}",
-        "definition": "GenericObject"
+        "definition": "PlayerProfile"
       },
       {
         "path": "private_messages_v4/{msgId}",
-        "definition": "GenericObject"
+        "definition": "PlayerProfile"
       },
       {
         "path": "friendly_lobbies_v4/{lobbyId}",
-        "definition": "GenericObject"
+        "definition": "PlayerProfile"
       },
       {
         "path": "cw_basket_v4/{userId}",
-        "definition": "GenericObject"
+        "definition": "PlayerProfile"
       },
       {
         "path": "notifications_v7/{notifId}",
-        "definition": "GenericObject"
+        "definition": "PlayerProfile"
       },
       {
         "path": "league_groups_v2/{groupId}",
-        "definition": "GenericObject"
+        "definition": "PlayerProfile"
       }
     ]
   }

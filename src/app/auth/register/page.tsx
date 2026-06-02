@@ -17,6 +17,23 @@ import { useGameState } from '@/app/lib/store';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
+/**
+ * Defensive cleaning of document data for Firestore.
+ */
+function cleanData(obj: any) {
+  const clean: any = {};
+  Object.keys(obj).forEach(key => {
+    if (obj[key] !== undefined) {
+      if (typeof obj[key] === 'object' && obj[key] !== null) {
+        clean[key] = JSON.parse(JSON.stringify(obj[key]));
+      } else {
+        clean[key] = obj[key];
+      }
+    }
+  });
+  return clean;
+}
+
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -46,7 +63,7 @@ export default function RegisterPage() {
       usernameInvalid: "Please enter a valid Team Name (min 2 characters).",
       emailTaken: "Email already associated with a profile.",
       weakPassword: "Password must be at least 6 characters.",
-      permissionError: "Insufficient clearance to access server records. Please try again."
+      permissionError: "Insufficient clearance to access server records. Check security rule sync."
     },
     ru: {
       title: "Инициация профиля",
@@ -64,7 +81,7 @@ export default function RegisterPage() {
       usernameInvalid: "Пожалуйста, введите корректное название команды (минимум 2 символа).",
       emailTaken: "Этот Email уже используется другим менеджером.",
       weakPassword: "Пароль должен содержать минимум 6 символов.",
-      permissionError: "Ошибка прав доступа к серверу. Попробуйте еще раз."
+      permissionError: "Ошибка прав доступа к серверу. Проверьте синхронизацию прав."
     }
   };
 
@@ -122,14 +139,19 @@ export default function RegisterPage() {
         draws: 0,
         losses: 0,
         points: 0,
-        lastProcessedSeason: Number(seasonNumber)
+        lastProcessedSeason: Number(seasonNumber || 1)
       };
 
-      // USE players_v11 explicitly
-      await setDoc(doc(db, 'players_v11', user.uid), profileData);
+      // USE blocking setDoc to ensure document exists before route change
+      await setDoc(doc(db, 'players_v11', user.uid), cleanData(profileData));
 
       toast({ title: t.successTitle, description: t.successDesc });
-      router.push('/setup');
+      
+      // Delay redirect slightly to allow Firestore to propagate the new document
+      setTimeout(() => {
+        router.replace('/setup');
+      }, 500);
+      
     } catch (error: any) {
       console.error("Registration sequence fail:", error);
       let msg = error.message;

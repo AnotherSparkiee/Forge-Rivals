@@ -8,6 +8,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, onSnapshot, setDoc, arrayUnion, collection } from 'firebase/firestore';
 import { getMockGroupTeams, LEAGUES } from './leagues-data';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { usePathname } from 'next/navigation';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2';
 
@@ -332,6 +333,7 @@ const GameStateContext = createContext<GameStateContextType | undefined>(undefin
 export function GameStateProvider({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
+  const pathname = usePathname();
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const [isLoaded, setIsLoaded] = useState(false);
   const lastSyncRef = useRef<{ season: number, day: number, leagueId: string | null } | null>(null);
@@ -375,6 +377,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
     if (!user) {
       setState(DEFAULT_STATE);
+      setIsLoaded(true);
+      return;
+    }
+
+    // CRITICAL: Prevent profile read listener during auth/setup to avoid "Access Denied" race conditions
+    const isAuthOrSetup = pathname?.startsWith('/auth') || pathname === '/setup';
+    if (isAuthOrSetup) {
       setIsLoaded(true);
       return;
     }
@@ -453,14 +462,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         setIsLoaded(true);
       }
     }, (error) => {
-      console.warn("Profile listener error", error);
+      console.warn("Profile listener error", error.message);
       setIsLoaded(true);
     });
 
     return () => {
       unsubscribe();
     };
-  }, [user, isUserLoading, db, getStorageKey]);
+  }, [user, isUserLoading, db, getStorageKey, pathname]);
 
   useEffect(() => {
     if (!isLoaded || !user) return;
