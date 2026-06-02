@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 
 export default function MyBidsPage() {
   const { language, isLoaded: isStoreLoaded } = useGameState();
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading } = userUser();
   const db = useFirestore();
   const [isAuthStabilized, setIsAuthStabilized] = useState(false);
 
@@ -31,7 +31,7 @@ export default function MyBidsPage() {
 
   const marketQuery = useMemoFirebase(() => {
     if (!authReady) return null;
-    return query(collection(db, 'market_v7'), where('bidders', 'array-contains', user!.uid));
+    return query(collection(db, 'market_v8'), where('bidders', 'array-contains', user!.uid));
   }, [db, user?.uid, authReady]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
@@ -86,7 +86,7 @@ export default function MyBidsPage() {
                       <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold uppercase text-white truncate max-w-[140px]">{agent.heroData?.name}</h3>
+                      <h3 className="text-sm font-bold uppercase text-white truncate max-w-[150px]">{agent.heroData?.name}</h3>
                       <p className={cn(
                         "text-[8px] font-black uppercase tracking-tighter mt-0.5 px-1 rounded-sm w-fit",
                         agent.highestBidderId === user?.uid ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"

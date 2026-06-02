@@ -65,12 +65,12 @@ export default function RankingsPage() {
     }
   }, [user, isUserLoading, router]);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const allLeaguePlayersQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
-    return query(collection(db, 'players_v10'), where('selectedLeagueId', '==', profile.selectedLeagueId));
+    return query(collection(db, 'players_v11'), where('selectedLeagueId', '==', profile.selectedLeagueId));
   }, [db, profile?.selectedLeagueId]);
 
   const { data: allLeaguePlayers, isLoading: isLeaguePlayersLoading } = useCollection(allLeaguePlayersQuery);
@@ -429,7 +429,7 @@ export default function RankingsPage() {
                               <span className={cn("text-[10px] font-bold uppercase truncate opacity-80", pair.isMyMatch && pair.away?.id === user?.uid ? "text-accent" : (pair.away ? "text-white" : "text-muted-foreground/40"))}>
                                 {pair.away ? pair.away.name : t.tbd}
                               </span>
-                              {pair.away && <Badge variant="outline" className="text-[6px] h-3 px-1 py-0 border-white/10 opacity-60">DIV {pair.away.level}</Badge>}
+                              {pair.away && <Badge variant="outline" className="text-[7px] h-3 px-1 py-0 border-white/10 opacity-60">DIV {pair.away.level}</Badge>}
                               {pair.away?.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
                             </div>
                           </div>

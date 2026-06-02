@@ -30,7 +30,7 @@ export default function MySalesPage() {
 
   const marketQuery = useMemoFirebase(() => {
     if (!authReady) return null;
-    return query(collection(db, 'market_v7'), where('sellerId', '==', user!.uid));
+    return query(collection(db, 'market_v8'), where('sellerId', '==', user!.uid));
   }, [db, user?.uid, authReady]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);

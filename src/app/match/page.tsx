@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
@@ -33,7 +34,7 @@ function MatchContent() {
   const matchIdFromUrl = searchParams.get('id');
   const [step, setStep] = useState<MatchStep>('preview');
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
@@ -44,8 +45,7 @@ function MatchContent() {
 
   const currentResult = useMemo(() => {
     if (!profile) return null;
-    // ФИЛЬТР: Только матчи ПОСЛЕ полной регистрации команды
-    const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : 0;
+    const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : (profile.createdAt ? new Date(profile.createdAt).getTime() : 0);
 
     if (matchIdFromUrl) {
       const match = matchHistory.find(m => m.id === matchIdFromUrl);

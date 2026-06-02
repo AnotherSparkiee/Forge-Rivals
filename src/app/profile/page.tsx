@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState, getLevelThreshold } from '../lib/store';
@@ -49,7 +50,7 @@ export default function ProfilePage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showSkillTree, setShowSkillTree] = useState(false);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   useEffect(() => {
@@ -130,7 +131,7 @@ export default function ProfilePage() {
       ) : (
         <div className="animate-in fade-in duration-500">
            <div className="bg-secondary/20 p-8 text-center rounded-xl border border-white/5">
-             <p className="text-xs text-muted-foreground">Operational Data Node Synchronized (v10)</p>
+             <p className="text-xs text-muted-foreground">Operational Data Node Synchronized (v11)</p>
              <Button variant="ghost" className="mt-4 uppercase text-[10px] font-black" onClick={() => setActiveTab('menu')}>Return to Menu</Button>
            </div>
         </div>

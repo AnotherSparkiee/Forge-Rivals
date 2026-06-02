@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -46,13 +47,13 @@ export default function MatchesPage() {
     }
   }, [user, isUserLoading, router]);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
     return query(
-      collection(db, 'players_v10'),
+      collection(db, 'players_v11'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -61,13 +62,13 @@ export default function MatchesPage() {
 
   const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
 
-  const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies_v3', user.uid) : null, [db, user]);
+  const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies_v4', user.uid) : null, [db, user]);
   const { data: myLobby } = useDoc(myLobbyRef);
 
   const challengerLobbyQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'friendly_lobbies_v3'), 
+      collection(db, 'friendly_lobbies_v4'), 
       where('challengerId', '==', user.uid), 
       where('status', '==', 'accepted')
     );
@@ -75,16 +76,16 @@ export default function MatchesPage() {
   const { data: challengerLobbies } = useCollection(challengerLobbyQuery);
 
   const globeParticipantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', 'iron-globe'));
+    return query(collection(db, 'players_v11'), where('tournaments', 'array-contains', 'iron-globe'));
   }, [db]);
   const { data: globeParticipants } = useCollection(globeParticipantsQuery);
 
   const brickParticipantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', 'iron-brick'));
+    return query(collection(db, 'players_v11'), where('tournaments', 'array-contains', 'iron-brick'));
   }, [db]);
   const { data: brickParticipants } = useCollection(brickParticipantsQuery);
 
-  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v3', user.uid) : null, [db, user]);
+  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v4', user.uid) : null, [db, user]);
   const { data: basketEntry } = useDoc(myBasketRef);
 
   const league = useMemo(() => {
