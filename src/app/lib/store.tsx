@@ -381,9 +381,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // CRITICAL: Prevent profile read listener during auth/setup to avoid "Access Denied" race conditions
-    const isAuthOrSetup = pathname?.startsWith('/auth') || pathname === '/setup';
-    if (isAuthOrSetup) {
+    // Блокируем слушатель на страницах авторизации, чтобы не было ошибок прав доступа к еще не созданному профилю
+    const isAuthPage = pathname?.startsWith('/auth') || pathname === '/setup';
+    if (isAuthPage) {
       setIsLoaded(true);
       return;
     }
@@ -462,6 +462,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         setIsLoaded(true);
       }
     }, (error) => {
+      // Игнорируем ошибки доступа если документ еще не создан
+      if (error.code === 'permission-denied') return;
       console.warn("Profile listener error", error.message);
       setIsLoaded(true);
     });
