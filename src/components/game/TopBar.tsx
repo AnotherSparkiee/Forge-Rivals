@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
@@ -17,16 +18,15 @@ export function TopBar() {
   const db = useFirestore();
   const lastSyncTriggerRef = useRef<string>("");
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
 
-  // Group Query - used for stat syncing
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId || !user?.uid) return null;
     return query(
-      collection(db, 'players_v10'),
+      collection(db, 'players_v11'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -35,11 +35,10 @@ export function TopBar() {
 
   const { data: groupPlayers } = useCollection(groupQuery);
 
-  // Messages Query - Filter by setupDate
   const unreadMessagesQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'private_messages_v3'),
+      collection(db, 'private_messages_v4'),
       where('participants', 'array-contains', user.uid)
     );
   }, [db, user?.uid]);
@@ -55,11 +54,10 @@ export function TopBar() {
     });
   }, [allMessages, user, profile]);
 
-  // Notifications Query - Filter by setupDate
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'notifications_v6'),
+      collection(db, 'notifications_v7'),
       where('userId', '==', user.uid),
       where('read', '==', false)
     );
