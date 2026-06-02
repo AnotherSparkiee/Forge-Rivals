@@ -34,43 +34,43 @@ export default function Home() {
   const [countdown, setCountdown] = useState<string>('');
   const [activeFriendly, setActiveFriendly] = useState<any | null>(null);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
-    if (!profile?.selectedLeagueId) return null;
+    if (!profile?.selectedLeagueId || !user?.uid) return null;
     return query(
-      collection(db, 'players_v10'),
+      collection(db, 'players_v11'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
     );
-  }, [db, profile?.selectedLeagueId, profile?.leagueLevel, profile?.groupId]);
+  }, [db, profile?.selectedLeagueId, profile?.leagueLevel, profile?.groupId, user?.uid]);
 
   const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
 
   const globeParticipantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', 'iron-globe'));
+    return query(collection(db, 'players_v11'), where('tournaments', 'array-contains', 'iron-globe'));
   }, [db]);
   const { data: globeParticipants } = useCollection(globeParticipantsQuery);
 
   const brickParticipantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', 'iron-brick'));
+    return query(collection(db, 'players_v11'), where('tournaments', 'array-contains', 'iron-brick'));
   }, [db]);
   const { data: brickParticipants } = useCollection(brickParticipantsQuery);
 
-  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v3', user.uid) : null, [db, user]);
+  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v4', user.uid) : null, [db, user]);
   const { data: basketEntry } = useDoc(myBasketRef);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      router.push('/auth/login');
+      router.push('/auth/register');
     }
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
     if (!user || isUserLoading) return;
-    const unsub = onSnapshot(doc(db, 'friendly_lobbies_v3', user.uid), (docSnap) => {
+    const unsub = onSnapshot(doc(db, 'friendly_lobbies_v4', user.uid), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.status === 'accepted') {
@@ -84,7 +84,7 @@ export default function Home() {
           setActiveFriendly(null);
         }
       } else {
-        const q = query(collection(db, 'friendly_lobbies_v3'), where('challengerId', '==', user.uid), where('status', '==', 'accepted'));
+        const q = query(collection(db, 'friendly_lobbies_v4'), where('challengerId', '==', user.uid), where('status', '==', 'accepted'));
         onSnapshot(q, (snap) => {
           if (!snap.empty) {
             const d = snap.docs[0].data();
@@ -244,7 +244,6 @@ export default function Home() {
 
   const unseenCount = useMemo(() => {
     if (!profile) return 0;
-    // ФИЛЬТР: Только матчи ПОСЛЕ полной регистрации команды
     const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : 0;
     
     return matchHistory.filter(m => {

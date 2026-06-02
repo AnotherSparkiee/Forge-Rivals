@@ -8,7 +8,7 @@ import { useGameState } from '@/app/lib/store';
 
 /**
  * Route protection guard.
- * Manages redirects and conditional rendering of game-wide listeners.
+ * Manages redirects and ensures unauthenticated users start at registration.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
@@ -21,41 +21,39 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isUserLoading) return;
 
-    // Allow auth pages without redirect
-    if (pathname?.startsWith('/auth')) {
-      if (user && isLoaded && selectedLeagueId && country) {
-        router.replace('/');
+    const isAuthPage = pathname?.startsWith('/auth');
+    const isSetupPage = pathname === '/setup';
+
+    // 1. Handle unauthenticated users
+    if (!user) {
+      if (!isAuthPage) {
+        router.replace('/auth/register');
       }
       setIsInitialCheckDone(true);
       return;
     }
 
-    if (!user) {
-      router.replace('/auth/login');
-      setIsInitialCheckDone(true);
-      return;
-    }
-
-    // Wait for game store if user is logged in
+    // 2. Handle authenticated users (wait for profile load)
     if (isLoaded) {
       const isSetupComplete = !!(selectedLeagueId && country);
       
-      if (!isSetupComplete && pathname !== '/setup') {
-        router.replace('/setup');
-      } else if (isSetupComplete && pathname === '/setup') {
-        router.replace('/');
+      if (!isSetupComplete) {
+        // Must complete setup before playing
+        if (!isSetupPage && !isAuthPage) {
+          router.replace('/setup');
+        }
+      } else {
+        // Setup is complete, don't allow auth/setup pages
+        if (isAuthPage || isSetupPage) {
+          router.replace('/');
+        }
       }
       setIsInitialCheckDone(true);
     }
   }, [user, isUserLoading, isLoaded, selectedLeagueId, country, router, pathname]);
 
-  const isAuthPage = pathname?.startsWith('/auth');
-
-  if (isAuthPage) {
-    return <div className="animate-in fade-in duration-500">{children}</div>;
-  }
-
-  if (!isInitialCheckDone || isUserLoading || (user && !isLoaded)) {
+  // Prevent flicker or unauthorized content rendering
+  if (isUserLoading || !isInitialCheckDone) {
     return <LoadingScreen />;
   }
 

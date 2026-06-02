@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -32,13 +31,13 @@ export default function SetupPage() {
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      router.push('/auth/register');
+      router.replace('/auth/register');
     }
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
     if (isLoaded && currentLeague && currentCountry) {
-      router.push('/');
+      router.replace('/');
     }
   }, [isLoaded, currentLeague, currentCountry, router]);
 
@@ -103,14 +102,13 @@ export default function SetupPage() {
         lastProcessedSeason: Number(seasonNumber)
       };
       
-      // CRITICAL: Use await to ensure doc is created before navigating
       await setDoc(profileRef, updateData, { merge: true });
       
       toast({
         title: "Профиль синхронизирован",
         description: `Развертывание успешно. Вы назначены в Дивизион ${targetLevel}, Группа ${targetGroup}.`,
       });
-      router.push('/');
+      router.replace('/');
     } catch (error: any) {
       console.error("Setup sequence fail:", error);
       toast({
@@ -123,15 +121,8 @@ export default function SetupPage() {
     }
   };
 
-  if (isUserLoading || !isLoaded) {
-    return (
-      <div className="min-h-screen h-screen flex items-center justify-center bg-background overflow-hidden">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-[10px] uppercase font-black tracking-[0.3em] text-muted-foreground animate-pulse">СИНХРОНИЗАЦИЯ СПУТНИКОВЫХ ДАННЫХ</p>
-        </div>
-      </div>
-    );
+  if (isUserLoading || !user) {
+    return <LoadingScreen />;
   }
 
   return (
