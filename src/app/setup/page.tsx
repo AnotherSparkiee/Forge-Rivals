@@ -30,12 +30,14 @@ export default function SetupPage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
+    // Если пользователь не авторизован, эта страница вообще не должна открываться
     if (!isUserLoading && !user) {
       router.replace('/auth/register');
     }
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
+    // Если профиль уже настроен, отправляем в хаб
     if (isLoaded && currentLeague && currentCountry) {
       router.replace('/');
     }
@@ -61,6 +63,7 @@ export default function SetupPage() {
 
   const calculateInheritedStats = (leagueId: string, level: number, group: number, day: number) => {
     if (day <= 1) return { wins: 0, draws: 0, losses: 0, points: 0 };
+    // Симулируем результаты заменяемого бота
     const groupTeams = getMockGroupTeams(1000, "Template", level, 1, group, leagueId, [], undefined, day - 1);
     const replacedBot = groupTeams.length > 0 ? groupTeams[groupTeams.length - 1] : { wins: 0, draws: 0, losses: 0, points: 0 };
     return {
@@ -76,6 +79,7 @@ export default function SetupPage() {
 
     setIsUpdating(true);
     try {
+      // Назначаем в случайную группу в случайном дивизионе
       const targetLevel = Math.floor(Math.random() * 9) + 1;
       const maxGroupsInDiv = Math.pow(2, targetLevel - 1);
       const targetGroup = Math.floor(Math.random() * maxGroupsInDiv) + 1;
@@ -102,6 +106,7 @@ export default function SetupPage() {
         lastProcessedSeason: Number(seasonNumber)
       };
       
+      // Используем блокирующее ожидание для гарантии создания профиля
       await setDoc(profileRef, updateData, { merge: true });
       
       toast({

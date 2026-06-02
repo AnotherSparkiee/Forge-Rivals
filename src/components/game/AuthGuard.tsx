@@ -7,8 +7,8 @@ import { LoadingScreen } from './LoadingScreen';
 import { useGameState } from '@/app/lib/store';
 
 /**
- * Route protection guard.
- * Manages redirects and ensures unauthenticated users start at registration.
+ * Критический страж маршрутов.
+ * Гарантирует, что неавторизованные пользователи видят ТОЛЬКО страницы входа/регистрации.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
@@ -24,36 +24,48 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     const isAuthPage = pathname?.startsWith('/auth');
     const isSetupPage = pathname === '/setup';
 
-    // 1. Handle unauthenticated users
+    // 1. ПРИНУДИТЕЛЬНАЯ АВТОРИЗАЦИЯ
     if (!user) {
       if (!isAuthPage) {
+        // Если не в сети и не на странице логина — уходим на регистрацию
         router.replace('/auth/register');
+      } else {
+        // Если на странице логина — всё ок
+        setIsInitialCheckDone(true);
       }
-      setIsInitialCheckDone(true);
       return;
     }
 
-    // 2. Handle authenticated users (wait for profile load)
+    // 2. ОБРАБОТКА АВТОРИЗОВАННОГО ПОЛЬЗОВАТЕЛЯ
     if (isLoaded) {
       const isSetupComplete = !!(selectedLeagueId && country);
       
       if (!isSetupComplete) {
-        // Must complete setup before playing
+        // Если не настроен — только страница /setup или выход
         if (!isSetupPage && !isAuthPage) {
           router.replace('/setup');
+        } else {
+          setIsInitialCheckDone(true);
         }
       } else {
-        // Setup is complete, don't allow auth/setup pages
+        // Если всё настроено — не пускаем на страницы входа/настройки
         if (isAuthPage || isSetupPage) {
           router.replace('/');
+        } else {
+          setIsInitialCheckDone(true);
         }
       }
-      setIsInitialCheckDone(true);
     }
   }, [user, isUserLoading, isLoaded, selectedLeagueId, country, router, pathname]);
 
-  // Prevent flicker or unauthorized content rendering
+  // Пока идет проверка или загрузка данных — показываем только сплэш-скрин
   if (isUserLoading || !isInitialCheckDone) {
+    return <LoadingScreen />;
+  }
+
+  // Дополнительная проверка безопасности перед рендерингом контента
+  const isAuthPage = pathname?.startsWith('/auth');
+  if (!user && !isAuthPage) {
     return <LoadingScreen />;
   }
 
