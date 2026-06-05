@@ -2,8 +2,122 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // === ОСНОВНЫЕ ПРОФИЛИ (активная версия) ===
+    match /players_v10/{userId} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // === СТАРЫЕ ВЕРСИИ ПРОФИЛЕЙ (чтение для совместимости) ===
+    match /players_v8/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /players_v5/{userId} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // === ТОВАРНЫЕ РЫНКИ (Исправлено: разрешено делать ставки всем авторизованным) ===
+    match /market_v7/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      // Позволяем обновление всем (для ставок), но удаление только владельцу
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn() && resource.data.sellerId == request.auth.uid;
+    }
+
+    match /market_v5/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn() && resource.data.sellerId == request.auth.uid;
+    }
+
+    // === ТОВАРИЩЕСКИЕ МАТЧИ ===
+    match /friendly_lobbies_v3/{userId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn();
+    }
+
+    match /friendly_lobbies_v2/{userId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn();
+    }
+
+    // === CW КОРЗИНА ===
+    match /cw_basket_v2/{userId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn();
+    }
+
+    // === ЧАТЫ ===
+    match /global_chat_v2/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /private_messages_v2/{messageId} {
+      allow read: if isSignedIn() && (request.auth.uid in resource.data.participants);
+      allow create: if isSignedIn() && (request.auth.uid in request.resource.data.participants);
+      allow update: if isSignedIn() && (request.auth.uid in resource.data.participants);
+      allow delete: if false;
+    }
+
+    match /private_messages_v3/{messageId} {
+      allow read: if isSignedIn() && (request.auth.uid in resource.data.participants);
+      allow create: if isSignedIn() && (request.auth.uid in request.resource.data.participants);
+      allow update: if isSignedIn() && (request.auth.uid in resource.data.participants);
+      allow delete: if false;
+    }
+
+    // === УВЕДОМЛЕНИЯ ===
+    match /notifications_v6/{docId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /notifications_v4/{docId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // === ЗАЯВКИ В ДРУЗЬЯ ===
+    match /friend_requests_v4/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.fromId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
+    }
+
+    // === АССОЦИАЦИИ ===
+    match /associations_v4/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        resource.data.ownerId == request.auth.uid || 
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requests']) &&
+          request.resource.data.requests.size() >= resource.data.get('requests', []).size()
+        )
+      );
+      allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
+    // === ВСЁ ОСТАЛЬНОЕ — ЗАПРЕЩЕНО ===
     match /{document=**} {
-      allow read, write, delete: if true;
+      allow read, write: if false;
     }
   }
 }

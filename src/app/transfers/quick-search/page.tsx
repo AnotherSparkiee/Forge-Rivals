@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -66,7 +66,8 @@ export default function QuickSearchPage() {
               expiresAt: expiry.toISOString(), 
               createdAt: serverTimestamp(), 
               isSystem: true, 
-              isYouth: false
+              isYouth: false,
+              sellerId: 'system' // Placeholder for system items
             });
           }
         }
@@ -91,7 +92,7 @@ export default function QuickSearchPage() {
     try {
       const agentRef = doc(db, 'market_v7', agent.id);
       
-      // Update market document first
+      // Update market document
       await updateDoc(agentRef, { 
         currentBid: minNextBid, 
         highestBidderId: user.uid, 
@@ -140,8 +141,8 @@ export default function QuickSearchPage() {
       <header className="mb-6 flex items-center gap-4">
         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.push('/transfers')}><ChevronLeft className="w-6 h-6" /></Button>
         <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">QUICK SEARCH</h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">Real-time Market Active</p>
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}</h1>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">{language === 'ru' ? 'Рынок активен' : 'Real-time Market Active'}</p>
         </div>
       </header>
       
@@ -177,7 +178,7 @@ export default function QuickSearchPage() {
                              <Timer className="w-3.5 h-3.5 animate-pulse" />
                              <span className="text-[10px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
                            </div>
-                           {isLeading && <Badge className="bg-green-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">Leading</Badge>}
+                           {isLeading && <Badge className="bg-green-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'Вы лидируете' : 'Leading'}</Badge>}
                         </div>
 
                         <div className="flex items-center gap-4 mb-4">
@@ -190,11 +191,11 @@ export default function QuickSearchPage() {
                               <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase w-fit">{agent.heroData?.role}</Badge>
                               {agent.highestBidderName ? (
                                 <div className="flex items-center gap-1">
-                                  <span className="text-[7px] font-black uppercase text-muted-foreground">Highest Bid:</span>
+                                  <span className="text-[7px] font-black uppercase text-muted-foreground">{language === 'ru' ? 'Лидер:' : 'Highest Bid:'}</span>
                                   <span className="text-[8px] font-black uppercase text-primary truncate max-w-[100px]">{agent.highestBidderName}</span>
                                 </div>
                               ) : (
-                                <span className="text-[7px] font-black uppercase text-muted-foreground/40 italic">No bids yet</span>
+                                <span className="text-[7px] font-black uppercase text-muted-foreground/40 italic">{language === 'ru' ? 'Ставок нету' : 'No bids yet'}</span>
                               )}
                             </div>
                           </div>
@@ -206,7 +207,7 @@ export default function QuickSearchPage() {
                         
                         <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
                           <div className="flex flex-col">
-                            <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Active Valuation</p>
+                            <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">{language === 'ru' ? 'Цена' : 'Price'}</p>
                             <p className="text-lg font-headline font-bold text-primary">€{agent.currentBid?.toLocaleString()}</p>
                           </div>
                           <Button 
@@ -218,8 +219,8 @@ export default function QuickSearchPage() {
                             disabled={!!isBidding || isLeading || isExpired}
                           >
                             {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                              isLeading ? <><ShieldCheck className="w-4 h-4 mr-2" /> LEADING</> : (
-                                language === 'ru' ? 'ПОДТВЕРДИТЬ СТАВКУ' : 'ESTABLISH CONTRACT'
+                              isLeading ? <><ShieldCheck className="w-4 h-4 mr-2" /> {language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</> : (
+                                language === 'ru' ? 'СДЕЛАТЬ СТАВКУ' : 'MAKE A BID'
                               )
                             )}
                           </Button>
@@ -231,7 +232,7 @@ export default function QuickSearchPage() {
               ) : ( 
                 <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
                   <ShoppingCart className="w-12 h-12" />
-                  <p className="text-[10px] uppercase font-black">No active listings in this sector</p>
+                  <p className="text-[10px] uppercase font-black">{language === 'ru' ? 'Нет активных лотов' : 'No active listings'}</p>
                 </div> 
               )}
             </TabsContent>
