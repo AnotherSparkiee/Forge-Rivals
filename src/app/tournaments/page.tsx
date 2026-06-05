@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -37,13 +38,13 @@ export default function TournamentsPage() {
   const { language, isLoaded, strategy, ownedHeroes, lineup } = useGameState();
   const [isActionLoading, setIsActionLoading] = useState(false);
 
-  const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies_v4', user.uid) : null, [db, user]);
+  const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies_v3', user.uid) : null, [db, user]);
   const { data: myLobby, isLoading: isLobbyLoading } = useDoc(myLobbyRef);
 
-  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v4', user.uid) : null, [db, user]);
+  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v2', user.uid) : null, [db, user]);
   const { data: myBasket } = useDoc(myBasketRef);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
@@ -97,10 +98,10 @@ export default function TournamentsPage() {
     setIsActionLoading(true);
     try {
       if (myLobby) {
-        await deleteDoc(doc(db, 'friendly_lobbies_v4', user.uid));
+        await deleteDoc(doc(db, 'friendly_lobbies_v3', user.uid));
         toast({ title: t.toastCancelled });
       } else {
-        await setDoc(doc(db, 'friendly_lobbies_v4', user.uid), {
+        await setDoc(doc(db, 'friendly_lobbies_v3', user.uid), {
           hostId: String(user.uid), hostName: String(profile.displayName || "Manager"),
           status: 'searching', challengerId: null, challengerName: null, isTrial: false, updatedAt: serverTimestamp()
         });
@@ -116,7 +117,7 @@ export default function TournamentsPage() {
       const botId = `bot${Math.floor(Math.random() * 9000)}`;
       const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({ name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats, isSub: h.id === lineup.sub1 || h.id === lineup.sub2 }));
       const result = await simulateMobaMatch({ teamA: { name: String(profile.displayName || "Manager"), strategy, heroes: squad }, teamB: { name: botId, strategy: "Training", heroes: squad }, isBo2: false });
-      await setDoc(doc(db, 'friendly_lobbies_v4', user.uid), { hostId: String(user.uid), hostName: String(profile.displayName || "Manager"), status: 'accepted', challengerId: botId, challengerName: botId, matchResult: sanitizeForFirestore(result), acceptedAt: serverTimestamp(), updatedAt: serverTimestamp(), isTrial: true });
+      await setDoc(doc(db, 'friendly_lobbies_v3', user.uid), { hostId: String(user.uid), hostName: String(profile.displayName || "Manager"), status: 'accepted', challengerId: botId, challengerName: botId, matchResult: sanitizeForFirestore(result), acceptedAt: serverTimestamp(), updatedAt: serverTimestamp(), isTrial: true });
       toast({ title: t.toastTrial });
       router.push('/');
     } finally { setIsActionLoading(false); }

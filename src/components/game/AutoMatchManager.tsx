@@ -36,13 +36,13 @@ export function AutoMatchManager() {
   const simulationLockRef = useRef(false);
   const winnersCache = useRef<Map<string, CupParticipant | null>>(new Map());
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId || !user?.uid) return null;
     return query(
-      collection(db, 'players_v11'),
+      collection(db, 'players_v10'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -54,7 +54,7 @@ export function AutoMatchManager() {
   const allLeaguePlayersQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId || !user?.uid) return null;
     return query(
-      collection(db, 'players_v11'),
+      collection(db, 'players_v10'),
       where('selectedLeagueId', '==', profile.selectedLeagueId)
     );
   }, [db, profile?.selectedLeagueId, user?.uid]);

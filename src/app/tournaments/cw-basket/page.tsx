@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -25,13 +26,13 @@ export default function CWBasketPage() {
   const { language, isLoaded } = useGameState();
   const [isActionLoading, setIsActionLoading] = useState(false);
 
-  const myEntryRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v4', user.uid) : null, [db, user]);
+  const myEntryRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v2', user.uid) : null, [db, user]);
   const { data: myEntry, isLoading: isEntryLoading } = useDoc(myEntryRef);
 
-  const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies_v4', user.uid) : null, [db, user]);
+  const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies_v3', user.uid) : null, [db, user]);
   const { data: myLobby } = useDoc(myLobbyRef);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
@@ -91,11 +92,11 @@ export default function CWBasketPage() {
 
     try {
       if (myEntry) {
-        await deleteDoc(doc(db, 'cw_basket_v4', user.uid));
+        await deleteDoc(doc(db, 'cw_basket_v2', user.uid));
       } else {
         // 1. Try to find someone searching
         const q = query(
-          collection(db, 'cw_basket_v4'), 
+          collection(db, 'cw_basket_v2'), 
           where('status', '==', 'searching'), 
           limit(1)
         );
@@ -108,7 +109,7 @@ export default function CWBasketPage() {
           const opponent = opponentDoc.data();
           
           // 2. Match with found opponent
-          await setDoc(doc(db, 'cw_basket_v4', opponentDoc.id), {
+          await setDoc(doc(db, 'cw_basket_v2', opponentDoc.id), {
             status: 'matched',
             matchedWithId: user.uid,
             matchedWithName: profile.displayName || "Manager",
@@ -116,7 +117,7 @@ export default function CWBasketPage() {
             updatedAt: serverTimestamp()
           }, { merge: true });
 
-          await setDoc(doc(db, 'cw_basket_v4', user.uid), {
+          await setDoc(doc(db, 'cw_basket_v2', user.uid), {
             userId: user.uid,
             userName: profile.displayName || "Manager",
             status: 'matched',
@@ -129,7 +130,7 @@ export default function CWBasketPage() {
           toast({ title: t.toastFound, description: t.toastFoundDesc });
         } else {
           // 3. Start own search
-          await setDoc(doc(db, 'cw_basket_v4', user.uid), {
+          await setDoc(doc(db, 'cw_basket_v2', user.uid), {
             userId: user.uid,
             userName: profile.displayName || "Manager",
             status: 'searching',

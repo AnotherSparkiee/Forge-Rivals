@@ -18,7 +18,7 @@ export function TopBar() {
   const db = useFirestore();
   const lastSyncTriggerRef = useRef<string>("");
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
@@ -26,7 +26,7 @@ export function TopBar() {
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId || !user?.uid) return null;
     return query(
-      collection(db, 'players_v11'),
+      collection(db, 'players_v10'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -38,7 +38,7 @@ export function TopBar() {
   const unreadMessagesQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'private_messages_v4'),
+      collection(db, 'private_messages_v3'),
       where('participants', 'array-contains', user.uid)
     );
   }, [db, user?.uid]);
@@ -57,7 +57,7 @@ export function TopBar() {
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'notifications_v7'),
+      collection(db, 'notifications_v6'),
       where('userId', '==', user.uid),
       where('read', '==', false)
     );

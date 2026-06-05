@@ -19,7 +19,7 @@ export function FirebaseErrorListener() {
       console.warn("[Firebase Security]:", error.message);
       
       // Не показываем ошибку если это первичная инициализация (часто бывает ложной)
-      if (error.context?.path?.includes('players_v11')) return;
+      if (error.context?.path?.includes('players_v10')) return;
 
       toast({
         variant: "destructive",

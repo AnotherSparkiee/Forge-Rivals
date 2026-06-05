@@ -345,7 +345,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const runCloudUpdate = useCallback((data: any) => {
     if (!user) return;
-    const profileRef = doc(db, 'players_v11', user.uid);
+    const profileRef = doc(db, 'players_v10', user.uid);
     
     const payloadStr = JSON.stringify(data);
     if (lastWritePayloadRef.current === payloadStr) return;
@@ -359,7 +359,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const sendNotification = useCallback((title: string, description: string, type: string) => {
     if (!user) return;
-    addDocumentNonBlocking(collection(db, 'notifications_v7'), {
+    addDocumentNonBlocking(collection(db, 'notifications_v6'), {
       userId: user.uid,
       title,
       description,
@@ -381,7 +381,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Блокируем слушатель на страницах авторизации, чтобы не было ошибок прав доступа к еще не созданному профилю
     const isAuthPage = pathname?.startsWith('/auth') || pathname === '/setup';
     if (isAuthPage) {
       setIsLoaded(true);
@@ -399,7 +398,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const profileRef = doc(db, 'players_v11', user.uid);
+    const profileRef = doc(db, 'players_v10', user.uid);
     const unsubscribe = onSnapshot(profileRef, (docSnap) => {
       if (docSnap.exists()) {
         const profileData = docSnap.data();
@@ -462,7 +461,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         setIsLoaded(true);
       }
     }, (error) => {
-      // Игнорируем ошибки доступа если документ еще не создан
       if (error.code === 'permission-denied') return;
       console.warn("Profile listener error", error.message);
       setIsLoaded(true);
@@ -1098,7 +1096,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const addHeroDirectly = useCallback((hero: Hero) => {
     if (!user) return;
     setTimeout(() => {
-      setDoc(doc(db, 'players_v11', user.uid), {
+      setDoc(doc(db, 'players_v10', user.uid), {
         ownedHeroes: arrayUnion(sanitizeForFirestore(hero))
       }, { merge: true }).catch(e => console.error("Cloud direct add failed", e));
     }, 0);
@@ -1107,7 +1105,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const addYouthHeroDirectly = useCallback((hero: Hero) => {
     if (!user) return;
     setTimeout(() => {
-      setDoc(doc(db, 'players_v11', user.uid), {
+      setDoc(doc(db, 'players_v10', user.uid), {
         youthAcademyHeroes: arrayUnion(sanitizeForFirestore(hero))
       }, { merge: true }).catch(e => console.error("Cloud youth direct add failed", e));
     }, 0);

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -32,15 +33,15 @@ export default function OpenFriendliesPage() {
   }, []);
 
   const lobbiesQuery = useMemoFirebase(() => {
-    return query(collection(db, 'friendly_lobbies_v4'), where('status', '==', 'searching'));
+    return query(collection(db, 'friendly_lobbies_v3'), where('status', '==', 'searching'));
   }, [db]);
 
   const { data: rawLobbies, isLoading: isLobbiesLoading } = useCollection(lobbiesQuery);
   
-  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v4', user.uid) : null, [db, user]);
+  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v2', user.uid) : null, [db, user]);
   const { data: myBasket } = useDoc(myBasketRef);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const lobbies = useMemo(() => {
@@ -91,7 +92,7 @@ export default function OpenFriendliesPage() {
     }
     setIsChallenging(lobbyId);
     try {
-      await updateDoc(doc(db, 'friendly_lobbies_v4', lobbyId), {
+      await updateDoc(doc(db, 'friendly_lobbies_v3', lobbyId), {
         status: 'challenged',
         challengerId: user.uid,
         challengerName: profile.displayName || "Manager",

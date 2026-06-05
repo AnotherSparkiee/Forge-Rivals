@@ -135,13 +135,10 @@ export default function RegisterPage() {
         lastProcessedSeason: Number(seasonNumber || 1)
       };
 
-      // USE blocking setDoc to ensure document exists before route change
-      // Using players_v11 collection
-      await setDoc(doc(db, 'players_v11', user.uid), cleanData(profileData));
+      await setDoc(doc(db, 'players_v10', user.uid), cleanData(profileData));
 
       toast({ title: t.successTitle, description: t.successDesc });
       
-      // Navigate to setup
       router.replace('/setup');
       
     } catch (error: any) {

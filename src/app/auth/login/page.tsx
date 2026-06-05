@@ -104,7 +104,7 @@ export default function LoginPage() {
     try {
       if (!identifier.includes('@')) {
         try {
-          const usersRef = collection(db, 'players_v11');
+          const usersRef = collection(db, 'players_v10');
           const q = query(usersRef, where('displayName', '==', identifier), limit(1));
           const querySnapshot = await getDocs(q);
           if (querySnapshot.empty) {
@@ -139,7 +139,7 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      const userProfileRef = doc(db, 'players_v11', user.uid);
+      const userProfileRef = doc(db, 'players_v10', user.uid);
       const userSnap = await getDoc(userProfileRef);
 
       if (!userSnap.exists()) {

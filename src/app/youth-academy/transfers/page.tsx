@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -26,7 +27,7 @@ export default function YouthTransfersPage() {
 
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
-    return query(collection(db, 'market_v8'));
+    return query(collection(db, 'market_v7'));
   }, [db, user?.uid]);
 
   const { data: allAgents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
@@ -47,7 +48,7 @@ export default function YouthTransfersPage() {
 
     setIsBidding(agent.id);
     try {
-      const agentRef = doc(db, 'market_v8', agent.id);
+      const agentRef = doc(db, 'market_v7', agent.id);
       await updateDoc(agentRef, {
         currentBid: Number(minNextBid),
         highestBidderId: String(user.uid),
