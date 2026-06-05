@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, Loader2, AlertCircle, RefreshCw, Package } from 'lucide-react';
+import { ChevronLeft, Loader2, AlertCircle, RefreshCw, Package, Timer, ShieldCheck, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
@@ -17,6 +17,12 @@ export default function MyBidsPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const [isAuthStabilized, setIsAuthStabilized] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!isUserLoading && user?.uid) {
@@ -35,6 +41,16 @@ export default function MyBidsPage() {
   }, [db, user?.uid, authReady]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
+
+  const getCountdown = (expiryIso: string) => {
+    const expiry = new Date(expiryIso).getTime();
+    const diff = expiry - now;
+    if (diff <= 0) return "EXPIRED";
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
 
   if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
 
@@ -78,30 +94,48 @@ export default function MyBidsPage() {
             <p className="text-[10px] uppercase font-bold tracking-[0.2em]">Retrieving Records...</p>
           </div>
         ) : agents && agents.length > 0 ? (
-          agents.map((agent) => (
-            <Card key={agent.id} className="glass-card border-white/5 hover:bg-white/5 transition-all">
-              <CardContent className="p-4 flex items-center justify-between">
-                 <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
-                      <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
+          agents.map((agent) => {
+            const isLeading = agent.highestBidderId === user?.uid;
+            return (
+              <Card key={agent.id} className={cn(
+                "glass-card border-white/5 group hover:border-primary/30 transition-all overflow-hidden",
+                isLeading && "border-green-500/30 bg-green-500/5"
+              )}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                     <div className="flex items-center gap-1.5 text-accent">
+                       <Timer className="w-3.5 h-3.5" />
+                       <span className="text-[10px] font-mono font-bold">{getCountdown(agent.expiresAt)}</span>
+                     </div>
+                     {isLeading ? (
+                       <Badge className="bg-green-500 text-white text-[7px] font-black uppercase h-4">LEADING</Badge>
+                     ) : (
+                       <Badge variant="destructive" className="text-[7px] font-black uppercase h-4">OUTBID</Badge>
+                     )}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                       <div className="w-10 h-10 rounded-lg overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
+                         <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
+                       </div>
+                       <div className="min-w-0">
+                         <h3 className="text-sm font-bold uppercase text-white truncate">{agent.heroData?.name}</h3>
+                         <div className="flex items-center gap-2 mt-0.5">
+                           <span className="text-[8px] font-black text-muted-foreground uppercase">{agent.heroData?.role}</span>
+                           <span className="text-[8px] font-bold text-accent italic">OVR {agent.heroData?.overallRating}</span>
+                         </div>
+                       </div>
                     </div>
-                    <div>
-                      <h3 className="text-sm font-bold uppercase text-white truncate max-w-[150px]">{agent.heroData?.name}</h3>
-                      <p className={cn(
-                        "text-[8px] font-black uppercase tracking-tighter mt-0.5 px-1 rounded-sm w-fit",
-                        agent.highestBidderId === user?.uid ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
-                      )}>
-                        {agent.highestBidderId === user?.uid ? 'LEADING BID' : 'OUTBID'}
-                      </p>
+                    <div className="text-right border-l border-white/5 pl-4">
+                       <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Current Bid</p>
+                       <p className="text-sm font-headline font-bold text-primary italic leading-none">€{agent.currentBid?.toLocaleString()}</p>
                     </div>
-                 </div>
-                 <div className="text-right">
-                    <p className="text-sm font-headline font-bold text-white italic">€{agent.currentBid?.toLocaleString()}</p>
-                    <p className="text-[7px] font-black text-muted-foreground uppercase mt-1 tracking-widest">Active Val</p>
-                 </div>
-              </CardContent>
-            </Card>
-          ))
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
         ) : (
           <div className="py-20 text-center opacity-30 text-[10px] uppercase font-black border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
             <Package className="w-10 h-10" />
