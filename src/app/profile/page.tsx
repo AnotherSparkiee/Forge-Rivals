@@ -7,12 +7,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { 
   User, ShieldCheck, LogOut, 
-  ChevronRight, Mail, ChevronLeft, Loader2,
+  ChevronRight, ChevronLeft, Loader2,
   Trophy, Star, Wallet, Gem, Flag, Zap, 
-  BookOpen, Users, LayoutDashboard, Newspaper, Gift, Package, Heart,
-  Lock, CheckCircle2, Sparkles, Award, ScrollText, ZapIcon,
-  CircleDollarSign, UserCog, HeartPulse, GraduationCap, ArrowUpCircle,
-  TrendingUp, BarChart3, Building2, MapPin
+  Award, ScrollText, CircleDollarSign, 
+  UserCog, HeartPulse, GraduationCap, 
+  TrendingUp, BarChart3, Building2, MapPin,
+  Shield, Activity, Settings2, Info
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -23,21 +23,14 @@ import { useToast } from '@/hooks/use-toast';
 import { doc } from 'firebase/firestore';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 
-type ProfileTab = 'menu' | 'training' | 'team' | 'page' | 'news' | 'daily' | 'bonuses' | 'gift';
+type ProfileTab = 'menu' | 'team' | 'daily';
 
 export default function ProfilePage() {
   const { 
     ownedHeroes, language, isLoaded: isStoreLoaded, 
-    credits, crystals, leagueLevel, divisionSubId, groupId, rewardDay, 
-    hasEliteTrophy, experiencePoints, activeLicenseTier, hq, managerLevel,
+    credits, crystals, leagueLevel, divisionSubId, groupId,
+    experiencePoints, activeLicenseTier, hq, managerLevel,
     skillPoints, managerSkills, upgradeManagerSkill, arena, bootcamp, academy, medical
   } = useGameState();
   const { user, isUserLoading } = useUser();
@@ -89,12 +82,7 @@ export default function ProfilePage() {
   const xpProgress = Math.min(100, (currentXp / xpThreshold) * 100);
 
   if (!isStoreLoaded || isUserLoading || isProfileLoading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 space-y-4">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Accessing Dossier...</p>
-      </div>
-    );
+    return <div className="min-h-screen flex flex-col items-center justify-center p-6"><Loader2 className="w-8 h-8 animate-spin text-primary" /><p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest mt-4">Accessing Dossier...</p></div>;
   }
 
   const translations = {
@@ -114,10 +102,11 @@ export default function ProfilePage() {
         training: "Training Methods",
         medical: "Medical Center"
       },
-      menu: [
-        { id: 'team', label: "My Team", desc: "Status and Skills", icon: Users },
-        { id: 'daily', label: "Daily Bonuses", desc: "Claim Rewards", icon: Gift }
-      ]
+      tabs: {
+        team: "MY TEAM",
+        daily: "BONUSES",
+        menu: "DASHBOARD"
+      }
     },
     ru: {
       title: "ЛЕГЕНДАРНЫЙ МЕНЕДЖЕР",
@@ -135,18 +124,19 @@ export default function ProfilePage() {
         training: "Тренировки",
         medical: "Медицина"
       },
-      menu: [
-        { id: 'team', label: "Моя команда", desc: "Статус и Навыки", icon: Users },
-        { id: 'daily', label: "Дневные бонусы", desc: "Награды за вход", icon: Gift }
-      ]
+      tabs: {
+        team: "МОЯ КОМАНДА",
+        daily: "БОНУСЫ",
+        menu: "ГЛАВНАЯ"
+      }
     }
   };
 
   const t = translations[language as 'en' | 'ru'] || translations.ru;
 
-  const renderTeamTab = () => (
+  const renderTeamView = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* CLUB POPULARITY & LICENSE */}
+      {/* Popularity & XP License */}
       <div className="grid grid-cols-2 gap-3">
         <Card className="glass-card bg-primary/5 border-primary/20">
           <CardContent className="p-4 flex flex-col items-center text-center">
@@ -166,22 +156,22 @@ export default function ProfilePage() {
         </Card>
       </div>
 
-      {/* DETAILED STATS */}
+      {/* Detailed Stats */}
       <Card className="glass-card border-white/5 bg-secondary/10">
         <CardContent className="p-4 space-y-4">
           <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
             <BarChart3 className="w-3.5 h-3.5" /> {t.teamStats}
           </h3>
           <div className="grid grid-cols-1 gap-2">
-            <div className="flex items-center justify-between p-2 bg-background/40 rounded-lg border border-white/5">
+            <div className="flex items-center justify-between p-3 bg-background/40 rounded-xl border border-white/5">
               <span className="text-[9px] font-bold text-muted-foreground uppercase">Squad Valuation</span>
               <span className="text-xs font-mono font-bold text-white">€ {(ownedHeroes.length * 250000).toLocaleString()}</span>
             </div>
-            <div className="flex items-center justify-between p-2 bg-background/40 rounded-lg border border-white/5">
+            <div className="flex items-center justify-between p-3 bg-background/40 rounded-xl border border-white/5">
               <span className="text-[9px] font-bold text-muted-foreground uppercase">Avg Squad Age</span>
               <span className="text-xs font-mono font-bold text-white">21.4 yrs</span>
             </div>
-            <div className="flex items-center justify-between p-2 bg-background/40 rounded-lg border border-white/5">
+            <div className="flex items-center justify-between p-3 bg-background/40 rounded-xl border border-white/5">
               <span className="text-[9px] font-bold text-muted-foreground uppercase">Arena Capacity</span>
               <span className="text-xs font-mono font-bold text-white">{arena.capacity.toLocaleString()}</span>
             </div>
@@ -189,7 +179,7 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* SKILL TREE */}
+      {/* Strategic Skill Tree */}
       <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent flex items-center gap-2">
@@ -202,32 +192,36 @@ export default function ProfilePage() {
 
         <div className="grid grid-cols-1 gap-3">
           {[
-            { key: 'sponsors', icon: CircleDollarSign, label: t.skills.sponsors, color: 'text-yellow-400' },
-            { key: 'agents', icon: UserCog, label: t.skills.agents, color: 'text-blue-400' },
-            { key: 'training', icon: GraduationCap, label: t.skills.training, color: 'text-primary' },
-            { key: 'medical', icon: HeartPulse, label: t.skills.medical, color: 'text-red-400' }
+            { key: 'sponsors', icon: CircleDollarSign, label: t.skills.sponsors, color: 'text-yellow-400', desc: '+10% Income' },
+            { key: 'agents', icon: UserCog, label: t.skills.agents, color: 'text-blue-400', desc: '+10% Sale Fee' },
+            { key: 'training', icon: GraduationCap, label: t.skills.training, color: 'text-primary', desc: '+10% XP Rate' },
+            { key: 'medical', icon: HeartPulse, label: t.skills.medical, color: 'text-red-400', desc: '+10% Form Limit' }
           ].map((skill) => (
-            <Card key={skill.key} className="glass-card border-white/5 overflow-hidden">
+            <Card key={skill.key} className="glass-card border-white/5 overflow-hidden group">
               <CardContent className="p-4 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className={cn("p-2 rounded-xl bg-secondary/50", skill.color)}>
+                  <div className={cn("p-2.5 rounded-xl bg-secondary/50 border border-white/5 transition-transform group-hover:scale-110", skill.color)}>
                     <skill.icon className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold uppercase text-white">{skill.label}</h4>
-                    <p className="text-[9px] text-muted-foreground mt-0.5">Level {(managerSkills as any)[skill.key]}</p>
+                    <h4 className="text-xs font-bold uppercase text-white tracking-tight">{skill.label}</h4>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-[9px] text-muted-foreground font-black">LVL {(managerSkills as any)[skill.key]}</p>
+                      <span className="w-1 h-1 rounded-full bg-white/10"></span>
+                      <p className="text-[8px] text-accent font-bold uppercase">{skill.desc}</p>
+                    </div>
                   </div>
                 </div>
                 <Button 
                   size="sm" 
                   className={cn(
-                    "h-8 px-4 font-black text-[9px] uppercase",
-                    skillPoints > 0 ? "hero-gradient" : "bg-secondary text-muted-foreground opacity-50"
+                    "h-9 px-4 font-black text-[9px] uppercase tracking-widest transition-all shadow-lg",
+                    skillPoints > 0 ? "hero-gradient shadow-primary/20" : "bg-secondary/50 text-muted-foreground opacity-50"
                   )}
                   disabled={skillPoints <= 0}
                   onClick={() => upgradeManagerSkill(skill.key as any)}
                 >
-                  UPGRADE
+                  {skillPoints > 0 ? 'UPGRADE' : 'LOCKED'}
                 </Button>
               </CardContent>
             </Card>
@@ -244,7 +238,7 @@ export default function ProfilePage() {
           variant="ghost" 
           size="icon" 
           className="absolute left-0 top-0 rounded-full" 
-          onClick={() => activeTab === 'menu' ? router.push('/') : setActiveTab('menu')}
+          onClick={() => router.push('/')}
         >
           <ChevronLeft className="w-6 h-6" />
         </Button>
@@ -262,51 +256,78 @@ export default function ProfilePage() {
         </div>
 
         <div className="text-center space-y-1">
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tight text-white">
-            {profile?.displayName || t.title}
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tight text-white italic">
+            {profile?.displayName || 'Syncing...'}
           </h1>
           <p className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.2em] opacity-60 flex items-center justify-center gap-2">
-            <MapPin className="w-3 h-3" /> {profile?.country || 'International'}
+            <MapPin className="w-3 h-3 text-primary" /> {profile?.country || 'International'}
           </p>
         </div>
 
-        {/* XP PROGRESS BAR */}
-        <div className="w-full max-w-[200px] mt-6 space-y-1.5">
-           <div className="flex justify-between items-center text-[8px] font-black uppercase text-muted-foreground tracking-widest px-1">
-             <span>{t.xp}</span>
-             <span className="text-primary">{currentXp} / {xpThreshold}</span>
+        {/* XP Progress Bar */}
+        <div className="w-full max-w-[240px] mt-6 space-y-2">
+           <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest px-1">
+             <span className="text-muted-foreground">{t.xp}</span>
+             <span className="text-primary">{currentXp.toLocaleString()} / {xpThreshold.toLocaleString()}</span>
            </div>
-           <Progress value={xpProgress} className="h-1 bg-white/5" />
+           <div className="relative h-2 w-full bg-secondary/50 rounded-full overflow-hidden border border-white/5">
+             <div 
+               className="absolute top-0 left-0 h-full hero-gradient transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(var(--primary),0.5)]" 
+               style={{ width: `${xpProgress}%` }}
+             />
+           </div>
         </div>
       </header>
+
+      {/* Primary Tab Navigation */}
+      <div className="grid grid-cols-3 gap-2 mb-8 bg-secondary/20 p-1 rounded-xl border border-white/5">
+        {(['menu', 'team', 'daily'] as const).map((tab) => (
+          <Button
+            key={tab}
+            variant="ghost"
+            size="sm"
+            onClick={() => setActiveTab(tab)}
+            className={cn(
+              "h-10 text-[10px] font-black uppercase tracking-widest transition-all",
+              activeTab === tab ? "bg-white/10 text-primary shadow-inner" : "text-muted-foreground hover:text-white"
+            )}
+          >
+            {t.tabs[tab]}
+          </Button>
+        ))}
+      </div>
       
-      {activeTab === 'menu' ? (
-        <div className="space-y-2">
-          {t.menu.map((item) => (
-            <Card 
-              key={item.id} 
-              className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98]" 
-              onClick={() => setActiveTab(item.id as ProfileTab)}
-            >
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-2.5 rounded-xl bg-secondary/50 border border-white/5">
-                    <item.icon className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold uppercase tracking-tight">{item.label}</h3>
-                    <p className="text-[10px] text-muted-foreground leading-none mt-1">{item.desc}</p>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </CardContent>
-            </Card>
-          ))}
-          
-          <div className="pt-8">
+      {activeTab === 'menu' && (
+        <div className="space-y-4 animate-in fade-in duration-500">
+          <Card className="glass-card border-primary/20 bg-primary/5 p-6 text-center">
+             <Trophy className="w-12 h-12 text-primary mx-auto mb-4 opacity-20" />
+             <h3 className="text-sm font-bold uppercase text-white">Career Performance</h3>
+             <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
+               Official ranking and division data are synchronized at the start of each match window.
+             </p>
+          </Card>
+
+          <div className="grid grid-cols-1 gap-2">
+            <Button variant="outline" className="h-12 border-white/5 bg-secondary/20 hover:bg-white/5 justify-between px-4 group" onClick={() => setActiveTab('team')}>
+              <div className="flex items-center gap-3">
+                <Shield className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" />
+                <span className="text-[10px] font-black uppercase">Club Infrastructure Overview</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </Button>
+            <Button variant="outline" className="h-12 border-white/5 bg-secondary/20 hover:bg-white/5 justify-between px-4 group">
+              <div className="flex items-center gap-3">
+                <Settings2 className="w-4 h-4 text-accent group-hover:scale-110 transition-transform" />
+                <span className="text-[10px] font-black uppercase">Security & Account Settings</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </Button>
+          </div>
+
+          <div className="pt-6">
             <Button 
               variant="destructive" 
-              className="w-full h-12 hero-gradient border-none font-black text-[10px] tracking-widest uppercase shadow-xl" 
+              className="w-full h-14 hero-gradient border-none font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-95 transition-all" 
               onClick={async () => {
                 setIsLoggingOut(true);
                 await signOut(auth);
@@ -318,24 +339,20 @@ export default function ProfilePage() {
             </Button>
           </div>
         </div>
-      ) : activeTab === 'team' ? (
-        renderTeamTab()
-      ) : (
+      )}
+
+      {activeTab === 'team' && renderTeamView()}
+
+      {activeTab === 'daily' && (
         <div className="animate-in fade-in duration-500 py-20 text-center">
            <div className="bg-secondary/20 p-8 rounded-2xl border border-white/5 max-w-[280px] mx-auto flex flex-col items-center gap-4">
-             <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center">
-                <Gift className="w-8 h-8 text-primary opacity-20" />
+             <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center border border-white/10">
+                <Trophy className="w-8 h-8 text-primary opacity-20" />
              </div>
              <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-relaxed">
                Daily Deployment Node Sync in Progress...
              </p>
-             <Button 
-                variant="ghost" 
-                className="mt-2 text-[10px] font-black uppercase text-primary" 
-                onClick={() => setActiveTab('menu')}
-              >
-                Return to Hub
-              </Button>
+             <Button variant="ghost" className="mt-2 text-[10px] font-black uppercase text-primary" onClick={() => setActiveTab('menu')}>Return to Dashboard</Button>
            </div>
         </div>
       )}
