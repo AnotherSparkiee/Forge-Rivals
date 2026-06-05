@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth, useFirestore } from '@/firebase';
+import { useAuth, useFirestore, useUser } from '@/firebase';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
 import { collection, query, where, getDocs, limit, doc, getDoc, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Chrome, HelpCircle } from 'lucide-react';
+import { Loader2, Chrome, HelpCircle, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
@@ -40,7 +40,8 @@ export default function LoginPage() {
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const { language } = useGameState();
+  const { language, isLoaded: storeIsLoaded } = useGameState();
+  const { user, isUserLoading } = useUser();
 
   const translations = {
     en: {
@@ -49,23 +50,13 @@ export default function LoginPage() {
       navRegister: "Register",
       emailLabel: "Email or Team Name",
       passLabel: "Access Key (Password)",
-      forgotPass: "Forgot Key?",
       submitBtn: "ESTABLISH LINK",
       googleBtn: "LOG IN WITH GOOGLE",
       orLabel: "OR",
       newManager: "New manager?",
       registerLink: "Initialize new profile",
-      successTitle: "Access Granted",
-      successDesc: "Welcome back to the Command Center.",
-      errorTitle: "Access Denied",
-      userNotFound: "Team name not found or access restricted. Please use email.",
-      invalidCredentials: "Invalid login or access key. Please verify your data.",
-      forgotTitle: "Recover Access",
-      forgotDesc: "Enter the email linked to your profile to receive a reset transmission.",
-      forgotPlaceholder: "commander@example.com",
-      forgotSend: "SEND RESET LINK",
-      forgotSuccess: "Transmission Sent",
-      forgotSuccessDesc: "Check your inbox for the recovery sequence."
+      welcomeBack: "Authorized Session Detected",
+      enterHub: "ENTER COMMAND CENTER"
     },
     ru: {
       title: "Синхронизация данных",
@@ -73,149 +64,73 @@ export default function LoginPage() {
       navRegister: "Регистрация",
       emailLabel: "Почта или Название команды",
       passLabel: "Ключ доступа (Пароль)",
-      forgotPass: "Забыли ключ?",
       submitBtn: "УСТАНОВИТЬ СВЯЗЬ",
       googleBtn: "ВОЙТИ ЧЕРЕЗ GOOGLE",
       orLabel: "ИЛИ",
       newManager: "Новый менеджер?",
       registerLink: "Создать новый профиль",
-      successTitle: "Доступ разрешен",
-      successDesc: "Добро пожаловать в Командный Центр.",
-      errorTitle: "Доступ запрещен",
-      userNotFound: "Команда не найдена или доступ ограничен. Используйте почту.",
-      invalidCredentials: "Неверный логин или пароль. Проверьте правильность ввода.",
-      forgotTitle: "Восстановление доступа",
-      forgotDesc: "Введите почту вашего профиля для получения ссылки на сброс пароля.",
-      forgotPlaceholder: "commander@example.com",
-      forgotSend: "ОТПРАВИТЬ ССЫЛКУ",
-      forgotSuccess: "Связь установлена",
-      forgotSuccessDesc: "Проверьте почту для получения инструкций по сбросу."
+      welcomeBack: "Сессия авторизована",
+      enterHub: "ВОЙТИ В КОМАНДНЫЙ ЦЕНТР"
     }
   };
 
   const t = translations[language as keyof typeof translations] || translations.ru;
 
+  const handleEnter = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('lote_hub_entered', 'true');
+    }
+    router.push('/');
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-
     let emailToUse = identifier;
-
     try {
       if (!identifier.includes('@')) {
-        try {
-          const usersRef = collection(db, 'players_v10');
-          const q = query(usersRef, where('displayName', '==', identifier), limit(1));
-          const querySnapshot = await getDocs(q);
-          if (querySnapshot.empty) {
-            throw new Error(t.userNotFound);
-          }
-          const userData = querySnapshot.docs[0].data();
-          emailToUse = userData.email;
-        } catch (serverError: any) {
-          throw new Error(t.userNotFound);
-        }
+        const usersRef = collection(db, 'players_v10');
+        const q = query(usersRef, where('displayName', '==', identifier), limit(1));
+        const querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) throw new Error("Team not found");
+        emailToUse = querySnapshot.docs[0].data().email;
       }
-
       await signInWithEmailAndPassword(auth, emailToUse, password);
-      
-      toast({ title: t.successTitle, description: t.successDesc });
-      router.push('/');
+      handleEnter();
     } catch (error: any) {
-      let errorMessage = error.message;
-      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
-        errorMessage = t.invalidCredentials;
-      }
-      toast({ variant: "destructive", title: t.errorTitle, description: errorMessage });
+      toast({ variant: "destructive", title: "Denied", description: error.message });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setIsGoogleLoading(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
+  if (isUserLoading || !storeIsLoaded) return null;
 
-      const userProfileRef = doc(db, 'players_v10', user.uid);
-      const userSnap = await getDoc(userProfileRef);
-
-      if (!userSnap.exists()) {
-        const uniqueSquad = getRandomStartingSquad();
-        const { seasonNumber } = getGlobalSeasonInfo();
-        
-        const initialLineup = {
-          offlane: uniqueSquad[0].id,
-          carry: uniqueSquad[1].id,
-          mid: uniqueSquad[2].id,
-          support: uniqueSquad[3].id,
-          full_support: uniqueSquad[4].id,
-          sub1: uniqueSquad[5].id,
-          sub2: uniqueSquad[6].id
-        };
-
-        const profileData = {
-          id: user.uid,
-          displayName: user.displayName || `Manager_${user.uid.slice(0, 5)}`,
-          email: user.email,
-          inGameCurrency: 10000000,
-          crystals: 0,
-          experiencePoints: 0,
-          lastLoginDate: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-          ownedHeroes: uniqueSquad,
-          ownedHeroIds: uniqueSquad.map(h => h.id),
-          lineup: initialLineup,
-          leagueLevel: 9,
-          divisionSubId: 1,
-          groupId: 1,
-          rank: 1000,
-          wins: 0,
-          draws: 0,
-          losses: 0,
-          points: 0,
-          lastProcessedSeason: Number(seasonNumber)
-        };
-        await setDoc(userProfileRef, profileData);
-        router.push('/setup');
-      } else {
-        const data = userSnap.data();
-        if (!data?.displayName) {
-          await setDoc(userProfileRef, { displayName: user.displayName || `Manager_${user.uid.slice(0, 5)}` }, { merge: true });
-        }
-        
-        if (data?.selectedLeagueId && data?.country) {
-          router.push('/');
-        } else {
-          router.push('/setup');
-        }
-      }
-
-      toast({ title: t.successTitle, description: t.successDesc });
-    } catch (error: any) {
-      toast({ variant: "destructive", title: t.errorTitle, description: error.message });
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
-
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!forgotEmail) return;
-    setIsForgotLoading(true);
-    try {
-      await sendPasswordResetEmail(auth, forgotEmail);
-      toast({ title: t.forgotSuccess, description: t.forgotSuccessDesc });
-      setIsForgotOpen(false);
-      setForgotEmail('');
-    } catch (error: any) {
-      toast({ variant: "destructive", title: t.errorTitle, description: error.message });
-    } finally {
-      setIsForgotLoading(false);
-    }
-  };
+  if (user) {
+    return (
+      <div className="space-y-4 animate-in fade-in zoom-in duration-500">
+        <Card className="glass-card border-primary/20 bg-primary/5">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary shadow-[0_0_20px_rgba(var(--primary),0.3)]">
+              <ShieldCheck className="w-8 h-8 text-primary" />
+            </div>
+            <CardTitle className="font-headline uppercase tracking-widest text-white text-lg">{t.welcomeBack}</CardTitle>
+            <p className="text-[10px] text-muted-foreground uppercase font-bold mt-2">ID: {user.uid.slice(0, 12)}...</p>
+          </CardHeader>
+          <CardFooter>
+            <Button onClick={handleEnter} className="w-full h-14 hero-gradient font-black text-xs tracking-widest">
+              {t.enterHub} <ArrowRight className="ml-2 w-4 h-4" />
+            </Button>
+          </CardFooter>
+        </Card>
+        <p className="text-center">
+          <button onClick={() => auth.signOut()} className="text-[10px] font-black text-red-400 uppercase tracking-widest hover:underline">
+            {language === 'ru' ? 'ВЫЙТИ ИЗ АККАУНТА' : 'SIGN OUT'}
+          </button>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -236,30 +151,16 @@ export default function LoginPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="identifier">{t.emailLabel}</Label>
-              <Input id="identifier" placeholder="Team Name or email@example.com" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required className="bg-secondary/50" />
+              <Input id="identifier" placeholder="Team Name or Email" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required className="bg-secondary/50" />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">{t.passLabel}</Label>
-                <button type="button" onClick={() => setIsForgotOpen(true)} className="text-[10px] text-primary hover:underline font-bold uppercase tracking-tighter">
-                  {t.forgotPass}
-                </button>
-              </div>
+              <Label htmlFor="password">{t.passLabel}</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="bg-secondary/50" />
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full hero-gradient font-bold" disabled={isLoading || isGoogleLoading}>
+            <Button type="submit" className="w-full hero-gradient font-bold" disabled={isLoading}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : t.submitBtn}
-            </Button>
-            <div className="flex items-center gap-4 w-full">
-              <div className="h-px bg-white/10 flex-1"></div>
-              <span className="text-[10px] text-muted-foreground font-bold uppercase">{t.orLabel}</span>
-              <div className="h-px bg-white/10 flex-1"></div>
-            </div>
-            <Button type="button" variant="outline" className="w-full font-bold border-white/10 hover:bg-white/5 h-11" onClick={handleGoogleLogin} disabled={isLoading || isGoogleLoading}>
-              {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Chrome className="mr-2 h-4 w-4 text-red-400" />}
-              {t.googleBtn}
             </Button>
             <p className="text-xs text-center text-muted-foreground mt-2">
               {t.newManager} <Link href="/auth/register" className="text-primary hover:underline">{t.registerLink}</Link>
@@ -267,32 +168,6 @@ export default function LoginPage() {
           </CardFooter>
         </form>
       </Card>
-
-      <Dialog open={isForgotOpen} onOpenChange={setIsForgotOpen}>
-        <DialogContent className="sm:max-w-[425px] bg-card border-white/10 text-foreground">
-          <form onSubmit={handleForgotPassword}>
-            <DialogHeader>
-              <DialogTitle className="font-headline uppercase tracking-widest text-primary flex items-center gap-2">
-                <HelpCircle className="w-5 h-5" /> {t.forgotTitle}
-              </DialogTitle>
-              <DialogDescription className="text-muted-foreground text-xs pt-2 leading-relaxed">
-                {t.forgotDesc}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-6">
-              <div className="space-y-2">
-                <Label htmlFor="forgotEmail" className="text-xs uppercase font-bold text-accent">{t.emailLabel}</Label>
-                <Input id="forgotEmail" type="email" placeholder={t.forgotPlaceholder} value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} className="bg-secondary/50 border-white/5" required />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" className="w-full hero-gradient font-bold" disabled={isForgotLoading}>
-                {isForgotLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.forgotSend}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

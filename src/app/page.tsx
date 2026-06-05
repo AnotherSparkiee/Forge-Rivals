@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -34,13 +35,13 @@ export default function Home() {
   const [countdown, setCountdown] = useState<string>('');
   const [activeFriendly, setActiveFriendly] = useState<any | null>(null);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId || !user?.uid) return null;
     return query(
-      collection(db, 'players_v11'),
+      collection(db, 'players_v10'),
       where('selectedLeagueId', '==', profile.selectedLeagueId),
       where('leagueLevel', '==', profile.leagueLevel),
       where('groupId', '==', profile.groupId)
@@ -50,27 +51,34 @@ export default function Home() {
   const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
 
   const globeParticipantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v11'), where('tournaments', 'array-contains', 'iron-globe'));
+    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', 'iron-globe'));
   }, [db]);
   const { data: globeParticipants } = useCollection(globeParticipantsQuery);
 
   const brickParticipantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v11'), where('tournaments', 'array-contains', 'iron-brick'));
+    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', 'iron-brick'));
   }, [db]);
   const { data: brickParticipants } = useCollection(brickParticipantsQuery);
 
-  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v4', user.uid) : null, [db, user]);
+  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v2', user.uid) : null, [db, user]);
   const { data: basketEntry } = useDoc(myBasketRef);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push('/auth/register');
+      return;
+    }
+    
+    // Safety check for session
+    const isHubEntered = typeof window !== 'undefined' && sessionStorage.getItem('lote_hub_entered') === 'true';
+    if (!isHubEntered && !isUserLoading) {
+      router.replace('/auth/register');
     }
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
     if (!user || isUserLoading) return;
-    const unsub = onSnapshot(doc(db, 'friendly_lobbies_v4', user.uid), (docSnap) => {
+    const unsub = onSnapshot(doc(db, 'friendly_lobbies_v3', user.uid), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.status === 'accepted') {
@@ -84,7 +92,7 @@ export default function Home() {
           setActiveFriendly(null);
         }
       } else {
-        const q = query(collection(db, 'friendly_lobbies_v4'), where('challengerId', '==', user.uid), where('status', '==', 'accepted'));
+        const q = query(collection(db, 'friendly_lobbies_v3'), where('challengerId', '==', user.uid), where('status', '==', 'accepted'));
         onSnapshot(q, (snap) => {
           if (!snap.empty) {
             const d = snap.docs[0].data();
@@ -245,7 +253,6 @@ export default function Home() {
   const unseenCount = useMemo(() => {
     if (!profile) return 0;
     const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : 0;
-    
     return matchHistory.filter(m => {
       const matchTime = m.playedAt ? new Date(m.playedAt).getTime() : 0;
       return m.type === 'league' && m.day > lastSeenMatchDay && matchTime >= setupTime;
@@ -256,54 +263,46 @@ export default function Home() {
 
   const translations = {
     en: { 
-      nextMatch: (displayMatchInfo as any)?.isFriendly ? ((displayMatchInfo as any)?.isTrial ? "Trial Battle" : "Live Friendly") : ((displayMatchInfo as any)?.isTournament ? "Tournament Battle" : ((displayMatchInfo as any)?.isBasket ? "CW Basket Engagement" : ((displayMatchInfo as any)?.isCup ? "Pyramid Cup Round" : "Next Engagement"))), 
-      vs: "VS", today: "TODAY", tomorrow: "TOMORROW", battleBtn: "MATCH REVIEW", navTitle: "Navigation Terminals", 
-      interSeason: "Inter-season", interSeasonDesc: "Calculating new hierarchies.", preSeason: "Pre-season Readiness", preSeasonDesc: "Matches resume soon.", 
-      startsIn: ((displayMatchInfo as any)?.isFriendly || (displayMatchInfo as any)?.isBasket) ? "REMAINING TIME:" : "TIME UNTIL MATCH:",
-      recalcIn: "DISTRIBUTION BEGINS IN:",
-      tourLive: "LIVE ENGAGEMENT",
-      processing: "SYNCING RESULTS...",
+      nextMatch: (displayMatchInfo as any)?.isFriendly ? "Live Match" : ((displayMatchInfo as any)?.isTournament ? "Tournament Battle" : ((displayMatchInfo as any)?.isBasket ? "CW Basket Match" : ((displayMatchInfo as any)?.isCup ? "Pyramid Cup" : "Next Engagement"))), 
+      vs: "VS", today: "TODAY", tomorrow: "TOMORROW", battleBtn: "MATCH REVIEW", navTitle: "Command Terminals", 
+      interSeason: "Inter-season", interSeasonDesc: "Recalculating league hierarchies.", startsIn: "TIME UNTIL MATCH:", tourLive: "LIVE ENGAGEMENT",
       menu: [ 
         { label: 'Roster', href: '/roster', icon: Users, desc: 'Manage lineup' }, 
         { label: 'Infrastructure', href: '/training', icon: Zap, desc: 'Improve base' }, 
         { label: 'Staff', href: '/staff', icon: UserCog, desc: 'Professional team' },
         { label: 'Transfers', href: '/transfers', icon: ShoppingCart, desc: 'Market operations' }, 
-        { label: 'Youth Academy', href: '/youth-academy', icon: GraduationCap, desc: 'Scout future stars' },
-        { label: 'Rankings', href: '/rankings', icon: Trophy, desc: 'View tables' }, 
+        { label: 'Youth Academy', href: '/youth-academy', icon: GraduationCap, desc: 'Scout stars' },
+        { label: 'Rankings', href: '/rankings', icon: Trophy, desc: 'League tables' }, 
         { label: 'Matches', href: '/matches', icon: CalendarDays, desc: 'Schedule' }, 
         { label: 'Tournaments', href: '/tournaments', icon: Medal, desc: 'Global events' }, 
-        { label: 'Finances', href: '/finances', icon: Coins, desc: 'Budget management' },
-        { label: 'Fanclub', href: '/fanclub', icon: Heart, desc: 'Fanbase management' },
+        { label: 'Finances', href: '/finances', icon: Coins, desc: 'Budget' },
+        { label: 'Fanclub', href: '/fanclub', icon: Heart, desc: 'Supporters' },
         { label: 'Chats', href: '/chats', icon: MessageSquare, desc: 'Comms' },
-        { label: 'Managers', href: '/managers', icon: UsersRound, desc: 'Community hub' },
-        { label: 'Association', href: '/associations', icon: Shield, desc: 'Clubs alliance' },
-        { label: 'Shop', href: '/shop', icon: Store, desc: 'Acquire resources' },
+        { label: 'Managers', href: '/managers', icon: UsersRound, desc: 'Global list' },
+        { label: 'Association', href: '/associations', icon: Shield, desc: 'Alliances' },
+        { label: 'Shop', href: '/shop', icon: Store, desc: 'Resources' },
         { label: 'Profile', href: '/profile', icon: User, desc: 'Settings' } 
       ]
     },
     ru: { 
-      nextMatch: (displayMatchInfo as any)?.isFriendly ? ((displayMatchInfo as any)?.isTrial ? "Пробный бой" : "Текущий матч") : ((displayMatchInfo as any)?.isTournament ? "Турнирный бой" : ((displayMatchInfo as any)?.isBasket ? "Бой из КВ корзины" : ((displayMatchInfo as any)?.isCup ? "Раунд Кубка Пирамиды" : "Следующий матч"))), 
-      vs: "ПРОТИВ", today: "СЕГОДНЯ", tomorrow: "ЗАВТРА", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Тактические Терминалы", 
-      interSeason: "Межсезонье", interSeasonDesc: "Формирование новых групп.", preSeason: "Подготовка к лиге", preSeasonDesc: "Первая игра начнется завтра.", 
-      startsIn: ((displayMatchInfo as any)?.isFriendly || (displayMatchInfo as any)?.isBasket) ? "ВРЕМЯ ДО КОНЦА:" : "ДО МАТЧА ОСТАЛОСЬ:",
-      recalcIn: "РАСПРЕДЕЛЕНИЕ НАЧНЕТСЯ ЧЕРЕЗ:",
-      tourLive: "В ЭФИРЕ",
-      processing: "ИДЕТ РАСПРЕДЕЛЕНИЕ...",
+      nextMatch: (displayMatchInfo as any)?.isFriendly ? "Текущий матч" : ((displayMatchInfo as any)?.isTournament ? "Турнирный бой" : ((displayMatchInfo as any)?.isBasket ? "Бой из корзины" : ((displayMatchInfo as any)?.isCup ? "Кубок Пирамиды" : "Следующий матч"))), 
+      vs: "ПРОТИВ", today: "СЕГОДНЯ", tomorrow: "ЗАВТРА", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", 
+      interSeason: "Межсезонье", interSeasonDesc: "Пересчет иерархии лиги.", startsIn: "ДО МАТЧА ОСТАЛОСЬ:", tourLive: "В ЭФИРЕ",
       menu: [ 
         { label: 'Ростер', href: '/roster', icon: Users, desc: 'Состав команды' }, 
         { label: 'Инфраструктура', href: '/training', icon: Zap, desc: 'Улучшение базы' }, 
-        { label: 'Персонал', href: '/staff', icon: UserCog, desc: 'Профессиональная команда' },
+        { label: 'Персонал', href: '/staff', icon: UserCog, desc: 'Проф. команда' },
         { label: 'Трансферы', href: '/transfers', icon: ShoppingCart, desc: 'Рынок игроков' }, 
-        { label: 'Юношеская академия', href: '/youth-academy', icon: GraduationCap, desc: 'Развитие талантов' },
+        { label: 'Юношеская академия', href: '/youth-academy', icon: GraduationCap, desc: 'Поиск звезд' },
         { label: 'Таблицы', href: '/rankings', icon: Trophy, desc: 'Рейтинги' }, 
         { label: 'Матчи', href: '/matches', icon: CalendarDays, desc: 'Расписание' }, 
         { label: 'Турниры', href: '/tournaments', icon: Medal, desc: 'События' }, 
-        { label: 'Финансы', href: '/finances', icon: Coins, desc: 'Управление бюджетом' },
-        { label: 'Фанклуб', href: '/fanclub', icon: Heart, desc: 'Управление болельщиками' },
+        { label: 'Финансы', href: '/finances', icon: Coins, desc: 'Бюджет' },
+        { label: 'Фанклуб', href: '/fanclub', icon: Heart, desc: 'Болельщики' },
         { label: 'Чаты', href: '/chats', icon: MessageSquare, desc: 'Связь' }, 
         { label: 'Менеджеры', href: '/managers', icon: UsersRound, desc: 'Сообщество' },
-        { label: 'Ассоциация', href: '/associations', icon: Shield, desc: 'Альянсы клубов' },
-        { label: 'Магазин', href: '/shop', icon: Store, desc: 'Ресурсы и услуги' },
+        { label: 'Ассоциация', href: '/associations', icon: Shield, desc: 'Альянсы' },
+        { label: 'Магазин', href: '/shop', icon: Store, desc: 'Ресурсы' },
         { label: 'Профиль', href: '/profile', icon: User, desc: 'Настройки' } 
       ]
     }
@@ -317,136 +316,56 @@ export default function Home() {
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
           {displayMatchInfo ? (
              (displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket ? <PlayCircle className="w-6 h-6 text-green-400 animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />
-          ) : seasonDay === 15 ? (
-             <Radar className="w-6 h-6 text-accent animate-spin" />
           ) : <UserSearch className="w-6 h-6 text-accent" />}
-          {displayMatchInfo ? t.nextMatch : (seasonDay === 15 ? t.interSeason : t.nextMatch)}
+          {displayMatchInfo ? t.nextMatch : t.nextMatch}
         </h1>
       </header>
       
       <section className="mb-8">
         {displayMatchInfo ? (
-          <Card className={cn(
-            "glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden", 
-            ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) && "border-green-500/30 bg-green-500/5",
-            (displayMatchInfo as any).isCup && "border-accent/30 bg-accent/5"
-          )}>
+          <Card className={cn("glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) && "border-green-500/30 bg-green-500/5")}>
             <CardContent className="p-0">
               <div className="p-4 border-b border-white/5 flex items-center justify-center">
                 <div className="flex flex-col items-center">
-                  <span className={cn("text-[10px] font-bold uppercase tracking-tighter mb-1", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-accent")}>
-                    {(displayMatchInfo as any).isLive ? t.tourLive : t.startsIn}
-                  </span>
-                  <span className={cn("text-4xl font-headline font-bold tabular-nums tracking-tighter", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-primary")}>
-                    {(displayMatchInfo as any).isLive ? 'LIVE' : countdown || '00:00:00'}
-                  </span>
+                  <span className={cn("text-[10px] font-bold uppercase mb-1", (displayMatchInfo as any).isLive ? "text-green-400" : "text-accent")}>{(displayMatchInfo as any).isLive ? t.tourLive : t.startsIn}</span>
+                  <span className={cn("text-4xl font-headline font-bold tabular-nums tracking-tighter", (displayMatchInfo as any).isLive ? "text-green-400" : "text-primary")}>{countdown || '00:00:00'}</span>
                 </div>
               </div>
               <div className="p-6 flex flex-col items-center text-center">
                 <div className="relative mb-4">
                   <div className={cn("w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "border-green-500" : "border-accent")}>
-                    {(displayMatchInfo as any).isCup ? <Target className="w-10 h-10 text-accent" /> : <User className={cn("w-10 h-10", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-accent")} />}
-                  </div>
-                  <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1.5 border border-white/10 shadow-lg">
-                    <Swords className={cn("w-4 h-4", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-primary")} />
+                    <User className={cn("w-10 h-10", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-accent")} />
                   </div>
                 </div>
-                <h3 className={cn("text-xl font-headline font-bold italic uppercase truncate w-full px-4", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-primary")}>
-                  {(displayMatchInfo as any).opponent.name}
-                </h3>
-                <div className="flex items-center gap-2 mt-2">
-                  <Badge variant="secondary" className="text-[8px] uppercase tracking-tighter">
-                    {(displayMatchInfo as any).opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'}
-                  </Badge>
-                  <div className={cn("text-[10px] font-bold", ((displayMatchInfo as any).isFriendly || (displayMatchInfo as any).isLive || (displayMatchInfo as any).isBasket) ? "text-green-400" : "text-accent")}>
-                    {(displayMatchInfo as any).isCup ? (displayMatchInfo as any).label : 
-                     (displayMatchInfo as any).tourName || 
-                     ((displayMatchInfo as any).isFriendly ? ((displayMatchInfo as any).isTrial ? (language === 'ru' ? 'ПРОБНЫЙ МАТЧ' : 'TRIAL MATCH') : (language === 'ru' ? 'ТОВАРИЩЕСКИЙ МАТЧ' : 'FRIENDLY MATCH')) : 
-                     ((displayMatchInfo as any).isBasket ? (language === 'ru' ? 'МАТЧ КВ КОРЗИНЫ' : 'CW BASKET MATCH') :
-                     `DIV ${leagueLevel}.${divisionSubId} | Day ${(displayMatchInfo as any).day}`))}
-                  </div>
-                </div>
+                <h3 className="text-xl font-headline font-bold italic uppercase truncate w-full px-4">{(displayMatchInfo as any).opponent.name}</h3>
               </div>
-            </CardContent>
-          </Card>
-        ) : seasonDay === 15 ? (
-          <Card className="glass-card border-accent/20 bg-accent/5 overflow-hidden">
-            <CardContent className="p-0">
-               <div className="p-4 border-b border-white/5 flex items-center justify-center">
-                  <div className="flex flex-col items-center">
-                    <span className="text-[10px] font-bold uppercase tracking-tighter mb-1 text-accent">
-                      {t.recalcIn}
-                    </span>
-                    <span className={cn(
-                      "text-4xl font-headline font-bold tabular-nums tracking-tighter text-white",
-                      countdown === 'PROCESSING' && "text-sm"
-                    )}>
-                      {countdown === 'PROCESSING' ? t.processing : (countdown || '00:00:00')}
-                    </span>
-                  </div>
-               </div>
-               <div className="p-6 text-center space-y-4">
-                  <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 border-accent mx-auto shadow-[0_0_20px_rgba(var(--accent),0.2)]">
-                     <Timer className="w-10 h-10 text-accent animate-pulse" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-headline font-bold uppercase text-white">{t.interSeason}</h3>
-                    <p className="text-xs text-muted-foreground mt-1 px-8 leading-relaxed italic opacity-70">
-                      "{t.interSeasonDesc}"
-                    </p>
-                  </div>
-               </div>
             </CardContent>
           </Card>
         ) : (
           <Card className="glass-card border-accent/20 bg-accent/5">
             <CardContent className="p-8 flex flex-col items-center text-center space-y-4">
-              {seasonDay === 16 ? (
-                <><Clock className="w-12 h-12 text-primary animate-pulse" /><div><h3 className="text-lg font-headline font-bold uppercase">{t.preSeason}</h3><p className="text-xs text-muted-foreground mt-1">{t.preSeasonDesc}</p></div></>
-              ) : (
-                <><ShieldAlert className="w-12 h-12 text-muted-foreground" /><div><h3 className="text-lg font-headline font-bold uppercase">No Scheduled Match</h3><p className="text-xs text-muted-foreground mt-1">Operational status normal.</p></div></>
-              )}
+              <ShieldAlert className="w-12 h-12 text-muted-foreground" />
+              <div><h3 className="text-lg font-headline font-bold uppercase">No Match</h3><p className="text-xs text-muted-foreground mt-1">Operational standby.</p></div>
             </CardContent>
           </Card>
         )}
       </section>
       
-      <div className="space-y-4 mb-12">
-        <Link href="/match" className="block relative">
-          <Button className="w-full h-20 hero-gradient border-none shadow-xl hover:opacity-90 transition-all flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <Swords className="w-6 h-6" />
-              <span className="text-xl font-headline font-bold italic uppercase">{t.battleBtn}</span>
-            </div>
-          </Button>
-          {unseenCount > 0 && (
-            <div className="absolute -top-2 -right-2 w-7 h-7 bg-red-600 rounded-full flex items-center justify-center border-2 border-background shadow-lg animate-bounce z-20">
-              <span className="text-[10px] font-black text-white">{unseenCount}</span>
-            </div>
-          )}
-        </Link>
-      </div>
+      <Link href="/match" className="block relative mb-8">
+        <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <Swords className="w-6 h-6" />
+            <span className="text-xl font-headline font-bold italic uppercase">{t.battleBtn}</span>
+          </div>
+        </Button>
+        {unseenCount > 0 && <div className="absolute -top-2 -right-2 w-7 h-7 bg-red-600 rounded-full flex items-center justify-center border-2 border-background shadow-lg animate-bounce z-20"><span className="text-[10px] font-black text-white">{unseenCount}</span></div>}
+      </Link>
       
       <div className="space-y-4">
         <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-accent px-1">{t.navTitle}</h2>
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 gap-2">
           {t.menu.map((item) => (
-            <Link key={item.label} href={item.href} className='block'>
-              <Card className="glass-card hover:bg-white/5 transition-colors border-white/5">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 rounded-lg bg-secondary/50">
-                      <item.icon className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold uppercase">{item.label}</h3>
-                      <p className="text-[10px] text-muted-foreground">{item.desc}</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                </CardContent>
-              </Card>
-            </Link>
+            <Link key={item.label} href={item.href}><Card className="glass-card hover:bg-white/5 transition-colors border-white/5"><CardContent className="p-4 flex items-center justify-between"><div className="flex items-center gap-4"><div className="p-2 rounded-lg bg-secondary/50"><item.icon className="w-5 h-5 text-primary" /></div><div><h3 className="text-sm font-bold uppercase">{item.label}</h3><p className="text-[10px] text-muted-foreground">{item.desc}</p></div></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></CardContent></Card></Link>
           ))}
         </div>
       </div>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState } from '@/app/lib/store';
@@ -26,9 +27,13 @@ export default function AuthLayout({
   const t = labels[language as keyof typeof labels] || labels.ru;
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)] relative overflow-hidden">
-      {/* Extreme Top Right Language Switcher - Fixed position to avoid clipping and flicker */}
-      <div className="fixed top-2 right-2 z-[9999]">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background relative overflow-hidden">
+      {/* Background Decor */}
+      <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)]" />
+      <div className="absolute inset-0 pointer-events-none opacity-5 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:30px_30px]" />
+
+      {/* Extreme Top Right Language Switcher */}
+      <div className="fixed top-4 right-4 z-[9999]">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button 
@@ -72,8 +77,12 @@ export default function AuthLayout({
 
       <div className="w-full max-w-sm space-y-8 relative z-10">
         <div className="text-center">
-          <h1 className="text-4xl font-headline font-bold tracking-tighter text-primary">LINES OF THE ENMITY</h1>
-          <p className="text-muted-foreground mt-2 text-xs uppercase tracking-widest">{t.subtitle}</p>
+          <div className="mx-auto w-24 h-24 mb-6 relative">
+            <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full" />
+            <img src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png" alt="Logo" className="w-full h-full object-contain relative z-10" />
+          </div>
+          <h1 className="text-3xl font-headline font-bold tracking-tighter text-primary">LINES OF ENMITY</h1>
+          <p className="text-muted-foreground mt-2 text-[10px] uppercase tracking-[0.3em] font-black">{t.subtitle}</p>
         </div>
         {children}
       </div>

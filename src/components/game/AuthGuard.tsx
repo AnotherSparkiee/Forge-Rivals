@@ -9,7 +9,7 @@ import { useGameState } from '@/app/lib/store';
 
 /**
  * Критический страж маршрутов.
- * Гарантирует, что неавторизованные пользователи видят ТОЛЬКО страницы входа/регистрации.
+ * Теперь форсирует страницу регистрации как точку входа.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
@@ -24,8 +24,15 @@ export function AuthGuard({ children }: { children: ReactNode }) {
 
     const isAuthPage = pathname?.startsWith('/auth');
     const isSetupPage = pathname === '/setup';
+    const isHubEntered = typeof window !== 'undefined' && sessionStorage.getItem('lote_hub_entered') === 'true';
 
-    // 1. ПРИНУДИТЕЛЬНАЯ АВТОРИЗАЦИЯ
+    // 1. ПЕРВИЧНЫЙ ВХОД (ВСЕГДА НА РЕГИСТРАЦИЮ ПРИ СТАРТЕ С КОРНЯ)
+    if (pathname === '/' && !isHubEntered) {
+      router.replace('/auth/register');
+      return;
+    }
+
+    // 2. ЗАЩИТА ПРИ ОТСУТСТВИИ ПОЛЬЗОВАТЕЛЯ
     if (!user) {
       if (!isAuthPage) {
         router.replace('/auth/register');
@@ -35,32 +42,26 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       return;
     }
 
-    // 2. ОБРАБОТКА АВТОРИЗОВАННОГО ПОЛЬЗОВАТЕЛЯ
+    // 3. ОБРАБОТКА АВТОРИЗОВАННОГО ПОЛЬЗОВАТЕЛЯ
     if (isLoaded) {
       const isSetupComplete = !!(selectedLeagueId && country);
       
       if (!isSetupComplete) {
+        // Если профиль не настроен, пускаем только на регистрацию/логин или настройку
         if (!isSetupPage && !isAuthPage) {
           router.replace('/setup');
         } else {
           setIsInitialCheckDone(true);
         }
       } else {
-        if (isAuthPage || isSetupPage) {
-          router.replace('/');
-        } else {
-          setIsInitialCheckDone(true);
-        }
+        // Если профиль настроен, позволяем находиться на любой странице
+        // Но не перенаправляем автоматически с /auth, чтобы пользователь мог выйти или переключиться
+        setIsInitialCheckDone(true);
       }
     }
   }, [user, isUserLoading, isLoaded, selectedLeagueId, country, router, pathname]);
 
   if (isUserLoading || !isInitialCheckDone) {
-    return <LoadingScreen />;
-  }
-
-  const isAuthPage = pathname?.startsWith('/auth');
-  if (!user && !isAuthPage) {
     return <LoadingScreen />;
   }
 

@@ -1,26 +1,22 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth, useFirestore } from '@/firebase';
+import { useAuth, useFirestore, useUser } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, UserPlus } from 'lucide-react';
+import { Loader2, UserPlus, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-/**
- * Defensive cleaning of document data for Firestore.
- * Removes undefined values to prevent errors.
- */
 function cleanData(obj: any) {
   return JSON.parse(JSON.stringify(obj, (key, value) => 
     value === undefined ? null : value
@@ -37,7 +33,8 @@ export default function RegisterPage() {
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const { language } = useGameState();
+  const { language, isLoaded: storeIsLoaded } = useGameState();
+  const { user, isUserLoading } = useUser();
 
   const translations = {
     en: {
@@ -52,11 +49,8 @@ export default function RegisterPage() {
       successTitle: "Profile Initialized",
       successDesc: "Welcome to the league, Commander.",
       errorTitle: "Operation Failed",
-      usernameTaken: "This team name is already assigned.",
-      usernameInvalid: "Please enter a valid Team Name (min 2 characters).",
-      emailTaken: "Email already associated with a profile.",
-      weakPassword: "Password must be at least 6 characters.",
-      permissionError: "Access Denied: Insufficient clearance. Please refresh and retry."
+      welcomeBack: "Authorized Session Detected",
+      enterHub: "ENTER COMMAND CENTER"
     },
     ru: {
       title: "Инициация профиля",
@@ -70,50 +64,35 @@ export default function RegisterPage() {
       successTitle: "Профиль инициализирован",
       successDesc: "Добро пожаловать в лигу, Командир.",
       errorTitle: "Ошибка операции",
-      usernameTaken: "Это название команды уже занято.",
-      usernameInvalid: "Пожалуйста, введите корректное название команды (минимум 2 символа).",
-      emailTaken: "Этот Email уже используется другим менеджером.",
-      weakPassword: "Пароль должен содержать минимум 6 символов.",
-      permissionError: "Ошибка прав доступа к серверу. Попробуйте обновить страницу."
+      welcomeBack: "Сессия авторизована",
+      enterHub: "ВОЙТИ В КОМАНДНЫЙ ЦЕНТР"
     }
   };
 
   const t = translations[language as keyof typeof translations] || translations.ru;
 
+  const handleEnter = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('lote_hub_entered', 'true');
+    }
+    router.push('/');
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!username.trim() || username.length < 2) {
-      toast({ variant: "destructive", title: t.errorTitle, description: t.usernameInvalid });
-      return;
-    }
-
-    if (password.length < 6) {
-      toast({ variant: "destructive", title: t.errorTitle, description: t.weakPassword });
-      return;
-    }
+    if (!username.trim() || username.length < 2) return;
+    if (password.length < 6) return;
 
     setIsLoading(true);
 
     try {
       const { seasonNumber } = getGlobalSeasonInfo();
-      
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      const newUser = userCredential.user;
 
       const uniqueSquad = getRandomStartingSquad();
-      const initialLineup = {
-        offlane: uniqueSquad[0].id,
-        carry: uniqueSquad[1].id,
-        mid: uniqueSquad[2].id,
-        support: uniqueSquad[3].id,
-        full_support: uniqueSquad[4].id,
-        sub1: uniqueSquad[5].id,
-        sub2: uniqueSquad[6].id
-      };
-
       const profileData = {
-        id: user.uid,
+        id: newUser.uid,
         displayName: username.trim(),
         email: email,
         inGameCurrency: 10000000,
@@ -121,42 +100,56 @@ export default function RegisterPage() {
         experiencePoints: 0,
         lastLoginDate: new Date().toISOString(),
         createdAt: new Date().toISOString(),
+        setupDate: new Date().toISOString(),
         ownedHeroes: uniqueSquad,
         ownedHeroIds: uniqueSquad.map(h => h.id),
-        lineup: initialLineup,
-        leagueLevel: 9,
-        divisionSubId: 1,
-        groupId: 1,
-        rank: 1000,
-        wins: 0,
-        draws: 0,
-        losses: 0,
-        points: 0,
+        lineup: {
+          offlane: uniqueSquad[0].id, carry: uniqueSquad[1].id, mid: uniqueSquad[2].id,
+          support: uniqueSquad[3].id, full_support: uniqueSquad[4].id, sub1: uniqueSquad[5].id, sub2: uniqueSquad[6].id
+        },
+        leagueLevel: 9, divisionSubId: 1, groupId: 1, rank: 1000,
+        wins: 0, draws: 0, losses: 0, points: 0,
         lastProcessedSeason: Number(seasonNumber || 1)
       };
 
-      await setDoc(doc(db, 'players_v10', user.uid), cleanData(profileData));
-
+      await setDoc(doc(db, 'players_v10', newUser.uid), cleanData(profileData));
       toast({ title: t.successTitle, description: t.successDesc });
-      
-      router.replace('/setup');
-      
+      handleEnter();
     } catch (error: any) {
-      console.error("Registration sequence fail:", error);
-      let msg = error.message;
-      if (error.code === 'auth/email-already-in-use') msg = t.emailTaken;
-      if (error.code === 'auth/weak-password') msg = t.weakPassword;
-      if (error.code === 'permission-denied') msg = t.permissionError;
-      
-      toast({
-        variant: "destructive",
-        title: t.errorTitle,
-        description: msg,
-      });
+      console.error("Reg fail:", error);
+      toast({ variant: "destructive", title: t.errorTitle, description: error.message });
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (isUserLoading || !storeIsLoaded) return null;
+
+  if (user) {
+    return (
+      <div className="space-y-4 animate-in fade-in zoom-in duration-500">
+        <Card className="glass-card border-primary/20 bg-primary/5">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary shadow-[0_0_20px_rgba(var(--primary),0.3)]">
+              <ShieldCheck className="w-8 h-8 text-primary" />
+            </div>
+            <CardTitle className="font-headline uppercase tracking-widest text-white text-lg">{t.welcomeBack}</CardTitle>
+            <p className="text-[10px] text-muted-foreground uppercase font-bold mt-2">ID: {user.uid.slice(0, 12)}...</p>
+          </CardHeader>
+          <CardFooter>
+            <Button onClick={handleEnter} className="w-full h-14 hero-gradient font-black text-xs tracking-widest">
+              {t.enterHub} <ArrowRight className="ml-2 w-4 h-4" />
+            </Button>
+          </CardFooter>
+        </Card>
+        <p className="text-center">
+          <button onClick={() => auth.signOut()} className="text-[10px] font-black text-red-400 uppercase tracking-widest hover:underline">
+            {language === 'ru' ? 'ВЫЙТИ ИЗ АККАУНТА' : 'SIGN OUT'}
+          </button>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -171,19 +164,14 @@ export default function RegisterPage() {
 
       <Card className="glass-card">
         <CardHeader>
-          <CardTitle className="font-headline text-center uppercase tracking-widest text-accent text-lg">
-            {t.title}
-          </CardTitle>
-          <p className="text-[10px] text-center text-muted-foreground uppercase font-bold px-4 leading-relaxed">
-            {t.subtitle}
-          </p>
+          <CardTitle className="font-headline text-center uppercase tracking-widest text-accent text-lg">{t.title}</CardTitle>
+          <p className="text-[10px] text-center text-muted-foreground uppercase font-bold px-4 leading-relaxed">{t.subtitle}</p>
         </CardHeader>
-
         <form onSubmit={handleRegister}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username">{t.callsign}</Label>
-              <Input id="username" placeholder="Название команды" value={username} onChange={(e) => setUsername(e.target.value)} required className="bg-secondary/50" />
+              <Input id="username" placeholder="Squad Name" value={username} onChange={(e) => setUsername(e.target.value)} required className="bg-secondary/50" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">{t.emailLabel}</Label>
@@ -191,7 +179,7 @@ export default function RegisterPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">{t.passLabel}</Label>
-              <Input id="password" type="password" placeholder="Минимум 6 символов" value={password} onChange={(e) => setPassword(e.target.value)} required className="bg-secondary/50" />
+              <Input id="password" type="password" placeholder="Min 6 characters" value={password} onChange={(e) => setPassword(e.target.value)} required className="bg-secondary/50" />
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
