@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser } from '@/firebase';
@@ -9,7 +8,7 @@ import { useGameState } from '@/app/lib/store';
 
 /**
  * Критический страж маршрутов.
- * Теперь форсирует страницу регистрации как точку входа.
+ * Предотвращает доступ к игре без полной регистрации (лига, страна).
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
@@ -20,13 +19,13 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   const [isInitialCheckDone, setIsInitialCheckDone] = useState(false);
 
   useEffect(() => {
-    if (isUserLoading) return;
+    if (isUserLoading || !isLoaded) return;
 
     const isAuthPage = pathname?.startsWith('/auth');
     const isSetupPage = pathname === '/setup';
     const isHubEntered = typeof window !== 'undefined' && sessionStorage.getItem('lote_hub_entered') === 'true';
 
-    // 1. ПЕРВИЧНЫЙ ВХОД (ВСЕГДА НА РЕГИСТРАЦИЮ ПРИ СТАРТЕ С КОРНЯ)
+    // 1. ПРИНУДИТЕЛЬНЫЙ ВХОД (если не нажата кнопка входа в текущей сессии)
     if (pathname === '/' && !isHubEntered) {
       router.replace('/auth/register');
       return;
@@ -42,22 +41,19 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       return;
     }
 
-    // 3. ОБРАБОТКА АВТОРИЗОВАННОГО ПОЛЬЗОВАТЕЛЯ
-    if (isLoaded) {
-      const isSetupComplete = !!(selectedLeagueId && country);
-      
-      if (!isSetupComplete) {
-        // Если профиль не настроен, пускаем только на регистрацию/логин или настройку
-        if (!isSetupPage && !isAuthPage) {
-          router.replace('/setup');
-        } else {
-          setIsInitialCheckDone(true);
-        }
+    // 3. ПРОВЕРКА ПОЛНОТЫ ПРОФИЛЯ
+    // Если пользователь вошел, но не выбрал лигу/страну, пускаем только на /setup
+    const isProfileComplete = !!(selectedLeagueId && country);
+    
+    if (!isProfileComplete) {
+      if (!isSetupPage && !isAuthPage) {
+        router.replace('/setup');
       } else {
-        // Если профиль настроен, позволяем находиться на любой странице
-        // Но не перенаправляем автоматически с /auth, чтобы пользователь мог выйти или переключиться
         setIsInitialCheckDone(true);
       }
+    } else {
+      // Профиль полный
+      setIsInitialCheckDone(true);
     }
   }, [user, isUserLoading, isLoaded, selectedLeagueId, country, router, pathname]);
 

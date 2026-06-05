@@ -10,7 +10,7 @@ import {
   Sword, Shield, Sparkles, Plus, 
   ChevronLeft, ChevronRight, UserPlus, X,
   ShieldCheck, Zap, Crosshair, HeartPulse,
-  Star, Box, Undo2, Info,
+  Star, Box, Undo2, Info, ShoppingCart, Loader2,
   TrendingUp, Eye, Target, Brain, Map, Users, AlertCircle, Award, Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -24,16 +24,24 @@ import {
   DialogDescription,
   DialogPortal
 } from "@/components/ui/dialog";
-import { calculateLiveAge } from '@/app/lib/time-utils';
+import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 export default function SquadPage() {
-  const { ownedHeroes, lineup, assignToRole, isLoaded, language } = useGameState();
+  const { ownedHeroes, lineup, assignToRole, isLoaded, language, updateHero, managerSkills } = useGameState();
+  const { user } = useUser();
+  const db = useFirestore();
   const { toast } = useToast();
   const [selectingSlot, setSelectingSlot] = useState<LineupSlot | null>(null);
   const [profileHero, setProfileHero] = useState<Hero | null>(null);
+  const [isTransferring, setIsTransferring] = useState(false);
   
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v10', user.uid) : null), [db, user?.uid]);
+  const { data: profile } = useDoc(userRef);
 
   const t = {
     title: language === 'ru' ? "АКТИВНЫЙ СОСТАВ" : "ACTIVE LINEUP",
@@ -47,9 +55,9 @@ export default function SquadPage() {
     availableHeroes: language === 'ru' ? "Подходящие герои" : "Compatible Heroes",
     assigned: language === 'ru' ? "ЗАНЯТ" : "ASSIGNED",
     cancel: language === 'ru' ? "ОТМЕНА" : "CANCEL",
-    wrongRole: language === 'ru' ? "Нет героев с этой ролью" : "No heroes with this role",
-    tooYoung: language === 'ru' ? "Игрок слишком молод! Минимальный возраст для участия в лиге - 18.0" : "Player is too young! Minimum age for league entry is 18.0",
+    tooYoung: language === 'ru' ? "Игрок слишком молод! Мин. возраст — 18.0" : "Player is too young! Min age — 18.0",
     onAuction: language === 'ru' ? "ИГРОК НА АУКЦИОНЕ" : "PLAYER ON AUCTION",
+    putOnTransfer: language === 'ru' ? "ВЫСТАВИТЬ НА ТРАНСФЕР" : "PUT ON TRANSFER",
     profile: {
       title: language === 'ru' ? "ДОСЬЕ ИГРОКА" : "PLAYER DOSSIER",
       age: language === 'ru' ? "Возраст" : "Age",
@@ -57,7 +65,6 @@ export default function SquadPage() {
       salary: language === 'ru' ? "Зарплата" : "Salary",
       form: language === 'ru' ? "Форма" : "Form",
       fatigue: language === 'ru' ? "Усталость" : "Fatigue",
-      country: language === 'ru' ? "Страна" : "Country",
       status: language === 'ru' ? "Статус" : "Status",
       healthy: language === 'ru' ? "Здоров" : "Healthy",
       injured: language === 'ru' ? "Травмирован" : "Injured",
@@ -84,24 +91,12 @@ export default function SquadPage() {
       full_support: { label: language === 'ru' ? "Пятерка" : "Full Support", icon: HeartPulse, color: "text-green-400" },
       sub1: { label: language === 'ru' ? "Запасной 1" : "Sub 1", icon: UserPlus, color: "text-muted-foreground" },
       sub2: { label: language === 'ru' ? "Запасной 2" : "Sub 2", icon: UserPlus, color: "text-muted-foreground" },
-    },
-    heroRoles: {
-      'Carry': { icon: Sword, color: "text-red-400" },
-      'Midlaner': { icon: Sparkles, color: "text-blue-400" },
-      'Tank': { icon: Shield, color: "text-orange-400" },
-      'Jungler': { icon: Crosshair, color: "text-purple-400" },
-      'Support': { icon: Zap, color: "text-yellow-400" },
     }
   };
 
   const roleMapping: Record<LineupSlot, string[]> = {
-    carry: ['Carry'],
-    mid: ['Midlaner'],
-    offlane: ['Tank'],
-    support: ['Jungler'],
-    full_support: ['Support'],
-    sub1: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'],
-    sub2: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'],
+    carry: ['Carry'], mid: ['Midlaner'], offlane: ['Tank'], support: ['Jungler'], full_support: ['Support'],
+    sub1: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], sub2: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'],
   };
 
   const getHeroById = (id: string | null) => ownedHeroes.find(h => h.id === id);
@@ -114,191 +109,117 @@ export default function SquadPage() {
     return Math.round(sum / activeHeroes.length);
   }, [lineup, ownedHeroes]);
 
-  const handleCancelPress = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  };
-
   const handleStartPress = (hero: Hero | undefined) => {
     if (!hero) return;
-    handleCancelPress();
     longPressTimer.current = setTimeout(() => {
       setProfileHero(hero);
-      longPressTimer.current = null;
     }, 600);
   };
 
-  const handleTouchMove = () => {
-    handleCancelPress();
-  };
-
-  const handleSlotClick = (slotKey: LineupSlot) => {
-    if (!profileHero) {
-      setSelectingSlot(prev => prev === slotKey ? null : slotKey);
-    }
+  const handleCancelPress = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
   };
 
   const handleHeroAssign = (hero: Hero) => {
-    if (selectingSlot) {
-      // Auction Check
-      if (hero.onTransferUntil && new Date(hero.onTransferUntil) > new Date()) {
-        toast({
-          variant: "destructive",
-          title: language === 'ru' ? "Игрок недоступен" : "Player Unavailable",
-          description: t.onAuction
-        });
-        return;
-      }
+    if (!selectingSlot) return;
+    if (hero.onTransferUntil && new Date(hero.onTransferUntil) > new Date()) {
+      toast({ variant: "destructive", title: t.onAuction });
+      return;
+    }
+    const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
+    if (liveAge.numeric < 18) {
+      toast({ variant: "destructive", title: t.tooYoung });
+      return;
+    }
+    assignToRole(selectingSlot, hero.id);
+    setSelectingSlot(null);
+  };
 
-      // Age Check: Only 18.0+ players can be in any slot
-      const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
-      if (liveAge.numeric < 18) {
-        toast({
-          variant: "destructive",
-          title: language === 'ru' ? "Возрастное ограничение" : "Age Restriction",
-          description: t.tooYoung
-        });
-        return;
-      }
+  const handlePutOnTransfer = async () => {
+    if (!profileHero || !user || !profile || isTransferring) return;
+    setIsTransferring(true);
+    try {
+      const today = getMoscowDateString();
+      const mskNow = getMoscowTime();
+      const expiryTime = new Date(mskNow.getTime() + 12 * 60 * 60 * 1000);
+      const startPrice = (profileHero.overallRating * 15000) + 100000;
+      const agentId = `user_${user.uid}_${Date.now()}`;
+      
+      const agentData = {
+        id: agentId, heroData: JSON.parse(JSON.stringify(profileHero)),
+        currentBid: startPrice, startingPrice: startPrice,
+        highestBidderId: null, highestBidderName: null, bidders: [],
+        sellerId: user.uid, sellerName: profile.displayName || "Manager",
+        expiresAt: expiryTime.toISOString(), dropDate: today, dropTime: mskNow.toISOString()
+      };
 
-      const allowedRoles = roleMapping[selectingSlot];
-      if (allowedRoles.includes(hero.role)) {
-        assignToRole(selectingSlot, hero.id);
-        setSelectingSlot(null);
-      }
+      await setDoc(doc(db, 'market_v7', agentId), agentData);
+      updateHero(profileHero.id, { onTransferUntil: expiryTime.toISOString(), transferMarketId: agentId });
+      
+      toast({ title: language === 'ru' ? "Выставлен на аукцион!" : "Listed for Auction!" });
+      setProfileHero(null);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Transfer Failed", description: e.message });
+    } finally {
+      setIsTransferring(false);
     }
   };
 
-  const filteredHeroes = useMemo(() => {
-    if (!selectingSlot) return [];
-    const allowedRoles = roleMapping[selectingSlot];
-    return ownedHeroes.filter(h => allowedRoles.includes(h.role));
-  }, [selectingSlot, ownedHeroes]);
-
   const renderSlot = (slotKey: LineupSlot) => {
-    const heroId = lineup[slotKey];
-    const hero = getHeroById(heroId);
-    const isSub = slotKey === 'sub1' || slotKey === 'sub2';
+    const hero = getHeroById(lineup[slotKey]);
     const isSelected = selectingSlot === slotKey;
-    
-    let roleInfo = t.roles[slotKey];
-    if (isSub && hero) {
-      const heroRoleData = t.heroRoles[hero.role as keyof typeof t.heroRoles];
-      if (heroRoleData) {
-        roleInfo = { ...roleInfo, icon: heroRoleData.icon, color: heroRoleData.color };
-      }
-    }
+    const roleInfo = t.roles[slotKey];
 
     return (
       <Card 
         key={slotKey}
         onMouseDown={() => handleStartPress(hero)}
         onMouseUp={handleCancelPress}
-        onMouseLeave={handleCancelPress}
         onTouchStart={() => handleStartPress(hero)}
         onTouchEnd={handleCancelPress}
-        onTouchMove={handleTouchMove}
-        onClick={() => handleSlotClick(slotKey)}
+        onClick={() => !profileHero && setSelectingSlot(prev => prev === slotKey ? null : slotKey)}
         className={cn(
           "glass-card border-white/5 overflow-hidden transition-all cursor-pointer select-none",
           hero ? "bg-primary/5 border-primary/10" : "hover:border-white/20",
-          isSelected && "ring-2 ring-primary border-primary shadow-[0_0_25px_rgba(var(--primary),0.4)] bg-primary/20 scale-[1.02] z-10"
+          isSelected && "ring-2 ring-primary border-primary bg-primary/20 scale-[1.02] z-10"
         )}
       >
         <CardContent className="p-3 flex items-center gap-4 relative">
-          <div className="relative flex-shrink-0">
-            <div className={cn(
-              "w-12 h-12 rounded-xl border flex items-center justify-center bg-secondary/50 overflow-hidden transition-all",
-              hero ? "border-primary/50" : "border-dashed border-muted",
-              isSelected && "border-primary"
-            )}>
-              {hero ? (
-                <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
-              ) : (
-                <roleInfo.icon className={cn("w-5 h-5", isSelected ? "text-primary animate-pulse" : roleInfo.color)} />
-              )}
+          <div className="relative">
+            <div className={cn("w-12 h-12 rounded-xl border flex items-center justify-center bg-secondary/50 overflow-hidden", hero ? "border-primary/50" : "border-dashed border-muted")}>
+              {hero ? <img src={hero.image} alt="" className="w-full h-full object-cover" /> : <roleInfo.icon className={cn("w-5 h-5", roleInfo.color)} />}
             </div>
-            {hero && (
-              <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1 border border-white/10 shadow-lg">
-                <roleInfo.icon className={cn("w-2.5 h-2.5", roleInfo.color)} />
-              </div>
-            )}
+            {hero && <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1 border border-white/10 shadow-lg"><roleInfo.icon className={cn("w-2.5 h-2.5", roleInfo.color)} /></div>}
           </div>
-
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-0.5">
-              <p className={cn(
-                "text-[8px] uppercase font-black tracking-widest",
-                isSelected ? "text-primary" : "text-muted-foreground"
-              )}>
-                {roleInfo.label}
-              </p>
-              {isSelected && <Badge variant="outline" className="text-[6px] h-3 border-primary text-primary px-1 animate-pulse">EDITING</Badge>}
-            </div>
-            <h3 className={cn("text-xs font-bold leading-tight truncate", !hero && "text-muted-foreground italic")}>
-              {hero ? hero.name : (isSelected ? t.selectHero : t.emptySlot)}
-            </h3>
-            {hero && (
-              <p className="text-[8px] text-muted-foreground uppercase font-black tracking-tighter">
-                {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.profile.years}
-              </p>
-            )}
+            <p className={cn("text-[8px] uppercase font-black tracking-widest", isSelected ? "text-primary" : "text-muted-foreground")}>{roleInfo.label}</p>
+            <h3 className="text-xs font-bold leading-tight truncate">{hero ? hero.name : (isSelected ? t.selectHero : t.emptySlot)}</h3>
+            {hero && <p className="text-[8px] text-muted-foreground uppercase font-black tracking-tighter">{calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.profile.years}</p>}
           </div>
-
-          <div className="flex items-center gap-3 flex-shrink-0">
-            {hero ? (
-              <div className="flex flex-col items-center justify-center min-w-[45px] border-l border-white/5 pl-3">
-                <p className="text-[7px] font-black text-accent uppercase tracking-tighter mb-0.5">{t.overall}</p>
-                <span className="text-xl font-headline font-bold text-accent italic leading-none">
-                  {hero.overallRating}
-                </span>
-              </div>
-            ) : (
-              <div className={cn(
-                "w-8 h-8 rounded-lg flex items-center justify-center border transition-colors",
-                isSelected ? "bg-primary border-primary text-primary-foreground" : "bg-primary/10 border-primary/20 text-primary"
-              )}>
-                <Plus className="w-4 h-4" />
-              </div>
-            )}
+          <div className="flex items-center gap-3">
+            {hero ? <div className="flex flex-col items-center justify-center min-w-[45px] border-l border-white/5 pl-3"><p className="text-[7px] font-black text-accent uppercase tracking-tighter mb-0.5">{t.overall}</p><span className="text-xl font-headline font-bold text-accent italic leading-none">{hero.overallRating}</span></div> : <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-4 h-4" /></div>}
           </div>
-
           {hero && isSelected && (
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                assignToRole(slotKey, null);
-                setSelectingSlot(null);
-              }}
-              className="absolute top-1 right-1 p-1 text-red-400 hover:text-red-500 transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+            <button onClick={(e) => { e.stopPropagation(); assignToRole(slotKey, null); setSelectingSlot(null); }} className="absolute top-1 right-1 p-1 text-red-400"><X className="w-3.5 h-3.5" /></button>
           )}
         </CardContent>
       </Card>
     );
   };
 
-  const renderStars = (rating: number) => {
-    return (
-      <div className="flex items-center gap-0.5">
-        {Array.from({ length: 5 }).map((_, i) => {
-          const fill = Math.min(Math.max(rating - i, 0), 1);
-          return (
-            <div key={i} className="relative w-2.5 h-2.5">
-              <Star className="absolute inset-0 w-2.5 h-2.5 text-muted-foreground/20" />
-              <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
-                <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
+  const renderStars = (rating: number) => (
+    <div className="flex items-center gap-0.5">
+      {Array.from({ length: 5 }).map((_, i) => {
+        const fill = Math.min(Math.max(rating - i, 0), 1);
+        return (
+          <div key={i} className="relative w-2.5 h-2.5">
+            <Star className="absolute inset-0 w-2.5 h-2.5 text-muted-foreground/20" />
+            <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}><Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" /></div>
+          </div>
+        );
+      })}
+    </div>
+  );
 
   if (!isLoaded) return null;
 
@@ -306,143 +227,38 @@ export default function SquadPage() {
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Link href="/roster">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ChevronLeft className="w-6 h-6" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1>
-            <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
-          </div>
+          <Link href="/roster"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+          <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p></div>
         </div>
-        
         <div className="flex flex-col items-center justify-center min-w-[60px]">
-          <p className="text-[9px] font-black text-primary tracking-widest uppercase leading-none mb-1">{t.teamOverall}</p>
-          <div className="relative flex items-center justify-center">
-            <Shield className="w-10 h-10 text-primary fill-primary/10" strokeWidth={2} />
-            <span className="absolute inset-0 flex items-center justify-center text-lg font-headline font-bold text-accent italic pt-0.5">
-              {teamOvr}
-            </span>
-          </div>
+          <p className="text-[9px] font-black text-primary tracking-widest uppercase mb-1">{t.teamOverall}</p>
+          <div className="relative flex items-center justify-center"><Shield className="w-10 h-10 text-primary fill-primary/10" strokeWidth={2} /><span className="absolute inset-0 flex items-center justify-center text-lg font-headline font-bold text-accent italic pt-0.5">{teamOvr}</span></div>
         </div>
       </header>
 
       <div className="space-y-6">
         <section className="space-y-2">
-          <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent px-1 flex items-center gap-2">
-            <ShieldCheck className="w-3.5 h-3.5" /> {t.activeLabel}
-          </h2>
-          <div className="space-y-2">
-            {(['carry', 'mid', 'offlane', 'support', 'full_support'] as LineupSlot[]).map(renderSlot)}
-          </div>
+          <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent px-1 flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5" /> {t.activeLabel}</h2>
+          <div className="space-y-2">{(['carry', 'mid', 'offlane', 'support', 'full_support'] as LineupSlot[]).map(renderSlot)}</div>
         </section>
-
         <section className="space-y-2">
-          <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2">
-            <UserPlus className="w-3.5 h-3.5" /> {t.subsLabel}
-          </h2>
-          <div className="space-y-2">
-            {(['sub1', 'sub2'] as LineupSlot[]).map(renderSlot)}
-          </div>
+          <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2"><UserPlus className="w-3.5 h-3.5" /> {t.subsLabel}</h2>
+          <div className="space-y-2">{(['sub1', 'sub2'] as LineupSlot[]).map(renderSlot)}</div>
         </section>
 
         {selectingSlot && (
-          <section className="space-y-3 pt-6 border-t border-primary/20 animate-in slide-in-from-bottom-4 duration-300">
-            <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-2">
-                <Box className="w-4 h-4 text-primary" />
-                <h2 className="text-sm font-bold uppercase tracking-tight text-primary">
-                  {t.availableHeroes}
-                </h2>
-              </div>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setSelectingSlot(null)}
-                className="h-7 text-[10px] font-bold text-muted-foreground hover:text-white"
-              >
-                <Undo2 className="w-3 h-3 mr-1" /> {t.cancel}
-              </Button>
-            </div>
-            
+          <section className="space-y-3 pt-6 border-t border-primary/20 animate-in slide-in-from-bottom-4">
+            <div className="flex items-center justify-between px-1"><div className="flex items-center gap-2"><Box className="w-4 h-4 text-primary" /><h2 className="text-sm font-bold uppercase tracking-tight text-primary">{t.availableHeroes}</h2></div><Button variant="ghost" size="sm" onClick={() => setSelectingSlot(null)} className="h-7 text-[10px] font-bold text-muted-foreground"><Undo2 className="w-3 h-3 mr-1" /> {t.cancel}</Button></div>
             <div className="grid grid-cols-1 gap-2">
-              {filteredHeroes.length > 0 ? (
-                filteredHeroes.map((hero) => {
-                  const currentRoleKey = Object.keys(lineup).find(k => lineup[k as LineupSlot] === hero.id) as LineupSlot | undefined;
-                  const isAssignedToThisSlot = hero.id === lineup[selectingSlot];
-                  const isAssignedElsewhere = !!currentRoleKey && currentRoleKey !== selectingSlot;
-                  const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
-                  const isTooYoung = liveAge.numeric < 18;
-                  const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil) > new Date();
-
-                  return (
-                    <Card 
-                      key={hero.id}
-                      onMouseDown={() => handleStartPress(hero)}
-                      onMouseUp={handleCancelPress}
-                      onMouseLeave={handleCancelPress}
-                      onTouchStart={() => handleStartPress(hero)}
-                      onTouchEnd={handleCancelPress}
-                      onTouchMove={handleTouchMove}
-                      className={cn(
-                        "glass-card border-white/10 hover:border-primary/50 transition-all overflow-hidden cursor-pointer active:scale-[0.98]",
-                        isAssignedToThisSlot ? "ring-1 ring-primary bg-primary/10" : (isAssignedElsewhere ? "bg-accent/5 border-accent/20" : "bg-primary/5"),
-                        (isTooYoung || onAuction) && "opacity-60 grayscale cursor-not-allowed border-red-500/20"
-                      )}
-                      onClick={() => handleHeroAssign(hero)}
-                    >
-                      <CardContent className="p-2 flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-muted flex-shrink-0">
-                          <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
-                        </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-bold text-[11px] truncate">{hero.name}</h4>
-                            <span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span>
-                          </div>
-                          <div className="flex items-center gap-3 mt-0.5">
-                            <span className="text-[9px] font-bold text-accent flex items-center gap-1">
-                              <Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}
-                            </span>
-                            <span className={cn(
-                              "text-[8px] font-black uppercase tracking-tighter",
-                              isTooYoung ? "text-red-400" : "text-muted-foreground"
-                            )}>
-                              {liveAge.display} {t.profile.years}
-                            </span>
-                            {onAuction && (
-                              <Badge className="bg-yellow-500/20 text-yellow-500 text-[6px] h-3 px-1 border-none font-black uppercase flex gap-1 items-center">
-                                <Clock className="w-2 h-2" /> AUCTION
-                              </Badge>
-                            )}
-                            {isAssignedElsewhere && (
-                              <Badge className="bg-accent/20 text-accent text-[6px] h-3 px-1 border-none font-black uppercase">
-                                {t.assigned}: {t.roles[currentRoleKey].label}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 pr-1">
-                          <div className={cn(
-                            "w-6 h-6 rounded-full flex items-center justify-center border",
-                            isAssignedElsewhere ? "bg-accent/10 border-accent/20 text-accent" : "bg-primary/10 border-primary/20 text-primary",
-                            (isTooYoung || onAuction) && "border-red-500/30 text-red-400"
-                          )}>
-                            {isTooYoung || onAuction ? <AlertCircle className="w-3 h-3" /> : (isAssignedElsewhere ? <ChevronRight className="w-3 h-3" /> : <Plus className="w-3 h-3" />)}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })
-              ) : (
-                <div className="py-8 text-center bg-secondary/20 rounded-xl border border-dashed border-white/10">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground">{t.wrongRole}</p>
-                </div>
-              )}
+              {ownedHeroes.filter(h => roleMapping[selectingSlot].includes(h.role)).map((hero) => {
+                const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
+                const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil) > new Date();
+                return (
+                  <Card key={hero.id} className={cn("glass-card border-white/10 overflow-hidden cursor-pointer", (liveAge.numeric < 18 || onAuction) && "opacity-60 grayscale cursor-not-allowed")} onClick={() => handleHeroAssign(hero)}>
+                    <CardContent className="p-2 flex items-center gap-3"><div className="w-10 h-10 rounded-xl overflow-hidden bg-muted"><img src={hero.image} alt="" className="w-full h-full object-cover" /></div><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><h4 className="font-bold text-[11px] truncate">{hero.name}</h4><span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span></div><div className="flex items-center gap-3 mt-0.5"><span className="text-[9px] font-bold text-accent flex items-center gap-1"><Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}</span><span className={cn("text-[8px] font-black uppercase tracking-tighter", liveAge.numeric < 18 ? "text-red-400" : "text-muted-foreground")}>{liveAge.display} {t.profile.years}</span>{onAuction && <Badge className="bg-yellow-500/20 text-yellow-500 text-[6px] h-3 px-1 border-none font-black uppercase">AUCTION</Badge>}</div></div><div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-3 h-3" /></div></CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </section>
         )}
@@ -450,135 +266,30 @@ export default function SquadPage() {
 
       <Dialog open={!!profileHero} onOpenChange={() => setProfileHero(null)}>
         <DialogPortal>
-          <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none flex flex-col rounded-none sm:rounded-none overflow-hidden outline-none translate-x-0 translate-y-0 top-0 left-0 animate-in fade-in zoom-in duration-300">
+          <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none flex flex-col rounded-none overflow-hidden outline-none translate-x-0 translate-y-0 top-0 left-0 animate-in fade-in zoom-in duration-300">
             {profileHero && (
               <>
-                <DialogHeader className="sr-only">
-                  <DialogTitle>{profileHero.name}</DialogTitle>
-                  <DialogDescription>Detailed player profile and statistics</DialogDescription>
-                </DialogHeader>
-
                 <div className="flex-1 overflow-y-auto scrollbar-hide">
                   <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 border-b border-white/5 flex flex-col items-center text-center gap-4">
-                    <div className="relative">
-                      <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-[0_0_30px_rgba(var(--primary),0.3)] bg-secondary/50">
-                        <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl">
-                        <span className="text-base">{profileHero.country?.flag || '🏳️'}</span>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h2>
-                      <div className="flex items-center justify-center gap-2">
-                        <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
-                        {profileHero.onTransferUntil && new Date(profileHero.onTransferUntil) > new Date() && (
-                          <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5 flex gap-1 items-center">
-                            <Clock className="w-3 h-3" /> ON AUCTION
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto">
-                      <div className="bg-background/40 p-3 rounded-xl border border-white/10">
-                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p>
-                        <p className="text-xl font-headline font-bold text-accent italic leading-none">{profileHero.overallRating}</p>
-                      </div>
-                      <div className="bg-background/40 p-3 rounded-xl border border-white/10">
-                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.salary}</p>
-                        <p className="text-sm font-headline font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</p>
-                      </div>
-                    </div>
+                    <div className="relative"><div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50"><img src={profileHero.image} alt="" className="w-full h-full object-cover" /></div><div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{profileHero.country?.flag || '🏳️'}</span></div></div>
+                    <div className="space-y-1"><h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h2><div className="flex items-center justify-center gap-2"><Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge></div></div>
+                    <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto"><div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p><p className="text-xl font-headline font-bold text-accent italic leading-none">{profileHero.overallRating}</p></div><div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.salary}</p><p className="text-sm font-headline font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</p></div></div>
                   </div>
-
-                  <div className="p-4 space-y-8 pb-32">
-                    <section>
-                      <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                        <Info className="w-3.5 h-3.5" /> BIOMETRICS & STATUS
-                      </h3>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
-                          <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.age}</p>
-                          <p className={cn("text-xs font-bold", calculateLiveAge(profileHero.baseAge, profileHero.hiredAt).numeric < 18 ? "text-red-400" : "text-white")}>
-                            {calculateLiveAge(profileHero.baseAge, profileHero.hiredAt).display} {t.profile.years}
-                          </p>
-                        </div>
-                        <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
-                          <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.status}</p>
-                          <p className={cn("text-[10px] font-bold flex items-center gap-1.5", profileHero.isInjured ? "text-red-400" : "text-green-400")}>
-                            {profileHero.isInjured ? <AlertCircle className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
-                            {profileHero.isInjured ? t.profile.injured : t.profile.healthy}
-                          </p>
-                        </div>
-                        <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-2">
-                          <div className="flex justify-between items-center">
-                            <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.form}</p>
-                            <p className="text-[9px] font-bold text-primary">{profileHero.form || 0}%</p>
-                          </div>
-                          <Progress value={profileHero.form || 0} className="h-1" />
-                        </div>
-                        <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-2">
-                          <div className="flex justify-between items-center">
-                            <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.fatigue}</p>
-                            <p className="text-[9px] font-bold text-accent">{profileHero.fatigue || 0}%</p>
-                          </div>
-                          <Progress value={profileHero.fatigue || 0} className="h-1 bg-accent/20" />
-                        </div>
-                      </div>
-                    </section>
-
-                    <section>
-                      <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                        <Award className="w-3.5 h-3.5" /> {t.profile.stats}
-                      </h3>
-                      <div className="space-y-5">
-                        {Object.entries(profileHero.proStats).map(([key, value]) => {
-                          const talent = profileHero.proTalents ? (profileHero.proTalents as any)[key] : 3.0;
-                          
-                          const icons: Record<string, any> = {
-                            lastHitting: Target,
-                            mapAwareness: Eye,
-                            positioning: Map,
-                            reflexes: Zap,
-                            manaManagement: Sparkles,
-                            objectiveControl: Sword,
-                            communication: Users,
-                            tiltResistance: Brain,
-                            versatility: TrendingUp,
-                            ganking: Crosshair,
-                          };
-                          const Icon = icons[key] || Info;
-                          
-                          return (
-                            <div key={key} className="space-y-2 bg-secondary/10 p-3 rounded-xl border border-white/5">
-                              <div className="flex justify-between items-center px-0.5">
-                                <div className="flex items-center gap-2">
-                                  <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
-                                  <span className="text-[10px] font-bold uppercase tracking-widest">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
-                                </div>
-                                <div className="flex flex-col items-end">
-                                  <span className="text-[10px] font-mono font-bold text-primary">{value} / 100</span>
-                                  {renderStars(talent)}
-                                </div>
-                              </div>
-                              <Progress value={value} className="h-1 rounded-full bg-secondary/40" />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </section>
+                  <div className="p-4 space-y-8 pb-48">
+                    <section><h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Info className="w-3.5 h-3.5" /> BIOMETRICS & STATUS</h3><div className="grid grid-cols-2 gap-3"><div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5"><p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.age}</p><p className="text-xs font-bold">{calculateLiveAge(profileHero.baseAge, profileHero.hiredAt).display} {t.profile.years}</p></div><div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5"><p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.status}</p><p className={cn("text-[10px] font-bold flex items-center gap-1.5", profileHero.isInjured ? "text-red-400" : "text-green-400")}>{profileHero.isInjured ? t.profile.injured : t.profile.healthy}</p></div></div></section>
+                    <section><h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Award className="w-3.5 h-3.5" /> {t.profile.stats}</h3><div className="space-y-5">{Object.entries(profileHero.proStats).map(([key, value]) => { const talent = profileHero.proTalents ? (profileHero.proTalents as any)[key] : 3.0; return (<div key={key} className="space-y-2 bg-secondary/10 p-3 rounded-xl border border-white/5"><div className="flex justify-between items-center px-0.5"><span className="text-[10px] font-bold uppercase tracking-widest">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span><div className="flex flex-col items-end"><span className="text-[10px] font-mono font-bold text-primary">{value} / 100</span>{renderStars(talent)}</div></div><Progress value={value} className="h-1 rounded-full bg-secondary/40" /></div>); })}</div></section>
                   </div>
                 </div>
-
-                <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-12 flex-shrink-0 z-[110]">
+                <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-12 flex flex-col gap-2 z-[110]">
                   <Button 
-                    className="w-full h-14 hero-gradient font-black text-[11px] tracking-[0.2em] shadow-xl rounded-xl active:scale-95 transition-transform uppercase" 
-                    onClick={() => setProfileHero(null)}
+                    className="w-full h-14 bg-orange-600 hover:bg-orange-700 text-white font-black text-[11px] tracking-widest uppercase shadow-xl" 
+                    onClick={handlePutOnTransfer}
+                    disabled={isTransferring || (profileHero.onTransferUntil !== null && new Date(profileHero.onTransferUntil) > new Date())}
                   >
-                    {language === 'ru' ? 'ЗАКРЫТЬ ДОСЬЕ' : 'CLOSE DOSSIER'}
+                    {isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
+                    {profileHero.onTransferUntil && new Date(profileHero.onTransferUntil) > new Date() ? t.onAuction : t.putOnTransfer}
                   </Button>
+                  <Button variant="ghost" className="w-full h-10 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfileHero(null)}>{t.close}</Button>
                 </div>
               </>
             )}
