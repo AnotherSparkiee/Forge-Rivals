@@ -126,7 +126,8 @@ export default function AllManagersPage() {
       addFriendDesc: "Send friendship request",
       pm: "Private Messages",
       pmDesc: "Direct encrypted transmission",
-      close: "CLOSE"
+      close: "CLOSE",
+      lvl: "LVL"
     },
     ru: {
       title: "ВСЕ МЕНЕДЖЕРЫ",
@@ -139,7 +140,8 @@ export default function AllManagersPage() {
       addFriendDesc: "Отправить запрос на дружбу",
       pm: "Личные сообщения",
       pmDesc: "Прямая зашифрованная связь",
-      close: "ЗАКРЫТЬ"
+      close: "ЗАКРЫТЬ",
+      lvl: "Ур"
     }
   };
 
@@ -208,7 +210,11 @@ export default function AllManagersPage() {
                     </span>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                <div className="text-right flex flex-col items-end">
+                  <span className="text-[10px] font-black text-primary uppercase whitespace-nowrap">
+                    {manager.managerLevel || 1} {t.lvl}
+                  </span>
+                </div>
               </div>
             );
           })
@@ -314,4 +320,3 @@ export default function AllManagersPage() {
     </div>
   );
 }
-
