@@ -168,6 +168,7 @@ export default function AssociationPage() {
       disbandConfirmTitle: "DESTRUCTIVE PROTOCOL",
       disbandConfirmDesc: "This action will permanently delete the association and remove all members. This cannot be undone.",
       disbandBtn: "DISBAND ALLIANCE",
+      alreadyMember: "You are already a member of an association",
       tabs: {
         my_assoc: { label: "My Association", desc: "Manage your current alliance", icon: ShieldCheck, color: "text-primary" },
         news: { label: "News Feed", desc: "Recent alliance events", icon: Newspaper, color: "text-accent" },
@@ -211,6 +212,7 @@ export default function AssociationPage() {
       disbandConfirmTitle: "ПРОТОКОЛ ЛИКВИДАЦИИ",
       disbandConfirmDesc: "Это действие навсегда удалит ассоциацию и исключит всех участников. Это действие нельзя отменить.",
       disbandBtn: "ЛИКВИДИРОВАТЬ АЛЬЯНС",
+      alreadyMember: "Вы уже состоите в ассоциации",
       tabs: {
         my_assoc: { label: "Моя ассоциация", desc: "Управление вашим альянсом", icon: ShieldCheck, color: "text-primary" },
         news: { label: "Лента новостей", desc: "Последние события альянса", icon: Newspaper, color: "text-accent" },
@@ -224,6 +226,12 @@ export default function AssociationPage() {
 
   const handleCreateAssoc = async () => {
     if (!user || !profile || isProcessing) return;
+    
+    if (profile.associationId) {
+      toast({ title: t.alreadyMember, variant: "destructive" });
+      return;
+    }
+
     if (crystals < 500) {
       toast({ title: t.insufficient, variant: "destructive" });
       return;
@@ -270,6 +278,12 @@ export default function AssociationPage() {
 
   const handleJoinRequest = async (assoc: any) => {
     if (!user || !profile || isProcessing) return;
+
+    if (profile.associationId) {
+      toast({ title: t.alreadyMember, variant: "destructive" });
+      return;
+    }
+
     if (!canJoinNew) {
       toast({ title: t.joinCooldown, description: formatCountdown(joinTimeLeftMs), variant: "destructive" });
       return;
@@ -565,7 +579,7 @@ export default function AssociationPage() {
           );
         }
         return (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
             {allAssocs && allAssocs.length > 0 ? allAssocs.map(assoc => {
               const isMember = assoc.members?.includes(user?.uid);
               const isPending = assoc.requests?.some((r: any) => r.uid === user?.uid);
@@ -603,7 +617,7 @@ export default function AssociationPage() {
         );
 
       case 'create':
-        if (myAssoc) return null;
+        if (profile?.associationId) return null;
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
             {!canJoinNew && (
@@ -730,8 +744,9 @@ export default function AssociationPage() {
   };
 
   if (activeTab === 'menu') {
+    const hasAssoc = !!profile?.associationId;
     const menuItems = [
-      ...(myAssoc ? [
+      ...(hasAssoc ? [
         { id: 'my_assoc', ...t.tabs.my_assoc },
         { id: 'news', ...t.tabs.news }
       ] : [{ id: 'create', ...t.tabs.create }]),
