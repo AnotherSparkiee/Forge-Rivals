@@ -40,7 +40,7 @@ interface AssocMember {
 }
 
 interface AssocNews {
-  type: 'join' | 'leave';
+  type: 'join' | 'leave' | 'appoint_deputy' | 'remove_deputy';
   userName: string;
   timestamp: string;
 }
@@ -292,13 +292,15 @@ export default function AssociationPage() {
     setIsProcessing(true);
     try {
       const assocRef = doc(db, 'associations_v4', myAssoc.id);
+      const nowIso = new Date().toISOString();
       const updatedMembersData = getDisplayMembers(myAssoc).map(m => 
         m.uid === selectedPlayer.id ? { ...m, role: 'deputy' } : m
       );
       
       updateDocumentNonBlocking(assocRef, {
         deputyId: selectedPlayer.id,
-        membersData: updatedMembersData
+        membersData: updatedMembersData,
+        news: arrayUnion({ type: 'appoint_deputy', userName: selectedPlayer.name, timestamp: nowIso })
       });
       toast({ title: language === 'ru' ? "Заместитель назначен" : "Deputy Appointed" });
       setSelectedUser(null);
@@ -312,13 +314,15 @@ export default function AssociationPage() {
     setIsProcessing(true);
     try {
       const assocRef = doc(db, 'associations_v4', myAssoc.id);
+      const nowIso = new Date().toISOString();
       const updatedMembersData = getDisplayMembers(myAssoc).map(m => 
         m.uid === selectedPlayer.id ? { ...m, role: 'member' } : m
       );
 
       updateDocumentNonBlocking(assocRef, {
         deputyId: null,
-        membersData: updatedMembersData
+        membersData: updatedMembersData,
+        news: arrayUnion({ type: 'remove_deputy', userName: selectedPlayer.name, timestamp: nowIso })
       });
       toast({ title: language === 'ru' ? "Заместитель снят с должности" : "Deputy Removed" });
       setSelectedUser(null);
@@ -534,23 +538,32 @@ export default function AssociationPage() {
       case 'news':
         return (
           <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
-            {myAssoc?.news && myAssoc.news.length > 0 ? [...myAssoc.news].reverse().map((n: AssocNews, i: number) => (
-              <Card key={i} className="glass-card border-white/5 bg-secondary/10">
-                <CardContent className="p-4 flex items-center gap-4">
-                  <div className={cn("p-2 rounded-lg bg-secondary/50", n.type === 'join' ? "text-green-400" : "text-red-400")}>
-                    {n.type === 'join' ? <UserPlus className="w-4 h-4" /> : <LogOut className="w-4 h-4" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold uppercase truncate">
-                      <span className="text-white">{n.userName}</span> {n.type === 'join' ? (language === 'ru' ? 'вступил в альянс' : 'joined alliance') : (language === 'ru' ? 'покинул альянс' : 'left alliance')}
-                    </p>
-                    <p className="text-[8px] text-muted-foreground font-mono uppercase mt-1">
-                      {new Date(n.timestamp).toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US')}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )) : (
+            {myAssoc?.news && myAssoc.news.length > 0 ? [...myAssoc.news].reverse().map((n: AssocNews, i: number) => {
+              const config = {
+                join: { icon: UserPlus, color: "text-green-400", text: language === 'ru' ? 'вступил в альянс' : 'joined alliance' },
+                leave: { icon: LogOut, color: "text-red-400", text: language === 'ru' ? 'покинул альянс' : 'left alliance' },
+                appoint_deputy: { icon: Crown, color: "text-yellow-500", text: language === 'ru' ? 'назначен заместителем' : 'appointed as deputy' },
+                remove_deputy: { icon: ShieldX, color: "text-orange-400", text: language === 'ru' ? 'снят с должности заместителя' : 'removed from deputy position' },
+              }[n.type] || { icon: Info, color: "text-blue-400", text: 'event' };
+
+              return (
+                <Card key={i} className="glass-card border-white/5 bg-secondary/10">
+                  <CardContent className="p-4 flex items-center gap-4">
+                    <div className={cn("p-2 rounded-lg bg-secondary/50", config.color)}>
+                      <config.icon className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold uppercase truncate">
+                        <span className="text-white">{n.userName}</span> {config.text}
+                      </p>
+                      <p className="text-[8px] text-muted-foreground font-mono uppercase mt-1">
+                        {new Date(n.timestamp).toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US')}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            }) : (
               <div className="py-20 text-center opacity-30 text-xs font-bold uppercase tracking-widest">No history detected.</div>
             )}
           </div>
@@ -715,4 +728,3 @@ export default function AssociationPage() {
     </div>
   );
 }
-
