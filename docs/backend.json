@@ -6,9 +6,24 @@
       "properties": {
         "id": { "type": "string" },
         "displayName": { "type": "string" },
-        "email": { "type": "string" }
+        "email": { "type": "string" },
+        "associationId": { "type": "string" }
       },
       "additionalProperties": true
+    },
+    "Association": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "deputyId": { "type": "string" },
+        "members": { "type": "array", "items": { "type": "string" } },
+        "membersData": { "type": "array", "items": { "type": "object" } },
+        "requests": { "type": "array", "items": { "type": "object" } },
+        "news": { "type": "array", "items": { "type": "object" } }
+      }
     }
   },
   "auth": {
@@ -17,39 +32,39 @@
   "firestore": {
     "structure": [
       {
-        "path": "players_v10/{userId}",
+        "path": "players_v11/{userId}",
         "definition": "PlayerProfile"
       },
       {
-        "path": "market_v7/{agentId}",
+        "path": "market_v8/{agentId}",
         "definition": "PlayerProfile"
       },
       {
-        "path": "friend_requests_v4/{requestId}",
+        "path": "friend_requests_v6/{requestId}",
         "definition": "PlayerProfile"
       },
       {
         "path": "associations_v4/{assocId}",
+        "definition": "Association"
+      },
+      {
+        "path": "global_chat_v4/{msgId}",
         "definition": "PlayerProfile"
       },
       {
-        "path": "global_chat_v2/{msgId}",
+        "path": "private_messages_v4/{msgId}",
         "definition": "PlayerProfile"
       },
       {
-        "path": "private_messages_v3/{msgId}",
+        "path": "friendly_lobbies_v4/{lobbyId}",
         "definition": "PlayerProfile"
       },
       {
-        "path": "friendly_lobbies_v3/{lobbyId}",
+        "path": "cw_basket_v4/{userId}",
         "definition": "PlayerProfile"
       },
       {
-        "path": "cw_basket_v2/{userId}",
-        "definition": "PlayerProfile"
-      },
-      {
-        "path": "notifications_v6/{notifId}",
+        "path": "notifications_v7/{notifId}",
         "definition": "PlayerProfile"
       }
     ]

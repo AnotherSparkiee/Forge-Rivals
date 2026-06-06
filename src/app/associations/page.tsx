@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,7 +10,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { 
   ChevronLeft, ChevronRight, Shield, Globe, 
   PlusCircle, History, Users, 
-  ShieldCheck, Loader2, UserPlus, Check, X
+  ShieldCheck, Loader2, UserPlus, Check, X,
+  LogOut, Newspaper, Crown, User, Mail, AlertTriangle,
+  Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -19,26 +21,54 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { collection, query, doc, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { useRouter } from 'next/navigation';
 
-type AssocTab = 'menu' | 'all' | 'create' | 'my_assoc' | 'requests' | 'history';
+type AssocTab = 'menu' | 'all' | 'create' | 'my_assoc' | 'requests' | 'history' | 'news';
+
+interface AssocMember {
+  uid: string;
+  name: string;
+  joinedAt: string;
+  role: 'owner' | 'deputy' | 'member';
+}
+
+interface AssocNews {
+  type: 'join' | 'leave';
+  userName: string;
+  timestamp: string;
+}
 
 export default function AssociationPage() {
   const { language, isLoaded, crystals, addCrystals } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
+  const router = useRouter();
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState<AssocTab>('menu');
   const [isProcessing, setIsProcessing] = useState(false);
-
   const [assocName, setAssocName] = useState('');
   const [assocDesc, setAssocDesc] = useState('');
+  const [selectedPlayer, setSelectedUser] = useState<{id: string, name: string} | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const allAssocsQuery = useMemoFirebase(() => query(collection(db, 'associations_v4')), [db]);
-  const { data: allAssocs, isLoading: isAssocsLoading } = useCollection(allAssocsQuery);
+  const { data: allAssocs } = useCollection(allAssocsQuery);
 
   const myAssoc = useMemo(() => {
     if (!profile?.associationId || !allAssocs) return null;
@@ -46,6 +76,24 @@ export default function AssociationPage() {
   }, [profile?.associationId, allAssocs]);
 
   const isOwner = myAssoc?.ownerId === user?.uid;
+  const isDeputy = myAssoc?.deputyId === user?.uid;
+  const canManage = isOwner || isDeputy;
+
+  const myMemberInfo = useMemo(() => {
+    if (!myAssoc || !user) return null;
+    return (myAssoc.membersData || []).find((m: AssocMember) => m.uid === user.uid);
+  }, [myAssoc, user]);
+
+  const leaveCooldownMs = 14 * 24 * 60 * 60 * 1000;
+  const joinedAtTime = myMemberInfo ? new Date(myMemberInfo.joinedAt).getTime() : 0;
+  const canLeave = now > joinedAtTime + leaveCooldownMs;
+  const timeLeftMs = Math.max(0, (joinedAtTime + leaveCooldownMs) - now);
+
+  const formatCountdown = (ms: number) => {
+    const days = Math.floor(ms / (24 * 60 * 60 * 1000));
+    const hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+    return `${days}d ${hours}h`;
+  };
 
   const t = {
     en: {
@@ -63,13 +111,19 @@ export default function AssociationPage() {
       pending: "Request Sent",
       members: "Members",
       owner: "Founder",
-      requests: "Join Requests",
+      deputy: "Deputy",
+      requests: "Requests",
+      leave: "Leave Association",
+      cooldown: "Cooldown",
+      newsFeed: "News Feed",
+      userMenuDesc: "Direct command options for",
       tabs: {
         my_assoc: { label: "My Association", desc: "Manage your current alliance", icon: ShieldCheck, color: "text-primary" },
         all: { label: "Global Directory", desc: "Browse all available alliances", icon: Globe, color: "text-blue-400" },
         create: { label: "Create Association", desc: "Found your own alliance network", icon: PlusCircle, color: "text-green-400" },
-        requests: { label: "Recruitment", desc: "Pending membership applications", icon: UserPlus, color: "text-orange-400" },
-        history: { label: "War Archive", desc: "Tournament history and logs", icon: History, color: "text-accent" }
+        requests: { label: "Requests", desc: "Pending membership applications", icon: UserPlus, color: "text-orange-400" },
+        news: { label: "News Feed", desc: "Recent alliance events", icon: Newspaper, color: "text-accent" },
+        history: { label: "War Archive", desc: "Tournament history and logs", icon: History, color: "text-slate-400" }
       }
     },
     ru: {
@@ -87,13 +141,19 @@ export default function AssociationPage() {
       pending: "Заявка подана",
       members: "Участники",
       owner: "Основатель",
-      requests: "Заявки на вступление",
+      deputy: "Заместитель",
+      requests: "Заявки",
+      leave: "Покинуть ассоциацию",
+      cooldown: "Кулдаун",
+      newsFeed: "Лента новостей",
+      userMenuDesc: "Команды взаимодействия с",
       tabs: {
         my_assoc: { label: "Моя ассоциация", desc: "Управление вашим альянсом", icon: ShieldCheck, color: "text-primary" },
         all: { label: "Глобальный каталог", desc: "Список всех доступных альянсов", icon: Globe, color: "text-blue-400" },
         create: { label: "Создать ассоциацию", desc: "Основать собственную сеть альянса", icon: PlusCircle, color: "text-green-400" },
-        requests: { label: "Вербовка", desc: "Ожидающие заявки на вступление", icon: UserPlus, color: "text-orange-400" },
-        history: { label: "Архив войн", desc: "История турниров и логов", icon: History, color: "text-accent" }
+        requests: { label: "Заявки", desc: "Ожидающие заявки на вступление", icon: UserPlus, color: "text-orange-400" },
+        news: { label: "Лента новостей", desc: "Последние события альянса", icon: Newspaper, color: "text-accent" },
+        history: { label: "Архив войн", desc: "История турниров и логов", icon: History, color: "text-slate-400" }
       }
     }
   }[language as 'en' | 'ru'];
@@ -110,6 +170,7 @@ export default function AssociationPage() {
     try {
       const assocId = `assoc_${Date.now()}`;
       const assocRef = doc(db, 'associations_v4', assocId);
+      const nowIso = new Date().toISOString();
       
       const assocData = {
         id: assocId,
@@ -117,22 +178,23 @@ export default function AssociationPage() {
         description: assocDesc.trim(),
         ownerId: user.uid,
         ownerName: profile.displayName || "Manager",
+        deputyId: null,
         members: [user.uid],
         memberNames: [profile.displayName || "Manager"],
+        membersData: [{ uid: user.uid, name: profile.displayName || "Manager", joinedAt: nowIso, role: 'owner' }],
         requests: [],
+        news: [{ type: 'join', userName: profile.displayName || "Manager", timestamp: nowIso }],
         level: 1,
         createdAt: serverTimestamp()
       };
 
       setDocumentNonBlocking(assocRef, assocData, {});
       updateDocumentNonBlocking(userRef!, { associationId: assocId });
-      
       addCrystals(-500);
 
       toast({ title: language === 'ru' ? "Ассоциация создана!" : "Association Established!" });
       setActiveTab('my_assoc');
     } catch (e: any) {
-      console.error("Error creating association:", e);
       toast({ title: "Operation Failed", description: e.message, variant: "destructive" });
     } finally {
       setIsProcessing(false);
@@ -147,38 +209,70 @@ export default function AssociationPage() {
         requests: arrayUnion({ uid: user.uid, name: profile.displayName || "Manager" })
       });
       toast({ title: language === 'ru' ? "Заявка отправлена" : "Request Sent" });
-    } catch (e: any) {
-      console.error(e);
-      toast({ title: "Failed to send request", description: e.message, variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleProcessRequest = async (applicant: any, accept: boolean) => {
-    if (!myAssoc || !isOwner || isProcessing) return;
+    if (!myAssoc || !canManage || isProcessing) return;
     setIsProcessing(true);
     try {
       const assocRef = doc(db, 'associations_v4', myAssoc.id);
+      const nowIso = new Date().toISOString();
+
       if (accept) {
+        const newMember = { uid: applicant.uid, name: applicant.name, joinedAt: nowIso, role: 'member' };
         updateDocumentNonBlocking(assocRef, {
           members: arrayUnion(applicant.uid),
           memberNames: arrayUnion(applicant.name),
-          requests: arrayRemove(applicant)
+          membersData: arrayUnion(newMember),
+          requests: arrayRemove(applicant),
+          news: arrayUnion({ type: 'join', userName: applicant.name, timestamp: nowIso })
         });
-        updateDocumentNonBlocking(doc(db, 'players_v10', applicant.uid), {
-          associationId: myAssoc.id
-        });
+        updateDocumentNonBlocking(doc(db, 'players_v10', applicant.uid), { associationId: myAssoc.id });
         toast({ title: `${applicant.name} accepted` });
       } else {
-        updateDocumentNonBlocking(assocRef, {
-          requests: arrayRemove(applicant)
-        });
+        updateDocumentNonBlocking(assocRef, { requests: arrayRemove(applicant) });
         toast({ title: `${applicant.name} rejected` });
       }
-    } catch (e: any) {
-      console.error(e);
-      toast({ title: "Failed to process request", description: e.message, variant: "destructive" });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleLeave = async () => {
+    if (!myAssoc || !myMemberInfo || !canLeave || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      const assocRef = doc(db, 'associations_v4', myAssoc.id);
+      const nowIso = new Date().toISOString();
+
+      updateDocumentNonBlocking(assocRef, {
+        members: arrayRemove(user!.uid),
+        memberNames: arrayRemove(profile!.displayName || "Manager"),
+        membersData: arrayRemove(myMemberInfo),
+        news: arrayUnion({ type: 'leave', userName: profile!.displayName || "Manager", timestamp: nowIso }),
+        ...(isDeputy ? { deputyId: null } : {})
+      });
+      updateDocumentNonBlocking(userRef!, { associationId: null });
+      
+      toast({ title: language === 'ru' ? "Вы покинули ассоциацию" : "Left Association" });
+      setActiveTab('menu');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleAppointDeputy = async () => {
+    if (!myAssoc || !isOwner || !selectedPlayer || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      updateDocumentNonBlocking(doc(db, 'associations_v4', myAssoc.id), {
+        deputyId: selectedPlayer.id
+      });
+      toast({ title: language === 'ru' ? "Заместитель назначен" : "Deputy Appointed" });
+      setSelectedUser(null);
     } finally {
       setIsProcessing(false);
     }
@@ -207,7 +301,7 @@ export default function AssociationPage() {
                         <p className="text-[10px] text-muted-foreground">{assoc.members?.length || 1} / 20 {t.members}</p>
                       </div>
                     </div>
-                    {!myAssoc ? (
+                    {!profile?.associationId ? (
                       <Button 
                         size="sm" 
                         variant={isPending ? "outline" : "default"} 
@@ -230,18 +324,7 @@ export default function AssociationPage() {
         );
 
       case 'create':
-        if (myAssoc) return (
-          <div className="py-20 text-center flex flex-col items-center gap-4">
-            <ShieldCheck className="w-12 h-12 text-primary opacity-20" />
-            <div className="uppercase text-xs font-bold opacity-40">
-              {language === 'ru' ? 'Вы уже состоите в ассоциации.' : 'You are already in an association.'}
-            </div>
-            <Button variant="outline" size="sm" onClick={() => setActiveTab('my_assoc')} className="text-[10px] uppercase font-bold">
-              {language === 'ru' ? 'ПЕРЕЙТИ В МОЙ АЛЬЯНС' : 'GO TO MY ALLIANCE'}
-            </Button>
-          </div>
-        );
-        
+        if (myAssoc) return null;
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
             <Card className="glass-card border-green-500/20 bg-green-500/5">
@@ -280,11 +363,7 @@ export default function AssociationPage() {
         );
 
       case 'my_assoc':
-        if (!myAssoc) return (
-          <div className="py-20 text-center opacity-30 text-xs font-bold uppercase tracking-widest">
-            {language === 'ru' ? 'У вас пока нет ассоциации.' : 'You have no association yet.'}
-          </div>
-        );
+        if (!myAssoc) return null;
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
             <Card className="glass-card border-primary/30 bg-primary/5 overflow-hidden">
@@ -295,21 +374,56 @@ export default function AssociationPage() {
                   <h2 className="text-2xl font-headline font-bold text-white uppercase italic">{myAssoc.name}</h2>
                   <Badge className="bg-primary/20 text-primary text-[10px] uppercase font-black tracking-widest mt-2 px-3">Level {myAssoc.level}</Badge>
                   <p className="text-xs text-muted-foreground italic mt-4 px-6">"{myAssoc.description}"</p>
+                  
+                  <div className="mt-8 w-full flex flex-col gap-2">
+                    <Button 
+                      variant="outline" 
+                      className="h-10 text-[10px] font-black uppercase border-accent/20 text-accent"
+                      onClick={() => setActiveTab('news')}
+                    >
+                      <Newspaper className="w-4 h-4 mr-2" /> {t.newsFeed}
+                    </Button>
+                    
+                    {!isOwner && (
+                      <div className="space-y-2">
+                        <Button 
+                          variant="destructive" 
+                          className={cn("w-full h-10 text-[10px] font-black uppercase", !canLeave && "opacity-50")}
+                          onClick={handleLeave}
+                          disabled={!canLeave || isProcessing}
+                        >
+                          <LogOut className="w-4 h-4 mr-2" /> {t.leave}
+                        </Button>
+                        {!canLeave && (
+                          <div className="flex items-center justify-center gap-1 text-[8px] font-black text-red-400 uppercase tracking-widest">
+                            <Clock className="w-3 h-3" /> {t.cooldown}: {formatCountdown(timeLeftMs)}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                </CardContent>
             </Card>
 
             <div className="space-y-3">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">{t.members} ({myAssoc.members?.length})</h3>
               <div className="grid gap-2">
-                {myAssoc.members?.map((mid: string, i: number) => (
-                  <div key={mid} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between">
+                {myAssoc.membersData?.map((m: AssocMember) => (
+                  <div 
+                    key={m.uid} 
+                    onClick={() => setSelectedUser({ id: m.uid, name: m.name })}
+                    className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-all"
+                  >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center border border-white/10">
-                        <Users className="w-4 h-4 text-muted-foreground" />
+                        {m.uid === myAssoc.ownerId ? <Crown className="w-4 h-4 text-yellow-500" /> : <Users className="w-4 h-4 text-muted-foreground" />}
                       </div>
-                      <span className="text-xs font-bold uppercase">{myAssoc.memberNames?.[i] || "Manager"}</span>
+                      <span className="text-xs font-bold uppercase">{m.name}</span>
                     </div>
-                    {mid === myAssoc.ownerId && <Badge variant="outline" className="text-[7px] border-yellow-500/50 text-yellow-500 uppercase">{t.owner}</Badge>}
+                    <div className="flex gap-1">
+                      {m.uid === myAssoc.ownerId && <Badge variant="outline" className="text-[7px] border-yellow-500/50 text-yellow-500 uppercase">{t.owner}</Badge>}
+                      {m.uid === myAssoc.deputyId && <Badge variant="outline" className="text-[7px] border-blue-500/50 text-blue-500 uppercase">{t.deputy}</Badge>}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -318,7 +432,7 @@ export default function AssociationPage() {
         );
 
       case 'requests':
-        if (!isOwner || !myAssoc) return null;
+        if (!canManage || !myAssoc) return null;
         return (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
             {myAssoc.requests && myAssoc.requests.length > 0 ? myAssoc.requests.map((req: any) => (
@@ -346,6 +460,31 @@ export default function AssociationPage() {
           </div>
         );
 
+      case 'news':
+        return (
+          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
+            {myAssoc?.news && myAssoc.news.length > 0 ? [...myAssoc.news].reverse().map((n: AssocNews, i: number) => (
+              <Card key={i} className="glass-card border-white/5 bg-secondary/10">
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className={cn("p-2 rounded-lg bg-secondary/50", n.type === 'join' ? "text-green-400" : "text-red-400")}>
+                    {n.type === 'join' ? <UserPlus className="w-4 h-4" /> : <LogOut className="w-4 h-4" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold uppercase truncate">
+                      <span className="text-white">{n.userName}</span> {n.type === 'join' ? (language === 'ru' ? 'вступил в альянс' : 'joined alliance') : (language === 'ru' ? 'покинул альянс' : 'left alliance')}
+                    </p>
+                    <p className="text-[8px] text-muted-foreground font-mono uppercase mt-1">
+                      {new Date(n.timestamp).toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US')}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )) : (
+              <div className="py-20 text-center opacity-30 text-xs font-bold uppercase tracking-widest">No history detected.</div>
+            )}
+          </div>
+        );
+
       case 'history':
         return (
           <div className="py-20 text-center opacity-20 flex flex-col items-center gap-4">
@@ -362,7 +501,7 @@ export default function AssociationPage() {
     const menuItems = [
       ...(myAssoc ? [{ id: 'my_assoc', ...t.tabs.my_assoc }] : [{ id: 'create', ...t.tabs.create }]),
       { id: 'all', ...t.tabs.all },
-      ...(isOwner ? [{ id: 'requests', ...t.tabs.requests }] : []),
+      ...(canManage ? [{ id: 'requests', ...t.tabs.requests, badge: myAssoc?.requests?.length || 0 }] : []),
       { id: 'history', ...t.tabs.history }
     ];
 
@@ -378,21 +517,6 @@ export default function AssociationPage() {
           </div>
         </header>
 
-        {myAssoc && (
-          <Card className="glass-card mb-8 border-primary/20 bg-primary/5">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <ShieldCheck className="w-5 h-5 text-primary" />
-                <div>
-                  <p className="text-[10px] font-black uppercase text-muted-foreground leading-none mb-1">Active Alliance</p>
-                  <p className="text-sm font-bold uppercase">{myAssoc.name}</p>
-                </div>
-              </div>
-              <Badge className="bg-primary/20 text-primary uppercase text-[8px] font-black">LVL {myAssoc.level}</Badge>
-            </CardContent>
-          </Card>
-        )}
-
         <div className="space-y-2">
           {menuItems.map((item) => (
             <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => setActiveTab(item.id as AssocTab)}>
@@ -400,7 +524,14 @@ export default function AssociationPage() {
                 <div className="flex items-center gap-4">
                   <div className={cn("p-2.5 rounded-xl bg-secondary/50", item.color)}><item.icon className="w-5 h-5" /></div>
                   <div>
-                    <h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{item.label}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{item.label}</h3>
+                      {item.badge > 0 && (
+                        <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center animate-pulse">
+                          <span className="text-[8px] font-black text-primary-foreground">{item.badge}</span>
+                        </div>
+                      )}
+                    </div>
                     <p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p>
                   </div>
                 </div>
@@ -412,6 +543,13 @@ export default function AssociationPage() {
       </div>
     );
   }
+
+  const dossierActions = [
+    { label: language === 'ru' ? 'Назначить заместителем' : 'Appoint Deputy', desc: language === 'ru' ? 'Дает права управления заявками' : 'Grants request management rights', icon: Crown, action: handleAppointDeputy, hidden: !isOwner || selectedPlayer?.id === user?.uid || selectedPlayer?.id === myAssoc?.deputyId },
+    { label: language === 'ru' ? 'Личные сообщения' : 'Private Messages', desc: language === 'ru' ? 'Прямая зашифрованная связь' : 'Direct encrypted transmission', icon: Mail, action: () => router.push(`/chats/private?uid=${selectedPlayer?.id}&name=${encodeURIComponent(selectedPlayer?.name || '')}`) },
+    { label: language === 'ru' ? 'Страница игрока' : 'Player Page', desc: language === 'ru' ? 'Детальная статистика' : 'Detailed statistics', icon: User, disabled: true },
+    { label: language === 'ru' ? 'Пожаловаться' : 'Report', desc: language === 'ru' ? 'Сообщить о нарушении' : 'Notify HQ of misconduct', icon: AlertTriangle, disabled: true, color: 'text-red-400' },
+  ];
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
@@ -427,6 +565,62 @@ export default function AssociationPage() {
         </div>
       </header>
       {renderContent()}
+
+      <Dialog open={!!selectedPlayer} onOpenChange={() => setSelectedUser(null)}>
+        <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden">
+          <DialogHeader className="p-6 bg-gradient-to-br from-primary/10 to-transparent border-b border-white/5">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-secondary/50 flex items-center justify-center border border-white/10">
+                <User className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">
+                  {selectedPlayer?.name}
+                </DialogTitle>
+                <DialogDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
+                  {t.userMenuDesc} {selectedPlayer?.name}
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="p-4 space-y-2">
+            {dossierActions.map((item, idx) => !item.hidden && (
+              <Card 
+                key={idx}
+                className={cn(
+                  "glass-card border-white/5 transition-all",
+                  item.disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-white/5 cursor-pointer active:scale-[0.98]"
+                )}
+                onClick={() => !item.disabled && item.action && item.action()}
+              >
+                <CardContent className="p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 rounded-lg bg-secondary/50">
+                      {isProcessing && idx === 0 ? (
+                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                      ) : (
+                        <item.icon className={cn("w-5 h-5", item.color || "text-primary")} />
+                      )}
+                    </div>
+                    <div>
+                      <h3 className={cn("text-xs font-bold uppercase", item.color)}>{item.label}</h3>
+                      <p className="text-[9px] text-muted-foreground leading-tight">{item.desc}</p>
+                    </div>
+                  </div>
+                  {!item.disabled && <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div className="p-4 bg-secondary/20 border-t border-white/5">
+            <Button variant="outline" className="w-full h-10 text-[10px] font-bold uppercase border-white/10" onClick={() => setSelectedUser(null)}>
+              {language === 'ru' ? 'ЗАКРЫТЬ' : 'CLOSE'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
