@@ -100,7 +100,6 @@ export default function AssociationPage() {
       }));
     }
     
-    // Strict uniqueness check to prevent React key errors
     const seen = new Set();
     return list.filter(m => {
       if (!m || !m.uid || seen.has(m.uid)) return false;
@@ -155,6 +154,8 @@ export default function AssociationPage() {
       joinCooldown: "Join Cooldown",
       newsFeed: "News Feed",
       userMenuDesc: "Direct command options for",
+      appointDeputy: "Appoint Deputy",
+      appointDeputyDesc: "Grants request management rights",
       removeDeputy: "Remove from Position",
       removeDeputyDesc: "Demotes deputy back to regular member",
       kickPlayer: "Kick from Association",
@@ -191,6 +192,8 @@ export default function AssociationPage() {
       joinCooldown: "Кулдаун вступления",
       newsFeed: "Лента новостей",
       userMenuDesc: "Команды взаимодействия с",
+      appointDeputy: "Назначить заместителем",
+      appointDeputyDesc: "Дает права управления заявками",
       removeDeputy: "Снять с должности",
       removeDeputyDesc: "Понижает заместителя до обычного участника",
       kickPlayer: "Исключить из ассоциации",
@@ -450,7 +453,14 @@ export default function AssociationPage() {
                 )}
                 {!isCurrentMyAssoc && !userAlreadyInAssoc && (
                   <div className="space-y-2">
-                    {isPending ? (
+                    {!canJoinNew ? (
+                       <div className="flex flex-col items-center gap-2 p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+                         <div className="flex items-center gap-1 text-[8px] font-black text-orange-400 uppercase tracking-widest">
+                           <Clock className="w-3 h-3" /> {t.joinCooldown}
+                         </div>
+                         <p className="text-lg font-headline font-bold text-orange-400">{formatCountdown(joinTimeLeftMs)}</p>
+                       </div>
+                    ) : isPending ? (
                       <Button 
                         variant="outline"
                         className="w-full h-12 border-orange-500/30 text-orange-400 font-black text-xs uppercase hover:bg-orange-500/10"
@@ -460,20 +470,13 @@ export default function AssociationPage() {
                         <X className="w-4 h-4 mr-2" /> {t.cancelRequest}
                       </Button>
                     ) : (
-                      <>
-                        <Button 
-                          className="w-full h-12 hero-gradient font-black text-xs uppercase"
-                          onClick={() => handleJoinRequest(assoc)}
-                          disabled={isProcessing || !canJoinNew}
-                        >
-                          {t.join}
-                        </Button>
-                        {!canJoinNew && (
-                          <div className="flex items-center justify-center gap-1 text-[8px] font-black text-orange-400 uppercase tracking-widest">
-                            <Clock className="w-3 h-3" /> {t.joinCooldown}: {formatCountdown(joinTimeLeftMs)}
-                          </div>
-                        )}
-                      </>
+                      <Button 
+                        className="w-full h-12 hero-gradient font-black text-xs uppercase"
+                        onClick={() => handleJoinRequest(assoc)}
+                        disabled={isProcessing}
+                      >
+                        {t.join}
+                      </Button>
                     )}
                   </div>
                 )}
@@ -742,8 +745,8 @@ export default function AssociationPage() {
 
   const dossierActions = [
     { 
-      label: language === 'ru' ? 'Назначить заместителем' : 'Appoint Deputy', 
-      desc: language === 'ru' ? 'Дает права управления заявками' : 'Grants request management rights', 
+      label: t.appointDeputy, 
+      desc: t.appointDeputyDesc, 
       icon: Crown, 
       action: handleAppointDeputy, 
       hidden: !isOwner || selectedPlayer?.id === user?.uid || isSelectedUserDeputy || !isSelectedUserInMyAssoc 
