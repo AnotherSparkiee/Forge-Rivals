@@ -11,7 +11,7 @@ import {
   PlusCircle, History, Users, 
   ShieldCheck, Loader2, UserPlus, Check, X,
   LogOut, Newspaper, Crown, User, Mail, AlertTriangle,
-  Clock, Info, ShieldX
+  Clock, Info, ShieldX, UserMinus
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -40,7 +40,7 @@ interface AssocMember {
 }
 
 interface AssocNews {
-  type: 'join' | 'leave' | 'appoint_deputy' | 'remove_deputy';
+  type: 'join' | 'leave' | 'appoint_deputy' | 'remove_deputy' | 'kick';
   userName: string;
   timestamp: string;
 }
@@ -88,7 +88,6 @@ export default function AssociationPage() {
   const getDisplayMembers = (assoc: any): AssocMember[] => {
     if (!assoc) return [];
     if (assoc.membersData && assoc.membersData.length > 0) return assoc.membersData;
-    // Fallback for reconstruction from raw arrays
     return (assoc.members || []).map((uid: string, i: number) => ({
       uid,
       name: assoc.memberNames?.[i] || "Manager",
@@ -102,10 +101,17 @@ export default function AssociationPage() {
     return getDisplayMembers(myAssoc).find(m => m.uid === user.uid);
   }, [myAssoc, user]);
 
-  const leaveCooldownMs = 14 * 24 * 60 * 60 * 1000;
+  const cooldownMs = 14 * 24 * 60 * 60 * 1000;
+  
+  // Cooldown for leaving
   const joinedAtTime = myMemberInfo ? new Date(myMemberInfo.joinedAt).getTime() : 0;
-  const canLeave = now > joinedAtTime + leaveCooldownMs;
-  const timeLeftMs = Math.max(0, (joinedAtTime + leaveCooldownMs) - now);
+  const canLeave = now > joinedAtTime + cooldownMs;
+  const leaveTimeLeftMs = Math.max(0, (joinedAtTime + cooldownMs) - now);
+
+  // Cooldown for joining (global, based on lastJoinedAssocAt in profile)
+  const lastJoinTime = profile?.lastJoinedAssocAt ? new Date(profile.lastJoinedAssocAt).getTime() : 0;
+  const canJoinNew = now > lastJoinTime + cooldownMs;
+  const joinTimeLeftMs = Math.max(0, (lastJoinTime + cooldownMs) - now);
 
   const formatCountdown = (ms: number) => {
     const days = Math.floor(ms / (24 * 60 * 60 * 1000));
@@ -134,10 +140,13 @@ export default function AssociationPage() {
       requests: "Requests",
       leave: "Leave Association",
       cooldown: "Cooldown",
+      joinCooldown: "Join Cooldown",
       newsFeed: "News Feed",
       userMenuDesc: "Direct command options for",
       removeDeputy: "Remove from Position",
       removeDeputyDesc: "Demotes deputy back to regular member",
+      kickPlayer: "Kick from Association",
+      kickDesc: "Removes player from alliance immediately",
       tabs: {
         my_assoc: { label: "My Association", desc: "Manage your current alliance", icon: ShieldCheck, color: "text-primary" },
         news: { label: "News Feed", desc: "Recent alliance events", icon: Newspaper, color: "text-accent" },
@@ -166,10 +175,13 @@ export default function AssociationPage() {
       requests: "Заявки",
       leave: "Покинуть ассоциацию",
       cooldown: "Кулдаун",
+      joinCooldown: "Кулдаун вступления",
       newsFeed: "Лента новостей",
       userMenuDesc: "Команды взаимодействия с",
       removeDeputy: "Снять с должности",
       removeDeputyDesc: "Понижает заместителя до обычного участника",
+      kickPlayer: "Исключить из ассоциации",
+      kickDesc: "Немедленно удаляет игрока из альянса",
       tabs: {
         my_assoc: { label: "Моя ассоциация", desc: "Управление вашим альянсом", icon: ShieldCheck, color: "text-primary" },
         news: { label: "Лента новостей", desc: "Последние события альянса", icon: Newspaper, color: "text-accent" },
@@ -212,7 +224,10 @@ export default function AssociationPage() {
       };
 
       setDocumentNonBlocking(assocRef, assocData, {});
-      updateDocumentNonBlocking(userRef!, { associationId: assocId });
+      updateDocumentNonBlocking(userRef!, { 
+        associationId: assocId,
+        lastJoinedAssocAt: nowIso 
+      });
       addCrystals(-500);
 
       toast({ title: language === 'ru' ? "Ассоциация создана!" : "Association Established!" });
@@ -226,6 +241,11 @@ export default function AssociationPage() {
 
   const handleJoinRequest = async (assoc: any) => {
     if (!user || !profile || isProcessing) return;
+    if (!canJoinNew) {
+      toast({ title: t.joinCooldown, description: formatCountdown(joinTimeLeftMs), variant: "destructive" });
+      return;
+    }
+
     setIsProcessing(true);
     try {
       updateDocumentNonBlocking(doc(db, 'associations_v4', assoc.id), {
@@ -253,7 +273,10 @@ export default function AssociationPage() {
           requests: arrayRemove(applicant),
           news: arrayUnion({ type: 'join', userName: applicant.name, timestamp: nowIso })
         });
-        updateDocumentNonBlocking(doc(db, 'players_v10', applicant.uid), { associationId: myAssoc.id });
+        updateDocumentNonBlocking(doc(db, 'players_v10', applicant.uid), { 
+          associationId: myAssoc.id,
+          lastJoinedAssocAt: nowIso
+        });
         toast({ title: `${applicant.name} accepted` });
       } else {
         updateDocumentNonBlocking(assocRef, { requests: arrayRemove(applicant) });
@@ -282,6 +305,32 @@ export default function AssociationPage() {
       
       toast({ title: language === 'ru' ? "Вы покинули ассоциацию" : "Left Association" });
       setActiveTab('menu');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleKick = async () => {
+    if (!myAssoc || !canManage || !selectedPlayer || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      const assocRef = doc(db, 'associations_v4', myAssoc.id);
+      const nowIso = new Date().toISOString();
+      const targetMember = getDisplayMembers(myAssoc).find(m => m.uid === selectedPlayer.id);
+
+      if (!targetMember) return;
+
+      updateDocumentNonBlocking(assocRef, {
+        members: arrayRemove(selectedPlayer.id),
+        memberNames: arrayRemove(selectedPlayer.name),
+        membersData: arrayRemove(targetMember),
+        news: arrayUnion({ type: 'kick', userName: selectedPlayer.name, timestamp: nowIso }),
+        ...(myAssoc.deputyId === selectedPlayer.id ? { deputyId: null } : {})
+      });
+      updateDocumentNonBlocking(doc(db, 'players_v10', selectedPlayer.id), { associationId: null });
+      
+      toast({ title: language === 'ru' ? "Игрок исключен" : "Player Kicked" });
+      setSelectedUser(null);
     } finally {
       setIsProcessing(false);
     }
@@ -366,19 +415,26 @@ export default function AssociationPage() {
                     </Button>
                     {!canLeave && (
                       <div className="flex items-center justify-center gap-1 text-[8px] font-black text-red-400 uppercase tracking-widest">
-                        <Clock className="w-3 h-3" /> {t.cooldown}: {formatCountdown(timeLeftMs)}
+                        <Clock className="w-3 h-3" /> {t.cooldown}: {formatCountdown(leaveTimeLeftMs)}
                       </div>
                     )}
                   </div>
                 )}
                 {!isCurrentMyAssoc && !userAlreadyInAssoc && (
-                  <Button 
-                    className="w-full h-12 hero-gradient font-black text-xs uppercase"
-                    onClick={() => handleJoinRequest(assoc)}
-                    disabled={isPending || isProcessing}
-                  >
-                    {isPending ? t.pending : t.join}
-                  </Button>
+                  <div className="space-y-2">
+                    <Button 
+                      className="w-full h-12 hero-gradient font-black text-xs uppercase"
+                      onClick={() => handleJoinRequest(assoc)}
+                      disabled={isPending || isProcessing || !canJoinNew}
+                    >
+                      {isPending ? t.pending : t.join}
+                    </Button>
+                    {!canJoinNew && (
+                      <div className="flex items-center justify-center gap-1 text-[8px] font-black text-orange-400 uppercase tracking-widest">
+                        <Clock className="w-3 h-3" /> {t.joinCooldown}: {formatCountdown(joinTimeLeftMs)}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
            </CardContent>
@@ -467,6 +523,12 @@ export default function AssociationPage() {
         if (myAssoc) return null;
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            {!canJoinNew && (
+              <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl flex gap-3 items-center text-orange-400">
+                <Clock className="w-5 h-5" />
+                <p className="text-[10px] font-black uppercase tracking-widest">{t.joinCooldown}: {formatCountdown(joinTimeLeftMs)}</p>
+              </div>
+            )}
             <Card className="glass-card border-green-500/20 bg-green-500/5">
               <CardContent className="p-6 space-y-4">
                 <div className="space-y-2">
@@ -476,6 +538,7 @@ export default function AssociationPage() {
                     onChange={e => setAssocName(e.target.value)} 
                     placeholder={t.namePlaceholder}
                     className="bg-background/50 border-white/10 h-12"
+                    disabled={!canJoinNew}
                   />
                 </div>
                 <div className="space-y-2">
@@ -485,6 +548,7 @@ export default function AssociationPage() {
                     onChange={e => setAssocDesc(e.target.value)} 
                     placeholder={t.descPlaceholder}
                     className="bg-background/50 border-white/10 min-h-[100px]"
+                    disabled={!canJoinNew}
                   />
                 </div>
                 <div className="pt-4 text-center">
@@ -492,7 +556,7 @@ export default function AssociationPage() {
                   <Button 
                     className="w-full h-14 hero-gradient font-black text-xs tracking-widest shadow-xl active:scale-95 transition-all"
                     onClick={handleCreateAssoc}
-                    disabled={isProcessing || assocName.trim().length < 3}
+                    disabled={isProcessing || assocName.trim().length < 3 || !canJoinNew}
                   >
                     {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : t.confirmCreate}
                   </Button>
@@ -542,6 +606,7 @@ export default function AssociationPage() {
               const config = {
                 join: { icon: UserPlus, color: "text-green-400", text: language === 'ru' ? 'вступил в альянс' : 'joined alliance' },
                 leave: { icon: LogOut, color: "text-red-400", text: language === 'ru' ? 'покинул альянс' : 'left alliance' },
+                kick: { icon: UserMinus, color: "text-destructive", text: language === 'ru' ? 'исключен из альянса' : 'kicked from alliance' },
                 appoint_deputy: { icon: Crown, color: "text-yellow-500", text: language === 'ru' ? 'назначен заместителем' : 'appointed as deputy' },
                 remove_deputy: { icon: ShieldX, color: "text-orange-400", text: language === 'ru' ? 'снят с должности заместителя' : 'removed from deputy position' },
               }[n.type] || { icon: Info, color: "text-blue-400", text: 'event' };
@@ -650,6 +715,14 @@ export default function AssociationPage() {
       hidden: !isOwner || !isSelectedUserDeputy,
       color: 'text-red-400'
     },
+    {
+      label: t.kickPlayer,
+      desc: t.kickDesc,
+      icon: UserMinus,
+      action: handleKick,
+      hidden: !canManage || !isSelectedUserInMyAssoc || selectedPlayer?.id === user?.uid || (isDeputy && selectedPlayer?.id === myAssoc?.ownerId) || (isDeputy && isSelectedUserDeputy),
+      color: 'text-destructive'
+    },
     { label: language === 'ru' ? 'Личные сообщения' : 'Private Messages', desc: language === 'ru' ? 'Прямая зашифрованная связь' : 'Direct encrypted transmission', icon: Mail, action: () => router.push(`/chats/private?uid=${selectedPlayer?.id}&name=${encodeURIComponent(selectedPlayer?.name || '')}`) },
     { label: language === 'ru' ? 'Страница игрока' : 'Player Page', desc: language === 'ru' ? 'Детальная статистика' : 'Detailed statistics', icon: User, disabled: true },
     { label: language === 'ru' ? 'Пожаловаться' : 'Report', desc: language === 'ru' ? 'Сообщить о нарушении' : 'Notify HQ of misconduct', icon: AlertTriangle, disabled: true, color: 'text-red-400' },
@@ -701,7 +774,7 @@ export default function AssociationPage() {
                 <CardContent className="p-3 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="p-2 rounded-lg bg-secondary/50">
-                      {isProcessing && (idx === 0 || idx === 1) ? (
+                      {isProcessing && (idx === 0 || idx === 1 || idx === 2) ? (
                         <Loader2 className="w-5 h-5 animate-spin text-primary" />
                       ) : (
                         <item.icon className={cn("w-5 h-5", item.color || "text-primary")} />
