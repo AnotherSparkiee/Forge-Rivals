@@ -87,13 +87,26 @@ export default function AssociationPage() {
 
   const getDisplayMembers = (assoc: any): AssocMember[] => {
     if (!assoc) return [];
-    if (assoc.membersData && assoc.membersData.length > 0) return assoc.membersData;
-    return (assoc.members || []).map((uid: string, i: number) => ({
-      uid,
-      name: assoc.memberNames?.[i] || "Manager",
-      joinedAt: assoc.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-      role: uid === assoc.ownerId ? 'owner' : (uid === assoc.deputyId ? 'deputy' : 'member')
-    }));
+    let list: AssocMember[] = [];
+    
+    if (assoc.membersData && Array.isArray(assoc.membersData) && assoc.membersData.length > 0) {
+      list = assoc.membersData;
+    } else if (assoc.members && Array.isArray(assoc.members)) {
+      list = assoc.members.map((uid: string, i: number) => ({
+        uid,
+        name: assoc.memberNames?.[i] || "Manager",
+        joinedAt: assoc.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+        role: uid === assoc.ownerId ? 'owner' : (uid === assoc.deputyId ? 'deputy' : 'member')
+      }));
+    }
+    
+    // Strict uniqueness check to prevent React key errors
+    const seen = new Set();
+    return list.filter(m => {
+      if (!m || !m.uid || seen.has(m.uid)) return false;
+      seen.add(m.uid);
+      return true;
+    });
   };
 
   const myMemberInfo = useMemo(() => {
@@ -471,9 +484,9 @@ export default function AssociationPage() {
         <div className="space-y-3">
           <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">{t.members} ({assoc.members?.length})</h3>
           <div className="grid gap-2">
-            {displayMembers.map((m: AssocMember) => (
+            {displayMembers.map((m: AssocMember, idx: number) => (
               <div 
-                key={m.uid} 
+                key={`${m.uid}-${idx}`} 
                 onClick={() => setSelectedUser({ id: m.uid, name: m.name })}
                 className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-all"
               >
