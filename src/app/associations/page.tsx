@@ -67,17 +67,29 @@ export default function AssociationPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Standardize on v10 as per firestore.rules
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   const allAssocsQuery = useMemoFirebase(() => query(collection(db, 'associations_v4')), [db]);
   const { data: allAssocs, isLoading: isAllAssocsLoading } = useCollection(allAssocsQuery);
 
+  // Determine current association ID using both profile and search in all assocs (for faster sync)
+  const currentAssocId = useMemo(() => {
+    if (profile?.associationId) return profile.associationId;
+    if (!user || !allAssocs) return null;
+    const found = allAssocs.find(a => a.members?.includes(user.uid));
+    return found?.id || null;
+  }, [profile?.associationId, allAssocs, user]);
+
   const myAssoc = useMemo(() => {
-    if (!profile?.associationId || !allAssocs) return null;
-    return allAssocs.find(a => a.id === profile.associationId) || null;
-  }, [profile?.associationId, allAssocs]);
+    if (!currentAssocId || !allAssocs) return null;
+    return allAssocs.find(a => a.id === currentAssocId) || null;
+  }, [currentAssocId, allAssocs]);
+
+  const userPendingAssoc = useMemo(() => {
+    if (!user || !allAssocs) return null;
+    return allAssocs.find(a => a.requests?.some((r: any) => r.uid === user.uid)) || null;
+  }, [allAssocs, user]);
 
   const browsedAssoc = useMemo(() => {
     if (!viewingAssocId || !allAssocs) return null;
@@ -129,7 +141,7 @@ export default function AssociationPage() {
   const formatCountdown = (ms: number) => {
     const days = Math.floor(ms / (24 * 60 * 60 * 1000));
     const hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-    const mins = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
+    const mins = Math.floor((ms % (60 * 60 * 1000)) / (1000 * 60));
     return `${days}д ${hours}ч ${mins}м`;
   };
 
@@ -172,7 +184,7 @@ export default function AssociationPage() {
 
   const handleCreateAssoc = async () => {
     if (!user || !profile || isProcessing) return;
-    if (profile.associationId) return;
+    if (currentAssocId || userPendingAssoc) return;
     if (crystals < 500) return;
     if (assocName.trim().length < 3) return;
 
@@ -214,7 +226,7 @@ export default function AssociationPage() {
 
   const handleJoinRequest = async (assoc: any) => {
     if (!user || !profile || isProcessing) return;
-    if (profile.associationId) return;
+    if (currentAssocId || userPendingAssoc) return;
     if (!canJoinNew) return;
 
     setIsProcessing(true);
@@ -380,11 +392,12 @@ export default function AssociationPage() {
   if (!isLoaded || isUserLoading || isProfileLoading) return <LoadingScreen />;
 
   const renderAssocDetails = (assoc: any, isCurrentMyAssoc: boolean) => {
-    if (!assoc && profile?.associationId) return <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /><p className="text-[10px] uppercase font-bold text-muted-foreground mt-4">Synchronizing Alliance...</p></div>;
+    if (!assoc && currentAssocId) return <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /><p className="text-[10px] uppercase font-bold text-muted-foreground mt-4">Synchronizing Alliance...</p></div>;
     
     const isPending = assoc?.requests?.some((r: any) => r.uid === user?.uid);
     const displayMembers = getDisplayMembers(assoc);
-    const userAlreadyInAssoc = !!profile?.associationId;
+    const userAlreadyInAssoc = !!currentAssocId;
+    const hasAnyPending = !!userPendingAssoc;
 
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
@@ -418,9 +431,9 @@ export default function AssociationPage() {
                        </div>
                     ) : isPending ? (
                       <Button variant="outline" className="w-full h-12 border-orange-500/30 text-orange-400 font-black text-xs uppercase" onClick={() => handleCancelRequest(assoc)} disabled={isProcessing}><X className="w-4 h-4 mr-2" /> {t.cancelRequest}</Button>
-                    ) : (
+                    ) : !hasAnyPending ? (
                       <Button className="w-full h-12 hero-gradient font-black text-xs uppercase" onClick={() => handleJoinRequest(assoc)} disabled={isProcessing}>{t.join}</Button>
-                    )}
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -460,7 +473,7 @@ export default function AssociationPage() {
               <Button variant="ghost" size="sm" onClick={() => setViewingAssocId(null)} className="h-8 text-[10px] font-bold uppercase text-primary">
                 <ChevronLeft className="w-4 h-4 mr-1" /> {language === 'ru' ? 'К списку ассоциаций' : 'Back to List'}
               </Button>
-              {renderAssocDetails(browsedAssoc, browsedAssoc.id === profile?.associationId)}
+              {renderAssocDetails(browsedAssoc, browsedAssoc.id === currentAssocId)}
             </div>
           );
         }
@@ -488,7 +501,7 @@ export default function AssociationPage() {
         );
 
       case 'create':
-        if (profile?.associationId) return null;
+        if (currentAssocId) return null;
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
             {!canJoinNew && (
@@ -508,7 +521,7 @@ export default function AssociationPage() {
         );
 
       case 'my_assoc':
-        if (profile?.associationId && !myAssoc) {
+        if (currentAssocId && !myAssoc) {
           return <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /><p className="text-[10px] uppercase font-bold text-muted-foreground mt-4">Retrieving Alliance Intelligence...</p></div>;
         }
         if (!myAssoc) return null;
@@ -533,7 +546,7 @@ export default function AssociationPage() {
         );
 
       case 'news':
-        if (profile?.associationId && !myAssoc) {
+        if (currentAssocId && !myAssoc) {
           return <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /><p className="text-[10px] uppercase font-bold text-muted-foreground mt-4">Decrypting News Feed...</p></div>;
         }
         return (
@@ -563,7 +576,7 @@ export default function AssociationPage() {
   };
 
   if (activeTab === 'menu') {
-    const hasAssoc = !!profile?.associationId;
+    const hasAssoc = !!currentAssocId;
     const menuItems = [
       ...(hasAssoc ? [
         { id: 'my_assoc', ...t.tabs.my_assoc },
