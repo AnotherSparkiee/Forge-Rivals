@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -12,7 +11,7 @@ import {
   PlusCircle, History, Users, 
   ShieldCheck, Loader2, UserPlus, Check, X,
   LogOut, Newspaper, Crown, User, Mail, AlertTriangle,
-  Clock, Info
+  Clock, Info, ShieldX
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -87,11 +86,12 @@ export default function AssociationPage() {
   const canManage = isOwner || isDeputy;
 
   const getDisplayMembers = (assoc: any): AssocMember[] => {
+    if (!assoc) return [];
     if (assoc.membersData && assoc.membersData.length > 0) return assoc.membersData;
-    // Fallback for older documents
+    // Fallback for reconstruction from raw arrays
     return (assoc.members || []).map((uid: string, i: number) => ({
       uid,
-      name: assoc.memberNames?.[i] || "Unknown Manager",
+      name: assoc.memberNames?.[i] || "Manager",
       joinedAt: assoc.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
       role: uid === assoc.ownerId ? 'owner' : (uid === assoc.deputyId ? 'deputy' : 'member')
     }));
@@ -136,6 +136,8 @@ export default function AssociationPage() {
       cooldown: "Cooldown",
       newsFeed: "News Feed",
       userMenuDesc: "Direct command options for",
+      removeDeputy: "Remove from Position",
+      removeDeputyDesc: "Demotes deputy back to regular member",
       tabs: {
         my_assoc: { label: "My Association", desc: "Manage your current alliance", icon: ShieldCheck, color: "text-primary" },
         news: { label: "News Feed", desc: "Recent alliance events", icon: Newspaper, color: "text-accent" },
@@ -166,6 +168,8 @@ export default function AssociationPage() {
       cooldown: "Кулдаун",
       newsFeed: "Лента новостей",
       userMenuDesc: "Команды взаимодействия с",
+      removeDeputy: "Снять с должности",
+      removeDeputyDesc: "Понижает заместителя до обычного участника",
       tabs: {
         my_assoc: { label: "Моя ассоциация", desc: "Управление вашим альянсом", icon: ShieldCheck, color: "text-primary" },
         news: { label: "Лента новостей", desc: "Последние события альянса", icon: Newspaper, color: "text-accent" },
@@ -287,10 +291,36 @@ export default function AssociationPage() {
     if (!myAssoc || !isOwner || !selectedPlayer || isProcessing) return;
     setIsProcessing(true);
     try {
-      updateDocumentNonBlocking(doc(db, 'associations_v4', myAssoc.id), {
-        deputyId: selectedPlayer.id
+      const assocRef = doc(db, 'associations_v4', myAssoc.id);
+      const updatedMembersData = getDisplayMembers(myAssoc).map(m => 
+        m.uid === selectedPlayer.id ? { ...m, role: 'deputy' } : m
+      );
+      
+      updateDocumentNonBlocking(assocRef, {
+        deputyId: selectedPlayer.id,
+        membersData: updatedMembersData
       });
       toast({ title: language === 'ru' ? "Заместитель назначен" : "Deputy Appointed" });
+      setSelectedUser(null);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRemoveDeputy = async () => {
+    if (!myAssoc || !isOwner || !selectedPlayer || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      const assocRef = doc(db, 'associations_v4', myAssoc.id);
+      const updatedMembersData = getDisplayMembers(myAssoc).map(m => 
+        m.uid === selectedPlayer.id ? { ...m, role: 'member' } : m
+      );
+
+      updateDocumentNonBlocking(assocRef, {
+        deputyId: null,
+        membersData: updatedMembersData
+      });
+      toast({ title: language === 'ru' ? "Заместитель снят с должности" : "Deputy Removed" });
       setSelectedUser(null);
     } finally {
       setIsProcessing(false);
@@ -303,6 +333,7 @@ export default function AssociationPage() {
     const isMember = assoc.members?.includes(user?.uid);
     const isPending = assoc.requests?.some((r: any) => r.uid === user?.uid);
     const displayMembers = getDisplayMembers(assoc);
+    const userAlreadyInAssoc = !!profile?.associationId;
 
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
@@ -336,7 +367,7 @@ export default function AssociationPage() {
                     )}
                   </div>
                 )}
-                {!isCurrentMyAssoc && !profile?.associationId && (
+                {!isCurrentMyAssoc && !userAlreadyInAssoc && (
                   <Button 
                     className="w-full h-12 hero-gradient font-black text-xs uppercase"
                     onClick={() => handleJoinRequest(assoc)}
@@ -431,7 +462,7 @@ export default function AssociationPage() {
       case 'create':
         if (myAssoc) return null;
         return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
             <Card className="glass-card border-green-500/20 bg-green-500/5">
               <CardContent className="p-6 space-y-4">
                 <div className="space-y-2">
@@ -501,10 +532,9 @@ export default function AssociationPage() {
         );
 
       case 'news':
-        const targetNewsAssoc = myAssoc;
         return (
-          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
-            {targetNewsAssoc?.news && targetNewsAssoc.news.length > 0 ? [...targetNewsAssoc.news].reverse().map((n: AssocNews, i: number) => (
+          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            {myAssoc?.news && myAssoc.news.length > 0 ? [...myAssoc.news].reverse().map((n: AssocNews, i: number) => (
               <Card key={i} className="glass-card border-white/5 bg-secondary/10">
                 <CardContent className="p-4 flex items-center gap-4">
                   <div className={cn("p-2 rounded-lg bg-secondary/50", n.type === 'join' ? "text-green-400" : "text-red-400")}>
@@ -588,11 +618,25 @@ export default function AssociationPage() {
     );
   }
 
-  const currentViewedAssoc = activeTab === 'my_assoc' ? myAssoc : browsedAssoc;
   const isSelectedUserInMyAssoc = myAssoc?.members?.includes(selectedPlayer?.id);
+  const isSelectedUserDeputy = selectedPlayer?.id === myAssoc?.deputyId;
 
   const dossierActions = [
-    { label: language === 'ru' ? 'Назначить заместителем' : 'Appoint Deputy', desc: language === 'ru' ? 'Дает права управления заявками' : 'Grants request management rights', icon: Crown, action: handleAppointDeputy, hidden: !isOwner || selectedPlayer?.id === user?.uid || selectedPlayer?.id === myAssoc?.deputyId || !isSelectedUserInMyAssoc },
+    { 
+      label: language === 'ru' ? 'Назначить заместителем' : 'Appoint Deputy', 
+      desc: language === 'ru' ? 'Дает права управления заявками' : 'Grants request management rights', 
+      icon: Crown, 
+      action: handleAppointDeputy, 
+      hidden: !isOwner || selectedPlayer?.id === user?.uid || isSelectedUserDeputy || !isSelectedUserInMyAssoc 
+    },
+    { 
+      label: t.removeDeputy, 
+      desc: t.removeDeputyDesc, 
+      icon: ShieldX, 
+      action: handleRemoveDeputy, 
+      hidden: !isOwner || !isSelectedUserDeputy,
+      color: 'text-red-400'
+    },
     { label: language === 'ru' ? 'Личные сообщения' : 'Private Messages', desc: language === 'ru' ? 'Прямая зашифрованная связь' : 'Direct encrypted transmission', icon: Mail, action: () => router.push(`/chats/private?uid=${selectedPlayer?.id}&name=${encodeURIComponent(selectedPlayer?.name || '')}`) },
     { label: language === 'ru' ? 'Страница игрока' : 'Player Page', desc: language === 'ru' ? 'Детальная статистика' : 'Detailed statistics', icon: User, disabled: true },
     { label: language === 'ru' ? 'Пожаловаться' : 'Report', desc: language === 'ru' ? 'Сообщить о нарушении' : 'Notify HQ of misconduct', icon: AlertTriangle, disabled: true, color: 'text-red-400' },
@@ -644,7 +688,7 @@ export default function AssociationPage() {
                 <CardContent className="p-3 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="p-2 rounded-lg bg-secondary/50">
-                      {isProcessing && idx === 0 ? (
+                      {isProcessing && (idx === 0 || idx === 1) ? (
                         <Loader2 className="w-5 h-5 animate-spin text-primary" />
                       ) : (
                         <item.icon className={cn("w-5 h-5", item.color || "text-primary")} />
@@ -671,3 +715,4 @@ export default function AssociationPage() {
     </div>
   );
 }
+
