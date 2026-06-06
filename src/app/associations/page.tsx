@@ -134,6 +134,7 @@ export default function AssociationPage() {
       noAssocs: "No associations found.",
       join: "Send Request",
       pending: "Request Sent",
+      cancelRequest: "Cancel Request",
       members: "Members",
       owner: "Founder",
       deputy: "Deputy",
@@ -169,6 +170,7 @@ export default function AssociationPage() {
       noAssocs: "Ассоциации не найдены.",
       join: "Вступить",
       pending: "Заявка подана",
+      cancelRequest: "Отменить заявку",
       members: "Участники",
       owner: "Основатель",
       deputy: "Заместитель",
@@ -252,6 +254,22 @@ export default function AssociationPage() {
         requests: arrayUnion({ uid: user.uid, name: profile.displayName || "Manager" })
       });
       toast({ title: language === 'ru' ? "Заявка отправлена" : "Request Sent" });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCancelRequest = async (assoc: any) => {
+    if (!user || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      const applicant = assoc.requests?.find((r: any) => r.uid === user.uid);
+      if (!applicant) return;
+
+      updateDocumentNonBlocking(doc(db, 'associations_v4', assoc.id), {
+        requests: arrayRemove(applicant)
+      });
+      toast({ title: language === 'ru' ? "Заявка отменена" : "Request Cancelled" });
     } finally {
       setIsProcessing(false);
     }
@@ -422,17 +440,30 @@ export default function AssociationPage() {
                 )}
                 {!isCurrentMyAssoc && !userAlreadyInAssoc && (
                   <div className="space-y-2">
-                    <Button 
-                      className="w-full h-12 hero-gradient font-black text-xs uppercase"
-                      onClick={() => handleJoinRequest(assoc)}
-                      disabled={isPending || isProcessing || !canJoinNew}
-                    >
-                      {isPending ? t.pending : t.join}
-                    </Button>
-                    {!canJoinNew && (
-                      <div className="flex items-center justify-center gap-1 text-[8px] font-black text-orange-400 uppercase tracking-widest">
-                        <Clock className="w-3 h-3" /> {t.joinCooldown}: {formatCountdown(joinTimeLeftMs)}
-                      </div>
+                    {isPending ? (
+                      <Button 
+                        variant="outline"
+                        className="w-full h-12 border-orange-500/30 text-orange-400 font-black text-xs uppercase hover:bg-orange-500/10"
+                        onClick={() => handleCancelRequest(assoc)}
+                        disabled={isProcessing}
+                      >
+                        <X className="w-4 h-4 mr-2" /> {t.cancelRequest}
+                      </Button>
+                    ) : (
+                      <>
+                        <Button 
+                          className="w-full h-12 hero-gradient font-black text-xs uppercase"
+                          onClick={() => handleJoinRequest(assoc)}
+                          disabled={isProcessing || !canJoinNew}
+                        >
+                          {t.join}
+                        </Button>
+                        {!canJoinNew && (
+                          <div className="flex items-center justify-center gap-1 text-[8px] font-black text-orange-400 uppercase tracking-widest">
+                            <Clock className="w-3 h-3" /> {t.joinCooldown}: {formatCountdown(joinTimeLeftMs)}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
