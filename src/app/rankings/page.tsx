@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -65,12 +64,13 @@ export default function RankingsPage() {
     }
   }, [user, isUserLoading, router]);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
+  // Standardized on players_v10
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const allLeaguePlayersQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId) return null;
-    return query(collection(db, 'players_v11'), where('selectedLeagueId', '==', profile.selectedLeagueId));
+    return query(collection(db, 'players_v10'), where('selectedLeagueId', '==', profile.selectedLeagueId));
   }, [db, profile?.selectedLeagueId]);
 
   const { data: allLeaguePlayers, isLoading: isLeaguePlayersLoading } = useCollection(allLeaguePlayersQuery);
@@ -252,7 +252,6 @@ export default function RankingsPage() {
   };
 
   const t = labels[language as keyof typeof labels] || labels.ru;
-  const cupTime = "07:00"; 
 
   const handleOpenReport = (match: any) => {
     if (!match.isPlayed || !match.isRealMatch) return;
@@ -453,7 +452,7 @@ export default function RankingsPage() {
                               <span className="text-[6px] font-black uppercase mt-1">SEEDED ENTRY</span>
                             </div>
                           ) : (
-                            <><Timer className="w-4 h-4 text-accent animate-pulse" /><span className="text-[7px] font-black uppercase text-accent leading-none">WAITING</span><span className="text-[8px] font-mono font-bold text-primary mt-0.5">{cupTime}</span></>
+                            <><Timer className="w-4 h-4 text-accent animate-pulse" /><span className="text-[7px] font-black uppercase text-accent leading-none">WAITING</span><span className="text-[8px] font-mono font-bold text-primary mt-0.5">07:00</span></>
                           )}
                         </div>
                       </CardContent>

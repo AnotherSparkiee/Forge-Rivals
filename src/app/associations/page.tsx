@@ -67,11 +67,12 @@ export default function AssociationPage() {
     return () => clearInterval(timer);
   }, []);
 
+  // Standardize on v10 as per firestore.rules
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   const allAssocsQuery = useMemoFirebase(() => query(collection(db, 'associations_v4')), [db]);
-  const { data: allAssocs } = useCollection(allAssocsQuery);
+  const { data: allAssocs, isLoading: isAllAssocsLoading } = useCollection(allAssocsQuery);
 
   const myAssoc = useMemo(() => {
     if (!profile?.associationId || !allAssocs) return null;
@@ -134,40 +135,13 @@ export default function AssociationPage() {
 
   const t = {
     en: {
-      title: "CLUB ASSOCIATION",
-      subtitle: "Alliance Hub & Strategic Coalitions",
-      back: "Back",
-      insufficient: "Insufficient crystals",
-      createTitle: "Create Association",
-      namePlaceholder: "Association Name...",
-      descPlaceholder: "Describe your alliance goals...",
-      costLabel: "Cost: 500 💎",
-      confirmCreate: "ESTABLISH ALLIANCE",
-      noAssocs: "No associations found.",
-      join: "Send Request",
-      pending: "Request Sent",
-      cancelRequest: "Cancel Request",
-      members: "Members",
-      owner: "Founder",
-      deputy: "Deputy",
-      requests: "Requests",
-      leave: "Leave Association",
-      cooldown: "Cooldown",
-      joinCooldown: "Join Cooldown",
-      newsFeed: "News Feed",
-      userMenuDesc: "Direct command options for",
-      appointDeputy: "Appoint Deputy",
-      appointDeputyDesc: "Grants request management rights",
-      removeDeputy: "Remove from Position",
-      removeDeputyDesc: "Demotes deputy back to regular member",
-      kickPlayer: "Kick from Association",
-      kickDesc: "Removes player from alliance immediately",
-      disband: "Disband Association",
-      disbandDesc: "Complete alliance liquidation",
-      disbandConfirmTitle: "DESTRUCTIVE PROTOCOL",
-      disbandConfirmDesc: "This action will permanently delete the association and remove all members. This cannot be undone.",
-      disbandBtn: "DISBAND ALLIANCE",
-      alreadyMember: "You are already a member of an association",
+      title: "CLUB ASSOCIATION", subtitle: "Alliance Hub & Strategic Coalitions", back: "Back", insufficient: "Insufficient crystals",
+      createTitle: "Create Association", namePlaceholder: "Association Name...", descPlaceholder: "Describe your alliance goals...", costLabel: "Cost: 500 💎",
+      confirmCreate: "ESTABLISH ALLIANCE", noAssocs: "No associations found.", join: "Send Request", pending: "Request Sent", cancelRequest: "Cancel Request",
+      members: "Members", owner: "Founder", deputy: "Deputy", requests: "Requests", leave: "Leave Association", cooldown: "Cooldown", joinCooldown: "Join Cooldown",
+      newsFeed: "News Feed", userMenuDesc: "Direct command options for", appointDeputy: "Appoint Deputy", appointDeputyDesc: "Grants request management rights",
+      removeDeputy: "Remove from Position", removeDeputyDesc: "Demotes deputy back to regular member", kickPlayer: "Kick from Association", kickDesc: "Removes player from alliance immediately",
+      disband: "Disband Association", disbandDesc: "Complete alliance liquidation", disbandConfirmTitle: "DESTRUCTIVE PROTOCOL", disbandConfirmDesc: "This action will permanently delete the association and remove all members. This cannot be undone.", disbandBtn: "DISBAND ALLIANCE", alreadyMember: "You are already a member of an association",
       tabs: {
         my_assoc: { label: "My Association", desc: "Manage your current alliance", icon: ShieldCheck, color: "text-primary" },
         news: { label: "News Feed", desc: "Recent alliance events", icon: Newspaper, color: "text-accent" },
@@ -178,40 +152,13 @@ export default function AssociationPage() {
       }
     },
     ru: {
-      title: "АССОЦИАЦИЯ КЛУБОВ",
-      subtitle: "Центр альянсов и стратегических союзов",
-      back: "Назад",
-      insufficient: "Недостаточно кристаллов",
-      createTitle: "Создать ассоциацию",
-      namePlaceholder: "Название ассоциации...",
-      descPlaceholder: "Опишите цели вашего альянса...",
-      costLabel: "Стоимость: 500 💎",
-      confirmCreate: "ОСНОВАТЬ АЛЬЯНС",
-      noAssocs: "Ассоциации не найдены.",
-      join: "Вступить",
-      pending: "Заявка подана",
-      cancelRequest: "Отменить заявку",
-      members: "Участники",
-      owner: "Основатель",
-      deputy: "Заместитель",
-      requests: "Заявки",
-      leave: "Покинуть ассоциацию",
-      cooldown: "Кулдаун",
-      joinCooldown: "Кулдаун вступления",
-      newsFeed: "Лента новостей",
-      userMenuDesc: "Команды взаимодействия с",
-      appointDeputy: "Назначить заместителем",
-      appointDeputyDesc: "Дает права управления заявками",
-      removeDeputy: "Снять с должности",
-      removeDeputyDesc: "Понижает заместителя до обычного участника",
-      kickPlayer: "Исключить из ассоциации",
-      kickDesc: "Немедленно удаляет игрока из альянса",
-      disband: "Распустить ассоциацию",
-      disbandDesc: "Полное удаление альянса",
-      disbandConfirmTitle: "ПРОТОКОЛ ЛИКВИДАЦИИ",
-      disbandConfirmDesc: "Это действие навсегда удалит ассоциацию и исключит всех участников. Это действие нельзя отменить.",
-      disbandBtn: "ЛИКВИДИРОВАТЬ АЛЬЯНС",
-      alreadyMember: "Вы уже состоите в ассоциации",
+      title: "АССОЦИАЦИЯ КЛУБОВ", subtitle: "Центр альянсов и стратегических союзов", back: "Назад", insufficient: "Недостаточно кристаллов",
+      createTitle: "Создать ассоциацию", namePlaceholder: "Название ассоциации...", descPlaceholder: "Опишите цели вашего альянса...", costLabel: "Стоимость: 500 💎",
+      confirmCreate: "ОСНОВАТЬ АЛЬЯНС", noAssocs: "Ассоциации не найдены.", join: "Вступить", pending: "Заявка подана", cancelRequest: "Отменить заявку",
+      members: "Участники", owner: "Основатель", deputy: "Заместитель", requests: "Заявки", leave: "Покинуть ассоциацию", cooldown: "Кулдаун", joinCooldown: "Кулдаун вступления",
+      newsFeed: "Лента новостей", userMenuDesc: "Команды взаимодействия с", appointDeputy: "Назначить заместителем", appointDeputyDesc: "Дает права управления заявками",
+      removeDeputy: "Снять с должности", removeDeputyDesc: "Понижает заместителя до обычного участника", kickPlayer: "Исключить из ассоциации", kickDesc: "Немедленно удаляет игрока из альянса",
+      disband: "Распустить ассоциацию", disbandDesc: "Полное удаление альянса", disbandConfirmTitle: "ПРОТОКОЛ ЛИКВИДАЦИИ", disbandConfirmDesc: "Это действие навсегда удалит ассоциацию и исключит всех участников. Это действие нельзя отменить.", disbandBtn: "ЛИКВИДИРОВАТЬ АЛЬЯНС", alreadyMember: "Вы уже состоите в ассоциации",
       tabs: {
         my_assoc: { label: "Моя ассоциация", desc: "Управление вашим альянсом", icon: ShieldCheck, color: "text-primary" },
         news: { label: "Лента новостей", desc: "Последние события альянса", icon: Newspaper, color: "text-accent" },
@@ -433,7 +380,9 @@ export default function AssociationPage() {
   if (!isLoaded || isUserLoading || isProfileLoading) return <LoadingScreen />;
 
   const renderAssocDetails = (assoc: any, isCurrentMyAssoc: boolean) => {
-    const isPending = assoc.requests?.some((r: any) => r.uid === user?.uid);
+    if (!assoc && profile?.associationId) return <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /><p className="text-[10px] uppercase font-bold text-muted-foreground mt-4">Synchronizing Alliance...</p></div>;
+    
+    const isPending = assoc?.requests?.some((r: any) => r.uid === user?.uid);
     const displayMembers = getDisplayMembers(assoc);
     const userAlreadyInAssoc = !!profile?.associationId;
 
@@ -444,9 +393,9 @@ export default function AssociationPage() {
               <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center mb-4 shadow-xl">
                 <Shield className="w-10 h-10 text-primary" />
               </div>
-              <h2 className="text-2xl font-headline font-bold text-white uppercase italic">{assoc.name}</h2>
-              <Badge className="bg-primary/20 text-primary text-[10px] uppercase font-black tracking-widest mt-2 px-3">Level {assoc.level || 1}</Badge>
-              <p className="text-xs text-muted-foreground italic mt-4 px-6">"{assoc.description}"</p>
+              <h2 className="text-2xl font-headline font-bold text-white uppercase italic">{assoc?.name}</h2>
+              <Badge className="bg-primary/20 text-primary text-[10px] uppercase font-black tracking-widest mt-2 px-3">Level {assoc?.level || 1}</Badge>
+              <p className="text-xs text-muted-foreground italic mt-4 px-6">"{assoc?.description}"</p>
               <div className="mt-8 w-full flex flex-col gap-2">
                 {isCurrentMyAssoc && !isOwner && (
                   <div className="space-y-2">
@@ -479,20 +428,20 @@ export default function AssociationPage() {
         </Card>
 
         <div className="space-y-3">
-          <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">{t.members} ({assoc.members?.length})</h3>
+          <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">{t.members} ({assoc?.members?.length || 0})</h3>
           <div className="grid gap-2">
             {displayMembers.map((m: AssocMember, idx: number) => (
               <div key={`${m.uid}-${idx}`} onClick={() => setSelectedUser({ id: m.uid, name: m.name })} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-all">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center border border-white/10">
-                    {m.uid === assoc.ownerId ? <Crown className="w-4 h-4 text-yellow-500" /> : <Users className="w-4 h-4 text-muted-foreground" />}
+                    {m.uid === assoc?.ownerId ? <Crown className="w-4 h-4 text-yellow-500" /> : <Users className="w-4 h-4 text-muted-foreground" />}
                   </div>
                   <span className="text-xs font-bold uppercase">{m.name}</span>
                   {m.uid === user?.uid && <Badge className="text-[7px] bg-primary text-primary-foreground">YOU</Badge>}
                 </div>
                 <div className="flex gap-1">
-                  {m.uid === assoc.ownerId && <Badge variant="outline" className="text-[7px] border-yellow-500/50 text-yellow-500 uppercase">{t.owner}</Badge>}
-                  {m.uid === assoc.deputyId && <Badge variant="outline" className="text-[7px] border-blue-500/50 text-blue-500 uppercase">{t.deputy}</Badge>}
+                  {m.uid === assoc?.ownerId && <Badge variant="outline" className="text-[7px] border-yellow-500/50 text-yellow-500 uppercase">{t.owner}</Badge>}
+                  {m.uid === assoc?.deputyId && <Badge variant="outline" className="text-[7px] border-blue-500/50 text-blue-500 uppercase">{t.deputy}</Badge>}
                 </div>
               </div>
             ))}
@@ -559,6 +508,9 @@ export default function AssociationPage() {
         );
 
       case 'my_assoc':
+        if (profile?.associationId && !myAssoc) {
+          return <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /><p className="text-[10px] uppercase font-bold text-muted-foreground mt-4">Retrieving Alliance Intelligence...</p></div>;
+        }
         if (!myAssoc) return null;
         return renderAssocDetails(myAssoc, true);
 
@@ -581,6 +533,9 @@ export default function AssociationPage() {
         );
 
       case 'news':
+        if (profile?.associationId && !myAssoc) {
+          return <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /><p className="text-[10px] uppercase font-bold text-muted-foreground mt-4">Decrypting News Feed...</p></div>;
+        }
         return (
           <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
             {myAssoc?.news && myAssoc.news.length > 0 ? [...myAssoc.news].reverse().map((n: AssocNews, i: number) => {

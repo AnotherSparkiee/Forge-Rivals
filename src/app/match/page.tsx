@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
@@ -34,7 +33,8 @@ function MatchContent() {
   const matchIdFromUrl = searchParams.get('id');
   const [step, setStep] = useState<MatchStep>('preview');
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
+  // Standardized on players_v10
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
