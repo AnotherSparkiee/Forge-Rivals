@@ -12,7 +12,7 @@ import {
   PlusCircle, History, Users, 
   ShieldCheck, Loader2, UserPlus, Check, X,
   LogOut, Newspaper, Crown, User, Mail, AlertTriangle,
-  Clock
+  Clock, Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -58,6 +58,7 @@ export default function AssociationPage() {
   const [assocName, setAssocName] = useState('');
   const [assocDesc, setAssocDesc] = useState('');
   const [selectedPlayer, setSelectedUser] = useState<{id: string, name: string} | null>(null);
+  const [viewingAssocId, setViewingAssocId] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -75,6 +76,11 @@ export default function AssociationPage() {
     if (!profile?.associationId || !allAssocs) return null;
     return allAssocs.find(a => a.id === profile.associationId) || null;
   }, [profile?.associationId, allAssocs]);
+
+  const browsedAssoc = useMemo(() => {
+    if (!viewingAssocId || !allAssocs) return null;
+    return allAssocs.find(a => a.id === viewingAssocId) || null;
+  }, [viewingAssocId, allAssocs]);
 
   const isOwner = myAssoc?.ownerId === user?.uid;
   const isDeputy = myAssoc?.deputyId === user?.uid;
@@ -121,10 +127,10 @@ export default function AssociationPage() {
       userMenuDesc: "Direct command options for",
       tabs: {
         my_assoc: { label: "My Association", desc: "Manage your current alliance", icon: ShieldCheck, color: "text-primary" },
-        all: { label: "Global Directory", desc: "Browse all available alliances", icon: Globe, color: "text-blue-400" },
+        news: { label: "News Feed", desc: "Recent alliance events", icon: Newspaper, color: "text-accent" },
+        all: { label: "All Associations", desc: "Browse all available alliances", icon: Globe, color: "text-blue-400" },
         create: { label: "Create Association", desc: "Found your own alliance network", icon: PlusCircle, color: "text-green-400" },
         requests: { label: "Requests", desc: "Pending membership applications", icon: UserPlus, color: "text-orange-400" },
-        news: { label: "News Feed", desc: "Recent alliance events", icon: Newspaper, color: "text-accent" },
         history: { label: "War Archive", desc: "Tournament history and logs", icon: History, color: "text-slate-400" }
       }
     },
@@ -151,10 +157,10 @@ export default function AssociationPage() {
       userMenuDesc: "Команды взаимодействия с",
       tabs: {
         my_assoc: { label: "Моя ассоциация", desc: "Управление вашим альянсом", icon: ShieldCheck, color: "text-primary" },
-        all: { label: "Глобальный каталог", desc: "Список всех доступных альянсов", icon: Globe, color: "text-blue-400" },
+        news: { label: "Лента новостей", desc: "Последние события альянса", icon: Newspaper, color: "text-accent" },
+        all: { label: "Все ассоциации", desc: "Список всех доступных альянсов", icon: Globe, color: "text-blue-400" },
         create: { label: "Создать ассоциацию", desc: "Основать собственную сеть альянса", icon: PlusCircle, color: "text-green-400" },
         requests: { label: "Заявки", desc: "Ожидающие заявки на вступление", icon: UserPlus, color: "text-orange-400" },
-        news: { label: "Лента новостей", desc: "Последние события альянса", icon: Newspaper, color: "text-accent" },
         history: { label: "Архив войн", desc: "История турниров и логов", icon: History, color: "text-slate-400" }
       }
     }
@@ -282,9 +288,96 @@ export default function AssociationPage() {
 
   if (!isLoaded || isUserLoading) return <LoadingScreen />;
 
+  const renderAssocDetails = (assoc: any, isCurrentMyAssoc: boolean) => {
+    const isMember = assoc.members?.includes(user?.uid);
+    const isPending = assoc.requests?.some((r: any) => r.uid === user?.uid);
+
+    return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+        <Card className={cn(
+          "glass-card border-primary/30 overflow-hidden",
+          isCurrentMyAssoc ? "bg-primary/5" : "bg-secondary/10"
+        )}>
+           <CardContent className="p-8 text-center flex flex-col items-center">
+              <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center mb-4 shadow-xl">
+                <Shield className="w-10 h-10 text-primary" />
+              </div>
+              <h2 className="text-2xl font-headline font-bold text-white uppercase italic">{assoc.name}</h2>
+              <Badge className="bg-primary/20 text-primary text-[10px] uppercase font-black tracking-widest mt-2 px-3">Level {assoc.level || 1}</Badge>
+              <p className="text-xs text-muted-foreground italic mt-4 px-6">"{assoc.description}"</p>
+              
+              <div className="mt-8 w-full flex flex-col gap-2">
+                {isCurrentMyAssoc && !isOwner && (
+                  <div className="space-y-2">
+                    <Button 
+                      variant="destructive" 
+                      className={cn("w-full h-10 text-[10px] font-black uppercase", !canLeave && "opacity-50")}
+                      onClick={handleLeave}
+                      disabled={!canLeave || isProcessing}
+                    >
+                      <LogOut className="w-4 h-4 mr-2" /> {t.leave}
+                    </Button>
+                    {!canLeave && (
+                      <div className="flex items-center justify-center gap-1 text-[8px] font-black text-red-400 uppercase tracking-widest">
+                        <Clock className="w-3 h-3" /> {t.cooldown}: {formatCountdown(timeLeftMs)}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!isCurrentMyAssoc && !profile?.associationId && (
+                  <Button 
+                    className="w-full h-12 hero-gradient font-black text-xs uppercase"
+                    onClick={() => handleJoinRequest(assoc)}
+                    disabled={isPending || isProcessing}
+                  >
+                    {isPending ? t.pending : t.join}
+                  </Button>
+                )}
+              </div>
+           </CardContent>
+        </Card>
+
+        <div className="space-y-3">
+          <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">{t.members} ({assoc.members?.length})</h3>
+          <div className="grid gap-2">
+            {assoc.membersData?.map((m: AssocMember) => (
+              <div 
+                key={m.uid} 
+                onClick={() => setSelectedUser({ id: m.uid, name: m.name })}
+                className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center border border-white/10">
+                    {m.uid === assoc.ownerId ? <Crown className="w-4 h-4 text-yellow-500" /> : <Users className="w-4 h-4 text-muted-foreground" />}
+                  </div>
+                  <span className="text-xs font-bold uppercase">{m.name}</span>
+                  {m.uid === user?.uid && <Badge className="text-[7px] bg-primary text-primary-foreground">YOU</Badge>}
+                </div>
+                <div className="flex gap-1">
+                  {m.uid === assoc.ownerId && <Badge variant="outline" className="text-[7px] border-yellow-500/50 text-yellow-500 uppercase">{t.owner}</Badge>}
+                  {m.uid === assoc.deputyId && <Badge variant="outline" className="text-[7px] border-blue-500/50 text-blue-500 uppercase">{t.deputy}</Badge>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'all':
+        if (viewingAssocId && browsedAssoc) {
+          return (
+            <div className="space-y-6">
+              <Button variant="ghost" size="sm" onClick={() => setViewingAssocId(null)} className="h-8 text-[10px] font-bold uppercase text-primary">
+                <ChevronLeft className="w-4 h-4 mr-1" /> {language === 'ru' ? 'К списку ассоциаций' : 'Back to List'}
+              </Button>
+              {renderAssocDetails(browsedAssoc, browsedAssoc.id === profile?.associationId)}
+            </div>
+          );
+        }
         return (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
             {allAssocs && allAssocs.length > 0 ? allAssocs.map(assoc => {
@@ -292,7 +385,11 @@ export default function AssociationPage() {
               const isPending = assoc.requests?.some((r: any) => r.uid === user?.uid);
               
               return (
-                <Card key={assoc.id} className="glass-card border-white/5 bg-secondary/10 overflow-hidden">
+                <Card 
+                  key={assoc.id} 
+                  className="glass-card border-white/5 bg-secondary/10 overflow-hidden cursor-pointer hover:bg-white/5 transition-all"
+                  onClick={() => setViewingAssocId(assoc.id)}
+                >
                   <CardContent className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="p-2 rounded-xl bg-primary/20">
@@ -303,18 +400,12 @@ export default function AssociationPage() {
                         <p className="text-[10px] text-muted-foreground">{assoc.members?.length || 1} / 20 {t.members}</p>
                       </div>
                     </div>
-                    {!profile?.associationId ? (
-                      <Button 
-                        size="sm" 
-                        variant={isPending ? "outline" : "default"} 
-                        className={cn("h-8 text-[8px] font-black uppercase", !isPending && "hero-gradient")}
-                        onClick={() => !isPending && handleJoinRequest(assoc)}
-                        disabled={isPending || isProcessing}
-                      >
-                        {isPending ? t.pending : t.join}
-                      </Button>
-                    ) : isMember && (
+                    {isMember ? (
                       <Badge className="bg-green-500/20 text-green-400 text-[8px] uppercase">MEMBER</Badge>
+                    ) : isPending ? (
+                      <Badge variant="outline" className="text-[8px] uppercase border-orange-500/50 text-orange-400">{t.pending}</Badge>
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
                     )}
                   </CardContent>
                 </Card>
@@ -366,64 +457,7 @@ export default function AssociationPage() {
 
       case 'my_assoc':
         if (!myAssoc) return null;
-        return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-            <Card className="glass-card border-primary/30 bg-primary/5 overflow-hidden">
-               <CardContent className="p-8 text-center flex flex-col items-center">
-                  <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center mb-4 shadow-xl">
-                    <Shield className="w-10 h-10 text-primary" />
-                  </div>
-                  <h2 className="text-2xl font-headline font-bold text-white uppercase italic">{myAssoc.name}</h2>
-                  <Badge className="bg-primary/20 text-primary text-[10px] uppercase font-black tracking-widest mt-2 px-3">Level {myAssoc.level}</Badge>
-                  <p className="text-xs text-muted-foreground italic mt-4 px-6">"{myAssoc.description}"</p>
-                  
-                  <div className="mt-8 w-full flex flex-col gap-2">
-                    {!isOwner && (
-                      <div className="space-y-2">
-                        <Button 
-                          variant="destructive" 
-                          className={cn("w-full h-10 text-[10px] font-black uppercase", !canLeave && "opacity-50")}
-                          onClick={handleLeave}
-                          disabled={!canLeave || isProcessing}
-                        >
-                          <LogOut className="w-4 h-4 mr-2" /> {t.leave}
-                        </Button>
-                        {!canLeave && (
-                          <div className="flex items-center justify-center gap-1 text-[8px] font-black text-red-400 uppercase tracking-widest">
-                            <Clock className="w-3 h-3" /> {t.cooldown}: {formatCountdown(timeLeftMs)}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-               </CardContent>
-            </Card>
-
-            <div className="space-y-3">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">{t.members} ({myAssoc.members?.length})</h3>
-              <div className="grid gap-2">
-                {myAssoc.membersData?.map((m: AssocMember) => (
-                  <div 
-                    key={m.uid} 
-                    onClick={() => setSelectedUser({ id: m.uid, name: m.name })}
-                    className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-all"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center border border-white/10">
-                        {m.uid === myAssoc.ownerId ? <Crown className="w-4 h-4 text-yellow-500" /> : <Users className="w-4 h-4 text-muted-foreground" />}
-                      </div>
-                      <span className="text-xs font-bold uppercase">{m.name}</span>
-                    </div>
-                    <div className="flex gap-1">
-                      {m.uid === myAssoc.ownerId && <Badge variant="outline" className="text-[7px] border-yellow-500/50 text-yellow-500 uppercase">{t.owner}</Badge>}
-                      {m.uid === myAssoc.deputyId && <Badge variant="outline" className="text-[7px] border-blue-500/50 text-blue-500 uppercase">{t.deputy}</Badge>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
+        return renderAssocDetails(myAssoc, true);
 
       case 'requests':
         if (!canManage || !myAssoc) return null;
@@ -455,9 +489,10 @@ export default function AssociationPage() {
         );
 
       case 'news':
+        const targetNewsAssoc = myAssoc;
         return (
           <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
-            {myAssoc?.news && myAssoc.news.length > 0 ? [...myAssoc.news].reverse().map((n: AssocNews, i: number) => (
+            {targetNewsAssoc?.news && targetNewsAssoc.news.length > 0 ? [...targetNewsAssoc.news].reverse().map((n: AssocNews, i: number) => (
               <Card key={i} className="glass-card border-white/5 bg-secondary/10">
                 <CardContent className="p-4 flex items-center gap-4">
                   <div className={cn("p-2 rounded-lg bg-secondary/50", n.type === 'join' ? "text-green-400" : "text-red-400")}>
@@ -541,8 +576,12 @@ export default function AssociationPage() {
     );
   }
 
+  // Find if selected user belongs to my assoc or currently viewed browsed assoc
+  const currentViewedAssoc = activeTab === 'my_assoc' ? myAssoc : browsedAssoc;
+  const isSelectedUserInMyAssoc = myAssoc?.members?.includes(selectedPlayer?.id);
+
   const dossierActions = [
-    { label: language === 'ru' ? 'Назначить заместителем' : 'Appoint Deputy', desc: language === 'ru' ? 'Дает права управления заявками' : 'Grants request management rights', icon: Crown, action: handleAppointDeputy, hidden: !isOwner || selectedPlayer?.id === user?.uid || selectedPlayer?.id === myAssoc?.deputyId },
+    { label: language === 'ru' ? 'Назначить заместителем' : 'Appoint Deputy', desc: language === 'ru' ? 'Дает права управления заявками' : 'Grants request management rights', icon: Crown, action: handleAppointDeputy, hidden: !isOwner || selectedPlayer?.id === user?.uid || selectedPlayer?.id === myAssoc?.deputyId || !isSelectedUserInMyAssoc },
     { label: language === 'ru' ? 'Личные сообщения' : 'Private Messages', desc: language === 'ru' ? 'Прямая зашифрованная связь' : 'Direct encrypted transmission', icon: Mail, action: () => router.push(`/chats/private?uid=${selectedPlayer?.id}&name=${encodeURIComponent(selectedPlayer?.name || '')}`) },
     { label: language === 'ru' ? 'Страница игрока' : 'Player Page', desc: language === 'ru' ? 'Детальная статистика' : 'Detailed statistics', icon: User, disabled: true },
     { label: language === 'ru' ? 'Пожаловаться' : 'Report', desc: language === 'ru' ? 'Сообщить о нарушении' : 'Notify HQ of misconduct', icon: AlertTriangle, disabled: true, color: 'text-red-400' },
@@ -551,7 +590,7 @@ export default function AssociationPage() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-8 flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}>
+        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { setViewingAssocId(null); setActiveTab('menu'); }}>
           <ChevronLeft className="w-6 h-6" />
         </Button>
         <div>
