@@ -19,7 +19,7 @@ import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { collection, query, doc, serverTimestamp, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
 import {
   Dialog,
@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { useRouter } from 'next/navigation';
 
-type AssocTab = 'menu' | 'all' | 'create' | 'my_assoc' | 'requests' | 'history' | 'news' | 'disband_confirm';
+type AssocTab = 'menu' | 'all' | 'create' | 'my_assoc' | 'requests' | 'history' | 'news';
 
 interface AssocMember {
   uid: string;
@@ -59,6 +59,7 @@ export default function AssociationPage() {
   const [assocDesc, setAssocDesc] = useState('');
   const [selectedPlayer, setSelectedUser] = useState<{id: string, name: string} | null>(null);
   const [viewingAssocId, setViewingAssocId] = useState<string | null>(null);
+  const [showDisbandDialog, setShowDisbandDialog] = useState(false);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -101,6 +102,7 @@ export default function AssociationPage() {
       }));
     }
     
+    // Filter duplicates by UID
     const seen = new Set();
     return list.filter(m => {
       if (!m || !m.uid || seen.has(m.uid)) return false;
@@ -440,6 +442,7 @@ export default function AssociationPage() {
 
       await batch.commit();
       toast({ title: language === 'ru' ? "Ассоциация распущена" : "Association Disbanded" });
+      setShowDisbandDialog(false);
       setActiveTab('menu');
     } catch (e: any) {
       toast({ title: "Disband Failed", description: e.message, variant: "destructive" });
@@ -735,7 +738,7 @@ export default function AssociationPage() {
       { id: 'all', ...t.tabs.all },
       ...(canManage ? [{ id: 'requests', ...t.tabs.requests, badge: myAssoc?.requests?.length || 0 }] : []),
       { id: 'history', ...t.tabs.history },
-      ...(isOwner ? [{ id: 'disband_confirm', label: t.disband, desc: t.disbandDesc, icon: ShieldX, color: "text-red-500" }] : [])
+      ...(isOwner ? [{ id: 'disband', label: t.disband, desc: t.disbandDesc, icon: ShieldX, color: "text-red-500" }] : [])
     ];
 
     return (
@@ -752,7 +755,14 @@ export default function AssociationPage() {
 
         <div className="space-y-2">
           {menuItems.map((item) => (
-            <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => setActiveTab(item.id as AssocTab)}>
+            <Card 
+              key={item.id} 
+              className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" 
+              onClick={() => {
+                if (item.id === 'disband') setShowDisbandDialog(true);
+                else setActiveTab(item.id as AssocTab);
+              }}
+            >
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className={cn("p-2.5 rounded-xl bg-secondary/50", item.color)}><item.icon className="w-5 h-5" /></div>
@@ -774,7 +784,7 @@ export default function AssociationPage() {
           ))}
         </div>
 
-        <Dialog open={activeTab === 'disband_confirm'} onOpenChange={() => setActiveTab('menu')}>
+        <Dialog open={showDisbandDialog} onOpenChange={setShowDisbandDialog}>
           <DialogContent className="max-w-xs bg-card border-white/10 p-6">
             <DialogHeader>
               <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4 border border-red-500/20">
@@ -800,7 +810,7 @@ export default function AssociationPage() {
               <Button 
                 variant="outline" 
                 className="h-12 font-bold uppercase text-[10px] border-white/10" 
-                onClick={() => setActiveTab('menu')}
+                onClick={() => setShowDisbandDialog(false)}
                 disabled={isProcessing}
               >
                 {language === 'ru' ? 'ОТМЕНА' : 'CANCEL'}
@@ -857,6 +867,7 @@ export default function AssociationPage() {
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p>
         </div>
       </header>
+      
       {renderContent()}
 
       <Dialog open={!!selectedPlayer} onOpenChange={() => setSelectedUser(null)}>
