@@ -103,12 +103,10 @@ export default function AssociationPage() {
 
   const cooldownMs = 14 * 24 * 60 * 60 * 1000;
   
-  // Cooldown for leaving
   const joinedAtTime = myMemberInfo ? new Date(myMemberInfo.joinedAt).getTime() : 0;
   const canLeave = now > joinedAtTime + cooldownMs;
   const leaveTimeLeftMs = Math.max(0, (joinedAtTime + cooldownMs) - now);
 
-  // Cooldown for joining (global, based on lastJoinedAssocAt in profile)
   const lastJoinTime = profile?.lastJoinedAssocAt ? new Date(profile.lastJoinedAssocAt).getTime() : 0;
   const canJoinNew = now > lastJoinTime + cooldownMs;
   const joinTimeLeftMs = Math.max(0, (lastJoinTime + cooldownMs) - now);
@@ -225,7 +223,7 @@ export default function AssociationPage() {
         createdAt: serverTimestamp()
       };
 
-      setDocumentNonBlocking(assocRef, assocData, {});
+      setDocumentNonBlocking(assocRef, assocData);
       updateDocumentNonBlocking(userRef!, { 
         associationId: assocId,
         lastJoinedAssocAt: nowIso 
@@ -401,7 +399,6 @@ export default function AssociationPage() {
   if (!isLoaded || isUserLoading) return <LoadingScreen />;
 
   const renderAssocDetails = (assoc: any, isCurrentMyAssoc: boolean) => {
-    const isMember = assoc.members?.includes(user?.uid);
     const isPending = assoc.requests?.some((r: any) => r.uid === user?.uid);
     const displayMembers = getDisplayMembers(assoc);
     const userAlreadyInAssoc = !!profile?.associationId;

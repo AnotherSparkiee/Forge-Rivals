@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -24,7 +23,7 @@ service cloud.firestore {
       allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // === ТОВАРНЫЕ РЫНКИ (Исправлено: разрешено делать ставки всем авторизованным) ===
+    // === ТОВАРНЫЕ РЫНКИ ===
     match /market_v7/{docId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
@@ -101,16 +100,17 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
     }
 
-    // === АССОЦИАЦИИ ===
+    // === АССОЦИАЦИИ (Исправлено для отмены заявок) ===
     match /associations_v4/{docId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (
+        // Владелец может всё
         resource.data.ownerId == request.auth.uid || 
-        (
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requests']) &&
-          request.resource.data.requests.size() >= resource.data.get('requests', []).size()
-        )
+        // Заместитель может принимать заявки (обновлять members и requests)
+        resource.data.deputyId == request.auth.uid ||
+        // Любой игрок может менять только поле requests (для вступления или отмены)
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requests'])
       );
       allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
