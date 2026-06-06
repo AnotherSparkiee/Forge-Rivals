@@ -68,7 +68,7 @@ export default function AssociationPage() {
   }, []);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
-  const { data: profile } = useDoc(userRef);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   const allAssocsQuery = useMemoFirebase(() => query(collection(db, 'associations_v4')), [db]);
   const { data: allAssocs } = useCollection(allAssocsQuery);
@@ -102,7 +102,6 @@ export default function AssociationPage() {
       }));
     }
     
-    // Filter duplicates by UID
     const seen = new Set();
     return list.filter(m => {
       if (!m || !m.uid || seen.has(m.uid)) return false;
@@ -226,16 +225,8 @@ export default function AssociationPage() {
 
   const handleCreateAssoc = async () => {
     if (!user || !profile || isProcessing) return;
-    
-    if (profile.associationId) {
-      toast({ title: t.alreadyMember, variant: "destructive" });
-      return;
-    }
-
-    if (crystals < 500) {
-      toast({ title: t.insufficient, variant: "destructive" });
-      return;
-    }
+    if (profile.associationId) return;
+    if (crystals < 500) return;
     if (assocName.trim().length < 3) return;
 
     setIsProcessing(true);
@@ -269,8 +260,6 @@ export default function AssociationPage() {
 
       toast({ title: language === 'ru' ? "Ассоциация создана!" : "Association Established!" });
       setActiveTab('my_assoc');
-    } catch (e: any) {
-      toast({ title: "Operation Failed", description: e.message, variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }
@@ -278,16 +267,8 @@ export default function AssociationPage() {
 
   const handleJoinRequest = async (assoc: any) => {
     if (!user || !profile || isProcessing) return;
-
-    if (profile.associationId) {
-      toast({ title: t.alreadyMember, variant: "destructive" });
-      return;
-    }
-
-    if (!canJoinNew) {
-      toast({ title: t.joinCooldown, description: formatCountdown(joinTimeLeftMs), variant: "destructive" });
-      return;
-    }
+    if (profile.associationId) return;
+    if (!canJoinNew) return;
 
     setIsProcessing(true);
     try {
@@ -306,7 +287,6 @@ export default function AssociationPage() {
     try {
       const applicant = assoc.requests?.find((r: any) => r.uid === user.uid);
       if (!applicant) return;
-
       updateDocumentNonBlocking(doc(db, 'associations_v4', assoc.id), {
         requests: arrayRemove(applicant)
       });
@@ -322,7 +302,6 @@ export default function AssociationPage() {
     try {
       const assocRef = doc(db, 'associations_v4', myAssoc.id);
       const nowIso = new Date().toISOString();
-
       if (accept) {
         const newMember = { uid: applicant.uid, name: applicant.name, joinedAt: nowIso, role: 'member' };
         updateDocumentNonBlocking(assocRef, {
@@ -352,7 +331,6 @@ export default function AssociationPage() {
     try {
       const assocRef = doc(db, 'associations_v4', myAssoc.id);
       const nowIso = new Date().toISOString();
-
       updateDocumentNonBlocking(assocRef, {
         members: arrayRemove(user!.uid),
         memberNames: arrayRemove(profile!.displayName || "Manager"),
@@ -361,7 +339,6 @@ export default function AssociationPage() {
         ...(isDeputy ? { deputyId: null } : {})
       });
       updateDocumentNonBlocking(userRef!, { associationId: null });
-      
       toast({ title: language === 'ru' ? "Вы покинули ассоциацию" : "Left Association" });
       setActiveTab('menu');
     } finally {
@@ -376,9 +353,7 @@ export default function AssociationPage() {
       const assocRef = doc(db, 'associations_v4', myAssoc.id);
       const nowIso = new Date().toISOString();
       const targetMember = getDisplayMembers(myAssoc).find(m => m.uid === selectedPlayer.id);
-
       if (!targetMember) return;
-
       updateDocumentNonBlocking(assocRef, {
         members: arrayRemove(selectedPlayer.id),
         memberNames: arrayRemove(selectedPlayer.name),
@@ -387,7 +362,6 @@ export default function AssociationPage() {
         ...(myAssoc.deputyId === selectedPlayer.id ? { deputyId: null } : {})
       });
       updateDocumentNonBlocking(doc(db, 'players_v10', selectedPlayer.id), { associationId: null });
-      
       toast({ title: language === 'ru' ? "Игрок исключен" : "Player Kicked" });
       setSelectedUser(null);
     } finally {
@@ -404,7 +378,6 @@ export default function AssociationPage() {
       const updatedMembersData = getDisplayMembers(myAssoc).map(m => 
         m.uid === selectedPlayer.id ? { ...m, role: 'deputy' } : m
       );
-      
       updateDocumentNonBlocking(assocRef, {
         deputyId: selectedPlayer.id,
         membersData: updatedMembersData,
@@ -426,7 +399,6 @@ export default function AssociationPage() {
       const updatedMembersData = getDisplayMembers(myAssoc).map(m => 
         m.uid === selectedPlayer.id ? { ...m, role: 'member' } : m
       );
-
       updateDocumentNonBlocking(assocRef, {
         deputyId: null,
         membersData: updatedMembersData,
@@ -444,28 +416,21 @@ export default function AssociationPage() {
     setIsProcessing(true);
     try {
       const batch = writeBatch(db);
-      
-      // 1. Clear associationId for all members
       const members = myAssoc.members || [];
       members.forEach((uid: string) => {
         batch.update(doc(db, 'players_v10', uid), { associationId: null });
       });
-
-      // 2. Delete association document
       batch.delete(doc(db, 'associations_v4', myAssoc.id));
-
       await batch.commit();
       toast({ title: language === 'ru' ? "Ассоциация распущена" : "Association Disbanded" });
       setShowDisbandDialog(false);
       setActiveTab('menu');
-    } catch (e: any) {
-      toast({ title: "Disband Failed", description: e.message, variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }
   };
 
-  if (!isLoaded || isUserLoading) return <LoadingScreen />;
+  if (!isLoaded || isUserLoading || isProfileLoading) return <LoadingScreen />;
 
   const renderAssocDetails = (assoc: any, isCurrentMyAssoc: boolean) => {
     const isPending = assoc.requests?.some((r: any) => r.uid === user?.uid);
@@ -474,10 +439,7 @@ export default function AssociationPage() {
 
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-        <Card className={cn(
-          "glass-card border-primary/30 overflow-hidden",
-          isCurrentMyAssoc ? "bg-primary/5" : "bg-secondary/10"
-        )}>
+        <Card className={cn( "glass-card border-primary/30 overflow-hidden", isCurrentMyAssoc ? "bg-primary/5" : "bg-secondary/10" )}>
            <CardContent className="p-8 text-center flex flex-col items-center">
               <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center mb-4 shadow-xl">
                 <Shield className="w-10 h-10 text-primary" />
@@ -485,16 +447,10 @@ export default function AssociationPage() {
               <h2 className="text-2xl font-headline font-bold text-white uppercase italic">{assoc.name}</h2>
               <Badge className="bg-primary/20 text-primary text-[10px] uppercase font-black tracking-widest mt-2 px-3">Level {assoc.level || 1}</Badge>
               <p className="text-xs text-muted-foreground italic mt-4 px-6">"{assoc.description}"</p>
-              
               <div className="mt-8 w-full flex flex-col gap-2">
                 {isCurrentMyAssoc && !isOwner && (
                   <div className="space-y-2">
-                    <Button 
-                      variant="destructive" 
-                      className={cn("w-full h-10 text-[10px] font-black uppercase", !canLeave && "opacity-50")}
-                      onClick={handleLeave}
-                      disabled={!canLeave || isProcessing}
-                    >
+                    <Button variant="destructive" className={cn("w-full h-10 text-[10px] font-black uppercase", !canLeave && "opacity-50")} onClick={handleLeave} disabled={!canLeave || isProcessing}>
                       <LogOut className="w-4 h-4 mr-2" /> {t.leave}
                     </Button>
                     {!canLeave && (
@@ -508,28 +464,13 @@ export default function AssociationPage() {
                   <div className="space-y-2">
                     {!canJoinNew ? (
                        <div className="flex flex-col items-center gap-2 p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
-                         <div className="flex items-center gap-1 text-[8px] font-black text-orange-400 uppercase tracking-widest">
-                           <Clock className="w-3 h-3" /> {t.joinCooldown}
-                         </div>
+                         <div className="flex items-center gap-1 text-[8px] font-black text-orange-400 uppercase tracking-widest"><Clock className="w-3 h-3" /> {t.joinCooldown}</div>
                          <p className="text-lg font-headline font-bold text-orange-400">{formatCountdown(joinTimeLeftMs)}</p>
                        </div>
                     ) : isPending ? (
-                      <Button 
-                        variant="outline"
-                        className="w-full h-12 border-orange-500/30 text-orange-400 font-black text-xs uppercase hover:bg-orange-500/10"
-                        onClick={() => handleCancelRequest(assoc)}
-                        disabled={isProcessing}
-                      >
-                        <X className="w-4 h-4 mr-2" /> {t.cancelRequest}
-                      </Button>
+                      <Button variant="outline" className="w-full h-12 border-orange-500/30 text-orange-400 font-black text-xs uppercase" onClick={() => handleCancelRequest(assoc)} disabled={isProcessing}><X className="w-4 h-4 mr-2" /> {t.cancelRequest}</Button>
                     ) : (
-                      <Button 
-                        className="w-full h-12 hero-gradient font-black text-xs uppercase"
-                        onClick={() => handleJoinRequest(assoc)}
-                        disabled={isProcessing}
-                      >
-                        {t.join}
-                      </Button>
+                      <Button className="w-full h-12 hero-gradient font-black text-xs uppercase" onClick={() => handleJoinRequest(assoc)} disabled={isProcessing}>{t.join}</Button>
                     )}
                   </div>
                 )}
@@ -541,11 +482,7 @@ export default function AssociationPage() {
           <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">{t.members} ({assoc.members?.length})</h3>
           <div className="grid gap-2">
             {displayMembers.map((m: AssocMember, idx: number) => (
-              <div 
-                key={`${m.uid}-${idx}`} 
-                onClick={() => setSelectedUser({ id: m.uid, name: m.name })}
-                className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-all"
-              >
+              <div key={`${m.uid}-${idx}`} onClick={() => setSelectedUser({ id: m.uid, name: m.name })} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-all">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center border border-white/10">
                     {m.uid === assoc.ownerId ? <Crown className="w-4 h-4 text-yellow-500" /> : <Users className="w-4 h-4 text-muted-foreground" />}
@@ -579,47 +516,32 @@ export default function AssociationPage() {
           );
         }
         return (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
             {allAssocs && allAssocs.length > 0 ? allAssocs.map(assoc => {
               const isMember = assoc.members?.includes(user?.uid);
               const isPending = assoc.requests?.some((r: any) => r.uid === user?.uid);
-              
               return (
-                <Card 
-                  key={assoc.id} 
-                  className="glass-card border-white/5 bg-secondary/10 overflow-hidden cursor-pointer hover:bg-white/5 transition-all"
-                  onClick={() => setViewingAssocId(assoc.id)}
-                >
+                <Card key={assoc.id} className="glass-card border-white/5 bg-secondary/10 overflow-hidden cursor-pointer hover:bg-white/5 transition-all" onClick={() => setViewingAssocId(assoc.id)}>
                   <CardContent className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="p-2 rounded-xl bg-primary/20">
-                        <Shield className="w-5 h-5 text-primary" />
-                      </div>
+                      <div className="p-2 rounded-xl bg-primary/20"><Shield className="w-5 h-5 text-primary" /></div>
                       <div>
                         <h3 className="text-sm font-bold uppercase">{assoc.name}</h3>
                         <p className="text-[10px] text-muted-foreground">{assoc.members?.length || 1} / 20 {t.members}</p>
                       </div>
                     </div>
-                    {isMember ? (
-                      <Badge className="bg-green-500/20 text-green-400 text-[8px] uppercase">MEMBER</Badge>
-                    ) : isPending ? (
-                      <Badge variant="outline" className="text-[8px] uppercase border-orange-500/50 text-orange-400">{t.pending}</Badge>
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                    )}
+                    {isMember ? <Badge className="bg-green-500/20 text-green-400 text-[8px] uppercase">MEMBER</Badge> : isPending ? <Badge variant="outline" className="text-[8px] uppercase border-orange-500/50 text-orange-400">{t.pending}</Badge> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                   </CardContent>
                 </Card>
               );
-            }) : (
-              <div className="py-20 text-center opacity-30 text-xs font-bold uppercase tracking-widest">{t.noAssocs}</div>
-            )}
+            }) : <div className="py-20 text-center opacity-30 text-xs font-bold uppercase tracking-widest">{t.noAssocs}</div>}
           </div>
         );
 
       case 'create':
         if (profile?.associationId) return null;
         return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
             {!canJoinNew && (
               <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl flex gap-3 items-center text-orange-400">
                 <Clock className="w-5 h-5" />
@@ -628,36 +550,9 @@ export default function AssociationPage() {
             )}
             <Card className="glass-card border-green-500/20 bg-green-500/5">
               <CardContent className="p-6 space-y-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-muted-foreground">{language === 'ru' ? 'НАЗВАНИЕ' : 'NAME'}</label>
-                  <Input 
-                    value={assocName} 
-                    onChange={e => setAssocName(e.target.value)} 
-                    placeholder={t.namePlaceholder}
-                    className="bg-background/50 border-white/10 h-12"
-                    disabled={!canJoinNew}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-muted-foreground">{language === 'ru' ? 'ОПИСАНИЕ' : 'DESCRIPTION'}</label>
-                  <Textarea 
-                    value={assocDesc} 
-                    onChange={e => setAssocDesc(e.target.value)} 
-                    placeholder={t.descPlaceholder}
-                    className="bg-background/50 border-white/10 min-h-[100px]"
-                    disabled={!canJoinNew}
-                  />
-                </div>
-                <div className="pt-4 text-center">
-                  <p className="text-[10px] font-black text-yellow-500 uppercase tracking-widest mb-4">{t.costLabel}</p>
-                  <Button 
-                    className="w-full h-14 hero-gradient font-black text-xs tracking-widest shadow-xl active:scale-95 transition-all"
-                    onClick={handleCreateAssoc}
-                    disabled={isProcessing || assocName.trim().length < 3 || !canJoinNew}
-                  >
-                    {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : t.confirmCreate}
-                  </Button>
-                </div>
+                <div className="space-y-2"><label className="text-[10px] font-black uppercase text-muted-foreground">{language === 'ru' ? 'НАЗВАНИЕ' : 'NAME'}</label><Input value={assocName} onChange={e => setAssocName(e.target.value)} placeholder={t.namePlaceholder} className="bg-background/50 border-white/10 h-12" disabled={!canJoinNew} /></div>
+                <div className="space-y-2"><label className="text-[10px] font-black uppercase text-muted-foreground">{language === 'ru' ? 'ОПИСАНИЕ' : 'DESCRIPTION'}</label><Textarea value={assocDesc} onChange={e => setAssocDesc(e.target.value)} placeholder={t.descPlaceholder} className="bg-background/50 border-white/10 min-h-[100px]" disabled={!canJoinNew} /></div>
+                <div className="pt-4 text-center"><p className="text-[10px] font-black text-yellow-500 uppercase tracking-widest mb-4">{t.costLabel}</p><Button className="w-full h-14 hero-gradient font-black text-xs tracking-widest shadow-xl" onClick={handleCreateAssoc} disabled={isProcessing || assocName.trim().length < 3 || !canJoinNew}>{isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : t.confirmCreate}</Button></div>
               </CardContent>
             </Card>
           </div>
@@ -674,25 +569,14 @@ export default function AssociationPage() {
             {myAssoc.requests && myAssoc.requests.length > 0 ? myAssoc.requests.map((req: any) => (
               <Card key={req.uid} className="glass-card border-orange-500/20 bg-orange-500/5">
                 <CardContent className="p-4 flex items-center justify-between">
-                   <div className="flex items-center gap-3">
-                     <div className="w-10 h-10 rounded-full bg-background flex items-center justify-center border border-orange-500/30">
-                       <UserPlus className="w-5 h-5 text-orange-400" />
-                     </div>
-                     <span className="text-sm font-bold uppercase">{req.name}</span>
-                   </div>
+                   <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-background flex items-center justify-center border border-orange-500/30"><UserPlus className="w-5 h-5 text-orange-400" /></div><span className="text-sm font-bold uppercase">{req.name}</span></div>
                    <div className="flex gap-2">
-                     <Button size="icon" className="h-8 w-8 bg-green-600 hover:bg-green-700" onClick={() => handleProcessRequest(req, true)} disabled={isProcessing}>
-                       <Check className="w-4 h-4" />
-                     </Button>
-                     <Button size="icon" variant="destructive" className="h-8 w-8" onClick={() => handleProcessRequest(req, false)} disabled={isProcessing}>
-                       <X className="w-4 h-4" />
-                     </Button>
+                     <Button size="icon" className="h-8 w-8 bg-green-600" onClick={() => handleProcessRequest(req, true)} disabled={isProcessing}><Check className="w-4 h-4" /></Button>
+                     <Button size="icon" variant="destructive" className="h-8 w-8" onClick={() => handleProcessRequest(req, false)} disabled={isProcessing}><X className="w-4 h-4" /></Button>
                    </div>
                 </CardContent>
               </Card>
-            )) : (
-              <div className="py-20 text-center opacity-30 text-xs font-bold uppercase tracking-widest">No pending applications.</div>
-            )}
+            )) : <div className="py-20 text-center opacity-30 text-xs font-bold uppercase tracking-widest">No pending applications.</div>}
           </div>
         );
 
@@ -707,35 +591,15 @@ export default function AssociationPage() {
                 appoint_deputy: { icon: Crown, color: "text-yellow-500", text: language === 'ru' ? 'назначен заместителем' : 'appointed as deputy' },
                 remove_deputy: { icon: ShieldX, color: "text-orange-400", text: language === 'ru' ? 'снят с должности заместителя' : 'removed from deputy position' },
               }[n.type] || { icon: Info, color: "text-blue-400", text: 'event' };
-
               return (
                 <Card key={i} className="glass-card border-white/5 bg-secondary/10">
                   <CardContent className="p-4 flex items-center gap-4">
-                    <div className={cn("p-2 rounded-lg bg-secondary/50", config.color)}>
-                      <config.icon className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold uppercase truncate">
-                        <span className="text-white">{n.userName}</span> {config.text}
-                      </p>
-                      <p className="text-[8px] text-muted-foreground font-mono uppercase mt-1">
-                        {new Date(n.timestamp).toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US')}
-                      </p>
-                    </div>
+                    <div className={cn("p-2 rounded-lg bg-secondary/50", config.color)}><config.icon className="w-4 h-4" /></div>
+                    <div className="flex-1 min-w-0"><p className="text-xs font-bold uppercase truncate"><span className="text-white">{n.userName}</span> {config.text}</p><p className="text-[8px] text-muted-foreground font-mono uppercase mt-1">{new Date(n.timestamp).toLocaleString()}</p></div>
                   </CardContent>
                 </Card>
               );
-            }) : (
-              <div className="py-20 text-center opacity-30 text-xs font-bold uppercase tracking-widest">No history detected.</div>
-            )}
-          </div>
-        );
-
-      case 'history':
-        return (
-          <div className="py-20 text-center opacity-20 flex flex-col items-center gap-4">
-            <History className="w-16 h-16" />
-            <p className="text-xs font-black uppercase tracking-[0.2em]">Association Battle History Offline</p>
+            }) : <div className="py-20 text-center opacity-30 text-xs font-bold uppercase tracking-widest">No history detected.</div>}
           </div>
         );
 
@@ -760,35 +624,19 @@ export default function AssociationPage() {
       <div className="max-w-md mx-auto px-4 pt-8 pb-32">
         <header className="mb-8 flex items-center gap-4">
           <Link href="/"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
-          <div>
-            <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2">
-              <Shield className="w-6 h-6 text-primary" /> {t.title}
-            </h1>
-            <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
-          </div>
+          <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2"><Shield className="w-6 h-6 text-primary" /> {t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p></div>
         </header>
 
         <div className="space-y-2">
           {menuItems.map((item) => (
-            <Card 
-              key={item.id} 
-              className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" 
-              onClick={() => {
-                if (item.id === 'disband') setShowDisbandDialog(true);
-                else setActiveTab(item.id as AssocTab);
-              }}
-            >
+            <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => { if (item.id === 'disband') setShowDisbandDialog(true); else setActiveTab(item.id as AssocTab); }}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className={cn("p-2.5 rounded-xl bg-secondary/50", item.color)}><item.icon className="w-5 h-5" /></div>
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{item.label}</h3>
-                      {item.badge > 0 && (
-                        <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center animate-pulse">
-                          <span className="text-[8px] font-black text-primary-foreground">{item.badge}</span>
-                        </div>
-                      )}
+                      {item.badge > 0 && <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center animate-pulse"><span className="text-[8px] font-black text-primary-foreground">{item.badge}</span></div>}
                     </div>
                     <p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p>
                   </div>
@@ -801,36 +649,8 @@ export default function AssociationPage() {
 
         <Dialog open={showDisbandDialog} onOpenChange={setShowDisbandDialog}>
           <DialogContent className="max-w-xs bg-card border-white/10 p-6">
-            <DialogHeader>
-              <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4 border border-red-500/20">
-                <ShieldX className="w-8 h-8 text-red-500 animate-pulse" />
-              </div>
-              <DialogTitle className="text-center font-headline font-bold uppercase tracking-tight text-red-500">
-                {t.disbandConfirmTitle}
-              </DialogTitle>
-              <DialogDescription className="text-center text-xs text-muted-foreground mt-2 leading-relaxed italic">
-                {t.disbandConfirmDesc}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col gap-2 mt-6">
-              <Button 
-                variant="destructive"
-                className="h-12 font-black uppercase text-[10px] shadow-lg shadow-red-900/20" 
-                onClick={handleDisbandAssoc}
-                disabled={isProcessing}
-              >
-                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-                {t.disbandBtn}
-              </Button>
-              <Button 
-                variant="outline" 
-                className="h-12 font-bold uppercase text-[10px] border-white/10" 
-                onClick={() => setShowDisbandDialog(false)}
-                disabled={isProcessing}
-              >
-                {language === 'ru' ? 'ОТМЕНА' : 'CANCEL'}
-              </Button>
-            </div>
+            <DialogHeader><div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4 border border-red-500/20"><ShieldX className="w-8 h-8 text-red-500 animate-pulse" /></div><DialogTitle className="text-center font-headline font-bold uppercase text-red-500">{t.disbandConfirmTitle}</DialogTitle><DialogDescription className="text-center text-xs text-muted-foreground mt-2">{t.disbandConfirmDesc}</DialogDescription></DialogHeader>
+            <div className="flex flex-col gap-2 mt-6"><Button variant="destructive" className="h-12 font-black uppercase text-[10px]" onClick={handleDisbandAssoc} disabled={isProcessing}>{isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />} {t.disbandBtn}</Button><Button variant="outline" className="h-12 font-bold uppercase text-[10px]" onClick={() => setShowDisbandDialog(false)} disabled={isProcessing}>{language === 'ru' ? 'ОТМЕНА' : 'CANCEL'}</Button></div>
           </DialogContent>
         </Dialog>
       </div>
@@ -841,103 +661,25 @@ export default function AssociationPage() {
   const isSelectedUserDeputy = selectedPlayer?.id === myAssoc?.deputyId;
 
   const dossierActions = [
-    { 
-      label: t.appointDeputy, 
-      desc: t.appointDeputyDesc, 
-      icon: Crown, 
-      action: handleAppointDeputy, 
-      hidden: !isOwner || selectedPlayer?.id === user?.uid || isSelectedUserDeputy || !isSelectedUserInMyAssoc 
-    },
-    { 
-      label: t.removeDeputy, 
-      desc: t.removeDeputyDesc, 
-      icon: ShieldX, 
-      action: handleRemoveDeputy, 
-      hidden: !isOwner || !isSelectedUserDeputy,
-      color: 'text-red-400'
-    },
-    {
-      label: t.kickPlayer,
-      desc: t.kickDesc,
-      icon: UserMinus,
-      action: handleKick,
-      hidden: !canManage || !isSelectedUserInMyAssoc || selectedPlayer?.id === user?.uid || (isDeputy && selectedPlayer?.id === myAssoc?.ownerId) || (isDeputy && isSelectedUserDeputy),
-      color: 'text-destructive'
-    },
-    { label: language === 'ru' ? 'Личные сообщения' : 'Private Messages', desc: language === 'ru' ? 'Прямая зашифрованная связь' : 'Direct encrypted transmission', icon: Mail, action: () => router.push(`/chats/private?uid=${selectedPlayer?.id}&name=${encodeURIComponent(selectedPlayer?.name || '')}`) },
-    { label: language === 'ru' ? 'Страница игрока' : 'Player Page', desc: language === 'ru' ? 'Детальная статистика' : 'Detailed statistics', icon: User, disabled: true },
-    { label: language === 'ru' ? 'Пожаловаться' : 'Report', desc: language === 'ru' ? 'Сообщить о нарушении' : 'Notify HQ of misconduct', icon: AlertTriangle, disabled: true, color: 'text-red-400' },
+    { label: t.appointDeputy, desc: t.appointDeputyDesc, icon: Crown, action: handleAppointDeputy, hidden: !isOwner || selectedPlayer?.id === user?.uid || isSelectedUserDeputy || !isSelectedUserInMyAssoc },
+    { label: t.removeDeputy, desc: t.removeDeputyDesc, icon: ShieldX, action: handleRemoveDeputy, hidden: !isOwner || !isSelectedUserDeputy, color: 'text-red-400' },
+    { label: t.kickPlayer, desc: t.kickDesc, icon: UserMinus, action: handleKick, hidden: !canManage || !isSelectedUserInMyAssoc || selectedPlayer?.id === user?.uid || (isDeputy && selectedPlayer?.id === myAssoc?.ownerId) || (isDeputy && isSelectedUserDeputy), color: 'text-destructive' },
+    { label: language === 'ru' ? 'Личные сообщения' : 'Private Messages', desc: 'Direct encrypted transmission', icon: Mail, action: () => router.push(`/chats/private?uid=${selectedPlayer?.id}&name=${encodeURIComponent(selectedPlayer?.name || '')}`) },
+    { label: language === 'ru' ? 'Страница игрока' : 'Player Page', desc: 'Detailed statistics', icon: User, disabled: true },
   ];
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-8 flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { setViewingAssocId(null); setActiveTab('menu'); }}>
-          <ChevronLeft className="w-6 h-6" />
-        </Button>
-        <div>
-          <h1 className="text-xl font-headline font-bold uppercase tracking-tight">
-            {(t.tabs as any)[activeTab]?.label || 'ALLIANCE'}
-          </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p>
-        </div>
+        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { setViewingAssocId(null); setActiveTab('menu'); }}><ChevronLeft className="w-6 h-6" /></Button>
+        <div><h1 className="text-xl font-headline font-bold uppercase">{(t.tabs as any)[activeTab]?.label || 'ALLIANCE'}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p></div>
       </header>
-      
       {renderContent()}
-
       <Dialog open={!!selectedPlayer} onOpenChange={() => setSelectedUser(null)}>
         <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden">
-          <DialogHeader className="p-6 bg-gradient-to-br from-primary/10 to-transparent border-b border-white/5">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-secondary/50 flex items-center justify-center border border-white/10">
-                <User className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">
-                  {selectedPlayer?.name}
-                </DialogTitle>
-                <DialogDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
-                  {t.userMenuDesc} {selectedPlayer?.name}
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <div className="p-4 space-y-2">
-            {dossierActions.map((item, idx) => !item.hidden && (
-              <Card 
-                key={idx}
-                className={cn(
-                  "glass-card border-white/5 transition-all",
-                  item.disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-white/5 cursor-pointer active:scale-[0.98]"
-                )}
-                onClick={() => !item.disabled && item.action && item.action()}
-              >
-                <CardContent className="p-3 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 rounded-lg bg-secondary/50">
-                      {isProcessing && (idx === 0 || idx === 1 || idx === 2) ? (
-                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                      ) : (
-                        <item.icon className={cn("w-5 h-5", item.color || "text-primary")} />
-                      )}
-                    </div>
-                    <div>
-                      <h3 className={cn("text-xs font-bold uppercase", item.color)}>{item.label}</h3>
-                      <p className={cn("text-[9px] text-muted-foreground leading-tight")}>{item.desc}</p>
-                    </div>
-                  </div>
-                  {!item.disabled && <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <div className="p-4 bg-secondary/20 border-t border-white/5">
-            <Button variant="outline" className="w-full h-10 text-[10px] font-bold uppercase border-white/10" onClick={() => setSelectedUser(null)}>
-              {language === 'ru' ? 'ЗАКРЫТЬ' : 'CLOSE'}
-            </Button>
-          </div>
+          <DialogHeader className="p-6 bg-gradient-to-br from-primary/10 to-transparent border-b border-white/5"><div className="flex items-center gap-4"><div className="w-12 h-12 rounded-full bg-secondary/50 flex items-center justify-center border border-white/10"><User className="w-6 h-6 text-primary" /></div><div><DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">{selectedPlayer?.name}</DialogTitle><DialogDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">{t.userMenuDesc} {selectedPlayer?.name}</DialogDescription></div></div></DialogHeader>
+          <div className="p-4 space-y-2">{dossierActions.map((item, idx) => !item.hidden && (<Card key={idx} className={cn("glass-card border-white/5 transition-all", item.disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-white/5 cursor-pointer")} onClick={() => !item.disabled && item.action && item.action()}><CardContent className="p-3 flex items-center justify-between"><div className="flex items-center gap-4"><div className="p-2 rounded-lg bg-secondary/50">{isProcessing && (idx < 3) ? <Loader2 className="w-5 h-5 animate-spin text-primary" /> : <item.icon className={cn("w-5 h-5", item.color || "text-primary")} />}</div><div><h3 className={cn("text-xs font-bold uppercase", item.color)}>{item.label}</h3><p className="text-[9px] text-muted-foreground leading-tight">{item.desc}</p></div></div>{!item.disabled && <ChevronRight className="w-4 h-4 text-muted-foreground" />}</CardContent></Card>))}</div>
+          <div className="p-4 bg-secondary/20 border-t border-white/5"><Button variant="outline" className="w-full h-10 text-[10px] font-bold uppercase border-white/10" onClick={() => setSelectedUser(null)}>{language === 'ru' ? 'ЗАКРЫТЬ' : 'CLOSE'}</Button></div>
         </DialogContent>
       </Dialog>
     </div>
