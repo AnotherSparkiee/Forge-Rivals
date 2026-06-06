@@ -11,7 +11,7 @@ import {
   PlusCircle, History, Users, 
   ShieldCheck, Loader2, UserPlus, Check, X,
   LogOut, Newspaper, Crown, User, Mail, AlertTriangle,
-  Clock, Info, ShieldX, UserMinus
+  Clock, Info, ShieldX, UserMinus, Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -20,17 +20,18 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { collection, query, doc, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, query, doc, serverTimestamp, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { useRouter } from 'next/navigation';
 
-type AssocTab = 'menu' | 'all' | 'create' | 'my_assoc' | 'requests' | 'history' | 'news';
+type AssocTab = 'menu' | 'all' | 'create' | 'my_assoc' | 'requests' | 'history' | 'news' | 'disband_confirm';
 
 interface AssocMember {
   uid: string;
@@ -160,6 +161,11 @@ export default function AssociationPage() {
       removeDeputyDesc: "Demotes deputy back to regular member",
       kickPlayer: "Kick from Association",
       kickDesc: "Removes player from alliance immediately",
+      disband: "Disband Association",
+      disbandDesc: "Complete alliance liquidation",
+      disbandConfirmTitle: "DESTRUCTIVE PROTOCOL",
+      disbandConfirmDesc: "This action will permanently delete the association and remove all members. This cannot be undone.",
+      disbandBtn: "DISBAND ALLIANCE",
       tabs: {
         my_assoc: { label: "My Association", desc: "Manage your current alliance", icon: ShieldCheck, color: "text-primary" },
         news: { label: "News Feed", desc: "Recent alliance events", icon: Newspaper, color: "text-accent" },
@@ -198,6 +204,11 @@ export default function AssociationPage() {
       removeDeputyDesc: "Понижает заместителя до обычного участника",
       kickPlayer: "Исключить из ассоциации",
       kickDesc: "Немедленно удаляет игрока из альянса",
+      disband: "Распустить ассоциацию",
+      disbandDesc: "Полное удаление альянса",
+      disbandConfirmTitle: "ПРОТОКОЛ ЛИКВИДАЦИИ",
+      disbandConfirmDesc: "Это действие навсегда удалит ассоциацию и исключит всех участников. Это действие нельзя отменить.",
+      disbandBtn: "ЛИКВИДИРОВАТЬ АЛЬЯНС",
       tabs: {
         my_assoc: { label: "Моя ассоциация", desc: "Управление вашим альянсом", icon: ShieldCheck, color: "text-primary" },
         news: { label: "Лента новостей", desc: "Последние события альянса", icon: Newspaper, color: "text-accent" },
@@ -407,6 +418,31 @@ export default function AssociationPage() {
       });
       toast({ title: language === 'ru' ? "Заместитель снят с должности" : "Deputy Removed" });
       setSelectedUser(null);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDisbandAssoc = async () => {
+    if (!myAssoc || !isOwner || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      const batch = writeBatch(db);
+      
+      // 1. Clear associationId for all members
+      const members = myAssoc.members || [];
+      members.forEach((uid: string) => {
+        batch.update(doc(db, 'players_v10', uid), { associationId: null });
+      });
+
+      // 2. Delete association document
+      batch.delete(doc(db, 'associations_v4', myAssoc.id));
+
+      await batch.commit();
+      toast({ title: language === 'ru' ? "Ассоциация распущена" : "Association Disbanded" });
+      setActiveTab('menu');
+    } catch (e: any) {
+      toast({ title: "Disband Failed", description: e.message, variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }
@@ -698,7 +734,8 @@ export default function AssociationPage() {
       ] : [{ id: 'create', ...t.tabs.create }]),
       { id: 'all', ...t.tabs.all },
       ...(canManage ? [{ id: 'requests', ...t.tabs.requests, badge: myAssoc?.requests?.length || 0 }] : []),
-      { id: 'history', ...t.tabs.history }
+      { id: 'history', ...t.tabs.history },
+      ...(isOwner ? [{ id: 'disband_confirm', label: t.disband, desc: t.disbandDesc, icon: ShieldX, color: "text-red-500" }] : [])
     ];
 
     return (
@@ -736,6 +773,41 @@ export default function AssociationPage() {
             </Card>
           ))}
         </div>
+
+        <Dialog open={activeTab === 'disband_confirm'} onOpenChange={() => setActiveTab('menu')}>
+          <DialogContent className="max-w-xs bg-card border-white/10 p-6">
+            <DialogHeader>
+              <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4 border border-red-500/20">
+                <ShieldX className="w-8 h-8 text-red-500 animate-pulse" />
+              </div>
+              <DialogTitle className="text-center font-headline font-bold uppercase tracking-tight text-red-500">
+                {t.disbandConfirmTitle}
+              </DialogTitle>
+              <DialogDescription className="text-center text-xs text-muted-foreground mt-2 leading-relaxed italic">
+                {t.disbandConfirmDesc}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-2 mt-6">
+              <Button 
+                variant="destructive"
+                className="h-12 font-black uppercase text-[10px] shadow-lg shadow-red-900/20" 
+                onClick={handleDisbandAssoc}
+                disabled={isProcessing}
+              >
+                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                {t.disbandBtn}
+              </Button>
+              <Button 
+                variant="outline" 
+                className="h-12 font-bold uppercase text-[10px] border-white/10" 
+                onClick={() => setActiveTab('menu')}
+                disabled={isProcessing}
+              >
+                {language === 'ru' ? 'ОТМЕНА' : 'CANCEL'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
@@ -826,7 +898,7 @@ export default function AssociationPage() {
                     </div>
                     <div>
                       <h3 className={cn("text-xs font-bold uppercase", item.color)}>{item.label}</h3>
-                      <p className="text-[9px] text-muted-foreground leading-tight">{item.desc}</p>
+                      <p className={cn("text-[9px] text-muted-foreground leading-tight")}>{item.desc}</p>
                     </div>
                   </div>
                   {!item.disabled && <ChevronRight className="w-4 h-4 text-muted-foreground" />}
