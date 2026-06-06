@@ -19,7 +19,8 @@ import Link from 'next/link';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { collection, query, doc, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
 import {
   Dialog,
@@ -92,7 +93,8 @@ export default function AssociationPage() {
   const formatCountdown = (ms: number) => {
     const days = Math.floor(ms / (24 * 60 * 60 * 1000));
     const hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-    return `${days}d ${hours}h`;
+    const mins = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
+    return `${days}д ${hours}ч ${mins}м`;
   };
 
   const t = {
@@ -376,14 +378,6 @@ export default function AssociationPage() {
                   <p className="text-xs text-muted-foreground italic mt-4 px-6">"{myAssoc.description}"</p>
                   
                   <div className="mt-8 w-full flex flex-col gap-2">
-                    <Button 
-                      variant="outline" 
-                      className="h-10 text-[10px] font-black uppercase border-accent/20 text-accent"
-                      onClick={() => setActiveTab('news')}
-                    >
-                      <Newspaper className="w-4 h-4 mr-2" /> {t.newsFeed}
-                    </Button>
-                    
                     {!isOwner && (
                       <div className="space-y-2">
                         <Button 
@@ -499,7 +493,10 @@ export default function AssociationPage() {
 
   if (activeTab === 'menu') {
     const menuItems = [
-      ...(myAssoc ? [{ id: 'my_assoc', ...t.tabs.my_assoc }] : [{ id: 'create', ...t.tabs.create }]),
+      ...(myAssoc ? [
+        { id: 'my_assoc', ...t.tabs.my_assoc },
+        { id: 'news', ...t.tabs.news }
+      ] : [{ id: 'create', ...t.tabs.create }]),
       { id: 'all', ...t.tabs.all },
       ...(canManage ? [{ id: 'requests', ...t.tabs.requests, badge: myAssoc?.requests?.length || 0 }] : []),
       { id: 'history', ...t.tabs.history }
