@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useGameState, LineupSlot } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,8 +38,14 @@ export default function SquadPage() {
   const [selectingSlot, setSelectingSlot] = useState<LineupSlot | null>(null);
   const [profileHero, setProfileHero] = useState<Hero | null>(null);
   const [isTransferring, setIsTransferring] = useState(false);
+  const [now, setNow] = useState(Date.now());
   
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v10', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
@@ -70,6 +77,7 @@ export default function SquadPage() {
       injured: language === 'ru' ? "Травмирован" : "Injured",
       stats: language === 'ru' ? "Навыки и таланты" : "Skills & Talents",
       years: language === 'ru' ? "лет" : "yrs",
+      close: language === 'ru' ? "ЗАКРЫТЬ" : "CLOSE",
     },
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
@@ -137,6 +145,13 @@ export default function SquadPage() {
 
   const handlePutOnTransfer = async () => {
     if (!profileHero || !user || !profile || isTransferring) return;
+    
+    const liveAge = calculateLiveAge(profileHero.baseAge, profileHero.hiredAt);
+    if (liveAge.numeric < 18) {
+      toast({ variant: "destructive", title: t.tooYoung });
+      return;
+    }
+
     setIsTransferring(true);
     try {
       const today = getMoscowDateString();
@@ -252,7 +267,7 @@ export default function SquadPage() {
             <div className="grid grid-cols-1 gap-2">
               {ownedHeroes.filter(h => roleMapping[selectingSlot].includes(h.role)).map((hero) => {
                 const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
-                const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil) > new Date();
+                const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil).getTime() > now;
                 return (
                   <Card key={hero.id} className={cn("glass-card border-white/10 overflow-hidden cursor-pointer", (liveAge.numeric < 18 || onAuction) && "opacity-60 grayscale cursor-not-allowed")} onClick={() => handleHeroAssign(hero)}>
                     <CardContent className="p-2 flex items-center gap-3"><div className="w-10 h-10 rounded-xl overflow-hidden bg-muted"><img src={hero.image} alt="" className="w-full h-full object-cover" /></div><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><h4 className="font-bold text-[11px] truncate">{hero.name}</h4><span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span></div><div className="flex items-center gap-3 mt-0.5"><span className="text-[9px] font-bold text-accent flex items-center gap-1"><Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}</span><span className={cn("text-[8px] font-black uppercase tracking-tighter", liveAge.numeric < 18 ? "text-red-400" : "text-muted-foreground")}>{liveAge.display} {t.profile.years}</span>{onAuction && <Badge className="bg-yellow-500/20 text-yellow-500 text-[6px] h-3 px-1 border-none font-black uppercase">AUCTION</Badge>}</div></div><div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-3 h-3" /></div></CardContent>
@@ -284,12 +299,12 @@ export default function SquadPage() {
                   <Button 
                     className="w-full h-14 bg-orange-600 hover:bg-orange-700 text-white font-black text-[11px] tracking-widest uppercase shadow-xl" 
                     onClick={handlePutOnTransfer}
-                    disabled={isTransferring || (profileHero.onTransferUntil !== null && new Date(profileHero.onTransferUntil) > new Date())}
+                    disabled={isTransferring || (profileHero.onTransferUntil !== null && new Date(profileHero.onTransferUntil).getTime() > now)}
                   >
                     {isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
-                    {profileHero.onTransferUntil && new Date(profileHero.onTransferUntil) > new Date() ? t.onAuction : t.putOnTransfer}
+                    {profileHero.onTransferUntil && new Date(profileHero.onTransferUntil).getTime() > now ? t.onAuction : t.putOnTransfer}
                   </Button>
-                  <Button variant="ghost" className="w-full h-10 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfileHero(null)}>{t.close}</Button>
+                  <Button variant="ghost" className="w-full h-10 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfileHero(null)}>{t.profile.close}</Button>
                 </div>
               </>
             )}

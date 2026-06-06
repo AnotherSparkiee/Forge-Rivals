@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser } from '@/firebase';
@@ -25,19 +26,20 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     const isSetupPage = pathname === '/setup';
     const isHubEntered = typeof window !== 'undefined' && sessionStorage.getItem('lote_hub_entered') === 'true';
 
-    // 1. ПРИНУДИТЕЛЬНЫЙ ВХОД (если не нажата кнопка входа в текущей сессии)
-    if (pathname === '/' && !isHubEntered) {
-      router.replace('/auth/register');
-      return;
-    }
-
-    // 2. ЗАЩИТА ПРИ ОТСУТСТВИИ ПОЛЬЗОВАТЕЛЯ
+    // 1. ЗАЩИТА ПРИ ОТСУТСТВИИ ПОЛЬЗОВАТЕЛЯ
     if (!user) {
       if (!isAuthPage) {
         router.replace('/auth/register');
       } else {
         setIsInitialCheckDone(true);
       }
+      return;
+    }
+
+    // 2. ПРИНУДИТЕЛЬНЫЙ ВХОД (если не нажата кнопка входа в текущей сессии)
+    // Исключаем страницы авторизации и настройки из этого правила
+    if (pathname === '/' && !isHubEntered && !isAuthPage && !isSetupPage) {
+      router.replace('/auth/register');
       return;
     }
 

@@ -86,9 +86,20 @@ export default function AssociationPage() {
   const isDeputy = myAssoc?.deputyId === user?.uid;
   const canManage = isOwner || isDeputy;
 
+  const getDisplayMembers = (assoc: any): AssocMember[] => {
+    if (assoc.membersData && assoc.membersData.length > 0) return assoc.membersData;
+    // Fallback for older documents
+    return (assoc.members || []).map((uid: string, i: number) => ({
+      uid,
+      name: assoc.memberNames?.[i] || "Unknown Manager",
+      joinedAt: assoc.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+      role: uid === assoc.ownerId ? 'owner' : (uid === assoc.deputyId ? 'deputy' : 'member')
+    }));
+  };
+
   const myMemberInfo = useMemo(() => {
     if (!myAssoc || !user) return null;
-    return (myAssoc.membersData || []).find((m: AssocMember) => m.uid === user.uid);
+    return getDisplayMembers(myAssoc).find(m => m.uid === user.uid);
   }, [myAssoc, user]);
 
   const leaveCooldownMs = 14 * 24 * 60 * 60 * 1000;
@@ -291,6 +302,7 @@ export default function AssociationPage() {
   const renderAssocDetails = (assoc: any, isCurrentMyAssoc: boolean) => {
     const isMember = assoc.members?.includes(user?.uid);
     const isPending = assoc.requests?.some((r: any) => r.uid === user?.uid);
+    const displayMembers = getDisplayMembers(assoc);
 
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
@@ -340,7 +352,7 @@ export default function AssociationPage() {
         <div className="space-y-3">
           <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">{t.members} ({assoc.members?.length})</h3>
           <div className="grid gap-2">
-            {assoc.membersData?.map((m: AssocMember) => (
+            {displayMembers.map((m: AssocMember) => (
               <div 
                 key={m.uid} 
                 onClick={() => setSelectedUser({ id: m.uid, name: m.name })}
@@ -576,7 +588,6 @@ export default function AssociationPage() {
     );
   }
 
-  // Find if selected user belongs to my assoc or currently viewed browsed assoc
   const currentViewedAssoc = activeTab === 'my_assoc' ? myAssoc : browsedAssoc;
   const isSelectedUserInMyAssoc = myAssoc?.members?.includes(selectedPlayer?.id);
 
@@ -595,7 +606,7 @@ export default function AssociationPage() {
         </Button>
         <div>
           <h1 className="text-xl font-headline font-bold uppercase tracking-tight">
-            {(t.tabs as any)[activeTab]?.label}
+            {(t.tabs as any)[activeTab]?.label || 'ALLIANCE'}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p>
         </div>
