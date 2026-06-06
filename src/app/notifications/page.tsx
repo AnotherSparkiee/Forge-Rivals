@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -38,11 +37,17 @@ export default function NotificationsPage() {
   const { data: notifications, isLoading: isNotifsLoading } = useCollection(notificationsQuery);
 
   const displayNotifs = useMemo(() => {
-    if (!notifications || !profile) return [];
+    if (!notifications) return [];
+    
+    // If profile is still loading, show all notifications to prevent sharp disappearance
+    if (!profile) return notifications;
+
     const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : 0;
+    
     return notifications.filter(n => {
-      const notifTime = new Date(n.createdAt).getTime();
-      return notifTime >= setupTime;
+      const notifTime = n.createdAt ? new Date(n.createdAt).getTime() : 0;
+      // If setupDate is not set or notification is newer, show it
+      return isNaN(notifTime) || notifTime >= setupTime;
     });
   }, [notifications, profile]);
 
@@ -149,7 +154,7 @@ export default function NotificationsPage() {
       ) : null}
 
       <div className="space-y-2">
-        {isNotifsLoading ? (
+        {isNotifsLoading && !notifications ? (
           <div className="py-20 text-center opacity-50"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
         ) : displayNotifs && displayNotifs.length > 0 ? (
           displayNotifs.map((notif) => {

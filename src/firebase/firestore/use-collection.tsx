@@ -20,9 +20,7 @@ export interface UseCollectionResult<T> {
 
 /**
  * Hook for subscribing to Firestore collections.
- * Optimized for stability with Firestore 11.9.0 and React 19.
- * Uses a safe timeout to decouple SDK internals from React render cycles, 
- * preventing "Unexpected state (ID: ca9)" errors.
+ * Optimized to prevent "sharp disappearance" of data during re-syncs.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
@@ -45,7 +43,7 @@ export function useCollection<T = any>(
     let active = true;
     let unsubscribe: (() => void) | null = null;
 
-    // Small delay to ensure any previous unsubscriptions are processed by the SDK
+    // Small delay to ensure any previous unsubscriptions are processed
     const timer = setTimeout(() => {
       try {
         if (!active) return;
@@ -60,7 +58,7 @@ export function useCollection<T = any>(
               results.push({ ...(doc.data() as T), id: doc.id });
             });
             
-            // Decouple state update from snapshot callback to avoid ID: ca9/b815
+            // Decouple state update from snapshot callback
             setTimeout(() => {
               if (active) {
                 setData(results);
@@ -73,7 +71,7 @@ export function useCollection<T = any>(
             if (!active) return;
             console.warn("Firestore Collection Stream Error:", fError.code, fError.message);
             setError(fError);
-            setData(null);
+            // Keep existing data on error to prevent flickering
             setIsLoading(false);
           }
         );
@@ -84,7 +82,7 @@ export function useCollection<T = any>(
           setIsLoading(false);
         }
       }
-    }, 20);
+    }, 50);
 
     return () => {
       active = false;

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
@@ -66,9 +65,16 @@ export function TopBar() {
   const { data: notifications } = useCollection(notificationsQuery);
   
   const unreadNotifCount = useMemo(() => {
-    if (!notifications || !profile) return 0;
+    if (!notifications) return 0;
+    
+    // Fallback if profile is briefly unavailable
+    if (!profile) return notifications.filter(n => !n.read).length;
+
     const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : (profile.createdAt ? new Date(profile.createdAt).getTime() : 0);
-    return notifications.filter(n => new Date(n.createdAt).getTime() >= setupTime).length;
+    return notifications.filter(n => {
+      const notifTime = n.createdAt ? new Date(n.createdAt).getTime() : 0;
+      return !n.read && (isNaN(notifTime) || notifTime >= setupTime);
+    }).length;
   }, [notifications, profile]);
 
   useEffect(() => {
@@ -92,7 +98,7 @@ export function TopBar() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-white/10 h-14 flex items-center">
-      <div className="w-full max-w-lg mx-auto px-4 flex items-center justify-between gap-2">
+      <div className="w-full max-lg mx-auto px-4 flex items-center justify-between gap-2">
         
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
