@@ -16,13 +16,13 @@ import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { generateUniqueHero } from '@/app/lib/moba-data';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-import { getMoscowTime, calculateLiveAge } from '@/app/lib/time-utils';
+import { getMoscowTime, calculateLiveAge, getMoscowDateString } from '@/app/lib/time-utils';
 import {
   Dialog,
   DialogContent,
@@ -123,7 +123,7 @@ const TransferHeroCard = memo(({
             
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-base font-bold uppercase truncate text-white tracking-tight">{agent.heroData?.name}</h3>
+                <h3 className="text-base font-bold uppercase truncate text-white tracking-tight leading-tight">{agent.heroData?.name}</h3>
                 <Badge variant="outline" className="text-[8px] h-4 py-0 border-white/10 uppercase font-black text-primary/80">
                   {rolesRu[agent.heroData.role] || agent.heroData.role}
                 </Badge>
@@ -280,29 +280,57 @@ export default function QuickSearchPage() {
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
   const { data: profile } = useDoc(user?.uid ? doc(db, 'players_v10', user.uid) : null);
 
+  // Strict Rule: System adds 10 players per position once every 24 hours
   useEffect(() => {
-    const systemAdultAgents = (agents || []).filter(a => a.sellerId === 'system' && a.isYouth !== true);
-    if (!isMarketLoading && systemAdultAgents.length < 5 && !initTriggeredRef.current && !marketError && user?.uid) {
+    if (isMarketLoading || marketError || !user?.uid) return;
+
+    const today = getMoscowDateString();
+    const systemAgentsToday = (agents || []).filter(a => a.isSystem && a.dropDate === today);
+
+    // If no drop recorded for today, initiate daily refresh
+    if (systemAgentsToday.length === 0 && !initTriggeredRef.current) {
       initTriggeredRef.current = true;
-      const initializeMarket = async () => {
+      
+      const refreshMarket = async () => {
+        // 1. Cleanup old system agents (Delete everyone from previous days)
+        const oldSystemAgents = (agents || []).filter(a => a.isSystem && a.dropDate !== today);
+        for (const old of oldSystemAgents) {
+          await deleteDoc(doc(db, 'market_v7', old.id)).catch(() => {});
+        }
+
+        // 2. Generate exactly 10 players per role
         const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
         for (const role of roles) {
           for (let i = 1; i <= 10; i++) {
             const hero = generateUniqueHero(role, i, false);
+            // Ensure adult status
             if (hero.baseAge < 18) { hero.baseAge = 18; hero.age = 18; }
-            const agentId = `sys_adult_${role.toLowerCase()}_slot${i}_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 4)}`;
+            
+            const agentId = `sys_drop_${today}_${role.toLowerCase()}_${i}`;
             const startPrice = (hero.overallRating * 17500) + 290000;
-            const randomMinutes = Math.floor(Math.random() * (48 * 60 - 8 * 60)) + 8 * 60;
-            const expiry = new Date(getMoscowTime().getTime() + randomMinutes * 60 * 1000);
+            // All drop items expire in exactly 24 hours
+            const expiry = new Date(getMoscowTime().getTime() + 24 * 60 * 60 * 1000);
+            
             await setDoc(doc(db, 'market_v7', agentId), {
-              id: agentId, heroData: JSON.parse(JSON.stringify(hero)), currentBid: startPrice, startingPrice: startPrice, 
-              highestBidderId: null, highestBidderName: null, bidders: [], expiresAt: expiry.toISOString(), 
-              createdAt: serverTimestamp(), isSystem: true, isYouth: false, sellerId: 'system' 
+              id: agentId,
+              heroData: JSON.parse(JSON.stringify(hero)),
+              currentBid: startPrice,
+              startingPrice: startPrice,
+              highestBidderId: null,
+              highestBidderName: null,
+              bidders: [],
+              expiresAt: expiry.toISOString(),
+              dropDate: today, // Crucial for 24h rule
+              createdAt: serverTimestamp(),
+              isSystem: true,
+              isYouth: false,
+              sellerId: 'system'
             });
           }
         }
       };
-      initializeMarket().catch(e => console.error("Market auto-initialization failed", e));
+      
+      refreshMarket().catch(e => console.error("Daily market refresh failed", e));
     }
   }, [isMarketLoading, agents, user?.uid, db, marketError]);
 
@@ -363,7 +391,7 @@ export default function QuickSearchPage() {
         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.push('/transfers')}><ChevronLeft className="w-6 h-6" /></Button>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}</h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">Professional Market Terminal</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">Daily Professional Market Stream</p>
         </div>
       </header>
       
