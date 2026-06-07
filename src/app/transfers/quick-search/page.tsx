@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, Loader2, Gavel, ShieldCheck, 
-  Timer, Star, ShoppingCart, X, Check, Search, Info 
+  Timer, Star, ShoppingCart, X, Check, Search, Info, Users
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -54,7 +54,7 @@ const TransferHeroCard = memo(({
   const isOwner = agent.sellerId === user?.uid;
   const nextBidValue = Math.ceil(agent.currentBid * (1 + bidPercent / 100));
   const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
-  const avgTalent = Object.values(agent.heroData.proTalents || {}).reduce((a: any, b: any) => a + b, 0) as number / 10;
+  const avgTalent = Object.values(agent.heroData.proTalents || {}).reduce((a: any, b: any) => a + Number(b), 0) as number / 10;
 
   const rolesRu: Record<string, string> = {
     'Carry': 'Керри',
@@ -65,7 +65,8 @@ const TransferHeroCard = memo(({
   };
 
   const getCountdown = (expiryIso: string) => {
-    const diff = new Date(expiryIso).getTime() - now;
+    const expiry = new Date(expiryIso).getTime();
+    const diff = expiry - now;
     if (diff <= 0) return "00:00:00";
     const h = Math.floor(diff / 3600000);
     const m = Math.floor((diff % 3600000) / 60000);
@@ -109,7 +110,7 @@ const TransferHeroCard = memo(({
           </div>
 
           <div className="flex items-center gap-4 mb-4">
-            <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 shrink-0 relative shadow-lg">
+            <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 shrink-0 relative">
               <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
               <div className="absolute top-1 left-1 bg-black/60 rounded-sm px-1 py-0.5 border border-white/10 backdrop-blur-sm">
                 <span className="text-[10px]">{agent.heroData.country?.flag}</span>
@@ -145,7 +146,17 @@ const TransferHeroCard = memo(({
           <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
             <div className="flex flex-col">
               <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
-              <p className="text-xl font-headline font-bold text-white tracking-tight">€{agent.currentBid?.toLocaleString()}</p>
+              <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">€{agent.currentBid?.toLocaleString()}</p>
+              <p className={cn(
+                "text-[9px] font-black uppercase mt-1 flex items-center gap-1",
+                agent.highestBidderName ? "text-primary" : "text-muted-foreground/50"
+              )}>
+                {agent.highestBidderName ? (
+                  <><Users className="w-2.5 h-2.5" /> {language === 'ru' ? 'Лидер' : 'Leader'}: {agent.highestBidderName}</>
+                ) : (
+                  language === 'ru' ? 'Нету ставок' : 'No bids'
+                )}
+              </p>
             </div>
             
             <Button 
