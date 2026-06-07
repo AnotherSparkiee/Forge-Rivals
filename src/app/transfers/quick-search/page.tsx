@@ -1,25 +1,207 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, Loader2, Gavel, ShieldCheck, Clock, 
-  Timer, Percent, Star, User, Flag, X, Check, ShoppingCart 
+  ChevronLeft, Loader2, Gavel, ShieldCheck, 
+  Timer, Star, ShoppingCart, X, Check 
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, addDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { generateUniqueHero } from '@/app/lib/moba-data';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { getMoscowTime, calculateLiveAge } from '@/app/lib/time-utils';
+
+// Isolated Card Component to prevent full-list re-renders on slider move
+const TransferHeroCard = memo(({ 
+  agent, 
+  user, 
+  profile, 
+  onBid, 
+  now,
+  language 
+}: { 
+  agent: any, 
+  user: any, 
+  profile: any, 
+  onBid: (agent: any, amount: number) => Promise<void>,
+  now: number,
+  language: string
+}) => {
+  const [isConfiguring, setIsConfiguring] = useState(false);
+  const [bidPercent, setBidPercent] = useState(5);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const isLeading = agent.highestBidderId === user?.uid;
+  const isOwner = agent.sellerId === user?.uid;
+  const nextBidValue = Math.ceil(agent.currentBid * (1 + bidPercent / 100));
+  const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
+  const avgTalent = Object.values(agent.heroData.proTalents || {}).reduce((a: any, b: any) => a + b, 0) as number / 10;
+
+  const rolesRu: Record<string, string> = {
+    'Carry': 'Керри',
+    'Midlaner': 'Мидер',
+    'Tank': 'Танк',
+    'Jungler': 'Лес',
+    'Support': 'Саппорт'
+  };
+
+  const getCountdown = (expiryIso: string) => {
+    const diff = new Date(expiryIso).getTime() - now;
+    if (diff <= 0) return "00:00:00";
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  const renderStars = (rating: number) => (
+    <div className="flex items-center gap-0.5">
+      {Array.from({ length: 5 }).map((_, i) => {
+        const fill = Math.min(Math.max(rating - i, 0), 1);
+        return (
+          <div key={i} className="relative w-2 h-2">
+            <Star className="absolute inset-0 w-2 h-2 text-muted-foreground/20" />
+            <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
+              <Star className="w-2 h-2 text-yellow-500 fill-yellow-500" />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <Card className={cn(
+      "glass-card border-white/5 overflow-hidden transition-all", 
+      isLeading && "border-green-500/40 bg-green-500/5",
+      isOwner && "border-primary/40 bg-primary/5"
+    )}>
+      <CardContent className="p-3">
+        <div className="flex items-center justify-between mb-2">
+           <div className="flex items-center gap-1.5 text-accent">
+             <Timer className="w-3 h-3 animate-pulse" />
+             <span className="text-[9px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
+           </div>
+           <div className="flex gap-1.5">
+             {isOwner && <Badge className="bg-primary text-primary-foreground text-[6px] font-black uppercase px-1.5 h-3.5 border-none">{language === 'ru' ? 'ВАШ ЛОТ' : 'YOUR LOT'}</Badge>}
+             {isLeading && <Badge className="bg-green-600 text-white text-[6px] font-black uppercase px-1.5 h-3.5 border-none">{language === 'ru' ? 'ВЫ ЛИДИРУЕТЕ' : 'LEADING'}</Badge>}
+           </div>
+        </div>
+
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-20 h-20 rounded-xl overflow-hidden bg-secondary/30 border border-white/5 shrink-0 relative">
+            <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
+            <div className="absolute top-1 left-1 bg-black/60 rounded px-1 py-0.5 border border-white/10 backdrop-blur-sm">
+              <span className="text-[10px]">{agent.heroData.country?.flag}</span>
+            </div>
+          </div>
+          
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-sm font-bold uppercase truncate text-white tracking-tight leading-tight">{agent.heroData?.name}</h3>
+              <Badge variant="outline" className="text-[7px] h-3.5 py-0 border-white/10 uppercase font-black text-primary/80">
+                {rolesRu[agent.heroData.role] || agent.heroData.role}
+              </Badge>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2 mt-2">
+               <div className="flex flex-col bg-white/5 p-1.5 rounded-lg border border-white/5">
+                 <p className="text-[7px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
+                 {renderStars(avgTalent)}
+               </div>
+               <div className="flex flex-col bg-white/5 p-1.5 rounded-lg border border-white/5">
+                 <p className="text-[7px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
+                 <p className="text-[10px] font-bold text-white leading-none mt-0.5">{liveAge.display}</p>
+               </div>
+            </div>
+          </div>
+          
+          <div className="text-right flex flex-col items-end shrink-0 justify-center pr-1">
+            <p className="text-2xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
+            <p className="text-[8px] font-black text-muted-foreground uppercase mt-0.5">OVR</p>
+          </div>
+        </div>
+
+        {isConfiguring && !isOwner && !isLeading && (
+          <div className="bg-secondary/20 p-3 rounded-xl border border-white/10 space-y-3 mb-3 animate-in slide-in-from-top-1">
+            <div className="flex justify-between items-center px-1">
+              <span className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-1.5">
+                <Gavel className="w-2.5 h-2.5 text-primary" /> {language === 'ru' ? 'НОВАЯ СТАВКА' : 'NEW BID'}
+              </span>
+              <span className="text-xs font-headline font-bold text-primary italic">€ {nextBidValue.toLocaleString()}</span>
+            </div>
+            <Slider
+              value={[bidPercent]}
+              onValueChange={(val) => setBidPercent(val[0])}
+              min={3}
+              max={300}
+              step={1}
+              className="py-1"
+            />
+          </div>
+        )}
+        
+        <div className="flex items-center justify-between gap-4 pt-3 border-t border-white/5">
+          <div className="flex flex-col">
+            <p className="text-[7px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
+            <p className="text-base font-headline font-bold text-white">€{agent.currentBid?.toLocaleString()}</p>
+          </div>
+          
+          <div className="flex gap-1.5">
+            {isConfiguring ? (
+              <>
+                <Button variant="outline" size="icon" className="h-10 w-10 rounded-lg border-white/10" onClick={() => setIsConfiguring(false)}>
+                  <X className="w-4 h-4 text-muted-foreground" />
+                </Button>
+                <Button 
+                  className="h-10 font-black text-[9px] px-4 rounded-lg uppercase tracking-widest hero-gradient"
+                  onClick={async () => {
+                    setIsProcessing(true);
+                    await onBid(agent, nextBidValue);
+                    setIsProcessing(false);
+                    setIsConfiguring(false);
+                  }}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : (language === 'ru' ? 'ПОДТВЕРДИТЬ' : 'CONFIRM')}
+                </Button>
+              </>
+            ) : (
+              <Button 
+                className={cn(
+                  "h-10 font-black text-[9px] px-5 rounded-lg uppercase tracking-widest transition-all", 
+                  isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
+                  (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-lg shadow-primary/20")
+                )} 
+                onClick={() => !isLeading && !isOwner && setIsConfiguring(true)} 
+                disabled={isLeading || isOwner}
+              >
+                {isOwner ? (language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT') : (
+                  isLeading ? <><ShieldCheck className="w-3 h-3 mr-2" /> {language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</> : (
+                    <>{language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'}</>
+                  )
+                )}
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+});
+
+TransferHeroCard.displayName = 'TransferHeroCard';
 
 export default function QuickSearchPage() {
   const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
@@ -28,9 +210,6 @@ export default function QuickSearchPage() {
   const { toast } = useToast();
   const router = useRouter();
   
-  const [isBidding, setIsBidding] = useState<string | null>(null);
-  const [activeBidId, setActiveBidId] = useState<string | null>(null);
-  const [bidPercentages, setBidPercentages] = useState<Record<string, number>>({});
   const [now, setNow] = useState(Date.now());
   const initTriggeredRef = useRef(false);
 
@@ -45,46 +224,26 @@ export default function QuickSearchPage() {
   }, [db, user?.uid]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
-
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v10', user.uid) : null), [db, user?.uid]);
-  const { data: profile } = useDoc(userRef);
+  const { data: profile } = useDoc(user?.uid ? doc(db, 'players_v10', user.uid) : null);
 
   useEffect(() => {
     const systemAdultAgents = (agents || []).filter(a => a.sellerId === 'system' && a.isYouth !== true);
-    
     if (!isMarketLoading && systemAdultAgents.length < 5 && !initTriggeredRef.current && !marketError && user?.uid) {
       initTriggeredRef.current = true;
       const initializeMarket = async () => {
         const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
-        const mskNow = getMoscowTime();
-        
         for (const role of roles) {
           for (let i = 1; i <= 10; i++) {
             const hero = generateUniqueHero(role, i, false);
-            // Ensure age is 18+ for adult market
-            if (hero.baseAge < 18) {
-              hero.baseAge = 18;
-              hero.age = 18;
-            }
-            
+            if (hero.baseAge < 18) { hero.baseAge = 18; hero.age = 18; }
             const agentId = `sys_adult_${role.toLowerCase()}_slot${i}_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 4)}`;
             const startPrice = (hero.overallRating * 17500) + 290000;
             const randomMinutes = Math.floor(Math.random() * (48 * 60 - 8 * 60)) + 8 * 60;
-            const expiry = new Date(mskNow.getTime() + randomMinutes * 60 * 1000);
-
+            const expiry = new Date(getMoscowTime().getTime() + randomMinutes * 60 * 1000);
             await setDoc(doc(db, 'market_v7', agentId), {
-              id: agentId, 
-              heroData: JSON.parse(JSON.stringify(hero)), 
-              currentBid: startPrice, 
-              startingPrice: startPrice, 
-              highestBidderId: null, 
-              highestBidderName: null, 
-              bidders: [], 
-              expiresAt: expiry.toISOString(), 
-              createdAt: serverTimestamp(), 
-              isSystem: true, 
-              isYouth: false,
-              sellerId: 'system' 
+              id: agentId, heroData: JSON.parse(JSON.stringify(hero)), currentBid: startPrice, startingPrice: startPrice, 
+              highestBidderId: null, highestBidderName: null, bidders: [], expiresAt: expiry.toISOString(), 
+              createdAt: serverTimestamp(), isSystem: true, isYouth: false, sellerId: 'system' 
             });
           }
         }
@@ -93,95 +252,39 @@ export default function QuickSearchPage() {
     }
   }, [isMarketLoading, agents, user?.uid, db, marketError]);
 
-  const handleBid = async (agent: any) => {
-    if (!user || !profile || isBidding) return;
-    
-    if (agent.sellerId === user.uid) {
-      toast({ title: language === 'ru' ? "Нельзя ставить на себя" : "Cannot bid on yourself", variant: "destructive" });
-      return;
-    }
-
-    const percentage = bidPercentages[agent.id] || 5;
-    const bidIncrement = Math.ceil(agent.currentBid * (percentage / 100));
-    const nextBid = agent.currentBid + bidIncrement;
-    
-    if (credits < nextBid) { 
+  const handleGlobalBid = async (agent: any, amount: number) => {
+    if (!user || !profile) return;
+    if (credits < amount) { 
       toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" }); 
       return; 
     }
-
-    setIsBidding(agent.id);
     try {
-      const previousBidderId = agent.highestBidderId;
+      const prevBidder = agent.highestBidderId;
       const heroName = agent.heroData?.name || "Player";
-      const agentRef = doc(db, 'market_v7', agent.id);
-      
-      await updateDoc(agentRef, { 
-        currentBid: nextBid, 
-        highestBidderId: user.uid, 
-        highestBidderName: profile.displayName || "Unknown Manager", 
-        bidders: arrayUnion(user.uid), 
-        updatedAt: serverTimestamp() 
+      await updateDoc(doc(db, 'market_v7', agent.id), { 
+        currentBid: amount, highestBidderId: user.uid, highestBidderName: profile.displayName || "Unknown Manager", 
+        bidders: arrayUnion(user.uid), updatedAt: serverTimestamp() 
       });
-      
-      addCredits(-nextBid);
-
-      if (previousBidderId && previousBidderId !== user.uid) {
-        const notifTitle = language === 'ru' ? "Ставка перебита!" : "Outbid!";
-        const notifDesc = language === 'ru' 
-          ? `Ставка на "${heroName}" перебита ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
-          : `Bid on "${heroName}" was outbid ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
-
+      addCredits(-amount);
+      if (prevBidder && prevBidder !== user.uid) {
         addDocumentNonBlocking(collection(db, 'notifications_v6'), {
-          userId: previousBidderId,
-          title: notifTitle,
-          description: notifDesc,
-          type: 'market',
-          read: false,
-          createdAt: new Date().toISOString()
+          userId: prevBidder, title: language === 'ru' ? "Ставка перебита!" : "Outbid!",
+          description: language === 'ru' ? `Ставка на "${heroName}" перебита ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : `Bid on "${heroName}" outbid ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`,
+          type: 'market', read: false, createdAt: new Date().toISOString()
         });
       }
-      
       toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!" });
-      setActiveBidId(null);
-    } finally { 
-      setIsBidding(null); 
+    } catch (e) {
+      toast({ title: "Error placing bid", variant: "destructive" });
     }
-  };
-
-  const renderStars = (rating: number) => (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => {
-        const fill = Math.min(Math.max(rating - i, 0), 1);
-        return (
-          <div key={i} className="relative w-2.5 h-2.5">
-            <Star className="absolute inset-0 w-2.5 h-2.5 text-muted-foreground/20" />
-            <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
-              <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-
-  const getCountdown = (expiryIso: string) => {
-    const diff = new Date(expiryIso).getTime() - now;
-    if (diff <= 0) return "00:00:00";
-    const h = Math.floor(diff / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    const s = Math.floor((diff % 60000) / 1000);
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
   if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
 
   const roleList = [ 
-    { id: 'Carry', label: language === 'ru' ? "Керри" : "Carry" }, 
-    { id: 'Midlaner', label: language === 'ru' ? "Мидер" : "Midlaner" }, 
-    { id: 'Tank', label: language === 'ru' ? "Танк" : "Tank" }, 
-    { id: 'Jungler', label: language === 'ru' ? "Лес" : "Jungler" }, 
-    { id: 'Support', label: language === 'ru' ? "Саппорт" : "Support" } 
+    { id: 'Carry', label: "Керри" }, { id: 'Midlaner', label: "Мидер" }, 
+    { id: 'Tank', label: "Танк" }, { id: 'Jungler', label: "Лес" }, 
+    { id: 'Support', label: "Саппорт" } 
   ];
 
   return (
@@ -190,7 +293,7 @@ export default function QuickSearchPage() {
         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.push('/transfers')}><ChevronLeft className="w-6 h-6" /></Button>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}</h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">Real-time Market Active</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">Professional Market Terminal</p>
         </div>
       </header>
       
@@ -211,130 +314,21 @@ export default function QuickSearchPage() {
             });
 
           return (
-            <TabsContent key={role.id} value={role.id} className="space-y-2 animate-in fade-in slide-in-from-bottom-1 duration-300">
+            <TabsContent key={role.id} value={role.id} className="space-y-2">
               {isMarketLoading ? ( 
                 <div className="py-20 text-center opacity-50"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div> 
               ) : roleAgents.length > 0 ? (
-                roleAgents.map((agent) => {
-                  const isLeading = agent.highestBidderId === user?.uid;
-                  const isOwner = agent.sellerId === user?.uid;
-                  const isConfiguring = activeBidId === agent.id;
-                  const currentSelectedPercent = bidPercentages[agent.id] || 5;
-                  const nextBidValue = Math.ceil(agent.currentBid * (1 + currentSelectedPercent / 100));
-                  const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
-                  const avgTalent = Object.values(agent.heroData.proTalents || {}).reduce((a: any, b: any) => a + b, 0) as number / 10;
-                  
-                  const displayRole = roleList.find(r => r.id === agent.heroData.role)?.label || agent.heroData.role;
-
-                  return (
-                    <Card key={agent.id} className={cn(
-                      "glass-card border-white/5 overflow-hidden transition-all", 
-                      isLeading && "border-green-500/40 bg-green-500/5",
-                      isOwner && "border-primary/40 bg-primary/5"
-                    )}>
-                      <CardContent className="p-3">
-                        <div className="flex items-center justify-between mb-2">
-                           <div className="flex items-center gap-1.5 text-accent">
-                             <Timer className="w-3 h-3 animate-pulse" />
-                             <span className="text-[9px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
-                           </div>
-                           <div className="flex gap-1.5">
-                             {isOwner && <Badge className="bg-primary text-primary-foreground text-[6px] font-black uppercase px-1.5 h-3.5 border-none">{language === 'ru' ? 'ВАШ ЛОТ' : 'YOUR LOT'}</Badge>}
-                             {isLeading && <Badge className="bg-green-600 text-white text-[6px] font-black uppercase px-1.5 h-3.5 border-none">{language === 'ru' ? 'ВЫ ЛИДИРУЕТЕ' : 'LEADING'}</Badge>}
-                           </div>
-                        </div>
-
-                        <div className="flex items-center gap-4 mb-3">
-                          <div className="w-20 h-20 rounded-xl overflow-hidden bg-secondary/30 border border-white/5 shrink-0">
-                            <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-sm font-bold uppercase truncate text-white tracking-tight leading-tight">{agent.heroData?.name}</h3>
-                            <div className="flex flex-wrap items-center gap-2 mt-1">
-                              <Badge variant="outline" className="text-[7px] h-3.5 py-0 border-white/10 uppercase font-black">{displayRole}</Badge>
-                              <div className="flex items-center text-[11px]">
-                                <span>{agent.heroData.country?.flag}</span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-4 mt-2">
-                               <div className="flex flex-col">
-                                 <p className="text-[7px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
-                                 {renderStars(avgTalent)}
-                               </div>
-                               <div className="flex flex-col border-l border-white/5 pl-4">
-                                 <p className="text-[7px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
-                                 <p className="text-[10px] font-bold text-white leading-none">{liveAge.display} {language === 'ru' ? 'лет' : 'yrs'}</p>
-                               </div>
-                            </div>
-                          </div>
-                          <div className="text-right flex flex-col items-end shrink-0 justify-center">
-                            <p className="text-2xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
-                            <p className="text-[8px] font-black text-muted-foreground uppercase mt-0.5">OVR</p>
-                          </div>
-                        </div>
-
-                        {isConfiguring && !isOwner && !isLeading && (
-                          <div className="bg-secondary/20 p-3 rounded-xl border border-white/10 space-y-3 mb-3 animate-in slide-in-from-top-1 duration-300">
-                            <div className="flex justify-between items-center px-1">
-                              <span className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-1.5">
-                                <Gavel className="w-2.5 h-2.5 text-primary" /> {language === 'ru' ? 'ВАША СТАВКА' : 'YOUR BID'}
-                              </span>
-                              <span className="text-xs font-headline font-bold text-primary italic">€ {nextBidValue.toLocaleString()}</span>
-                            </div>
-                            <Slider
-                              value={[currentSelectedPercent]}
-                              onValueChange={(val) => setBidPercentages(prev => ({ ...prev, [agent.id]: val[0] }))}
-                              min={3}
-                              max={300}
-                              step={1}
-                              className="py-1"
-                            />
-                          </div>
-                        )}
-                        
-                        <div className="flex items-center justify-between gap-4 pt-3 border-t border-white/5">
-                          <div className="flex flex-col">
-                            <p className="text-[7px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ТЕК. ЦЕНА' : 'CURR. PRICE'}</p>
-                            <p className="text-base font-headline font-bold text-white">€{agent.currentBid?.toLocaleString()}</p>
-                          </div>
-                          
-                          <div className="flex gap-1.5">
-                            {isConfiguring ? (
-                              <>
-                                <Button variant="outline" size="icon" className="h-10 w-10 rounded-lg border-white/10" onClick={() => setActiveBidId(null)}>
-                                  <X className="w-4 h-4 text-muted-foreground" />
-                                </Button>
-                                <Button 
-                                  className="h-10 font-black text-[9px] px-4 rounded-lg uppercase tracking-widest hero-gradient shadow-lg shadow-primary/20"
-                                  onClick={() => handleBid(agent)}
-                                  disabled={!!isBidding}
-                                >
-                                  {isBidding === agent.id ? <Loader2 className="w-3 h-3 animate-spin" /> : (language === 'ru' ? 'ПОДТВЕРДИТЬ' : 'CONFIRM')}
-                                </Button>
-                              </>
-                            ) : (
-                              <Button 
-                                className={cn(
-                                  "h-10 font-black text-[9px] px-5 rounded-lg uppercase tracking-widest transition-all", 
-                                  isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
-                                  (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-lg shadow-primary/20 active:scale-95")
-                                )} 
-                                onClick={() => !isLeading && !isOwner && setActiveBidId(agent.id)} 
-                                disabled={isLeading || isOwner}
-                              >
-                                {isOwner ? (language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT') : (
-                                  isLeading ? <><ShieldCheck className="w-3 h-3 mr-2" /> {language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</> : (
-                                    <>{language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'}</>
-                                  )
-                                )}
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })
+                roleAgents.map((agent) => (
+                  <TransferHeroCard 
+                    key={agent.id} 
+                    agent={agent} 
+                    user={user} 
+                    profile={profile} 
+                    onBid={handleGlobalBid}
+                    now={now}
+                    language={language}
+                  />
+                ))
               ) : ( 
                 <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
                   <ShoppingCart className="w-12 h-12" />
