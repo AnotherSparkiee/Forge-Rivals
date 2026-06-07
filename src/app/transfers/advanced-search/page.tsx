@@ -16,6 +16,12 @@ export default function AdvancedSearchPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const [isAuthStabilized, setIsAuthStabilized] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!isUserLoading && user?.uid) {
@@ -52,6 +58,8 @@ export default function AdvancedSearchPage() {
     );
   }
 
+  const activeAgents = (agents || []).filter(a => new Date(a.expiresAt).getTime() > now);
+
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center gap-4">
@@ -76,8 +84,8 @@ export default function AdvancedSearchPage() {
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <p className="text-[10px] uppercase font-bold tracking-[0.2em]">Establishing Link...</p>
           </div>
-        ) : agents && agents.length > 0 ? (
-          agents.map((agent) => (
+        ) : activeAgents.length > 0 ? (
+          activeAgents.map((agent) => (
             <Card key={agent.id} className="glass-card border-white/5 group hover:border-primary/30 transition-all">
               <CardContent className="p-4 flex items-center justify-between">
                  <div className="flex items-center gap-4">

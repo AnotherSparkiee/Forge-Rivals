@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
@@ -24,6 +24,12 @@ export default function YouthTransfersPage() {
   const { toast } = useToast();
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
@@ -32,7 +38,8 @@ export default function YouthTransfersPage() {
 
   const { data: allAgents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
-  const youthAgents = allAgents?.filter(a => a.heroData?.baseAge && Number(a.heroData.baseAge) < 18) || [];
+  const youthAgents = (allAgents?.filter(a => a.heroData?.baseAge && Number(a.heroData.baseAge) < 18) || [])
+    .filter(a => new Date(a.expiresAt).getTime() > now);
 
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;
@@ -128,6 +135,12 @@ export default function YouthTransfersPage() {
                 isOwner && "border-blue-500/30 bg-blue-500/5"
               )}>
                 <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                     <div className="flex items-center gap-1.5 text-accent">
+                       <Clock className="w-3.5 h-3.5 animate-pulse" />
+                       <span className="text-[10px] font-mono font-bold">Active</span>
+                     </div>
+                  </div>
                   <div className="flex items-center gap-4 mb-4">
                     <div className="w-14 h-14 rounded-2xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0 shadow-lg">
                       <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />

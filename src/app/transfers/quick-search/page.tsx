@@ -67,7 +67,7 @@ export default function QuickSearchPage() {
               createdAt: serverTimestamp(), 
               isSystem: true, 
               isYouth: false,
-              sellerId: 'system' // Placeholder for system items
+              sellerId: 'system' 
             });
           }
         }
@@ -92,7 +92,6 @@ export default function QuickSearchPage() {
     try {
       const agentRef = doc(db, 'market_v7', agent.id);
       
-      // Update market document
       await updateDoc(agentRef, { 
         currentBid: minNextBid, 
         highestBidderId: user.uid, 
@@ -101,7 +100,6 @@ export default function QuickSearchPage() {
         updatedAt: serverTimestamp() 
       });
       
-      // Then deduct credits
       addCredits(-minNextBid);
       
       toast({ 
@@ -156,7 +154,9 @@ export default function QuickSearchPage() {
         </TabsList>
         
         {roleList.map((role) => {
-          const roleAgents = agents?.filter(a => a.heroData?.role === role.id && a.isYouth !== true) || [];
+          const roleAgents = (agents?.filter(a => a.heroData?.role === role.id && a.isYouth !== true) || [])
+            .filter(a => new Date(a.expiresAt).getTime() > now);
+
           return (
             <TabsContent key={role.id} value={role.id} className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
               {isMarketLoading ? ( 
@@ -164,13 +164,11 @@ export default function QuickSearchPage() {
               ) : roleAgents.length > 0 ? (
                 roleAgents.map((agent) => {
                   const isLeading = agent.highestBidderId === user?.uid;
-                  const isExpired = new Date(agent.expiresAt).getTime() <= now;
                   
                   return (
                     <Card key={agent.id} className={cn(
                       "glass-card border-white/5 overflow-hidden transition-all", 
-                      isLeading && "border-green-500/40 bg-green-500/5",
-                      isExpired && "opacity-50"
+                      isLeading && "border-green-500/40 bg-green-500/5"
                     )}>
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-3">
@@ -216,7 +214,7 @@ export default function QuickSearchPage() {
                               isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : "hero-gradient shadow-lg shadow-primary/20"
                             )} 
                             onClick={() => handleBid(agent)} 
-                            disabled={!!isBidding || isLeading || isExpired}
+                            disabled={!!isBidding || isLeading}
                           >
                             {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                               isLeading ? <><ShieldCheck className="w-4 h-4 mr-2" /> {language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</> : (
