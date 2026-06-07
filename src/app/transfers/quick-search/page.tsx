@@ -78,6 +78,16 @@ export default function QuickSearchPage() {
 
   const handleBid = async (agent: any) => {
     if (!user || !profile || isBidding) return;
+    
+    // Prevent bidding on own player
+    if (agent.sellerId === user.uid) {
+      toast({ 
+        title: language === 'ru' ? "Нельзя ставить на себя" : "Cannot bid on yourself", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     const minNextBid = Math.ceil(agent.currentBid * 1.05);
     
     if (credits < minNextBid) { 
@@ -164,11 +174,13 @@ export default function QuickSearchPage() {
               ) : roleAgents.length > 0 ? (
                 roleAgents.map((agent) => {
                   const isLeading = agent.highestBidderId === user?.uid;
+                  const isOwner = agent.sellerId === user?.uid;
                   
                   return (
                     <Card key={agent.id} className={cn(
                       "glass-card border-white/5 overflow-hidden transition-all", 
-                      isLeading && "border-green-500/40 bg-green-500/5"
+                      isLeading && "border-green-500/40 bg-green-500/5",
+                      isOwner && "border-primary/40 bg-primary/5"
                     )}>
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-3">
@@ -176,7 +188,10 @@ export default function QuickSearchPage() {
                              <Timer className="w-3.5 h-3.5 animate-pulse" />
                              <span className="text-[10px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
                            </div>
-                           {isLeading && <Badge className="bg-green-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'Вы лидируете' : 'Leading'}</Badge>}
+                           <div className="flex gap-2">
+                             {isOwner && <Badge className="bg-primary text-primary-foreground text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'Ваш лот' : 'Your Lot'}</Badge>}
+                             {isLeading && <Badge className="bg-green-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'Вы лидируете' : 'Leading'}</Badge>}
+                           </div>
                         </div>
 
                         <div className="flex items-center gap-4 mb-4">
@@ -211,14 +226,17 @@ export default function QuickSearchPage() {
                           <Button 
                             className={cn(
                               "h-11 font-black text-[10px] px-5 rounded-xl uppercase tracking-widest", 
-                              isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : "hero-gradient shadow-lg shadow-primary/20"
+                              isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
+                              (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-lg shadow-primary/20")
                             )} 
                             onClick={() => handleBid(agent)} 
-                            disabled={!!isBidding || isLeading}
+                            disabled={!!isBidding || isLeading || isOwner}
                           >
                             {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                              isLeading ? <><ShieldCheck className="w-4 h-4 mr-2" /> {language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</> : (
-                                language === 'ru' ? 'СДЕЛАТЬ СТАВКУ' : 'MAKE A BID'
+                              isOwner ? <><ShieldCheck className="w-4 h-4 mr-2" /> {language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT'}</> : (
+                                isLeading ? <><ShieldCheck className="w-4 h-4 mr-2" /> {language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</> : (
+                                  language === 'ru' ? 'СДЕЛАТЬ СТАВКУ' : 'MAKE A BID'
+                                )
                               )
                             )}
                           </Button>
@@ -240,3 +258,4 @@ export default function QuickSearchPage() {
     </div>
   );
 }
+

@@ -44,6 +44,15 @@ export default function YouthTransfersPage() {
   const handleBid = async (agent: any) => {
     if (!user || isBidding) return;
     
+    // Prevent bidding on own player
+    if (agent.sellerId === user.uid) {
+      toast({ 
+        title: language === 'ru' ? "Нельзя ставить на себя" : "Cannot bid on yourself", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
     const minNextBid = Math.ceil(agent.currentBid * 1.05);
     if (credits < minNextBid) {
       toast({ 
@@ -140,6 +149,10 @@ export default function YouthTransfersPage() {
                        <Clock className="w-3.5 h-3.5 animate-pulse" />
                        <span className="text-[10px] font-mono font-bold">Active</span>
                      </div>
+                     <div className="flex gap-2">
+                       {isOwner && <Badge className="bg-blue-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'Ваш лот' : 'Your Lot'}</Badge>}
+                       {isLeading && <Badge className="bg-green-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'Вы лидируете' : 'Leading'}</Badge>}
+                     </div>
                   </div>
                   <div className="flex items-center gap-4 mb-4">
                     <div className="w-14 h-14 rounded-2xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0 shadow-lg">
@@ -152,7 +165,6 @@ export default function YouthTransfersPage() {
                           {agent.heroData?.role}
                         </Badge>
                         <Badge className="bg-accent text-accent-foreground text-[7px] font-black uppercase">YOUTH</Badge>
-                        {isOwner && <Badge className="bg-blue-500 text-white text-[7px] font-black uppercase">YOUR LOT</Badge>}
                       </div>
                     </div>
                     <div className="text-right flex flex-col items-end">
@@ -169,12 +181,15 @@ export default function YouthTransfersPage() {
                     <Button 
                       className={cn(
                         "h-11 font-black text-[10px] px-6 shadow-xl rounded-xl",
-                        isLeading ? "bg-green-600 text-white" : "hero-gradient shadow-primary/20"
+                        isLeading ? "bg-green-600 text-white" : 
+                        (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-primary/20")
                       )}
                       onClick={() => handleBid(agent)} 
                       disabled={!!isBidding || isLeading || isOwner}
                     >
-                      {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : isLeading ? 'LEADING' : <><Gavel className="w-4 h-4 mr-2" /> BID</>}
+                      {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 
+                       (isOwner ? (language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR UNIT') : 
+                       (isLeading ? 'LEADING' : <><Gavel className="w-4 h-4 mr-2" /> BID</>))}
                     </Button>
                   </div>
                 </CardContent>
@@ -191,3 +206,4 @@ export default function YouthTransfersPage() {
     </div>
   );
 }
+
