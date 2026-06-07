@@ -7,13 +7,14 @@ import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, addDocum
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, ShoppingCart, Loader2, Gavel, ShieldCheck, Clock, AlertCircle, Users, Percent, Timer } from 'lucide-react';
+import { ChevronLeft, ShoppingCart, Loader2, Gavel, ShieldCheck, Clock, AlertCircle, Users, Percent, Timer, Star, Flag, X } from 'lucide-react';
 import { collection, query, doc, arrayUnion, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { calculateLiveAge } from '@/app/lib/time-utils';
 
 export default function YouthTransfersPage() {
   const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
@@ -23,6 +24,7 @@ export default function YouthTransfersPage() {
   const { toast } = useToast();
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
+  const [activeBidId, setActiveBidId] = useState<string | null>(null);
   const [bidPercentages, setBidPercentages] = useState<Record<string, number>>({});
   const [now, setNow] = useState(Date.now());
 
@@ -48,10 +50,7 @@ export default function YouthTransfersPage() {
     if (!user || !profile || isBidding) return;
     
     if (agent.sellerId === user.uid) {
-      toast({ 
-        title: language === 'ru' ? "Нельзя ставить на себя" : "Cannot bid on yourself", 
-        variant: "destructive" 
-      });
+      toast({ title: language === 'ru' ? "Нельзя ставить на себя" : "Cannot bid on yourself", variant: "destructive" });
       return;
     }
     
@@ -60,10 +59,7 @@ export default function YouthTransfersPage() {
     const nextBid = agent.currentBid + bidIncrement;
 
     if (credits < nextBid) {
-      toast({ 
-        title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", 
-        variant: "destructive" 
-      });
+      toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" });
       return;
     }
 
@@ -84,11 +80,10 @@ export default function YouthTransfersPage() {
       addCredits(-nextBid);
 
       if (previousBidderId && previousBidderId !== user.uid) {
-        const nowTime = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
         const notifTitle = language === 'ru' ? "Ставка перебита!" : "Outbid!";
         const notifDesc = language === 'ru' 
-          ? `Ставка на "${heroName}" перебита ${nowTime}`
-          : `Bid on "${heroName}" was outbid ${nowTime}`;
+          ? `Ставка на "${heroName}" перебита ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
+          : `Bid on "${heroName}" was outbid ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
 
         addDocumentNonBlocking(collection(db, 'notifications_v6'), {
           userId: previousBidderId,
@@ -100,16 +95,36 @@ export default function YouthTransfersPage() {
         });
       }
 
-      toast({ 
-        title: language === 'ru' ? "Ставка принята!" : "Bid Placed!",
-        description: language === 'ru' ? "Вы теперь лидер торгов." : "You are now the leading bidder."
-      });
-    } catch (e: any) {
-      console.error("Bid operation fail:", e);
-      toast({ title: "Bid Failed", description: e.message, variant: "destructive" });
+      toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Placed!" });
+      setActiveBidId(null);
     } finally {
       setIsBidding(null);
     }
+  };
+
+  const renderStars = (rating: number) => (
+    <div className="flex items-center gap-0.5">
+      {Array.from({ length: 5 }).map((_, i) => {
+        const fill = Math.min(Math.max(rating - i, 0), 1);
+        return (
+          <div key={i} className="relative w-2 h-2">
+            <Star className="absolute inset-0 w-2 h-2 text-muted-foreground/20" />
+            <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
+              <Star className="w-2 h-2 text-yellow-500 fill-yellow-500" />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const getCountdown = (expiryIso: string) => {
+    const diff = new Date(expiryIso).getTime() - now;
+    if (diff <= 0) return "00:00:00";
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
   if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
@@ -125,12 +140,7 @@ export default function YouthTransfersPage() {
       <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-6">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
         <h2 className="text-xl font-bold uppercase text-white">Market Archive Error</h2>
-        <p className="text-[10px] text-muted-foreground uppercase px-10 font-black tracking-widest leading-relaxed">
-          Access to the market data node was denied. Re-authentication sequence or session refresh required.
-        </p>
-        <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black px-8">
-          RE-SYNC TERMINAL
-        </Button>
+        <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-black px-8">RE-SYNC TERMINAL</Button>
       </div>
     );
   }
@@ -138,9 +148,7 @@ export default function YouthTransfersPage() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.push('/youth-academy')}>
-          <ChevronLeft className="w-6 h-6" />
-        </Button>
+        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.push('/youth-academy')}><ChevronLeft className="w-6 h-6" /></Button>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-primary flex items-center gap-2">
             <ShoppingCart className="w-6 h-6 text-primary" />
@@ -154,26 +162,16 @@ export default function YouthTransfersPage() {
 
       <div className="space-y-3">
         {isMarketLoading ? (
-          <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Establishing Link...</p>
-          </div>
+          <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50"><Loader2 className="w-8 h-8 animate-spin text-primary" /><p className="text-[10px] uppercase font-bold tracking-[0.2em]">Establishing Link...</p></div>
         ) : youthAgents.length > 0 ? (
           youthAgents.map((agent) => {
             const isLeading = agent.highestBidderId === user?.uid;
             const isOwner = agent.sellerId === user?.uid;
+            const isConfiguring = activeBidId === agent.id;
             const currentSelectedPercent = bidPercentages[agent.id] || 5;
             const nextBidValue = Math.ceil(agent.currentBid * (1 + currentSelectedPercent / 100));
-
-            const getCountdownValue = (expiryIso: string) => {
-              const expiry = new Date(expiryIso).getTime();
-              const diff = expiry - now;
-              if (diff <= 0) return "00:00:00";
-              const h = Math.floor(diff / 3600000);
-              const m = Math.floor((diff % 3600000) / 60000);
-              const s = Math.floor((diff % 60000) / 1000);
-              return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-            };
+            const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
+            const avgTalent = Object.values(agent.heroData.proTalents || {}).reduce((a: any, b: any) => a + b, 0) as number / 10;
 
             return (
               <Card key={agent.id} className={cn(
@@ -185,7 +183,7 @@ export default function YouthTransfersPage() {
                   <div className="flex items-center justify-between mb-3">
                      <div className="flex items-center gap-1.5 text-accent">
                        <Timer className="w-3.5 h-3.5 animate-pulse" />
-                       <span className="text-[10px] font-mono font-bold tracking-tighter">{getCountdownValue(agent.expiresAt)}</span>
+                       <span className="text-[10px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
                      </div>
                      <div className="flex gap-2">
                        {isOwner && <Badge className="bg-blue-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'Ваш лот' : 'Your Lot'}</Badge>}
@@ -193,26 +191,36 @@ export default function YouthTransfersPage() {
                      </div>
                   </div>
                   <div className="flex items-center gap-4 mb-4">
-                    <div className="w-14 h-14 rounded-2xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0 shadow-lg">
+                    <div className="w-16 h-16 rounded-2xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0 shadow-lg">
                       <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-base font-bold uppercase truncate text-white tracking-tight">{agent.heroData?.name}</h3>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase font-black">
-                          {agent.heroData?.role}
-                        </Badge>
-                        <Badge className="bg-accent text-accent-foreground text-[7px] font-black uppercase">YOUTH</Badge>
+                        <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase font-black">{agent.heroData?.role}</Badge>
+                        <div className="flex items-center gap-1 text-[8px] font-black text-muted-foreground uppercase">
+                           <Flag className="w-2.5 h-2.5" /> {agent.heroData.country?.name}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 mt-2">
+                         <div className="flex flex-col">
+                           <p className="text-[7px] font-black text-muted-foreground uppercase leading-none mb-1">Talent</p>
+                           {renderStars(avgTalent)}
+                         </div>
+                         <div className="flex flex-col border-l border-white/10 pl-3">
+                           <p className="text-[7px] font-black text-muted-foreground uppercase leading-none mb-1">Age</p>
+                           <p className="text-[10px] font-bold text-white leading-none">{liveAge.display} yrs</p>
+                         </div>
                       </div>
                     </div>
-                    <div className="text-right flex flex-col items-end">
+                    <div className="text-right flex flex-col items-end shrink-0">
                       <p className="text-2xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
-                      <p className="text-[8px] font-black text-muted-foreground uppercase mt-1 tracking-tighter">OVR</p>
+                      <p className="text-[8px] font-black text-muted-foreground uppercase mt-1">OVR</p>
                     </div>
                   </div>
 
-                  {!isOwner && !isLeading && (
-                    <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 space-y-4 mb-4">
+                  {isConfiguring && !isOwner && !isLeading && (
+                    <div className="bg-secondary/20 p-4 rounded-xl border border-white/10 space-y-4 mb-4 animate-in slide-in-from-top-2 duration-300">
                       <div className="flex justify-between items-center">
                         <span className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1.5">
                           <Percent className="w-3 h-3 text-primary" /> {language === 'ru' ? 'Шаг ставки' : 'Bid Increment'}
@@ -239,26 +247,44 @@ export default function YouthTransfersPage() {
                       <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Current Bid</p>
                       <p className="text-lg font-headline font-bold text-white tabular-nums">€{agent.currentBid?.toLocaleString()}</p>
                     </div>
-                    <Button 
-                      className={cn(
-                        "h-12 font-black text-[10px] px-6 shadow-xl rounded-xl flex flex-col items-center justify-center leading-none",
-                        isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
-                        (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-primary/20")
+                    
+                    <div className="flex gap-2">
+                      {isConfiguring ? (
+                        <>
+                          <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl border-white/10" onClick={() => setActiveBidId(null)}>
+                            <X className="w-5 h-5 text-muted-foreground" />
+                          </Button>
+                          <Button 
+                            className="h-12 font-black text-[10px] px-5 rounded-xl uppercase tracking-widest flex flex-col items-center justify-center leading-none hero-gradient shadow-lg shadow-primary/20"
+                            onClick={() => handleBid(agent)}
+                            disabled={!!isBidding}
+                          >
+                            {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                              <>
+                                <span className="mb-1">{language === 'ru' ? 'ПОДТВЕРДИТЬ' : 'CONFIRM'}</span>
+                                <span className="text-[8px] opacity-80">€{nextBidValue.toLocaleString()}</span>
+                              </>
+                            )}
+                          </Button>
+                        </>
+                      ) : (
+                        <Button 
+                          className={cn(
+                            "h-12 font-black text-[10px] px-6 rounded-xl uppercase tracking-widest flex items-center justify-center leading-none", 
+                            isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
+                            (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-primary/20")
+                          )} 
+                          onClick={() => !isLeading && !isOwner && setActiveBidId(agent.id)} 
+                          disabled={isLeading || isOwner}
+                        >
+                          {isOwner ? (language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR UNIT') : (
+                            isLeading ? <><ShieldCheck className="w-4 h-4 mr-2" /> LEADING</> : (
+                              <>{language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'}</>
+                            )
+                          )}
+                        </Button>
                       )}
-                      onClick={() => handleBid(agent)} 
-                      disabled={!!isBidding || isLeading || isOwner}
-                    >
-                      {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                        isOwner ? (language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR UNIT') : (
-                          isLeading ? 'LEADING' : (
-                            <>
-                              <span className="mb-1">{language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'}</span>
-                              <span className="text-[8px] opacity-80">€{nextBidValue.toLocaleString()}</span>
-                            </>
-                          )
-                        )
-                      )}
-                    </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
