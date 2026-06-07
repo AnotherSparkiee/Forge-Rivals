@@ -5,10 +5,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, Loader2, Gavel, AlertCircle, RefreshCw, ShoppingCart, Users, ShieldCheck, Clock, Timer } from 'lucide-react';
+import { ChevronLeft, Loader2, Gavel, AlertCircle, RefreshCw, ShoppingCart, Users, ShieldCheck, Clock, Timer, Percent } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Slider } from '@/components/ui/slider';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -24,6 +25,7 @@ export default function QuickSearchPage() {
   const router = useRouter();
   
   const [isBidding, setIsBidding] = useState<string | null>(null);
+  const [bidPercentages, setBidPercentages] = useState<Record<string, number>>({});
   const [now, setNow] = useState(Date.now());
   const initTriggeredRef = useRef(false);
 
@@ -79,7 +81,6 @@ export default function QuickSearchPage() {
   const handleBid = async (agent: any) => {
     if (!user || !profile || isBidding) return;
     
-    // Prevent bidding on own player
     if (agent.sellerId === user.uid) {
       toast({ 
         title: language === 'ru' ? "Нельзя ставить на себя" : "Cannot bid on yourself", 
@@ -88,9 +89,11 @@ export default function QuickSearchPage() {
       return;
     }
 
-    const minNextBid = Math.ceil(agent.currentBid * 1.05);
+    const percentage = bidPercentages[agent.id] || 5;
+    const bidIncrement = Math.ceil(agent.currentBid * (percentage / 100));
+    const nextBid = agent.currentBid + bidIncrement;
     
-    if (credits < minNextBid) { 
+    if (credits < nextBid) { 
       toast({ 
         title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", 
         variant: "destructive" 
@@ -105,16 +108,15 @@ export default function QuickSearchPage() {
       const agentRef = doc(db, 'market_v7', agent.id);
       
       await updateDoc(agentRef, { 
-        currentBid: minNextBid, 
+        currentBid: nextBid, 
         highestBidderId: user.uid, 
         highestBidderName: profile.displayName || "Unknown Manager", 
         bidders: arrayUnion(user.uid), 
         updatedAt: serverTimestamp() 
       });
       
-      addCredits(-minNextBid);
+      addCredits(-nextBid);
 
-      // Send notification to previous bidder if they were outbid
       if (previousBidderId && previousBidderId !== user.uid) {
         const nowTime = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
         const notifTitle = language === 'ru' ? "Ставка перебита!" : "Outbid!";
@@ -134,7 +136,7 @@ export default function QuickSearchPage() {
       
       toast({ 
         title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!",
-        description: language === 'ru' ? `Вы лидируете: ${minNextBid.toLocaleString()} €` : `You are leading: ${minNextBid.toLocaleString()} €`
+        description: language === 'ru' ? `Вы лидируете: ${nextBid.toLocaleString()} €` : `You are leading: ${nextBid.toLocaleString()} €`
       });
     } catch (e: any) {
       console.error("Bidding error:", e.message);
@@ -195,6 +197,8 @@ export default function QuickSearchPage() {
                 roleAgents.map((agent) => {
                   const isLeading = agent.highestBidderId === user?.uid;
                   const isOwner = agent.sellerId === user?.uid;
+                  const currentSelectedPercent = bidPercentages[agent.id] || 5;
+                  const nextBidValue = Math.ceil(agent.currentBid * (1 + currentSelectedPercent / 100));
                   
                   return (
                     <Card key={agent.id} className={cn(
@@ -237,15 +241,38 @@ export default function QuickSearchPage() {
                             <p className="text-[8px] font-black text-muted-foreground uppercase mt-1">OVR</p>
                           </div>
                         </div>
+
+                        {!isOwner && !isLeading && (
+                          <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 space-y-4 mb-4">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1.5">
+                                <Percent className="w-3 h-3 text-primary" /> {language === 'ru' ? 'Шаг ставки' : 'Bid Increment'}
+                              </span>
+                              <span className="text-[10px] font-mono font-bold text-primary">{currentSelectedPercent}%</span>
+                            </div>
+                            <Slider
+                              value={[currentSelectedPercent]}
+                              onValueChange={(val) => setBidPercentages(prev => ({ ...prev, [agent.id]: val[0] }))}
+                              min={3}
+                              max={300}
+                              step={1}
+                              className="py-2"
+                            />
+                            <div className="flex justify-between items-center text-[9px] font-bold text-muted-foreground opacity-50 px-0.5">
+                              <span>3%</span>
+                              <span>300%</span>
+                            </div>
+                          </div>
+                        )}
                         
                         <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
                           <div className="flex flex-col">
-                            <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">{language === 'ru' ? 'Цена' : 'Price'}</p>
-                            <p className="text-lg font-headline font-bold text-primary">€{agent.currentBid?.toLocaleString()}</p>
+                            <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">{language === 'ru' ? 'Тек. цена' : 'Current Price'}</p>
+                            <p className="text-lg font-headline font-bold text-white">€{agent.currentBid?.toLocaleString()}</p>
                           </div>
                           <Button 
                             className={cn(
-                              "h-11 font-black text-[10px] px-5 rounded-xl uppercase tracking-widest", 
+                              "h-12 font-black text-[10px] px-5 rounded-xl uppercase tracking-widest flex flex-col items-center justify-center leading-none", 
                               isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
                               (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-lg shadow-primary/20")
                             )} 
@@ -253,9 +280,12 @@ export default function QuickSearchPage() {
                             disabled={!!isBidding || isLeading || isOwner}
                           >
                             {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                              isOwner ? <><ShieldCheck className="w-4 h-4 mr-2" /> {language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT'}</> : (
-                                isLeading ? <><ShieldCheck className="w-4 h-4 mr-2" /> {language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</> : (
-                                  language === 'ru' ? 'СДЕЛАТЬ СТАВКУ' : 'MAKE A BID'
+                              isOwner ? <><ShieldCheck className="w-4 h-4 mb-1" /> {language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT'}</> : (
+                                isLeading ? <><ShieldCheck className="w-4 h-4 mb-1" /> {language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</> : (
+                                  <>
+                                    <span className="mb-1">{language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'}</span>
+                                    <span className="text-[8px] opacity-80">€{nextBidValue.toLocaleString()}</span>
+                                  </>
                                 )
                               )
                             )}

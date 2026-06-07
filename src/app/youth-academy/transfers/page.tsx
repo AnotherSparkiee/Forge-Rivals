@@ -7,11 +7,10 @@ import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, addDocum
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { 
-  ChevronLeft, ShoppingCart, Loader2, Gavel, ShieldCheck, Clock, AlertCircle, Users
-} from 'lucide-react';
+import { ChevronLeft, ShoppingCart, Loader2, Gavel, ShieldCheck, Clock, AlertCircle, Users, Percent, Timer } from 'lucide-react';
 import { collection, query, doc, arrayUnion, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -24,6 +23,7 @@ export default function YouthTransfersPage() {
   const { toast } = useToast();
 
   const [isBidding, setIsBidding] = useState<string | null>(null);
+  const [bidPercentages, setBidPercentages] = useState<Record<string, number>>({});
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -47,7 +47,6 @@ export default function YouthTransfersPage() {
   const handleBid = async (agent: any) => {
     if (!user || !profile || isBidding) return;
     
-    // Prevent bidding on own player
     if (agent.sellerId === user.uid) {
       toast({ 
         title: language === 'ru' ? "Нельзя ставить на себя" : "Cannot bid on yourself", 
@@ -56,8 +55,11 @@ export default function YouthTransfersPage() {
       return;
     }
     
-    const minNextBid = Math.ceil(agent.currentBid * 1.05);
-    if (credits < minNextBid) {
+    const percentage = bidPercentages[agent.id] || 5;
+    const bidIncrement = Math.ceil(agent.currentBid * (percentage / 100));
+    const nextBid = agent.currentBid + bidIncrement;
+
+    if (credits < nextBid) {
       toast({ 
         title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", 
         variant: "destructive" 
@@ -72,16 +74,15 @@ export default function YouthTransfersPage() {
       const agentRef = doc(db, 'market_v7', agent.id);
       
       await updateDoc(agentRef, {
-        currentBid: Number(minNextBid),
+        currentBid: Number(nextBid),
         highestBidderId: String(user.uid),
         highestBidderName: profile.displayName || "Manager", 
         bidders: arrayUnion(user.uid),
         updatedAt: serverTimestamp()
       });
       
-      addCredits(-minNextBid);
+      addCredits(-nextBid);
 
-      // Send notification to previous bidder if they were outbid
       if (previousBidderId && previousBidderId !== user.uid) {
         const nowTime = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
         const notifTitle = language === 'ru' ? "Ставка перебита!" : "Outbid!";
@@ -161,6 +162,18 @@ export default function YouthTransfersPage() {
           youthAgents.map((agent) => {
             const isLeading = agent.highestBidderId === user?.uid;
             const isOwner = agent.sellerId === user?.uid;
+            const currentSelectedPercent = bidPercentages[agent.id] || 5;
+            const nextBidValue = Math.ceil(agent.currentBid * (1 + currentSelectedPercent / 100));
+
+            const getCountdownValue = (expiryIso: string) => {
+              const expiry = new Date(expiryIso).getTime();
+              const diff = expiry - now;
+              if (diff <= 0) return "00:00:00";
+              const h = Math.floor(diff / 3600000);
+              const m = Math.floor((diff % 3600000) / 60000);
+              const s = Math.floor((diff % 60000) / 1000);
+              return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            };
 
             return (
               <Card key={agent.id} className={cn(
@@ -171,8 +184,8 @@ export default function YouthTransfersPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-3">
                      <div className="flex items-center gap-1.5 text-accent">
-                       <Clock className="w-3.5 h-3.5 animate-pulse" />
-                       <span className="text-[10px] font-mono font-bold">Active</span>
+                       <Timer className="w-3.5 h-3.5 animate-pulse" />
+                       <span className="text-[10px] font-mono font-bold tracking-tighter">{getCountdownValue(agent.expiresAt)}</span>
                      </div>
                      <div className="flex gap-2">
                        {isOwner && <Badge className="bg-blue-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'Ваш лот' : 'Your Lot'}</Badge>}
@@ -197,24 +210,54 @@ export default function YouthTransfersPage() {
                       <p className="text-[8px] font-black text-muted-foreground uppercase mt-1 tracking-tighter">OVR</p>
                     </div>
                   </div>
+
+                  {!isOwner && !isLeading && (
+                    <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 space-y-4 mb-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1.5">
+                          <Percent className="w-3 h-3 text-primary" /> {language === 'ru' ? 'Шаг ставки' : 'Bid Increment'}
+                        </span>
+                        <span className="text-[10px] font-mono font-bold text-primary">{currentSelectedPercent}%</span>
+                      </div>
+                      <Slider
+                        value={[currentSelectedPercent]}
+                        onValueChange={(val) => setBidPercentages(prev => ({ ...prev, [agent.id]: val[0] }))}
+                        min={3}
+                        max={300}
+                        step={1}
+                        className="py-2"
+                      />
+                      <div className="flex justify-between items-center text-[9px] font-bold text-muted-foreground opacity-50 px-0.5">
+                        <span>3%</span>
+                        <span>300%</span>
+                      </div>
+                    </div>
+                  )}
                   
                   <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
                     <div className="flex flex-col">
                       <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">Current Bid</p>
-                      <p className="text-lg font-headline font-bold text-primary tabular-nums">€{agent.currentBid?.toLocaleString()}</p>
+                      <p className="text-lg font-headline font-bold text-white tabular-nums">€{agent.currentBid?.toLocaleString()}</p>
                     </div>
                     <Button 
                       className={cn(
-                        "h-11 font-black text-[10px] px-6 shadow-xl rounded-xl",
-                        isLeading ? "bg-green-600 text-white" : 
+                        "h-12 font-black text-[10px] px-6 shadow-xl rounded-xl flex flex-col items-center justify-center leading-none",
+                        isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
                         (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-primary/20")
                       )}
                       onClick={() => handleBid(agent)} 
                       disabled={!!isBidding || isLeading || isOwner}
                     >
-                      {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 
-                       (isOwner ? (language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR UNIT') : 
-                       (isLeading ? 'LEADING' : <><Gavel className="w-4 h-4 mr-2" /> BID</>))}
+                      {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                        isOwner ? (language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR UNIT') : (
+                          isLeading ? 'LEADING' : (
+                            <>
+                              <span className="mb-1">{language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'}</span>
+                              <span className="text-[8px] opacity-80">€{nextBidValue.toLocaleString()}</span>
+                            </>
+                          )
+                        )
+                      )}
                     </Button>
                   </div>
                 </CardContent>
