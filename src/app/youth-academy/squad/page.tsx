@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useGameState } from '../../lib/store';
+import { useGameState, LineupSlot } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,8 +26,8 @@ import {
 } from "@/components/ui/dialog";
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function YouthSquadPage() {
@@ -105,10 +106,13 @@ export default function YouthSquadPage() {
         isYouth: true
       };
       
-      setDocumentNonBlocking(doc(db, 'market_v8', agentId), agentData);
+      // Standardized on market_v7
+      await setDoc(doc(db, 'market_v7', agentId), agentData);
       updateHero(selectedHero.id, { onTransferUntil: expiryTime.toISOString(), transferMarketId: agentId });
       toast({ title: language === 'ru' ? "Выставлен на рынок" : "Listed on Market" });
       setSelectedHero(null);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Action Failed", description: e.message });
     } finally { setIsTransferring(false); }
   };
 
