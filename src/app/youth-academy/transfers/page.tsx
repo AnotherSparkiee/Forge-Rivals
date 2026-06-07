@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, Loader2, Gavel, ShieldCheck, 
-  Timer, Star, ShoppingCart, X, Check 
+  Timer, Star, ShoppingCart, X, Check, Search, Info 
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -19,8 +19,16 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { calculateLiveAge } from '@/app/lib/time-utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
-// Isolated Card Component to prevent full-list re-renders on slider move
+// Isolated Card Component for Youth Market
 const YouthTransferCard = memo(({ 
   agent, 
   user, 
@@ -36,7 +44,7 @@ const YouthTransferCard = memo(({
   now: number,
   language: string
 }) => {
-  const [isConfiguring, setIsConfiguring] = useState(false);
+  const [showBidModal, setShowBidModal] = useState(false);
   const [bidPercent, setBidPercent] = useState(5);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -80,122 +88,151 @@ const YouthTransferCard = memo(({
   );
 
   return (
-    <Card className={cn(
-      "glass-card border-white/5 overflow-hidden transition-all", 
-      isLeading && "border-green-500/40 bg-green-500/5",
-      isOwner && "border-blue-500/40 bg-blue-500/5"
-    )}>
-      <CardContent className="p-3">
-        <div className="flex items-center justify-between mb-2">
-           <div className="flex items-center gap-1.5 text-accent">
-             <Timer className="w-3 h-3 animate-pulse" />
-             <span className="text-[9px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
-           </div>
-           <div className="flex gap-1.5">
-             {isOwner && <Badge className="bg-blue-600 text-white text-[6px] font-black uppercase px-1.5 h-3.5 border-none">{language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR LOT'}</Badge>}
-             {isLeading && <Badge className="bg-green-600 text-white text-[6px] font-black uppercase px-1.5 h-3.5 border-none">{language === 'ru' ? 'ВЫ ЛИДИРУЕТЕ' : 'LEADING'}</Badge>}
-           </div>
-        </div>
-
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-20 h-20 rounded-xl overflow-hidden bg-secondary/30 border border-white/5 shrink-0 relative">
-            <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
-            <div className="absolute top-1 left-1 bg-black/60 rounded px-1 py-0.5 border border-white/10 backdrop-blur-sm">
-              <span className="text-[10px]">{agent.heroData.country?.flag}</span>
-            </div>
+    <>
+      <Card className={cn(
+        "glass-card border-white/5 overflow-hidden transition-all", 
+        isLeading && "border-green-500/40 bg-green-500/5",
+        isOwner && "border-blue-500/40 bg-blue-500/5"
+      )}>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-3">
+             <div className="flex items-center gap-1.5 text-accent">
+               <Timer className="w-3.5 h-3.5 animate-pulse" />
+               <span className="text-[10px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
+             </div>
+             <div className="flex gap-1.5">
+               {isOwner && <Badge className="bg-blue-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR LOT'}</Badge>}
+               {isLeading && <Badge className="bg-green-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ВЫ ЛИДИРУЕТЕ' : 'LEADING'}</Badge>}
+             </div>
           </div>
-          
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-sm font-bold uppercase truncate text-white tracking-tight leading-tight">{agent.heroData?.name}</h3>
-              <Badge variant="outline" className="text-[7px] h-3.5 py-0 border-white/10 uppercase font-black text-accent/80">
-                {rolesRu[agent.heroData.role] || agent.heroData.role}
-              </Badge>
+
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 shrink-0 relative shadow-lg">
+              <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
+              <div className="absolute top-1 left-1 bg-black/60 rounded-sm px-1 py-0.5 border border-white/10 backdrop-blur-sm">
+                <span className="text-[10px]">{agent.heroData.country?.flag}</span>
+              </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-2 mt-2">
-               <div className="flex flex-col bg-white/5 p-1.5 rounded-lg border border-white/5">
-                 <p className="text-[7px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
-                 {renderStars(avgTalent)}
-               </div>
-               <div className="flex flex-col bg-white/5 p-1.5 rounded-lg border border-white/5">
-                 <p className="text-[7px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
-                 <p className="text-[10px] font-bold text-white leading-none mt-0.5">{liveAge.display}</p>
-               </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-base font-bold uppercase truncate text-white tracking-tight leading-tight">{agent.heroData?.name}</h3>
+                <Badge variant="outline" className="text-[8px] h-4 py-0 border-white/10 uppercase font-black text-accent/80">
+                  {rolesRu[agent.heroData.role] || agent.heroData.role}
+                </Badge>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                 <div className="flex flex-col">
+                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'ТАЛАНТ'}</p>
+                   {renderStars(avgTalent)}
+                 </div>
+                 <div className="flex flex-col border-l border-white/5 pl-3">
+                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'ВОЗРАСТ'}</p>
+                   <p className="text-[11px] font-bold text-white leading-none mt-0.5">{liveAge.display}</p>
+                 </div>
+              </div>
+            </div>
+            
+            <div className="text-right flex flex-col items-end shrink-0 justify-center">
+              <p className="text-3xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
+              <p className="text-[8px] font-black text-muted-foreground uppercase mt-1">OVR</p>
             </div>
           </div>
           
-          <div className="text-right flex flex-col items-end shrink-0 justify-center pr-1">
-            <p className="text-2xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
-            <p className="text-[8px] font-black text-muted-foreground uppercase mt-0.5">OVR</p>
+          <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
+            <div className="flex flex-col">
+              <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
+              <p className="text-xl font-headline font-bold text-white">€{agent.currentBid?.toLocaleString()}</p>
+            </div>
+            
+            <Button 
+              className={cn(
+                "h-11 font-black text-[10px] px-6 rounded-xl uppercase tracking-widest transition-all", 
+                isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
+                (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-xl shadow-primary/20")
+              )} 
+              onClick={() => !isLeading && !isOwner && setShowBidModal(true)} 
+              disabled={isLeading || isOwner}
+            >
+              {isOwner ? (language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR UNIT') : (
+                isLeading ? <><ShieldCheck className="w-4 h-4 mr-2" /> {language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</> : (
+                  <>{language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'}</>
+                )
+              )}
+            </Button>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {isConfiguring && !isOwner && !isLeading && (
-          <div className="bg-secondary/20 p-3 rounded-xl border border-white/10 space-y-3 mb-3 animate-in slide-in-from-top-1">
-            <div className="flex justify-between items-center px-1">
-              <span className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-1.5">
-                <Gavel className="w-2.5 h-2.5 text-primary" /> {language === 'ru' ? 'НОВАЯ СТАВКА' : 'NEW BID'}
-              </span>
-              <span className="text-xs font-headline font-bold text-primary italic">€ {nextBidValue.toLocaleString()}</span>
+      <Dialog open={showBidModal} onOpenChange={setShowBidModal}>
+        <DialogContent className="max-w-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
+          <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
+            <div className="mx-auto w-16 h-16 rounded-2xl overflow-hidden border border-primary/50 shadow-xl bg-secondary/50 mb-4">
+              <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
             </div>
-            <Slider
-              value={[bidPercent]}
-              onValueChange={(val) => setBidPercent(val[0])}
-              min={3}
-              max={300}
-              step={1}
-              className="py-1"
-            />
+            <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white leading-none">
+              {agent.heroData?.name}
+            </DialogTitle>
+            <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-[0.2em] font-black">
+              {language === 'ru' ? 'ТЕРМИНАЛ СТАВОК' : 'BIDDING TERMINAL'}
+            </DialogDescription>
           </div>
-        )}
-        
-        <div className="flex items-center justify-between gap-4 pt-3 border-t border-white/5">
-          <div className="flex flex-col">
-            <p className="text-[7px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
-            <p className="text-base font-headline font-bold text-white">€{agent.currentBid?.toLocaleString()}</p>
+
+          <div className="p-6 space-y-8">
+            <div className="space-y-4">
+              <div className="flex justify-between items-center px-1">
+                <span className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-2">
+                  <Gavel className="w-4 h-4 text-primary" /> {language === 'ru' ? 'НОВАЯ СТАВКА' : 'NEW BID AMOUNT'}
+                </span>
+                <span className="text-xl font-headline font-black text-primary italic">€ {nextBidValue.toLocaleString()}</span>
+              </div>
+              
+              <div className="relative pt-4 pb-2">
+                <Slider
+                  value={[bidPercent]}
+                  onValueChange={(val) => setBidPercent(val[0])}
+                  min={3}
+                  max={300}
+                  step={1}
+                />
+                <div className="flex justify-between mt-3 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
+                  <span>MIN +3%</span>
+                  <span>MAX +300%</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-primary/5 rounded-xl border border-primary/20 p-4 flex gap-4">
+               <Info className="w-5 h-5 text-primary shrink-0" />
+               <p className="text-[10px] text-muted-foreground leading-relaxed italic">
+                 {language === 'ru' 
+                  ? "Средства будут списаны немедленно. Если вашу ставку перебьют, сумма вернется на баланс клуба." 
+                  : "Funds will be deducted immediately. If outbid, the amount will be returned to your club balance."}
+               </p>
+            </div>
           </div>
-          
-          <div className="flex gap-1.5">
-            {isConfiguring ? (
-              <>
-                <Button variant="outline" size="icon" className="h-10 w-10 rounded-lg border-white/10" onClick={() => setIsConfiguring(false)}>
-                  <X className="w-4 h-4 text-muted-foreground" />
-                </Button>
-                <Button 
-                  className="h-10 font-black text-[9px] px-4 rounded-lg uppercase tracking-widest hero-gradient"
-                  onClick={async () => {
-                    setIsProcessing(true);
-                    await onBid(agent, nextBidValue);
-                    setIsProcessing(false);
-                    setIsConfiguring(false);
-                  }}
-                  disabled={isProcessing}
-                >
-                  {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : (language === 'ru' ? 'ПОДТВЕРДИТЬ' : 'CONFIRM')}
-                </Button>
-              </>
-            ) : (
-              <Button 
-                className={cn(
-                  "h-10 font-black text-[9px] px-5 rounded-lg uppercase tracking-widest transition-all", 
-                  isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
-                  (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-lg shadow-primary/20")
-                )} 
-                onClick={() => !isLeading && !isOwner && setIsConfiguring(true)} 
-                disabled={isLeading || isOwner}
-              >
-                {isOwner ? (language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR UNIT') : (
-                  isLeading ? <><ShieldCheck className="w-3 h-3 mr-2" /> {language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</> : (
-                    <>{language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'}</>
-                  )
-                )}
-              </Button>
-            )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+
+          <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5 gap-2">
+            <Button variant="outline" className="flex-1 h-12 uppercase font-black text-[10px] border-white/10" onClick={() => setShowBidModal(false)}>
+              {language === 'ru' ? 'ОТМЕНА' : 'CANCEL'}
+            </Button>
+            <Button 
+              className="flex-[2] h-12 hero-gradient font-black text-[11px] uppercase tracking-widest shadow-xl shadow-primary/20"
+              onClick={async () => {
+                setIsProcessing(true);
+                await onBid(agent, nextBidValue);
+                setIsProcessing(false);
+                setShowBidModal(false);
+              }}
+              disabled={isProcessing}
+            >
+              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : (language === 'ru' ? 'ПОДТВЕРДИТЬ' : 'CONFIRM')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 });
 
@@ -270,7 +307,7 @@ export default function YouthTransfersPage() {
         </div>
       </header>
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         {isMarketLoading ? (
           <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50"><Loader2 className="w-8 h-8 animate-spin text-primary" /><p className="text-[10px] uppercase font-bold tracking-[0.2em]">Syncing Records...</p></div>
         ) : youthAgents.length > 0 ? (
