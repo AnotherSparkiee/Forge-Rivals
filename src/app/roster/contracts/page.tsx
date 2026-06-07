@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -37,7 +37,13 @@ export default function ContractsPage() {
   const db = useFirestore();
   const [profileHero, setProfileHero] = useState<Hero | null>(null);
   const [isTransferring, setIsTransferring] = useState(false);
+  const [now, setNow] = useState(Date.now());
   const { toast } = useToast();
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v10', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
@@ -55,6 +61,7 @@ export default function ContractsPage() {
     boostForm: language === 'ru' ? "ПОДНЯТЬ ФОРМУ" : "BOOST FORM",
     heal: language === 'ru' ? "ВЫЛЕЧИТЬ ТРАВМУ" : "HEAL INJURY",
     insufficient: language === 'ru' ? "Недостаточно средств" : "Insufficient funds",
+    tooYoung: language === 'ru' ? "Игрок слишком молод! Мин. возраст — 18.0" : "Player is too young! Min age — 18.0",
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     years: language === 'ru' ? "лет" : "yrs",
     stats: language === 'ru' ? "Навыки и таланты" : "Skills & Talents",
@@ -80,6 +87,12 @@ export default function ContractsPage() {
 
     switch (action) {
       case 'onTransfer':
+        const liveAge = calculateLiveAge(profileHero.baseAge, profileHero.hiredAt);
+        if (liveAge.numeric < 18) {
+          toast({ variant: "destructive", title: t.tooYoung });
+          return;
+        }
+
         if (!user || !profile) return;
         setIsTransferring(true);
         try {
@@ -257,46 +270,42 @@ export default function ContractsPage() {
           <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none flex flex-col rounded-none sm:rounded-none overflow-hidden outline-none translate-x-0 translate-y-0 top-0 left-0 animate-in fade-in zoom-in duration-300">
             {profileHero && (
               <>
-                <DialogHeader className="sr-only">
-                  <DialogTitle>{profileHero.name}</DialogTitle>
-                  <DialogDescription>Administrative player dossier</DialogDescription>
-                </DialogHeader>
-
-                <div className="flex-1 overflow-y-auto scrollbar-hide">
-                  <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 border-b border-white/5 flex flex-col items-center text-center gap-4">
-                    <div className="relative">
-                      <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-[0_0_30px_rgba(var(--primary),0.3)] bg-secondary/50">
-                        <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl">
-                        <span className="text-base">{profileHero.country?.flag || '🏳️'}</span>
-                      </div>
+                <DialogHeader className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 border-b border-white/5 flex flex-col items-center text-center gap-4">
+                  <div className="relative">
+                    <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-[0_0_30px_rgba(var(--primary),0.3)] bg-secondary/50">
+                      <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
                     </div>
-                    
-                    <div className="space-y-1">
-                      <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h2>
-                      <div className="flex items-center justify-center gap-2">
-                        <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
-                        {profileHero.onTransferUntil && new Date(profileHero.onTransferUntil) > new Date() && (
-                          <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5 flex gap-1 items-center">
-                            <Clock className="w-3 h-3" /> ON AUCTION
-                          </Badge>
-                        )}
-                      </div>
+                    <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl">
+                      <span className="text-base">{profileHero.country?.flag || '🏳️'}</span>
                     </div>
-
-                    <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto">
-                      <div className="bg-background/40 p-3 rounded-xl border border-white/10">
-                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p>
-                        <p className="text-xl font-headline font-bold text-accent italic leading-none">{profileHero.overallRating}</p>
-                      </div>
-                      <div className="bg-background/40 p-3 rounded-xl border border-white/10">
-                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Salary</p>
-                        <p className="text-sm font-headline font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</p>
-                      </div>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</DialogTitle>
+                    <DialogDescription className="sr-only">Administrative player dossier</DialogDescription>
+                    <div className="flex items-center justify-center gap-2">
+                      <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
+                      {profileHero.onTransferUntil && new Date(profileHero.onTransferUntil) > new Date() && (
+                        <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5 flex gap-1 items-center">
+                          <Clock className="w-3 h-3" /> ON AUCTION
+                        </Badge>
+                      )}
                     </div>
                   </div>
 
+                  <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto">
+                    <div className="bg-background/40 p-3 rounded-xl border border-white/10">
+                      <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p>
+                      <p className="text-xl font-headline font-bold text-accent italic leading-none">{profileHero.overallRating}</p>
+                    </div>
+                    <div className="bg-background/40 p-3 rounded-xl border border-white/10">
+                      <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Salary</p>
+                      <p className="text-sm font-headline font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</p>
+                    </div>
+                  </div>
+                </DialogHeader>
+
+                <div className="flex-1 overflow-y-auto scrollbar-hide">
                   <div className="p-4 space-y-8 pb-48">
                     <section>
                       <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
@@ -458,3 +467,4 @@ export default function ContractsPage() {
     </div>
   );
 }
+

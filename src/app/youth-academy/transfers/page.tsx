@@ -132,7 +132,14 @@ export default function YouthTransfersPage() {
   const t = {
     title: language === 'ru' ? 'ТРАНСФЕРЫ ЮНИОРОВ' : 'YOUTH TRANSFERS',
     subtitle: language === 'ru' ? 'Рынок молодых талантов' : 'Youth talent market',
-    activeCount: language === 'ru' ? 'Активных лотов' : 'Active Lots'
+    activeCount: language === 'ru' ? 'Активных лотов' : 'Active Lots',
+    roles: {
+      Carry: language === 'ru' ? "Керри" : "Carry",
+      Midlaner: language === 'ru' ? "Мидер" : "Midlaner",
+      Tank: language === 'ru' ? "Танк" : "Tank",
+      Jungler: language === 'ru' ? "Лес" : "Jungler",
+      Support: language === 'ru' ? "Саппорт" : "Support"
+    }
   };
 
   if (marketError) {
@@ -172,6 +179,8 @@ export default function YouthTransfersPage() {
             const nextBidValue = Math.ceil(agent.currentBid * (1 + currentSelectedPercent / 100));
             const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
             const avgTalent = Object.values(agent.heroData.proTalents || {}).reduce((a: any, b: any) => a + b, 0) as number / 10;
+            
+            const displayRole = t.roles[agent.heroData.role as keyof typeof t.roles] || agent.heroData.role;
 
             return (
               <Card key={agent.id} className={cn(
@@ -197,19 +206,19 @@ export default function YouthTransfersPage() {
                     <div className="flex-1 min-w-0">
                       <h3 className="text-base font-bold uppercase truncate text-white tracking-tight">{agent.heroData?.name}</h3>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase font-black">{agent.heroData?.role}</Badge>
-                        <div className="flex items-center gap-1 text-[8px] font-black text-muted-foreground uppercase">
-                           <Flag className="w-2.5 h-2.5" /> {agent.heroData.country?.name}
+                        <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase font-black">{displayRole}</Badge>
+                        <div className="flex items-center gap-1 text-[12px] font-black text-muted-foreground uppercase">
+                           <span>{agent.heroData.country?.flag}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 mt-2">
                          <div className="flex flex-col">
-                           <p className="text-[7px] font-black text-muted-foreground uppercase leading-none mb-1">Talent</p>
+                           <p className="text-[7px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'Талант' : 'Talent'}</p>
                            {renderStars(avgTalent)}
                          </div>
                          <div className="flex flex-col border-l border-white/10 pl-3">
-                           <p className="text-[7px] font-black text-muted-foreground uppercase leading-none mb-1">Age</p>
-                           <p className="text-[10px] font-bold text-white leading-none">{liveAge.display} yrs</p>
+                           <p className="text-[7px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'Возраст' : 'Age'}</p>
+                           <p className="text-[10px] font-bold text-white leading-none">{liveAge.display} {language === 'ru' ? 'лет' : 'yrs'}</p>
                          </div>
                       </div>
                     </div>
@@ -223,9 +232,9 @@ export default function YouthTransfersPage() {
                     <div className="bg-secondary/20 p-4 rounded-xl border border-white/10 space-y-4 mb-4 animate-in slide-in-from-top-2 duration-300">
                       <div className="flex justify-between items-center">
                         <span className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1.5">
-                          <Percent className="w-3 h-3 text-primary" /> {language === 'ru' ? 'Шаг ставки' : 'Bid Increment'}
+                          <Gavel className="w-3 h-3 text-primary" /> {language === 'ru' ? 'Сумма ставки' : 'Bid Amount'}
                         </span>
-                        <span className="text-[10px] font-mono font-bold text-primary">{currentSelectedPercent}%</span>
+                        <span className="text-[10px] font-mono font-bold text-primary">€ {nextBidValue.toLocaleString()}</span>
                       </div>
                       <Slider
                         value={[currentSelectedPercent]}
@@ -300,3 +309,4 @@ export default function YouthTransfersPage() {
     </div>
   );
 }
+
