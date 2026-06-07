@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -55,14 +56,24 @@ export default function RegisterPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || username.length < 2 || password.length < 6) return;
+    // STRICT VALIDATION: Club name must be trimmed and at least 2 chars
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername || trimmedUsername.length < 2 || trimmedUsername === "Unknown Commander" || password.length < 6) {
+      toast({ 
+        variant: "destructive", 
+        title: language === 'ru' ? "Некорректное название" : "Invalid Name", 
+        description: language === 'ru' ? "Название клуба слишком короткое или недопустимо." : "Club name is too short or invalid." 
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
       const { seasonNumber } = getGlobalSeasonInfo();
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const uniqueSquad = getRandomStartingSquad();
       const profileData = {
-        id: userCredential.user.uid, displayName: username.trim(), email, inGameCurrency: 10000000, crystals: 0,
+        id: userCredential.user.uid, displayName: trimmedUsername, email, inGameCurrency: 10000000, crystals: 0,
         experiencePoints: 0, managerLevel: 1, skillPoints: 0, lastLoginDate: new Date().toISOString(), createdAt: new Date().toISOString(),
         ownedHeroes: uniqueSquad, ownedHeroIds: uniqueSquad.map(h => h.id),
         lineup: { offlane: uniqueSquad[0].id, carry: uniqueSquad[1].id, mid: uniqueSquad[2].id, support: uniqueSquad[3].id, full_support: uniqueSquad[4].id, sub1: uniqueSquad[5].id, sub2: uniqueSquad[6].id },

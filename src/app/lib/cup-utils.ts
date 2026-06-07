@@ -19,6 +19,7 @@ export function getEntryRound(level: number): number {
 
 /**
  * Generates the full list of participants for the global cup.
+ * STRICT FILTER: Ignores players without valid names.
  */
 export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: number): (CupParticipant | null)[] {
   const TOTAL_SLOTS = 16384;
@@ -32,7 +33,9 @@ export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: numbe
       const groupTeams: CupParticipant[] = [];
       
       realInGroup.forEach(p => {
-        if (p.displayName && p.displayName !== "Unknown Commander") {
+        // STRICT FILTER: Only allow players with names longer than 1 char and not default
+        const hasValidName = p.displayName && p.displayName.trim().length >= 2 && p.displayName !== "Unknown Commander";
+        if (hasValidName) {
           groupTeams.push({ id: p.id, name: p.displayName, isPlayer: true, level: lvl });
         }
       });

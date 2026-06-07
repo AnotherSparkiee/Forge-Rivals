@@ -101,6 +101,7 @@ export function getSchedule(teams: any[]) {
 /**
  * Builds the group standings table by simulating all matches up to a specific day.
  * This is the SOURCE OF TRUTH for online rankings.
+ * CRITICAL: Strictly filters out players without valid names.
  */
 export function getMockGroupTeams(
   playerRank: number, 
@@ -122,8 +123,8 @@ export function getMockGroupTeams(
   sortedRealPlayers.forEach(p => {
     const isMe = p.id === currentPlayerId;
     
-    // Filter out players with empty names or default "Unknown Commander" string.
-    const hasValidName = p.displayName && p.displayName.trim().length > 0 && p.displayName !== "Unknown Commander";
+    // STRICT FILTER: Filter out players with empty names or default "Unknown Commander" string.
+    const hasValidName = p.displayName && p.displayName.trim().length >= 2 && p.displayName !== "Unknown Commander";
 
     if (hasValidName || isMe) {
       teams.push({

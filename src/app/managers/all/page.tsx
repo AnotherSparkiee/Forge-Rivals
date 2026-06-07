@@ -182,7 +182,12 @@ export default function AllManagersPage() {
   const filteredAndSortedManagers = useMemo(() => {
     if (!managers) return [];
 
-    let list = [...managers];
+    // STRICT FILTER: Delete (ignore) all players without names or with default names
+    let list = [...managers].filter(m => 
+      m.displayName && 
+      m.displayName.trim().length >= 2 && 
+      m.displayName !== "Unknown Commander"
+    );
 
     // 1. Search Filter
     if (search) {
