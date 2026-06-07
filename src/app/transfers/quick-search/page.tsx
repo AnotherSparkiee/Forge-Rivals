@@ -9,7 +9,7 @@ import { ChevronLeft, Loader2, Gavel, AlertCircle, RefreshCw, ShoppingCart, User
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { generateUniqueHero } from '@/app/lib/moba-data';
@@ -100,6 +100,8 @@ export default function QuickSearchPage() {
 
     setIsBidding(agent.id);
     try {
+      const previousBidderId = agent.highestBidderId;
+      const heroName = agent.heroData?.name || "Player";
       const agentRef = doc(db, 'market_v7', agent.id);
       
       await updateDoc(agentRef, { 
@@ -111,6 +113,24 @@ export default function QuickSearchPage() {
       });
       
       addCredits(-minNextBid);
+
+      // Send notification to previous bidder if they were outbid
+      if (previousBidderId && previousBidderId !== user.uid) {
+        const nowTime = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        const notifTitle = language === 'ru' ? "Ставка перебита!" : "Outbid!";
+        const notifDesc = language === 'ru' 
+          ? `Ставка на "${heroName}" перебита ${nowTime}`
+          : `Bid on "${heroName}" was outbid ${nowTime}`;
+
+        addDocumentNonBlocking(collection(db, 'notifications_v6'), {
+          userId: previousBidderId,
+          title: notifTitle,
+          description: notifDesc,
+          type: 'market',
+          read: false,
+          createdAt: new Date().toISOString()
+        });
+      }
       
       toast({ 
         title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!",
@@ -258,4 +278,3 @@ export default function QuickSearchPage() {
     </div>
   );
 }
-

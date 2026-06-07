@@ -3,14 +3,14 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, addDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, ShoppingCart, Loader2, Gavel, ShieldCheck, Clock, AlertCircle, Users
 } from 'lucide-react';
-import { collection, query, doc, arrayUnion, updateDoc } from 'firebase/firestore';
+import { collection, query, doc, arrayUnion, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -38,11 +38,14 @@ export default function YouthTransfersPage() {
 
   const { data: allAgents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
 
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v10', user.uid) : null), [db, user?.uid]);
+  const { data: profile } = useDoc(userRef);
+
   const youthAgents = (allAgents?.filter(a => a.heroData?.baseAge && Number(a.heroData.baseAge) < 18) || [])
     .filter(a => new Date(a.expiresAt).getTime() > now);
 
   const handleBid = async (agent: any) => {
-    if (!user || isBidding) return;
+    if (!user || !profile || isBidding) return;
     
     // Prevent bidding on own player
     if (agent.sellerId === user.uid) {
@@ -64,15 +67,37 @@ export default function YouthTransfersPage() {
 
     setIsBidding(agent.id);
     try {
+      const previousBidderId = agent.highestBidderId;
+      const heroName = agent.heroData?.name || "Player";
       const agentRef = doc(db, 'market_v7', agent.id);
+      
       await updateDoc(agentRef, {
         currentBid: Number(minNextBid),
         highestBidderId: String(user.uid),
-        highestBidderName: "Manager", 
-        bidders: arrayUnion(user.uid)
+        highestBidderName: profile.displayName || "Manager", 
+        bidders: arrayUnion(user.uid),
+        updatedAt: serverTimestamp()
       });
       
       addCredits(-minNextBid);
+
+      // Send notification to previous bidder if they were outbid
+      if (previousBidderId && previousBidderId !== user.uid) {
+        const nowTime = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        const notifTitle = language === 'ru' ? "Ставка перебита!" : "Outbid!";
+        const notifDesc = language === 'ru' 
+          ? `Ставка на "${heroName}" перебита ${nowTime}`
+          : `Bid on "${heroName}" was outbid ${nowTime}`;
+
+        addDocumentNonBlocking(collection(db, 'notifications_v6'), {
+          userId: previousBidderId,
+          title: notifTitle,
+          description: notifDesc,
+          type: 'market',
+          read: false,
+          createdAt: new Date().toISOString()
+        });
+      }
 
       toast({ 
         title: language === 'ru' ? "Ставка принята!" : "Bid Placed!",
@@ -206,4 +231,3 @@ export default function YouthTransfersPage() {
     </div>
   );
 }
-
