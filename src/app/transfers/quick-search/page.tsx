@@ -1,13 +1,15 @@
 
 'use client';
 
-import { useState, useEffect, useRef, memo } from 'react';
+import { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, Loader2, Gavel, ShieldCheck, 
-  Timer, Star, ShoppingCart, X, Check, Search, Info, Users
+  Timer, Star, ShoppingCart, X, Check, Search, Info, Users,
+  ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
+  ChevronsLeft, ChevronsRight
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -29,6 +31,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+
+const ITEMS_PER_PAGE = 10;
 
 // Isolated Card Component with Modal Bidding Logic
 const TransferHeroCard = memo(({ 
@@ -259,6 +263,8 @@ export default function QuickSearchPage() {
   const router = useRouter();
   
   const [now, setNow] = useState(Date.now());
+  const [activeTab, setActiveTab] = useState('Carry');
+  const [page, setPage] = useState(0);
   const initTriggeredRef = useRef(false);
 
   useEffect(() => {
@@ -327,13 +333,29 @@ export default function QuickSearchPage() {
     }
   };
 
-  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
-
   const roleList = [ 
     { id: 'Carry', label: "Керри" }, { id: 'Midlaner', label: "Мидер" }, 
     { id: 'Tank', label: "Танк" }, { id: 'Jungler', label: "Лес" }, 
     { id: 'Support', label: "Саппорт" } 
   ];
+
+  const filteredAgents = useMemo(() => {
+    return (agents?.filter(a => a.heroData?.role === activeTab && a.isYouth !== true) || [])
+      .filter(a => {
+         const liveAge = calculateLiveAge(a.heroData.baseAge, a.heroData.hiredAt);
+         return new Date(a.expiresAt).getTime() > now && liveAge.numeric >= 18.0;
+      })
+      .sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
+  }, [agents, activeTab, now]);
+
+  const paginatedAgents = useMemo(() => {
+    const start = page * ITEMS_PER_PAGE;
+    return filteredAgents.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredAgents, page]);
+
+  const totalPages = Math.ceil(filteredAgents.length / ITEMS_PER_PAGE);
+
+  if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
@@ -345,7 +367,7 @@ export default function QuickSearchPage() {
         </div>
       </header>
       
-      <Tabs defaultValue="Carry" className="w-full">
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setPage(0); }} className="w-full">
         <TabsList className="bg-secondary/30 border border-white/5 h-12 w-full flex mb-6 p-1.5 rounded-2xl">
           {roleList.map((role) => ( 
             <TabsTrigger key={role.id} value={role.id} className="flex-1 text-[10px] font-black uppercase rounded-xl">
@@ -354,19 +376,11 @@ export default function QuickSearchPage() {
           ))}
         </TabsList>
         
-        {roleList.map((role) => {
-          const roleAgents = (agents?.filter(a => a.heroData?.role === role.id && a.isYouth !== true) || [])
-            .filter(a => {
-               const liveAge = calculateLiveAge(a.heroData.baseAge, a.heroData.hiredAt);
-               return new Date(a.expiresAt).getTime() > now && liveAge.numeric >= 18.0;
-            });
-
-          return (
-            <TabsContent key={role.id} value={role.id} className="space-y-3">
-              {isMarketLoading ? ( 
-                <div className="py-20 text-center opacity-50"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div> 
-              ) : roleAgents.length > 0 ? (
-                roleAgents.map((agent) => (
+        {roleList.map((role) => (
+          <TabsContent key={role.id} value={role.id} className="space-y-3 animate-in fade-in duration-500">
+            {paginatedAgents.length > 0 ? (
+              <>
+                {paginatedAgents.map((agent) => (
                   <TransferHeroCard 
                     key={agent.id} 
                     agent={agent} 
@@ -376,16 +390,28 @@ export default function QuickSearchPage() {
                     now={now}
                     language={language}
                   />
-                ))
-              ) : ( 
-                <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
-                  <ShoppingCart className="w-12 h-12" />
-                  <p className="text-[10px] uppercase font-black">{language === 'ru' ? 'Нет активных лотов' : 'No active listings'}</p>
-                </div> 
-              )}
-            </TabsContent>
-          );
-        })}
+                ))}
+
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 pt-6">
+                    <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(0)} className="h-8 w-8"><ChevronsLeft className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 w-8"><ChevronLeftIcon className="w-4 h-4" /></Button>
+                    <span className="text-[10px] font-black text-muted-foreground uppercase px-4">
+                      {language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}
+                    </span>
+                    <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 w-8"><ChevronRightIcon className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(totalPages - 1)} className="h-8 w-8"><ChevronsRight className="w-4 h-4" /></Button>
+                  </div>
+                )}
+              </>
+            ) : ( 
+              <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
+                <ShoppingCart className="w-12 h-12" />
+                <p className="text-[10px] uppercase font-black">{language === 'ru' ? 'Нет активных лотов' : 'No active listings'}</p>
+              </div> 
+            )}
+          </TabsContent>
+        ))}
       </Tabs>
     </div>
   );

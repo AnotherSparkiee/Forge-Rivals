@@ -1,13 +1,15 @@
 
 'use client';
 
-import { useState, useEffect, useRef, memo } from 'react';
+import { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, Loader2, Gavel, ShieldCheck, 
-  Timer, Star, ShoppingCart, X, Check, Search, Info, Users
+  Timer, Star, ShoppingCart, X, Check, Search, Info, Users,
+  ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
+  ChevronsLeft, ChevronsRight
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -27,6 +29,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+
+const ITEMS_PER_PAGE = 10;
 
 // Isolated Card Component for Youth Market
 const YouthTransferCard = memo(({ 
@@ -144,7 +148,7 @@ const YouthTransferCard = memo(({
           <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
             <div className="flex flex-col">
               <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
-              <p className="text-xl font-headline font-bold text-white leading-none">€{agent.currentBid?.toLocaleString()}</p>
+              <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">€{agent.currentBid?.toLocaleString()}</p>
               <p className={cn(
                 "text-[9px] font-black uppercase mt-1 flex items-center gap-1",
                 agent.highestBidderName ? "text-primary" : "text-muted-foreground/50"
@@ -257,6 +261,7 @@ export default function YouthTransfersPage() {
   const { toast } = useToast();
 
   const [now, setNow] = useState(Date.now());
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -271,8 +276,18 @@ export default function YouthTransfersPage() {
   const { data: allAgents, isLoading: isMarketLoading } = useCollection(marketQuery);
   const { data: profile } = useDoc(user?.uid ? doc(db, 'players_v10', user.uid) : null);
 
-  const youthAgents = (allAgents?.filter(a => a.heroData?.baseAge && Number(a.heroData.baseAge) < 18) || [])
-    .filter(a => new Date(a.expiresAt).getTime() > now);
+  const youthAgents = useMemo(() => {
+    return (allAgents?.filter(a => a.heroData?.baseAge && Number(a.heroData.baseAge) < 18) || [])
+      .filter(a => new Date(a.expiresAt).getTime() > now)
+      .sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
+  }, [allAgents, now]);
+
+  const paginatedAgents = useMemo(() => {
+    const start = page * ITEMS_PER_PAGE;
+    return youthAgents.slice(start, start + ITEMS_PER_PAGE);
+  }, [youthAgents, page]);
+
+  const totalPages = Math.ceil(youthAgents.length / ITEMS_PER_PAGE);
 
   const handleGlobalBid = async (agent: any, amount: number) => {
     if (!user || !profile) return;
@@ -301,7 +316,7 @@ export default function YouthTransfersPage() {
     }
   };
 
-  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
+  if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
@@ -318,21 +333,33 @@ export default function YouthTransfersPage() {
         </div>
       </header>
 
-      <div className="space-y-3">
-        {isMarketLoading ? (
-          <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50"><Loader2 className="w-8 h-8 animate-spin text-primary" /><p className="text-[10px] uppercase font-bold tracking-[0.2em]">Syncing Records...</p></div>
-        ) : youthAgents.length > 0 ? (
-          youthAgents.map((agent) => (
-            <YouthTransferCard 
-              key={agent.id} 
-              agent={agent} 
-              user={user} 
-              profile={profile} 
-              onBid={handleGlobalBid}
-              now={now}
-              language={language}
-            />
-          ))
+      <div className="space-y-3 animate-in fade-in duration-500">
+        {paginatedAgents.length > 0 ? (
+          <>
+            {paginatedAgents.map((agent) => (
+              <YouthTransferCard 
+                key={agent.id} 
+                agent={agent} 
+                user={user} 
+                profile={profile} 
+                onBid={handleGlobalBid}
+                now={now}
+                language={language}
+              />
+            ))}
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 pt-6">
+                <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(0)} className="h-8 w-8"><ChevronsLeft className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 w-8"><ChevronLeftIcon className="w-4 h-4" /></Button>
+                <span className="text-[10px] font-black text-muted-foreground uppercase px-4">
+                  {language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}
+                </span>
+                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 w-8"><ChevronRightIcon className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(totalPages - 1)} className="h-8 w-8"><ChevronsRight className="w-4 h-4" /></Button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
             <ShoppingCart className="w-12 h-12" />
