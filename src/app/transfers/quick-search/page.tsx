@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { generateUniqueHero } from '@/app/lib/moba-data';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import { getMoscowTime } from '@/app/lib/time-utils';
 
 export default function QuickSearchPage() {
   const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
@@ -45,17 +46,27 @@ export default function QuickSearchPage() {
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
-    if (!isMarketLoading && agents && agents.length === 0 && !initTriggeredRef.current && !marketError && user?.uid) {
+    // Fill the market if system-generated adult agents are low (less than 5)
+    const systemAdultAgents = (agents || []).filter(a => a.sellerId === 'system' && a.isYouth !== true);
+    
+    if (!isMarketLoading && systemAdultAgents.length < 5 && !initTriggeredRef.current && !marketError && user?.uid) {
       initTriggeredRef.current = true;
       const initializeMarket = async () => {
         const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
+        const mskNow = getMoscowTime();
+        
         for (const role of roles) {
-          for (let i = 1; i <= 2; i++) {
+          // Add 10 players for EACH position
+          for (let i = 1; i <= 10; i++) {
             const hero = generateUniqueHero(role, i, false);
-            const agentId = `system_bot_${role.toLowerCase()}_${i}_${Date.now()}`;
-            const startPrice = (hero.overallRating * 18000) + 300000;
-            const expiry = new Date();
-            expiry.setHours(expiry.getHours() + 24);
+            // Unique ID for each system slot in this generation batch
+            const agentId = `sys_adult_${role.toLowerCase()}_slot${i}_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 4)}`;
+            
+            const startPrice = (hero.overallRating * 17500) + 290000;
+            
+            // Random auction duration between 8 and 48 hours for dynamic market closing times
+            const randomMinutes = Math.floor(Math.random() * (48 * 60 - 8 * 60)) + 8 * 60;
+            const expiry = new Date(mskNow.getTime() + randomMinutes * 60 * 1000);
 
             await setDoc(doc(db, 'market_v7', agentId), {
               id: agentId, 
@@ -74,7 +85,7 @@ export default function QuickSearchPage() {
           }
         }
       };
-      initializeMarket().catch(e => console.error("Market init failed", e));
+      initializeMarket().catch(e => console.error("Market auto-initialization failed", e));
     }
   }, [isMarketLoading, agents, user?.uid, db, marketError]);
 
