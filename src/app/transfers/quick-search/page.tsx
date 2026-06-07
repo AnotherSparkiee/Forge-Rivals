@@ -211,7 +211,7 @@ export default function QuickSearchPage() {
             });
 
           return (
-            <TabsContent key={role.id} value={role.id} className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <TabsContent key={role.id} value={role.id} className="space-y-2 animate-in fade-in slide-in-from-bottom-1 duration-300">
               {isMarketLoading ? ( 
                 <div className="py-20 text-center opacity-50"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div> 
               ) : roleAgents.length > 0 ? (
@@ -232,54 +232,54 @@ export default function QuickSearchPage() {
                       isLeading && "border-green-500/40 bg-green-500/5",
                       isOwner && "border-primary/40 bg-primary/5"
                     )}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between mb-3">
+                      <CardContent className="p-3">
+                        <div className="flex items-center justify-between mb-2">
                            <div className="flex items-center gap-1.5 text-accent">
-                             <Timer className="w-3.5 h-3.5 animate-pulse" />
-                             <span className="text-[10px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
+                             <Timer className="w-3 h-3 animate-pulse" />
+                             <span className="text-[9px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
                            </div>
-                           <div className="flex gap-2">
-                             {isOwner && <Badge className="bg-primary text-primary-foreground text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'Ваш лот' : 'Your Lot'}</Badge>}
-                             {isLeading && <Badge className="bg-green-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'Вы лидируете' : 'Leading'}</Badge>}
+                           <div className="flex gap-1.5">
+                             {isOwner && <Badge className="bg-primary text-primary-foreground text-[6px] font-black uppercase px-1.5 h-3.5 border-none">{language === 'ru' ? 'ВАШ ЛОТ' : 'YOUR LOT'}</Badge>}
+                             {isLeading && <Badge className="bg-green-600 text-white text-[6px] font-black uppercase px-1.5 h-3.5 border-none">{language === 'ru' ? 'ВЫ ЛИДИРУЕТЕ' : 'LEADING'}</Badge>}
                            </div>
                         </div>
 
-                        <div className="flex items-center gap-4 mb-4">
-                          <div className="w-16 h-16 rounded-2xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0 shadow-lg">
+                        <div className="flex items-center gap-4 mb-3">
+                          <div className="w-20 h-20 rounded-xl overflow-hidden bg-secondary/30 border border-white/5 shrink-0">
                             <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="text-base font-bold uppercase truncate text-white tracking-tight">{agent.heroData?.name}</h3>
+                            <h3 className="text-sm font-bold uppercase truncate text-white tracking-tight leading-tight">{agent.heroData?.name}</h3>
                             <div className="flex flex-wrap items-center gap-2 mt-1">
-                              <Badge variant="outline" className="text-[7px] py-0 border-white/10 uppercase font-black">{displayRole}</Badge>
-                              <div className="flex items-center gap-1 text-[12px] font-black text-muted-foreground">
+                              <Badge variant="outline" className="text-[7px] h-3.5 py-0 border-white/10 uppercase font-black">{displayRole}</Badge>
+                              <div className="flex items-center text-[11px]">
                                 <span>{agent.heroData.country?.flag}</span>
                               </div>
                             </div>
-                            <div className="flex items-center gap-3 mt-2">
+                            <div className="flex items-center gap-4 mt-2">
                                <div className="flex flex-col">
-                                 <p className="text-[7px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'Талант' : 'Talent'}</p>
+                                 <p className="text-[7px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
                                  {renderStars(avgTalent)}
                                </div>
-                               <div className="flex flex-col border-l border-white/10 pl-3">
-                                 <p className="text-[7px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'Возраст' : 'Age'}</p>
+                               <div className="flex flex-col border-l border-white/5 pl-4">
+                                 <p className="text-[7px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
                                  <p className="text-[10px] font-bold text-white leading-none">{liveAge.display} {language === 'ru' ? 'лет' : 'yrs'}</p>
                                </div>
                             </div>
                           </div>
-                          <div className="text-right flex flex-col items-end shrink-0">
+                          <div className="text-right flex flex-col items-end shrink-0 justify-center">
                             <p className="text-2xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
-                            <p className="text-[8px] font-black text-muted-foreground uppercase mt-1">OVR</p>
+                            <p className="text-[8px] font-black text-muted-foreground uppercase mt-0.5">OVR</p>
                           </div>
                         </div>
 
                         {isConfiguring && !isOwner && !isLeading && (
-                          <div className="bg-secondary/20 p-4 rounded-xl border border-white/10 space-y-4 mb-4 animate-in slide-in-from-top-2 duration-300">
-                            <div className="flex justify-between items-center">
-                              <span className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1.5">
-                                <Gavel className="w-3 h-3 text-primary" /> {language === 'ru' ? 'Сумма ставки' : 'Bid Amount'}
+                          <div className="bg-secondary/20 p-3 rounded-xl border border-white/10 space-y-3 mb-3 animate-in slide-in-from-top-1 duration-300">
+                            <div className="flex justify-between items-center px-1">
+                              <span className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-1.5">
+                                <Gavel className="w-2.5 h-2.5 text-primary" /> {language === 'ru' ? 'ВАША СТАВКА' : 'YOUR BID'}
                               </span>
-                              <span className="text-[10px] font-mono font-bold text-primary">€ {nextBidValue.toLocaleString()}</span>
+                              <span className="text-xs font-headline font-bold text-primary italic">€ {nextBidValue.toLocaleString()}</span>
                             </div>
                             <Slider
                               value={[currentSelectedPercent]}
@@ -287,52 +287,43 @@ export default function QuickSearchPage() {
                               min={3}
                               max={300}
                               step={1}
-                              className="py-2"
+                              className="py-1"
                             />
-                            <div className="flex justify-between items-center text-[9px] font-bold text-muted-foreground opacity-50 px-0.5">
-                              <span>3%</span>
-                              <span>300%</span>
-                            </div>
                           </div>
                         )}
                         
-                        <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
+                        <div className="flex items-center justify-between gap-4 pt-3 border-t border-white/5">
                           <div className="flex flex-col">
-                            <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest">{language === 'ru' ? 'Тек. цена' : 'Current Price'}</p>
-                            <p className="text-lg font-headline font-bold text-white">€{agent.currentBid?.toLocaleString()}</p>
+                            <p className="text-[7px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ТЕК. ЦЕНА' : 'CURR. PRICE'}</p>
+                            <p className="text-base font-headline font-bold text-white">€{agent.currentBid?.toLocaleString()}</p>
                           </div>
                           
-                          <div className="flex gap-2">
+                          <div className="flex gap-1.5">
                             {isConfiguring ? (
                               <>
-                                <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl border-white/10" onClick={() => setActiveBidId(null)}>
-                                  <X className="w-5 h-5 text-muted-foreground" />
+                                <Button variant="outline" size="icon" className="h-10 w-10 rounded-lg border-white/10" onClick={() => setActiveBidId(null)}>
+                                  <X className="w-4 h-4 text-muted-foreground" />
                                 </Button>
                                 <Button 
-                                  className="h-12 font-black text-[10px] px-5 rounded-xl uppercase tracking-widest flex flex-col items-center justify-center leading-none hero-gradient shadow-lg shadow-primary/20"
+                                  className="h-10 font-black text-[9px] px-4 rounded-lg uppercase tracking-widest hero-gradient shadow-lg shadow-primary/20"
                                   onClick={() => handleBid(agent)}
                                   disabled={!!isBidding}
                                 >
-                                  {isBidding === agent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                                    <>
-                                      <span className="mb-1">{language === 'ru' ? 'ПОДТВЕРДИТЬ' : 'CONFIRM'}</span>
-                                      <span className="text-[8px] opacity-80">€{nextBidValue.toLocaleString()}</span>
-                                    </>
-                                  )}
+                                  {isBidding === agent.id ? <Loader2 className="w-3 h-3 animate-spin" /> : (language === 'ru' ? 'ПОДТВЕРДИТЬ' : 'CONFIRM')}
                                 </Button>
                               </>
                             ) : (
                               <Button 
                                 className={cn(
-                                  "h-12 font-black text-[10px] px-6 rounded-xl uppercase tracking-widest flex items-center justify-center leading-none", 
+                                  "h-10 font-black text-[9px] px-5 rounded-lg uppercase tracking-widest transition-all", 
                                   isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
-                                  (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-lg shadow-primary/20")
+                                  (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-lg shadow-primary/20 active:scale-95")
                                 )} 
                                 onClick={() => !isLeading && !isOwner && setActiveBidId(agent.id)} 
                                 disabled={isLeading || isOwner}
                               >
-                                {isOwner ? <><ShieldCheck className="w-4 h-4 mr-2" /> {language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT'}</> : (
-                                  isLeading ? <><ShieldCheck className="w-4 h-4 mr-2" /> {language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</> : (
+                                {isOwner ? (language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT') : (
+                                  isLeading ? <><ShieldCheck className="w-3 h-3 mr-2" /> {language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</> : (
                                     <>{language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'}</>
                                   )
                                 )}
@@ -357,4 +348,3 @@ export default function QuickSearchPage() {
     </div>
   );
 }
-
