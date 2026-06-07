@@ -5,7 +5,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, Loader2, Gavel, ShieldCheck, Clock, Timer, Percent, Star, User, Flag, X, Check } from 'lucide-react';
+import { 
+  ChevronLeft, Loader2, Gavel, ShieldCheck, Clock, 
+  Timer, Percent, Star, User, Flag, X, Check, ShoppingCart 
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';

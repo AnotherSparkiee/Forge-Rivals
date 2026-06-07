@@ -7,7 +7,7 @@ import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, addDocum
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, ShoppingCart, Loader2, Gavel, ShieldCheck, Clock, AlertCircle, Users, Percent, Timer, Star, Flag, X } from 'lucide-react';
+import { ChevronLeft, ShoppingCart, Loader2, Gavel, ShieldCheck, Clock, AlertCircle, Users, Percent, Timer, Star, Flag, X, Check } from 'lucide-react';
 import { collection, query, doc, arrayUnion, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Slider } from '@/components/ui/slider';
@@ -107,10 +107,10 @@ export default function YouthTransfersPage() {
       {Array.from({ length: 5 }).map((_, i) => {
         const fill = Math.min(Math.max(rating - i, 0), 1);
         return (
-          <div key={i} className="relative w-2 h-2">
-            <Star className="absolute inset-0 w-2 h-2 text-muted-foreground/20" />
+          <div key={i} className="relative w-2.5 h-2.5">
+            <Star className="absolute inset-0 w-2.5 h-2.5 text-muted-foreground/20" />
             <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
-              <Star className="w-2 h-2 text-yellow-500 fill-yellow-500" />
+              <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />
             </div>
           </div>
         );
@@ -272,7 +272,7 @@ export default function YouthTransfersPage() {
                           className={cn(
                             "h-12 font-black text-[10px] px-6 rounded-xl uppercase tracking-widest flex items-center justify-center leading-none", 
                             isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
-                            (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-primary/20")
+                            (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-lg shadow-primary/20")
                           )} 
                           onClick={() => !isLeading && !isOwner && setActiveBidId(agent.id)} 
                           disabled={isLeading || isOwner}
@@ -292,7 +292,7 @@ export default function YouthTransfersPage() {
           })
         ) : (
           <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
-            <Users className="w-16 h-16 text-muted-foreground" />
+            <ShoppingCart className="w-12 h-12" />
             <p className="text-[10px] uppercase font-black tracking-widest text-center">Market is empty in this sector</p>
           </div>
         )}
