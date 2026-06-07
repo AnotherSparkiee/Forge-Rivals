@@ -269,7 +269,7 @@ export default function SquadPage() {
                 const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
                 const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil).getTime() > now;
                 return (
-                  <Card key={hero.id} className={cn("glass-card border-white/10 overflow-hidden cursor-pointer", (liveAge.numeric < 18 || onAuction) && "opacity-60 grayscale cursor-not-allowed")} onClick={() => handleHeroAssign(hero)}>
+                  <Card key={hero.id} className={cn("glass-card border-white/10 overflow-hidden cursor-pointer", (liveAge.numeric < 18 || onAuction) && "opacity-60 grayscale cursor-not-allowed")} onClick={() => hero.onTransferUntil && new Date(hero.onTransferUntil).getTime() > now ? null : handleHeroAssign(hero)}>
                     <CardContent className="p-2 flex items-center gap-3"><div className="w-10 h-10 rounded-xl overflow-hidden bg-muted"><img src={hero.image} alt="" className="w-full h-full object-cover" /></div><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><h4 className="font-bold text-[11px] truncate">{hero.name}</h4><span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span></div><div className="flex items-center gap-3 mt-0.5"><span className="text-[9px] font-bold text-accent flex items-center gap-1"><Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}</span><span className={cn("text-[8px] font-black uppercase tracking-tighter", liveAge.numeric < 18 ? "text-red-400" : "text-muted-foreground")}>{liveAge.display} {t.profile.years}</span>{onAuction && <Badge className="bg-yellow-500/20 text-yellow-500 text-[6px] h-3 px-1 border-none font-black uppercase">AUCTION</Badge>}</div></div><div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-3 h-3" /></div></CardContent>
                   </Card>
                 );
@@ -284,8 +284,12 @@ export default function SquadPage() {
           <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none flex flex-col rounded-none overflow-hidden outline-none translate-x-0 translate-y-0 top-0 left-0 animate-in fade-in zoom-in duration-300">
             {profileHero && (
               <>
+                <DialogHeader className="sr-only">
+                  <DialogTitle>{profileHero.name}</DialogTitle>
+                  <DialogDescription>Administrative player dossier for {profileHero.name}</DialogDescription>
+                </DialogHeader>
                 <div className="flex-1 overflow-y-auto scrollbar-hide">
-                  <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 border-b border-white/5 flex flex-col items-center text-center gap-4">
+                  <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4">
                     <div className="relative"><div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50"><img src={profileHero.image} alt="" className="w-full h-full object-cover" /></div><div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{profileHero.country?.flag || '🏳️'}</span></div></div>
                     <div className="space-y-1"><h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h2><div className="flex items-center justify-center gap-2"><Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge></div></div>
                     <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto"><div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p><p className="text-xl font-headline font-bold text-accent italic leading-none">{profileHero.overallRating}</p></div><div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.salary}</p><p className="text-sm font-headline font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</p></div></div>
