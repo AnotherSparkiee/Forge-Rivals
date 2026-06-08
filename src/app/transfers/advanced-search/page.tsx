@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -65,29 +64,20 @@ export default function AdvancedSearchPage() {
     if (!agents) return [];
     
     return agents.filter(a => {
-      // Basic Expiry Check
       const expiry = new Date(a.expiresAt).getTime();
       if (expiry <= now) return false;
 
-      // Adult Check (Quick search pool)
       const liveAge = calculateLiveAge(a.heroData.baseAge, a.heroData.hiredAt);
       if (a.isYouth || liveAge.numeric < 18.0) return false;
 
-      // 1. Role Filter
       if (roleFilter !== 'all' && a.heroData.role !== roleFilter) return false;
-
-      // 2. Age Filter
       if (minAge && liveAge.numeric < parseFloat(minAge)) return false;
       if (maxAge && liveAge.numeric > parseFloat(maxAge)) return false;
 
-      // 3. Talent Filter (Avg Talent)
       const talent = Object.values(a.heroData.proTalents || {}).reduce((sum: any, val: any) => sum + Number(val), 0) as number / 10;
       if (parseFloat(minTalent) > 0 && talent < parseFloat(minTalent)) return false;
 
-      // 4. OVR Filter
       if (minOvr && a.heroData.overallRating < parseInt(minOvr)) return false;
-
-      // 5. Country Filter
       if (countryFilter !== 'all' && a.heroData.country?.name !== countryFilter) return false;
 
       return true;
@@ -110,14 +100,12 @@ export default function AdvancedSearchPage() {
     try {
       const prevBidder = agent.highestBidderId;
       const heroName = agent.heroData?.name || "Player";
-      
-      // Time Extension Logic (Anti-sniping)
       const expiryTime = new Date(agent.expiresAt).getTime();
       const timeLeft = expiryTime - Date.now();
       let finalExpiresAt = agent.expiresAt;
       
-      if (timeLeft < 60000) { // Less than 1 minute
-        finalExpiresAt = new Date(Date.now() + 600000).toISOString(); // Extend to 10 minutes
+      if (timeLeft < 60000) {
+        finalExpiresAt = new Date(Date.now() + 600000).toISOString();
       }
 
       await updateDoc(doc(db, 'market_v7', agent.id), { 
@@ -208,13 +196,7 @@ export default function AdvancedSearchPage() {
         <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <label className="text-[8px] font-black uppercase text-muted-foreground ml-1">{language === 'ru' ? 'МИН. ВОЗРАСТ' : 'MIN AGE'}</label>
-            <Input 
-              type="number" 
-              placeholder="18" 
-              value={minAge} 
-              onChange={e => { setMinAge(e.target.value); setPage(0); }} 
-              className="h-10 bg-secondary/50 border-white/10 text-[10px] font-bold"
-            />
+            <Input type="number" placeholder="18" value={minAge} onChange={e => { setMinAge(e.target.value); setPage(0); }} className="h-10 bg-secondary/50 border-white/10 text-[10px] font-bold" />
           </div>
           <div className="space-y-1.5">
             <label className="text-[8px] font-black uppercase text-muted-foreground ml-1">{language === 'ru' ? 'МИН. ТАЛАНТ' : 'MIN TALENT'}</label>
@@ -232,13 +214,7 @@ export default function AdvancedSearchPage() {
           </div>
           <div className="space-y-1.5">
             <label className="text-[8px] font-black uppercase text-muted-foreground ml-1">{language === 'ru' ? 'МИН. OVR' : 'MIN OVR'}</label>
-            <Input 
-              type="number" 
-              placeholder="40" 
-              value={minOvr} 
-              onChange={e => { setMinOvr(e.target.value); setPage(0); }} 
-              className="h-10 bg-secondary/50 border-white/10 text-[10px] font-bold"
-            />
+            <Input type="number" placeholder="40" value={minOvr} onChange={e => { setMinOvr(e.target.value); setPage(0); }} className="h-10 bg-secondary/50 border-white/10 text-[10px] font-bold" />
           </div>
         </div>
       </div>
@@ -254,24 +230,14 @@ export default function AdvancedSearchPage() {
         {paginatedAgents.length > 0 ? (
           <>
             {paginatedAgents.map((agent) => (
-              <TransferHeroCard 
-                key={agent.id} 
-                agent={agent} 
-                user={user} 
-                profile={profile} 
-                onBid={handleGlobalBid}
-                now={now}
-                language={language}
-              />
+              <TransferHeroCard key={agent.id} agent={agent} user={user} profile={profile} onBid={handleGlobalBid} now={now} language={language} />
             ))}
 
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-2 pt-6">
                 <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(0)} className="h-8 w-8"><ChevronsLeft className="w-4 h-4" /></Button>
                 <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 w-8"><ChevronLeftIcon className="w-4 h-4" /></Button>
-                <span className="text-[10px] font-black text-muted-foreground uppercase px-4">
-                  {language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}
-                </span>
+                <span className="text-[10px] font-black text-muted-foreground uppercase px-4">{language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}</span>
                 <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 w-8"><ChevronRightIcon className="w-4 h-4" /></Button>
                 <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(totalPages - 1)} className="h-8 w-8"><ChevronsRight className="w-4 h-4" /></Button>
               </div>

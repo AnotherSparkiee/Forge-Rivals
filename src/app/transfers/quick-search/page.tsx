@@ -132,11 +132,11 @@ export const TransferHeroCard = memo(({
               
               <div className="grid grid-cols-2 gap-3 mt-2">
                  <div className="flex flex-col">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'ТАЛАНТ'}</p>
+                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
                    {renderStars(avgTalent)}
                  </div>
                  <div className="flex flex-col border-l border-white/5 pl-3">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'ВОЗРАСТ'}</p>
+                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
                    <p className="text-[11px] font-bold text-white leading-none mt-0.5">{liveAge.display}</p>
                  </div>
               </div>
@@ -215,8 +215,8 @@ export const TransferHeroCard = memo(({
                   step={1}
                 />
                 <div className="flex justify-between mt-3 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
-                  <span>MIN +3%</span>
-                  <span>MAX +300%</span>
+                  <span>MIN € {(agent.currentBid * 1.03).toLocaleString()}</span>
+                  <span>MAX € {(agent.currentBid * 4).toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -254,7 +254,7 @@ export const TransferHeroCard = memo(({
   );
 });
 
-YouthTransferCard.displayName = 'TransferHeroCard';
+TransferHeroCard.displayName = 'TransferHeroCard';
 
 export default function QuickSearchPage() {
   const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
@@ -287,18 +287,12 @@ export default function QuickSearchPage() {
     const today = getMoscowDateString();
     const systemAgentsToday = (agents || []).filter(a => a.isSystem && a.dropDate === today);
 
-    // If today's system drop is missing, generate it deterministically.
-    // Since we use the same IDs and Seed, all managers will produce the same result.
     if (systemAgentsToday.length === 0 && !initTriggeredRef.current) {
       initTriggeredRef.current = true;
       
       const refreshMarket = async () => {
-        // Delete old system agents ONLY if you are the one visiting.
-        // In a shared DB, we should be careful not to delete others' active system auctions if possible, 
-        // but here system auctions are strictly 24h.
         const oldSystemAgents = (agents || []).filter(a => a.isSystem && a.dropDate !== today);
         for (const old of oldSystemAgents) {
-          // If no one bid, it's safe to just clear them.
           await deleteDoc(doc(db, 'market_v7', old.id)).catch(() => {});
         }
 
@@ -306,17 +300,12 @@ export default function QuickSearchPage() {
         for (const role of roles) {
           for (let i = 1; i <= 10; i++) {
             const agentId = `sys_drop_${today}_${role.toLowerCase()}_${i}`;
-            
-            // USE DETERMINISTIC SEED: Date + Role + Index
-            // This ensures every client generates the SAME hero for this ID.
             const seed = `${today}_${role}_${i}`;
             const hero = generateUniqueHero(role, i, false, seed);
             
-            // Ensure age compliance (18+)
             if (hero.baseAge < 18) { hero.baseAge = 18; hero.age = 18; }
             
             const startPrice = (hero.overallRating * 17500) + 290000;
-            // Expiry is end of day MSK or +24h
             const expiry = new Date(getMoscowTime().getTime() + 24 * 60 * 60 * 1000);
             
             await setDoc(doc(db, 'market_v7', agentId), {
