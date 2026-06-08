@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -25,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from '@/components/ui/badge';
 import { calculateLiveAge } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -164,11 +164,11 @@ export default function AdvancedSearchPage() {
               </SelectTrigger>
               <SelectContent className="bg-card border-white/10">
                 <SelectItem value="all" className="text-[10px] uppercase font-bold">ALL ROLES</SelectItem>
-                <SelectItem value="Carry" className="text-[10px] uppercase font-bold">Carry</SelectItem>
-                <SelectItem value="Midlaner" className="text-[10px] uppercase font-bold">Midlaner</SelectItem>
-                <SelectItem value="Tank" className="text-[10px] uppercase font-bold">Tank</SelectItem>
-                <SelectItem value="Jungler" className="text-[10px] uppercase font-bold">Jungler</SelectItem>
-                <SelectItem value="Support" className="text-[10px] uppercase font-bold">Support</SelectItem>
+                <SelectItem value="Carry" className="text-[10px] uppercase font-bold">Керри</SelectItem>
+                <SelectItem value="Midlaner" className="text-[10px] uppercase font-bold">Мидер</SelectItem>
+                <SelectItem value="Tank" className="text-[10px] uppercase font-bold">Танк</SelectItem>
+                <SelectItem value="Jungler" className="text-[10px] uppercase font-bold">Лес</SelectItem>
+                <SelectItem value="Support" className="text-[10px] uppercase font-bold">Саппорт</SelectItem>
               </SelectContent>
             </Select>
           </div>
