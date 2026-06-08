@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { doc } from 'firebase/firestore';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { Badge } from '@/components/ui/badge';
+import { getMoscowTime } from '@/app/lib/time-utils';
 
 type ProfileTab = 'menu' | 'team' | 'daily';
 
@@ -172,7 +173,8 @@ export default function ProfilePage() {
               {activeLicenseTier ? `TIER ${activeLicenseTier}` : 'NONE'}
             </p>
           </CardContent>
-        </div>
+        </Card>
+      </div>
 
       <Card className="glass-card border-white/5 bg-secondary/10">
         <CardContent className="p-4 space-y-4">

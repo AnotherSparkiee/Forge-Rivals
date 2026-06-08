@@ -651,9 +651,10 @@ export default function RankingsPage() {
                           <span className="text-xl font-bold">{viewingMatch.scoreH === 2 ? 11 : 7}</span>
                           <span className="text-[8px] text-muted-foreground uppercase font-bold">Towers</span>
                         </CardContent>
-                      </div>
-                    </>
-                  )}
+                      </Card>
+                    </div>
+                  </>
+                )}
               </div>
 
               <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5">

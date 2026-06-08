@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import Link from 'next/link';
+import { getMoscowTime } from '@/app/lib/time-utils';
 
 export function TopBar() {
   const pathname = usePathname();

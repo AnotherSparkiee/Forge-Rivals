@@ -275,7 +275,7 @@ export const TransferHeroCard = memo(({
 TransferHeroCard.displayName = 'TransferHeroCard';
 
 export default function QuickSearchPage() {
-  const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
+  const { language, isLoaded: isStoreLoaded, credits, addCredits, purchasePremium } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
@@ -291,14 +291,15 @@ export default function QuickSearchPage() {
     return () => clearInterval(timer);
   }, []);
 
+  const userDocRef = useMemoFirebase(() => user?.uid ? doc(db, 'players_v10', user.uid) : null, [db, user?.uid]);
+  const { data: profile } = useDoc(userDocRef);
+
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v7'));
   }, [db, user?.uid]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
-  const userDocRef = useMemoFirebase(() => user?.uid ? doc(db, 'players_v10', user.uid) : null, [db, user?.uid]);
-  const { data: profile } = useDoc(userDocRef);
 
   useEffect(() => {
     if (isMarketLoading || marketError || !user?.uid || !isStoreLoaded) return;
@@ -408,9 +409,9 @@ export default function QuickSearchPage() {
                 {totalPages > 1 && (
                   <div className="flex items-center justify-center gap-2 pt-6">
                     <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(0)} className="h-8 w-8"><ChevronsLeft className="w-4 h-4" /></Button>
-                    <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 w-8"><ChevronLeftIcon className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 w-8"><ChevronLeftIcon className="h-4 w-4" /></Button>
                     <span className="text-[10px] font-black text-muted-foreground uppercase px-4">{language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}</span>
-                    <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 w-8"><ChevronRightIcon className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 w-8"><ChevronRightIcon className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(totalPages - 1)} className="h-8 w-8"><ChevronsRight className="w-4 h-4" /></Button>
                   </div>
                 )}

@@ -183,26 +183,22 @@ export default function AllManagersPage() {
   const filteredAndSortedManagers = useMemo(() => {
     if (!managers) return [];
 
-    // STRICT FILTER: Delete (ignore) all players without names or with default names
     let list = [...managers].filter(m => 
       m.displayName && 
       m.displayName.trim().length >= 2 && 
       m.displayName !== "Unknown Commander"
     );
 
-    // 1. Search Filter
     if (search) {
       list = list.filter(m => m.displayName?.toLowerCase().includes(search.toLowerCase()));
     }
 
-    // 2. Status Filter
     if (statusFilter === 'in_assoc') {
       list = list.filter(m => !!m.associationId);
     } else if (statusFilter === 'free') {
       list = list.filter(m => !m.associationId);
     }
 
-    // 3. Sorting
     list.sort((a, b) => {
       let valA: any;
       let valB: any;
@@ -211,7 +207,6 @@ export default function AllManagersPage() {
         valA = a.managerLevel || 1;
         valB = b.managerLevel || 1;
       } else {
-        // Date sort
         valA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         valB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       }

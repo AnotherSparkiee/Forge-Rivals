@@ -234,7 +234,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const addCredits = useCallback((amount: number, isSponsorship: boolean = false) => { 
     setState(s => { 
-      const premiumBonusMultiplier = isSponsorship && isPremium ? 3.0 : 1.0; // Base + 200% = 3x
+      const premiumBonusMultiplier = isSponsorship && isPremium ? 3.0 : 1.0; 
       const finalAmount = Math.round(amount * premiumBonusMultiplier);
       const newVal = s.credits + finalAmount; 
       runCloudUpdate({ inGameCurrency: newVal }); 
