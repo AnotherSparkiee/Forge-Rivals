@@ -40,7 +40,7 @@ function sanitizeForFirestore(obj: any) { if (obj === undefined) return null; if
 export function getLevelThreshold(level: number): number { if (level <= 1) return 700; if (level === 2) return 1400; if (level === 3) return 3800; return Math.floor(3800 * Math.pow(1.5, level - 3)); }
 
 interface GameStateContextType extends GameState {
-  isLoaded: boolean; addCredits: (amount: number) => void; addCrystals: (amount: number) => void; assignToRole: (slot: LineupSlot, heroId: string | null) => void; updateTactics: (strategy: string, lineSettings: { carry: string; mid: string; offlane: string }) => void; startArenaConstruction: (facility: any, cost: number) => boolean; startHQConstruction: (facility: any, cost: number) => boolean; startBootcampConstruction: (facility: any, cost: number) => boolean; startAcademyConstruction: (facility: any, cost: number) => boolean; startMedicalConstruction: (facility: any, cost: number) => boolean; startCapacityExpansion: (seats: number, cost: number, hours: number) => boolean; setLanguage: (lang: 'en' | 'ru') => void; recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string) => void; claimReward: (creditsReward: number, crystalsReward: number) => void; syncStats: (groupPlayers: any[]) => void; dismissSeasonResults: () => void; setSyncing: (val: boolean) => void; setTrainingFocus: (heroId: string, skillKey: string | null) => void; startDailyHeroTraining: (heroId: string, skillKey: string) => void; claimDailyHeroTraining: (heroId: string) => void; updateHero: (heroId: string, updates: Partial<Hero>, creditCost?: number, crystalCost?: number) => void; promoteYouthPlayer: (heroId: string) => void; removeHero: (heroId: string, sellCreditAmount?: number) => void; recoverAllFatigue: (costType: 'credits' | 'crystals') => boolean; hireStaffMember: (member: StaffMember) => void; trainStaffSkill: (role: StaffRole, skillKey: 'primary' | 'secondary', cost: number) => boolean; addHeroDirectly: (hero: Hero) => void; addYouthHeroDirectly: (hero: Hero) => void; updateProfileName: (name: string) => void; updateProfileCountry: (countryName: string) => void; purchaseLicense: (tier: number, cost: number) => boolean; upgradeManagerSkill: (skillKey: keyof GameState['managerSkills']) => void; markMatchAsSeen: (day: number) => void;
+  isLoaded: boolean; addCredits: (amount: number) => void; addCrystals: (amount: number) => void; assignToRole: (slot: LineupSlot, heroId: string | null) => void; updateTactics: (strategy: string, lineSettings: { carry: string; mid: string; offlane: string }) => void; startArenaConstruction: (facility: any, cost: number) => boolean; startHQConstruction: (facility: any, cost: number) => boolean; startBootcampConstruction: (facility: any, cost: number) => boolean; startAcademyConstruction: (facility: any, cost: number) => boolean; startMedicalConstruction: (facility: any, cost: number) => boolean; startCapacityExpansion: (seats: number, cost: number, hours: number) => boolean; checkConstructions: () => void; setLanguage: (lang: 'en' | 'ru') => void; recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string) => void; claimReward: (creditsReward: number, crystalsReward: number) => void; syncStats: (groupPlayers: any[]) => void; dismissSeasonResults: () => void; setSyncing: (val: boolean) => void; setTrainingFocus: (heroId: string, skillKey: string | null) => void; startDailyHeroTraining: (heroId: string, skillKey: string) => void; claimDailyHeroTraining: (heroId: string) => void; updateHero: (heroId: string, updates: Partial<Hero>, creditCost?: number, crystalCost?: number) => void; promoteYouthPlayer: (heroId: string) => void; removeHero: (heroId: string, sellCreditAmount?: number) => void; recoverAllFatigue: (costType: 'credits' | 'crystals') => boolean; hireStaffMember: (member: StaffMember) => void; trainStaffSkill: (role: StaffRole, skillKey: 'primary' | 'secondary', cost: number) => boolean; addHeroDirectly: (hero: Hero) => void; addYouthHeroDirectly: (hero: Hero) => void; updateProfileName: (name: string) => void; updateProfileCountry: (countryName: string) => void; purchaseLicense: (tier: number, cost: number) => boolean; upgradeManagerSkill: (skillKey: keyof GameState['managerSkills']) => void; markMatchAsSeen: (day: number) => void;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
@@ -136,6 +136,47 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const updateTactics = useCallback((strategy: string, lineSettings: { carry: string; mid: string; offlane: string }) => { setState(s => { runCloudUpdate({ strategy, lineSettings }); return { ...s, strategy, lineSettings }; }); }, [runCloudUpdate]);
   const setSyncing = useCallback((val: boolean) => setState(s => ({ ...s, isSyncing: val })), []);
 
+  const checkConstructions = useCallback(() => {
+    const now = new Date().getTime();
+    let hasGlobalUpdates = false;
+    const globalUpdates: any = {};
+
+    const process = (sectorName: string, sectorState: any, cloudKey: string) => {
+      const finishes = sectorState.constructionFinishes || {};
+      const nextSector = { ...sectorState };
+      let changed = false;
+      
+      Object.entries(finishes).forEach(([fac, finishTime]) => {
+        if (finishTime && now >= new Date(finishTime as string).getTime()) {
+          if (fac === 'capacity') {
+            nextSector.capacity += (nextSector.pendingCapacitySeats || 0);
+            nextSector.pendingCapacitySeats = null;
+          } else {
+            nextSector[fac] = (nextSector[fac] || 0) + 1;
+          }
+          nextSector.constructionFinishes = { ...nextSector.constructionFinishes, [fac]: null };
+          nextSector.constructionStarts = { ...nextSector.constructionStarts, [fac]: null };
+          changed = true;
+        }
+      });
+      
+      if (changed) {
+        globalUpdates[cloudKey] = sanitizeForFirestore(nextSector);
+        hasGlobalUpdates = true;
+      }
+    };
+
+    process('arena', state.arena, 'arena');
+    process('hq', state.hq, 'hq');
+    process('bootcamp', state.bootcamp, 'bootcamp');
+    process('academy', state.academy, 'academy');
+    process('medical', state.medical, 'medical');
+
+    if (hasGlobalUpdates) {
+      runCloudUpdate(globalUpdates);
+    }
+  }, [state, runCloudUpdate]);
+
   const syncStats = useCallback((groupPlayers: any[]) => {
     if (!state.selectedLeagueId || !state.seasonDay || !user) return;
     const { seasonNumber: globalSeason, seasonDay: globalDay } = getGlobalSeasonInfo();
@@ -190,7 +231,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const upgradeManagerSkill = useCallback((k: keyof GameState['managerSkills']) => { if (state.skillPoints <= 0) return; const ns = { ...state.managerSkills, [k]: state.managerSkills[k]+1 }; runCloudUpdate({ managerSkills: ns, skillPoints: state.skillPoints - 1 }); }, [state, runCloudUpdate]);
 
   return (
-    <GameStateContext.Provider value={{ ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, hireStaffMember, trainStaffSkill, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, promoteYouthPlayer, removeHero, recoverAllFatigue, addHeroDirectly, addYouthHeroDirectly, updateProfileName, updateProfileCountry, purchaseLicense, upgradeManagerSkill }}>
+    <GameStateContext.Provider value={{ ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, checkConstructions, hireStaffMember, trainStaffSkill, setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, promoteYouthPlayer, removeHero, recoverAllFatigue, addHeroDirectly, addYouthHeroDirectly, updateProfileName, updateProfileCountry, purchaseLicense, upgradeManagerSkill }}>
       {children}
     </GameStateContext.Provider>
   );
