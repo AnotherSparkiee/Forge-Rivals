@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef, memo, useMemo } from 'react';
+import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -160,7 +160,7 @@ export const TransferHeroCard = memo(({
                 {agent.highestBidderName ? (
                   <><Users className="w-2.5 h-2.5" /> {language === 'ru' ? 'Лидер' : 'Leader'}: {agent.highestBidderName}</>
                 ) : (
-                  language === 'ru' ? 'Нету ставок' : 'No bids'
+                  language === 'ru' ? 'Нет ставок' : 'No bids'
                 )}
               </p>
             </div>
@@ -290,7 +290,8 @@ export default function QuickSearchPage() {
   }, [db, user?.uid]);
 
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
-  const { data: profile } = useDoc(user?.uid ? doc(db, 'players_v10', user.uid) : null);
+  const userDocRef = useMemoFirebase(() => user?.uid ? doc(db, 'players_v10', user.uid) : null, [db, user?.uid]);
+  const { data: profile } = useDoc(userDocRef);
 
   useEffect(() => {
     if (isMarketLoading || marketError || !user?.uid || !isStoreLoaded) return;
@@ -323,7 +324,7 @@ export default function QuickSearchPage() {
     }
   }, [isMarketLoading, agents, user?.uid, db, marketError, isStoreLoaded]);
 
-  const handleGlobalBid = async (agent: any, amount: number) => {
+  const handleGlobalBid = useCallback(async (agent: any, amount: number) => {
     if (!user || !profile) return;
     if (credits < amount) { 
       toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" }); 
@@ -346,14 +347,16 @@ export default function QuickSearchPage() {
     } catch (e) {
       toast({ title: "Error placing bid", variant: "destructive" });
     }
-  };
+  }, [user, profile, credits, language, toast, db, addCredits]);
 
-  const roleList = [ { id: 'Carry', label: "Керри" }, { id: 'Midlaner', label: "Мидер" }, { id: 'Tank', label: "Танк" }, { id: 'Jungler', label: "Лес" }, { id: 'Support', label: "Саппорт" } ];
+  const roleList = useMemo(() => [ { id: 'Carry', label: "Керри" }, { id: 'Midlaner', label: "Мидер" }, { id: 'Tank', label: "Танк" }, { id: 'Jungler', label: "Лес" }, { id: 'Support', label: "Саппорт" } ], []);
+  
   const filteredAgents = useMemo(() => {
     return (agents?.filter(a => a.heroData?.role === activeTab && a.isYouth !== true) || [])
       .filter(a => { const liveAge = calculateLiveAge(a.heroData.baseAge, a.heroData.hiredAt); return new Date(a.expiresAt).getTime() > now && liveAge.numeric >= 18.0; })
       .sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
   }, [agents, activeTab, now]);
+
   const paginatedAgents = useMemo(() => { const start = page * ITEMS_PER_PAGE; return filteredAgents.slice(start, start + ITEMS_PER_PAGE); }, [filteredAgents, page]);
   const totalPages = Math.ceil(filteredAgents.length / ITEMS_PER_PAGE);
 

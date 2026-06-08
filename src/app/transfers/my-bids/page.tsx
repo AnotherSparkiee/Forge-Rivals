@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, Loader2, Package, Search } from 'lucide-react';
@@ -31,9 +32,10 @@ export default function MyBidsPage() {
   }, [db, user?.uid]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
-  const { data: profile } = useDoc(user?.uid ? doc(db, 'players_v10', user.uid) : null);
+  const userDocRef = useMemoFirebase(() => user?.uid ? doc(db, 'players_v10', user.uid) : null, [db, user?.uid]);
+  const { data: profile } = useDoc(userDocRef);
 
-  const handleGlobalBid = async (agent: any, amount: number) => {
+  const handleGlobalBid = useCallback(async (agent: any, amount: number) => {
     if (!user || !profile) return;
     if (credits < amount) { 
       toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" }); 
@@ -48,7 +50,6 @@ export default function MyBidsPage() {
       const timeLeft = expiryTime - mskNow;
       let finalExpiresAt = agent.expiresAt;
       
-      // Threshold 10 minutes (600,000 ms) - Infinite Extension Rule
       if (timeLeft < 600000) { 
         finalExpiresAt = new Date(mskNow + 600000).toISOString(); 
       }
@@ -75,7 +76,7 @@ export default function MyBidsPage() {
     } catch (e) {
       toast({ title: "Error placing bid", variant: "destructive" });
     }
-  };
+  }, [user, profile, credits, language, toast, db, addCredits]);
 
   const activeBids = useMemo(() => {
     return (agents || []).filter(a => new Date(a.expiresAt).getTime() > now)

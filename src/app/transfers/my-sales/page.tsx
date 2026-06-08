@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -28,7 +29,8 @@ export default function MySalesPage() {
   }, [db, user?.uid]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
-  const { data: profile } = useDoc(user?.uid ? doc(db, 'players_v10', user.uid) : null);
+  const userDocRef = useMemoFirebase(() => user?.uid ? doc(db, 'players_v10', user.uid) : null, [db, user?.uid]);
+  const { data: profile } = useDoc(userDocRef);
 
   const activeSales = useMemo(() => {
     return (agents || []).filter(a => new Date(a.expiresAt).getTime() > now)
