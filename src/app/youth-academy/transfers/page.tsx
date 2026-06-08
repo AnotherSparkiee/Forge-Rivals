@@ -117,7 +117,7 @@ const YouthTransferCard = memo(({
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="absolute -bottom-1 -right-1 bg-background rounded-md p-1 border border-white/10 shadow-xl z-10 flex items-center justify-center">
-                <span className="text-[10px] leading-none">{agent.heroData.country?.flag}</span>
+                <span className="text-base leading-none">{agent.heroData.country?.flag}</span>
               </div>
             </div>
             
@@ -300,10 +300,22 @@ export default function YouthTransfersPage() {
     try {
       const prevBidder = agent.highestBidderId;
       const heroName = agent.heroData?.name || "Player";
+      
+      // Time Extension Logic (Anti-sniping)
+      const expiryTime = new Date(agent.expiresAt).getTime();
+      const timeLeft = expiryTime - Date.now();
+      let finalExpiresAt = agent.expiresAt;
+      
+      if (timeLeft < 60000) { // Less than 1 minute
+        finalExpiresAt = new Date(Date.now() + 600000).toISOString(); // Extend to 10 minutes
+      }
+
       await updateDoc(doc(db, 'market_v7', agent.id), { 
         currentBid: amount, highestBidderId: user.uid, highestBidderName: profile.displayName || "Unknown Manager", 
-        bidders: arrayUnion(user.uid), updatedAt: serverTimestamp() 
+        bidders: arrayUnion(user.uid), updatedAt: serverTimestamp(),
+        expiresAt: finalExpiresAt
       });
+
       addCredits(-amount);
       if (prevBidder && prevBidder !== user.uid) {
         addDocumentNonBlocking(collection(db, 'notifications_v6'), {
@@ -312,7 +324,11 @@ export default function YouthTransfersPage() {
           type: 'market', read: false, createdAt: new Date().toISOString()
         });
       }
-      toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Placed!" });
+      
+      toast({ 
+        title: language === 'ru' ? "Ставка принята!" : "Bid Placed!",
+        description: timeLeft < 60000 ? (language === 'ru' ? "Аукцион продлен на 10 минут!" : "Auction extended by 10 minutes!") : undefined
+      });
     } catch (e) {
       toast({ title: "Error placing bid", variant: "destructive" });
     }

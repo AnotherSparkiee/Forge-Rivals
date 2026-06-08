@@ -42,10 +42,22 @@ export default function MyBidsPage() {
     try {
       const prevBidder = agent.highestBidderId;
       const heroName = agent.heroData?.name || "Player";
+      
+      // Time Extension Logic (Anti-sniping)
+      const expiryTime = new Date(agent.expiresAt).getTime();
+      const timeLeft = expiryTime - Date.now();
+      let finalExpiresAt = agent.expiresAt;
+      
+      if (timeLeft < 60000) { // Less than 1 minute
+        finalExpiresAt = new Date(Date.now() + 600000).toISOString(); // Extend to 10 minutes
+      }
+
       await updateDoc(doc(db, 'market_v7', agent.id), { 
         currentBid: amount, highestBidderId: user.uid, highestBidderName: profile.displayName || "Unknown Manager", 
-        bidders: arrayUnion(user.uid), updatedAt: serverTimestamp() 
+        bidders: arrayUnion(user.uid), updatedAt: serverTimestamp(),
+        expiresAt: finalExpiresAt
       });
+
       addCredits(-amount);
       if (prevBidder && prevBidder !== user.uid) {
         addDocumentNonBlocking(collection(db, 'notifications_v6'), {
@@ -54,7 +66,11 @@ export default function MyBidsPage() {
           type: 'market', read: false, createdAt: new Date().toISOString()
         });
       }
-      toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!" });
+      
+      toast({ 
+        title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!",
+        description: timeLeft < 60000 ? (language === 'ru' ? "Аукцион продлен на 10 минут!" : "Auction extended by 10 minutes!") : undefined
+      });
     } catch (e) {
       toast({ title: "Error placing bid", variant: "destructive" });
     }
