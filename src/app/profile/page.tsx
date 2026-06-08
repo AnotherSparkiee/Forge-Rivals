@@ -172,7 +172,7 @@ export default function ProfilePage() {
               {activeLicenseTier ? `TIER ${activeLicenseTier}` : 'NONE'}
             </p>
           </CardContent>
-        </div>
+        </Card>
       </div>
 
       <Card className="glass-card border-white/5 bg-secondary/10">
@@ -263,11 +263,11 @@ export default function ProfilePage() {
         <div className="text-center space-y-3">
           {isPremium ? (
             <div className="relative inline-flex items-center min-w-0 max-w-full">
-              <div className="absolute inset-0 bg-gradient-to-r from-accent/25 via-accent/5 to-transparent border-l-2 border-accent -z-10" />
+              <div className="absolute inset-0 bg-gradient-to-r from-accent/30 via-accent/5 to-transparent border-l-2 border-accent -z-10" />
               <h1 className="px-6 py-1 text-2xl font-headline font-black uppercase tracking-tight text-white truncate">
                 {profile?.displayName || 'Syncing...'}
               </h1>
-              <span className="absolute -top-0.5 -right-0.5 text-[2px] font-black text-accent uppercase tracking-widest bg-background/60 px-0.5 rounded-sm border border-accent/10 whitespace-nowrap leading-none">PREMIUM</span>
+              <span className="absolute top-0.5 right-1 text-[1.5px] font-black text-accent uppercase tracking-[0.4em] bg-background/40 px-0.5 rounded-sm border border-accent/10 whitespace-nowrap leading-none">PREMIUM</span>
             </div>
           ) : (
             <h1 className="text-2xl font-headline font-black uppercase tracking-tight text-white">

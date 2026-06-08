@@ -11,7 +11,6 @@ export function TransferResolver() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { isLoaded, updateHero, removeHero, addCredits, language, addHeroDirectly, addYouthHeroDirectly } = useGameState();
-  const { toast } = useToast();
   
   // Track sales where I am the seller
   const marketQuery = useMemoFirebase(() => {
@@ -75,8 +74,6 @@ export function TransferResolver() {
                 : `Successfully purchased ${agent.heroData.name} from "${agent.sellerName}"`;
                 
               sendNotification(agent.highestBidderId, buyerTitle, buyerDesc);
-
-              // Removed global toast per user request
             } else {
               // No bids - Return to club
               updateHero(heroId, { onTransferUntil: null, transferMarketId: null });
@@ -87,7 +84,6 @@ export function TransferResolver() {
                 : `${agent.heroData.name} remains in club (no bids).`;
 
               sendNotification(user.uid, title, desc);
-              // Removed global toast per user request
             }
 
             await deleteDoc(doc(db, 'market_v7', agent.id));
@@ -102,7 +98,7 @@ export function TransferResolver() {
     const interval = setInterval(resolveAuctions, 15000);
     resolveAuctions();
     return () => clearInterval(interval);
-  }, [isLoaded, isUserLoading, user, mySales, addCredits, removeHero, updateHero, language, toast, db, sendNotification]);
+  }, [isLoaded, isUserLoading, user, mySales, addCredits, removeHero, updateHero, language, db, sendNotification]);
 
   // Resolve purchases logic (Claiming the hero)
   useEffect(() => {
@@ -128,7 +124,7 @@ export function TransferResolver() {
               addHeroDirectly(heroData);
             }
 
-            // Silent notification instead of toast on Home screen
+            // Silent notification instead of toast
             const title = language === 'ru' ? "Пополнение в составе!" : "New Hero Joined!";
             const desc = language === 'ru' 
               ? `${heroData.name} теперь в вашем распоряжении.` 

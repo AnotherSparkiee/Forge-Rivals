@@ -98,11 +98,11 @@ export function TopBar() {
             <div className="flex items-center gap-1 min-w-0">
               {isPremium ? (
                 <div className="relative inline-flex items-center min-w-0 max-w-[160px]">
-                  <div className="absolute inset-0 bg-gradient-to-r from-accent/25 via-accent/5 to-transparent border-l-2 border-accent -z-10" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-accent/30 via-accent/5 to-transparent border-l-2 border-accent -z-10" />
                   <span className="px-2.5 py-1 text-[9px] font-black uppercase tracking-tight truncate text-white">
                     {profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
                   </span>
-                  <span className="absolute -top-0.5 -right-1 text-[2px] font-black text-accent uppercase tracking-[0.4em] bg-background/40 px-0.5 rounded-sm border border-accent/10 whitespace-nowrap leading-none">PREMIUM</span>
+                  <span className="absolute top-0.5 -right-1 text-[1.5px] font-black text-accent uppercase tracking-[0.4em] bg-background/40 px-0.5 rounded-sm border border-accent/10 whitespace-nowrap leading-none">PREMIUM</span>
                 </div>
               ) : (
                 <span className="text-[9px] font-black uppercase tracking-tight whitespace-nowrap truncate max-w-[120px] text-primary">
