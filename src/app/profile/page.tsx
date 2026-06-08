@@ -12,7 +12,7 @@ import {
   Award, ScrollText, CircleDollarSign, 
   UserCog, HeartPulse, GraduationCap, 
   TrendingUp, BarChart3, Building2, MapPin,
-  Shield, Activity, Settings2, Info
+  Shield, Activity, Settings2, Info, Crown
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -31,7 +31,8 @@ export default function ProfilePage() {
     ownedHeroes, language, isLoaded: isStoreLoaded, 
     credits, crystals, leagueLevel, divisionSubId, groupId,
     experiencePoints, activeLicenseTier, hq, managerLevel,
-    skillPoints, managerSkills, upgradeManagerSkill, arena, bootcamp, academy, medical
+    skillPoints, managerSkills, upgradeManagerSkill, arena, bootcamp, academy, medical,
+    isPremium, premiumUntil
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
@@ -73,9 +74,10 @@ export default function ProfilePage() {
     const fanCount = (arena.capacity || 5000) * 1.5;
     const fanBonus = Math.floor(fanCount / 1500);
     const leagueBonus = (10 - leagueLevel) * 3;
+    const premiumBonus = isPremium ? 25 : 0;
     
-    return 10 + infraBonus + licenseBonus + fanBonus + leagueBonus;
-  }, [arena, hq, bootcamp, academy, medical, activeLicenseTier, leagueLevel]);
+    return 10 + infraBonus + licenseBonus + fanBonus + leagueBonus + premiumBonus;
+  }, [arena, hq, bootcamp, academy, medical, activeLicenseTier, leagueLevel, isPremium]);
 
   const currentXp = experiencePoints || 0;
   const xpThreshold = getLevelThreshold(managerLevel || 1);
@@ -94,6 +96,8 @@ export default function ProfilePage() {
       popularity: "Club Popularity",
       logout: "LOG OUT",
       teamStats: "Club Status",
+      premium: "PREMIUM ACTIVE",
+      premiumExp: "Expires",
       skills: {
         title: "STRATEGIC DEVELOPMENT",
         points: "Points Available",
@@ -116,6 +120,8 @@ export default function ProfilePage() {
       popularity: "Популярность клуба",
       logout: "ВЫЙТИ ИЗ АККАУНТА",
       teamStats: "Статус команды",
+      premium: "PREMIUM АКТИВЕН",
+      premiumExp: "Истекает",
       skills: {
         title: "РАЗВИТИЕ КЛУБА",
         points: "Очки навыков",
@@ -136,7 +142,21 @@ export default function ProfilePage() {
 
   const renderTeamView = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* Popularity & XP License */}
+      {isPremium && (
+        <Card className="glass-card bg-yellow-500/10 border-yellow-500/30 overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-2"><Crown className="w-8 h-8 text-yellow-500 opacity-20" /></div>
+          <CardContent className="p-4 flex items-center gap-4">
+             <div className="p-3 rounded-full bg-yellow-500/20 border border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.2)]">
+               <Crown className="w-6 h-6 text-yellow-500" />
+             </div>
+             <div>
+               <p className="text-xs font-black text-yellow-500 uppercase tracking-widest">{t.premium}</p>
+               <p className="text-[10px] text-muted-foreground uppercase">{t.premiumExp}: {new Date(premiumUntil!).toLocaleDateString()}</p>
+             </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-2 gap-3">
         <Card className="glass-card bg-primary/5 border-primary/20">
           <CardContent className="p-4 flex flex-col items-center text-center">
@@ -156,7 +176,6 @@ export default function ProfilePage() {
         </Card>
       </div>
 
-      {/* Detailed Stats */}
       <Card className="glass-card border-white/5 bg-secondary/10">
         <CardContent className="p-4 space-y-4">
           <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
@@ -168,8 +187,8 @@ export default function ProfilePage() {
               <span className="text-xs font-mono font-bold text-white">€ {(ownedHeroes.length * 250000).toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-background/40 rounded-xl border border-white/5">
-              <span className="text-[9px] font-bold text-muted-foreground uppercase">Avg Squad Age</span>
-              <span className="text-xs font-mono font-bold text-white">21.4 yrs</span>
+              <span className="text-[9px] font-bold text-muted-foreground uppercase">Squad Size</span>
+              <span className="text-xs font-mono font-bold text-white">{ownedHeroes.length} / {isPremium ? 15 : 10}</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-background/40 rounded-xl border border-white/5">
               <span className="text-[9px] font-bold text-muted-foreground uppercase">Arena Capacity</span>
@@ -179,22 +198,20 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Strategic Skill Tree */}
       <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
-          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent flex items-center gap-2">
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent flex items-center gap-2 px-1">
             <Award className="w-4 h-4" /> {t.skills.title}
           </h3>
           <Badge className="bg-accent text-accent-foreground text-[9px] font-black px-3 animate-pulse">
             {skillPoints} {t.skills.points}
           </Badge>
         </div>
-
         <div className="grid grid-cols-1 gap-3">
           {[
-            { key: 'sponsors', icon: CircleDollarSign, label: t.skills.sponsors, color: 'text-yellow-400', desc: '+10% Income' },
+            { key: 'sponsors', icon: CircleDollarSign, label: t.skills.sponsors, color: 'text-yellow-400', desc: isPremium ? '+200% Premium' : '+10% Income' },
             { key: 'agents', icon: UserCog, label: t.skills.agents, color: 'text-blue-400', desc: '+10% Sale Fee' },
-            { key: 'training', icon: GraduationCap, label: t.skills.training, color: 'text-primary', desc: '+10% XP Rate' },
+            { key: 'training', icon: GraduationCap, label: t.skills.training, color: 'text-primary', desc: isPremium ? '5x XP Active' : '+10% XP Rate' },
             { key: 'medical', icon: HeartPulse, label: t.skills.medical, color: 'text-red-400', desc: '+10% Form Limit' }
           ].map((skill) => (
             <Card key={skill.key} className="glass-card border-white/5 overflow-hidden group">
@@ -234,128 +251,51 @@ export default function ProfilePage() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="flex flex-col items-center mb-10 relative">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="absolute left-0 top-0 rounded-full" 
-          onClick={() => router.push('/')}
-        >
-          <ChevronLeft className="w-6 h-6" />
-        </Button>
-
+        <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => router.push('/')}><ChevronLeft className="w-6 h-6" /></Button>
         <div className="relative group mb-4">
-          <div className="absolute -inset-4 bg-primary/20 rounded-full blur-2xl group-hover:bg-primary/30 transition-all"></div>
-          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-2xl relative z-10 border-2 border-white/10">
-            <User className="w-12 h-12 text-white" />
+          <div className={cn("absolute -inset-4 rounded-full blur-2xl transition-all", isPremium ? "bg-yellow-500/30 group-hover:bg-yellow-500/40" : "bg-primary/20 group-hover:bg-primary/30")}></div>
+          <div className={cn("w-24 h-24 rounded-full flex items-center justify-center shadow-2xl relative z-10 border-2", isPremium ? "bg-gradient-to-br from-yellow-500 to-amber-600 border-yellow-400" : "bg-gradient-to-br from-primary to-accent border-white/10")}>
+            {isPremium ? <Crown className="w-12 h-12 text-white" /> : <User className="w-12 h-12 text-white" />}
           </div>
           <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-background border border-white/10 px-3 py-0.5 rounded-full z-20 shadow-xl">
-            <span className="text-[10px] font-black text-primary uppercase tracking-widest whitespace-nowrap">
-              {t.lvl} {managerLevel || 1}
-            </span>
+            <span className="text-[10px] font-black text-primary uppercase tracking-widest whitespace-nowrap">{t.lvl} {managerLevel || 1}</span>
           </div>
         </div>
-
         <div className="text-center space-y-1">
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tight text-white italic">
+          <h1 className={cn("text-2xl font-headline font-bold uppercase tracking-tight italic flex items-center justify-center gap-2", isPremium ? "text-yellow-500" : "text-white")}>
             {profile?.displayName || 'Syncing...'}
+            {isPremium && <Crown className="w-5 h-5 text-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]" />}
           </h1>
           <p className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.2em] opacity-60 flex items-center justify-center gap-2">
             <MapPin className="w-3 h-3 text-primary" /> {profile?.country || 'International'}
           </p>
         </div>
-
-        {/* XP Progress Bar */}
         <div className="w-full max-w-[240px] mt-6 space-y-2">
-           <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest px-1">
-             <span className="text-muted-foreground">{t.xp}</span>
-             <span className="text-primary">{currentXp.toLocaleString()} / {xpThreshold.toLocaleString()}</span>
-           </div>
-           <div className="relative h-2 w-full bg-secondary/50 rounded-full overflow-hidden border border-white/5">
-             <div 
-               className="absolute top-0 left-0 h-full hero-gradient transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(var(--primary),0.5)]" 
-               style={{ width: `${xpProgress}%` }}
-             />
-           </div>
+           <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest px-1"><span className="text-muted-foreground">{t.xp}</span><span className="text-primary">{currentXp.toLocaleString()} / {xpThreshold.toLocaleString()}</span></div>
+           <div className="relative h-2 w-full bg-secondary/50 rounded-full overflow-hidden border border-white/5"><div className="absolute top-0 left-0 h-full hero-gradient transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(var(--primary),0.5)]" style={{ width: `${xpProgress}%` }} /></div>
         </div>
       </header>
-
-      {/* Primary Tab Navigation */}
       <div className="grid grid-cols-3 gap-2 mb-8 bg-secondary/20 p-1 rounded-xl border border-white/5">
-        {(['menu', 'team', 'daily'] as const).map((tab) => (
-          <Button
-            key={tab}
-            variant="ghost"
-            size="sm"
-            onClick={() => setActiveTab(tab)}
-            className={cn(
-              "h-10 text-[10px] font-black uppercase tracking-widest transition-all",
-              activeTab === tab ? "bg-white/10 text-primary shadow-inner" : "text-muted-foreground hover:text-white"
-            )}
-          >
-            {t.tabs[tab]}
-          </Button>
-        ))}
+        {(['menu', 'team', 'daily'] as const).map((tab) => (<Button key={tab} variant="ghost" size="sm" onClick={() => setActiveTab(tab)} className={cn("h-10 text-[10px] font-black uppercase tracking-widest transition-all", activeTab === tab ? "bg-white/10 text-primary shadow-inner" : "text-muted-foreground hover:text-white")}>{t.tabs[tab]}</Button>))}
       </div>
-      
       {activeTab === 'menu' && (
         <div className="space-y-4 animate-in fade-in duration-500">
           <Card className="glass-card border-primary/20 bg-primary/5 p-6 text-center">
              <Trophy className="w-12 h-12 text-primary mx-auto mb-4 opacity-20" />
              <h3 className="text-sm font-bold uppercase text-white">Career Performance</h3>
-             <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
-               Official ranking and division data are synchronized at the start of each match window.
-             </p>
+             <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">Official ranking and division data are synchronized at the start of each match window.</p>
           </Card>
-
           <div className="grid grid-cols-1 gap-2">
-            <Button variant="outline" className="h-12 border-white/5 bg-secondary/20 hover:bg-white/5 justify-between px-4 group" onClick={() => setActiveTab('team')}>
-              <div className="flex items-center gap-3">
-                <Shield className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" />
-                <span className="text-[10px] font-black uppercase">Club Infrastructure Overview</span>
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            </Button>
-            <Button variant="outline" className="h-12 border-white/5 bg-secondary/20 hover:bg-white/5 justify-between px-4 group">
-              <div className="flex items-center gap-3">
-                <Settings2 className="w-4 h-4 text-accent group-hover:scale-110 transition-transform" />
-                <span className="text-[10px] font-black uppercase">Security & Account Settings</span>
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            </Button>
+            <Button variant="outline" className="h-12 border-white/5 bg-secondary/20 hover:bg-white/5 justify-between px-4 group" onClick={() => setActiveTab('team')}><div className="flex items-center gap-3"><Shield className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" /><span className="text-[10px] font-black uppercase">Club Infrastructure Overview</span></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Button>
+            <Button variant="outline" className="h-12 border-white/5 bg-secondary/20 hover:bg-white/5 justify-between px-4 group"><div className="flex items-center gap-3"><Settings2 className="w-4 h-4 text-accent group-hover:scale-110 transition-transform" /><span className="text-[10px] font-black uppercase">Security & Account Settings</span></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Button>
           </div>
-
           <div className="pt-6">
-            <Button 
-              variant="destructive" 
-              className="w-full h-14 hero-gradient border-none font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-95 transition-all" 
-              onClick={async () => {
-                setIsLoggingOut(true);
-                await signOut(auth);
-                router.push('/auth/register');
-              }}
-              disabled={isLoggingOut}
-            >
-              {isLoggingOut ? <Loader2 className="animate-spin" /> : <><LogOut className="w-4 h-4 mr-2" /> {t.logout}</>}
-            </Button>
+            <Button variant="destructive" className="w-full h-14 hero-gradient border-none font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-95 transition-all" onClick={async () => { setIsLoggingOut(true); await signOut(auth); router.push('/auth/register'); }} disabled={isLoggingOut}>{isLoggingOut ? <Loader2 className="animate-spin" /> : <><LogOut className="w-4 h-4 mr-2" /> {t.logout}</>}</Button>
           </div>
         </div>
       )}
-
       {activeTab === 'team' && renderTeamView()}
-
-      {activeTab === 'daily' && (
-        <div className="animate-in fade-in duration-500 py-20 text-center">
-           <div className="bg-secondary/20 p-8 rounded-2xl border border-white/5 max-w-[280px] mx-auto flex flex-col items-center gap-4">
-             <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center border border-white/10">
-                <Trophy className="w-8 h-8 text-primary opacity-20" />
-             </div>
-             <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-relaxed">
-               Daily Deployment Node Sync in Progress...
-             </p>
-             <Button variant="ghost" className="mt-2 text-[10px] font-black uppercase text-primary" onClick={() => setActiveTab('menu')}>Return to Dashboard</Button>
-           </div>
-        </div>
-      )}
+      {activeTab === 'daily' && (<div className="animate-in fade-in duration-500 py-20 text-center"><div className="bg-secondary/20 p-8 rounded-2xl border border-white/5 max-w-[280px] mx-auto flex flex-col items-center gap-4"><div className="w-16 h-16 rounded-full bg-background flex items-center justify-center border border-white/10"><Trophy className="w-8 h-8 text-primary opacity-20" /></div><p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-relaxed">Daily Deployment Node Sync in Progress...</p><Button variant="ghost" className="mt-2 text-[10px] font-black uppercase text-primary" onClick={() => setActiveTab('menu')}>Return to Dashboard</Button></div></div>)}
     </div>
   );
 }

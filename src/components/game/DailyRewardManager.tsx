@@ -8,23 +8,16 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Gem, Gift, Sparkles, CheckCircle2, Lock, Coins } from 'lucide-react';
+import { Gem, Gift, Sparkles, CheckCircle2, Lock, Coins, Crown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { usePathname } from 'next/navigation';
 
-/**
- * Handles progressive 30-day login rewards.
- * Displays a calendar of bonuses that improve each day.
- * Optimized for full-screen display with 5-column grid.
- */
 export function DailyRewardManager() {
-  const { isLoaded, language, lastRewardClaimDate, rewardDay, claimReward, selectedLeagueId } = useGameState();
+  const { isLoaded, language, lastRewardClaimDate, rewardDay, claimReward, selectedLeagueId, isPremium } = useGameState();
   const [showReward, setShowReward] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
-    // Only show reward if user has completed setup (selectedLeagueId exists)
     if (isLoaded && pathname === '/' && !!selectedLeagueId) {
       const today = getMoscowDateString();
       if (lastRewardClaimDate !== today) {
@@ -36,7 +29,6 @@ export function DailyRewardManager() {
     }
   }, [isLoaded, lastRewardClaimDate, pathname, selectedLeagueId]);
 
-  // Generate 30 days of rewards
   const calendarRewards = useMemo(() => {
     return Array.from({ length: 30 }, (_, i) => {
       const day = i + 1;
@@ -61,6 +53,7 @@ export function DailyRewardManager() {
     alreadyClaimed: language === 'ru' ? "ПОЛУЧЕНО" : "CLAIMED",
     upcoming: language === 'ru' ? "СКОРО" : "UPCOMING",
     today: language === 'ru' ? "СЕГОДНЯ" : "TODAY",
+    premiumBonus: language === 'ru' ? "+50 Premium Алмазов" : "+50 Premium Diamonds",
   };
 
   if (!selectedLeagueId) return null;
@@ -122,18 +115,8 @@ export function DailyRewardManager() {
                       <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
                     </div>
                   )}
-                  
-                  {isUpcoming && (
-                    <div className="absolute top-0.5 right-0.5">
-                      <Lock className="w-1.5 h-1.5 text-muted-foreground/30" />
-                    </div>
-                  )}
-
-                  {isToday && (
-                    <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[5px] font-black px-1 rounded-sm uppercase">
-                      {t.today}
-                    </div>
-                  )}
+                  {isUpcoming && <div className="absolute top-0.5 right-0.5"><Lock className="w-1.5 h-1.5 text-muted-foreground/30" /></div>}
+                  {isToday && <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[5px] font-black px-1 rounded-sm uppercase">{t.today}</div>}
                 </div>
               );
             })}
@@ -141,19 +124,30 @@ export function DailyRewardManager() {
         </div>
 
         <div className="p-4 bg-secondary/20 border-t border-white/5 flex-shrink-0">
-          <div className="mb-3 p-2.5 bg-background/50 rounded-xl border border-white/5 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-1.5 rounded-lg bg-primary/20">
-                <Sparkles className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-[7px] uppercase font-black text-muted-foreground">{t.today} (День {rewardDay})</p>
-                <p className="text-[11px] font-bold text-primary">
-                  {currentDayReward.credits.toLocaleString()} € + {currentDayReward.crystals} Gems
-                </p>
+          <div className="space-y-2 mb-4">
+            <div className="p-2.5 bg-background/50 rounded-xl border border-white/5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 rounded-lg bg-primary/20"><Sparkles className="w-4 h-4 text-primary" /></div>
+                <div>
+                  <p className="text-[7px] uppercase font-black text-muted-foreground">{t.today} (День {rewardDay})</p>
+                  <p className="text-[11px] font-bold text-primary">{currentDayReward.credits.toLocaleString()} € + {currentDayReward.crystals} Gems</p>
+                </div>
               </div>
             </div>
+            
+            {isPremium && (
+              <div className="p-2.5 bg-yellow-500/10 rounded-xl border border-yellow-500/20 flex items-center justify-between shadow-[0_0_15px_rgba(234,179,8,0.1)]">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 rounded-lg bg-yellow-500/20"><Crown className="w-4 h-4 text-yellow-500" /></div>
+                  <div>
+                    <p className="text-[7px] uppercase font-black text-yellow-500">Premium Reward</p>
+                    <p className="text-[11px] font-bold text-yellow-500">{t.premiumBonus}</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
+
           <Button 
             className="w-full h-12 hero-gradient font-black uppercase text-[10px] tracking-[0.2em] shadow-lg active:scale-95 transition-all" 
             onClick={handleClaim}

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
@@ -11,7 +12,7 @@ import {
   ChevronLeft, ChevronRight, UserPlus, X,
   ShieldCheck, Zap, HeartPulse,
   Star, Box, Undo2, Info, ShoppingCart, Loader2,
-  Award, Clock, Users
+  Award, Clock, Users, Crown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -30,7 +31,7 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
 export default function SquadPage() {
-  const { ownedHeroes, lineup, assignToRole, isLoaded, language, updateHero } = useGameState();
+  const { ownedHeroes, lineup, assignToRole, isLoaded, language, updateHero, isPremium } = useGameState();
   const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
@@ -54,7 +55,7 @@ export default function SquadPage() {
     subtitle: language === 'ru' ? "Прямое управление ростером" : "Direct roster management",
     activeLabel: language === 'ru' ? "Основа (5)" : "Core (5)",
     subsLabel: language === 'ru' ? "Замены (2)" : "Subs (2)",
-    reservesLabel: language === 'ru' ? "Резерв (3)" : "Reserves (3)",
+    reservesLabel: language === 'ru' ? (isPremium ? "Резерв (8)" : "Резерв (3)") : (isPremium ? "Reserves (8)" : "Reserves (3)"),
     emptySlot: language === 'ru' ? "Назначить" : "Assign",
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     teamOverall: language === 'ru' ? "ОБЩ" : "OVR",
@@ -100,6 +101,11 @@ export default function SquadPage() {
       res1: { label: language === 'ru' ? "Резерв 1" : "Res 1", icon: Users, color: "text-muted-foreground/50" },
       res2: { label: language === 'ru' ? "Резерв 2" : "Res 2", icon: Users, color: "text-muted-foreground/50" },
       res3: { label: language === 'ru' ? "Резерв 3" : "Res 3", icon: Users, color: "text-muted-foreground/50" },
+      res4: { label: "Res 4", icon: Users, color: "text-muted-foreground/40" },
+      res5: { label: "Res 5", icon: Users, color: "text-muted-foreground/40" },
+      res6: { label: "Res 6", icon: Users, color: "text-muted-foreground/40" },
+      res7: { label: "Res 7", icon: Users, color: "text-muted-foreground/40" },
+      res8: { label: "Res 8", icon: Users, color: "text-muted-foreground/40" },
     }
   };
 
@@ -107,6 +113,8 @@ export default function SquadPage() {
     carry: ['Carry'], mid: ['Midlaner'], offlane: ['Tank'], support: ['Jungler'], full_support: ['Support'],
     sub1: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], sub2: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'],
     res1: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], res2: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], res3: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'],
+    res4: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], res5: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], res6: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'],
+    res7: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], res8: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'],
   };
 
   const getHeroById = (id: string | null) => ownedHeroes.find(h => h.id === id);
@@ -147,13 +155,11 @@ export default function SquadPage() {
 
   const handlePutOnTransfer = async () => {
     if (!profileHero || !user || !profile || isTransferring) return;
-    
     const liveAge = calculateLiveAge(profileHero.baseAge, profileHero.hiredAt);
     if (liveAge.numeric < 18) {
       toast({ variant: "destructive", title: t.tooYoung });
       return;
     }
-
     setIsTransferring(true);
     try {
       const today = getMoscowDateString();
@@ -161,18 +167,9 @@ export default function SquadPage() {
       const expiryTime = new Date(mskNow.getTime() + 12 * 60 * 60 * 1000);
       const startPrice = (profileHero.overallRating * 15000) + 100000;
       const agentId = `user_${user.uid}_${Date.now()}`;
-      
-      const agentData = {
-        id: agentId, heroData: JSON.parse(JSON.stringify(profileHero)),
-        currentBid: startPrice, startingPrice: startPrice,
-        highestBidderId: null, highestBidderName: null, bidders: [],
-        sellerId: user.uid, sellerName: profile.displayName || "Manager",
-        expiresAt: expiryTime.toISOString(), dropDate: today, dropTime: mskNow.toISOString()
-      };
-
+      const agentData = { id: agentId, heroData: JSON.parse(JSON.stringify(profileHero)), currentBid: startPrice, startingPrice: startPrice, highestBidderId: null, highestBidderName: null, bidders: [], sellerId: user.uid, sellerName: profile.displayName || "Manager", expiresAt: expiryTime.toISOString(), dropDate: today, dropTime: mskNow.toISOString() };
       await setDoc(doc(db, 'market_v7', agentId), agentData);
       updateHero(profileHero.id, { onTransferUntil: expiryTime.toISOString(), transferMarketId: agentId });
-      
       toast({ title: language === 'ru' ? "Выставлен на аукцион!" : "Listed for Auction!" });
       setProfileHero(null);
     } catch (e: any) {
@@ -185,7 +182,7 @@ export default function SquadPage() {
   const renderSlot = (slotKey: LineupSlot) => {
     const hero = getHeroById(lineup[slotKey]);
     const isSelected = selectingSlot === slotKey;
-    const roleInfo = t.roles[slotKey];
+    const roleInfo = (t.roles as any)[slotKey];
 
     return (
       <Card 
@@ -240,6 +237,10 @@ export default function SquadPage() {
 
   if (!isLoaded) return null;
 
+  const reserveSlots: LineupSlot[] = isPremium 
+    ? ['res1', 'res2', 'res3', 'res4', 'res5', 'res6', 'res7', 'res8'] 
+    : ['res1', 'res2', 'res3'];
+
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center justify-between gap-4">
@@ -263,8 +264,18 @@ export default function SquadPage() {
           <div className="space-y-2">{(['sub1', 'sub2'] as LineupSlot[]).map(renderSlot)}</div>
         </section>
         <section className="space-y-2">
-          <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 px-1 flex items-center gap-2"><Users className="w-3.5 h-3.5" /> {t.reservesLabel}</h2>
-          <div className="space-y-2">{(['res1', 'res2', 'res3'] as LineupSlot[]).map(renderSlot)}</div>
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 flex items-center gap-2">
+              <Users className="w-3.5 h-3.5" /> {t.reservesLabel}
+            </h2>
+            {isPremium && <Crown className="w-3 h-3 text-yellow-500" />}
+          </div>
+          <div className="space-y-2">{reserveSlots.map(renderSlot)}</div>
+          {!isPremium && (
+            <Link href="/shop" className="block p-4 mt-2 bg-yellow-500/5 border border-dashed border-yellow-500/20 rounded-xl text-center group hover:bg-yellow-500/10 transition-all">
+              <p className="text-[8px] font-black text-yellow-500 uppercase tracking-widest">Upgrade to Premium for +5 Reserve Slots</p>
+            </Link>
+          )}
         </section>
 
         {selectingSlot && (

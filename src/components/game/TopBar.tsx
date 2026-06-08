@@ -1,9 +1,10 @@
+
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { Gem, Mail, Home, Radio, Bell } from 'lucide-react';
+import { Gem, Mail, Home, Radio, Bell, Crown } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -13,7 +14,7 @@ import Link from 'next/link';
 export function TopBar() {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
-  const { credits, crystals, syncStats, isSyncing, language } = useGameState();
+  const { credits, crystals, syncStats, isSyncing, language, isPremium } = useGameState();
   const db = useFirestore();
   const lastSyncTriggerRef = useRef<string>("");
 
@@ -66,10 +67,7 @@ export function TopBar() {
   
   const unreadNotifCount = useMemo(() => {
     if (!notifications) return 0;
-    
-    // Fallback if profile is briefly unavailable
     if (!profile) return notifications.filter(n => !n.read).length;
-
     const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : (profile.createdAt ? new Date(profile.createdAt).getTime() : 0);
     return notifications.filter(n => {
       const notifTime = n.createdAt ? new Date(n.createdAt).getTime() : 0;
@@ -81,99 +79,52 @@ export function TopBar() {
     if (groupPlayers && groupPlayers.length > 0) {
       const currentSyncKey = groupPlayers.map(p => `${p.id}-${p.wins}-${p.points}`).join('|');
       if (lastSyncTriggerRef.current === currentSyncKey) return;
-      
       lastSyncTriggerRef.current = currentSyncKey;
-      const timer = setTimeout(() => {
-        syncStats(groupPlayers);
-      }, 1000);
+      const timer = setTimeout(() => { syncStats(groupPlayers); }, 1000);
       return () => clearTimeout(timer);
     }
   }, [groupPlayers, syncStats]);
 
-  if (isUserLoading || !user || !profile) {
-    return null;
-  }
+  if (isUserLoading || !user || !profile) return null;
 
   const itemBaseClass = "h-8 flex items-center justify-center transition-all border shadow-[0_0_10px_rgba(0,0,0,0.1)]";
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-white/10 h-14 flex items-center">
       <div className="w-full max-lg mx-auto px-4 flex items-center justify-between gap-2">
-        
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-[10px]" role="img" aria-label="flag">
-              {userCountry?.flag || '🏳️'}
-            </span>
-            <span className="text-[9px] font-black text-primary uppercase tracking-tight whitespace-nowrap truncate max-w-[120px]">
-              {profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
-            </span>
+            <span className="text-[10px]" role="img" aria-label="flag">{userCountry?.flag || '🏳️'}</span>
+            <div className="flex items-center gap-1 min-w-0">
+              <span className={cn("text-[9px] font-black uppercase tracking-tight whitespace-nowrap truncate max-w-[100px]", isPremium ? "text-yellow-500" : "text-primary")}>
+                {profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
+              </span>
+              {isPremium && <Crown className="w-3 h-3 text-yellow-500 shrink-0 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />}
+            </div>
           </div>
-          {isSyncing && (
-            <Radio className="w-3.5 h-3.5 text-accent shrink-0 animate-pulse" />
-          )}
+          {isSyncing && <Radio className="w-3.5 h-3.5 text-accent shrink-0 animate-pulse" />}
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <Link href="/">
-            <div className={cn(
-              itemBaseClass,
-              "w-8 rounded-full bg-secondary/50 border-white/5 hover:bg-white/5 cursor-pointer",
-              pathname === '/' && "bg-primary/10 border-primary/30 text-primary"
-            )}>
+            <div className={cn(itemBaseClass, "w-8 rounded-full bg-secondary/50 border-white/5 hover:bg-white/5", pathname === '/' && "bg-primary/10 border-primary/30 text-primary")}>
               <Home className={cn("w-4 h-4", pathname === '/' ? "text-primary" : "text-muted-foreground")} />
             </div>
           </Link>
-
           <Link href="/chats/private">
-            <div className={cn(
-              itemBaseClass,
-              "w-8 rounded-full relative bg-secondary/50 border-white/5 hover:bg-white/5",
-              hasUnreadMessages && "bg-accent/20 border-accent/50 animate-pulse"
-            )}>
+            <div className={cn(itemBaseClass, "w-8 rounded-full relative bg-secondary/50 border-white/5 hover:bg-white/5", hasUnreadMessages && "bg-accent/20 border-accent/50 animate-pulse")}>
               <Mail className={cn("w-4 h-4", hasUnreadMessages ? "text-accent" : "text-muted-foreground")} />
-              {hasUnreadMessages && (
-                <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-background"></div>
-              )}
+              {hasUnreadMessages && <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-background"></div>}
             </div>
           </Link>
-
           <Link href="/notifications">
-            <div className={cn(
-              itemBaseClass,
-              "w-8 rounded-full relative bg-secondary/50 border-white/5 hover:bg-white/5",
-              unreadNotifCount > 0 && "bg-primary/20 border-primary/50 animate-pulse"
-            )}>
+            <div className={cn(itemBaseClass, "w-8 rounded-full relative bg-secondary/50 border-white/5 hover:bg-white/5", unreadNotifCount > 0 && "bg-primary/20 border-primary/50 animate-pulse")}>
               <Bell className={cn("w-4 h-4", unreadNotifCount > 0 ? "text-primary" : "text-muted-foreground")} />
-              {unreadNotifCount > 0 && (
-                <div className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-1 bg-red-500 rounded-full border border-background flex items-center justify-center">
-                  <span className="text-[7px] font-black text-white leading-none">{unreadNotifCount}</span>
-                </div>
-              )}
+              {unreadNotifCount > 0 && <div className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-1 bg-red-500 rounded-full border border-background flex items-center justify-center"><span className="text-[7px] font-black text-white leading-none">{unreadNotifCount}</span></div>}
             </div>
           </Link>
-
-          <div className={cn(
-            itemBaseClass,
-            "px-2 rounded-full bg-primary/10 border-primary/20"
-          )}>
-            <div className="w-3 h-3 rounded-full bg-yellow-500/20 flex items-center justify-center mr-1">
-              <span className="text-yellow-500 text-[7px] font-bold italic">€</span>
-            </div>
-            <span className="text-[9px] font-headline font-bold text-primary">
-              {formatCurrency(credits)}
-            </span>
-          </div>
-          
-          <div className={cn(
-            itemBaseClass,
-            "px-2 rounded-full bg-accent/10 border-accent/20"
-          )}>
-            <Gem className="w-3 h-3 text-accent mr-1" />
-            <span className="text-[9px] font-headline font-bold text-accent">
-              {formatCurrency(crystals || 0)}
-            </span>
-          </div>
+          <div className={cn(itemBaseClass, "px-2 rounded-full bg-primary/10 border-primary/20")}><div className="w-3 h-3 rounded-full bg-yellow-500/20 flex items-center justify-center mr-1"><span className="text-yellow-500 text-[7px] font-bold italic">€</span></div><span className="text-[9px] font-headline font-bold text-primary">{formatCurrency(credits)}</span></div>
+          <div className={cn(itemBaseClass, "px-2 rounded-full bg-accent/10 border-accent/20")}><Gem className="w-3 h-3 text-accent mr-1" /><span className="text-[9px] font-headline font-bold text-accent">{formatCurrency(crystals || 0)}</span></div>
         </div>
       </div>
     </header>

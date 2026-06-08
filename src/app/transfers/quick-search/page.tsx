@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo } from 'react';
@@ -8,7 +9,7 @@ import {
   ChevronLeft, Loader2, Gavel, ShieldCheck, 
   Timer, Star, ShoppingCart, X, Check, Search, Info, Users,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
-  ChevronsLeft, ChevronsRight
+  ChevronsLeft, ChevronsRight, Crown
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -51,6 +52,7 @@ export const TransferHeroCard = memo(({
   const [showBidModal, setShowBidModal] = useState(false);
   const [bidPercent, setBidPercent] = useState(5);
   const [isProcessing, setIsProcessing] = useState(false);
+  const { isPremium } = useGameState();
 
   const isLeading = agent.highestBidderId === user?.uid;
   const isOwner = agent.sellerId === user?.uid;
@@ -131,11 +133,11 @@ export const TransferHeroCard = memo(({
               
               <div className="grid grid-cols-2 gap-3 mt-2">
                  <div className="flex flex-col">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'ТАЛАНТ'}</p>
+                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
                    {renderStars(avgTalent)}
                  </div>
                  <div className="flex flex-col border-l border-white/5 pl-3">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'ВОЗРАСТ'}</p>
+                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
                    <p className="text-[11px] font-bold text-white leading-none mt-0.5">{liveAge.display}</p>
                  </div>
               </div>
@@ -149,7 +151,7 @@ export const TransferHeroCard = memo(({
 
           <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
             <div className="flex flex-col">
-              <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'ЦЕНА'}</p>
+              <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
               <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">€{agent.currentBid?.toLocaleString()}</p>
               <p className={cn(
                 "text-[9px] font-black uppercase mt-1 flex items-center gap-1",
@@ -210,15 +212,25 @@ export const TransferHeroCard = memo(({
                   value={[bidPercent]}
                   onValueChange={(val) => setBidPercent(val[0])}
                   min={3}
-                  max={300}
+                  max={isPremium ? 1000 : 300}
                   step={1}
                 />
                 <div className="flex justify-between mt-3 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
                   <span>MIN € {(agent.currentBid * 1.03).toLocaleString()}</span>
-                  <span>MAX € {(agent.currentBid * 4).toLocaleString()}</span>
+                  <span>{isPremium ? `MAX € ${(agent.currentBid * 11).toLocaleString()}` : `MAX € ${(agent.currentBid * 4).toLocaleString()}`}</span>
                 </div>
               </div>
             </div>
+
+            {isPremium && (
+              <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Crown className="w-4 h-4 text-yellow-500" />
+                  <span className="text-[9px] font-black uppercase text-yellow-500">Premium Bidding Active</span>
+                </div>
+                <Badge className="bg-yellow-500 text-black text-[8px] font-black">Unlimited</Badge>
+              </div>
+            )}
 
             <div className="bg-primary/5 rounded-xl border border-primary/20 p-4 flex gap-4">
                <Info className="w-5 h-5 text-primary shrink-0" />
@@ -290,46 +302,23 @@ export default function QuickSearchPage() {
       initTriggeredRef.current = true;
       
       const refreshMarket = async () => {
-        // Deterministic Expiry: Midnight MSK next day
         const deterministicExpiry = getEndOfMoscowDay();
-
         const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
         for (const role of roles) {
           for (let i = 1; i <= 10; i++) {
             const agentId = `sys_drop_${today}_${role.toLowerCase()}_${i}`;
-            
-            // Check if already exists in DB to avoid double write
             const existingRef = doc(db, 'market_v7', agentId);
             const existingSnap = await getDoc(existingRef);
-            
             if (!existingSnap.exists()) {
               const seed = `${today}_${role}_${i}`;
               const hero = generateUniqueHero(role, i, false, seed);
-              
               if (hero.baseAge < 18) { hero.baseAge = 18; hero.age = 18; }
-              
               const startPrice = (hero.overallRating * 17500) + 290000;
-              
-              await setDoc(existingRef, {
-                id: agentId,
-                heroData: JSON.parse(JSON.stringify(hero)),
-                currentBid: startPrice,
-                startingPrice: startPrice,
-                highestBidderId: null,
-                highestBidderName: null,
-                bidders: [],
-                expiresAt: deterministicExpiry,
-                dropDate: today,
-                createdAt: serverTimestamp(),
-                isSystem: true,
-                isYouth: false,
-                sellerId: 'system'
-              });
+              await setDoc(existingRef, { id: agentId, heroData: JSON.parse(JSON.stringify(hero)), currentBid: startPrice, startingPrice: startPrice, highestBidderId: null, highestBidderName: null, bidders: [], expiresAt: deterministicExpiry, dropDate: today, createdAt: serverTimestamp(), isSystem: true, isYouth: false, sellerId: 'system' });
             }
           }
         }
       };
-      
       refreshMarket().catch(e => console.error("Daily market refresh failed", e));
     }
   }, [isMarketLoading, agents, user?.uid, db, marketError, isStoreLoaded]);
@@ -343,61 +332,29 @@ export default function QuickSearchPage() {
     try {
       const prevBidder = agent.highestBidderId;
       const heroName = agent.heroData?.name || "Player";
-      
       const mskNow = getMoscowTime().getTime();
       const expiryTime = new Date(agent.expiresAt).getTime();
       const timeLeft = expiryTime - mskNow;
       let finalExpiresAt = agent.expiresAt;
-      
-      // Threshold 10 minutes (600,000 ms) - Infinite Extension Rule
-      if (timeLeft < 600000) { 
-        finalExpiresAt = new Date(mskNow + 600000).toISOString(); 
-      }
-
-      await updateDoc(doc(db, 'market_v7', agent.id), { 
-        currentBid: amount, highestBidderId: user.uid, highestBidderName: profile.displayName || "Unknown Manager", 
-        bidders: arrayUnion(user.uid), updatedAt: serverTimestamp(),
-        expiresAt: finalExpiresAt
-      });
-
+      if (timeLeft < 600000) { finalExpiresAt = new Date(mskNow + 600000).toISOString(); }
+      await updateDoc(doc(db, 'market_v7', agent.id), { currentBid: amount, highestBidderId: user.uid, highestBidderName: profile.displayName || "Unknown Manager", bidders: arrayUnion(user.uid), updatedAt: serverTimestamp(), expiresAt: finalExpiresAt });
       addCredits(-amount);
       if (prevBidder && prevBidder !== user.uid) {
-        addDocumentNonBlocking(collection(db, 'notifications_v6'), {
-          userId: prevBidder, title: language === 'ru' ? "Ставка перебита!" : "Outbid!",
-          description: language === 'ru' ? `Ставка на "${heroName}" перебита ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : `Bid on "${heroName}" outbid ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`,
-          type: 'market', read: false, createdAt: new Date().toISOString()
-        });
+        addDocumentNonBlocking(collection(db, 'notifications_v6'), { userId: prevBidder, title: language === 'ru' ? "Ставка перебита!" : "Outbid!", description: language === 'ru' ? `Ставка на "${heroName}" перебита ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : `Bid on "${heroName}" outbid ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`, type: 'market', read: false, createdAt: new Date().toISOString() });
       }
-      
-      toast({ 
-        title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!",
-        description: timeLeft < 600000 ? (language === 'ru' ? "Аукцион продлен на 10 минут!" : "Auction extended by 10 minutes!") : undefined
-      });
+      toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!", description: timeLeft < 600000 ? (language === 'ru' ? "Аукцион продлен на 10 минут!" : "Auction extended by 10 minutes!") : undefined });
     } catch (e) {
       toast({ title: "Error placing bid", variant: "destructive" });
     }
   };
 
-  const roleList = [ 
-    { id: 'Carry', label: "Керри" }, { id: 'Midlaner', label: "Мидер" }, 
-    { id: 'Tank', label: "Танк" }, { id: 'Jungler', label: "Лес" }, 
-    { id: 'Support', label: "Саппорт" } 
-  ];
-
+  const roleList = [ { id: 'Carry', label: "Керри" }, { id: 'Midlaner', label: "Мидер" }, { id: 'Tank', label: "Танк" }, { id: 'Jungler', label: "Лес" }, { id: 'Support', label: "Саппорт" } ];
   const filteredAgents = useMemo(() => {
     return (agents?.filter(a => a.heroData?.role === activeTab && a.isYouth !== true) || [])
-      .filter(a => {
-         const liveAge = calculateLiveAge(a.heroData.baseAge, a.heroData.hiredAt);
-         return new Date(a.expiresAt).getTime() > now && liveAge.numeric >= 18.0;
-      })
+      .filter(a => { const liveAge = calculateLiveAge(a.heroData.baseAge, a.heroData.hiredAt); return new Date(a.expiresAt).getTime() > now && liveAge.numeric >= 18.0; })
       .sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
   }, [agents, activeTab, now]);
-
-  const paginatedAgents = useMemo(() => {
-    const start = page * ITEMS_PER_PAGE;
-    return filteredAgents.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredAgents, page]);
-
+  const paginatedAgents = useMemo(() => { const start = page * ITEMS_PER_PAGE; return filteredAgents.slice(start, start + ITEMS_PER_PAGE); }, [filteredAgents, page]);
   const totalPages = Math.ceil(filteredAgents.length / ITEMS_PER_PAGE);
 
   if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;
@@ -411,50 +368,26 @@ export default function QuickSearchPage() {
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">Daily Professional Market Stream</p>
         </div>
       </header>
-      
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setPage(0); }} className="w-full">
         <TabsList className="bg-secondary/30 border border-white/5 h-12 w-full flex mb-6 p-1.5 rounded-2xl">
-          {roleList.map((role) => ( 
-            <TabsTrigger key={role.id} value={role.id} className="flex-1 text-[10px] font-black uppercase rounded-xl">
-              {role.label}
-            </TabsTrigger> 
-          ))}
+          {roleList.map((role) => ( <TabsTrigger key={role.id} value={role.id} className="flex-1 text-[10px] font-black uppercase rounded-xl">{role.label}</TabsTrigger> ))}
         </TabsList>
-        
         {roleList.map((role) => (
           <TabsContent key={role.id} value={role.id} className="space-y-3 animate-in fade-in duration-500">
             {paginatedAgents.length > 0 ? (
               <>
-                {paginatedAgents.map((agent) => (
-                  <TransferHeroCard 
-                    key={agent.id} 
-                    agent={agent} 
-                    user={user} 
-                    profile={profile} 
-                    onBid={handleGlobalBid}
-                    now={now}
-                    language={language}
-                  />
-                ))}
-
+                {paginatedAgents.map((agent) => ( <TransferHeroCard key={agent.id} agent={agent} user={user} profile={profile} onBid={handleGlobalBid} now={now} language={language} /> ))}
                 {totalPages > 1 && (
                   <div className="flex items-center justify-center gap-2 pt-6">
                     <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(0)} className="h-8 w-8"><ChevronsLeft className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 w-8"><ChevronLeftIcon className="w-4 h-4" /></Button>
-                    <span className="text-[10px] font-black text-muted-foreground uppercase px-4">
-                      {language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}
-                    </span>
+                    <span className="text-[10px] font-black text-muted-foreground uppercase px-4">{language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}</span>
                     <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 w-8"><ChevronRightIcon className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(totalPages - 1)} className="h-8 w-8"><ChevronsRight className="w-4 h-4" /></Button>
                   </div>
                 )}
               </>
-            ) : ( 
-              <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
-                <ShoppingCart className="w-12 h-12" />
-                <p className="text-[10px] uppercase font-black">{language === 'ru' ? 'Нет активных лотов' : 'No active listings'}</p>
-              </div> 
-            )}
+            ) : ( <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10"><ShoppingCart className="w-12 h-12" /><p className="text-[10px] uppercase font-black">{language === 'ru' ? 'Нет активных лотов' : 'No active listings'}</p></div> )}
           </TabsContent>
         ))}
       </Tabs>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -9,7 +10,7 @@ import {
   TrendingUp, FileText, BarChart3, Wallet, 
   Landmark, PiggyBank, History,
   CheckCircle2, XCircle, ArrowUpRight,
-  ShoppingCart, Info
+  ShoppingCart, Info, Crown
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
@@ -34,7 +35,7 @@ type FinanceTab =
   | 'match_reports';
 
 export default function FinancesPage() {
-  const { language, isLoaded, credits, ownedHeroes, arena, managerSkills } = useGameState();
+  const { language, isLoaded, credits, ownedHeroes, arena, managerSkills, isPremium } = useGameState();
   const [activeTab, setActiveTab] = useState<FinanceTab>('menu');
 
   if (!isLoaded) return <LoadingScreen />;
@@ -67,7 +68,8 @@ export default function FinancesPage() {
         sponsors: "League Sponsorship",
         merch: "Merchandise & Sales",
         total: "Total Projected Daily",
-        skillBonus: "Sponsor Skill Bonus"
+        skillBonus: "Sponsor Skill Bonus",
+        premiumBonus: "PREMIUM 200% SPONSOR BONUS"
       }
     },
     ru: {
@@ -97,7 +99,8 @@ export default function FinancesPage() {
         sponsors: "Спонсорство Лиги",
         merch: "Мерч и атрибутика",
         total: "Итоговая проекция",
-        skillBonus: "Бонус Спонсоров"
+        skillBonus: "Бонус Спонсоров",
+        premiumBonus: "PREMIUM 200% БОНУС СПОНСОРОВ"
       }
     }
   };
@@ -162,9 +165,11 @@ export default function FinancesPage() {
         const merchBase = (arena?.shopLevel || 0) * 12000 + 5000;
         const sponsorBase = 250000;
 
+        const premiumSponsorMultiplier = isPremium ? 3.0 : 1.0;
+
         const ticketIncome = Math.round(ticketBase * sponsorBonusMultiplier);
         const merchIncome = Math.round(merchBase * sponsorBonusMultiplier);
-        const sponsorIncome = Math.round(sponsorBase * sponsorBonusMultiplier);
+        const sponsorIncome = Math.round(sponsorBase * sponsorBonusMultiplier * premiumSponsorMultiplier);
 
         return (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -177,12 +182,15 @@ export default function FinancesPage() {
                 </div>
                 <span className="text-sm font-bold text-white">+{ticketIncome.toLocaleString()} €</span>
               </div>
-              <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 flex items-center justify-between">
+              <div className={cn("p-4 rounded-xl border flex items-center justify-between", isPremium ? "bg-yellow-500/10 border-yellow-500/20" : "bg-secondary/20 border-white/5")}>
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-yellow-500/10"><Coins className="w-4 h-4 text-yellow-500" /></div>
-                  <span className="text-xs font-bold uppercase text-muted-foreground">{t.incomeInfo.sponsors}</span>
+                  <div>
+                    <span className="text-xs font-bold uppercase text-muted-foreground">{t.incomeInfo.sponsors}</span>
+                    {isPremium && <p className="text-[7px] text-yellow-500 font-black uppercase mt-0.5 tracking-tighter">Premium 3x Active</p>}
+                  </div>
                 </div>
-                <span className="text-sm font-bold text-white">+{sponsorIncome.toLocaleString()} €</span>
+                <span className={cn("text-sm font-bold", isPremium ? "text-yellow-500" : "text-white")}>+{sponsorIncome.toLocaleString()} €</span>
               </div>
               <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -191,6 +199,16 @@ export default function FinancesPage() {
                 </div>
                 <span className="text-sm font-bold text-white">+{merchIncome.toLocaleString()} €</span>
               </div>
+
+              {isPremium && (
+                <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl flex items-center justify-between shadow-[0_0_15px_rgba(234,179,8,0.1)]">
+                   <div className="flex items-center gap-2">
+                     <Crown className="w-3.5 h-3.5 text-yellow-500" />
+                     <span className="text-[9px] font-black uppercase text-yellow-500">{t.incomeInfo.premiumBonus}</span>
+                   </div>
+                   <Badge className="bg-yellow-500 text-black text-[8px] font-black">+200%</Badge>
+                </div>
+              )}
 
               {managerSkills.sponsors > 0 && (
                 <div className="p-3 bg-accent/10 border border-accent/20 rounded-xl flex items-center justify-between">

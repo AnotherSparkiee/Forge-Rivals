@@ -10,7 +10,8 @@ import {
   ChevronLeft, ChevronRight, Gem, UserPlus, 
   Edit3, Flag, Coins, Star,
   Loader2, Info, Sparkles, ShoppingCart,
-  ArrowRightLeft, Target, Calendar, User, ScrollText, ShieldCheck, Lock
+  ArrowRightLeft, Target, Calendar, User, ScrollText, ShieldCheck, Lock,
+  Crown, Award, Zap, Users, TrendingUp
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
@@ -30,6 +31,7 @@ import { Badge } from '@/components/ui/badge';
 type ShopTab = 
   | 'menu'
   | 'diamonds' 
+  | 'premium'
   | 'create_player' 
   | 'exchange' 
   | 'change_name' 
@@ -40,15 +42,14 @@ export default function ShopPage() {
   const { 
     language, isLoaded, credits, crystals, 
     addCrystals, addCredits, addYouthHeroDirectly, 
-    updateProfileName, updateProfileCountry, purchaseLicense,
-    activeLicenseTier, country: currentCountry 
+    updateProfileName, updateProfileCountry, purchaseLicense, purchasePremium,
+    activeLicenseTier, country: currentCountry, isPremium, premiumUntil
   } = useGameState();
   const [activeTab, setActiveTab] = useState<ShopTab>('menu');
   const [newName, setNewName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
-  // Custom Hero Creator States
   const [heroNickname, setHeroNickname] = useState('');
   const [heroRole, setHeroRole] = useState<Role>('Carry');
   const [heroTalent, setHeroTalent] = useState('4.0');
@@ -56,20 +57,15 @@ export default function ShopPage() {
   const [heroCountryCode, setHeroCountryCode] = useState('US');
 
   const creationCost = useMemo(() => {
-    let cost = 200; // Base
-    
-    // Talent weight
+    let cost = 200; 
     const t = parseFloat(heroTalent);
     if (t === 3.5) cost += 150;
     if (t === 4.0) cost += 300;
     if (t === 4.5) cost += 600;
     if (t === 5.0) cost += 1200;
-
-    // Age weight (Youth is premium)
     const a = parseInt(heroAge);
     if (a < 18) cost += 200;
     else if (a < 22) cost += 100;
-
     return cost;
   }, [heroTalent, heroAge]);
 
@@ -83,37 +79,34 @@ export default function ShopPage() {
       insufficient: "Insufficient resources",
       tabs: {
         diamonds: { label: "Buy Diamonds", desc: "Purchase premium operational currency", icon: Gem, color: "text-blue-400" },
+        premium: { label: "Premium Status", desc: "Monthly elite club privileges", icon: Crown, color: "text-yellow-500" },
         licenses: { label: "XP Licenses", desc: "Permanent manager experience boosters", icon: ScrollText, color: "text-red-400" },
         create_player: { label: "Create Player", desc: "Generate a custom high-tier elite hero", icon: UserPlus, color: "text-primary" },
         exchange: { label: "Exchange 💎 to €", desc: "Convert crystals to operational funds", icon: ArrowRightLeft, color: "text-yellow-400" },
         change_name: { label: "Change Name", desc: "Update your club's global callsign", icon: Edit3, color: "text-accent" },
         change_country: { label: "Change Country", desc: "Relocate your club's operational sector", icon: Flag, color: "text-orange-400" }
       },
-      creator: {
-        nickname: "Nickname",
-        role: "Specialization",
-        talent: "Potential Talent",
-        age: "Biological Age",
-        country: "Regional Flag",
-        summary: "Custom Unit Specs",
-        summaryDesc: "Unit will be deployed to Youth Academy.",
-        placeholderNick: "Enter unit callsign..."
+      premiumInfo: {
+        title: "ELITE OPERATIONS ACCESS",
+        cost: "5,000 Diamonds",
+        duration: "30 Days",
+        benefits: [
+          { icon: Crown, label: "Exclusive callsign badge", desc: "Recognition in global comms" },
+          { icon: Gem, label: "Daily 50 💎 payout", desc: "Resource stability boost" },
+          { icon: Zap, label: "5x XP gain multiplier", desc: "Rapid level progression" },
+          { icon: ArrowRightLeft, label: "Unlimited bidding logic", desc: "Tactical market freedom" },
+          { icon: Users, label: "15-hero squad limit", desc: "Extended personnel roster" },
+          { icon: TrendingUp, label: "200% Sponsor Bonus", desc: "Tripled operational funding" }
+        ],
+        active: "PREMIUM STATUS ACTIVE",
+        expires: "Expires on",
+        buy: "ACTIVATE PREMIUM PROTOCOL"
       },
-      diamondPacks: [
-        { label: "Scout Pack", amount: 250, price: "$4.99" },
-        { label: "Elite Pack", amount: 1200, price: "$19.99" },
-        { label: "General Pack", amount: 3500, price: "$49.99" }
-      ],
-      licenses: [
-        { tier: 3, label: "Tier 3 License", multiplier: "2x", cost: 500, desc: "Double XP gain for all matches." },
-        { tier: 2, label: "Tier 2 License", multiplier: "4x", cost: 500, desc: "Quadruple XP gain for all matches." },
-        { tier: 1, label: "Tier 1 License", multiplier: "8x", cost: 500, desc: "Massive 8x XP gain for all matches." }
-      ],
-      licenseOrder: "Licenses must be acquired in order: Tier 3 -> Tier 2 -> Tier 1.",
-      exchangeRate: "1 💎 = 10,000 €",
+      creator: { nickname: "Hero Name", placeholderNick: "Enter unique nickname...", role: "Primary Role", talent: "Talent Potential", age: "Starting Age", country: "Nationality", summary: "Strategic Unit Profile", summaryDesc: "Hero will be added to your Youth Academy", insufficient: "Insufficient Diamonds" },
       confirm: "CONFIRM TRANSACTION",
-      rebrandSuccess: "Rebranding synchronized",
-      exchangeSuccess: "Assets converted successfully"
+      licenseOrder: "Licenses must be purchased in sequence (Bronze -> Silver -> Gold).",
+      diamondPacks: [ { label: "Cadet Pack", amount: 1000, price: "$4.99" }, { label: "Commander Cache", amount: 5000, price: "$19.99" }, { label: "Emperor Vault", amount: 15000, price: "$49.99" } ],
+      licenses: [ { tier: 3, label: "Bronze License", desc: "Base operational credential", multiplier: 1.5, cost: 500 }, { tier: 2, label: "Silver License", desc: "Advanced management tier", multiplier: 2.0, cost: 1500 }, { tier: 1, label: "Gold License", desc: "Master-level command status", multiplier: 3.0, cost: 3000 } ]
     },
     ru: {
       title: "ТОРГОВЫЙ УЗЕЛ",
@@ -122,170 +115,116 @@ export default function ShopPage() {
       insufficient: "Недостаточно ресурсов",
       tabs: {
         diamonds: { label: "Купить алмазы", desc: "Приобрести премиальную валюту", icon: Gem, color: "text-blue-400" },
+        premium: { label: "Premium Статус", desc: "Ежемесячные привилегии элитного клуба", icon: Crown, color: "text-yellow-500" },
         licenses: { label: "XP Лицензии", desc: "Постоянные бустеры опыта менеджера", icon: ScrollText, color: "text-red-400" },
         create_player: { label: "Создать игрока", desc: "Генерация элитного героя высокого уровня", icon: UserPlus, color: "text-primary" },
         exchange: { label: "Обмен Алмазы на €", desc: "Конвертация кристаллов в бюджет клуба", icon: ArrowRightLeft, color: "text-yellow-400" },
         change_name: { label: "Сменить название", desc: "Обновить позывной вашего клуба", icon: Edit3, color: "text-accent" },
         change_country: { label: "Сменить страну", desc: "Изменить регион базирования клуба", icon: Flag, color: "text-orange-400" }
       },
-      creator: {
-        nickname: "Никнейм героя",
-        role: "Специализация",
-        talent: "Уровень таланта",
-        age: "Возраст",
-        country: "Страна",
-        summary: "Характеристики юнита",
-        summaryDesc: "Игрок будет направлен в Академию.",
-        placeholderNick: "Введите позывной юнита..."
+      premiumInfo: {
+        title: "ЭЛИТНЫЙ ДОСТУП",
+        cost: "5,000 Алмазов",
+        duration: "30 Дней",
+        benefits: [
+          { icon: Crown, label: "Особая отметка к названию", desc: "Признание в чатах и рейтингах" },
+          { icon: Gem, label: "50 кристаллов в день", desc: "Ежедневная поддержка ресурсами" },
+          { icon: Zap, label: "В 5 раз больше опыта", desc: "Ускоренная прокачка менеджера" },
+          { icon: ArrowRightLeft, label: "Безлимитные торги", desc: "Снятие ограничений на ставку" },
+          { icon: Users, label: "Состав до 15 игроков", desc: "Расширенный ростер персонала" },
+          { icon: TrendingUp, label: "200% Бонус Спонсоров", desc: "Выплаты в 3 раза выше" }
+        ],
+        active: "PREMIUM СТАТУС АКТИВИРОВАН",
+        expires: "Истекает",
+        buy: "АКТИВИРОВАТЬ PREMIUM"
       },
-      diamondPacks: [
-        { label: "Пакет Разведчика", amount: 250, price: "449 ₽" },
-        { label: "Элитный Пакет", amount: 1200, price: "1790 ₽" },
-        { label: "Пакет Генерала", amount: 3500, price: "4490 ₽" }
-      ],
-      licenses: [
-        { tier: 3, label: "Tier 3 Лицензия", multiplier: "2x", cost: 500, desc: "Удваивает получаемый опыт." },
-        { tier: 2, label: "Tier 2 Лицензия", multiplier: "4x", cost: 500, desc: "В 4 раза больше опыта за матчи." },
-        { tier: 1, label: "Tier 1 Лицензия", multiplier: "8x", cost: 500, desc: "Максимальный буст опыта в 8 раз." }
-      ],
-      licenseOrder: "Лицензии приобретаются по порядку: Tier 3 -> Tier 2 -> Tier 1.",
-      exchangeRate: "1 💎 = 10,000 €",
+      creator: { nickname: "Имя героя", placeholderNick: "Введите уникальный позывной...", role: "Специализация", talent: "Предел таланта", age: "Начальный возраст", country: "Национальность", summary: "Профиль боевой единицы", summaryDesc: "Герой будет зачислен в Юношескую Академию", insufficient: "Недостаточно алмазов" },
       confirm: "ПОДТВЕРДИТЬ ТРАНЗАКЦИЮ",
-      rebrandSuccess: "Данные синхронизированы",
-      exchangeSuccess: "Обмен валюты завершен"
+      licenseOrder: "Лицензии приобретаются последовательно (Бронза -> Серебро -> Золото).",
+      diamondPacks: [ { label: "Пакет Кадета", amount: 1000, price: "4.99 $" }, { label: "Кейс Командира", amount: 5000, price: "19.99 $" }, { label: "Хранилище Императора", amount: 15000, price: "49.99 $" } ],
+      licenses: [ { tier: 3, label: "Бронзовая Лицензия", desc: "Базовое разрешение на операции", multiplier: 1.5, cost: 500 }, { tier: 2, label: "Серебряная Лицензия", desc: "Продвинутый уровень управления", multiplier: 2.0, cost: 1500 }, { tier: 1, label: "Золотая Лицензия", desc: "Элитный статус командования", multiplier: 3.0, cost: 3000 } ]
     }
   };
 
   const t = translations[language as keyof typeof translations] || translations.ru;
 
-  const handleBuyDiamonds = (amount: number) => {
-    addCrystals(amount);
-    toast({ title: language === 'ru' ? "Алмазы зачислены!" : "Diamonds added!" });
-  };
-
-  const handleBuyLicense = (tier: number, cost: number) => {
-    const currentTier = activeLicenseTier || 4; // 4 means none
-    if (tier !== currentTier - 1) {
-       toast({ title: language === 'ru' ? "Сначала купите предыдущую лицензию" : "Purchase previous license first", variant: "destructive" });
-       return;
-    }
-    if (purchaseLicense(tier, cost)) {
-      toast({ title: language === 'ru' ? "Лицензия активирована!" : "License Activated!" });
+  const handleBuyPremium = () => {
+    if (purchasePremium()) {
+      toast({ title: language === 'ru' ? "Premium статус активирован!" : "Premium status activated!" });
+      setActiveTab('menu');
     } else {
       toast({ title: t.insufficient, variant: "destructive" });
     }
   };
 
   const handleCreatePlayer = () => {
-    if (crystals < creationCost) {
-      toast({ title: t.insufficient, variant: "destructive" });
-      return;
-    }
-    if (!heroNickname.trim()) {
-      toast({ title: language === 'ru' ? "Введите никнейм" : "Enter nickname", variant: "destructive" });
-      return;
-    }
-
+    if (crystals < creationCost) { toast({ title: t.insufficient, variant: "destructive" }); return; }
     setIsProcessing(true);
-    
-    try {
-      const talentVal = parseFloat(heroTalent);
-      const ageVal = parseInt(heroAge);
+    setTimeout(() => {
       const country = COUNTRIES.find(c => c.code === heroCountryCode) || COUNTRIES[0];
-
-      const proStatAvg = Math.round(talentVal * 18);
-
-      const newHero: Hero = {
-        id: `custom_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-        name: heroNickname.trim(),
-        role: heroRole,
-        baseStats: {
-          attack: 50, defense: 50, health: 1000, abilityPower: 50, speed: 320
-        },
-        overallRating: Math.round(proStatAvg * 0.8),
-        abilitiesFocus: 'Balanced',
-        image: `https://i.postimg.cc/PPS3QFFM/de-1.jpg`, 
-        description: `Custom elite unit from ${country.name}.`,
-        price: 0,
-        baseAge: ageVal,
-        hiredAt: new Date().toISOString(),
-        age: ageVal,
-        salary: Math.round(talentVal * 1500),
-        form: 95,
-        fatigue: 0,
-        country: { code: country.code, name: country.name, flag: country.flag },
-        isInjured: false,
-        trainingFocus: null,
-        dailyTrainingFocus: null,
-        dailyTrainingFinishTime: null,
-        onTransferUntil: null,
-        transferMarketId: null,
-        proStats: {
-          lastHitting: proStatAvg, mapAwareness: proStatAvg, positioning: proStatAvg, reflexes: proStatAvg,
-          manaManagement: proStatAvg, objectiveControl: proStatAvg, communication: proStatAvg,
-          tiltResistance: proStatAvg, versatility: proStatAvg, ganking: proStatAvg,
-        },
-        proTalents: {
-          lastHitting: talentVal, mapAwareness: talentVal, positioning: talentVal, reflexes: talentVal,
-          manaManagement: talentVal, objectiveControl: talentVal, communication: talentVal,
-          tiltResistance: talentVal, versatility: talentVal, ganking: talentVal,
-        }
-      };
-
-      addCrystals(-creationCost);
+      const newHero: Hero = { id: `custom_${Date.now()}`, name: heroNickname.trim(), role: heroRole, baseStats: { attack: 40, defense: 40, health: 900, abilityPower: 40, speed: 320 }, overallRating: 30, abilitiesFocus: 'Balanced', image: 'https://i.postimg.cc/mg3yfqj5/rus-2.jpg', description: "Specially commissioned elite asset.", price: 0, baseAge: parseInt(heroAge), hiredAt: new Date().toISOString(), age: parseInt(heroAge), salary: 1500, form: 95, fatigue: 0, country: { code: country.code, name: country.name, flag: country.flag }, isInjured: false, proStats: { lastHitting: 50, mapAwareness: 50, positioning: 50, reflexes: 50, manaManagement: 50, objectiveControl: 50, communication: 50, tiltResistance: 50, versatility: 50, ganking: 50 }, proTalents: { lastHitting: parseFloat(heroTalent), mapAwareness: parseFloat(heroTalent), positioning: parseFloat(heroTalent), reflexes: parseFloat(heroTalent), manaManagement: parseFloat(heroTalent), objectiveControl: parseFloat(heroTalent), communication: parseFloat(heroTalent), tiltResistance: parseFloat(heroTalent), versatility: parseFloat(heroTalent), ganking: parseFloat(heroTalent) } };
       addYouthHeroDirectly(newHero);
-      
-      toast({ 
-        title: language === 'ru' ? "Элитный юнит создан!" : "Elite Unit Created!",
-        description: language === 'ru' ? `${newHero.name} направлен в Академию.` : `${newHero.name} deployed to Academy.`
-      });
-      setActiveTab('menu');
-      setHeroNickname('');
-    } catch (e) {
-      console.error(e);
-      toast({ title: "Creation failed", variant: "destructive" });
-    } finally {
+      addCrystals(-creationCost);
+      toast({ title: "Elite unit commissioned!" });
       setIsProcessing(false);
-    }
-  };
-
-  const handleExchange = (amount: number) => {
-    if (crystals < amount) {
-      toast({ title: t.insufficient, variant: "destructive" });
-      return;
-    }
-    addCrystals(-amount);
-    addCredits(amount * 10000);
-    toast({ title: t.exchangeSuccess });
-  };
-
-  const handleChangeName = () => {
-    if (crystals < 100) {
-      toast({ title: t.insufficient, variant: "destructive" });
-      return;
-    }
-    if (!newName.trim() || newName.length < 3) return;
-    
-    addCrystals(-100);
-    updateProfileName(newName.trim());
-    toast({ title: t.rebrandSuccess });
-    setNewName('');
-    setActiveTab('menu');
-  };
-
-  const handleChangeCountry = (countryName: string) => {
-    if (crystals < 100) {
-      toast({ title: t.insufficient, variant: "destructive" });
-      return;
-    }
-    addCrystals(-100);
-    updateProfileCountry(countryName);
-    toast({ title: t.rebrandSuccess });
-    setActiveTab('menu');
+      setActiveTab('menu');
+    }, 1500);
   };
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'premium':
+        return (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10">
+            <Card className="glass-card border-yellow-500/30 bg-gradient-to-br from-yellow-500/10 via-background to-transparent overflow-hidden">
+               <CardContent className="p-8 text-center flex flex-col items-center">
+                  <div className="relative mb-6">
+                    <div className="absolute inset-0 bg-yellow-500/20 blur-2xl animate-pulse rounded-full"></div>
+                    <div className="w-24 h-24 rounded-full bg-secondary/50 border-2 border-yellow-500 flex items-center justify-center shadow-[0_0_30px_rgba(234,179,8,0.3)] relative z-10">
+                      <Crown className="w-12 h-12 text-yellow-500 animate-bounce" />
+                    </div>
+                  </div>
+                  <h2 className="text-2xl font-headline font-bold uppercase tracking-tight text-white">{t.premiumInfo.title}</h2>
+                  <div className="flex gap-4 mt-4">
+                    <Badge className="bg-yellow-500 text-black font-black">{t.premiumInfo.cost}</Badge>
+                    <Badge variant="outline" className="border-white/20 text-muted-foreground uppercase">{t.premiumInfo.duration}</Badge>
+                  </div>
+               </CardContent>
+            </Card>
+
+            <div className="grid grid-cols-1 gap-2">
+              {t.premiumInfo.benefits.map((benefit, idx) => (
+                <div key={idx} className="bg-secondary/20 p-4 rounded-xl border border-white/5 flex items-center gap-4">
+                  <div className="p-2 rounded-lg bg-yellow-500/10">
+                    <benefit.icon className="w-5 h-5 text-yellow-500" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold uppercase text-white">{benefit.label}</h4>
+                    <p className="text-[10px] text-muted-foreground">{benefit.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-4">
+              {isPremium ? (
+                <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-center space-y-2">
+                  <p className="text-xs font-black text-green-400 uppercase tracking-widest">{t.premiumInfo.active}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase">{t.premiumInfo.expires}: {new Date(premiumUntil!).toLocaleDateString()}</p>
+                </div>
+              ) : (
+                <Button 
+                  className="w-full h-16 hero-gradient font-black text-lg tracking-widest uppercase shadow-2xl shadow-yellow-500/20 active:scale-95 transition-all" 
+                  onClick={handleBuyPremium}
+                  disabled={crystals < 5000}
+                >
+                  {t.premiumInfo.buy}
+                </Button>
+              )}
+            </div>
+          </div>
+        );
+
       case 'diamonds':
         return (
           <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -323,8 +262,6 @@ export default function ShopPage() {
             {t.licenses.map((lic, idx) => {
               const isOwned = activeLicenseTier && activeLicenseTier <= lic.tier;
               const isLocked = lic.tier < currentOwnedTier - 1;
-              const isNext = lic.tier === currentOwnedTier - 1;
-
               return (
                 <Card key={idx} className={cn(
                   "glass-card border-red-500/20 bg-red-500/5 transition-all overflow-hidden",
@@ -380,7 +317,6 @@ export default function ShopPage() {
                    />
                  </div>
                </div>
-
                <div className="grid grid-cols-2 gap-4">
                  <div className="space-y-2">
                    <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">{t.creator.role}</label>
@@ -412,7 +348,6 @@ export default function ShopPage() {
                    </Select>
                  </div>
                </div>
-
                <div className="grid grid-cols-2 gap-4">
                  <div className="space-y-2">
                    <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">{t.creator.age}</label>
@@ -443,7 +378,6 @@ export default function ShopPage() {
                    </Select>
                  </div>
                </div>
-
                <div className="pt-4 border-t border-white/5">
                  <div className="bg-background/50 p-4 rounded-xl border border-white/10 flex items-center justify-between">
                     <div>
@@ -457,11 +391,7 @@ export default function ShopPage() {
                       </p>
                     </div>
                  </div>
-                 <Button 
-                   className="w-full h-14 hero-gradient font-black text-xs uppercase tracking-widest mt-4 shadow-xl active:scale-95 transition-all" 
-                   onClick={handleCreatePlayer}
-                   disabled={isProcessing || !heroNickname.trim()}
-                 >
+                 <Button className="w-full h-14 hero-gradient font-black text-xs uppercase tracking-widest mt-4 shadow-xl" onClick={handleCreatePlayer} disabled={isProcessing || !heroNickname.trim()}>
                    {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : t.confirm}
                  </Button>
                </div>
@@ -488,58 +418,45 @@ export default function ShopPage() {
                  </Card>
                ))}
              </div>
-             <p className="text-[8px] text-center text-muted-foreground uppercase font-black tracking-widest">{t.exchangeRate}</p>
+             <p className="text-[8px] text-center text-muted-foreground uppercase font-black tracking-widest">1 💎 = 10,000 €</p>
           </div>
         );
 
       case 'change_name':
         return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-            <Card className="glass-card border-accent/20 bg-accent/5 p-6">
-              <h3 className="text-sm font-bold uppercase text-accent mb-4">New Operational Callsign</h3>
-              <Input 
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder={currentCountry || "Enter name..."}
-                className="h-12 bg-background/50 border-white/10 text-white focus-visible:ring-accent"
-                maxLength={20}
-              />
-              <div className="mt-6 flex items-center justify-between p-3 bg-background/50 rounded-lg border border-white/5">
-                <span className="text-[10px] font-black uppercase text-muted-foreground">Fee</span>
-                <span className="text-sm font-bold text-accent">100 💎</span>
-              </div>
-              <Button 
-                className="w-full h-12 hero-gradient font-black text-[10px] uppercase mt-4" 
-                onClick={handleChangeName}
-                disabled={newName.length < 3}
-              >
-                {t.confirm}
-              </Button>
-            </Card>
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+             <Card className="glass-card border-accent/20 bg-accent/5 p-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">New Club Callsign</label>
+                    <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Enter name..." className="bg-background/50 border-white/10 h-12" />
+                  </div>
+                  <div className="pt-4 border-t border-white/5 text-center">
+                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4">Cost: 100 💎</p>
+                    <Button className="w-full h-12 hero-gradient font-black text-xs uppercase" onClick={handleChangeName} disabled={crystals < 100 || !newName.trim()}>
+                      UPDATE CALLSIGN
+                    </Button>
+                  </div>
+                </div>
+             </Card>
           </div>
         );
 
       case 'change_country':
         return (
-          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
-            <p className="text-[8px] text-center text-muted-foreground uppercase font-black tracking-widest mb-4">Relocation Fee: 100 💎</p>
-            <div className="grid grid-cols-2 gap-2">
-              {COUNTRIES.map((country) => (
-                <Card 
-                  key={country.code} 
-                  className={cn(
-                    "glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer",
-                    currentCountry === country.name && "border-primary/40 bg-primary/5"
-                  )}
-                  onClick={() => handleChangeCountry(country.name)}
-                >
-                  <CardContent className="p-4 flex flex-col items-center gap-2">
-                    <span className="text-3xl">{country.flag}</span>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-center">{country.name}</span>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+             <div className="grid grid-cols-3 gap-2">
+               {COUNTRIES.map(c => (
+                 <Card key={c.code} className={cn(
+                   "glass-card border-white/5 hover:border-orange-500/30 transition-all cursor-pointer p-3 text-center",
+                   currentCountry === c.name && "border-orange-500 bg-orange-500/10"
+                 )} onClick={() => handleChangeCountry(c.name)}>
+                    <span className="text-2xl mb-1 block">{c.flag}</span>
+                    <span className="text-[7px] font-black uppercase text-muted-foreground truncate block">{c.name}</span>
+                 </Card>
+               ))}
+             </div>
+             <p className="text-[8px] text-center text-muted-foreground uppercase font-black tracking-widest pt-4">Relocation cost: 100 💎</p>
           </div>
         );
 
@@ -547,63 +464,48 @@ export default function ShopPage() {
     }
   };
 
+  const handleBuyDiamonds = (amount: number) => { addCrystals(amount); toast({ title: "Diamonds added!" }); };
+  const handleBuyLicense = (tier: number, cost: number) => { 
+    if (purchaseLicense(tier, cost)) toast({ title: "License Activated!" });
+    else toast({ title: t.insufficient, variant: "destructive" });
+  };
+  const handleExchange = (amount: number) => {
+    if (crystals < amount) { toast({ title: t.insufficient, variant: "destructive" }); return; }
+    addCrystals(-amount); addCredits(amount * 10000); toast({ title: "Assets converted" });
+  };
+  const handleChangeName = () => {
+    if (crystals < 100) return;
+    addCrystals(-100); updateProfileName(newName.trim()); toast({ title: "Rebranded" });
+    setNewName(''); setActiveTab('menu');
+  };
+  const handleChangeCountry = (countryName: string) => {
+    if (crystals < 100) return;
+    addCrystals(-100); updateProfileCountry(countryName); toast({ title: "Relocated" });
+    setActiveTab('menu');
+  };
+
   if (activeTab === 'menu') {
     return (
       <div className="max-w-md mx-auto px-4 pt-8 pb-32">
         <header className="mb-8 flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ChevronLeft className="w-6 h-6" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2 text-primary">
-              <ShoppingCart className="w-6 h-6 text-primary" />
-              {language === 'ru' ? 'МАГАЗИН' : 'TRADING HUB'}
-            </h1>
-            <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
-          </div>
+          <Link href="/"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+          <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2 text-primary"><ShoppingCart className="w-6 h-6 text-primary" /> {language === 'ru' ? 'МАГАЗИН' : 'TRADING HUB'}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p></div>
         </header>
 
         <div className="grid grid-cols-2 gap-3 mb-8">
-           <Card className="glass-card bg-blue-500/5 border-blue-500/20">
-             <CardContent className="p-4 text-center">
-                <p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Crystals</p>
-                <div className="flex items-center justify-center gap-2">
-                  <Gem className="w-4 h-4 text-blue-400" />
-                  <p className="text-xl font-headline font-black italic text-blue-400">{crystals || 0}</p>
-                </div>
-             </CardContent>
-           </Card>
-           <Card className="glass-card bg-yellow-500/5 border-yellow-500/20">
-             <CardContent className="p-4 text-center">
-                <p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Credits</p>
-                <div className="flex items-center justify-center gap-2">
-                  <span className="text-yellow-500 font-black">€</span>
-                  <p className="text-xl font-headline font-black italic text-yellow-500">{formatCurrency(credits)}</p>
-                </div>
-             </CardContent>
-           </Card>
+           <Card className="glass-card bg-blue-500/5 border-blue-500/20"><CardContent className="p-4 text-center"><p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Crystals</p><div className="flex items-center justify-center gap-2"><Gem className="w-4 h-4 text-blue-400" /><p className="text-xl font-headline font-black italic text-blue-400">{crystals || 0}</p></div></CardContent></Card>
+           <Card className="glass-card bg-yellow-500/5 border-yellow-500/20"><CardContent className="p-4 text-center"><p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Credits</p><div className="flex items-center justify-center gap-2"><span className="text-yellow-500 font-black">€</span><p className="text-xl font-headline font-black italic text-yellow-500">{formatCurrency(credits)}</p></div></CardContent></Card>
         </div>
 
         <div className="space-y-2">
           {(Object.entries(t.tabs) as [ShopTab, any][]).map(([id, data]) => (
-            <Card 
-              key={id}
-              className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer overflow-hidden group"
-              onClick={() => setActiveTab(id)}
-            >
+            <Card key={id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => setActiveTab(id)}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className={cn("p-2.5 rounded-xl bg-secondary/50", data.color)}>
-                    <data.icon className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{data.label}</h3>
-                    <p className="text-[10px] text-muted-foreground leading-tight">{data.desc}</p>
-                  </div>
+                  <div className={cn("p-2.5 rounded-xl bg-secondary/50", data.color)}><data.icon className="w-5 h-5" /></div>
+                  <div><h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{data.label}</h3><p className="text-[10px] text-muted-foreground leading-tight">{data.desc}</p></div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
               </CardContent>
             </Card>
           ))}
@@ -615,15 +517,8 @@ export default function ShopPage() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-8 flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}>
-          <ChevronLeft className="w-6 h-6" />
-        </Button>
-        <div>
-          <h1 className="text-xl font-headline font-bold uppercase tracking-tight">
-            {t.tabs[activeTab as keyof typeof t.tabs].label}
-          </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p>
-        </div>
+        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}><ChevronLeft className="w-6 h-6" /></Button>
+        <div><h1 className="text-xl font-headline font-bold uppercase tracking-tight">{t.tabs[activeTab as keyof typeof t.tabs].label}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p></div>
       </header>
       {renderContent()}
     </div>

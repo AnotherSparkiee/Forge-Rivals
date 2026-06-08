@@ -1,6 +1,7 @@
+
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
 import { Hero, INITIAL_HEROES, StaffMember, StaffRole } from './moba-data';
 import { getMoscowTime, getMoscowDateString, isMatchDue, getGlobalSeasonInfo } from './time-utils';
 import { useUser, useFirestore } from '@/firebase';
@@ -8,7 +9,7 @@ import { doc, onSnapshot, setDoc, arrayUnion } from 'firebase/firestore';
 import { getMockGroupTeams, LEAGUES } from './leagues-data';
 import { usePathname } from 'next/navigation';
 
-export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3';
+export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
 interface ArenaState {
   capacity: number; pressCenterLevel: number; cafeLevel: number; shopLevel: number; screensLevel: number; roofLevel: number; lightingLevel: number; pendingCapacitySeats: number | null; constructionFinishes: Record<string, string | null>; constructionStarts: Record<string, string | null>;
@@ -22,7 +23,7 @@ export type MatchType = 'league' | 'cup' | 'friendly' | 'basket' | 'tournament' 
 export interface MatchResultEntry { id: string; day: number; seasonNumber?: number; type: MatchType; opponentName: string; winner: string; scoreA: number; scoreB: number; matchSummary: string; teamStats: any; heroPerformance: any[]; playedAt: string; duration?: string; mvp?: string; preview?: any; timeline?: any[]; postMatch?: any; }
 
 interface GameState {
-  credits: number; crystals: number; experiencePoints: number; managerLevel: number; skillPoints: number; managerSkills: { sponsors: number; agents: number; training: number; medical: number; }; activeLicenseTier: number | null; ownedHeroes: Hero[]; youthAcademyHeroes: Hero[]; team: Hero[]; lineup: Record<LineupSlot, string | null>; strategy: string; lineSettings: { carry: string; mid: string; offlane: string }; rank: number; matchHistory: MatchResultEntry[]; language: 'en' | 'ru'; wins: number; draws: number; losses: number; points: number; leagueLevel: number; divisionSubId: number; groupId: number; selectedLeagueId: string | null; country: string | null; associationId: string | null; lastLeagueMatchDate: null | string; lastCupMatchDate: null | string; lastSeenMatchDay: number; seasonDay: number; seasonNumber: number; lastProcessedSeason: number; lastYouthArrivalDay: number; lastYouthArrivalSeason: number; seasonStartDate: string | null; lastRewardClaimDate: string | null; rewardDay: number; arena: ArenaState; hq: HQState; bootcamp: BootcampState; academy: AcademyState; medical: MedicalState; staff: StaffState; seasonResults: { lastRank: number; lastPoints: number; promoted: boolean; demoted: boolean; seasonNumber: number; awardedTrophy: boolean; } | null; hasEliteTrophy: boolean; isSyncing: boolean;
+  credits: number; crystals: number; experiencePoints: number; managerLevel: number; skillPoints: number; managerSkills: { sponsors: number; agents: number; training: number; medical: number; }; activeLicenseTier: number | null; ownedHeroes: Hero[]; youthAcademyHeroes: Hero[]; team: Hero[]; lineup: Record<LineupSlot, string | null>; strategy: string; lineSettings: { carry: string; mid: string; offlane: string }; rank: number; matchHistory: MatchResultEntry[]; language: 'en' | 'ru'; wins: number; draws: number; losses: number; points: number; leagueLevel: number; divisionSubId: number; groupId: number; selectedLeagueId: string | null; country: string | null; associationId: string | null; lastLeagueMatchDate: null | string; lastCupMatchDate: null | string; lastSeenMatchDay: number; seasonDay: number; seasonNumber: number; lastProcessedSeason: number; lastYouthArrivalDay: number; lastYouthArrivalSeason: number; seasonStartDate: string | null; lastRewardClaimDate: string | null; rewardDay: number; arena: ArenaState; hq: HQState; bootcamp: BootcampState; academy: AcademyState; medical: MedicalState; staff: StaffState; seasonResults: { lastRank: number; lastPoints: number; promoted: boolean; demoted: boolean; seasonNumber: number; awardedTrophy: boolean; } | null; hasEliteTrophy: boolean; isSyncing: boolean; premiumUntil: string | null;
 }
 
 const DEFAULT_ARENA: ArenaState = { capacity: 5000, pressCenterLevel: 0, cafeLevel: 0, shopLevel: 0, screensLevel: 0, roofLevel: 0, lightingLevel: 0, pendingCapacitySeats: null, constructionFinishes: {}, constructionStarts: {} };
@@ -32,7 +33,7 @@ const DEFAULT_ACADEMY: AcademyState = { youthBootcampLevel: 0, streamingLevel: 0
 const DEFAULT_MEDICAL: MedicalState = { physiotherapyLevel: 0, massageLevel: 0, psychiatristLevel: 0, labLevel: 0, psychologistLevel: 0, constructionFinishes: {}, constructionStarts: {} };
 const DEFAULT_STAFF: StaffState = { coach: null, analyst: null, scout: null, doctor: null, financier: null };
 const DEFAULT_STATE: GameState = {
-  credits: 10000000, crystals: 0, experiencePoints: 0, managerLevel: 1, skillPoints: 0, managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 }, activeLicenseTier: null, ownedHeroes: INITIAL_HEROES, youthAcademyHeroes: [], team: INITIAL_HEROES.slice(0, 5), lineup: { carry: INITIAL_HEROES.find(h => h.role === 'Carry')?.id || null, mid: INITIAL_HEROES.find(h => h.role === 'Midlaner')?.id || null, offlane: INITIAL_HEROES.find(h => h.role === 'Tank')?.id || null, support: INITIAL_HEROES.find(h => h.role === 'Jungler')?.id || null, full_support: INITIAL_HEROES.find(h => h.role === 'Support')?.id || null, sub1: null, sub2: null, res1: null, res2: null, res3: null }, strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' }, rank: 1000, matchHistory: [], language: 'ru', wins: 0, draws: 0, losses: 0, points: 0, leagueLevel: 9, divisionSubId: 1, groupId: 1, selectedLeagueId: null, country: null, associationId: null, lastSeenMatchDay: 0, lastLeagueMatchDate: null, lastCupMatchDate: null, seasonDay: 0, seasonNumber: 0, lastProcessedSeason: 0, lastYouthArrivalDay: 0, lastYouthArrivalSeason: 0, seasonStartDate: null, lastRewardClaimDate: null, rewardDay: 1, arena: DEFAULT_ARENA, hq: DEFAULT_HQ, bootcamp: DEFAULT_BOOTCAMP, academy: DEFAULT_ACADEMY, medical: DEFAULT_MEDICAL, staff: DEFAULT_STAFF, seasonResults: null, hasEliteTrophy: false, isSyncing: false,
+  credits: 10000000, crystals: 0, experiencePoints: 0, managerLevel: 1, skillPoints: 0, managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 }, activeLicenseTier: null, ownedHeroes: INITIAL_HEROES, youthAcademyHeroes: [], team: INITIAL_HEROES.slice(0, 5), lineup: { carry: INITIAL_HEROES.find(h => h.role === 'Carry')?.id || null, mid: INITIAL_HEROES.find(h => h.role === 'Midlaner')?.id || null, offlane: INITIAL_HEROES.find(h => h.role === 'Tank')?.id || null, support: INITIAL_HEROES.find(h => h.role === 'Jungler')?.id || null, full_support: INITIAL_HEROES.find(h => h.role === 'Support')?.id || null, sub1: null, sub2: null, res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null }, strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' }, rank: 1000, matchHistory: [], language: 'ru', wins: 0, draws: 0, losses: 0, points: 0, leagueLevel: 9, divisionSubId: 1, groupId: 1, selectedLeagueId: null, country: null, associationId: null, lastSeenMatchDay: 0, lastLeagueMatchDate: null, lastCupMatchDate: null, seasonDay: 0, seasonNumber: 0, lastProcessedSeason: 0, lastYouthArrivalDay: 0, lastYouthArrivalSeason: 0, seasonStartDate: null, lastRewardClaimDate: null, rewardDay: 1, arena: DEFAULT_ARENA, hq: DEFAULT_HQ, bootcamp: DEFAULT_BOOTCAMP, academy: DEFAULT_ACADEMY, medical: DEFAULT_MEDICAL, staff: DEFAULT_STAFF, seasonResults: null, hasEliteTrophy: false, isSyncing: false, premiumUntil: null,
 };
 
 function sanitizeForFirestore(obj: any) { 
@@ -54,7 +55,8 @@ export function getLevelThreshold(level: number): number {
 
 interface GameStateContextType extends GameState {
   isLoaded: boolean; 
-  addCredits: (amount: number) => void; 
+  isPremium: boolean;
+  addCredits: (amount: number, isSponsorship?: boolean) => void; 
   addCrystals: (amount: number) => void; 
   assignToRole: (slot: LineupSlot, heroId: string | null) => void; 
   updateTactics: (strategy: string, lineSettings: { carry: string; mid: string; offlane: string }) => void; 
@@ -85,6 +87,7 @@ interface GameStateContextType extends GameState {
   updateProfileName: (name: string) => void; 
   updateProfileCountry: (countryName: string) => void; 
   purchaseLicense: (tier: number, cost: number) => boolean; 
+  purchasePremium: () => boolean;
   upgradeManagerSkill: (skillKey: keyof GameState['managerSkills']) => void; 
   markMatchAsSeen: (day: number) => void;
 }
@@ -99,6 +102,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const lastSyncRef = useRef<{ season: number, day: number, leagueId: string | null } | null>(null);
   const lastWritePayloadRef = useRef<string>("");
+
+  const isPremium = useMemo(() => {
+    if (!state.premiumUntil) return false;
+    return new Date(state.premiumUntil).getTime() > getMoscowTime().getTime();
+  }, [state.premiumUntil]);
 
   const runCloudUpdate = useCallback((data: any) => {
     if (!user) return;
@@ -165,6 +173,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             staff: profileData.staff || s.staff,
             seasonResults: profileData.seasonResults ?? s.seasonResults,
             hasEliteTrophy: profileData.hasEliteTrophy ?? s.hasEliteTrophy,
+            premiumUntil: profileData.premiumUntil ?? s.premiumUntil,
           };
         });
         setIsLoaded(true);
@@ -223,7 +232,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }, [isLoaded, user, checkConstructions]);
 
-  const addCredits = useCallback((amount: number) => { setState(s => { const newVal = s.credits + amount; runCloudUpdate({ inGameCurrency: newVal }); return { ...s, credits: newVal }; }); }, [runCloudUpdate]);
+  const addCredits = useCallback((amount: number, isSponsorship: boolean = false) => { 
+    setState(s => { 
+      const premiumBonusMultiplier = isSponsorship && isPremium ? 3.0 : 1.0; // Base + 200% = 3x
+      const finalAmount = Math.round(amount * premiumBonusMultiplier);
+      const newVal = s.credits + finalAmount; 
+      runCloudUpdate({ inGameCurrency: newVal }); 
+      return { ...s, credits: newVal }; 
+    }); 
+  }, [runCloudUpdate, isPremium]);
+
   const addCrystals = useCallback((amount: number) => { setState(s => { const newVal = s.crystals + amount; runCloudUpdate({ crystals: newVal }); return { ...s, crystals: newVal }; }); }, [runCloudUpdate]);
   const setLanguage = useCallback((lang: 'en' | 'ru') => setState(s => ({ ...s, language: lang })), []);
   const assignToRole = useCallback((slot: LineupSlot, heroId: string | null) => { setState(s => { const newLineup = { ...s.lineup }; if (heroId) { Object.keys(newLineup).forEach(k => { if (newLineup[k as LineupSlot] === heroId) newLineup[k as LineupSlot] = null; }); } newLineup[slot] = heroId; runCloudUpdate({ lineup: newLineup }); return { ...s, lineup: newLineup }; }); }, [runCloudUpdate]);
@@ -251,15 +269,45 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const matchId = customId || `match_${Date.now()}`;
     setState(s => {
       if (s.matchHistory.some(m => m.id === matchId)) return s;
+      
+      const xpMultiplier = isPremium ? 5.0 : 1.0;
+      const baseXP = (result.scoreA > result.scoreB ? 150 : (result.scoreA === result.scoreB ? 50 : 25));
+      const finalXP = Math.round(baseXP * xpMultiplier);
+      const nextXP = s.experiencePoints + finalXP;
+      const nextLevel = nextXP >= getLevelThreshold(s.managerLevel) ? s.managerLevel + 1 : s.managerLevel;
+      const nextSkillPoints = nextLevel > s.managerLevel ? s.skillPoints + 1 : s.skillPoints;
+
       const matchEntry: MatchResultEntry = { id: matchId, day: matchDay, type, opponentName, winner, scoreA: result.scoreA, scoreB: result.scoreB, matchSummary: result.matchSummary || "", teamStats: result.teamStats || {}, heroPerformance: result.heroPerformance || [], playedAt: customPlayedAt || new Date().toISOString(), duration: result.duration || "", mvp: result.mvp || "", preview: result.preview || null, timeline: result.timeline || [], postMatch: result.postMatch || null };
       const newHistory = [matchEntry, ...s.matchHistory].slice(0, 100);
-      runCloudUpdate({ matchHistory: sanitizeForFirestore(newHistory) });
-      return { ...s, matchHistory: newHistory };
+      
+      runCloudUpdate({ 
+        matchHistory: sanitizeForFirestore(newHistory),
+        experiencePoints: nextXP,
+        managerLevel: nextLevel,
+        skillPoints: nextSkillPoints
+      });
+      
+      return { ...s, matchHistory: newHistory, experiencePoints: nextXP, managerLevel: nextLevel, skillPoints: nextSkillPoints };
     });
-  }, [runCloudUpdate]);
+  }, [runCloudUpdate, isPremium]);
 
   const markMatchAsSeen = useCallback((day: number) => { setState(s => { if (day <= s.lastSeenMatchDay) return s; runCloudUpdate({ lastSeenMatchDay: day }); return { ...s, lastSeenMatchDay: day }; }); }, [runCloudUpdate]);
-  const claimReward = useCallback((cr: number, cry: number) => { const today = getMoscowDateString(); setState(s => { if (s.lastRewardClaimDate === today) return s; const nCredits = s.credits + cr; const nCrystals = s.crystals + cry; const nDay = s.rewardDay >= 30 ? 1 : s.rewardDay + 1; runCloudUpdate({ inGameCurrency: nCredits, crystals: nCrystals, lastRewardClaimDate: today, rewardDay: nDay }); return { ...s, credits: nCredits, crystals: nCrystals, lastRewardClaimDate: today, rewardDay: nDay }; }); }, [runCloudUpdate]);
+  
+  const claimReward = useCallback((cr: number, cry: number) => { 
+    const today = getMoscowDateString(); 
+    setState(s => { 
+      if (s.lastRewardClaimDate === today) return s; 
+      
+      const premiumBonusCrystals = isPremium ? 50 : 0;
+      const nCredits = s.credits + cr; 
+      const nCrystals = s.crystals + cry + premiumBonusCrystals; 
+      const nDay = s.rewardDay >= 30 ? 1 : s.rewardDay + 1; 
+      
+      runCloudUpdate({ inGameCurrency: nCredits, crystals: nCrystals, lastRewardClaimDate: today, rewardDay: nDay }); 
+      return { ...s, credits: nCredits, crystals: nCrystals, lastRewardClaimDate: today, rewardDay: nDay }; 
+    }); 
+  }, [runCloudUpdate, isPremium]);
+
   const dismissSeasonResults = useCallback(() => { setState(s => { runCloudUpdate({ seasonResults: null }); return { ...s, seasonResults: null }; }); }, [runCloudUpdate]);
   const startArenaConstruction = useCallback((fac: any, cost: number) => { if (state.credits < cost) return false; const hours = 4 * ((state.arena as any)[fac] + 1); const finish = new Date(Date.now() + hours * 3600000).toISOString(); const newArena = { ...state.arena, constructionStarts: { ...state.arena.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.arena.constructionFinishes, [fac]: finish } }; runCloudUpdate({ inGameCurrency: state.credits - cost, arena: sanitizeForFirestore(newArena) }); return true; }, [state, runCloudUpdate]);
   const startHQConstruction = useCallback((fac: any, cost: number) => { if (state.credits < cost) return false; const hours = 4 * ((state.hq as any)[fac] + 1); const finish = new Date(Date.now() + hours * 3600000).toISOString(); const newHQ = { ...state.hq, constructionStarts: { ...state.hq.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.hq.constructionFinishes, [fac]: finish } }; runCloudUpdate({ inGameCurrency: state.credits - cost, hq: sanitizeForFirestore(newHQ) }); return true; }, [state, runCloudUpdate]);
@@ -281,11 +329,19 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const updateProfileName = useCallback((n: string) => runCloudUpdate({ displayName: n }), [runCloudUpdate]);
   const updateProfileCountry = useCallback((c: string) => runCloudUpdate({ country: c }), [runCloudUpdate]);
   const purchaseLicense = useCallback((t: number, c: number) => { if (state.crystals < c) return false; runCloudUpdate({ crystals: state.crystals - c, activeLicenseTier: t }); return true; }, [state, runCloudUpdate]);
+  
+  const purchasePremium = useCallback(() => {
+    if (state.crystals < 5000) return false;
+    const expiry = new Date(getMoscowTime().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    runCloudUpdate({ crystals: state.crystals - 5000, premiumUntil: expiry });
+    return true;
+  }, [state.crystals, runCloudUpdate]);
+
   const upgradeManagerSkill = useCallback((k: keyof GameState['managerSkills']) => { if (state.skillPoints <= 0) return; const ns = { ...state.managerSkills, [k]: state.managerSkills[k]+1 }; runCloudUpdate({ managerSkills: ns, skillPoints: state.skillPoints - 1 }); }, [state, runCloudUpdate]);
 
   return (
     <GameStateContext.Provider value={{ 
-      ...state, isLoaded, addCredits, addCrystals, assignToRole, updateTactics, 
+      ...state, isLoaded, isPremium, addCredits, addCrystals, assignToRole, updateTactics, 
       startArenaConstruction, startHQConstruction, startBootcampConstruction, 
       startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, 
       checkConstructions, hireStaffMember, trainStaffSkill, setLanguage, recordMatch, 
@@ -293,7 +349,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, 
       promoteYouthPlayer, removeHero, recoverAllFatigue, addHeroDirectly, 
       addYouthHeroDirectly, updateProfileName, updateProfileCountry, purchaseLicense, 
-      upgradeManagerSkill 
+      purchasePremium, upgradeManagerSkill 
     }}>
       {children}
     </GameStateContext.Provider>
