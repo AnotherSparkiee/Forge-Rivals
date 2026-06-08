@@ -94,67 +94,92 @@ const HERO_NAMES = [
 const FIRST_NAMES = ["James", "Robert", "John", "Michael", "David", "William", "Richard", "Joseph", "Thomas", "Charles", "Viktor", "Dmitry", "Hans", "Lee", "Chen", "Artyom"];
 const LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Ivanov", "Petrov", "Schmidt", "Wang", "Kim", "Park", "Sokolov"];
 
-function getRandomStat(min: number, max: number) {
+/**
+ * Simple seeded pseudo-random generator to ensure all managers see the same system players.
+ */
+class SeededRandom {
+  private seed: number;
+  constructor(seed: string | number) {
+    if (typeof seed === 'string') {
+      this.seed = seed.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0);
+    } else {
+      this.seed = seed;
+    }
+  }
+  next() {
+    this.seed = (this.seed * 9301 + 49297) % 233280;
+    return this.seed / 233280;
+  }
+  range(min: number, max: number) {
+    return Math.floor(this.next() * (max - min + 1)) + min;
+  }
+}
+
+function getRandomStat(min: number, max: number, rng?: SeededRandom) {
+  if (rng) return rng.range(min, max);
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function getRandomTalent() {
+function getRandomTalent(rng?: SeededRandom) {
+  if (rng) return (rng.range(0, 6) + 4) / 2;
   return (Math.floor(Math.random() * 7) + 4) / 2;
 }
 
-export function generateUniqueHero(role: Role, index: number, isStarter: boolean = false): Hero {
+export function generateUniqueHero(role: Role, index: number, isStarter: boolean = false, seed?: string): Hero {
+  const rng = seed ? new SeededRandom(seed) : undefined;
+  
   const codes = Object.keys(COUNTRY_PHOTOS);
-  const code = codes[Math.floor(Math.random() * codes.length)];
+  const code = codes[rng ? rng.range(0, codes.length - 1) : Math.floor(Math.random() * codes.length)];
   const country = COUNTRY_PHOTOS[code];
-  const name = `${HERO_NAMES[Math.floor(Math.random() * HERO_NAMES.length)]} ${index + 1}`;
+  const name = `${HERO_NAMES[rng ? rng.range(0, HERO_NAMES.length - 1) : Math.floor(Math.random() * HERO_NAMES.length)]} ${index + 1}`;
   
   const baseStats = {
     attack: role === 'Carry' || role === 'Jungler' 
-      ? getRandomStat(isStarter ? 55 : 70, isStarter ? 75 : 95) 
-      : getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 50),
+      ? getRandomStat(isStarter ? 55 : 70, isStarter ? 75 : 95, rng) 
+      : getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 50, rng),
     defense: role === 'Tank' 
-      ? getRandomStat(isStarter ? 65 : 80, isStarter ? 85 : 100) 
-      : getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 50),
+      ? getRandomStat(isStarter ? 65 : 80, isStarter ? 85 : 100, rng) 
+      : getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 50, rng),
     health: role === 'Tank' 
-      ? getRandomStat(isStarter ? 1100 : 1400, isStarter ? 1400 : 1800) 
-      : getRandomStat(isStarter ? 600 : 700, isStarter ? 850 : 1000),
+      ? getRandomStat(isStarter ? 1100 : 1400, isStarter ? 1400 : 1800, rng) 
+      : getRandomStat(isStarter ? 600 : 700, isStarter ? 850 : 1000, rng),
     abilityPower: role === 'Midlaner' || role === 'Support' 
-      ? getRandomStat(isStarter ? 55 : 60, isStarter ? 85 : 110) 
-      : getRandomStat(0, 30),
-    speed: getRandomStat(250, 360)
+      ? getRandomStat(isStarter ? 55 : 60, isStarter ? 85 : 110, rng) 
+      : getRandomStat(0, 30, rng),
+    speed: getRandomStat(250, 360, rng)
   };
 
   const proStats = {
-    lastHitting: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
-    mapAwareness: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
-    positioning: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
-    reflexes: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
-    manaManagement: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
-    objectiveControl: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
-    communication: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
-    tiltResistance: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
-    versatility: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
-    ganking: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98),
+    lastHitting: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
+    mapAwareness: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
+    positioning: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
+    reflexes: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
+    manaManagement: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
+    objectiveControl: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
+    communication: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
+    tiltResistance: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
+    versatility: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
+    ganking: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
   };
 
   const proTalents = {
-    lastHitting: getRandomTalent(),
-    mapAwareness: getRandomTalent(),
-    positioning: getRandomTalent(),
-    reflexes: getRandomTalent(),
-    manaManagement: getRandomTalent(),
-    objectiveControl: getRandomTalent(),
-    communication: getRandomTalent(),
-    tiltResistance: getRandomTalent(),
-    versatility: getRandomTalent(),
-    ganking: getRandomTalent(),
+    lastHitting: getRandomTalent(rng),
+    mapAwareness: getRandomTalent(rng),
+    positioning: getRandomTalent(rng),
+    reflexes: getRandomTalent(rng),
+    manaManagement: getRandomTalent(rng),
+    objectiveControl: getRandomTalent(rng),
+    communication: getRandomTalent(rng),
+    tiltResistance: getRandomTalent(rng),
+    versatility: getRandomTalent(rng),
+    ganking: getRandomTalent(rng),
   };
 
   const proSum = Object.values(proStats).reduce((a, b) => a + b, 0);
   const basePower = (baseStats.attack + (baseStats.defense / 2) + (baseStats.abilityPower / 2)) / 5;
   const overall = Math.round((proSum / 10) * 0.4 + basePower * 0.6);
 
-  const startAge = getRandomStat(17, 28);
+  const startAge = getRandomStat(17, 28, rng);
 
   return {
     id: `hero_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
@@ -169,8 +194,8 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     baseAge: startAge,
     hiredAt: new Date().toISOString(),
     age: startAge,
-    salary: getRandomStat(2000, 8000),
-    form: getRandomStat(70, 95),
+    salary: getRandomStat(2000, 8000, rng),
+    form: getRandomStat(70, 95, rng),
     fatigue: 0,
     country: { code, name: country.name, flag: country.flag },
     isInjured: false,
@@ -184,43 +209,44 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
   };
 }
 
-export function generateYouthHero(index: number): Hero {
+export function generateYouthHero(index: number, seed?: string): Hero {
+  const rng = seed ? new SeededRandom(seed) : undefined;
   const roles: Role[] = ['Tank', 'Carry', 'Midlaner', 'Jungler', 'Support'];
-  const role = roles[Math.floor(Math.random() * roles.length)];
-  const hero = generateUniqueHero(role, index, false);
+  const role = roles[rng ? rng.range(0, roles.length - 1) : Math.floor(Math.random() * roles.length)];
+  const hero = generateUniqueHero(role, index, false, seed);
   
-  const startAge = getRandomStat(14, 17);
+  const startAge = getRandomStat(14, 17, rng);
   hero.baseAge = startAge;
   hero.age = startAge;
   hero.hiredAt = new Date().toISOString();
   
-  hero.overallRating = getRandomStat(15, 25);
-  hero.salary = getRandomStat(500, 1500);
+  hero.overallRating = getRandomStat(15, 25, rng);
+  hero.salary = getRandomStat(500, 1500, rng);
   
   hero.proTalents = {
-    lastHitting: getRandomTalent() + 0.5,
-    mapAwareness: getRandomTalent() + 0.5,
-    positioning: getRandomTalent() + 0.5,
-    reflexes: getRandomTalent() + 0.5,
-    manaManagement: getRandomTalent() + 0.5,
-    objectiveControl: getRandomTalent() + 0.5,
-    communication: getRandomTalent() + 0.5,
-    tiltResistance: getRandomTalent() + 0.5,
-    versatility: getRandomTalent() + 0.5,
-    ganking: getRandomTalent() + 0.5,
+    lastHitting: getRandomTalent(rng) + 0.5,
+    mapAwareness: getRandomTalent(rng) + 0.5,
+    positioning: getRandomTalent(rng) + 0.5,
+    reflexes: getRandomTalent(rng) + 0.5,
+    manaManagement: getRandomTalent(rng) + 0.5,
+    objectiveControl: getRandomTalent(rng) + 0.5,
+    communication: getRandomTalent(rng) + 0.5,
+    tiltResistance: getRandomTalent(rng) + 0.5,
+    versatility: getRandomTalent(rng) + 0.5,
+    ganking: getRandomTalent(rng) + 0.5,
   };
   
   hero.proStats = {
-    lastHitting: getRandomStat(10, 30),
-    mapAwareness: getRandomStat(10, 30),
-    positioning: getRandomStat(10, 30),
-    reflexes: getRandomStat(10, 30),
-    manaManagement: getRandomStat(10, 30),
-    objectiveControl: getRandomStat(10, 30),
-    communication: getRandomStat(10, 30),
-    tiltResistance: getRandomStat(10, 30),
-    versatility: getRandomStat(10, 30),
-    ganking: getRandomStat(10, 30),
+    lastHitting: getRandomStat(10, 30, rng),
+    mapAwareness: getRandomStat(10, 30, rng),
+    positioning: getRandomStat(10, 30, rng),
+    reflexes: getRandomStat(10, 30, rng),
+    manaManagement: getRandomStat(10, 30, rng),
+    objectiveControl: getRandomStat(10, 30, rng),
+    communication: getRandomStat(10, 30, rng),
+    tiltResistance: getRandomStat(10, 30, rng),
+    versatility: getRandomStat(10, 30, rng),
+    ganking: getRandomStat(10, 30, rng),
   };
 
   return hero;
