@@ -159,7 +159,7 @@ export const TransferHeroCard = memo(({
                     <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight truncate text-white">
                       {agent.highestBidderName}
                     </span>
-                    <span className="absolute -top-0.5 -right-0.5 text-[2.5px] font-black text-accent uppercase tracking-[0.3em] bg-background/60 px-0.5 rounded-sm border border-accent/10 whitespace-nowrap">PREMIUM</span>
+                    <span className="absolute -top-0.5 -right-0.5 text-[2.5px] font-black text-accent uppercase tracking-widest bg-background/60 px-0.5 rounded-sm border border-accent/10 whitespace-nowrap leading-none">PREMIUM</span>
                   </div>
                 ) : (
                   <span className="text-[9px] font-black uppercase text-muted-foreground/50">
