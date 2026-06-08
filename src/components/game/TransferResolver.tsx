@@ -41,7 +41,7 @@ export function TransferResolver() {
     });
   }, [db]);
 
-  // Resolve sales logic
+  // Resolve sales logic (Seller side)
   useEffect(() => {
     if (!isLoaded || isUserLoading || !user || !mySales) return;
 
@@ -57,7 +57,7 @@ export function TransferResolver() {
           
           try {
             if (agent.highestBidderId) {
-              // 1. Notify Seller
+              // Notify Seller Only
               const sellerTitle = language === 'ru' ? "Игрок продан!" : "Player Sold!";
               const sellerDesc = language === 'ru' 
                 ? `${agent.heroData.name} продан клубу "${agent.highestBidderName}" за €${agent.currentBid.toLocaleString()}`
@@ -67,13 +67,7 @@ export function TransferResolver() {
               removeHero(heroId, 0);
               sendNotification(user.uid, sellerTitle, sellerDesc);
               
-              // 2. Notify Buyer
-              const buyerTitle = language === 'ru' ? "Игрок приобретен!" : "Player Acquired!";
-              const buyerDesc = language === 'ru'
-                ? `Вы успешно купили игрока ${agent.heroData.name} у клуба "${agent.sellerName}"`
-                : `Successfully purchased ${agent.heroData.name} from "${agent.sellerName}"`;
-                
-              sendNotification(agent.highestBidderId, buyerTitle, buyerDesc);
+              // Note: The buyer's client handles their own notification in the second effect
             } else {
               // No bids - Return to club
               updateHero(heroId, { onTransferUntil: null, transferMarketId: null });
@@ -100,7 +94,7 @@ export function TransferResolver() {
     return () => clearInterval(interval);
   }, [isLoaded, isUserLoading, user, mySales, addCredits, removeHero, updateHero, language, db, sendNotification]);
 
-  // Resolve purchases logic (Claiming the hero)
+  // Resolve purchases logic (Buyer side - Claiming the hero)
   useEffect(() => {
     if (!isLoaded || isUserLoading || !user || !myPurchases) return;
 
@@ -110,12 +104,10 @@ export function TransferResolver() {
       for (const agent of myPurchases) {
         const expiresAt = new Date(agent.expiresAt);
         
-        // If I am the highest bidder and it expired, I should receive the hero
         if (mskNow > expiresAt && !processedIds.current.has(agent.id)) {
           processedIds.current.add(agent.id);
           
           try {
-            // Add hero to local state (the seller handles document deletion)
             const heroData = { ...agent.heroData, onTransferUntil: null, transferMarketId: null };
             
             if (agent.isYouth) {
@@ -124,7 +116,7 @@ export function TransferResolver() {
               addHeroDirectly(heroData);
             }
 
-            // Silent notification instead of toast
+            // Buyer's side notification
             const title = language === 'ru' ? "Пополнение в составе!" : "New Hero Joined!";
             const desc = language === 'ru' 
               ? `${heroData.name} теперь в вашем распоряжении.` 
