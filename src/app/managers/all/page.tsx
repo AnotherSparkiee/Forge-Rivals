@@ -325,10 +325,12 @@ export default function AllManagersPage() {
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
                       {isEntryPremium ? (
-                        <div className="relative inline-block px-3 py-0.5 bg-accent text-slate-950 font-black italic skew-x-[-15deg] shadow-[0_0_10px_rgba(var(--accent),0.3)] border-l-2 border-primary min-w-0">
-                          <span className="block skew-x-[15deg] truncate text-[10px] uppercase tracking-tight">
+                        <div className="relative inline-flex items-center min-w-0 max-w-[150px]">
+                          <div className="absolute inset-0 bg-gradient-to-r from-accent/25 via-accent/5 to-transparent border-l-2 border-accent -z-10" />
+                          <span className="px-3 py-0.5 text-[10px] font-bold uppercase tracking-tight truncate text-white">
                             {manager.displayName}
                           </span>
+                          <span className="absolute -top-1 -right-1 text-[5px] font-black text-accent uppercase tracking-[0.2em] bg-background/60 px-1 rounded-sm border border-accent/10">PREMIUM</span>
                         </div>
                       ) : (
                         <span className="text-xs font-bold uppercase">{manager.displayName}</span>

@@ -248,10 +248,12 @@ export default function SquadPage() {
           <Link href="/roster"><Button variant="ghost" size="icon" className="rounded-full shrink-0"><ChevronLeft className="w-6 h-6" /></Button></Link>
           <div className="min-w-0 flex-1">
             {isPremium ? (
-              <div className="relative inline-block px-4 py-1 bg-accent text-slate-950 font-black italic skew-x-[-15deg] shadow-[0_0_15px_rgba(var(--accent),0.4)] border-l-4 border-primary min-w-0 max-w-full overflow-hidden">
-                <h1 className="block skew-x-[15deg] text-xl uppercase tracking-tighter truncate">
+              <div className="relative inline-flex items-center min-w-0 max-w-full">
+                <div className="absolute inset-0 bg-gradient-to-r from-accent/25 via-accent/5 to-transparent border-l-2 border-accent -z-10" />
+                <h1 className="px-3 py-1 text-2xl font-headline font-black uppercase tracking-tighter truncate text-white">
                   {profile?.displayName || t.title}
                 </h1>
+                <span className="absolute -top-1 -right-2 text-[6px] font-black text-accent uppercase tracking-[0.2em] bg-background/60 px-1 rounded-sm border border-accent/10">PREMIUM</span>
               </div>
             ) : (
               <h1 className="text-2xl font-headline font-black uppercase tracking-tighter truncate text-white">

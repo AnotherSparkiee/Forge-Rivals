@@ -176,8 +176,8 @@ export default function RankingsPage() {
   }, [cupParticipants, activeRoundToShow, searchQuery, user?.uid, effectiveDayForCup, matchHistory, seasonNumber]);
 
   const paginatedMatches = useMemo(() => {
-    const start = page * ITEMS_PER_PAGE;
-    return cupMatches.slice(start, start + ITEMS_PER_PAGE);
+    const start = cupPage * MATCHES_PER_PAGE;
+    return cupMatches.slice(start, start + MATCHES_PER_PAGE);
   }, [cupMatches, cupPage]);
 
   const totalPages = Math.ceil(cupMatches.length / MATCHES_PER_PAGE);
@@ -308,10 +308,12 @@ export default function RankingsPage() {
             </div>
             <div className="flex-1 truncate">
               {isEntryPremium ? (
-                <div className="relative inline-block px-3 py-0.5 bg-accent text-slate-950 font-black italic skew-x-[-15deg] shadow-[0_0_10px_rgba(var(--accent),0.3)] border-l-2 border-primary max-w-full">
-                  <span className="block skew-x-[15deg] truncate text-[10px] uppercase tracking-tight">
+                <div className="relative inline-flex items-center min-w-0 max-w-full">
+                  <div className="absolute inset-0 bg-gradient-to-r from-accent/25 via-accent/5 to-transparent border-l-2 border-accent -z-10" />
+                  <span className="px-3 py-1 font-bold text-[11px] uppercase tracking-tight truncate text-white">
                     {entry.name}
                   </span>
+                  <span className="absolute -top-1 -right-1 text-[5px] font-black text-accent uppercase tracking-[0.2em] bg-background/60 px-1 rounded-sm border border-accent/10">PREMIUM</span>
                 </div>
               ) : (
                 <span className={cn(
@@ -428,7 +430,7 @@ export default function RankingsPage() {
                               <span className={cn("text-[10px] font-bold uppercase truncate", pair.isMyMatch && pair.home?.id === user?.uid ? "text-accent" : (pair.home ? "text-white" : "text-muted-foreground/40"))}>
                                 {pair.home ? pair.home.name : t.tbd}
                               </span>
-                              {pair.home && <Badge variant="outline" className="text-[6px] h-3 px-1 py-0 border-white/10 opacity-60">DIV {pair.home.level}</Badge>}
+                              {pair.home && <Badge variant="outline" className="text-[7px] h-3 px-1 py-0 border-white/10 opacity-60">DIV {pair.home.level}</Badge>}
                               {pair.home?.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
                             </div>
                           </div>
@@ -649,10 +651,9 @@ export default function RankingsPage() {
                           <span className="text-xl font-bold">{viewingMatch.scoreH === 2 ? 11 : 7}</span>
                           <span className="text-[8px] text-muted-foreground uppercase font-bold">Towers</span>
                         </CardContent>
-                      </Card>
-                    </div>
-                  </>
-                )}
+                      </div>
+                    </>
+                  )}
               </div>
 
               <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5">

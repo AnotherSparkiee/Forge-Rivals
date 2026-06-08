@@ -97,10 +97,12 @@ export function TopBar() {
             <span className="text-[10px]" role="img" aria-label="flag">{userCountry?.flag || '🏳️'}</span>
             <div className="flex items-center gap-1 min-w-0">
               {isPremium ? (
-                <div className="relative inline-block px-3 py-0.5 bg-accent text-slate-950 font-black italic skew-x-[-15deg] shadow-[0_0_15px_rgba(var(--accent),0.4)] border-l-4 border-primary min-w-0 max-w-[140px]">
-                  <span className="block skew-x-[15deg] truncate text-[9px] uppercase tracking-tight">
+                <div className="relative inline-flex items-center min-w-0 max-w-[160px]">
+                  <div className="absolute inset-0 bg-gradient-to-r from-accent/25 via-accent/5 to-transparent border-l-2 border-accent -z-10" />
+                  <span className="px-3 py-1 text-[9px] font-black uppercase tracking-tight truncate text-white">
                     {profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
                   </span>
+                  <span className="absolute -top-1 -right-1 text-[5px] font-black text-accent uppercase tracking-[0.2em] bg-background/60 px-1 rounded-sm border border-accent/10">PREMIUM</span>
                 </div>
               ) : (
                 <span className="text-[9px] font-black uppercase tracking-tight whitespace-nowrap truncate max-w-[120px] text-primary">

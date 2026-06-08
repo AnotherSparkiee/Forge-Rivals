@@ -9,7 +9,7 @@ import {
   ChevronLeft, Loader2, Gavel, ShieldCheck, 
   Timer, Star, ShoppingCart, X, Check, Search, Info, Users,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
-  ChevronsLeft, ChevronsRight
+  ChevronsLeft, ChevronsRight, Zap
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -117,9 +117,9 @@ export const TransferHeroCard = memo(({
             <div className="relative shrink-0">
               <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 relative">
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
-              </div>
-              <div className="absolute -bottom-1 -right-1 bg-background rounded-md p-1 border border-white/10 shadow-xl z-10 flex items-center justify-center">
-                <span className="text-base leading-none">{agent.heroData.country?.flag}</span>
+                <div className="absolute -bottom-1 -right-1 bg-background rounded-md p-0.5 border border-white/10 shadow-xl z-10 flex items-center justify-center">
+                  <span className="text-xs leading-none">{agent.heroData.country?.flag}</span>
+                </div>
               </div>
             </div>
             
@@ -153,12 +153,14 @@ export const TransferHeroCard = memo(({
             <div className="flex flex-col gap-1.5 min-w-0 flex-1">
               <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
               <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">€{agent.currentBid?.toLocaleString()}</p>
-              <div className="flex items-center min-w-0">
+              <div className="flex items-center min-w-0 mt-1">
                 {agent.highestBidderName ? (
-                  <div className="relative inline-block px-3 py-0.5 bg-accent text-slate-950 font-black italic skew-x-[-15deg] shadow-[0_0_8px_rgba(var(--accent),0.3)] border-l-2 border-primary max-w-full overflow-hidden">
-                    <span className="block skew-x-[15deg] truncate text-[9px] uppercase tracking-tight">
-                      <Users className="w-2.5 h-2.5 inline mr-1" /> {language === 'ru' ? 'Лидер' : 'Leader'}: {agent.highestBidderName}
+                  <div className="relative inline-flex items-center min-w-0 max-w-full">
+                    <div className="absolute inset-0 bg-gradient-to-r from-accent/25 via-accent/5 to-transparent border-l-2 border-accent -z-10" />
+                    <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight truncate text-white">
+                      {agent.highestBidderName}
                     </span>
+                    <span className="absolute -top-1 -right-1 text-[4px] font-black text-accent uppercase tracking-[0.2em] bg-background/60 px-0.5 rounded-sm border border-accent/10">PREMIUM</span>
                   </div>
                 ) : (
                   <span className="text-[9px] font-black uppercase text-muted-foreground/50">
@@ -338,17 +340,35 @@ export default function QuickSearchPage() {
     try {
       const prevBidder = agent.highestBidderId;
       const heroName = agent.heroData?.name || "Player";
+      
       const mskNow = getMoscowTime().getTime();
       const expiryTime = new Date(agent.expiresAt).getTime();
       const timeLeft = expiryTime - mskNow;
       let finalExpiresAt = agent.expiresAt;
-      if (timeLeft < 600000) { finalExpiresAt = new Date(mskNow + 600000).toISOString(); }
-      await updateDoc(doc(db, 'market_v7', agent.id), { currentBid: amount, highestBidderId: user.uid, highestBidderName: profile.displayName || "Unknown Manager", bidders: arrayUnion(user.uid), updatedAt: serverTimestamp(), expiresAt: finalExpiresAt });
+      
+      if (timeLeft < 600000) { 
+        finalExpiresAt = new Date(mskNow + 600000).toISOString(); 
+      }
+
+      await updateDoc(doc(db, 'market_v7', agent.id), { 
+        currentBid: amount, highestBidderId: user.uid, highestBidderName: profile.displayName || "Unknown Manager", 
+        bidders: arrayUnion(user.uid), updatedAt: serverTimestamp(),
+        expiresAt: finalExpiresAt
+      });
+
       addCredits(-amount);
       if (prevBidder && prevBidder !== user.uid) {
-        addDocumentNonBlocking(collection(db, 'notifications_v6'), { userId: prevBidder, title: language === 'ru' ? "Ставка перебита!" : "Outbid!", description: language === 'ru' ? `Ставка на "${heroName}" перебита ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : `Bid on "${heroName}" outbid ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`, type: 'market', read: false, createdAt: new Date().toISOString() });
+        addDocumentNonBlocking(collection(db, 'notifications_v6'), {
+          userId: prevBidder, title: language === 'ru' ? "Ставка перебита!" : "Outbid!",
+          description: language === 'ru' ? `Ставка на "${heroName}" перебита ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : `Bid on "${heroName}" outbid ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`,
+          type: 'market', read: false, createdAt: new Date().toISOString()
+        });
       }
-      toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!", description: timeLeft < 600000 ? (language === 'ru' ? "Аукцион продлен на 10 минут!" : "Auction extended by 10 minutes!") : undefined });
+      
+      toast({ 
+        title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!",
+        description: timeLeft < 600000 ? (language === 'ru' ? "Аукцион продлен на 10 минут!" : "Auction extended by 10 minutes!") : undefined
+      });
     } catch (e) {
       toast({ title: "Error placing bid", variant: "destructive" });
     }
