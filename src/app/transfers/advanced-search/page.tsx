@@ -106,9 +106,9 @@ export default function AdvancedSearchPage() {
       const timeLeft = expiryTime - mskNow;
       let finalExpiresAt = agent.expiresAt;
       
-      // Infinite Extension Rule: if < 10 mins, reset to 10 mins
-      if (timeLeft < 600000) {
-        finalExpiresAt = new Date(mskNow + 600000).toISOString();
+      // Threshold 10 minutes (600,000 ms) - Infinite Extension Rule
+      if (timeLeft < 600000) { 
+        finalExpiresAt = new Date(mskNow + 600000).toISOString(); 
       }
 
       await updateDoc(doc(db, 'market_v7', agent.id), { 
@@ -224,7 +224,7 @@ export default function AdvancedSearchPage() {
 
       <div className="space-y-3 animate-in fade-in duration-500">
         <div className="flex items-center justify-between px-1 mb-2">
-           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent flex items-center gap-2">
+           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent flex items-center gap-2 px-1">
              <Search className="w-3 h-3" /> {language === 'ru' ? 'РЕЗУЛЬТАТЫ ПОИСКА' : 'SEARCH RESULTS'}
            </h2>
            <Badge variant="outline" className="text-[8px] border-white/10 opacity-60 uppercase">{filteredAgents.length} UNITS FOUND</Badge>

@@ -16,9 +16,9 @@ export interface Hero {
   image: string;
   description: string;
   price: number;
-  baseAge: number; // The age the hero started with
-  hiredAt: string; // ISO string of when the hero was created/hired
-  age: number; // Kept for legacy/fallback, but UI will use baseAge + time
+  baseAge: number; 
+  hiredAt: string; 
+  age: number; 
   salary: number;
   form: number; 
   fatigue: number; 
@@ -27,9 +27,8 @@ export interface Hero {
   trainingFocus?: string | null;
   dailyTrainingFocus?: string | null;
   dailyTrainingFinishTime?: string | null;
-  onTransferUntil?: string | null; // ISO string of auction end
-  transferMarketId?: string | null; // ID of the entry in market_v2
-  // Current skill levels (0-100)
+  onTransferUntil?: string | null; 
+  transferMarketId?: string | null; 
   proStats: {
     lastHitting: number;
     mapAwareness: number;
@@ -42,7 +41,6 @@ export interface Hero {
     versatility: number;
     ganking: number;
   };
-  // Talent limits for each skill (1-5 stars)
   proTalents: {
     lastHitting: number;
     mapAwareness: number;
@@ -69,8 +67,8 @@ export interface StaffMember {
   salary: number;
   image: string;
   skills: {
-    primary: number;   // 0-99
-    secondary: number; // 0-99
+    primary: number;   
+    secondary: number; 
   };
 }
 
@@ -94,10 +92,6 @@ const HERO_NAMES = [
 const FIRST_NAMES = ["James", "Robert", "John", "Michael", "David", "William", "Richard", "Joseph", "Thomas", "Charles", "Viktor", "Dmitry", "Hans", "Lee", "Chen", "Artyom"];
 const LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Ivanov", "Petrov", "Schmidt", "Wang", "Kim", "Park", "Sokolov"];
 
-/**
- * Simple seeded pseudo-random generator.
- * Hash fixed to stay in positive range for safe array indexing.
- */
 class SeededRandom {
   private seed: number;
   constructor(seed: string | number) {
@@ -190,8 +184,11 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
 
   const startAge = getRandomStat(isStarter ? 17 : 18, isStarter ? 28 : 32, rng);
 
+  // Deterministic ID if seed provided
+  const heroId = seed ? `h_det_${seed}` : `hero_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
+
   return {
-    id: `hero_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
+    id: heroId,
     name,
     role,
     baseStats,

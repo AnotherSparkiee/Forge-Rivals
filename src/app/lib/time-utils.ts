@@ -1,24 +1,14 @@
 /**
  * Utility to handle Moscow Time (MSK) formatting and calculations.
+ * Ensures consistent behavior across different user local timezones.
  */
 
 export function getMoscowTime(): Date {
   const now = new Date();
-  // Using Intl to get parts in Moscow timezone regardless of system local
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Europe/Moscow',
-    year: 'numeric', month: 'numeric', day: 'numeric',
-    hour: 'numeric', minute: 'numeric', second: 'numeric',
-    hour12: false
-  });
-  
-  const parts = formatter.formatToParts(now);
-  const p: Record<string, number> = {};
-  parts.forEach(part => {
-    if (part.type !== 'literal') p[part.type] = parseInt(part.value);
-  });
-
-  return new Date(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  // Get time string in Moscow and parse it back to a Date.
+  // This ensures getTime() returns the correct moment regardless of local machine offset.
+  const mskString = now.toLocaleString("en-US", { timeZone: "Europe/Moscow" });
+  return new Date(mskString);
 }
 
 export function getMoscowDateString(): string {
@@ -27,6 +17,14 @@ export function getMoscowDateString(): string {
   const month = String(msk.getMonth() + 1).padStart(2, '0');
   const day = String(msk.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+export function getEndOfMoscowDay(): string {
+  const msk = getMoscowTime();
+  const endOfDay = new Date(msk);
+  endOfDay.setDate(msk.getDate() + 1);
+  endOfDay.setHours(0, 0, 0, 0);
+  return endOfDay.toISOString();
 }
 
 export function formatMoscowTime(date: Date): string {

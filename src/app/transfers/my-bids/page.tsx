@@ -48,7 +48,7 @@ export default function MyBidsPage() {
       const timeLeft = expiryTime - mskNow;
       let finalExpiresAt = agent.expiresAt;
       
-      // Infinite Extension Rule: if < 10 mins, reset to 10 mins
+      // Threshold 10 minutes (600,000 ms) - Infinite Extension Rule
       if (timeLeft < 600000) { 
         finalExpiresAt = new Date(mskNow + 600000).toISOString(); 
       }

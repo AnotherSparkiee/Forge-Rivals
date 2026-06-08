@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -10,6 +9,7 @@ import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@
 import { collection, query, where, doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { TransferHeroCard } from '../quick-search/page';
+import { getMoscowTime } from '@/app/lib/time-utils';
 
 export default function MySalesPage() {
   const { language, isLoaded: isStoreLoaded } = useGameState();
@@ -18,7 +18,7 @@ export default function MySalesPage() {
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const timer = setInterval(() => setNow(getMoscowTime().getTime()), 1000);
     return () => clearInterval(timer);
   }, []);
 

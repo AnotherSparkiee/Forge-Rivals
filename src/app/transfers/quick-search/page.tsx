@@ -15,13 +15,13 @@ import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { generateUniqueHero } from '@/app/lib/moba-data';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-import { getMoscowTime, calculateLiveAge, getMoscowDateString } from '@/app/lib/time-utils';
+import { getMoscowTime, calculateLiveAge, getMoscowDateString, getEndOfMoscowDay } from '@/app/lib/time-utils';
 import {
   Dialog,
   DialogContent,
@@ -33,7 +33,6 @@ import {
 
 const ITEMS_PER_PAGE = 10;
 
-// Shared Transfer Hero Card component
 export const TransferHeroCard = memo(({ 
   agent, 
   user, 
@@ -291,38 +290,42 @@ export default function QuickSearchPage() {
       initTriggeredRef.current = true;
       
       const refreshMarket = async () => {
-        const oldSystemAgents = (agents || []).filter(a => a.isSystem && a.dropDate !== today);
-        for (const old of oldSystemAgents) {
-          await deleteDoc(doc(db, 'market_v7', old.id)).catch(() => {});
-        }
+        // Deterministic Expiry: Midnight MSK next day
+        const deterministicExpiry = getEndOfMoscowDay();
 
         const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
         for (const role of roles) {
           for (let i = 1; i <= 10; i++) {
             const agentId = `sys_drop_${today}_${role.toLowerCase()}_${i}`;
-            const seed = `${today}_${role}_${i}`;
-            const hero = generateUniqueHero(role, i, false, seed);
             
-            if (hero.baseAge < 18) { hero.baseAge = 18; hero.age = 18; }
+            // Check if already exists in DB to avoid double write
+            const existingRef = doc(db, 'market_v7', agentId);
+            const existingSnap = await getDoc(existingRef);
             
-            const startPrice = (hero.overallRating * 17500) + 290000;
-            const expiry = new Date(getMoscowTime().getTime() + 24 * 60 * 60 * 1000);
-            
-            await setDoc(doc(db, 'market_v7', agentId), {
-              id: agentId,
-              heroData: JSON.parse(JSON.stringify(hero)),
-              currentBid: startPrice,
-              startingPrice: startPrice,
-              highestBidderId: null,
-              highestBidderName: null,
-              bidders: [],
-              expiresAt: expiry.toISOString(),
-              dropDate: today,
-              createdAt: serverTimestamp(),
-              isSystem: true,
-              isYouth: false,
-              sellerId: 'system'
-            }, { merge: true });
+            if (!existingSnap.exists()) {
+              const seed = `${today}_${role}_${i}`;
+              const hero = generateUniqueHero(role, i, false, seed);
+              
+              if (hero.baseAge < 18) { hero.baseAge = 18; hero.age = 18; }
+              
+              const startPrice = (hero.overallRating * 17500) + 290000;
+              
+              await setDoc(existingRef, {
+                id: agentId,
+                heroData: JSON.parse(JSON.stringify(hero)),
+                currentBid: startPrice,
+                startingPrice: startPrice,
+                highestBidderId: null,
+                highestBidderName: null,
+                bidders: [],
+                expiresAt: deterministicExpiry,
+                dropDate: today,
+                createdAt: serverTimestamp(),
+                isSystem: true,
+                isYouth: false,
+                sellerId: 'system'
+              });
+            }
           }
         }
       };
