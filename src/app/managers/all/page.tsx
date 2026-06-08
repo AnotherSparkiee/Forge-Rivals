@@ -324,7 +324,6 @@ export default function AllManagersPage() {
                           <span className="px-3 py-0.5 text-[10px] font-bold uppercase tracking-tight truncate text-white">
                             {manager.displayName}
                           </span>
-                          <span className="absolute top-0.5 right-1 text-[1.5px] font-black text-accent uppercase tracking-[0.4em] bg-background/60 px-0.5 rounded-sm border border-accent/10 whitespace-nowrap leading-none">PREMIUM</span>
                         </div>
                       ) : (
                         <span className="text-xs font-bold uppercase">{manager.displayName}</span>

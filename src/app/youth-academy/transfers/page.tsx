@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -150,16 +149,20 @@ const YouthTransferCard = memo(({
             <div className="flex flex-col">
               <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'ЦЕНА'}</p>
               <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">€{agent.currentBid?.toLocaleString()}</p>
-              <p className={cn(
-                "text-[9px] font-black uppercase mt-1 flex items-center gap-1",
-                agent.highestBidderName ? "text-primary" : "text-muted-foreground/50"
-              )}>
+              <div className="flex items-center min-w-0 mt-1">
                 {agent.highestBidderName ? (
-                  <><Users className="w-2.5 h-2.5" /> {language === 'ru' ? 'Лидер' : 'Leader'}: {agent.highestBidderName}</>
+                  <div className="relative inline-flex items-center min-w-0 max-w-full">
+                    <div className="absolute inset-0 bg-gradient-to-r from-accent/30 via-accent/5 to-transparent border-l-2 border-accent -z-10" />
+                    <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight truncate text-white">
+                      {agent.highestBidderName}
+                    </span>
+                  </div>
                 ) : (
-                  language === 'ru' ? 'Нет ставок' : 'No bids'
+                  <span className="text-[9px] font-black uppercase text-muted-foreground/50">
+                    {language === 'ru' ? 'Нет ставок' : 'No bids'}
+                  </span>
                 )}
-              </p>
+              </div>
             </div>
             
             <Button 
@@ -369,11 +372,11 @@ export default function YouthTransfersPage() {
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-2 pt-6">
                 <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(0)} className="h-8 w-8"><ChevronsLeft className="w-4 h-4" /></Button>
-                <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 w-8"><ChevronLeftIcon className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 w-8"><ChevronLeftIcon className="h-4 w-4" /></Button>
                 <span className="text-[10px] font-black text-muted-foreground uppercase px-4">
                   {language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}
                 </span>
-                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 w-8"><ChevronRightIcon className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 w-8"><ChevronRightIcon className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(totalPages - 1)} className="h-8 w-8"><ChevronsRight className="w-4 h-4" /></Button>
               </div>
             )}

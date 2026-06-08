@@ -267,7 +267,6 @@ export default function ProfilePage() {
               <h1 className="px-6 py-1 text-2xl font-headline font-black uppercase tracking-tight text-white truncate">
                 {profile?.displayName || 'Syncing...'}
               </h1>
-              <span className="absolute top-0.5 right-1 text-[1.5px] font-black text-accent uppercase tracking-[0.4em] bg-background/40 px-0.5 rounded-sm border border-accent/10 whitespace-nowrap leading-none">PREMIUM</span>
             </div>
           ) : (
             <h1 className="text-2xl font-headline font-black uppercase tracking-tight text-white">
