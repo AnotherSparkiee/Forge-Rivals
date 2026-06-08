@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -43,13 +42,13 @@ export default function MyBidsPage() {
       const prevBidder = agent.highestBidderId;
       const heroName = agent.heroData?.name || "Player";
       
-      // Time Extension Logic (Anti-sniping)
+      // Time Extension Logic (Anti-sniping) - Threshold 10 minutes (600,000 ms)
       const expiryTime = new Date(agent.expiresAt).getTime();
       const timeLeft = expiryTime - Date.now();
       let finalExpiresAt = agent.expiresAt;
       
-      if (timeLeft < 60000) { // Less than 1 minute
-        finalExpiresAt = new Date(Date.now() + 600000).toISOString(); // Extend to 10 minutes
+      if (timeLeft < 600000) { 
+        finalExpiresAt = new Date(Date.now() + 600000).toISOString(); 
       }
 
       await updateDoc(doc(db, 'market_v7', agent.id), { 
@@ -69,7 +68,7 @@ export default function MyBidsPage() {
       
       toast({ 
         title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!",
-        description: timeLeft < 60000 ? (language === 'ru' ? "Аукцион продлен на 10 минут!" : "Auction extended by 10 minutes!") : undefined
+        description: timeLeft < 600000 ? (language === 'ru' ? "Аукцион продлен на 10 минут!" : "Auction extended by 10 minutes!") : undefined
       });
     } catch (e) {
       toast({ title: "Error placing bid", variant: "destructive" });

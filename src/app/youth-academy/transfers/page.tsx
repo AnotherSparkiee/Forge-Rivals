@@ -148,7 +148,7 @@ const YouthTransferCard = memo(({
           
           <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
             <div className="flex flex-col">
-              <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
+              <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'ЦЕНА'}</p>
               <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">€{agent.currentBid?.toLocaleString()}</p>
               <p className={cn(
                 "text-[9px] font-black uppercase mt-1 flex items-center gap-1",
@@ -304,7 +304,8 @@ export default function YouthTransfersPage() {
       const timeLeft = expiryTime - Date.now();
       let finalExpiresAt = agent.expiresAt;
       
-      if (timeLeft < 60000) { 
+      // Threshold extended to 10 minutes (600,000 ms)
+      if (timeLeft < 600000) { 
         finalExpiresAt = new Date(Date.now() + 600000).toISOString(); 
       }
 
@@ -325,7 +326,7 @@ export default function YouthTransfersPage() {
       
       toast({ 
         title: language === 'ru' ? "Ставка принята!" : "Bid Placed!",
-        description: timeLeft < 60000 ? (language === 'ru' ? "Аукцион продлен на 10 минут!" : "Auction extended by 10 minutes!") : undefined
+        description: timeLeft < 600000 ? (language === 'ru' ? "Аукцион продлен на 10 минут!" : "Auction extended by 10 minutes!") : undefined
       });
     } catch (e) {
       toast({ title: "Error placing bid", variant: "destructive" });

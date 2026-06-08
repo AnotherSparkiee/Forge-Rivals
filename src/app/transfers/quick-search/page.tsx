@@ -132,11 +132,11 @@ export const TransferHeroCard = memo(({
               
               <div className="grid grid-cols-2 gap-3 mt-2">
                  <div className="flex flex-col">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
+                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'ТАЛАНТ'}</p>
                    {renderStars(avgTalent)}
                  </div>
                  <div className="flex flex-col border-l border-white/5 pl-3">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
+                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'ВОЗРАСТ'}</p>
                    <p className="text-[11px] font-bold text-white leading-none mt-0.5">{liveAge.display}</p>
                  </div>
               </div>
@@ -150,7 +150,7 @@ export const TransferHeroCard = memo(({
 
           <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
             <div className="flex flex-col">
-              <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
+              <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'ЦЕНА'}</p>
               <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">€{agent.currentBid?.toLocaleString()}</p>
               <p className={cn(
                 "text-[9px] font-black uppercase mt-1 flex items-center gap-1",
@@ -346,7 +346,8 @@ export default function QuickSearchPage() {
       const timeLeft = expiryTime - Date.now();
       let finalExpiresAt = agent.expiresAt;
       
-      if (timeLeft < 60000) { 
+      // Extended threshold to 10 minutes (600,000 ms)
+      if (timeLeft < 600000) { 
         finalExpiresAt = new Date(Date.now() + 600000).toISOString(); 
       }
 
@@ -367,7 +368,7 @@ export default function QuickSearchPage() {
       
       toast({ 
         title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!",
-        description: timeLeft < 60000 ? (language === 'ru' ? "Аукцион продлен на 10 минут!" : "Auction extended by 10 minutes!") : undefined
+        description: timeLeft < 600000 ? (language === 'ru' ? "Аукцион продлен на 10 минут!" : "Auction extended by 10 minutes!") : undefined
       });
     } catch (e) {
       toast({ title: "Error placing bid", variant: "destructive" });

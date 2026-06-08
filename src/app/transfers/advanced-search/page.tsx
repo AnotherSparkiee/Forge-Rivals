@@ -104,7 +104,8 @@ export default function AdvancedSearchPage() {
       const timeLeft = expiryTime - Date.now();
       let finalExpiresAt = agent.expiresAt;
       
-      if (timeLeft < 60000) {
+      // Threshold 10 minutes
+      if (timeLeft < 600000) {
         finalExpiresAt = new Date(Date.now() + 600000).toISOString();
       }
 
@@ -125,7 +126,7 @@ export default function AdvancedSearchPage() {
       
       toast({ 
         title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!",
-        description: timeLeft < 60000 ? (language === 'ru' ? "Аукцион продлен на 10 минут!" : "Auction extended by 10 minutes!") : undefined
+        description: timeLeft < 600000 ? (language === 'ru' ? "Аукцион продлен на 10 минут!" : "Auction extended by 10 minutes!") : undefined
       });
     } catch (e) {
       toast({ title: "Error placing bid", variant: "destructive" });
