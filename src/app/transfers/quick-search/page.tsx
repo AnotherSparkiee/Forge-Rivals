@@ -153,16 +153,21 @@ export const TransferHeroCard = memo(({
             <div className="flex flex-col">
               <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
               <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">€{agent.currentBid?.toLocaleString()}</p>
-              <p className={cn(
-                "text-[9px] font-black uppercase mt-1 flex items-center gap-1",
-                agent.highestBidderName ? "text-primary" : "text-muted-foreground/50"
-              )}>
+              <div className="mt-1">
                 {agent.highestBidderName ? (
-                  <><Users className="w-2.5 h-2.5" /> {language === 'ru' ? 'Лидер' : 'Leader'}: {agent.highestBidderName}</>
+                  <span className={cn(
+                    "text-[9px] font-black uppercase flex items-center gap-1",
+                    "bg-accent text-slate-950 px-2 py-0.5 rounded-sm italic"
+                  )}>
+                    <Users className="w-2.5 h-2.5" /> {language === 'ru' ? 'Лидер' : 'Leader'}: {agent.highestBidderName}
+                    <Crown className="w-2 h-2 text-slate-900" />
+                  </span>
                 ) : (
-                  language === 'ru' ? 'Нет ставок' : 'No bids'
+                  <span className="text-[9px] font-black uppercase text-muted-foreground/50">
+                    {language === 'ru' ? 'Нет ставок' : 'No bids'}
+                  </span>
                 )}
-              </p>
+              </div>
             </div>
             
             <Button 

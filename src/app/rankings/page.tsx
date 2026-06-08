@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -10,7 +11,7 @@ import {
   Search, Radio, Target, Zap, ShieldAlert,
   CheckCircle2, Timer, ChevronsLeft, ChevronsRight,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
-  Skull, Crosshair, FileText, ArrowRight, ArrowUp, ArrowDown
+  Skull, Crosshair, FileText, ArrowRight, ArrowUp, ArrowDown, Crown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -64,7 +65,6 @@ export default function RankingsPage() {
     }
   }, [user, isUserLoading, router]);
 
-  // Standardized on players_v10
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
@@ -287,6 +287,12 @@ export default function RankingsPage() {
       {rankingsData.map((entry, i) => {
         const isPromotion = i === 0;
         const isRelegation = i === 6 || i === 7;
+        
+        const mskNow = getMoscowTime();
+        const otherPlayer = allLeaguePlayers?.find(p => p.id === entry.id);
+        const isEntryPremium = entry.isMe 
+          ? (profile?.premiumUntil && new Date(profile.premiumUntil).getTime() > mskNow.getTime())
+          : (otherPlayer?.premiumUntil && new Date(otherPlayer.premiumUntil).getTime() > mskNow.getTime());
 
         return (
           <div key={entry.id} className={cn(
@@ -301,11 +307,15 @@ export default function RankingsPage() {
               {isRelegation && <ArrowDown className="w-3 h-3 text-red-500 animate-bounce" />}
             </div>
             <div className="flex-1 truncate">
-              <span className={cn("font-bold text-[11px] uppercase flex items-center gap-2", entry.isMe ? "text-white" : "text-muted-foreground")}>
+              <span className={cn(
+                "font-bold text-[11px] uppercase flex items-center gap-2", 
+                isEntryPremium ? "bg-accent text-slate-950 px-2 rounded-sm italic" : (entry.isMe ? "text-white" : "text-muted-foreground")
+              )}>
                 {entry.name}
-                {entry.isPlayer && !entry.isMe && <Badge variant="outline" className="text-[7px] h-4 px-1.5 border-accent/40 text-accent font-black bg-accent/5">USER</Badge>}
-                {isPromotion && <span className="text-[6px] font-black text-green-500/60 tracking-tighter">{t.promotion}</span>}
-                {isRelegation && <span className="text-[6px] font-black text-red-500/60 tracking-tighter">{t.relegation}</span>}
+                {isEntryPremium && <Crown className="w-2.5 h-2.5 text-slate-900" />}
+                {entry.isPlayer && !entry.isMe && !isEntryPremium && <Badge variant="outline" className="text-[7px] h-4 px-1.5 border-accent/40 text-accent font-black bg-accent/5">USER</Badge>}
+                {isPromotion && <span className="text-[6px] font-black text-green-500/60 tracking-tighter ml-1">{t.promotion}</span>}
+                {isRelegation && <span className="text-[6px] font-black text-red-500/60 tracking-tighter ml-1">{t.relegation}</span>}
               </span>
             </div>
             <div className="w-16 text-center text-[9px] font-mono font-bold opacity-50">{entry.wins}-{entry.draws || 0}-{entry.losses}</div>

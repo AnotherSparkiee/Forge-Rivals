@@ -253,18 +253,21 @@ export default function ProfilePage() {
       <header className="flex flex-col items-center mb-10 relative">
         <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => router.push('/')}><ChevronLeft className="w-6 h-6" /></Button>
         <div className="relative group mb-4">
-          <div className={cn("absolute -inset-4 rounded-full blur-2xl transition-all", isPremium ? "bg-yellow-500/30 group-hover:bg-yellow-500/40" : "bg-primary/20 group-hover:bg-primary/30")}></div>
-          <div className={cn("w-24 h-24 rounded-full flex items-center justify-center shadow-2xl relative z-10 border-2", isPremium ? "bg-gradient-to-br from-yellow-500 to-amber-600 border-yellow-400" : "bg-gradient-to-br from-primary to-accent border-white/10")}>
-            {isPremium ? <Crown className="w-12 h-12 text-white" /> : <User className="w-12 h-12 text-white" />}
+          <div className={cn("absolute -inset-4 rounded-full blur-2xl transition-all", isPremium ? "bg-accent/30 group-hover:bg-accent/40" : "bg-primary/20 group-hover:bg-primary/30")}></div>
+          <div className={cn("w-24 h-24 rounded-full flex items-center justify-center shadow-2xl relative z-10 border-2", isPremium ? "bg-gradient-to-br from-accent to-blue-600 border-accent/40" : "bg-gradient-to-br from-primary to-accent border-white/10")}>
+            {isPremium ? <Crown className="w-12 h-12 text-slate-950" /> : <User className="w-12 h-12 text-white" />}
           </div>
           <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-background border border-white/10 px-3 py-0.5 rounded-full z-20 shadow-xl">
             <span className="text-[10px] font-black text-primary uppercase tracking-widest whitespace-nowrap">{t.lvl} {managerLevel || 1}</span>
           </div>
         </div>
-        <div className="text-center space-y-1">
-          <h1 className={cn("text-2xl font-headline font-bold uppercase tracking-tight italic flex items-center justify-center gap-2", isPremium ? "text-yellow-500" : "text-white")}>
+        <div className="text-center space-y-2">
+          <h1 className={cn(
+            "text-2xl font-headline font-black uppercase tracking-tight italic flex items-center justify-center gap-2", 
+            isPremium ? "bg-accent text-slate-950 px-4 py-1 rounded-sm shadow-[0_0_20px_rgba(var(--accent),0.3)]" : "text-white"
+          )}>
             {profile?.displayName || 'Syncing...'}
-            {isPremium && <Crown className="w-5 h-5 text-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]" />}
+            {isPremium && <Crown className="w-5 h-5 text-slate-900" />}
           </h1>
           <p className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.2em] opacity-60 flex items-center justify-center gap-2">
             <MapPin className="w-3 h-3 text-primary" /> {profile?.country || 'International'}

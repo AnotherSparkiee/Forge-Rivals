@@ -9,7 +9,7 @@ import { collection, query, orderBy, limit, where, doc, onSnapshot } from 'fireb
 import { 
   ChevronLeft, Users, Search, Shield, Calendar,
   Loader2, UserPlus, User, Mail, ChevronRight, Info,
-  SlidersHorizontal, ArrowUpDown, Filter
+  SlidersHorizontal, ArrowUpDown, Filter, Crown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from '@/lib/utils';
+import { getMoscowTime } from '@/app/lib/time-utils';
 
 type MembershipFilter = 'all' | 'in_assoc' | 'free';
 type SortField = 'level' | 'date';
@@ -308,6 +309,8 @@ export default function AllManagersPage() {
         ) : filteredAndSortedManagers.length > 0 ? (
           filteredAndSortedManagers.map((manager) => {
             const assocName = manager.associationId ? assocMap[manager.associationId] : null;
+            const mskNow = getMoscowTime();
+            const isEntryPremium = manager.premiumUntil && new Date(manager.premiumUntil).getTime() > mskNow.getTime();
             
             return (
               <div 
@@ -321,7 +324,13 @@ export default function AllManagersPage() {
                   </div>
                   <div className="flex flex-col">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold uppercase">{manager.displayName}</span>
+                      <span className={cn(
+                        "text-xs font-bold uppercase", 
+                        isEntryPremium ? "bg-accent text-slate-950 px-2 py-0.5 rounded-sm italic" : ""
+                      )}>
+                        {manager.displayName}
+                        {isEntryPremium && <Crown className="w-3 h-3 text-slate-900 ml-1 inline" />}
+                      </span>
                       {manager.id === user.uid && <Badge className="text-[7px] bg-primary text-primary-foreground">YOU</Badge>}
                     </div>
                     <span className={cn(

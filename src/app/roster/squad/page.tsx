@@ -246,7 +246,15 @@ export default function SquadPage() {
       <header className="mb-6 flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Link href="/roster"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
-          <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p></div>
+          <div className="min-w-0">
+            <h1 className={cn(
+              "text-2xl font-headline font-black uppercase tracking-tighter truncate max-w-[180px]",
+              isPremium ? "bg-accent text-slate-950 px-3 rounded-sm italic shadow-[0_0_15px_rgba(var(--accent),0.3)]" : "text-white"
+            )}>
+              {profile?.displayName || t.title}
+            </h1>
+            <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
+          </div>
         </div>
         <div className="flex flex-col items-center justify-center min-w-[60px]">
           <p className="text-[9px] font-black text-primary tracking-widest uppercase mb-1">{t.teamOverall}</p>

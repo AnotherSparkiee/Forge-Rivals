@@ -96,7 +96,12 @@ export function TopBar() {
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-[10px]" role="img" aria-label="flag">{userCountry?.flag || '🏳️'}</span>
             <div className="flex items-center gap-1 min-w-0">
-              <span className={cn("text-[9px] font-black uppercase tracking-tight whitespace-nowrap truncate max-w-[100px]", isPremium ? "text-yellow-500" : "text-primary")}>
+              <span className={cn(
+                "text-[9px] font-black uppercase tracking-tight whitespace-nowrap truncate max-w-[120px]", 
+                isPremium 
+                  ? "bg-accent text-slate-950 px-2 py-0.5 rounded-sm shadow-[0_0_10px_rgba(var(--accent),0.3)] italic" 
+                  : "text-primary"
+              )}>
                 {profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
               </span>
               {isPremium && <Crown className="w-3 h-3 text-yellow-500 shrink-0 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />}
