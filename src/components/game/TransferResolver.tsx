@@ -76,7 +76,7 @@ export function TransferResolver() {
                 
               sendNotification(agent.highestBidderId, buyerTitle, buyerDesc);
 
-              toast({ title: sellerTitle, description: sellerDesc });
+              // Removed global toast per user request
             } else {
               // No bids - Return to club
               updateHero(heroId, { onTransferUntil: null, transferMarketId: null });
@@ -87,7 +87,7 @@ export function TransferResolver() {
                 : `${agent.heroData.name} remains in club (no bids).`;
 
               sendNotification(user.uid, title, desc);
-              toast({ title, description: desc });
+              // Removed global toast per user request
             }
 
             await deleteDoc(doc(db, 'market_v7', agent.id));
@@ -128,12 +128,13 @@ export function TransferResolver() {
               addHeroDirectly(heroData);
             }
 
-            toast({
-              title: language === 'ru' ? "Пополнение в составе!" : "New Hero Joined!",
-              description: language === 'ru' 
-                ? `${heroData.name} теперь в вашем распоряжении.` 
-                : `${heroData.name} is now under your command.`
-            });
+            // Silent notification instead of toast on Home screen
+            const title = language === 'ru' ? "Пополнение в составе!" : "New Hero Joined!";
+            const desc = language === 'ru' 
+              ? `${heroData.name} теперь в вашем распоряжении.` 
+              : `${heroData.name} is now under your command.`;
+            
+            sendNotification(user.uid, title, desc);
           } catch (e) {
             console.error("Failed to claim purchased hero", e);
             processedIds.current.delete(agent.id);
@@ -145,7 +146,7 @@ export function TransferResolver() {
     const interval = setInterval(resolvePurchases, 15000);
     resolvePurchases();
     return () => clearInterval(interval);
-  }, [isLoaded, isUserLoading, user, myPurchases, addHeroDirectly, addYouthHeroDirectly, language, toast]);
+  }, [isLoaded, isUserLoading, user, myPurchases, addHeroDirectly, addYouthHeroDirectly, language, sendNotification]);
 
   return null;
 }

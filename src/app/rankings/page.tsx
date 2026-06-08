@@ -175,7 +175,7 @@ export default function RankingsPage() {
   }, [cupParticipants, activeRoundToShow, searchQuery, user?.uid, effectiveDayForCup, matchHistory, seasonNumber]);
 
   const paginatedMatches = useMemo(() => {
-    const start = cupPage * MATCHES_PER_PAGE;
+    const start = page * MATCHES_PER_PAGE;
     return cupMatches.slice(start, start + MATCHES_PER_PAGE);
   }, [cupMatches, cupPage]);
 
@@ -312,7 +312,7 @@ export default function RankingsPage() {
                   <span className="px-3 py-1 font-bold text-[11px] uppercase tracking-tight truncate text-white">
                     {entry.name}
                   </span>
-                  <span className="absolute -top-0.5 -right-0.5 text-[4px] font-black text-accent uppercase tracking-[0.3em] bg-background/60 px-0.5 rounded-sm border border-accent/10 whitespace-nowrap">PREMIUM</span>
+                  <span className="absolute -top-0.5 -right-0.5 text-[2px] font-black text-accent uppercase tracking-[0.4em] bg-background/60 px-0.5 rounded-sm border border-accent/10 whitespace-nowrap">PREMIUM</span>
                 </div>
               ) : (
                 <span className={cn(
@@ -650,7 +650,8 @@ export default function RankingsPage() {
                           <span className="text-xl font-bold">{viewingMatch.scoreH === 2 ? 11 : 7}</span>
                           <span className="text-[8px] text-muted-foreground uppercase font-bold">Towers</span>
                         </CardContent>
-                      </div>
+                      </Card>
+                    </div>
                   </>
                 )}
               </div>
