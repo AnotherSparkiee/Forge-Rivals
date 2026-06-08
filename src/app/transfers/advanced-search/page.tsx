@@ -168,7 +168,7 @@ export default function AdvancedSearchPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-card border-white/10">
-                <SelectItem value="all" className="text-[10px] uppercase font-bold">ALL ROLES</SelectItem>
+                <SelectItem value="all" className="text-[10px] uppercase font-bold">ВСЕ РОЛИ</SelectItem>
                 <SelectItem value="Carry" className="text-[10px] uppercase font-bold">Керри</SelectItem>
                 <SelectItem value="Midlaner" className="text-[10px] uppercase font-bold">Мидер</SelectItem>
                 <SelectItem value="Tank" className="text-[10px] uppercase font-bold">Танк</SelectItem>
@@ -184,7 +184,7 @@ export default function AdvancedSearchPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-card border-white/10 h-64">
-                <SelectItem value="all" className="text-[10px] uppercase font-bold">ALL FLAGS</SelectItem>
+                <SelectItem value="all" className="text-[10px] uppercase font-bold">ЛЮБОЙ ФЛАГ</SelectItem>
                 {COUNTRIES.map(c => (
                   <SelectItem key={c.code} value={c.name} className="text-[10px] uppercase font-bold">{c.flag} {c.name}</SelectItem>
                 ))}
@@ -205,7 +205,7 @@ export default function AdvancedSearchPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-card border-white/10">
-                <SelectItem value="0" className="text-[10px] uppercase font-bold">ANY ★</SelectItem>
+                <SelectItem value="0" className="text-[10px] uppercase font-bold">ЛЮБОЙ ★</SelectItem>
                 <SelectItem value="3.5" className="text-[10px] uppercase font-bold">3.5★ +</SelectItem>
                 <SelectItem value="4.0" className="text-[10px] uppercase font-bold">4.0★ +</SelectItem>
                 <SelectItem value="4.5" className="text-[10px] uppercase font-bold">4.5★ +</SelectItem>

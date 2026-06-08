@@ -75,13 +75,13 @@ export interface StaffMember {
 }
 
 const COUNTRY_PHOTOS: Record<string, { flag: string, name: string, url: string }> = {
-  'DE': { flag: '🇩🇪', name: 'Germany', url: 'https://i.postimg.cc/PPS3QFFM/de-1.jpg' },
-  'CN': { flag: '🇨🇳', name: 'China', url: 'https://i.postimg.cc/wvzKxSYS/1755011442109.jpg' },
-  'RU': { flag: '🇷🇺', name: 'Russia', url: 'https://i.postimg.cc/mg3yfqj5/rus-2.jpg' },
-  'UA': { flag: '🇺🇦', name: 'Ukraine', url: 'https://i.postimg.cc/X7fs4pYn/ua-1.jpg' },
-  'KR': { flag: '🇰🇷', name: 'South Korea', url: 'https://i.postimg.cc/43mv7dsH/kr-1.jpg' },
-  'BR': { flag: '🇧🇷', name: 'Brazil', url: 'https://i.postimg.cc/Z5906yvS/br-1.jpg' },
-  'TR': { flag: '🇹🇷', name: 'Turkey', url: 'https://i.postimg.cc/MHvbRpyd/tr-1.jpg' }
+  'DE': { flag: '🇩🇪', name: 'Германия', url: 'https://i.postimg.cc/PPS3QFFM/de-1.jpg' },
+  'CN': { flag: '🇨🇳', name: 'Китай', url: 'https://i.postimg.cc/wvzKxSYS/1755011442109.jpg' },
+  'RU': { flag: '🇷🇺', name: 'Россия', url: 'https://i.postimg.cc/mg3yfqj5/rus-2.jpg' },
+  'UA': { flag: '🇺🇦', name: 'Украина', url: 'https://i.postimg.cc/X7fs4pYn/ua-1.jpg' },
+  'KR': { flag: '🇰🇷', name: 'Южная Корея', url: 'https://i.postimg.cc/43mv7dsH/kr-1.jpg' },
+  'BR': { flag: '🇧🇷', name: 'Бразилия', url: 'https://i.postimg.cc/Z5906yvS/br-1.jpg' },
+  'TR': { flag: '🇹🇷', name: 'Турция', url: 'https://i.postimg.cc/MHvbRpyd/tr-1.jpg' }
 };
 
 const HERO_NAMES = [
@@ -95,15 +95,21 @@ const FIRST_NAMES = ["James", "Robert", "John", "Michael", "David", "William", "
 const LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Ivanov", "Petrov", "Schmidt", "Wang", "Kim", "Park", "Sokolov"];
 
 /**
- * Simple seeded pseudo-random generator to ensure all managers see the same system players.
+ * Simple seeded pseudo-random generator.
+ * Hash fixed to stay in positive range for safe array indexing.
  */
 class SeededRandom {
   private seed: number;
   constructor(seed: string | number) {
     if (typeof seed === 'string') {
-      this.seed = seed.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0);
+      let hash = 0;
+      for (let i = 0; i < seed.length; i++) {
+        hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+        hash = hash & hash;
+      }
+      this.seed = Math.abs(hash);
     } else {
-      this.seed = seed;
+      this.seed = Math.abs(seed);
     }
   }
   next() {
@@ -129,9 +135,12 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
   const rng = seed ? new SeededRandom(seed) : undefined;
   
   const codes = Object.keys(COUNTRY_PHOTOS);
-  const code = codes[rng ? rng.range(0, codes.length - 1) : Math.floor(Math.random() * codes.length)];
-  const country = COUNTRY_PHOTOS[code];
-  const name = `${HERO_NAMES[rng ? rng.range(0, HERO_NAMES.length - 1) : Math.floor(Math.random() * HERO_NAMES.length)]} ${index + 1}`;
+  const codeIdx = rng ? rng.range(0, codes.length - 1) : Math.floor(Math.random() * codes.length);
+  const code = codes[codeIdx] || 'US';
+  const country = COUNTRY_PHOTOS[code] || { flag: '🇺🇸', name: 'USA', url: 'https://i.postimg.cc/PPS3QFFM/de-1.jpg' };
+  
+  const nameIdx = rng ? rng.range(0, HERO_NAMES.length - 1) : Math.floor(Math.random() * HERO_NAMES.length);
+  const name = `${HERO_NAMES[nameIdx]} ${index + 1}`;
   
   const baseStats = {
     attack: role === 'Carry' || role === 'Jungler' 
@@ -179,7 +188,7 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
   const basePower = (baseStats.attack + (baseStats.defense / 2) + (baseStats.abilityPower / 2)) / 5;
   const overall = Math.round((proSum / 10) * 0.4 + basePower * 0.6);
 
-  const startAge = getRandomStat(17, 28, rng);
+  const startAge = getRandomStat(isStarter ? 17 : 18, isStarter ? 28 : 32, rng);
 
   return {
     id: `hero_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
@@ -197,7 +206,7 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     salary: getRandomStat(2000, 8000, rng),
     form: getRandomStat(70, 95, rng),
     fatigue: 0,
-    country: { code, name: country.name, flag: country.flag },
+    country: { code: code, name: country.name, flag: country.flag },
     isInjured: false,
     trainingFocus: null,
     dailyTrainingFocus: null,
@@ -295,7 +304,7 @@ export const INITIAL_HEROES: Hero[] = [
     salary: 4500,
     form: 85,
     fatigue: 12,
-    country: { code: 'DE', name: 'Germany', flag: '🇩🇪' },
+    country: { code: 'DE', name: 'Германия', flag: '🇩🇪' },
     isInjured: false,
     trainingFocus: null,
     dailyTrainingFocus: null,
@@ -327,7 +336,7 @@ export const INITIAL_HEROES: Hero[] = [
     salary: 8200,
     form: 92,
     fatigue: 25,
-    country: { code: 'KR', name: 'South Korea', flag: '🇰🇷' },
+    country: { code: 'KR', name: 'Южная Корея', flag: '🇰🇷' },
     isInjured: false,
     trainingFocus: null,
     dailyTrainingFocus: null,

@@ -303,6 +303,7 @@ export default function QuickSearchPage() {
             const seed = `${today}_${role}_${i}`;
             const hero = generateUniqueHero(role, i, false, seed);
             
+            // Ensure age >= 18 for system drops
             if (hero.baseAge < 18) { hero.baseAge = 18; hero.age = 18; }
             
             const startPrice = (hero.overallRating * 17500) + 290000;

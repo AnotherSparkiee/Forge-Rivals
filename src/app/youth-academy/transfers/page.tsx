@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo } from 'react';
@@ -131,11 +130,11 @@ const YouthTransferCard = memo(({
               
               <div className="grid grid-cols-2 gap-3 mt-2">
                  <div className="flex flex-col">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
+                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'ТАЛАНТ'}</p>
                    {renderStars(avgTalent)}
                  </div>
                  <div className="flex flex-col border-l border-white/5 pl-3">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
+                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'ВОЗРАСТ'}</p>
                    <p className="text-[11px] font-bold text-white leading-none mt-0.5">{liveAge.display}</p>
                  </div>
               </div>
@@ -200,7 +199,7 @@ const YouthTransferCard = memo(({
             <div className="space-y-4">
               <div className="flex justify-between items-center px-1">
                 <span className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-2">
-                  <Gavel className="w-4 h-4 text-primary" /> {language === 'ru' ? 'НОВАЯ СТАВКА' : 'NEW BID AMOUNT'}
+                  <Gavel className="w-4 h-4 text-primary" /> {language === 'ru' ? 'СУММА СДЕЛКИ' : 'NEW BID AMOUNT'}
                 </span>
                 <span className="text-xl font-headline font-black text-primary italic">€ {nextBidValue.toLocaleString()}</span>
               </div>
@@ -214,8 +213,8 @@ const YouthTransferCard = memo(({
                   step={1}
                 />
                 <div className="flex justify-between mt-3 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
-                  <span>MIN +3%</span>
-                  <span>MAX +300%</span>
+                  <span>MIN € {(agent.currentBid * 1.03).toLocaleString()}</span>
+                  <span>MAX € {(agent.currentBid * 4).toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -301,13 +300,12 @@ export default function YouthTransfersPage() {
       const prevBidder = agent.highestBidderId;
       const heroName = agent.heroData?.name || "Player";
       
-      // Time Extension Logic (Anti-sniping)
       const expiryTime = new Date(agent.expiresAt).getTime();
       const timeLeft = expiryTime - Date.now();
       let finalExpiresAt = agent.expiresAt;
       
-      if (timeLeft < 60000) { // Less than 1 minute
-        finalExpiresAt = new Date(Date.now() + 600000).toISOString(); // Extend to 10 minutes
+      if (timeLeft < 60000) { 
+        finalExpiresAt = new Date(Date.now() + 600000).toISOString(); 
       }
 
       await updateDoc(doc(db, 'market_v7', agent.id), { 
