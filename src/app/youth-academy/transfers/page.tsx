@@ -32,7 +32,7 @@ import {
 
 const ITEMS_PER_PAGE = 10;
 
-// Isolated Card Component for Youth Market
+// Shared Card for Youth Academy context
 const YouthTransferCard = memo(({ 
   agent, 
   user, 
@@ -112,10 +112,12 @@ const YouthTransferCard = memo(({
           </div>
 
           <div className="flex items-center gap-4 mb-4">
-            <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 shrink-0 relative">
-              <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
-              <div className="absolute top-1 left-1 bg-black/60 rounded-sm px-1 py-0.5 border border-white/10 backdrop-blur-sm">
-                <span className="text-[10px]">{agent.heroData.country?.flag}</span>
+            <div className="relative shrink-0">
+              <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 relative">
+                <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 bg-background rounded-md p-1 border border-white/10 shadow-xl z-10 flex items-center justify-center">
+                <span className="text-[10px] leading-none">{agent.heroData.country?.flag}</span>
               </div>
             </div>
             
@@ -129,11 +131,11 @@ const YouthTransferCard = memo(({
               
               <div className="grid grid-cols-2 gap-3 mt-2">
                  <div className="flex flex-col">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'ТАЛАНТ'}</p>
+                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
                    {renderStars(avgTalent)}
                  </div>
                  <div className="flex flex-col border-l border-white/5 pl-3">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'ВОЗРАСТ'}</p>
+                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
                    <p className="text-[11px] font-bold text-white leading-none mt-0.5">{liveAge.display}</p>
                  </div>
               </div>
@@ -277,7 +279,7 @@ export default function YouthTransfersPage() {
   const { data: profile } = useDoc(user?.uid ? doc(db, 'players_v10', user.uid) : null);
 
   const youthAgents = useMemo(() => {
-    return (allAgents?.filter(a => a.heroData?.baseAge && Number(a.heroData.baseAge) < 18) || [])
+    return (allAgents?.filter(a => (a.heroData?.baseAge && Number(a.heroData.baseAge) < 18) || a.isYouth === true) || [])
       .filter(a => new Date(a.expiresAt).getTime() > now)
       .sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
   }, [allAgents, now]);

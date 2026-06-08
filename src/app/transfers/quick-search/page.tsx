@@ -34,8 +34,8 @@ import {
 
 const ITEMS_PER_PAGE = 10;
 
-// Isolated Card Component with Modal Bidding Logic
-const TransferHeroCard = memo(({ 
+// Shared Transfer Hero Card component
+export const TransferHeroCard = memo(({ 
   agent, 
   user, 
   profile, 
@@ -114,10 +114,12 @@ const TransferHeroCard = memo(({
           </div>
 
           <div className="flex items-center gap-4 mb-4">
-            <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 shrink-0 relative">
-              <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
-              <div className="absolute top-1 left-1 bg-black/60 rounded-sm px-1 py-0.5 border border-white/10 backdrop-blur-sm">
-                <span className="text-[10px]">{agent.heroData.country?.flag}</span>
+            <div className="relative shrink-0">
+              <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 relative">
+                <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 bg-background rounded-md p-1 border border-white/10 shadow-xl z-10 flex items-center justify-center">
+                <span className="text-[10px] leading-none">{agent.heroData.country?.flag}</span>
               </div>
             </div>
             
@@ -280,35 +282,29 @@ export default function QuickSearchPage() {
   const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
   const { data: profile } = useDoc(user?.uid ? doc(db, 'players_v10', user.uid) : null);
 
-  // Strict Rule: System adds 10 players per position once every 24 hours
   useEffect(() => {
     if (isMarketLoading || marketError || !user?.uid) return;
 
     const today = getMoscowDateString();
     const systemAgentsToday = (agents || []).filter(a => a.isSystem && a.dropDate === today);
 
-    // If no drop recorded for today, initiate daily refresh
     if (systemAgentsToday.length === 0 && !initTriggeredRef.current) {
       initTriggeredRef.current = true;
       
       const refreshMarket = async () => {
-        // 1. Cleanup old system agents (Delete everyone from previous days)
         const oldSystemAgents = (agents || []).filter(a => a.isSystem && a.dropDate !== today);
         for (const old of oldSystemAgents) {
           await deleteDoc(doc(db, 'market_v7', old.id)).catch(() => {});
         }
 
-        // 2. Generate exactly 10 players per role
         const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
         for (const role of roles) {
           for (let i = 1; i <= 10; i++) {
             const hero = generateUniqueHero(role, i, false);
-            // Ensure adult status
             if (hero.baseAge < 18) { hero.baseAge = 18; hero.age = 18; }
             
             const agentId = `sys_drop_${today}_${role.toLowerCase()}_${i}`;
             const startPrice = (hero.overallRating * 17500) + 290000;
-            // All drop items expire in exactly 24 hours
             const expiry = new Date(getMoscowTime().getTime() + 24 * 60 * 60 * 1000);
             
             await setDoc(doc(db, 'market_v7', agentId), {
@@ -320,7 +316,7 @@ export default function QuickSearchPage() {
               highestBidderName: null,
               bidders: [],
               expiresAt: expiry.toISOString(),
-              dropDate: today, // Crucial for 24h rule
+              dropDate: today,
               createdAt: serverTimestamp(),
               isSystem: true,
               isYouth: false,

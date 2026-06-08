@@ -1,112 +1,269 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, Search, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { 
+  ChevronLeft, Search, Loader2, Filter, 
+  ChevronsLeft, ChevronsRight, ChevronLeft as ChevronLeftIcon, 
+  ChevronRight as ChevronRightIcon, SlidersHorizontal, X
+} from 'lucide-react';
 import Link from 'next/link';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, query, doc, arrayUnion, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { TransferHeroCard } from '../quick-search/page';
+import { COUNTRIES } from '@/app/lib/countries-data';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { calculateLiveAge } from '@/app/lib/time-utils';
+import { useToast } from '@/hooks/use-toast';
+
+const ITEMS_PER_PAGE = 10;
 
 export default function AdvancedSearchPage() {
-  const { language, isLoaded: isStoreLoaded } = useGameState();
+  const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
-  const [isAuthStabilized, setIsAuthStabilized] = useState(false);
+  const { toast } = useToast();
+  
   const [now, setNow] = useState(Date.now());
+  const [page, setPage] = useState(0);
+  
+  // Filters
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [minAge, setMinAge] = useState<string>('');
+  const [maxAge, setMaxAge] = useState<string>('');
+  const [minTalent, setMinTalent] = useState<string>('0');
+  const [minOvr, setMinOvr] = useState<string>('');
+  const [countryFilter, setCountryFilter] = useState<string>('all');
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (!isUserLoading && user?.uid) {
-      const timer = setTimeout(() => setIsAuthStabilized(true), 1200);
-      return () => clearTimeout(timer);
-    } else {
-      setIsAuthStabilized(false);
-    }
-  }, [isUserLoading, user?.uid]);
-
-  const authReady = isAuthStabilized && !!user?.uid;
-
   const marketQuery = useMemoFirebase(() => {
-    if (!authReady) return null;
+    if (!user?.uid) return null;
     return query(collection(db, 'market_v7'));
-  }, [db, authReady]);
+  }, [db, user?.uid]);
 
-  const { data: agents, isLoading: isMarketLoading, error: marketError } = useCollection(marketQuery);
+  const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
+  const { data: profile } = useDoc(user?.uid ? doc(db, 'players_v10', user.uid) : null);
 
-  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
+  const filteredAgents = useMemo(() => {
+    if (!agents) return [];
+    
+    return agents.filter(a => {
+      // Basic Expiry Check
+      const expiry = new Date(a.expiresAt).getTime();
+      if (expiry <= now) return false;
 
-  if (marketError) {
-    return (
-      <div className="max-w-md mx-auto px-4 pt-20 text-center space-y-6">
-        <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-        <h2 className="text-xl font-bold uppercase text-white">Connection Error</h2>
-        <p className="text-[10px] text-muted-foreground px-10 uppercase font-black tracking-widest leading-relaxed">
-          Access to the market archive node was denied. Re-authentication sequence or session refresh required.
-        </p>
-        <Button onClick={() => window.location.reload()} variant="outline" className="h-12 border-white/10 uppercase text-[10px] font-bold px-8">
-          <RefreshCw className="w-3 h-3 mr-2" /> Re-sync Terminal
-        </Button>
-      </div>
-    );
-  }
+      // Adult Check (Quick search pool)
+      const liveAge = calculateLiveAge(a.heroData.baseAge, a.heroData.hiredAt);
+      if (a.isYouth || liveAge.numeric < 18.0) return false;
 
-  const activeAgents = (agents || []).filter(a => new Date(a.expiresAt).getTime() > now);
+      // 1. Role Filter
+      if (roleFilter !== 'all' && a.heroData.role !== roleFilter) return false;
+
+      // 2. Age Filter
+      if (minAge && liveAge.numeric < parseFloat(minAge)) return false;
+      if (maxAge && liveAge.numeric > parseFloat(maxAge)) return false;
+
+      // 3. Talent Filter (Avg Talent)
+      const talent = Object.values(a.heroData.proTalents || {}).reduce((sum: any, val: any) => sum + Number(val), 0) as number / 10;
+      if (parseFloat(minTalent) > 0 && talent < parseFloat(minTalent)) return false;
+
+      // 4. OVR Filter
+      if (minOvr && a.heroData.overallRating < parseInt(minOvr)) return false;
+
+      // 5. Country Filter
+      if (countryFilter !== 'all' && a.heroData.country?.name !== countryFilter) return false;
+
+      return true;
+    }).sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
+  }, [agents, now, roleFilter, minAge, maxAge, minTalent, minOvr, countryFilter]);
+
+  const paginatedAgents = useMemo(() => {
+    const start = page * ITEMS_PER_PAGE;
+    return filteredAgents.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredAgents, page]);
+
+  const totalPages = Math.ceil(filteredAgents.length / ITEMS_PER_PAGE);
+
+  const handleGlobalBid = async (agent: any, amount: number) => {
+    if (!user || !profile) return;
+    if (credits < amount) { 
+      toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" }); 
+      return; 
+    }
+    try {
+      const prevBidder = agent.highestBidderId;
+      const heroName = agent.heroData?.name || "Player";
+      await updateDoc(doc(db, 'market_v7', agent.id), { 
+        currentBid: amount, highestBidderId: user.uid, highestBidderName: profile.displayName || "Unknown Manager", 
+        bidders: arrayUnion(user.uid), updatedAt: serverTimestamp() 
+      });
+      addCredits(-amount);
+      if (prevBidder && prevBidder !== user.uid) {
+        addDocumentNonBlocking(collection(db, 'notifications_v6'), {
+          userId: prevBidder, title: language === 'ru' ? "Ставка перебита!" : "Outbid!",
+          description: language === 'ru' ? `Ставка на "${heroName}" перебита ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : `Bid on "${heroName}" outbid ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`,
+          type: 'market', read: false, createdAt: new Date().toISOString()
+        });
+      }
+      toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!" });
+    } catch (e) {
+      toast({ title: "Error placing bid", variant: "destructive" });
+    }
+  };
+
+  const resetFilters = () => {
+    setRoleFilter('all');
+    setMinAge('');
+    setMaxAge('');
+    setMinTalent('0');
+    setMinOvr('');
+    setCountryFilter('all');
+    setPage(0);
+  };
+
+  if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center gap-4">
         <Link href="/transfers">
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
+          <Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button>
         </Link>
-        <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">
+        <div className="flex-1">
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
             {language === 'ru' ? 'РАСШИРЕННЫЙ ПОИСК' : 'ADVANCED SEARCH'}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {(!authReady || isMarketLoading) ? 'Syncing...' : 'Global Archive Scan Active'}
-          </p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">Global Roster Scouting</p>
         </div>
+        <Button variant="ghost" size="icon" onClick={resetFilters} className="text-muted-foreground"><X className="w-5 h-5" /></Button>
       </header>
 
-      <div className="space-y-3">
-        {(!authReady || isMarketLoading) ? (
-          <div className="py-20 text-center flex flex-col items-center gap-4 opacity-50">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <p className="text-[10px] uppercase font-bold tracking-[0.2em]">Establishing Link...</p>
+      <div className="space-y-4 mb-8">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <label className="text-[8px] font-black uppercase text-muted-foreground ml-1">{language === 'ru' ? 'СПЕЦИАЛИЗАЦИЯ' : 'ROLE'}</label>
+            <Select value={roleFilter} onValueChange={(v) => { setRoleFilter(v); setPage(0); }}>
+              <SelectTrigger className="h-10 bg-secondary/50 border-white/10 text-[10px] font-bold uppercase">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-white/10">
+                <SelectItem value="all" className="text-[10px] uppercase font-bold">ALL ROLES</SelectItem>
+                <SelectItem value="Carry" className="text-[10px] uppercase font-bold">Carry</SelectItem>
+                <SelectItem value="Midlaner" className="text-[10px] uppercase font-bold">Midlaner</SelectItem>
+                <SelectItem value="Tank" className="text-[10px] uppercase font-bold">Tank</SelectItem>
+                <SelectItem value="Jungler" className="text-[10px] uppercase font-bold">Jungler</SelectItem>
+                <SelectItem value="Support" className="text-[10px] uppercase font-bold">Support</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        ) : activeAgents.length > 0 ? (
-          activeAgents.map((agent) => (
-            <Card key={agent.id} className="glass-card border-white/5 group hover:border-primary/30 transition-all">
-              <CardContent className="p-4 flex items-center justify-between">
-                 <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
-                      <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold uppercase text-white truncate max-w-[150px]">{agent.heroData?.name}</h3>
-                      <p className="text-[8px] text-muted-foreground font-black uppercase tracking-widest mt-0.5">{agent.heroData?.role}</p>
-                    </div>
-                 </div>
-                 <div className="text-right flex flex-col items-end">
-                    <p className="text-lg font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
-                    <p className="text-[9px] font-bold text-primary mt-1">€{agent.currentBid?.toLocaleString()}</p>
-                 </div>
-              </CardContent>
-            </Card>
-          ))
+          <div className="space-y-1.5">
+            <label className="text-[8px] font-black uppercase text-muted-foreground ml-1">{language === 'ru' ? 'СТРАНА' : 'NATIONALITY'}</label>
+            <Select value={countryFilter} onValueChange={(v) => { setCountryFilter(v); setPage(0); }}>
+              <SelectTrigger className="h-10 bg-secondary/50 border-white/10 text-[10px] font-bold uppercase">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-white/10 h-64">
+                <SelectItem value="all" className="text-[10px] uppercase font-bold">ALL FLAGS</SelectItem>
+                {COUNTRIES.map(c => (
+                  <SelectItem key={c.code} value={c.name} className="text-[10px] uppercase font-bold">{c.flag} {c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-1.5">
+            <label className="text-[8px] font-black uppercase text-muted-foreground ml-1">{language === 'ru' ? 'МИН. ВОЗРАСТ' : 'MIN AGE'}</label>
+            <Input 
+              type="number" 
+              placeholder="18" 
+              value={minAge} 
+              onChange={e => { setMinAge(e.target.value); setPage(0); }} 
+              className="h-10 bg-secondary/50 border-white/10 text-[10px] font-bold"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[8px] font-black uppercase text-muted-foreground ml-1">{language === 'ru' ? 'МИН. ТАЛАНТ' : 'MIN TALENT'}</label>
+            <Select value={minTalent} onValueChange={(v) => { setMinTalent(v); setPage(0); }}>
+              <SelectTrigger className="h-10 bg-secondary/50 border-white/10 text-[10px] font-bold uppercase">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-white/10">
+                <SelectItem value="0" className="text-[10px] uppercase font-bold">ANY ★</SelectItem>
+                <SelectItem value="3.5" className="text-[10px] uppercase font-bold">3.5★ +</SelectItem>
+                <SelectItem value="4.0" className="text-[10px] uppercase font-bold">4.0★ +</SelectItem>
+                <SelectItem value="4.5" className="text-[10px] uppercase font-bold">4.5★ +</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[8px] font-black uppercase text-muted-foreground ml-1">{language === 'ru' ? 'МИН. OVR' : 'MIN OVR'}</label>
+            <Input 
+              type="number" 
+              placeholder="40" 
+              value={minOvr} 
+              onChange={e => { setMinOvr(e.target.value); setPage(0); }} 
+              className="h-10 bg-secondary/50 border-white/10 text-[10px] font-bold"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3 animate-in fade-in duration-500">
+        <div className="flex items-center justify-between px-1 mb-2">
+           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent flex items-center gap-2">
+             <Search className="w-3 h-3" /> {language === 'ru' ? 'РЕЗУЛЬТАТЫ ПОИСКА' : 'SEARCH RESULTS'}
+           </h2>
+           <Badge variant="outline" className="text-[8px] border-white/10 opacity-60 uppercase">{filteredAgents.length} UNITS FOUND</Badge>
+        </div>
+
+        {paginatedAgents.length > 0 ? (
+          <>
+            {paginatedAgents.map((agent) => (
+              <TransferHeroCard 
+                key={agent.id} 
+                agent={agent} 
+                user={user} 
+                profile={profile} 
+                onBid={handleGlobalBid}
+                now={now}
+                language={language}
+              />
+            ))}
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 pt-6">
+                <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(0)} className="h-8 w-8"><ChevronsLeft className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 w-8"><ChevronLeftIcon className="w-4 h-4" /></Button>
+                <span className="text-[10px] font-black text-muted-foreground uppercase px-4">
+                  {language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}
+                </span>
+                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 w-8"><ChevronRightIcon className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(totalPages - 1)} className="h-8 w-8"><ChevronsRight className="w-4 h-4" /></Button>
+              </div>
+            )}
+          </>
         ) : (
-          <div className="py-20 text-center opacity-30 text-[10px] uppercase font-black border border-dashed border-white/10 rounded-2xl p-10 leading-relaxed">
-            Market archive is currently empty in this sector
+          <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
+            <SlidersHorizontal className="w-12 h-12" />
+            <p className="text-[10px] uppercase font-black">{language === 'ru' ? 'Игроки не найдены' : 'No matching units'}</p>
           </div>
         )}
       </div>
