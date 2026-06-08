@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
@@ -98,12 +97,12 @@ export function TopBar() {
             <span className="text-[10px]" role="img" aria-label="flag">{userCountry?.flag || '🏳️'}</span>
             <div className="flex items-center gap-1 min-w-0">
               {isPremium ? (
-                <div className="relative inline-flex items-center min-w-0 max-w-[160px]">
+                <div className="relative inline-flex items-center min-w-0 max-w-[140px]">
                   <div className="absolute inset-0 bg-gradient-to-r from-accent/25 via-accent/5 to-transparent border-l-2 border-accent -z-10" />
-                  <span className="px-3 py-1 text-[9px] font-black uppercase tracking-tight truncate text-white">
+                  <span className="px-2.5 py-1 text-[9px] font-black uppercase tracking-tight truncate text-white">
                     {profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
                   </span>
-                  <span className="absolute -top-1 -right-1 text-[5px] font-black text-accent uppercase tracking-[0.2em] bg-background/60 px-1 rounded-sm border border-accent/10">PREMIUM</span>
+                  <span className="absolute -top-0.5 -right-0.5 text-[4px] font-black text-accent uppercase tracking-[0.3em] bg-background/60 px-0.5 rounded-sm border border-accent/10 whitespace-nowrap">PREMIUM</span>
                 </div>
               ) : (
                 <span className="text-[9px] font-black uppercase tracking-tight whitespace-nowrap truncate max-w-[120px] text-primary">

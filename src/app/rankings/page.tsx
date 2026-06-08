@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -313,7 +312,7 @@ export default function RankingsPage() {
                   <span className="px-3 py-1 font-bold text-[11px] uppercase tracking-tight truncate text-white">
                     {entry.name}
                   </span>
-                  <span className="absolute -top-1 -right-1 text-[5px] font-black text-accent uppercase tracking-[0.2em] bg-background/60 px-1 rounded-sm border border-accent/10">PREMIUM</span>
+                  <span className="absolute -top-0.5 -right-0.5 text-[4px] font-black text-accent uppercase tracking-[0.3em] bg-background/60 px-0.5 rounded-sm border border-accent/10 whitespace-nowrap">PREMIUM</span>
                 </div>
               ) : (
                 <span className={cn(
@@ -651,8 +650,7 @@ export default function RankingsPage() {
                           <span className="text-xl font-bold">{viewingMatch.scoreH === 2 ? 11 : 7}</span>
                           <span className="text-[8px] text-muted-foreground uppercase font-bold">Towers</span>
                         </CardContent>
-                      </Card>
-                    </div>
+                      </div>
                   </>
                 )}
               </div>

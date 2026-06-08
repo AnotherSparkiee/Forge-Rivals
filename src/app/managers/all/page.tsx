@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -325,7 +324,7 @@ export default function AllManagersPage() {
                           <span className="px-3 py-0.5 text-[10px] font-bold uppercase tracking-tight truncate text-white">
                             {manager.displayName}
                           </span>
-                          <span className="absolute -top-1 -right-1 text-[5px] font-black text-accent uppercase tracking-[0.2em] bg-background/60 px-1 rounded-sm border border-accent/10">PREMIUM</span>
+                          <span className="absolute -top-0.5 -right-0.5 text-[4px] font-black text-accent uppercase tracking-[0.3em] bg-background/60 px-0.5 rounded-sm border border-accent/10 whitespace-nowrap">PREMIUM</span>
                         </div>
                       ) : (
                         <span className="text-xs font-bold uppercase">{manager.displayName}</span>
