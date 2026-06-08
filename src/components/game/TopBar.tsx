@@ -4,7 +4,7 @@
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { Gem, Mail, Home, Radio, Bell, Crown } from 'lucide-react';
+import { Gem, Mail, Home, Radio, Bell } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -96,15 +96,17 @@ export function TopBar() {
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-[10px]" role="img" aria-label="flag">{userCountry?.flag || '🏳️'}</span>
             <div className="flex items-center gap-1 min-w-0">
-              <span className={cn(
-                "text-[9px] font-black uppercase tracking-tight whitespace-nowrap truncate max-w-[120px]", 
-                isPremium 
-                  ? "bg-accent text-slate-950 px-2 py-0.5 rounded-sm shadow-[0_0_10px_rgba(var(--accent),0.3)] italic" 
-                  : "text-primary"
-              )}>
-                {profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
-              </span>
-              {isPremium && <Crown className="w-3 h-3 text-yellow-500 shrink-0 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />}
+              {isPremium ? (
+                <div className="relative inline-block px-3 py-0.5 bg-accent text-slate-950 font-black italic skew-x-[-15deg] shadow-[0_0_15px_rgba(var(--accent),0.4)] border-l-4 border-primary min-w-0 max-w-[140px]">
+                  <span className="block skew-x-[15deg] truncate text-[9px] uppercase tracking-tight">
+                    {profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-[9px] font-black uppercase tracking-tight whitespace-nowrap truncate max-w-[120px] text-primary">
+                  {profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
+                </span>
+              )}
             </div>
           </div>
           {isSyncing && <Radio className="w-3.5 h-3.5 text-accent shrink-0 animate-pulse" />}

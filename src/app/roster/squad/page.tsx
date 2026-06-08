@@ -9,10 +9,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { 
   Sword, Shield, Sparkles, Plus, 
-  ChevronLeft, ChevronRight, UserPlus, X,
+  ChevronLeft, UserPlus, X,
   ShieldCheck, Zap, HeartPulse,
   Star, Box, Undo2, Info, ShoppingCart, Loader2,
-  Award, Clock, Users, Crown
+  Award, Clock, Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -244,19 +244,24 @@ export default function SquadPage() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Link href="/roster"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
-          <div className="min-w-0">
-            <h1 className={cn(
-              "text-2xl font-headline font-black uppercase tracking-tighter truncate max-w-[180px]",
-              isPremium ? "bg-accent text-slate-950 px-3 rounded-sm italic shadow-[0_0_15px_rgba(var(--accent),0.3)]" : "text-white"
-            )}>
-              {profile?.displayName || t.title}
-            </h1>
+        <div className="flex items-center gap-4 flex-1 min-w-0">
+          <Link href="/roster"><Button variant="ghost" size="icon" className="rounded-full shrink-0"><ChevronLeft className="w-6 h-6" /></Button></Link>
+          <div className="min-w-0 flex-1">
+            {isPremium ? (
+              <div className="relative inline-block px-4 py-1 bg-accent text-slate-950 font-black italic skew-x-[-15deg] shadow-[0_0_15px_rgba(var(--accent),0.4)] border-l-4 border-primary min-w-0 max-w-full overflow-hidden">
+                <h1 className="block skew-x-[15deg] text-xl uppercase tracking-tighter truncate">
+                  {profile?.displayName || t.title}
+                </h1>
+              </div>
+            ) : (
+              <h1 className="text-2xl font-headline font-black uppercase tracking-tighter truncate text-white">
+                {profile?.displayName || t.title}
+              </h1>
+            )}
             <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
           </div>
         </div>
-        <div className="flex flex-col items-center justify-center min-w-[60px]">
+        <div className="flex flex-col items-center justify-center min-w-[60px] shrink-0">
           <p className="text-[9px] font-black text-primary tracking-widest uppercase mb-1">{t.teamOverall}</p>
           <div className="relative flex items-center justify-center"><Shield className="w-10 h-10 text-primary fill-primary/10" strokeWidth={2} /><span className="absolute inset-0 flex items-center justify-center text-lg font-headline font-bold text-accent italic pt-0.5">{teamOvr}</span></div>
         </div>
@@ -276,7 +281,6 @@ export default function SquadPage() {
             <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 flex items-center gap-2">
               <Users className="w-3.5 h-3.5" /> {t.reservesLabel}
             </h2>
-            {isPremium && <Crown className="w-3 h-3 text-yellow-500" />}
           </div>
           <div className="space-y-2">{reserveSlots.map(renderSlot)}</div>
           {!isPremium && (
@@ -324,7 +328,7 @@ export default function SquadPage() {
                     <section><h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Award className="w-3.5 h-3.5" /> {t.profile.stats}</h3><div className="space-y-5">{Object.entries(profileHero.proStats).map(([key, value]) => { const talent = profileHero.proTalents ? (profileHero.proTalents as any)[key] : 3.0; return (<div key={key} className="space-y-2 bg-secondary/10 p-3 rounded-xl border border-white/5"><div className="flex justify-between items-center px-0.5"><span className="text-[10px] font-bold uppercase tracking-widest">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span><div className="flex flex-col items-end"><span className="text-[10px] font-mono font-bold text-primary">{value} / 100</span>{renderStars(talent)}</div></div><Progress value={value} className="h-1 rounded-full bg-secondary/40" /></div>); })}</div></section>
                   </div>
                 </div>
-                <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-12 flex flex-col gap-2 z-[110]">
+                <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-12 flex flex-col gap-2 flex-shrink-0 z-[110]">
                   <Button 
                     className="w-full h-14 bg-orange-600 hover:bg-orange-700 text-white font-black text-[11px] tracking-widest uppercase shadow-xl" 
                     onClick={handlePutOnTransfer}

@@ -11,7 +11,7 @@ import {
   Search, Radio, Target, Zap, ShieldAlert,
   CheckCircle2, Timer, ChevronsLeft, ChevronsRight,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
-  Skull, Crosshair, FileText, ArrowRight, ArrowUp, ArrowDown, Crown
+  Skull, Crosshair, FileText, ArrowRight, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -176,8 +176,8 @@ export default function RankingsPage() {
   }, [cupParticipants, activeRoundToShow, searchQuery, user?.uid, effectiveDayForCup, matchHistory, seasonNumber]);
 
   const paginatedMatches = useMemo(() => {
-    const start = cupPage * MATCHES_PER_PAGE;
-    return cupMatches.slice(start, start + MATCHES_PER_PAGE);
+    const start = page * ITEMS_PER_PAGE;
+    return cupMatches.slice(start, start + ITEMS_PER_PAGE);
   }, [cupMatches, cupPage]);
 
   const totalPages = Math.ceil(cupMatches.length / MATCHES_PER_PAGE);
@@ -307,16 +307,23 @@ export default function RankingsPage() {
               {isRelegation && <ArrowDown className="w-3 h-3 text-red-500 animate-bounce" />}
             </div>
             <div className="flex-1 truncate">
-              <span className={cn(
-                "font-bold text-[11px] uppercase flex items-center gap-2", 
-                isEntryPremium ? "bg-accent text-slate-950 px-2 rounded-sm italic" : (entry.isMe ? "text-white" : "text-muted-foreground")
-              )}>
-                {entry.name}
-                {isEntryPremium && <Crown className="w-2.5 h-2.5 text-slate-900" />}
-                {entry.isPlayer && !entry.isMe && !isEntryPremium && <Badge variant="outline" className="text-[7px] h-4 px-1.5 border-accent/40 text-accent font-black bg-accent/5">USER</Badge>}
-                {isPromotion && <span className="text-[6px] font-black text-green-500/60 tracking-tighter ml-1">{t.promotion}</span>}
-                {isRelegation && <span className="text-[6px] font-black text-red-500/60 tracking-tighter ml-1">{t.relegation}</span>}
-              </span>
+              {isEntryPremium ? (
+                <div className="relative inline-block px-3 py-0.5 bg-accent text-slate-950 font-black italic skew-x-[-15deg] shadow-[0_0_10px_rgba(var(--accent),0.3)] border-l-2 border-primary max-w-full">
+                  <span className="block skew-x-[15deg] truncate text-[10px] uppercase tracking-tight">
+                    {entry.name}
+                  </span>
+                </div>
+              ) : (
+                <span className={cn(
+                  "font-bold text-[11px] uppercase flex items-center gap-2", 
+                  entry.isMe ? "text-white" : "text-muted-foreground"
+                )}>
+                  {entry.name}
+                  {entry.isPlayer && !entry.isMe && <Badge variant="outline" className="text-[7px] h-4 px-1.5 border-accent/40 text-accent font-black bg-accent/5">USER</Badge>}
+                  {isPromotion && <span className="text-[6px] font-black text-green-500/60 tracking-tighter ml-1">{t.promotion}</span>}
+                  {isRelegation && <span className="text-[6px] font-black text-red-500/60 tracking-tighter ml-1">{t.relegation}</span>}
+                </span>
+              )}
             </div>
             <div className="w-16 text-center text-[9px] font-mono font-bold opacity-50">{entry.wins}-{entry.draws || 0}-{entry.losses}</div>
             <div className="w-10 text-right"><p className={cn("text-sm font-headline font-black italic", entry.points > 0 ? "text-accent" : "text-muted-foreground")}>{entry.points}</p></div>

@@ -9,7 +9,7 @@ import {
   ChevronLeft, Loader2, Gavel, ShieldCheck, 
   Timer, Star, ShoppingCart, X, Check, Search, Info, Users,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
-  ChevronsLeft, ChevronsRight, Crown
+  ChevronsLeft, ChevronsRight
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -150,18 +150,16 @@ export const TransferHeroCard = memo(({
           </div>
 
           <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
-            <div className="flex flex-col">
-              <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
+            <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+              <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
               <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">€{agent.currentBid?.toLocaleString()}</p>
-              <div className="mt-1">
+              <div className="flex items-center min-w-0">
                 {agent.highestBidderName ? (
-                  <span className={cn(
-                    "text-[9px] font-black uppercase flex items-center gap-1",
-                    "bg-accent text-slate-950 px-2 py-0.5 rounded-sm italic"
-                  )}>
-                    <Users className="w-2.5 h-2.5" /> {language === 'ru' ? 'Лидер' : 'Leader'}: {agent.highestBidderName}
-                    <Crown className="w-2 h-2 text-slate-900" />
-                  </span>
+                  <div className="relative inline-block px-3 py-0.5 bg-accent text-slate-950 font-black italic skew-x-[-15deg] shadow-[0_0_8px_rgba(var(--accent),0.3)] border-l-2 border-primary max-w-full overflow-hidden">
+                    <span className="block skew-x-[15deg] truncate text-[9px] uppercase tracking-tight">
+                      <Users className="w-2.5 h-2.5 inline mr-1" /> {language === 'ru' ? 'Лидер' : 'Leader'}: {agent.highestBidderName}
+                    </span>
+                  </div>
                 ) : (
                   <span className="text-[9px] font-black uppercase text-muted-foreground/50">
                     {language === 'ru' ? 'Нет ставок' : 'No bids'}
@@ -172,7 +170,7 @@ export const TransferHeroCard = memo(({
             
             <Button 
               className={cn(
-                "h-11 font-black text-[10px] px-6 rounded-xl uppercase tracking-[0.1em] transition-all", 
+                "h-11 font-black text-[10px] px-6 rounded-xl uppercase tracking-[0.1em] transition-all shrink-0", 
                 isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
                 (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-xl shadow-primary/20 active:scale-95")
               )} 
@@ -228,12 +226,14 @@ export const TransferHeroCard = memo(({
             </div>
 
             {isPremium && (
-              <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl flex items-center justify-between">
+              <div className="p-3 bg-accent/10 border border-accent/20 rounded-xl flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Crown className="w-4 h-4 text-yellow-500" />
-                  <span className="text-[9px] font-black uppercase text-yellow-500">Premium Bidding Active</span>
+                  <div className="w-4 h-4 rounded bg-accent/20 flex items-center justify-center">
+                    <Zap className="w-2.5 h-2.5 text-accent" />
+                  </div>
+                  <span className="text-[9px] font-black uppercase text-accent">Premium Bidding Active</span>
                 </div>
-                <Badge className="bg-yellow-500 text-black text-[8px] font-black">Unlimited</Badge>
+                <Badge className="bg-accent text-accent-foreground text-[8px] font-black">Unlimited</Badge>
               </div>
             )}
 

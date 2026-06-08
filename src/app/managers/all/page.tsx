@@ -9,7 +9,7 @@ import { collection, query, orderBy, limit, where, doc, onSnapshot } from 'fireb
 import { 
   ChevronLeft, Users, Search, Shield, Calendar,
   Loader2, UserPlus, User, Mail, ChevronRight, Info,
-  SlidersHorizontal, ArrowUpDown, Filter, Crown
+  SlidersHorizontal, ArrowUpDown, Filter
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -322,15 +322,17 @@ export default function AllManagersPage() {
                   <div className="w-10 h-10 rounded-full bg-background flex items-center justify-center border border-white/10">
                     <User className="w-5 h-5 text-muted-foreground" />
                   </div>
-                  <div className="flex flex-col">
+                  <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
-                      <span className={cn(
-                        "text-xs font-bold uppercase", 
-                        isEntryPremium ? "bg-accent text-slate-950 px-2 py-0.5 rounded-sm italic" : ""
-                      )}>
-                        {manager.displayName}
-                        {isEntryPremium && <Crown className="w-3 h-3 text-slate-900 ml-1 inline" />}
-                      </span>
+                      {isEntryPremium ? (
+                        <div className="relative inline-block px-3 py-0.5 bg-accent text-slate-950 font-black italic skew-x-[-15deg] shadow-[0_0_10px_rgba(var(--accent),0.3)] border-l-2 border-primary min-w-0">
+                          <span className="block skew-x-[15deg] truncate text-[10px] uppercase tracking-tight">
+                            {manager.displayName}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs font-bold uppercase">{manager.displayName}</span>
+                      )}
                       {manager.id === user.uid && <Badge className="text-[7px] bg-primary text-primary-foreground">YOU</Badge>}
                     </div>
                     <span className={cn(

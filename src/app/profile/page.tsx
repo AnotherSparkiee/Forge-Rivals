@@ -12,7 +12,7 @@ import {
   Award, ScrollText, CircleDollarSign, 
   UserCog, HeartPulse, GraduationCap, 
   TrendingUp, BarChart3, Building2, MapPin,
-  Shield, Activity, Settings2, Info, Crown
+  Shield, Activity, Settings2, Info
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -96,7 +96,7 @@ export default function ProfilePage() {
       popularity: "Club Popularity",
       logout: "LOG OUT",
       teamStats: "Club Status",
-      premium: "PREMIUM ACTIVE",
+      premium: "PREMIUM STATUS ACTIVE",
       premiumExp: "Expires",
       skills: {
         title: "STRATEGIC DEVELOPMENT",
@@ -120,7 +120,7 @@ export default function ProfilePage() {
       popularity: "Популярность клуба",
       logout: "ВЫЙТИ ИЗ АККАУНТА",
       teamStats: "Статус команды",
-      premium: "PREMIUM АКТИВЕН",
+      premium: "PREMIUM СТАТУС АКТИВЕН",
       premiumExp: "Истекает",
       skills: {
         title: "РАЗВИТИЕ КЛУБА",
@@ -143,14 +143,13 @@ export default function ProfilePage() {
   const renderTeamView = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {isPremium && (
-        <Card className="glass-card bg-yellow-500/10 border-yellow-500/30 overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-2"><Crown className="w-8 h-8 text-yellow-500 opacity-20" /></div>
+        <Card className="glass-card bg-accent/5 border-accent/20 overflow-hidden relative">
           <CardContent className="p-4 flex items-center gap-4">
-             <div className="p-3 rounded-full bg-yellow-500/20 border border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.2)]">
-               <Crown className="w-6 h-6 text-yellow-500" />
+             <div className="p-3 rounded-full bg-accent/20 border border-accent/50 shadow-[0_0_15px_rgba(var(--accent),0.2)]">
+               <ShieldCheck className="w-6 h-6 text-accent" />
              </div>
              <div>
-               <p className="text-xs font-black text-yellow-500 uppercase tracking-widest">{t.premium}</p>
+               <p className="text-xs font-black text-accent uppercase tracking-widest">{t.premium}</p>
                <p className="text-[10px] text-muted-foreground uppercase">{t.premiumExp}: {new Date(premiumUntil!).toLocaleDateString()}</p>
              </div>
           </CardContent>
@@ -255,20 +254,24 @@ export default function ProfilePage() {
         <div className="relative group mb-4">
           <div className={cn("absolute -inset-4 rounded-full blur-2xl transition-all", isPremium ? "bg-accent/30 group-hover:bg-accent/40" : "bg-primary/20 group-hover:bg-primary/30")}></div>
           <div className={cn("w-24 h-24 rounded-full flex items-center justify-center shadow-2xl relative z-10 border-2", isPremium ? "bg-gradient-to-br from-accent to-blue-600 border-accent/40" : "bg-gradient-to-br from-primary to-accent border-white/10")}>
-            {isPremium ? <Crown className="w-12 h-12 text-slate-950" /> : <User className="w-12 h-12 text-white" />}
+            <User className="w-12 h-12 text-white" />
           </div>
           <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-background border border-white/10 px-3 py-0.5 rounded-full z-20 shadow-xl">
             <span className="text-[10px] font-black text-primary uppercase tracking-widest whitespace-nowrap">{t.lvl} {managerLevel || 1}</span>
           </div>
         </div>
-        <div className="text-center space-y-2">
-          <h1 className={cn(
-            "text-2xl font-headline font-black uppercase tracking-tight italic flex items-center justify-center gap-2", 
-            isPremium ? "bg-accent text-slate-950 px-4 py-1 rounded-sm shadow-[0_0_20px_rgba(var(--accent),0.3)]" : "text-white"
-          )}>
-            {profile?.displayName || 'Syncing...'}
-            {isPremium && <Crown className="w-5 h-5 text-slate-900" />}
-          </h1>
+        <div className="text-center space-y-3">
+          {isPremium ? (
+            <div className="relative inline-block px-6 py-1.5 bg-accent text-slate-950 font-black italic skew-x-[-15deg] shadow-[0_0_25px_rgba(var(--accent),0.5)] border-l-4 border-primary">
+              <h1 className="block skew-x-[15deg] text-2xl uppercase tracking-tight leading-none">
+                {profile?.displayName || 'Syncing...'}
+              </h1>
+            </div>
+          ) : (
+            <h1 className="text-2xl font-headline font-black uppercase tracking-tight text-white">
+              {profile?.displayName || 'Syncing...'}
+            </h1>
+          )}
           <p className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.2em] opacity-60 flex items-center justify-center gap-2">
             <MapPin className="w-3 h-3 text-primary" /> {profile?.country || 'International'}
           </p>
