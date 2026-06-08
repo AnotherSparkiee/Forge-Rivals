@@ -102,7 +102,7 @@ export function TopBar() {
                   <span className="px-2.5 py-1 text-[9px] font-black uppercase tracking-tight truncate text-white">
                     {profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
                   </span>
-                  <span className="absolute -top-0.5 -right-0.5 text-[4px] font-black text-accent uppercase tracking-[0.3em] bg-background/60 px-0.5 rounded-sm border border-accent/10 whitespace-nowrap">PREMIUM</span>
+                  <span className="absolute -top-0.5 -right-0.5 text-[3px] font-black text-accent uppercase tracking-[0.3em] bg-background/60 px-0.5 rounded-sm border border-accent/10 whitespace-nowrap">PREMIUM</span>
                 </div>
               ) : (
                 <span className="text-[9px] font-black uppercase tracking-tight whitespace-nowrap truncate max-w-[120px] text-primary">
