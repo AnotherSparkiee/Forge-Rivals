@@ -9,7 +9,7 @@ import { getMockGroupTeams, LEAGUES } from './leagues-data';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { usePathname } from 'next/navigation';
 
-export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2';
+export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3';
 
 interface ArenaState {
   capacity: number; pressCenterLevel: number; cafeLevel: number; shopLevel: number; screensLevel: number; roofLevel: number; lightingLevel: number; pendingCapacitySeats: number | null; constructionFinishes: Record<string, string | null>; constructionStarts: Record<string, string | null>;
@@ -33,14 +33,14 @@ const DEFAULT_ACADEMY: AcademyState = { youthBootcampLevel: 0, streamingLevel: 0
 const DEFAULT_MEDICAL: MedicalState = { physiotherapyLevel: 0, massageLevel: 0, psychiatristLevel: 0, labLevel: 0, psychologistLevel: 0, constructionFinishes: {}, constructionStarts: {} };
 const DEFAULT_STAFF: StaffState = { coach: null, analyst: null, scout: null, doctor: null, financier: null };
 const DEFAULT_STATE: GameState = {
-  credits: 10000000, crystals: 0, experiencePoints: 0, managerLevel: 1, skillPoints: 0, managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 }, activeLicenseTier: null, ownedHeroes: INITIAL_HEROES, youthAcademyHeroes: [], team: INITIAL_HEROES.slice(0, 5), lineup: { carry: INITIAL_HEROES.find(h => h.role === 'Carry')?.id || null, mid: INITIAL_HEROES.find(h => h.role === 'Midlaner')?.id || null, offlane: INITIAL_HEROES.find(h => h.role === 'Tank')?.id || null, support: INITIAL_HEROES.find(h => h.role === 'Jungler')?.id || null, full_support: INITIAL_HEROES.find(h => h.role === 'Support')?.id || null, sub1: null, sub2: null }, strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' }, rank: 1000, matchHistory: [], language: 'ru', wins: 0, draws: 0, losses: 0, points: 0, leagueLevel: 9, divisionSubId: 1, groupId: 1, selectedLeagueId: null, country: null, associationId: null, lastSeenMatchDay: 0, lastLeagueMatchDate: null, lastCupMatchDate: null, seasonDay: 0, seasonNumber: 0, lastProcessedSeason: 0, lastYouthArrivalDay: 0, lastYouthArrivalSeason: 0, seasonStartDate: null, lastRewardClaimDate: null, rewardDay: 1, arena: DEFAULT_ARENA, hq: DEFAULT_HQ, bootcamp: DEFAULT_BOOTCAMP, academy: DEFAULT_ACADEMY, medical: DEFAULT_MEDICAL, staff: DEFAULT_STAFF, seasonResults: null, hasEliteTrophy: false, isSyncing: false,
+  credits: 10000000, crystals: 0, experiencePoints: 0, managerLevel: 1, skillPoints: 0, managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 }, activeLicenseTier: null, ownedHeroes: INITIAL_HEROES, youthAcademyHeroes: [], team: INITIAL_HEROES.slice(0, 5), lineup: { carry: INITIAL_HEROES.find(h => h.role === 'Carry')?.id || null, mid: INITIAL_HEROES.find(h => h.role === 'Midlaner')?.id || null, offlane: INITIAL_HEROES.find(h => h.role === 'Tank')?.id || null, support: INITIAL_HEROES.find(h => h.role === 'Jungler')?.id || null, full_support: INITIAL_HEROES.find(h => h.role === 'Support')?.id || null, sub1: null, sub2: null, res1: null, res2: null, res3: null }, strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' }, rank: 1000, matchHistory: [], language: 'ru', wins: 0, draws: 0, losses: 0, points: 0, leagueLevel: 9, divisionSubId: 1, groupId: 1, selectedLeagueId: null, country: null, associationId: null, lastSeenMatchDay: 0, lastLeagueMatchDate: null, lastCupMatchDate: null, seasonDay: 0, seasonNumber: 0, lastProcessedSeason: 0, lastYouthArrivalDay: 0, lastYouthArrivalSeason: 0, seasonStartDate: null, lastRewardClaimDate: null, rewardDay: 1, arena: DEFAULT_ARENA, hq: DEFAULT_HQ, bootcamp: DEFAULT_BOOTCAMP, academy: DEFAULT_ACADEMY, medical: DEFAULT_MEDICAL, staff: DEFAULT_STAFF, seasonResults: null, hasEliteTrophy: false, isSyncing: false,
 };
 
 function sanitizeForFirestore(obj: any) { if (obj === undefined) return null; if (!obj) return obj; try { return JSON.parse(JSON.stringify(obj, (key, value) => value === undefined ? null : value)); } catch (e) { return null; } }
 export function getLevelThreshold(level: number): number { if (level <= 1) return 700; if (level === 2) return 1400; if (level === 3) return 3800; return Math.floor(3800 * Math.pow(1.5, level - 3)); }
 
 interface GameStateContextType extends GameState {
-  isLoaded: boolean; addCredits: (amount: number) => void; addCrystals: (amount: number) => void; assignToRole: (slot: LineupSlot, heroId: string | null) => void; updateTactics: (strategy: string, lineSettings: { carry: string; mid: string; offlane: string }) => void; startArenaConstruction: (facility: any, cost: number) => boolean; startHQConstruction: (facility: any, cost: number) => boolean; startBootcampConstruction: (facility: any, cost: number) => boolean; startAcademyConstruction: (facility: any, cost: number) => boolean; startMedicalConstruction: (facility: any, cost: number) => boolean; startCapacityExpansion: (seats: number, cost: number, hours: number) => boolean; setLanguage: (lang: 'en' | 'ru') => void; recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string) => void; markMatchAsSeen: (day: number) => void; claimReward: (creditsReward: number, crystalsReward: number) => void; syncStats: (groupPlayers: any[]) => void; dismissSeasonResults: () => void; setSyncing: (val: boolean) => void; setTrainingFocus: (heroId: string, skillKey: string | null) => void; startDailyHeroTraining: (heroId: string, skillKey: string) => void; claimDailyHeroTraining: (heroId: string) => void; updateHero: (heroId: string, updates: Partial<Hero>, creditCost?: number, crystalCost?: number) => void; promoteYouthPlayer: (heroId: string) => void; removeHero: (heroId: string, sellCreditAmount?: number) => void; recoverAllFatigue: (costType: 'credits' | 'crystals') => boolean; hireStaffMember: (member: StaffMember) => void; trainStaffSkill: (role: StaffRole, skillKey: 'primary' | 'secondary', cost: number) => boolean; addHeroDirectly: (hero: Hero) => void; addYouthHeroDirectly: (hero: Hero) => void; updateProfileName: (name: string) => void; updateProfileCountry: (countryName: string) => void; purchaseLicense: (tier: number, cost: number) => boolean; upgradeManagerSkill: (skillKey: keyof GameState['managerSkills']) => void;
+  isLoaded: boolean; addCredits: (amount: number) => void; addCrystals: (amount: number) => void; assignToRole: (slot: LineupSlot, heroId: string | null) => void; updateTactics: (strategy: string, lineSettings: { carry: string; mid: string; offlane: string }) => void; startArenaConstruction: (facility: any, cost: number) => boolean; startHQConstruction: (facility: any, cost: number) => boolean; startBootcampConstruction: (facility: any, cost: number) => boolean; startAcademyConstruction: (facility: any, cost: number) => boolean; startMedicalConstruction: (facility: any, cost: number) => boolean; startCapacityExpansion: (seats: number, cost: number, hours: number) => boolean; setLanguage: (lang: 'en' | 'ru') => void; recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string) => void; claimReward: (creditsReward: number, crystalsReward: number) => void; syncStats: (groupPlayers: any[]) => void; dismissSeasonResults: () => void; setSyncing: (val: boolean) => void; setTrainingFocus: (heroId: string, skillKey: string | null) => void; startDailyHeroTraining: (heroId: string, skillKey: string) => void; claimDailyHeroTraining: (heroId: string) => void; updateHero: (heroId: string, updates: Partial<Hero>, creditCost?: number, crystalCost?: number) => void; promoteYouthPlayer: (heroId: string) => void; removeHero: (heroId: string, sellCreditAmount?: number) => void; recoverAllFatigue: (costType: 'credits' | 'crystals') => boolean; hireStaffMember: (member: StaffMember) => void; trainStaffSkill: (role: StaffRole, skillKey: 'primary' | 'secondary', cost: number) => boolean; addHeroDirectly: (hero: Hero) => void; addYouthHeroDirectly: (hero: Hero) => void; updateProfileName: (name: string) => void; updateProfileCountry: (countryName: string) => void; purchaseLicense: (tier: number, cost: number) => boolean; upgradeManagerSkill: (skillKey: keyof GameState['managerSkills']) => void; markMatchAsSeen: (day: number) => void;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
@@ -54,8 +54,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const lastSyncRef = useRef<{ season: number, day: number, leagueId: string | null } | null>(null);
   const lastWritePayloadRef = useRef<string>("");
 
-  const getStorageKey = useCallback(() => user ? `lote_v11_${user.uid}` : null, [user]);
-
   const runCloudUpdate = useCallback((data: any) => {
     if (!user) return;
     const profileRef = doc(db, 'players_v10', user.uid);
@@ -63,13 +61,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (lastWritePayloadRef.current === payloadStr) return;
     lastWritePayloadRef.current = payloadStr;
     setDoc(profileRef, data, { merge: true }).catch(e => console.warn("Sync err:", e.message));
-  }, [user, db]);
-
-  const sendNotification = useCallback((title: string, description: string, type: string) => {
-    if (!user) return;
-    addDocumentNonBlocking(collection(db, 'notifications_v6'), {
-      userId: user.uid, title, description, type, read: false, createdAt: new Date().toISOString()
-    });
   }, [user, db]);
 
   useEffect(() => {

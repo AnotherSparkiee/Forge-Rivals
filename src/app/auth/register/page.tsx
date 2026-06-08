@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -76,7 +75,12 @@ export default function RegisterPage() {
         id: userCredential.user.uid, displayName: trimmedUsername, email, inGameCurrency: 10000000, crystals: 0,
         experiencePoints: 0, managerLevel: 1, skillPoints: 0, lastLoginDate: new Date().toISOString(), createdAt: new Date().toISOString(),
         ownedHeroes: uniqueSquad, ownedHeroIds: uniqueSquad.map(h => h.id),
-        lineup: { offlane: uniqueSquad[0].id, carry: uniqueSquad[1].id, mid: uniqueSquad[2].id, support: uniqueSquad[3].id, full_support: uniqueSquad[4].id, sub1: uniqueSquad[5].id, sub2: uniqueSquad[6].id },
+        lineup: { 
+          offlane: uniqueSquad[0].id, carry: uniqueSquad[1].id, mid: uniqueSquad[2].id, 
+          support: uniqueSquad[3].id, full_support: uniqueSquad[4].id, 
+          sub1: uniqueSquad[5].id, sub2: uniqueSquad[6].id,
+          res1: null, res2: null, res3: null
+        },
         leagueLevel: 9, groupId: 1, points: 0, wins: 0, draws: 0, losses: 0, lastProcessedSeason: Number(seasonNumber || 1),
         lastJoinedAssocAt: null
       };

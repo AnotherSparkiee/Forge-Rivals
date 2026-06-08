@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
@@ -10,9 +9,9 @@ import { Progress } from '@/components/ui/progress';
 import { 
   Sword, Shield, Sparkles, Plus, 
   ChevronLeft, ChevronRight, UserPlus, X,
-  ShieldCheck, Zap, Crosshair, HeartPulse,
+  ShieldCheck, Zap, HeartPulse,
   Star, Box, Undo2, Info, ShoppingCart, Loader2,
-  TrendingUp, Eye, Target, Brain, Map, Users, AlertCircle, Award, Clock
+  Award, Clock, Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -31,7 +30,7 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
 export default function SquadPage() {
-  const { ownedHeroes, lineup, assignToRole, isLoaded, language, updateHero, managerSkills } = useGameState();
+  const { ownedHeroes, lineup, assignToRole, isLoaded, language, updateHero } = useGameState();
   const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
@@ -55,6 +54,7 @@ export default function SquadPage() {
     subtitle: language === 'ru' ? "Прямое управление ростером" : "Direct roster management",
     activeLabel: language === 'ru' ? "Основа (5)" : "Core (5)",
     subsLabel: language === 'ru' ? "Замены (2)" : "Subs (2)",
+    reservesLabel: language === 'ru' ? "Резерв (3)" : "Reserves (3)",
     emptySlot: language === 'ru' ? "Назначить" : "Assign",
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     teamOverall: language === 'ru' ? "ОБЩ" : "OVR",
@@ -70,8 +70,6 @@ export default function SquadPage() {
       age: language === 'ru' ? "Возраст" : "Age",
       talent: language === 'ru' ? "Пределы таланта" : "Talent Limits",
       salary: language === 'ru' ? "Зарплата" : "Salary",
-      form: language === 'ru' ? "Форма" : "Form",
-      fatigue: language === 'ru' ? "Усталость" : "Fatigue",
       status: language === 'ru' ? "Статус" : "Status",
       healthy: language === 'ru' ? "Здоров" : "Healthy",
       injured: language === 'ru' ? "Травмирован" : "Injured",
@@ -99,12 +97,16 @@ export default function SquadPage() {
       full_support: { label: language === 'ru' ? "Пятерка" : "Full Support", icon: HeartPulse, color: "text-green-400" },
       sub1: { label: language === 'ru' ? "Запасной 1" : "Sub 1", icon: UserPlus, color: "text-muted-foreground" },
       sub2: { label: language === 'ru' ? "Запасной 2" : "Sub 2", icon: UserPlus, color: "text-muted-foreground" },
+      res1: { label: language === 'ru' ? "Резерв 1" : "Res 1", icon: Users, color: "text-muted-foreground/50" },
+      res2: { label: language === 'ru' ? "Резерв 2" : "Res 2", icon: Users, color: "text-muted-foreground/50" },
+      res3: { label: language === 'ru' ? "Резерв 3" : "Res 3", icon: Users, color: "text-muted-foreground/50" },
     }
   };
 
   const roleMapping: Record<LineupSlot, string[]> = {
     carry: ['Carry'], mid: ['Midlaner'], offlane: ['Tank'], support: ['Jungler'], full_support: ['Support'],
     sub1: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], sub2: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'],
+    res1: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], res2: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], res3: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'],
   };
 
   const getHeroById = (id: string | null) => ownedHeroes.find(h => h.id === id);
@@ -251,7 +253,7 @@ export default function SquadPage() {
         </div>
       </header>
 
-      <div className="space-y-6">
+      <div className="space-y-8">
         <section className="space-y-2">
           <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent px-1 flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5" /> {t.activeLabel}</h2>
           <div className="space-y-2">{(['carry', 'mid', 'offlane', 'support', 'full_support'] as LineupSlot[]).map(renderSlot)}</div>
@@ -259,6 +261,10 @@ export default function SquadPage() {
         <section className="space-y-2">
           <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2"><UserPlus className="w-3.5 h-3.5" /> {t.subsLabel}</h2>
           <div className="space-y-2">{(['sub1', 'sub2'] as LineupSlot[]).map(renderSlot)}</div>
+        </section>
+        <section className="space-y-2">
+          <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 px-1 flex items-center gap-2"><Users className="w-3.5 h-3.5" /> {t.reservesLabel}</h2>
+          <div className="space-y-2">{(['res1', 'res2', 'res3'] as LineupSlot[]).map(renderSlot)}</div>
         </section>
 
         {selectingSlot && (
@@ -318,4 +324,3 @@ export default function SquadPage() {
     </div>
   );
 }
-
