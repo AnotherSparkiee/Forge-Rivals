@@ -111,7 +111,8 @@ class SeededRandom {
     return this.seed / 233280;
   }
   range(min: number, max: number) {
-    return Math.floor(this.next() * (max - min + 1)) + min;
+    const val = this.next();
+    return Math.floor(val * (max - min + 1)) + min;
   }
 }
 
@@ -130,8 +131,8 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
   
   const codes = Object.keys(COUNTRY_PHOTOS);
   const codeIdx = rng ? rng.range(0, codes.length - 1) : Math.floor(Math.random() * codes.length);
-  const code = codes[codeIdx] || 'US';
-  const country = COUNTRY_PHOTOS[code] || { flag: '🇺🇸', name: 'USA', url: 'https://i.postimg.cc/PPS3QFFM/de-1.jpg' };
+  const code = codes[codeIdx] || 'RU';
+  const country = COUNTRY_PHOTOS[code] || COUNTRY_PHOTOS['RU'];
   
   const nameIdx = rng ? rng.range(0, HERO_NAMES.length - 1) : Math.floor(Math.random() * HERO_NAMES.length);
   const name = `${HERO_NAMES[nameIdx]} ${index + 1}`;
@@ -183,8 +184,6 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
   const overall = Math.round((proSum / 10) * 0.4 + basePower * 0.6);
 
   const startAge = getRandomStat(isStarter ? 17 : 18, isStarter ? 28 : 32, rng);
-
-  // Deterministic ID if seed provided
   const heroId = seed ? `h_det_${seed}` : `hero_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
 
   return {
