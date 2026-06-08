@@ -19,7 +19,7 @@ import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-import { calculateLiveAge } from '@/app/lib/time-utils';
+import { calculateLiveAge, getMoscowTime } from '@/app/lib/time-utils';
 import {
   Dialog,
   DialogContent,
@@ -265,7 +265,7 @@ export default function YouthTransfersPage() {
   const [page, setPage] = useState(0);
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const timer = setInterval(() => setNow(getMoscowTime().getTime()), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -300,13 +300,14 @@ export default function YouthTransfersPage() {
       const prevBidder = agent.highestBidderId;
       const heroName = agent.heroData?.name || "Player";
       
+      const mskNow = getMoscowTime().getTime();
       const expiryTime = new Date(agent.expiresAt).getTime();
-      const timeLeft = expiryTime - Date.now();
+      const timeLeft = expiryTime - mskNow;
       let finalExpiresAt = agent.expiresAt;
       
-      // Threshold extended to 10 minutes (600,000 ms)
+      // Threshold 10 minutes (600,000 ms) - Infinite Extension Rule
       if (timeLeft < 600000) { 
-        finalExpiresAt = new Date(Date.now() + 600000).toISOString(); 
+        finalExpiresAt = new Date(mskNow + 600000).toISOString(); 
       }
 
       await updateDoc(doc(db, 'market_v7', agent.id), { 

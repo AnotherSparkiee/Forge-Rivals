@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
@@ -6,6 +5,7 @@ import { useUser, useFirestore, useCollection, useMemoFirebase, addDocumentNonBl
 import { useGameState } from '@/app/lib/store';
 import { doc, collection, query, where, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { getMoscowTime } from '@/app/lib/time-utils';
 
 export function TransferResolver() {
   const { user, isUserLoading } = useUser();
@@ -47,12 +47,12 @@ export function TransferResolver() {
     if (!isLoaded || isUserLoading || !user || !mySales) return;
 
     const resolveAuctions = async () => {
-      const now = new Date();
+      const mskNow = getMoscowTime();
 
       for (const agent of mySales) {
         const expiresAt = new Date(agent.expiresAt);
         
-        if (now > expiresAt && !processedIds.current.has(agent.id)) {
+        if (mskNow > expiresAt && !processedIds.current.has(agent.id)) {
           processedIds.current.add(agent.id);
           const heroId = agent.heroData.id;
           
@@ -109,13 +109,13 @@ export function TransferResolver() {
     if (!isLoaded || isUserLoading || !user || !myPurchases) return;
 
     const resolvePurchases = async () => {
-      const now = new Date();
+      const mskNow = getMoscowTime();
 
       for (const agent of myPurchases) {
         const expiresAt = new Date(agent.expiresAt);
         
         // If I am the highest bidder and it expired, I should receive the hero
-        if (now > expiresAt && !processedIds.current.has(agent.id)) {
+        if (mskNow > expiresAt && !processedIds.current.has(agent.id)) {
           processedIds.current.add(agent.id);
           
           try {

@@ -269,7 +269,7 @@ export default function QuickSearchPage() {
   const initTriggeredRef = useRef(false);
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const timer = setInterval(() => setNow(getMoscowTime().getTime()), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -303,7 +303,6 @@ export default function QuickSearchPage() {
             const seed = `${today}_${role}_${i}`;
             const hero = generateUniqueHero(role, i, false, seed);
             
-            // Ensure age >= 18 for system drops
             if (hero.baseAge < 18) { hero.baseAge = 18; hero.age = 18; }
             
             const startPrice = (hero.overallRating * 17500) + 290000;
@@ -342,13 +341,14 @@ export default function QuickSearchPage() {
       const prevBidder = agent.highestBidderId;
       const heroName = agent.heroData?.name || "Player";
       
+      const mskNow = getMoscowTime().getTime();
       const expiryTime = new Date(agent.expiresAt).getTime();
-      const timeLeft = expiryTime - Date.now();
+      const timeLeft = expiryTime - mskNow;
       let finalExpiresAt = agent.expiresAt;
       
-      // Extended threshold to 10 minutes (600,000 ms)
+      // Threshold 10 minutes (600,000 ms) - Infinite Extension Rule
       if (timeLeft < 600000) { 
-        finalExpiresAt = new Date(Date.now() + 600000).toISOString(); 
+        finalExpiresAt = new Date(mskNow + 600000).toISOString(); 
       }
 
       await updateDoc(doc(db, 'market_v7', agent.id), { 

@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
-import { calculateLiveAge } from '@/app/lib/time-utils';
+import { calculateLiveAge, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
 
 const ITEMS_PER_PAGE = 10;
@@ -48,7 +48,7 @@ export default function AdvancedSearchPage() {
   const [countryFilter, setCountryFilter] = useState<string>('all');
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const timer = setInterval(() => setNow(getMoscowTime().getTime()), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -100,13 +100,15 @@ export default function AdvancedSearchPage() {
     try {
       const prevBidder = agent.highestBidderId;
       const heroName = agent.heroData?.name || "Player";
+      
+      const mskNow = getMoscowTime().getTime();
       const expiryTime = new Date(agent.expiresAt).getTime();
-      const timeLeft = expiryTime - Date.now();
+      const timeLeft = expiryTime - mskNow;
       let finalExpiresAt = agent.expiresAt;
       
-      // Threshold 10 minutes
+      // Infinite Extension Rule: if < 10 mins, reset to 10 mins
       if (timeLeft < 600000) {
-        finalExpiresAt = new Date(Date.now() + 600000).toISOString();
+        finalExpiresAt = new Date(mskNow + 600000).toISOString();
       }
 
       await updateDoc(doc(db, 'market_v7', agent.id), { 

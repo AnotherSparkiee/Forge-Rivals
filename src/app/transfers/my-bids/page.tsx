@@ -11,6 +11,7 @@ import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { TransferHeroCard } from '../quick-search/page';
 import { useToast } from '@/hooks/use-toast';
+import { getMoscowTime } from '@/app/lib/time-utils';
 
 export default function MyBidsPage() {
   const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
@@ -20,7 +21,7 @@ export default function MyBidsPage() {
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const timer = setInterval(() => setNow(getMoscowTime().getTime()), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -42,13 +43,14 @@ export default function MyBidsPage() {
       const prevBidder = agent.highestBidderId;
       const heroName = agent.heroData?.name || "Player";
       
-      // Time Extension Logic (Anti-sniping) - Threshold 10 minutes (600,000 ms)
+      const mskNow = getMoscowTime().getTime();
       const expiryTime = new Date(agent.expiresAt).getTime();
-      const timeLeft = expiryTime - Date.now();
+      const timeLeft = expiryTime - mskNow;
       let finalExpiresAt = agent.expiresAt;
       
+      // Infinite Extension Rule: if < 10 mins, reset to 10 mins
       if (timeLeft < 600000) { 
-        finalExpiresAt = new Date(Date.now() + 600000).toISOString(); 
+        finalExpiresAt = new Date(mskNow + 600000).toISOString(); 
       }
 
       await updateDoc(doc(db, 'market_v7', agent.id), { 
