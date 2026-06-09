@@ -400,7 +400,7 @@ export default function AssociationPage() {
     const hasAnyPending = !!userPendingAssoc;
 
     return (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 pb-6">
         <Card className={cn( "glass-card border-primary/30 overflow-hidden", isCurrentMyAssoc ? "bg-primary/5" : "bg-secondary/10" )}>
            <CardContent className="p-8 text-center flex flex-col items-center">
               <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center mb-4 shadow-xl">
@@ -469,7 +469,7 @@ export default function AssociationPage() {
       case 'all':
         if (viewingAssocId && browsedAssoc) {
           return (
-            <div className="space-y-6">
+            <div className="space-y-6 pb-6">
               <Button variant="ghost" size="sm" onClick={() => setViewingAssocId(null)} className="h-8 text-[10px] font-bold uppercase text-primary">
                 <ChevronLeft className="w-4 h-4 mr-1" /> {language === 'ru' ? 'К списку ассоциаций' : 'Back to List'}
               </Button>
@@ -478,7 +478,7 @@ export default function AssociationPage() {
           );
         }
         return (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 pb-6">
             {allAssocs && allAssocs.length > 0 ? allAssocs.map(assoc => {
               const isMember = assoc.members?.includes(user?.uid);
               const isPending = assoc.requests?.some((r: any) => r.uid === user?.uid);
@@ -503,7 +503,7 @@ export default function AssociationPage() {
       case 'create':
         if (currentAssocId) return null;
         return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 pb-6">
             {!canJoinNew && (
               <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl flex gap-3 items-center text-orange-400">
                 <Clock className="w-5 h-5" />
@@ -530,7 +530,7 @@ export default function AssociationPage() {
       case 'requests':
         if (!canManage || !myAssoc) return null;
         return (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 pb-6">
             {myAssoc.requests && myAssoc.requests.length > 0 ? myAssoc.requests.map((req: any) => (
               <Card key={req.uid} className="glass-card border-orange-500/20 bg-orange-500/5">
                 <CardContent className="p-4 flex items-center justify-between">
@@ -550,7 +550,7 @@ export default function AssociationPage() {
           return <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /><p className="text-[10px] uppercase font-bold text-muted-foreground mt-4">Decrypting News Feed...</p></div>;
         }
         return (
-          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-6">
             {myAssoc?.news && myAssoc.news.length > 0 ? [...myAssoc.news].reverse().map((n: AssocNews, i: number) => {
               const config = {
                 join: { icon: UserPlus, color: "text-green-400", text: language === 'ru' ? 'вступил в альянс' : 'joined alliance' },
@@ -589,7 +589,7 @@ export default function AssociationPage() {
     ];
 
     return (
-      <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+      <div className="max-w-md mx-auto px-4 pt-8 pb-4">
         <header className="mb-8 flex items-center gap-4">
           <Link href="/"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
           <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2"><Shield className="w-6 h-6 text-primary" /> {t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p></div>
@@ -637,7 +637,7 @@ export default function AssociationPage() {
   ];
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-8 flex items-center gap-4">
         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { setViewingAssocId(null); setActiveTab('menu'); }}><ChevronLeft className="w-6 h-6" /></Button>
         <div><h1 className="text-xl font-headline font-bold uppercase">{(t.tabs as any)[activeTab]?.label || 'ALLIANCE'}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p></div>

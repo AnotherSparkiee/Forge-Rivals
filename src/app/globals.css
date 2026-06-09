@@ -54,5 +54,5 @@
 
 /* Page transitions padding adjustment */
 main {
-  @apply pb-24;
+  @apply pb-0;
 }

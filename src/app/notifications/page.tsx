@@ -125,7 +125,7 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-6">
       <header className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/">
@@ -194,7 +194,7 @@ export default function NotificationsPage() {
             );
           })
         ) : (
-          <div className="py-20 flex flex-col items-center justify-center text-center animate-in fade-in duration-700">
+          <div className="py-20 flex flex-col items-center justify-center text-center animate-in fade-in duration-700 pb-6">
             <div className="w-24 h-24 rounded-full bg-secondary/10 border-2 border-dashed border-white/5 flex items-center justify-center mb-6">
               <ShieldAlert className="w-12 h-12 text-muted-foreground opacity-20" />
             </div>

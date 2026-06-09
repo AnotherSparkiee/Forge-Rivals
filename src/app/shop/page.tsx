@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -171,11 +170,31 @@ export default function ShopPage() {
     }, 1500);
   };
 
+  const handleBuyDiamonds = (amount: number) => { addCrystals(amount); toast({ title: "Diamonds added!" }); };
+  const handleBuyLicense = (tier: number, cost: number) => { 
+    if (purchaseLicense(tier, cost)) toast({ title: "License Activated!" });
+    else toast({ title: t.insufficient, variant: "destructive" });
+  };
+  const handleExchange = (amount: number) => {
+    if (crystals < amount) { toast({ title: t.insufficient, variant: "destructive" }); return; }
+    addCrystals(-amount); addCredits(amount * 10000); toast({ title: "Assets converted" });
+  };
+  const handleChangeName = () => {
+    if (crystals < 100) return;
+    addCrystals(-100); updateProfileName(newName.trim()); toast({ title: "Rebranded" });
+    setNewName(''); setActiveTab('menu');
+  };
+  const handleChangeCountry = (countryName: string) => {
+    if (crystals < 100) return;
+    addCrystals(-100); updateProfileCountry(countryName); toast({ title: "Relocated" });
+    setActiveTab('menu');
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'premium':
         return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-6">
             <Card className="glass-card border-yellow-500/30 bg-gradient-to-br from-yellow-500/10 via-background to-transparent overflow-hidden">
                <CardContent className="p-8 text-center flex flex-col items-center">
                   <div className="relative mb-6">
@@ -227,7 +246,7 @@ export default function ShopPage() {
 
       case 'diamonds':
         return (
-          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-6">
             {t.diamondPacks.map((pack, idx) => (
               <Card key={idx} className="glass-card border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 transition-all cursor-pointer group" onClick={() => handleBuyDiamonds(pack.amount)}>
                 <CardContent className="p-5 flex items-center justify-between">
@@ -252,7 +271,7 @@ export default function ShopPage() {
       case 'licenses':
         const currentOwnedTier = activeLicenseTier || 4;
         return (
-          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-6">
             <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl flex gap-4 mb-2">
                <Info className="w-5 h-5 text-primary shrink-0" />
                <p className="text-[10px] text-muted-foreground italic leading-relaxed">
@@ -303,7 +322,7 @@ export default function ShopPage() {
 
       case 'create_player':
         return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-6">
             <Card className="glass-card border-primary/20 bg-primary/5 p-4 space-y-4">
                <div className="space-y-2">
                  <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">{t.creator.nickname}</label>
@@ -401,7 +420,7 @@ export default function ShopPage() {
 
       case 'exchange':
         return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-6">
              <div className="grid grid-cols-1 gap-3">
                {[100, 500, 1000].map(amount => (
                  <Card key={amount} className="glass-card border-yellow-500/20 hover:bg-yellow-500/5 transition-all cursor-pointer" onClick={() => handleExchange(amount)}>
@@ -424,7 +443,7 @@ export default function ShopPage() {
 
       case 'change_name':
         return (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-6">
              <Card className="glass-card border-accent/20 bg-accent/5 p-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -444,7 +463,7 @@ export default function ShopPage() {
 
       case 'change_country':
         return (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-6">
              <div className="grid grid-cols-3 gap-2">
                {COUNTRIES.map(c => (
                  <Card key={c.code} className={cn(
@@ -464,29 +483,9 @@ export default function ShopPage() {
     }
   };
 
-  const handleBuyDiamonds = (amount: number) => { addCrystals(amount); toast({ title: "Diamonds added!" }); };
-  const handleBuyLicense = (tier: number, cost: number) => { 
-    if (purchaseLicense(tier, cost)) toast({ title: "License Activated!" });
-    else toast({ title: t.insufficient, variant: "destructive" });
-  };
-  const handleExchange = (amount: number) => {
-    if (crystals < amount) { toast({ title: t.insufficient, variant: "destructive" }); return; }
-    addCrystals(-amount); addCredits(amount * 10000); toast({ title: "Assets converted" });
-  };
-  const handleChangeName = () => {
-    if (crystals < 100) return;
-    addCrystals(-100); updateProfileName(newName.trim()); toast({ title: "Rebranded" });
-    setNewName(''); setActiveTab('menu');
-  };
-  const handleChangeCountry = (countryName: string) => {
-    if (crystals < 100) return;
-    addCrystals(-100); updateProfileCountry(countryName); toast({ title: "Relocated" });
-    setActiveTab('menu');
-  };
-
   if (activeTab === 'menu') {
     return (
-      <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+      <div className="max-w-md mx-auto px-4 pt-8 pb-4">
         <header className="mb-8 flex items-center gap-4">
           <Link href="/"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
           <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2 text-primary"><ShoppingCart className="w-6 h-6 text-primary" /> {language === 'ru' ? 'МАГАЗИН' : 'TRADING HUB'}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p></div>
@@ -515,7 +514,7 @@ export default function ShopPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-8 flex items-center gap-4">
         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}><ChevronLeft className="w-6 h-6" /></Button>
         <div><h1 className="text-xl font-headline font-bold uppercase tracking-tight">{t.tabs[activeTab as keyof typeof t.tabs].label}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p></div>

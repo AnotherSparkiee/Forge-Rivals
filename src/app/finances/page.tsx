@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -128,7 +127,7 @@ export default function FinancesPage() {
     switch (activeTab) {
       case 'bankruptcy':
         return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-6">
             <Card className="glass-card border-red-500/20 bg-red-500/5">
               <CardContent className="p-6 text-center space-y-4">
                 <div className="w-20 h-20 rounded-full bg-red-500/20 border-2 border-red-500 flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(239,68,68,0.3)]">
@@ -148,7 +147,7 @@ export default function FinancesPage() {
                  credits > 0 ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400"
                )}>
                  <div className="flex items-center gap-3">
-                   {credits > 0 ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                   {credits > 0 ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-4 h-4" />}
                    <span className="text-xs font-bold uppercase tracking-tight">
                      {credits > 0 ? t.bankruptcyInfo.safe : (credits < -500000 ? t.bankruptcyInfo.critical : t.bankruptcyInfo.warning)}
                    </span>
@@ -172,7 +171,7 @@ export default function FinancesPage() {
         const sponsorIncome = Math.round(sponsorBase * sponsorBonusMultiplier * premiumSponsorMultiplier);
 
         return (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-6">
             <h3 className="text-xs font-black uppercase tracking-[0.2em] text-accent px-1">{t.incomeInfo.daily}</h3>
             <div className="space-y-2">
               <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 flex items-center justify-between">
@@ -229,7 +228,7 @@ export default function FinancesPage() {
 
       case 'charts':
         return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-6">
             <Card className="glass-card border-white/5">
               <CardContent className="p-4">
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-accent mb-6">Cashflow Dynamics (Weekly)</h3>
@@ -289,7 +288,7 @@ export default function FinancesPage() {
         const clubCost = totalSalary - leagueSubsidy;
 
         return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-6">
             <div className="p-6 bg-primary/5 rounded-2xl border border-primary/20 text-center">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-2">Total Salary Bill</p>
               <p className="text-3xl font-headline font-bold text-white">{totalSalary.toLocaleString()} €</p>
@@ -326,7 +325,7 @@ export default function FinancesPage() {
       case 'match_reports':
       case 'budget':
         return (
-          <div className="py-20 text-center opacity-30 animate-in fade-in duration-500">
+          <div className="py-20 text-center opacity-30 animate-in fade-in duration-500 pb-6">
             <div className="w-16 h-16 rounded-full border-2 border-dashed border-muted-foreground mx-auto mb-4 flex items-center justify-center">
               <FileText className="w-8 h-8" />
             </div>
@@ -342,7 +341,7 @@ export default function FinancesPage() {
 
   if (activeTab === 'menu') {
     return (
-      <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+      <div className="max-w-md mx-auto px-4 pt-8 pb-4">
         <header className="mb-8 flex items-center gap-4">
           <Link href="/"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
           <div>
@@ -396,7 +395,7 @@ export default function FinancesPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-8 flex items-center gap-4">
         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}>
           <ChevronLeft className="w-6 h-6" />

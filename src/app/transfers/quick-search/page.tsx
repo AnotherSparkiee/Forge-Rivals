@@ -124,7 +124,10 @@ export const TransferHeroCard = memo(({
             
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-base font-bold uppercase truncate text-white tracking-tight leading-tight">{agent.heroData?.name}</h3>
+                <div className={cn("relative flex items-center min-w-0", isPremium && "pl-1.5 border-l-2 border-accent")}>
+                  {isPremium && <div className="absolute inset-0 bg-gradient-to-r from-accent/20 to-transparent -z-10" />}
+                  <h3 className="text-base font-bold uppercase truncate text-white tracking-tight leading-tight">{agent.heroData?.name}</h3>
+                </div>
                 <Badge variant="outline" className="text-[8px] h-4 py-0 border-white/10 uppercase font-black text-primary/80">
                   {rolesRu[agent.heroData.role] || agent.heroData.role}
                 </Badge>
@@ -387,7 +390,7 @@ export default function QuickSearchPage() {
   if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-6">
       <header className="mb-6 flex items-center gap-4">
         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.push('/transfers')}><ChevronLeft className="w-6 h-6" /></Button>
         <div>

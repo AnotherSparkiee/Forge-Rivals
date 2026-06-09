@@ -141,7 +141,7 @@ export default function ProfilePage() {
   const t = translations[language as 'en' | 'ru'] || translations.ru;
 
   const renderTeamView = () => (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-6">
       {isPremium && (
         <Card className="glass-card bg-accent/5 border-accent/20 overflow-hidden relative">
           <CardContent className="p-4 flex items-center gap-4">
@@ -248,7 +248,7 @@ export default function ProfilePage() {
   );
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-6">
       <header className="flex flex-col items-center mb-10 relative">
         <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => router.push('/')}><ChevronLeft className="w-6 h-6" /></Button>
         <div className="relative group mb-4">

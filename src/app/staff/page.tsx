@@ -98,7 +98,7 @@ export default function StaffPage() {
   if (!isLoaded) return <LoadingScreen />;
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-6">
       <header className="mb-6 flex items-center gap-4">
         <Link href="/">
           <Button variant="ghost" size="icon" className="rounded-full">

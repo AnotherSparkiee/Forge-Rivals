@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect } from 'react';
@@ -68,7 +67,7 @@ export default function RosterPage() {
   const t = translations[language as keyof typeof translations] || translations.ru;
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-20">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6 flex items-center gap-4">
         <Link href="/">
           <Button variant="ghost" size="icon" className="rounded-full">

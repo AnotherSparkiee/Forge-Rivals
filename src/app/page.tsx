@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -302,8 +301,8 @@ export default function Home() {
         { label: 'Чаты', href: '/chats', icon: MessageSquare, desc: 'Связь' }, 
         { label: 'Менеджеры', href: '/managers', icon: UsersRound, desc: 'Сообщество' },
         { label: 'Ассоциация', href: '/associations', icon: Shield, desc: 'Альянсы' },
-        { label: 'Магазин', href: '/shop', icon: Store, desc: 'Ресурсы' },
-        { label: 'Профиль', href: '/profile', icon: User, desc: 'Настройки' } 
+        { label: 'Магазин', href: '/shop', icon: Store, desc: 'Resources' },
+        { label: 'Профиль', href: '/profile', icon: User, desc: 'Settings' } 
       ]
     }
   };
@@ -311,7 +310,7 @@ export default function Home() {
   const t = translations[language as keyof typeof translations] || translations.ru;
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-12">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6">
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
           {displayMatchInfo ? (
