@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -57,11 +58,11 @@ export default function MedicalPage() {
       crewBusy: "Medical Crew Occupied",
       facilities: "Department Upgrades",
       items: {
-        physiotherapyLevel: { label: "Physiotherapy", desc: "Reduces hero physical fatigue and speeds up healing." },
-        massageLevel: { label: "Massage Room", desc: "Relieves muscle tension and boosts overall stamina." },
-        psychiatristLevel: { label: "Psychiatrist", desc: "Treats severe mental burnout and trauma." },
-        labLevel: { label: "Medical Lab", desc: "Advanced bio-research for performance optimization." },
-        psychologistLevel: { label: "Psychologist", desc: "Improves team morale and emotional stability." }
+        physiotherapyLevel: { label: "Physiotherapy", desc: "Improves the physical condition of your players, preventing injuries." },
+        massageLevel: { label: "Massage Room", desc: "Speeds up player fatigue recovery between matches." },
+        psychiatristLevel: { label: "Psychiatrist", desc: "Reduces player fatigue after matches." },
+        labLevel: { label: "Medical Lab", desc: "Speeds up the healing process for all injuries." },
+        psychologistLevel: { label: "Psychologist", desc: "Slightly speeds up training in unofficial matches and slows training speed decay." }
       }
     },
     ru: {
@@ -79,11 +80,11 @@ export default function MedicalPage() {
       crewBusy: "Медицинская бригада занята",
       facilities: "Улучшение отделов",
       items: {
-        physiotherapyLevel: { label: "Физиотерапия", desc: "Снижает физическую усталость и ускоряет лечение травм." },
-        massageLevel: { label: "Массажная", desc: "Снимает мышечное напряжение и повышает выносливость." },
-        psychiatristLevel: { label: "Психиатр", desc: "Лечение серьезных ментальных выгораний и травм." },
-        labLevel: { label: "Лаборатория", desc: "Продвинутые исследования для оптимизации показателей." },
-        psychologistLevel: { label: "Психолог", desc: "Повышает моральный дух и эмоциональную стабильность." }
+        physiotherapyLevel: { label: "Физиотерапия", desc: "Улучшает физическое состояние Ваших игроков, предупреждая получение травм." },
+        massageLevel: { label: "Массажная", desc: "Ускоряет восстановление усталости игроков между матчами." },
+        psychiatristLevel: { label: "Психиатр", desc: "Уменьшает усталость игроков после матчей." },
+        labLevel: { label: "Лаборатория", desc: "Значительно ускоряет лечение всех видов травм." },
+        psychologistLevel: { label: "Психолог", desc: "Ускоряет тренировку в неофициальных матчах и замедляет падание скорости тренировки." }
       }
     }
   };
@@ -205,12 +206,12 @@ export default function MedicalPage() {
 
       <Dialog open={!!selectedFacility} onOpenChange={() => setSelectedFacility(null)}>
         {selectedFacility && (
-          <DialogContent className="max-w-xs bg-card border-white/5 p-6">
+          <DialogContent className="max-w-xs bg-card border-white/5 p-6 shadow-2xl border">
             <DialogHeader>
-              <DialogTitle className="text-center font-headline font-bold text-xl uppercase">
+              <DialogTitle className="text-center font-headline font-bold text-xl uppercase tracking-tight text-primary">
                 {t.items[selectedFacility as keyof typeof t.items].label}
               </DialogTitle>
-              <DialogDescription className="text-center text-xs mt-2 italic">
+              <DialogDescription className="text-center text-xs mt-4 italic text-muted-foreground leading-relaxed bg-secondary/20 p-4 rounded-xl border border-white/5">
                 {t.items[selectedFacility as keyof typeof t.items].desc}
               </DialogDescription>
             </DialogHeader>
@@ -229,7 +230,7 @@ export default function MedicalPage() {
             </div>
 
             <DialogFooter className="mt-6">
-              <Button className="w-full hero-gradient font-bold h-12" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
+              <Button className="w-full hero-gradient font-bold h-12 uppercase text-[10px] tracking-widest shadow-xl shadow-primary/20" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
                 {isAnyConstructing ? t.crewBusy : t.confirm}
               </Button>
             </DialogFooter>

@@ -12,7 +12,7 @@ import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
 import { 
   ChevronLeft, MessageSquare, Coffee, ShoppingBag, 
-  Monitor, Home, Lightbulb, Wallet, Clock,
+  Monitor, Car, Lightbulb, Wallet, Clock,
   Hammer, MinusCircle, PlusCircle, Lock
 } from 'lucide-react';
 import Link from 'next/link';
@@ -57,7 +57,7 @@ export default function ArenaPage() {
       Number(arena.cafeLevel || 0),
       Number(arena.shopLevel || 0),
       Number(arena.screensLevel || 0),
-      Number(arena.roofLevel || 0),
+      Number(arena.parkingLevel || 0),
       Number(arena.lightingLevel || 0)
     );
   }, [arena]);
@@ -92,12 +92,12 @@ export default function ArenaPage() {
       locked: "B-Tier License Required",
       items: {
         capacity: { label: "Stadium Capacity", desc: "Current stadium seating capacity." },
-        pressCenterLevel: { label: "Press Center", desc: "Increases media coverage and attracts more elite fans." },
-        cafeLevel: { label: "Food Court", desc: "Provides catering services, increasing matchday revenue." },
-        shopLevel: { label: "Fan Shop", desc: "Boosts merchandise sales and team popularity." },
-        screensLevel: { label: "Digital Screens", desc: "Attracts higher-paying sponsors for advertising." },
-        roofLevel: { label: "Stadium Roof", desc: "Ensures attendance stability during bad weather." },
-        lightingLevel: { label: "Lighting System", desc: "Enables HD-broadcasts and prime-time matches." }
+        pressCenterLevel: { label: "Press Center", desc: "The club receives income from TV broadcasts." },
+        cafeLevel: { label: "Food Court", desc: "Allows each visitor to spend extra money." },
+        shopLevel: { label: "Fan Shop", desc: "Regular income from the fan club." },
+        screensLevel: { label: "Digital Screens", desc: "Slightly increases attendance and income from TV broadcasts." },
+        parkingLevel: { label: "Parking", desc: "Increases stadium attendance." },
+        lightingLevel: { label: "Lighting System", desc: "Eliminates the negative impact of bad weather on attendance." }
       }
     },
     ru: {
@@ -126,12 +126,12 @@ export default function ArenaPage() {
       locked: "Нужна Лицензия B-Tier",
       items: {
         capacity: { label: "Вместимость стадиона", desc: "Текущая вместимость зрительских мест." },
-        pressCenterLevel: { label: "Пресс-центр", desc: "Улучшает освещение в СМИ и привлекает больше фанатов." },
-        cafeLevel: { label: "Кафе и фуд-корт", desc: "Обеспечивает питание, увеличивая доход в дни матчей." },
-        shopLevel: { label: "Магазин атрибутики", desc: "Увеличивает продажи мерча и популярность команды." },
-        screensLevel: { label: "Экраны и табло", desc: "Привлекает дорогих спонсоров для рекламы." },
-        roofLevel: { label: "Крыша стадиона", desc: "Обеспечивает стабильную посещаемость в любую погоду." },
-        lightingLevel: { label: "Система освещения", desc: "Позволяет проводить HD-трансляции в прайм-тайм." }
+        pressCenterLevel: { label: "Пресс-центр", desc: "Клуб получает доход от телетрансляций." },
+        cafeLevel: { label: "Кафе и фуд-корт", desc: "Позволяет каждому посетителю потратить дополнительные деньги." },
+        shopLevel: { label: "Магазин атрибутики", desc: "Регулярный доход от фанклуба." },
+        screensLevel: { label: "Экраны и табло", desc: "Немного увеличивает посещаемость и доход от телетрансляций." },
+        parkingLevel: { label: "Парковка", desc: "Увеличивает посещаемость стадиона." },
+        lightingLevel: { label: "Система освещения", desc: "Устраняет негативные влияние плохой погоды на посещаемость." }
       }
     }
   };
@@ -180,7 +180,7 @@ export default function ArenaPage() {
     { id: 'cafeLevel', icon: Coffee, color: 'text-orange-400' },
     { id: 'shopLevel', icon: ShoppingBag, color: 'text-green-400' },
     { id: 'screensLevel', icon: Monitor, color: 'text-primary' },
-    { id: 'roofLevel', icon: Home, color: 'text-slate-400' },
+    { id: 'parkingLevel', icon: Car, color: 'text-slate-400' },
     { id: 'lightingLevel', icon: Lightbulb, color: 'text-yellow-400' },
   ];
 
@@ -399,13 +399,13 @@ export default function ArenaPage() {
 
       <Dialog open={!!selectedFacility} onOpenChange={() => setSelectedFacility(null)}>
         {selectedFacility && (
-          <DialogContent className="max-w-xs bg-card border-white/10 p-6">
+          <DialogContent className="max-w-xs bg-card border-white/10 p-6 shadow-2xl border">
             <DialogHeader>
-              <DialogTitle className="text-center font-headline font-bold text-xl uppercase tracking-tight">
+              <DialogTitle className="text-center font-headline font-bold text-xl uppercase tracking-tight text-primary">
                 {t.items[selectedFacility as keyof typeof t.items].label}
               </DialogTitle>
-              <DialogDescription className="text-center text-xs mt-3 italic text-muted-foreground leading-relaxed">
-                "{t.items[selectedFacility as keyof typeof t.items].desc}"
+              <DialogDescription className="text-center text-xs mt-4 italic text-muted-foreground leading-relaxed bg-secondary/20 p-4 rounded-xl border border-white/5">
+                {t.items[selectedFacility as keyof typeof t.items].desc}
               </DialogDescription>
             </DialogHeader>
 

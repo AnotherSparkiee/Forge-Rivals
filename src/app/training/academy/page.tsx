@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -57,10 +58,10 @@ export default function AcademyPage() {
       crewBusy: "Academy Crew Occupied",
       facilities: "Academy Objects",
       items: {
-        youthBootcampLevel: { label: "Youth Bootcamp", desc: "Specialized training facility for rising stars." },
-        streamingLevel: { label: "Streaming Center", desc: "Showcases young talents to a global audience." },
-        scoutsLevel: { label: "Academy Scouts", desc: "Identifies promising prodigies at an early age." },
-        discoLevel: { label: "Youth Club", desc: "A place for social synergy and relaxation for students." }
+        youthBootcampLevel: { label: "Youth Bootcamp", desc: "Significantly speeds up the training process for all youth students." },
+        streamingLevel: { label: "Streaming Center", desc: "Slightly increases fan base and total number of students in the academy." },
+        scoutsLevel: { label: "Academy Scouts", desc: "Enables discovery of more gifted and talented players during recruitment." },
+        discoLevel: { label: "Youth Club", desc: "Reduces the number of youth players who decide to leave their cyber-sports career." }
       }
     },
     ru: {
@@ -78,10 +79,10 @@ export default function AcademyPage() {
       crewBusy: "Бригада Академии занята",
       facilities: "Объекты Академии",
       items: {
-        youthBootcampLevel: { label: "Молодежный Буткемп", desc: "Специальная тренировочная база для юных дарований." },
-        streamingLevel: { label: "Стриминг", desc: "Трансляции игр молодежи для привлечения фанатов." },
-        scoutsLevel: { label: "Скауты", desc: "Поиск самых перспективных игроков с раннего возраста." },
-        discoLevel: { label: "Дискотека", desc: "Место для отдыха и социализации студентов академии." }
+        youthBootcampLevel: { label: "Молодежный Буткемп", desc: "Значительно ускоряет процесс тренировки всех юниоров академии." },
+        streamingLevel: { label: "Стриминг", desc: "Немного увеличивает фанбазу и общее количество занимающихся в школе игроков." },
+        scoutsLevel: { label: "Скауты", desc: "Позволяет находить более одаренных и талантливых игроков при наборе." },
+        discoLevel: { label: "Дискотека", desc: "Уменьшает количество молодежи, отказавшейся от дальнейшей карьеры киберспортсмена." }
       }
     }
   };
@@ -202,12 +203,12 @@ export default function AcademyPage() {
 
       <Dialog open={!!selectedFacility} onOpenChange={() => setSelectedFacility(null)}>
         {selectedFacility && (
-          <DialogContent className="max-w-xs bg-card border-white/5 p-6">
+          <DialogContent className="max-w-xs bg-card border-white/5 p-6 shadow-2xl border">
             <DialogHeader>
-              <DialogTitle className="text-center font-headline font-bold text-xl uppercase">
+              <DialogTitle className="text-center font-headline font-bold text-xl uppercase tracking-tight text-primary">
                 {t.items[selectedFacility as keyof typeof t.items].label}
               </DialogTitle>
-              <DialogDescription className="text-center text-xs mt-2 italic">
+              <DialogDescription className="text-center text-xs mt-4 italic text-muted-foreground leading-relaxed bg-secondary/20 p-4 rounded-xl border border-white/5">
                 {t.items[selectedFacility as keyof typeof t.items].desc}
               </DialogDescription>
             </DialogHeader>
@@ -226,7 +227,7 @@ export default function AcademyPage() {
             </div>
 
             <DialogFooter className="mt-6">
-              <Button className="w-full hero-gradient font-bold h-12" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
+              <Button className="w-full hero-gradient font-bold h-12 uppercase text-[10px] tracking-widest shadow-xl shadow-primary/20" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
                 {isAnyConstructing ? t.crewBusy : t.confirm}
               </Button>
             </DialogFooter>

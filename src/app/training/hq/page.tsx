@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -74,11 +75,11 @@ export default function HQPage() {
       crewBusy: "Administration Crew Occupied",
       facilities: "Department Upgrades",
       items: {
-        hrLevel: { label: "HR Department", desc: "Reduces hero hiring costs and improves staff efficiency." },
-        financeLevel: { label: "Finance Dept", desc: "Optimizes tax operations and increases match income." },
-        scoutsLevel: { label: "Scouting Center", desc: "Reveals hidden talents and rare hero opportunities." },
-        pressOfficeLevel: { label: "Press Service", desc: "Manages public relations and team fame growth." },
-        adminLevel: { label: "Administration", desc: "Reduces all facility maintenance costs globally." }
+        hrLevel: { label: "HR Department", desc: "Allows hiring the necessary number of professional staff members." },
+        financeLevel: { label: "Finance Dept", desc: "Provides discounts on building and facility maintenance." },
+        scoutsLevel: { label: "Scouting Center", desc: "Provides intelligence on opponents and detailed player search." },
+        pressOfficeLevel: { label: "Press Service", desc: "Interaction with the fan movement and attracting new supporters." },
+        adminLevel: { label: "Administration", desc: "Increases manager experience (XP) gained from each match." }
       }
     },
     ru: {
@@ -98,11 +99,11 @@ export default function HQPage() {
       crewBusy: "Бригада офиса занята",
       facilities: "Улучшение отделов",
       items: {
-        hrLevel: { label: "Отдел кадров", desc: "Снижает стоимость найма и улучшает навыки персонала." },
-        financeLevel: { label: "Финансы", desc: "Оптимизирует налоги и увеличивает доход с билетов." },
-        scoutsLevel: { label: "Скауты", desc: "Находит редких героев и будущих звезд." },
-        pressOfficeLevel: { label: "Пресс-служба", desc: "Управляет пиаром и ускоряет рост славы клуба." },
-        adminLevel: { label: "Администрация", desc: "Снижает расходы на содержание всех объектов." }
+        hrLevel: { label: "Отдел кадров", desc: "Позволяет нанимать необходимое количество профессионального персонала." },
+        financeLevel: { label: "Финансы", desc: "Дает скидки на обслуживание построек и объектов базы." },
+        scoutsLevel: { label: "Скауты", desc: "Развед-информация о сопернике и детальный поиск игроков на рынке." },
+        pressOfficeLevel: { label: "Пресс-служба", desc: "Взаимодействие с фан-движением и привлечение новых болельщиков." },
+        adminLevel: { label: "Администрация", desc: "Увеличивает опыт менеджера, получаемый с каждым сыгранным матчем." }
       }
     }
   };
@@ -244,12 +245,12 @@ export default function HQPage() {
 
       <Dialog open={!!selectedFacility} onOpenChange={() => setSelectedFacility(null)}>
         {selectedFacility && (
-          <DialogContent className="max-w-xs bg-card border-white/5 p-6">
+          <DialogContent className="max-w-xs bg-card border-white/5 p-6 shadow-2xl border">
             <DialogHeader>
-              <DialogTitle className="text-center font-headline font-bold text-xl uppercase">
+              <DialogTitle className="text-center font-headline font-bold text-xl uppercase tracking-tight text-primary">
                 {t.items[selectedFacility as keyof typeof t.items].label}
               </DialogTitle>
-              <DialogDescription className="text-center text-xs mt-2 italic">
+              <DialogDescription className="text-center text-xs mt-4 italic text-muted-foreground leading-relaxed bg-secondary/20 p-4 rounded-xl border border-white/5">
                 {t.items[selectedFacility as keyof typeof t.items].desc}
               </DialogDescription>
             </DialogHeader>
@@ -268,7 +269,7 @@ export default function HQPage() {
             </div>
 
             <DialogFooter className="mt-6">
-              <Button className="w-full hero-gradient font-bold h-12" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
+              <Button className="w-full hero-gradient font-bold h-12 uppercase text-[10px] tracking-widest shadow-xl shadow-primary/20" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
                 {isAnyConstructing ? t.crewBusy : t.confirm}
               </Button>
             </DialogFooter>

@@ -4,8 +4,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection, query, where } from 'firebase/firestore';
-import { isMatchDue, getGlobalSeasonInfo, getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
+import { doc, collection, query, where, updateDoc } from 'firebase/firestore';
+import { isMatchDue, getGlobalSeasonInfo, getMoscowTime, getMoscowDateString, calculateLiveAge } from '@/app/lib/time-utils';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '@/app/lib/leagues-data';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
@@ -17,13 +17,14 @@ import { Zap, ArrowRight, FileText, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant, getEntryRound } from '@/app/lib/cup-utils';
 import { useRouter } from 'next/navigation';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 export function AutoMatchManager() {
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, 
     seasonDay, seasonNumber, lastLeagueMatchDate, lastCupMatchDate, recordMatch, strategy, rank, seasonStartDate,
     markMatchAsSeen, matchHistory, seasonResults, dismissSeasonResults, setSyncing, ownedHeroes, lineup,
-    lastProcessedSeason
+    lastProcessedSeason, staff
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
@@ -60,6 +61,52 @@ export function AutoMatchManager() {
   }, [db, profile?.selectedLeagueId, user?.uid]);
 
   const { data: allLeaguePlayers } = useCollection(allLeaguePlayersQuery);
+
+  const sendNotification = useCallback((userId: string, title: string, description: string, id: string) => {
+    const notifRef = doc(db, 'notifications_v7', id);
+    setDocumentNonBlocking(notifRef, {
+      userId,
+      title,
+      description,
+      type: 'league',
+      read: false,
+      createdAt: new Date().toISOString()
+    });
+  }, [db]);
+
+  // RETIREMENT CHECK (Start of Season)
+  useEffect(() => {
+    if (!isLoaded || isUserLoading || !user || !profile) return;
+    if (seasonDay === 1 && lastProcessedSeason < seasonNumber) {
+      // 1. Process Players
+      ownedHeroes.forEach(hero => {
+        const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
+        if (liveAge.numeric >= 33) {
+          const title = language === 'ru' ? "Завершение карьеры" : "Career Retirement";
+          const desc = language === 'ru' 
+            ? `Ваш игрок ${hero.name} покидает расположение команды в конце текущего сезона по возрасту.`
+            : `Your player ${hero.name} is leaving the team at the end of this season due to age.`;
+          sendNotification(user.uid, title, desc, `retire_hero_${hero.id}_S${seasonNumber}`);
+        }
+      });
+
+      // 2. Process Staff
+      Object.values(staff).forEach(member => {
+        if (!member) return;
+        const liveAge = calculateLiveAge(member.baseAge, member.hiredAt);
+        if (liveAge.numeric >= 65) {
+          const title = language === 'ru' ? "Завершение контракта" : "Contract Expiry";
+          const desc = language === 'ru'
+            ? `Специалист ${member.firstName} ${member.lastName} покидает расположение команды в конце сезона.`
+            : `Staff member ${member.firstName} ${member.lastName} is leaving the team at the end of the season.`;
+          sendNotification(user.uid, title, desc, `retire_staff_${member.id}_S${seasonNumber}`);
+        }
+      });
+
+      // Update processed season to prevent double notifications
+      updateDoc(userRef!, { lastProcessedSeason: seasonNumber });
+    }
+  }, [isLoaded, isUserLoading, user, profile, seasonDay, seasonNumber, lastProcessedSeason, ownedHeroes, staff, language, sendNotification, userRef]);
 
   const simulateOneLeagueMatch = useCallback(async (targetSeason: number, targetDay: number, isCatchUp: boolean) => {
     if (!groupPlayers || !user || !profile || simulationLockRef.current) return;

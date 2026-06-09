@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -57,10 +58,10 @@ export default function BootcampPage() {
       crewBusy: "Bootcamp Crew Occupied",
       facilities: "Facilities Upgrades",
       items: {
-        bootcampLevel: { label: "Main Bootcamp", desc: "Increases base training speed for all heroes." },
-        tacticsHallLevel: { label: "Tactics Hall", desc: "Improves strategy execution and team synergy." },
-        poolLevel: { label: "Pool & Wellness", desc: "Speeds up hero recovery after intensive sessions." },
-        researchLevel: { label: "Research Lab", desc: "Unlocks advanced training methods and meta-analysis." }
+        bootcampLevel: { label: "Main Bootcamp", desc: "Speeds up player training and makes it possible for players to reach maximum skill levels." },
+        tacticsHallLevel: { label: "Tactics Hall", desc: "Makes various tactical instructions more effective and eliminates their negative consequences." },
+        poolLevel: { label: "Pool & Wellness", desc: "Slows down skill decay in older players (30+) and form decay in resting players." },
+        researchLevel: { label: "Research Lab", desc: "Increases training in unofficial matches and speeds up training at high skill levels." }
       }
     },
     ru: {
@@ -78,10 +79,10 @@ export default function BootcampPage() {
       crewBusy: "Бригада Буткемпа занята",
       facilities: "Улучшение объектов",
       items: {
-        bootcampLevel: { label: "Основной Буткемп", desc: "Повышает базовую скорость тренировок всех героев." },
-        tacticsHallLevel: { label: "Зал тактики", desc: "Улучшает выполнение стратегий и синергию команды." },
-        poolLevel: { label: "Бассейн и отдых", desc: "Ускоряет восстановление героев после тренировок." },
-        researchLevel: { label: "Исследования", desc: "Открывает продвинутые методы анализа меты." }
+        bootcampLevel: { label: "Основной Буткемп", desc: "Ускоряет тренировку игроков и делает возможным достижение игроками максимальных уровней навыков." },
+        tacticsHallLevel: { label: "Зал тактики", desc: "Делает различные тактические указания более эффективными и устраняет их негативные последствия во время матча." },
+        poolLevel: { label: "Бассейн и отдых", desc: "Замедляет падение навыков у возрастных игроков (30+) и падение формы у отдыхавших игроков." },
+        researchLevel: { label: "Исследования", desc: "Увеличивает рост характеристик в неофициальных матчах и ускоряет тренировку на высоких уровнях навыков." }
       }
     }
   };
@@ -202,12 +203,12 @@ export default function BootcampPage() {
 
       <Dialog open={!!selectedFacility} onOpenChange={() => setSelectedFacility(null)}>
         {selectedFacility && (
-          <DialogContent className="max-w-xs bg-card border-white/5 p-6">
+          <DialogContent className="max-w-xs bg-card border-white/5 p-6 shadow-2xl border">
             <DialogHeader>
-              <DialogTitle className="text-center font-headline font-bold text-xl uppercase">
+              <DialogTitle className="text-center font-headline font-bold text-xl uppercase tracking-tight text-primary">
                 {t.items[selectedFacility as keyof typeof t.items].label}
               </DialogTitle>
-              <DialogDescription className="text-center text-xs mt-2 italic">
+              <DialogDescription className="text-center text-xs mt-4 italic text-muted-foreground leading-relaxed bg-secondary/20 p-4 rounded-xl border border-white/5">
                 {t.items[selectedFacility as keyof typeof t.items].desc}
               </DialogDescription>
             </DialogHeader>
@@ -226,7 +227,7 @@ export default function BootcampPage() {
             </div>
 
             <DialogFooter className="mt-6">
-              <Button className="w-full hero-gradient font-bold h-12" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
+              <Button className="w-full hero-gradient font-bold h-12 uppercase text-[10px] tracking-widest shadow-xl shadow-primary/20" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
                 {isAnyConstructing ? t.crewBusy : t.confirm}
               </Button>
             </DialogFooter>
