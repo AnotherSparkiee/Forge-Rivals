@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -15,7 +14,7 @@ import {
   Swords
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
-import Link from 'next/navigation';
+import Link from 'next/link';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { useToast } from '@/hooks/use-toast';
 import { COUNTRIES } from '../lib/countries-data';
@@ -82,7 +81,7 @@ export default function ShopPage() {
       insufficient: "Insufficient resources",
       tabs: {
         diamonds: { label: "Buy Diamonds", desc: "Purchase premium operational currency", icon: Gem, color: "text-blue-400" },
-        premium: { label: "Premium Status", desc: "Monthly elite club privileges", icon: Crown, color: "text-yellow-500" },
+        premium: { label: "Elite Status", desc: "Monthly elite club privileges", icon: Crown, color: "text-yellow-500" },
         licenses: { label: "Licenses", desc: "Command tier progressions and rights", icon: ScrollText, color: "text-red-400" },
         create_player: { label: "Create Player", desc: "Generate a custom high-tier elite hero", icon: UserPlus, color: "text-primary" },
         exchange: { label: "Exchange 💎 to €", desc: "Convert crystals to operational funds", icon: ArrowRightLeft, color: "text-yellow-400" },
@@ -101,9 +100,9 @@ export default function ShopPage() {
           { icon: Users, label: "15-hero squad limit", desc: "Extended personnel roster" },
           { icon: TrendingUp, label: "200% Sponsor Bonus", desc: "Tripled operational funding" }
         ],
-        active: "PREMIUM STATUS ACTIVE",
+        active: "ELITE STATUS ACTIVE",
         expires: "Expires on",
-        buy: "ACTIVATE PREMIUM PROTOCOL"
+        buy: "ACTIVATE ELITE PROTOCOL"
       },
       licenseInfo: {
         current: "Current Clearance",
@@ -166,7 +165,7 @@ export default function ShopPage() {
       insufficient: "Недостаточно ресурсов",
       tabs: {
         diamonds: { label: "Купить алмазы", desc: "Приобрести премиальную валюту", icon: Gem, color: "text-blue-400" },
-        premium: { label: "Premium Статус", desc: "Ежемесячные привилегии элитного клуба", icon: Crown, color: "text-yellow-500" },
+        premium: { label: "Элитный Статус", desc: "Ежемесячные привилегии элитного клуба", icon: Crown, color: "text-yellow-500" },
         licenses: { label: "Лицензии", desc: "Уровни допуска и полномочий", icon: ScrollText, color: "text-red-400" },
         create_player: { label: "Создать игрока", desc: "Генерация элитного героя высокого уровня", icon: UserPlus, color: "text-primary" },
         exchange: { label: "Обмен Алмазы на €", desc: "Конвертация кристаллов в бюджет клуба", icon: ArrowRightLeft, color: "text-yellow-400" },
@@ -185,9 +184,9 @@ export default function ShopPage() {
           { icon: Users, label: "Состав до 15 игроков", desc: "Расширенный ростер персонала" },
           { icon: TrendingUp, label: "200% Бонус Спонсоров", desc: "Выплаты в 3 раза выше" }
         ],
-        active: "PREMIUM СТАТУС АКТИВИРОВАН",
+        active: "ЭЛИТНЫЙ СТАТУС АКТИВИРОВАН",
         expires: "Истекает",
-        buy: "АКТИВИРОВАТЬ PREMIUM"
+        buy: "АКТИВИРОВАТЬ ЭЛИТНЫЙ СТАТУС"
       },
       licenseInfo: {
         current: "Ваш уровень допуска",
@@ -249,7 +248,7 @@ export default function ShopPage() {
 
   const handleBuyPremium = () => {
     if (purchasePremium()) {
-      toast({ title: language === 'ru' ? "Premium статус активирован!" : "Premium status activated!" });
+      toast({ title: language === 'ru' ? "Статус активирован!" : "Status activated!" });
       setActiveTab('menu');
     } else {
       toast({ title: t.insufficient, variant: "destructive" });
@@ -620,43 +619,70 @@ export default function ShopPage() {
     }
   };
 
-  if (activeTab === 'menu') {
-    return (
-      <div className="max-w-md mx-auto px-4 pt-8 pb-6">
-        <header className="mb-8 flex items-center gap-4">
-          <Link href="/"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
-          <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2 text-primary"><ShoppingCart className="w-6 h-6 text-primary" /> {language === 'ru' ? 'МАГАЗИН' : 'TRADING HUB'}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p></div>
-        </header>
-
-        <div className="grid grid-cols-2 gap-3 mb-8">
-           <Card className="glass-card bg-blue-500/5 border-blue-500/20"><CardContent className="p-4 text-center"><p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Crystals</p><div className="flex items-center justify-center gap-2"><Gem className="w-4 h-4 text-blue-400" /><p className="text-xl font-headline font-black italic text-blue-400">{crystals || 0}</p></div></CardContent></Card>
-           <Card className="glass-card bg-yellow-500/5 border-yellow-500/20"><CardContent className="p-4 text-center"><p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Credits</p><div className="flex items-center justify-center gap-2"><span className="text-yellow-500 font-black">€</span><p className="text-xl font-headline font-black italic text-yellow-500">{formatCurrency(credits)}</p></div></CardContent></Card>
-        </div>
-
-        <div className="space-y-2">
-          {(Object.entries(t.tabs) as [ShopTab, any][]).map(([id, data]) => (
-            <Card key={id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => setActiveTab(id)}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={cn("p-2.5 rounded-xl bg-secondary/50", data.color)}><data.icon className="w-5 h-5" /></div>
-                  <div><h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{data.label}</h3><p className="text-[10px] text-muted-foreground leading-tight">{data.desc}</p></div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-6">
       <header className="mb-8 flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}><ChevronLeft className="w-6 h-6" /></Button>
-        <div><h1 className="text-xl font-headline font-bold uppercase tracking-tight">{t.tabs[activeTab as keyof typeof t.tabs].label}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p></div>
+        {activeTab === 'menu' ? (
+          <Link href="/">
+            <Button variant="ghost" size="icon" className="rounded-full">
+              <ChevronLeft className="w-6 h-6" />
+            </Button>
+          </Link>
+        ) : (
+          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}>
+            <ChevronLeft className="w-6 h-6" />
+          </Button>
+        )}
+        <div>
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2 text-primary">
+            <ShoppingCart className="w-6 h-6 text-primary" /> 
+            {activeTab === 'menu' ? (language === 'ru' ? 'МАГАЗИН' : 'TRADING HUB') : t.tabs[activeTab as keyof typeof t.tabs].label}
+          </h1>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{activeTab === 'menu' ? t.subtitle : t.back}</p>
+        </div>
       </header>
-      {renderContent()}
+
+      {activeTab === 'menu' ? (
+        <>
+          <div className="grid grid-cols-2 gap-3 mb-8">
+             <Card className="glass-card bg-blue-500/5 border-blue-500/20">
+               <CardContent className="p-4 text-center">
+                 <p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Crystals</p>
+                 <div className="flex items-center justify-center gap-2">
+                   <Gem className="w-4 h-4 text-blue-400" />
+                   <p className="text-xl font-headline font-black italic text-blue-400">{crystals || 0}</p>
+                 </div>
+               </CardContent>
+             </Card>
+             <Card className="glass-card bg-yellow-500/5 border-yellow-500/20">
+               <CardContent className="p-4 text-center">
+                 <p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Credits</p>
+                 <div className="flex items-center justify-center gap-2">
+                   <span className="text-yellow-500 font-black">€</span>
+                   <p className="text-xl font-headline font-black italic text-yellow-500">{formatCurrency(credits)}</p>
+                 </div>
+               </CardContent>
+             </Card>
+          </div>
+
+          <div className="space-y-2">
+            {(Object.entries(t.tabs) as [ShopTab, any][]).map(([id, data]) => (
+              <Card key={id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => setActiveTab(id)}>
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className={cn("p-2.5 rounded-xl bg-secondary/50", data.color)}><data.icon className="w-5 h-5" /></div>
+                    <div>
+                      <h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{data.label}</h3>
+                      <p className="text-[10px] text-muted-foreground leading-tight">{data.desc}</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
+      ) : renderContent()}
     </div>
   );
 }

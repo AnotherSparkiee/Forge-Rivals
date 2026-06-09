@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -53,7 +52,7 @@ export function DailyRewardManager() {
     alreadyClaimed: language === 'ru' ? "ПОЛУЧЕНО" : "CLAIMED",
     upcoming: language === 'ru' ? "СКОРО" : "UPCOMING",
     today: language === 'ru' ? "СЕГОДНЯ" : "TODAY",
-    premiumBonus: language === 'ru' ? "+50 Premium Алмазов" : "+50 Premium Diamonds",
+    eliteBonus: language === 'ru' ? "+50 Элитных Алмазов" : "+50 Elite Diamonds",
   };
 
   if (!selectedLeagueId) return null;
@@ -140,8 +139,8 @@ export function DailyRewardManager() {
                 <div className="flex items-center gap-3">
                   <div className="p-1.5 rounded-lg bg-yellow-500/20"><Crown className="w-4 h-4 text-yellow-500" /></div>
                   <div>
-                    <p className="text-[7px] uppercase font-black text-yellow-500">Premium Reward</p>
-                    <p className="text-[11px] font-bold text-yellow-500">{t.premiumBonus}</p>
+                    <p className="text-[7px] uppercase font-black text-yellow-500">Elite Reward</p>
+                    <p className="text-[11px] font-bold text-yellow-500">{t.eliteBonus}</p>
                   </div>
                 </div>
               </div>
