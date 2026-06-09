@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
@@ -242,7 +241,7 @@ export default function SquadPage() {
     : ['res1', 'res2', 'res3'];
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-6">
       <header className="mb-6 flex items-center justify-between gap-4">
         <div className="flex items-center gap-4 flex-1 min-w-0">
           <Link href="/roster"><Button variant="ghost" size="icon" className="rounded-full shrink-0"><ChevronLeft className="w-6 h-6" /></Button></Link>
@@ -253,7 +252,6 @@ export default function SquadPage() {
                 <h1 className="px-3 py-1 text-2xl font-headline font-black uppercase tracking-tighter truncate text-white">
                   {profile?.displayName || t.title}
                 </h1>
-                <span className="absolute -top-1 -right-2 text-[6px] font-black text-accent uppercase tracking-[0.2em] bg-background/60 px-1 rounded-sm border border-accent/10">PREMIUM</span>
               </div>
             ) : (
               <h1 className="text-2xl font-headline font-black uppercase tracking-tighter truncate text-white">
@@ -287,7 +285,7 @@ export default function SquadPage() {
           <div className="space-y-2">{reserveSlots.map(renderSlot)}</div>
           {!isPremium && (
             <Link href="/shop" className="block p-4 mt-2 bg-yellow-500/5 border border-dashed border-yellow-500/20 rounded-xl text-center group hover:bg-yellow-500/10 transition-all">
-              <p className="text-[8px] font-black text-yellow-500 uppercase tracking-widest">Upgrade to Premium for +5 Reserve Slots</p>
+              <p className="text-[8px] font-black text-yellow-500 uppercase tracking-widest">Upgrade to Elite for +5 Reserve Slots</p>
             </Link>
           )}
         </section>
@@ -325,7 +323,7 @@ export default function SquadPage() {
                   <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto"><div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p><p className="text-xl font-headline font-bold text-accent italic leading-none">{profileHero.overallRating}</p></div><div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.salary}</p><p className="text-sm font-headline font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</p></div></div>
                 </DialogHeader>
                 <div className="flex-1 overflow-y-auto scrollbar-hide">
-                  <div className="p-4 space-y-8 pb-48">
+                  <div className="p-4 space-y-8 pb-10">
                     <section><h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Info className="w-3.5 h-3.5" /> BIOMETRICS & STATUS</h3><div className="grid grid-cols-2 gap-3"><div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5"><p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.age}</p><p className="text-xs font-bold">{calculateLiveAge(profileHero.baseAge, profileHero.hiredAt).display} {t.profile.years}</p></div><div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5"><p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.status}</p><p className={cn("text-[10px] font-bold flex items-center gap-1.5", profileHero.isInjured ? "text-red-400" : "text-green-400")}>{profileHero.isInjured ? t.profile.injured : t.profile.healthy}</p></div></div></section>
                     <section><h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Award className="w-3.5 h-3.5" /> {t.profile.stats}</h3><div className="space-y-5">{Object.entries(profileHero.proStats).map(([key, value]) => { const talent = profileHero.proTalents ? (profileHero.proTalents as any)[key] : 3.0; return (<div key={key} className="space-y-2 bg-secondary/10 p-3 rounded-xl border border-white/5"><div className="flex justify-between items-center px-0.5"><span className="text-[10px] font-bold uppercase tracking-widest">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span><div className="flex flex-col items-end"><span className="text-[10px] font-mono font-bold text-primary">{value} / 100</span>{renderStars(talent)}</div></div><Progress value={value} className="h-1 rounded-full bg-secondary/40" /></div>); })}</div></section>
                   </div>

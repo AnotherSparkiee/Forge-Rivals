@@ -21,7 +21,6 @@ export default function SynergyPage() {
   const db = useFirestore();
   const { matchHistory, language, isLoaded } = useGameState();
 
-  // Standardized on players_v10
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
@@ -68,7 +67,7 @@ export default function SynergyPage() {
   if (!isLoaded || isUserLoading) return <LoadingScreen />;
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-24">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-6">
       <header className="mb-6 flex items-center gap-4">
         <Link href="/roster">
           <Button variant="ghost" size="icon" className="rounded-full">
@@ -146,7 +145,8 @@ export default function SynergyPage() {
                 </p>
               </div>
             </CardContent>
-          </section>
+          </Card>
+        </section>
 
         <section className="space-y-2">
           <div className="flex items-center justify-between px-1">

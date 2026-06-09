@@ -175,7 +175,7 @@ export default function RankingsPage() {
   }, [cupParticipants, activeRoundToShow, searchQuery, user?.uid, effectiveDayForCup, matchHistory, seasonNumber]);
 
   const paginatedMatches = useMemo(() => {
-    const start = page * MATCHES_PER_PAGE;
+    const start = cupPage * MATCHES_PER_PAGE;
     return cupMatches.slice(start, start + MATCHES_PER_PAGE);
   }, [cupMatches, cupPage]);
 
@@ -276,7 +276,7 @@ export default function RankingsPage() {
   if (isUserLoading || !isLoaded || !user) return <LoadingScreen />;
 
   const renderRankingTable = (rankingsData: any[]) => (
-    <div className="space-y-2 animate-in fade-in duration-300">
+    <div className="space-y-2 animate-in fade-in duration-300 pb-6">
       <div className="flex items-center px-4 text-[9px] uppercase font-black text-muted-foreground/50 mb-1 tracking-widest">
         <div className="w-8">#</div>
         <div className="flex-1">{t.clubName}</div>
@@ -346,7 +346,7 @@ export default function RankingsPage() {
 
       case 'pyramid_cup':
         return (
-          <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 pb-10">
+          <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 pb-6">
             <Card className="glass-card bg-gradient-to-br from-accent/10 to-transparent border-accent/20 overflow-hidden">
               <CardContent className="p-6 flex flex-col items-center text-center">
                 <div className="relative mb-4">
@@ -494,7 +494,7 @@ export default function RankingsPage() {
       case 'my_pyramid':
         if (viewingGroup) {
           return (
-            <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500 pb-10">
+            <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500 pb-6">
               <div className="flex items-center justify-between px-1">
                 <Button variant="ghost" size="sm" onClick={() => setViewingGroup(null)} className="h-8 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10">
                   <ChevronLeft className="w-3 h-3 mr-1" /> Back
@@ -514,7 +514,7 @@ export default function RankingsPage() {
         if (selectedPyramidDiv) {
           const groupCount = Math.pow(2, selectedPyramidDiv - 1);
           return (
-            <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+            <div className="space-y-6 animate-in fade-in duration-500 pb-6">
               <div className="flex items-center justify-between px-1">
                 <Button variant="ghost" size="sm" onClick={() => setSelectedPyramidDiv(null)} className="h-8 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10">
                   <ChevronLeft className="w-3 h-3 mr-1" /> Back
@@ -538,7 +538,7 @@ export default function RankingsPage() {
           );
         }
         return (
-          <div className="space-y-3 animate-in fade-in duration-500 pb-10">
+          <div className="space-y-3 animate-in fade-in duration-500 pb-6">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((div) => (
               <Card key={div} className={cn("glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all", leagueLevel === div && "border-primary/30 bg-primary/5")} onClick={() => setSelectedPyramidDiv(div)}>
                 <CardContent className="p-4 flex items-center justify-between">
@@ -559,7 +559,7 @@ export default function RankingsPage() {
 
   if (activeTab === 'menu') {
     return (
-      <div className="max-w-md mx-auto px-4 pt-8 pb-20">
+      <div className="max-w-md mx-auto px-4 pt-8 pb-4">
         <header className="mb-8 flex items-center gap-4">
           <Link href="/"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
           <div className="flex-1"><h1 className="text-2xl font-headline font-black flex items-center gap-3 uppercase tracking-tighter"><Trophy className="text-yellow-500 w-6 h-6" /> {t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest opacity-50">Operational Hierarchy</p></div>
@@ -583,7 +583,7 @@ export default function RankingsPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-20">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-8 flex items-center gap-4">
         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { if (viewingGroup) setViewingGroup(null); else if (selectedPyramidDiv) setSelectedPyramidDiv(null); else setActiveTab('menu'); }}><ChevronLeft className="w-6 h-6" /></Button>
         <div className="flex-1"><h1 className="text-xl font-headline font-black uppercase tracking-tight">{t.tabs[activeTab as keyof typeof t.tabs].label}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest opacity-50">OPERATIONAL DATA | DIV {leagueLevel}.{divisionSubId}</p></div>

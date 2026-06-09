@@ -22,14 +22,13 @@ import { useToast } from '@/hooks/use-toast';
 import { doc } from 'firebase/firestore';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { Badge } from '@/components/ui/badge';
-import { getMoscowTime } from '@/app/lib/time-utils';
 
 type ProfileTab = 'menu' | 'team' | 'daily';
 
 export default function ProfilePage() {
   const { 
     ownedHeroes, language, isLoaded: isStoreLoaded, 
-    credits, crystals, leagueLevel, divisionSubId, groupId,
+    credits, crystals, leagueLevel, 
     experiencePoints, activeLicenseTier, hq, managerLevel,
     skillPoints, managerSkills, upgradeManagerSkill, arena, bootcamp, academy, medical,
     isPremium, premiumUntil
@@ -96,7 +95,7 @@ export default function ProfilePage() {
       popularity: "Club Popularity",
       logout: "LOG OUT",
       teamStats: "Club Status",
-      premium: "PREMIUM STATUS ACTIVE",
+      premiumActive: "ELITE STATUS ACTIVE",
       premiumExp: "Expires",
       skills: {
         title: "STRATEGIC DEVELOPMENT",
@@ -120,7 +119,7 @@ export default function ProfilePage() {
       popularity: "Популярность клуба",
       logout: "ВЫЙТИ ИЗ АККАУНТА",
       teamStats: "Статус команды",
-      premium: "PREMIUM СТАТУС АКТИВЕН",
+      premiumActive: "ЭЛИТНЫЙ СТАТУС АКТИВЕН",
       premiumExp: "Истекает",
       skills: {
         title: "РАЗВИТИЕ КЛУБА",
@@ -149,7 +148,7 @@ export default function ProfilePage() {
                <ShieldCheck className="w-6 h-6 text-accent" />
              </div>
              <div>
-               <p className="text-xs font-black text-accent uppercase tracking-widest">{t.premium}</p>
+               <p className="text-xs font-black text-accent uppercase tracking-widest">{t.premiumActive}</p>
                <p className="text-[10px] text-muted-foreground uppercase">{t.premiumExp}: {new Date(premiumUntil!).toLocaleDateString()}</p>
              </div>
           </CardContent>
@@ -208,7 +207,7 @@ export default function ProfilePage() {
         </div>
         <div className="grid grid-cols-1 gap-3">
           {[
-            { key: 'sponsors', icon: CircleDollarSign, label: t.skills.sponsors, color: 'text-yellow-400', desc: isPremium ? '+200% Premium' : '+10% Income' },
+            { key: 'sponsors', icon: CircleDollarSign, label: t.skills.sponsors, color: 'text-yellow-400', desc: isPremium ? '+200% Active' : '+10% Income' },
             { key: 'agents', icon: UserCog, label: t.skills.agents, color: 'text-blue-400', desc: '+10% Sale Fee' },
             { key: 'training', icon: GraduationCap, label: t.skills.training, color: 'text-primary', desc: isPremium ? '5x XP Active' : '+10% XP Rate' },
             { key: 'medical', icon: HeartPulse, label: t.skills.medical, color: 'text-red-400', desc: '+10% Form Limit' }
@@ -282,9 +281,11 @@ export default function ProfilePage() {
            <div className="relative h-2 w-full bg-secondary/50 rounded-full overflow-hidden border border-white/5"><div className="absolute top-0 left-0 h-full hero-gradient transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(var(--primary),0.5)]" style={{ width: `${xpProgress}%` }} /></div>
         </div>
       </header>
+
       <div className="grid grid-cols-3 gap-2 mb-8 bg-secondary/20 p-1 rounded-xl border border-white/5">
         {(['menu', 'team', 'daily'] as const).map((tab) => (<Button key={tab} variant="ghost" size="sm" onClick={() => setActiveTab(tab)} className={cn("h-10 text-[10px] font-black uppercase tracking-widest transition-all", activeTab === tab ? "bg-white/10 text-primary shadow-inner" : "text-muted-foreground hover:text-white")}>{t.tabs[tab]}</Button>))}
       </div>
+
       {activeTab === 'menu' && (
         <div className="space-y-4 animate-in fade-in duration-500">
           <Card className="glass-card border-primary/20 bg-primary/5 p-6 text-center">
@@ -301,8 +302,20 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+
       {activeTab === 'team' && renderTeamView()}
-      {activeTab === 'daily' && (<div className="animate-in fade-in duration-500 py-20 text-center"><div className="bg-secondary/20 p-8 rounded-2xl border border-white/5 max-w-[280px] mx-auto flex flex-col items-center gap-4"><div className="w-16 h-16 rounded-full bg-background flex items-center justify-center border border-white/10"><Trophy className="w-8 h-8 text-primary opacity-20" /></div><p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-relaxed">Daily Deployment Node Sync in Progress...</p><Button variant="ghost" className="mt-2 text-[10px] font-black uppercase text-primary" onClick={() => setActiveTab('menu')}>Return to Dashboard</Button></div></div>)}
+      
+      {activeTab === 'daily' && (
+        <div className="animate-in fade-in duration-500 py-20 text-center">
+          <div className="bg-secondary/20 p-8 rounded-2xl border border-white/5 max-w-[280px] mx-auto flex flex-col items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center border border-white/10">
+              <Trophy className="w-8 h-8 text-primary opacity-20" />
+            </div>
+            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-relaxed">Daily Deployment Node Sync in Progress...</p>
+            <Button variant="ghost" className="mt-2 text-[10px] font-black uppercase text-primary" onClick={() => setActiveTab('menu')}>Return to Dashboard</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
