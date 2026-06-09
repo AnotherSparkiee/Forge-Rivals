@@ -18,7 +18,7 @@ import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 /**
  * Страница журнала оперативных событий.
- * Оптимизирована для работы с 1000+ уведомлений через пакетную очистку.
+ * Оптимизирована для работы с коллекцией notifications_v7.
  */
 export default function NotificationsPage() {
   const { user, isUserLoading } = useUser();
@@ -30,11 +30,11 @@ export default function NotificationsPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  // Лимитируем список до 50 последних для быстродействия
+  // Лимитируем список до 50 последних
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'notifications_v6'),
+      collection(db, 'notifications_v7'),
       where('userId', '==', user.uid),
       orderBy('createdAt', 'desc'),
       limit(50)
@@ -62,7 +62,7 @@ export default function NotificationsPage() {
   }, [user, isUserLoading, router]);
 
   const handleMarkAsRead = (id: string) => {
-    updateDocumentNonBlocking(doc(db, 'notifications_v6', id), { read: true });
+    updateDocumentNonBlocking(doc(db, 'notifications_v7', id), { read: true });
   };
 
   const handleMarkAllRead = async () => {
@@ -70,21 +70,17 @@ export default function NotificationsPage() {
     const batch = writeBatch(db);
     const unread = displayNotifs.filter(n => !n.read);
     unread.forEach(n => {
-      batch.update(doc(db, 'notifications_v6', n.id), { read: true });
+      batch.update(doc(db, 'notifications_v7', n.id), { read: true });
     });
     await batch.commit();
   };
 
-  /**
-   * Пакетная очистка уведомлений (до 500 за раз).
-   * Позволяет быстро очистить журнал при 1000+ сообщениях.
-   */
   const handleClearAll = async () => {
     if (!user || isClearing) return;
     setIsClearing(true);
     try {
       const q = query(
-        collection(db, 'notifications_v6'),
+        collection(db, 'notifications_v7'),
         where('userId', '==', user.uid),
         limit(500)
       );
@@ -99,8 +95,6 @@ export default function NotificationsPage() {
         batch.delete(d.ref);
       });
       await batch.commit();
-      
-      // Если еще остались уведомления, пользователь может нажать еще раз
     } catch (e) {
       console.error("Failed to clear notifications:", e);
     } finally {

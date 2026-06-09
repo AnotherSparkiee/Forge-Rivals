@@ -10,6 +10,7 @@ import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 /**
  * Модуль автоматического завершения аукционов.
  * Работает на стороне клиента, разрешая сделки по истечении времени.
+ * Использует детерминированные ID для уведомлений во избежание дублей.
  */
 export function TransferResolver() {
   const { user, isUserLoading } = useUser();
@@ -35,10 +36,12 @@ export function TransferResolver() {
   const processedIds = useRef<Set<string>>(new Set());
 
   /**
-   * Отправка уведомления с детерминированным ID для предотвращения дублей.
+   * Отправка уведомления с детерминированным ID. 
+   * Это гарантирует, что даже при одновременной обработке несколькими клиентами
+   * создастся ровно одно уведомление.
    */
   const sendNotification = useCallback((targetUserId: string, title: string, description: string, notifId: string) => {
-    const notifRef = doc(db, 'notifications_v6', notifId);
+    const notifRef = doc(db, 'notifications_v7', notifId);
     setDocumentNonBlocking(notifRef, {
       userId: targetUserId,
       title,
@@ -72,7 +75,8 @@ export function TransferResolver() {
               
               addCredits(agent.currentBid);
               removeHero(heroId, 0);
-              // Уведомление продавцу
+              
+              // Уведомление продавцу с уникальным ID сделки
               sendNotification(user.uid, sellerTitle, sellerDesc, `sale_done_${agent.id}`);
             } else {
               // Возврат в состав если не купили
@@ -81,6 +85,7 @@ export function TransferResolver() {
               const desc = language === 'ru' 
                 ? `${agent.heroData.name} остается в клубе (ставок нет).`
                 : `${agent.heroData.name} remains in club (no bids).`;
+              
               sendNotification(user.uid, title, desc, `sale_fail_${agent.id}`);
             }
             // Удаляем лот с рынка
@@ -93,7 +98,7 @@ export function TransferResolver() {
       }
     };
 
-    const interval = setInterval(resolveAuctions, 15000);
+    const interval = setInterval(resolveAuctions, 20000);
     resolveAuctions();
     return () => clearInterval(interval);
   }, [isLoaded, isUserLoading, user, mySales, addCredits, removeHero, updateHero, language, db, sendNotification]);
@@ -126,10 +131,10 @@ export function TransferResolver() {
               ? `${heroData.name} теперь в вашем распоряжении.` 
               : `${heroData.name} is now under your command.`;
             
-            // Уведомление покупателю с детерминированным ID
+            // Уведомление покупателю с уникальным ID сделки
             sendNotification(user.uid, title, desc, `buy_done_${agent.id}`);
             
-            // Пытаемся удалить документ. Если продавец уже удалил его — это нормально.
+            // Пытаемся удалить документ. 
             await deleteDoc(doc(db, 'market_v7', agent.id));
           } catch (e) {
             console.error("Failed to claim purchased hero", e);
@@ -139,7 +144,7 @@ export function TransferResolver() {
       }
     };
 
-    const interval = setInterval(resolvePurchases, 15000);
+    const interval = setInterval(resolvePurchases, 20000);
     resolvePurchases();
     return () => clearInterval(interval);
   }, [isLoaded, isUserLoading, user, myPurchases, addHeroDirectly, addYouthHeroDirectly, language, sendNotification, db]);

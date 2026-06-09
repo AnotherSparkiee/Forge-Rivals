@@ -24,9 +24,7 @@ service cloud.firestore {
     match /market_v7/{docId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-      // Позволяем обновление всем (для ставок)
       allow update: if isSignedIn();
-      // Удаление разрешено продавцу ИЛИ победителю аукциона (для завершения сделки)
       allow delete: if isSignedIn() && (
         resource.data.sellerId == request.auth.uid || 
         resource.data.highestBidderId == request.auth.uid ||
@@ -41,7 +39,7 @@ service cloud.firestore {
       allow update: if isSignedIn();
     }
 
-    // === CW КОРЗИНА (v2) ===
+    // === КОРЗИНА КВ (v2) ===
     match /cw_basket_v2/{userId} {
       allow read: if isSignedIn();
       allow create, delete: if isOwner(userId);
@@ -62,8 +60,8 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // === УВЕДОМЛЕНИЯ (v6) ===
-    match /notifications_v6/{docId} {
+    // === УВЕДОМЛЕНИЯ (v7) ===
+    match /notifications_v7/{docId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn();
       allow update, delete: if isSignedIn() && (
@@ -87,12 +85,9 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (
-        // Владелец или заместитель могут управлять всем
         resource.data.ownerId == request.auth.uid || 
         resource.data.deputyId == request.auth.uid ||
-        // Любой игрок может подать/отменить заявку (поле requests)
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requests']) ||
-        // Автоматическое обновление членов при вступлении (если разрешено логикой)
         request.resource.data.diff(resource.data).affectedKeys().hasAny(['members', 'memberNames', 'membersData', 'news'])
       );
       allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;

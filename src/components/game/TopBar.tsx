@@ -2,18 +2,17 @@
 
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { doc, collection, query, where, limit, orderBy } from 'firebase/firestore';
+import { doc, collection, query, where, limit } from 'firebase/firestore';
 import { Gem, Mail, Home, Radio, Bell } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import Link from 'next/link';
-import { getMoscowTime } from '@/app/lib/time-utils';
 
 /**
  * Верхняя панель управления ресурсами и навигацией.
- * Оптимизирована для работы с большим количеством уведомлений (99+).
+ * Оптимизирована для работы с коллекцией notifications_v7.
  */
 export function TopBar() {
   const pathname = usePathname();
@@ -59,11 +58,11 @@ export function TopBar() {
     });
   }, [allMessages, user, profile]);
 
-  // Запрашиваем максимум 100 непрочитанных уведомлений для производительности
+  // Запрашиваем максимум 100 непрочитанных уведомлений
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
-      collection(db, 'notifications_v6'),
+      collection(db, 'notifications_v7'),
       where('userId', '==', user.uid),
       where('read', '==', false),
       limit(100)
