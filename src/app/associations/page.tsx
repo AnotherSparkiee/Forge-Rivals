@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -11,7 +12,7 @@ import {
   PlusCircle, History, Users, 
   ShieldCheck, Loader2, UserPlus, Check, X,
   LogOut, Newspaper, Crown, User, Mail, AlertTriangle,
-  Clock, Info, ShieldX, UserMinus, Trash2
+  Clock, Info, ShieldX, UserMinus, Trash2, Lock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -47,7 +48,7 @@ interface AssocNews {
 }
 
 export default function AssociationPage() {
-  const { language, isLoaded, crystals, addCrystals } = useGameState();
+  const { language, isLoaded, crystals, addCrystals, activeLicenseTier, isPremium } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const router = useRouter();
@@ -73,7 +74,6 @@ export default function AssociationPage() {
   const allAssocsQuery = useMemoFirebase(() => query(collection(db, 'associations_v4')), [db]);
   const { data: allAssocs, isLoading: isAllAssocsLoading } = useCollection(allAssocsQuery);
 
-  // Determine current association ID using both profile and search in all assocs (for faster sync)
   const currentAssocId = useMemo(() => {
     if (profile?.associationId) return profile.associationId;
     if (!user || !allAssocs) return null;
@@ -99,6 +99,10 @@ export default function AssociationPage() {
   const isOwner = myAssoc?.ownerId === user?.uid;
   const isDeputy = myAssoc?.deputyId === user?.uid;
   const canManage = isOwner || isDeputy;
+
+  // Permissions based on license
+  const canJoin = useMemo(() => isPremium || (activeLicenseTier !== null && activeLicenseTier <= 3), [activeLicenseTier, isPremium]);
+  const canCreate = useMemo(() => isPremium || (activeLicenseTier !== null && activeLicenseTier <= 1), [activeLicenseTier, isPremium]);
 
   const getDisplayMembers = (assoc: any): AssocMember[] => {
     if (!assoc) return [];
@@ -154,6 +158,7 @@ export default function AssociationPage() {
       newsFeed: "News Feed", userMenuDesc: "Direct command options for", appointDeputy: "Appoint Deputy", appointDeputyDesc: "Grants request management rights",
       removeDeputy: "Remove from Position", removeDeputyDesc: "Demotes deputy back to regular member", kickPlayer: "Kick from Association", kickDesc: "Removes player from alliance immediately",
       disband: "Disband Association", disbandDesc: "Complete alliance liquidation", disbandConfirmTitle: "DESTRUCTIVE PROTOCOL", disbandConfirmDesc: "This action will permanently delete the association and remove all members. This cannot be undone.", disbandBtn: "DISBAND ALLIANCE", alreadyMember: "You are already a member of an association",
+      lockedJoin: "B-Tier License Required", lockedCreate: "S-Tier License Required",
       tabs: {
         my_assoc: { label: "My Association", desc: "Manage your current alliance", icon: ShieldCheck, color: "text-primary" },
         news: { label: "News Feed", desc: "Recent alliance events", icon: Newspaper, color: "text-accent" },
@@ -171,6 +176,7 @@ export default function AssociationPage() {
       newsFeed: "Лента новостей", userMenuDesc: "Команды взаимодействия с", appointDeputy: "Назначить заместителем", appointDeputyDesc: "Дает права управления заявками",
       removeDeputy: "Снять с должности", removeDeputyDesc: "Понижает заместителя до обычного участника", kickPlayer: "Исключить из ассоциации", kickDesc: "Немедленно удаляет игрока из альянса",
       disband: "Распустить ассоциацию", disbandDesc: "Полное удаление альянса", disbandConfirmTitle: "ПРОТОКОЛ ЛИКВИДАЦИИ", disbandConfirmDesc: "Это действие навсегда удалит ассоциацию и исключит всех участников. Это действие нельзя отменить.", disbandBtn: "ЛИКВИДИРОВАТЬ АЛЬЯНС", alreadyMember: "Вы уже состоите в ассоциации",
+      lockedJoin: "Нужна Лицензия B-Tier", lockedCreate: "Нужна Лицензия S-Tier",
       tabs: {
         my_assoc: { label: "Моя ассоциация", desc: "Управление вашим альянсом", icon: ShieldCheck, color: "text-primary" },
         news: { label: "Лента новостей", desc: "Последние события альянса", icon: Newspaper, color: "text-accent" },
@@ -183,6 +189,7 @@ export default function AssociationPage() {
   }[language as 'en' | 'ru'];
 
   const handleCreateAssoc = async () => {
+    if (!canCreate) return;
     if (!user || !profile || isProcessing) return;
     if (currentAssocId || userPendingAssoc) return;
     if (crystals < 500) return;
@@ -225,6 +232,7 @@ export default function AssociationPage() {
   };
 
   const handleJoinRequest = async (assoc: any) => {
+    if (!canJoin) return;
     if (!user || !profile || isProcessing) return;
     if (currentAssocId || userPendingAssoc) return;
     if (!canJoinNew) return;
@@ -298,7 +306,7 @@ export default function AssociationPage() {
         ...(isDeputy ? { deputyId: null } : {})
       });
       updateDocumentNonBlocking(userRef!, { associationId: null });
-      toast({ title: language === 'ru' ? "Вы покинули ассоциацию" : "Left Association" });
+      toast({ title: language === 'ru' ? "Вы покидали ассоциацию" : "Left Association" });
       setActiveTab('menu');
     } finally {
       setIsProcessing(false);
@@ -424,7 +432,12 @@ export default function AssociationPage() {
                 )}
                 {!isCurrentMyAssoc && !userAlreadyInAssoc && (
                   <div className="space-y-2">
-                    {!canJoinNew ? (
+                    {!canJoin ? (
+                      <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center justify-center gap-3">
+                        <Lock className="w-4 h-4 text-red-400" />
+                        <p className="text-[10px] font-black uppercase text-red-400">{t.lockedJoin}</p>
+                      </div>
+                    ) : !canJoinNew ? (
                        <div className="flex flex-col items-center gap-2 p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
                          <div className="flex items-center gap-1 text-[8px] font-black text-orange-400 uppercase tracking-widest"><Clock className="w-3 h-3" /> {t.joinCooldown}</div>
                          <p className="text-lg font-headline font-bold text-orange-400">{formatCountdown(joinTimeLeftMs)}</p>
@@ -502,6 +515,17 @@ export default function AssociationPage() {
 
       case 'create':
         if (currentAssocId) return null;
+        if (!canCreate) {
+          return (
+            <div className="py-20 text-center animate-in fade-in duration-500">
+               <div className="w-20 h-20 rounded-full bg-red-500/10 border-2 border-dashed border-red-500/30 flex items-center justify-center mx-auto mb-6">
+                 <Lock className="w-10 h-10 text-red-400/50" />
+               </div>
+               <h2 className="text-xl font-headline font-bold uppercase text-white">{t.lockedCreate}</h2>
+               <p className="text-xs text-muted-foreground mt-4 px-10 italic">"Only S-Tier commanders have the authority to establish global alliance networks."</p>
+            </div>
+          );
+        }
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 pb-6">
             {!canJoinNew && (

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -51,7 +52,7 @@ export const TransferHeroCard = memo(({
   const [showBidModal, setShowBidModal] = useState(false);
   const [bidPercent, setBidPercent] = useState(5);
   const [isProcessing, setIsProcessing] = useState(false);
-  const { isPremium } = useGameState();
+  const { isPremium, activeLicenseTier } = useGameState();
 
   const isLeading = agent.highestBidderId === user?.uid;
   const isOwner = agent.sellerId === user?.uid;
@@ -92,6 +93,16 @@ export const TransferHeroCard = memo(({
       })}
     </div>
   );
+
+  const maxBidLimit = useMemo(() => {
+    if (isPremium) return 1000;
+    const tier = activeLicenseTier || 4;
+    if (tier === 4) return 10;
+    if (tier === 3) return 30;
+    if (tier === 2) return 100;
+    if (tier === 1) return 300;
+    return 10;
+  }, [isPremium, activeLicenseTier]);
 
   return (
     <>
@@ -218,12 +229,12 @@ export const TransferHeroCard = memo(({
                   value={[bidPercent]}
                   onValueChange={(val) => setBidPercent(val[0])}
                   min={3}
-                  max={isPremium ? 1000 : 300}
+                  max={maxBidLimit}
                   step={1}
                 />
                 <div className="flex justify-between mt-3 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
                   <span>MIN € {(agent.currentBid * 1.03).toLocaleString()}</span>
-                  <span>{isPremium ? `MAX € ${(agent.currentBid * 11).toLocaleString()}` : `MAX € ${(agent.currentBid * 4).toLocaleString()}`}</span>
+                  <span>MAX € {(agent.currentBid * (1 + maxBidLimit/100)).toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -412,7 +423,7 @@ export default function QuickSearchPage() {
                     <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(0)} className="h-8 w-8"><ChevronsLeft className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-4 w-4"><ChevronLeftIcon className="h-4 w-4" /></Button>
                     <span className="text-[10px] font-black text-muted-foreground uppercase px-4">{language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}</span>
-                    <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 w-8"><ChevronRightIcon className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-4 w-4"><ChevronRightIcon className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(totalPages - 1)} className="h-8 w-8"><ChevronsRight className="w-4 h-4" /></Button>
                   </div>
                 )}

@@ -33,7 +33,7 @@ const DEFAULT_ACADEMY: AcademyState = { youthBootcampLevel: 0, streamingLevel: 0
 const DEFAULT_MEDICAL: MedicalState = { physiotherapyLevel: 0, massageLevel: 0, psychiatristLevel: 0, labLevel: 0, psychologistLevel: 0, constructionFinishes: {}, constructionStarts: {} };
 const DEFAULT_STAFF: StaffState = { coach: null, analyst: null, scout: null, doctor: null, financier: null };
 const DEFAULT_STATE: GameState = {
-  credits: 10000000, crystals: 0, experiencePoints: 0, managerLevel: 1, skillPoints: 0, managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 }, activeLicenseTier: null, ownedHeroes: INITIAL_HEROES, youthAcademyHeroes: [], team: INITIAL_HEROES.slice(0, 5), lineup: { carry: INITIAL_HEROES.find(h => h.role === 'Carry')?.id || null, mid: INITIAL_HEROES.find(h => h.role === 'Midlaner')?.id || null, offlane: INITIAL_HEROES.find(h => h.role === 'Tank')?.id || null, support: INITIAL_HEROES.find(h => h.role === 'Jungler')?.id || null, full_support: INITIAL_HEROES.find(h => h.role === 'Support')?.id || null, sub1: null, sub2: null, res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null }, strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' }, rank: 1000, matchHistory: [], language: 'ru', wins: 0, draws: 0, losses: 0, points: 0, leagueLevel: 9, divisionSubId: 1, groupId: 1, selectedLeagueId: null, country: null, associationId: null, lastSeenMatchDay: 0, lastLeagueMatchDate: null, lastCupMatchDate: null, seasonDay: 0, seasonNumber: 0, lastProcessedSeason: 0, lastYouthArrivalDay: 0, lastYouthArrivalSeason: 0, seasonStartDate: null, lastRewardClaimDate: null, rewardDay: 1, arena: DEFAULT_ARENA, hq: DEFAULT_HQ, bootcamp: DEFAULT_BOOTCAMP, academy: DEFAULT_ACADEMY, medical: DEFAULT_MEDICAL, staff: DEFAULT_STAFF, seasonResults: null, hasEliteTrophy: false, isSyncing: false, premiumUntil: null,
+  credits: 10000000, crystals: 0, experiencePoints: 0, managerLevel: 1, skillPoints: 0, managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 }, activeLicenseTier: 4, ownedHeroes: INITIAL_HEROES, youthAcademyHeroes: [], team: INITIAL_HEROES.slice(0, 5), lineup: { carry: INITIAL_HEROES.find(h => h.role === 'Carry')?.id || null, mid: INITIAL_HEROES.find(h => h.role === 'Midlaner')?.id || null, offlane: INITIAL_HEROES.find(h => h.role === 'Tank')?.id || null, support: INITIAL_HEROES.find(h => h.role === 'Jungler')?.id || null, full_support: INITIAL_HEROES.find(h => h.role === 'Support')?.id || null, sub1: null, sub2: null, res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null }, strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' }, rank: 1000, matchHistory: [], language: 'ru', wins: 0, draws: 0, losses: 0, points: 0, leagueLevel: 9, divisionSubId: 1, groupId: 1, selectedLeagueId: null, country: null, associationId: null, lastSeenMatchDay: 0, lastLeagueMatchDate: null, lastCupMatchDate: null, seasonDay: 0, seasonNumber: 0, lastProcessedSeason: 0, lastYouthArrivalDay: 0, lastYouthArrivalSeason: 0, seasonStartDate: null, lastRewardClaimDate: null, rewardDay: 1, arena: DEFAULT_ARENA, hq: DEFAULT_HQ, bootcamp: DEFAULT_BOOTCAMP, academy: DEFAULT_ACADEMY, medical: DEFAULT_MEDICAL, staff: DEFAULT_STAFF, seasonResults: null, hasEliteTrophy: false, isSyncing: false, premiumUntil: null,
 };
 
 function sanitizeForFirestore(obj: any) { 
@@ -234,8 +234,19 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const addCredits = useCallback((amount: number, isSponsorship: boolean = false) => { 
     setState(s => { 
-      const premiumBonusMultiplier = isSponsorship && isPremium ? 3.0 : 1.0; 
-      const finalAmount = Math.round(amount * premiumBonusMultiplier);
+      let multiplier = 1.0;
+      if (isSponsorship) {
+        // License Tier logic for Sponsors
+        const tier = s.activeLicenseTier || 4;
+        if (tier === 4) multiplier = 0.5; // Standard: 50%
+        else if (tier === 3) multiplier = 1.0; // B: 100%
+        else if (tier === 2) multiplier = 1.5; // A: 100% + 50% bonus
+        else if (tier === 1) multiplier = 2.0; // S: 100% + 100% bonus
+
+        if (isPremium) multiplier += 2.0; // Premium: +200% bonus
+      }
+
+      const finalAmount = Math.round(amount * multiplier);
       const newVal = s.credits + finalAmount; 
       runCloudUpdate({ inGameCurrency: newVal }); 
       return { ...s, credits: newVal }; 
@@ -270,7 +281,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(s => {
       if (s.matchHistory.some(m => m.id === matchId)) return s;
       
-      const xpMultiplier = isPremium ? 5.0 : 1.0;
+      let xpMultiplier = 1.0;
+      if (isPremium) {
+        xpMultiplier = 5.0;
+      } else {
+        const tier = s.activeLicenseTier || 4;
+        if (tier === 3) xpMultiplier = 2.0;
+        else if (tier === 2) xpMultiplier = 3.0;
+        else if (tier === 1) xpMultiplier = 4.0;
+      }
+
       const baseXP = (result.scoreA > result.scoreB ? 150 : (result.scoreA === result.scoreB ? 50 : 25));
       const finalXP = Math.round(baseXP * xpMultiplier);
       const nextXP = s.experiencePoints + finalXP;
@@ -298,9 +318,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(s => { 
       if (s.lastRewardClaimDate === today) return s; 
       
-      const premiumBonusCrystals = isPremium ? 50 : 0;
+      let bonusCrystals = isPremium ? 50 : 0;
+      if (s.activeLicenseTier === 1) bonusCrystals += 10; // S-Tier daily crystal bonus
+
       const nCredits = s.credits + cr; 
-      const nCrystals = s.crystals + cry + premiumBonusCrystals; 
+      const nCrystals = s.crystals + cry + bonusCrystals; 
       const nDay = s.rewardDay >= 30 ? 1 : s.rewardDay + 1; 
       
       runCloudUpdate({ inGameCurrency: nCredits, crystals: nCrystals, lastRewardClaimDate: today, rewardDay: nDay }); 
@@ -328,7 +350,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const addYouthHeroDirectly = useCallback((h: Hero) => { runCloudUpdate({ youthAcademyHeroes: arrayUnion(sanitizeForFirestore(h)) }); }, [runCloudUpdate]);
   const updateProfileName = useCallback((n: string) => runCloudUpdate({ displayName: n }), [runCloudUpdate]);
   const updateProfileCountry = useCallback((c: string) => runCloudUpdate({ country: c }), [runCloudUpdate]);
-  const purchaseLicense = useCallback((t: number, c: number) => { if (state.crystals < c) return false; runCloudUpdate({ crystals: state.crystals - c, activeLicenseTier: t }); return true; }, [state, runCloudUpdate]);
+  
+  const purchaseLicense = useCallback((t: number, c: number) => { 
+    if (state.crystals < c) return false; 
+    runCloudUpdate({ crystals: state.crystals - c, activeLicenseTier: t }); 
+    return true; 
+  }, [state.crystals, runCloudUpdate]);
   
   const purchasePremium = useCallback(() => {
     if (state.crystals < 5000) return false;

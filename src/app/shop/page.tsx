@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -10,7 +11,7 @@ import {
   Edit3, Flag, Coins, Star,
   Loader2, Info, Sparkles, ShoppingCart,
   ArrowRightLeft, Target, Calendar, User, ScrollText, ShieldCheck, Lock,
-  Crown, Award, Zap, Users, TrendingUp
+  Crown, Award, Zap, Users, TrendingUp, CheckCircle2, ShieldAlert
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
@@ -79,7 +80,7 @@ export default function ShopPage() {
       tabs: {
         diamonds: { label: "Buy Diamonds", desc: "Purchase premium operational currency", icon: Gem, color: "text-blue-400" },
         premium: { label: "Premium Status", desc: "Monthly elite club privileges", icon: Crown, color: "text-yellow-500" },
-        licenses: { label: "XP Licenses", desc: "Permanent manager experience boosters", icon: ScrollText, color: "text-red-400" },
+        licenses: { label: "Licenses", desc: "Command tier progressions and rights", icon: ScrollText, color: "text-red-400" },
         create_player: { label: "Create Player", desc: "Generate a custom high-tier elite hero", icon: UserPlus, color: "text-primary" },
         exchange: { label: "Exchange 💎 to €", desc: "Convert crystals to operational funds", icon: ArrowRightLeft, color: "text-yellow-400" },
         change_name: { label: "Change Name", desc: "Update your club's global callsign", icon: Edit3, color: "text-accent" },
@@ -101,11 +102,59 @@ export default function ShopPage() {
         expires: "Expires on",
         buy: "ACTIVATE PREMIUM PROTOCOL"
       },
+      licenseInfo: {
+        current: "Current Clearance",
+        upgrade: "Request Promotion",
+        order: "Licenses must be acquired sequentially.",
+        tiers: [
+          { 
+            tier: 4, label: "Standard License", cost: 0, 
+            benefits: [
+              { icon: ShieldAlert, label: "Restriction", desc: "Max 1 tournament / day" },
+              { icon: Swords, label: "Restriction", desc: "Max 5 friendlies / day" },
+              { icon: Target, label: "Restriction", desc: "Max Building Level: 10" },
+              { icon: TrendingUp, label: "Restriction", desc: "Max bid: +10% market value" },
+              { icon: Users, label: "Restriction", desc: "Squad limit: 7 heroes" },
+              { icon: Coins, label: "Restriction", desc: "Sponsor payout: 50% only" }
+            ] 
+          },
+          { 
+            tier: 3, label: "B-Tier License", cost: 500, 
+            benefits: [
+              { icon: ShieldCheck, label: "Permission", desc: "Unlimited building & matches" },
+              { icon: Users, label: "Alliance", desc: "Ability to join associations" },
+              { icon: Zap, label: "2x XP Multiplier", desc: "Increased experience gain" },
+              { icon: TrendingUp, label: "Market", desc: "Max bid: +30% market value" },
+              { icon: Users, label: "Squad", desc: "Squad limit: 8 heroes" },
+              { icon: Coins, label: "Finance", desc: "Full 100% sponsor payouts" }
+            ] 
+          },
+          { 
+            tier: 2, label: "A-Tier License", cost: 1500, 
+            benefits: [
+              { icon: Zap, label: "3x XP Multiplier", desc: "Rapid experience gain" },
+              { icon: TrendingUp, label: "Market", desc: "Max bid: +100% market value" },
+              { icon: Users, label: "Squad", desc: "Squad limit: 10 heroes" },
+              { icon: Coins, label: "Finance", desc: "+50% Sponsor Bonus (Total 150%)" }
+            ] 
+          },
+          { 
+            tier: 1, label: "S-Tier License", cost: 3000, 
+            benefits: [
+              { icon: Star, label: "Social", desc: "Send daily gifts to friends" },
+              { icon: Award, label: "Alliance", desc: "Create your own associations" },
+              { icon: Gem, label: "Stability", desc: "Daily 10 💎 stipend" },
+              { icon: Zap, label: "4x XP Multiplier", desc: "Elite experience gain" },
+              { icon: TrendingUp, label: "Market", desc: "Max bid: +300% market value" },
+              { icon: Users, label: "Squad", desc: "Squad limit: 12 heroes" },
+              { icon: Coins, label: "Finance", desc: "+100% Sponsor Bonus (Total 200%)" }
+            ] 
+          }
+        ]
+      },
       creator: { nickname: "Hero Name", placeholderNick: "Enter unique nickname...", role: "Primary Role", talent: "Talent Potential", age: "Starting Age", country: "Nationality", summary: "Strategic Unit Profile", summaryDesc: "Hero will be added to your Youth Academy", insufficient: "Insufficient Diamonds" },
       confirm: "CONFIRM TRANSACTION",
-      licenseOrder: "Licenses must be purchased in sequence (Bronze -> Silver -> Gold).",
       diamondPacks: [ { label: "Cadet Pack", amount: 1000, price: "$4.99" }, { label: "Commander Cache", amount: 5000, price: "$19.99" }, { label: "Emperor Vault", amount: 15000, price: "$49.99" } ],
-      licenses: [ { tier: 3, label: "Bronze License", desc: "Base operational credential", multiplier: 1.5, cost: 500 }, { tier: 2, label: "Silver License", desc: "Advanced management tier", multiplier: 2.0, cost: 1500 }, { tier: 1, label: "Gold License", desc: "Master-level command status", multiplier: 3.0, cost: 3000 } ]
     },
     ru: {
       title: "ТОРГОВЫЙ УЗЕЛ",
@@ -115,7 +164,7 @@ export default function ShopPage() {
       tabs: {
         diamonds: { label: "Купить алмазы", desc: "Приобрести премиальную валюту", icon: Gem, color: "text-blue-400" },
         premium: { label: "Premium Статус", desc: "Ежемесячные привилегии элитного клуба", icon: Crown, color: "text-yellow-500" },
-        licenses: { label: "XP Лицензии", desc: "Постоянные бустеры опыта менеджера", icon: ScrollText, color: "text-red-400" },
+        licenses: { label: "Лицензии", desc: "Уровни допуска и полномочий", icon: ScrollText, color: "text-red-400" },
         create_player: { label: "Создать игрока", desc: "Генерация элитного героя высокого уровня", icon: UserPlus, color: "text-primary" },
         exchange: { label: "Обмен Алмазы на €", desc: "Конвертация кристаллов в бюджет клуба", icon: ArrowRightLeft, color: "text-yellow-400" },
         change_name: { label: "Сменить название", desc: "Обновить позывной вашего клуба", icon: Edit3, color: "text-accent" },
@@ -137,11 +186,59 @@ export default function ShopPage() {
         expires: "Истекает",
         buy: "АКТИВИРОВАТЬ PREMIUM"
       },
+      licenseInfo: {
+        current: "Ваш уровень допуска",
+        upgrade: "Повысить уровень",
+        order: "Лицензии приобретаются последовательно.",
+        tiers: [
+          { 
+            tier: 4, label: "Стандартная Лицензия", cost: 0, 
+            benefits: [
+              { icon: ShieldAlert, label: "Ограничение", desc: "Участие только в 1 турнире в день" },
+              { icon: Swords, label: "Ограничение", desc: "Только 5 тов. матчей в день" },
+              { icon: Target, label: "Ограничение", desc: "Макс. уровень построек: 10" },
+              { icon: TrendingUp, label: "Ограничение", desc: "Ставка: не более +10% от цены" },
+              { icon: Users, label: "Ограничение", desc: "Лимит состава: 7 героев" },
+              { icon: Coins, label: "Ограничение", desc: "Спонсорские выплаты: только 50%" }
+            ] 
+          },
+          { 
+            tier: 3, label: "Лицензия B-Tier", cost: 500, 
+            benefits: [
+              { icon: ShieldCheck, label: "Разрешение", desc: "Снятие лимитов постройки и матчей" },
+              { icon: Users, label: "Ассоциации", desc: "Возможность вступать в ассоциации" },
+              { icon: Zap, label: "2x Опыт", desc: "Ускоренное получение опыта" },
+              { icon: TrendingUp, label: "Рынок", desc: "Ставка: до +30% от цены" },
+              { icon: Users, label: "Состав", desc: "Лимит состава: 8 героев" },
+              { icon: Coins, label: "Финансы", desc: "Полные выплаты спонсоров (100%)" }
+            ] 
+          },
+          { 
+            tier: 2, label: "Лицензия A-Tier", cost: 1500, 
+            benefits: [
+              { icon: Zap, label: "3x Опыт", desc: "Быстрая прокачка уровня" },
+              { icon: TrendingUp, label: "Рынок", desc: "Ставка: до +100% от цены" },
+              { icon: Users, label: "Состав", desc: "Лимит состава: 10 героев" },
+              { icon: Coins, label: "Бонус", desc: "Спонсорский бонус 50% (Итого 150%)" }
+            ] 
+          },
+          { 
+            tier: 1, label: "Лицензия S-Tier", cost: 3000, 
+            benefits: [
+              { icon: Star, label: "Подарки", desc: "Дарить подарки друзьям ежедневно" },
+              { icon: Award, label: "Ассоциации", desc: "Создание собственных ассоциаций" },
+              { icon: Gem, label: "Алмазы", desc: "10 алмазов ежедневно" },
+              { icon: Zap, label: "4x Опыт", desc: "Элитная прокачка уровня" },
+              { icon: TrendingUp, label: "Рынок", desc: "Ставка: до +300% от цены" },
+              { icon: Users, label: "Состав", desc: "Лимит состава: 12 героев" },
+              { icon: Coins, label: "Бонус", desc: "Спонсорский бонус 100% (Итого 200%)" }
+            ] 
+          }
+        ]
+      },
       creator: { nickname: "Имя героя", placeholderNick: "Введите уникальный позывной...", role: "Специализация", talent: "Предел таланта", age: "Начальный возраст", country: "Национальность", summary: "Профиль боевой единицы", summaryDesc: "Герой будет зачислен в Юношескую Академию", insufficient: "Недостаточно алмазов" },
       confirm: "ПОДТВЕРДИТЬ ТРАНЗАКЦИЮ",
-      licenseOrder: "Лицензии приобретаются последовательно (Бронза -> Серебро -> Золото).",
       diamondPacks: [ { label: "Пакет Кадета", amount: 1000, price: "4.99 $" }, { label: "Кейс Командира", amount: 5000, price: "19.99 $" }, { label: "Хранилище Императора", amount: 15000, price: "49.99 $" } ],
-      licenses: [ { tier: 3, label: "Бронзовая Лицензия", desc: "Базовое разрешение на операции", multiplier: 1.5, cost: 500 }, { tier: 2, label: "Серебряная Лицензия", desc: "Продвинутый уровень управления", multiplier: 2.0, cost: 1500 }, { tier: 1, label: "Золотая Лицензия", desc: "Элитный статус командования", multiplier: 3.0, cost: 3000 } ]
     }
   };
 
@@ -171,10 +268,16 @@ export default function ShopPage() {
   };
 
   const handleBuyDiamonds = (amount: number) => { addCrystals(amount); toast({ title: "Diamonds added!" }); };
+  
   const handleBuyLicense = (tier: number, cost: number) => { 
-    if (purchaseLicense(tier, cost)) toast({ title: "License Activated!" });
-    else toast({ title: t.insufficient, variant: "destructive" });
+    if (purchaseLicense(tier, cost)) {
+      toast({ title: language === 'ru' ? "Уровень допуска повышен!" : "License Tier Upgraded!" });
+      setActiveTab('menu');
+    } else {
+      toast({ title: t.insufficient, variant: "destructive" });
+    }
   };
+
   const handleExchange = (amount: number) => {
     if (crystals < amount) { toast({ title: t.insufficient, variant: "destructive" }); return; }
     addCrystals(-amount); addCredits(amount * 10000); toast({ title: "Assets converted" });
@@ -192,6 +295,91 @@ export default function ShopPage() {
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'licenses':
+        const currentTier = activeLicenseTier || 4;
+        const nextTierIndex = t.licenseInfo.tiers.findIndex(t => t.tier === currentTier - 1);
+        const nextTier = nextTierIndex !== -1 ? t.licenseInfo.tiers[nextTierIndex] : null;
+        const activeTierData = t.licenseInfo.tiers.find(t => t.tier === currentTier);
+
+        return (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-6">
+            <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl flex gap-4 mb-2">
+               <Info className="w-5 h-5 text-primary shrink-0" />
+               <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+                 {t.licenseInfo.order}
+               </p>
+            </div>
+
+            {/* CURRENT LICENSE */}
+            <section className="space-y-3">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">{t.licenseInfo.current}</h3>
+              <Card className="glass-card border-green-500/30 bg-green-500/5 overflow-hidden">
+                <CardContent className="p-5 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-xl bg-green-500/20 border border-green-500/30 text-green-400">
+                      <ShieldCheck className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black uppercase text-white">{activeTierData?.label}</h3>
+                      <p className="text-[10px] text-green-400/70 font-black uppercase tracking-widest mt-1">ACTIVE STATUS</p>
+                    </div>
+                  </div>
+                  <CheckCircle2 className="w-6 h-6 text-green-400" />
+                </CardContent>
+              </Card>
+            </section>
+
+            {/* NEXT LICENSE UPGRADE */}
+            {nextTier ? (
+              <section className="space-y-3">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.licenseInfo.upgrade}</h3>
+                <Card className="glass-card border-primary/30 bg-primary/5 overflow-hidden">
+                   <CardContent className="p-6">
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="p-3 rounded-xl bg-primary/20 border border-primary/30 text-primary">
+                          <ScrollText className="w-8 h-8" />
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-headline font-bold uppercase tracking-tight text-white">{nextTier.label}</h2>
+                          <div className="flex gap-2 mt-1">
+                            <Badge className="bg-primary text-primary-foreground font-black">{nextTier.cost} 💎</Badge>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2 mb-6">
+                        {nextTier.benefits.map((benefit: any, idx: number) => (
+                          <div key={idx} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center gap-4">
+                            <div className="p-2 rounded-lg bg-primary/10">
+                              <benefit.icon className="w-4 h-4 text-primary" />
+                            </div>
+                            <div>
+                              <h4 className="text-[10px] font-bold uppercase text-white">{benefit.label}</h4>
+                              <p className="text-[9px] text-muted-foreground leading-tight">{benefit.desc}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <Button 
+                        className="w-full h-14 hero-gradient font-black text-xs tracking-widest uppercase shadow-xl active:scale-95 transition-all"
+                        onClick={() => handleBuyLicense(nextTier.tier, nextTier.cost)}
+                        disabled={crystals < nextTier.cost}
+                      >
+                        {language === 'ru' ? 'КУПИТЬ ЛИЦЕНЗИЮ' : 'ACQUIRE LICENSE'}
+                      </Button>
+                   </CardContent>
+                </Card>
+              </section>
+            ) : (
+              <div className="p-8 text-center bg-secondary/10 rounded-2xl border border-dashed border-white/5 opacity-40">
+                <Trophy className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+                <p className="text-xs font-black uppercase tracking-widest">Master Command License Obtained</p>
+              </div>
+            )}
+          </div>
+        );
+
       case 'premium':
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-6">
@@ -265,58 +453,6 @@ export default function ShopPage() {
                 </CardContent>
               </Card>
             ))}
-          </div>
-        );
-
-      case 'licenses':
-        const currentOwnedTier = activeLicenseTier || 4;
-        return (
-          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-6">
-            <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl flex gap-4 mb-2">
-               <Info className="w-5 h-5 text-primary shrink-0" />
-               <p className="text-[10px] text-muted-foreground italic leading-relaxed">
-                 {t.licenseOrder}
-               </p>
-            </div>
-            {t.licenses.map((lic, idx) => {
-              const isOwned = activeLicenseTier && activeLicenseTier <= lic.tier;
-              const isLocked = lic.tier < currentOwnedTier - 1;
-              return (
-                <Card key={idx} className={cn(
-                  "glass-card border-red-500/20 bg-red-500/5 transition-all overflow-hidden",
-                  !isOwned && !isLocked && "hover:bg-red-500/10 cursor-pointer",
-                  isOwned && "opacity-60 border-green-500/30 bg-green-500/5",
-                  isLocked && "opacity-40 grayscale grayscale-[0.5]"
-                )} onClick={() => !isOwned && !isLocked && handleBuyLicense(lic.tier, lic.cost)}>
-                  <CardContent className="p-5 flex items-center justify-between">
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className={cn("p-3 rounded-xl border", isOwned ? "bg-green-500/20 border-green-500/30" : "bg-red-500/20 border-red-500/30")}>
-                         {isLocked ? <Lock className="w-6 h-6 text-muted-foreground" /> : <ScrollText className={cn("w-6 h-6 text-red-400", isOwned && "text-green-400")} />}
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-bold uppercase text-white truncate">{lic.label}</h3>
-                        <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{lic.desc}</p>
-                        <Badge className="mt-2 bg-primary/20 text-primary text-[8px] font-black">{lic.multiplier} XP MULTIPLIER</Badge>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0 ml-4">
-                      {isOwned ? (
-                        <div className="flex flex-col items-center gap-1">
-                          <ShieldCheck className="w-5 h-5 text-green-400" />
-                          <span className="text-[8px] font-black uppercase text-green-400">ACTIVE</span>
-                        </div>
-                      ) : isLocked ? (
-                        <span className="text-[8px] font-black uppercase text-muted-foreground">LOCKED</span>
-                      ) : (
-                        <Button className="h-10 px-4 hero-gradient font-black text-[10px] uppercase shadow-lg">
-                          <Gem className="w-3 h-3 mr-1" /> {lic.cost}
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
           </div>
         );
 
@@ -485,7 +621,7 @@ export default function ShopPage() {
 
   if (activeTab === 'menu') {
     return (
-      <div className="max-w-md mx-auto px-4 pt-8 pb-4">
+      <div className="max-w-md mx-auto px-4 pt-8 pb-6">
         <header className="mb-8 flex items-center gap-4">
           <Link href="/"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
           <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2 text-primary"><ShoppingCart className="w-6 h-6 text-primary" /> {language === 'ru' ? 'МАГАЗИН' : 'TRADING HUB'}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p></div>
@@ -514,7 +650,7 @@ export default function ShopPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-4">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-6">
       <header className="mb-8 flex items-center gap-4">
         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}><ChevronLeft className="w-6 h-6" /></Button>
         <div><h1 className="text-xl font-headline font-bold uppercase tracking-tight">{t.tabs[activeTab as keyof typeof t.tabs].label}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p></div>

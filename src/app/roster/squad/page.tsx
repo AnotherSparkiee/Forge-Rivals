@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
@@ -30,7 +31,7 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
 export default function SquadPage() {
-  const { ownedHeroes, lineup, assignToRole, isLoaded, language, updateHero, isPremium } = useGameState();
+  const { ownedHeroes, lineup, assignToRole, isLoaded, language, updateHero, isPremium, activeLicenseTier } = useGameState();
   const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
@@ -49,12 +50,22 @@ export default function SquadPage() {
   const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v10', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
+  const squadLimit = useMemo(() => {
+    if (isPremium) return 15;
+    const tier = activeLicenseTier || 4;
+    if (tier === 4) return 7;
+    if (tier === 3) return 8;
+    if (tier === 2) return 10;
+    if (tier === 1) return 12;
+    return 7;
+  }, [isPremium, activeLicenseTier]);
+
   const t = {
     title: language === 'ru' ? "АКТИВНЫЙ СОСТАВ" : "ACTIVE LINEUP",
     subtitle: language === 'ru' ? "Прямое управление ростером" : "Direct roster management",
     activeLabel: language === 'ru' ? "Основа (5)" : "Core (5)",
     subsLabel: language === 'ru' ? "Замены (2)" : "Subs (2)",
-    reservesLabel: language === 'ru' ? (isPremium ? "Резерв (8)" : "Резерв (3)") : (isPremium ? "Reserves (8)" : "Reserves (3)"),
+    reservesLabel: language === 'ru' ? `Резерв (${squadLimit - 7})` : `Reserves (${squadLimit - 7})`,
     emptySlot: language === 'ru' ? "Назначить" : "Assign",
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     teamOverall: language === 'ru' ? "ОБЩ" : "OVR",
@@ -76,18 +87,6 @@ export default function SquadPage() {
       stats: language === 'ru' ? "Навыки и таланты" : "Skills & Talents",
       years: language === 'ru' ? "лет" : "yrs",
       close: language === 'ru' ? "ЗАКРЫТЬ" : "CLOSE",
-    },
-    proStatsLabels: {
-      lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
-      mapAwareness: language === 'ru' ? "Контроль карты" : "Map Awareness",
-      positioning: language === 'ru' ? "Позиционка" : "Positioning",
-      reflexes: language === 'ru' ? "Рефлексы" : "Reflexes",
-      manaManagement: language === 'ru' ? "Менеджмент маны" : "Mana Management",
-      objectiveControl: language === 'ru' ? "Объекты" : "Objective Control",
-      communication: language === 'ru' ? "Коммуникация" : "Communication",
-      tiltResistance: language === 'ru' ? "Стрессоустойчивость" : "Tilt Resistance",
-      versatility: language === 'ru' ? "Универсальность" : "Versatility",
-      ganking: language === 'ru' ? "Ганкинг" : "Ganking",
     },
     roles: {
       carry: { label: language === 'ru' ? "Керри" : "Carry", icon: Sword, color: "text-red-400" },
@@ -129,7 +128,7 @@ export default function SquadPage() {
   const handleStartPress = (hero: Hero | undefined) => {
     if (!hero) return;
     longPressTimer.current = setTimeout(() => {
-      setProfileHero(hero);
+      setSelectedHero(hero);
     }, 600);
   };
 
@@ -236,9 +235,11 @@ export default function SquadPage() {
 
   if (!isLoaded) return null;
 
-  const reserveSlots: LineupSlot[] = isPremium 
-    ? ['res1', 'res2', 'res3', 'res4', 'res5', 'res6', 'res7', 'res8'] 
-    : ['res1', 'res2', 'res3'];
+  const reserveSlots: LineupSlot[] = [];
+  const maxReserves = squadLimit - 7;
+  for (let i = 1; i <= maxReserves; i++) {
+    reserveSlots.push(`res${i}` as LineupSlot);
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-6">
@@ -283,9 +284,9 @@ export default function SquadPage() {
             </h2>
           </div>
           <div className="space-y-2">{reserveSlots.map(renderSlot)}</div>
-          {!isPremium && (
-            <Link href="/shop" className="block p-4 mt-2 bg-yellow-500/5 border border-dashed border-yellow-500/20 rounded-xl text-center group hover:bg-yellow-500/10 transition-all">
-              <p className="text-[8px] font-black text-yellow-500 uppercase tracking-widest">Upgrade to Elite for +5 Reserve Slots</p>
+          {activeLicenseTier === 4 && !isPremium && (
+            <Link href="/shop" className="block p-4 mt-2 bg-primary/5 border border-dashed border-primary/20 rounded-xl text-center group hover:bg-primary/10 transition-all">
+              <p className="text-[8px] font-black text-primary uppercase tracking-widest">Upgrade License for more Reserve Slots</p>
             </Link>
           )}
         </section>

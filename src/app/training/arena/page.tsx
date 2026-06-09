@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -12,7 +13,7 @@ import { Progress } from '@/components/ui/progress';
 import { 
   ChevronLeft, MessageSquare, Coffee, ShoppingBag, 
   Monitor, Home, Lightbulb, Wallet, Clock,
-  Hammer, MinusCircle, PlusCircle
+  Hammer, MinusCircle, PlusCircle, Lock
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
@@ -22,7 +23,7 @@ import { PlaceHolderImages } from '@/app/lib/placeholder-images';
 
 export default function ArenaPage() {
   const { 
-    arena, credits, startCapacityExpansion, startArenaConstruction, checkConstructions, language, isLoaded 
+    arena, credits, startCapacityExpansion, startArenaConstruction, checkConstructions, language, isLoaded, activeLicenseTier, isPremium
   } = useGameState();
   const { toast } = useToast();
   
@@ -88,6 +89,7 @@ export default function ArenaPage() {
       match: "SUPPORT",
       max: "Max",
       back: "Back",
+      locked: "B-Tier License Required",
       items: {
         capacity: { label: "Stadium Capacity", desc: "Current stadium seating capacity." },
         pressCenterLevel: { label: "Press Center", desc: "Increases media coverage and attracts more elite fans." },
@@ -121,6 +123,7 @@ export default function ArenaPage() {
       match: "ПОДДЕРЖКА",
       max: "Макс",
       back: "Назад",
+      locked: "Нужна Лицензия B-Tier",
       items: {
         capacity: { label: "Вместимость стадиона", desc: "Текущая вместимость зрительских мест." },
         pressCenterLevel: { label: "Пресс-центр", desc: "Улучшает освещение в СМИ и привлекает больше фанатов." },
@@ -193,7 +196,7 @@ export default function ArenaPage() {
   if (!isLoaded) return null;
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-20">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-6">
       <header className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/training">
@@ -276,11 +279,13 @@ export default function ArenaPage() {
           const finishTime = arena.constructionFinishes?.[item.id];
           const isConstructing = !!finishTime;
           const progress = isConstructing ? calculateProgress(item.id) : 0;
+          const isLevelLocked = (activeLicenseTier === 4 && !isPremium && level >= 10);
           
           return (
             <Card key={item.id} className={cn(
               "glass-card border-white/5 overflow-hidden transition-all",
-              isConstructing && "bg-orange-500/5 border-orange-500/20"
+              isConstructing && "bg-orange-500/5 border-orange-500/20",
+              isLevelLocked && "opacity-60"
             )}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -300,6 +305,10 @@ export default function ArenaPage() {
                     <div className="text-right">
                       <p className="text-[7px] uppercase text-muted-foreground font-black tracking-widest">{t.finishAt}</p>
                       <p className="text-[10px] font-mono font-bold text-orange-400">{formatFinishTime(finishTime)}</p>
+                    </div>
+                  ) : isLevelLocked ? (
+                    <div className="flex items-center gap-1 text-[8px] font-black text-red-400 uppercase">
+                      <Lock className="w-3 h-3" /> MAX
                     </div>
                   ) : (
                     <Button size="sm" variant="outline" className="h-9 px-4 border-white/10 hover:bg-primary/10 hover:text-primary transition-all" onClick={() => setSelectedFacility(item.id)}>
