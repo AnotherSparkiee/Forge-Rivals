@@ -60,11 +60,11 @@ interface GameStateContextType extends GameState {
   addCrystals: (amount: number) => void; 
   assignToRole: (slot: LineupSlot, heroId: string | null) => void; 
   updateTactics: (strategy: string, lineSettings: { carry: string; mid: string; offlane: string }) => void; 
-  startArenaConstruction: (facility: any, cost: number) => boolean; 
-  startHQConstruction: (facility: any, cost: number) => boolean; 
-  startBootcampConstruction: (facility: any, cost: number) => boolean; 
-  startAcademyConstruction: (facility: any, cost: number) => boolean; 
-  startMedicalConstruction: (facility: any, cost: number) => boolean; 
+  startArenaConstruction: (facility: any, cost: number, crewMultiplier?: number, crystalCost?: number) => boolean; 
+  startHQConstruction: (facility: any, cost: number, crewMultiplier?: number, crystalCost?: number) => boolean; 
+  startBootcampConstruction: (facility: any, cost: number, crewMultiplier?: number, crystalCost?: number) => boolean; 
+  startAcademyConstruction: (facility: any, cost: number, crewMultiplier?: number, crystalCost?: number) => boolean; 
+  startMedicalConstruction: (facility: any, cost: number, crewMultiplier?: number, crystalCost?: number) => boolean; 
   startCapacityExpansion: (seats: number, cost: number, hours: number) => boolean; 
   checkConstructions: () => void; 
   setLanguage: (lang: 'en' | 'ru') => void; 
@@ -314,11 +314,57 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [runCloudUpdate, isPremium]);
 
   const dismissSeasonResults = useCallback(() => { setState(s => { runCloudUpdate({ seasonResults: null }); return { ...s, seasonResults: null }; }); }, [runCloudUpdate]);
-  const startArenaConstruction = useCallback((fac: any, cost: number) => { if (state.credits < cost) return false; const hours = 4 * ((state.arena as any)[fac] + 1); const finish = new Date(Date.now() + hours * 3600000).toISOString(); const newArena = { ...state.arena, constructionStarts: { ...state.arena.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.arena.constructionFinishes, [fac]: finish } }; runCloudUpdate({ inGameCurrency: state.credits - cost, arena: sanitizeForFirestore(newArena) }); return true; }, [state, runCloudUpdate]);
-  const startHQConstruction = useCallback((fac: any, cost: number) => { if (state.credits < cost) return false; const hours = 4 * ((state.hq as any)[fac] + 1); const finish = new Date(Date.now() + hours * 3600000).toISOString(); const newHQ = { ...state.hq, constructionStarts: { ...state.hq.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.hq.constructionFinishes, [fac]: finish } }; runCloudUpdate({ inGameCurrency: state.credits - cost, hq: sanitizeForFirestore(newHQ) }); return true; }, [state, runCloudUpdate]);
-  const startBootcampConstruction = useCallback((fac: any, cost: number) => { if (state.credits < cost) return false; const hours = 4 * ((state.bootcamp as any)[fac] + 1); const finish = new Date(Date.now() + hours * 3600000).toISOString(); const newBoot = { ...state.bootcamp, constructionStarts: { ...state.bootcamp.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.bootcamp.constructionFinishes, [fac]: finish } }; runCloudUpdate({ inGameCurrency: state.credits - cost, bootcamp: sanitizeForFirestore(newBoot) }); return true; }, [state, runCloudUpdate]);
-  const startAcademyConstruction = useCallback((fac: any, cost: number) => { if (state.credits < cost) return false; const hours = 4 * ((state.academy as any)[fac] + 1); const finish = new Date(Date.now() + hours * 3600000).toISOString(); const newAcad = { ...state.academy, constructionStarts: { ...state.academy.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.academy.constructionFinishes, [fac]: finish } }; runCloudUpdate({ inGameCurrency: state.credits - cost, academy: sanitizeForFirestore(newAcad) }); return true; }, [state, runCloudUpdate]);
-  const startMedicalConstruction = useCallback((fac: any, cost: number) => { if (state.credits < cost) return false; const hours = 4 * ((state.medical as any)[fac] + 1); const finish = new Date(Date.now() + hours * 3600000).toISOString(); const newMed = { ...state.medical, constructionStarts: { ...state.medical.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.medical.constructionFinishes, [fac]: finish } }; runCloudUpdate({ inGameCurrency: state.credits - cost, medical: sanitizeForFirestore(newMed) }); return true; }, [state, runCloudUpdate]);
+  
+  const startArenaConstruction = useCallback((fac: any, cost: number, crewMultiplier: number = 1, crystalCost: number = 0) => { 
+    if (state.credits < cost || state.crystals < crystalCost) return false; 
+    const baseHours = 4 * ((state.arena as any)[fac] + 1); 
+    const hours = baseHours / crewMultiplier;
+    const finish = new Date(Date.now() + hours * 3600000).toISOString(); 
+    const newArena = { ...state.arena, constructionStarts: { ...state.arena.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.arena.constructionFinishes, [fac]: finish } }; 
+    runCloudUpdate({ inGameCurrency: state.credits - cost, crystals: state.crystals - crystalCost, arena: sanitizeForFirestore(newArena) }); 
+    return true; 
+  }, [state, runCloudUpdate]);
+
+  const startHQConstruction = useCallback((fac: any, cost: number, crewMultiplier: number = 1, crystalCost: number = 0) => { 
+    if (state.credits < cost || state.crystals < crystalCost) return false; 
+    const baseHours = 4 * ((state.hq as any)[fac] + 1); 
+    const hours = baseHours / crewMultiplier;
+    const finish = new Date(Date.now() + hours * 3600000).toISOString(); 
+    const newHQ = { ...state.hq, constructionStarts: { ...state.hq.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.hq.constructionFinishes, [fac]: finish } }; 
+    runCloudUpdate({ inGameCurrency: state.credits - cost, crystals: state.crystals - crystalCost, hq: sanitizeForFirestore(newHQ) }); 
+    return true; 
+  }, [state, runCloudUpdate]);
+
+  const startBootcampConstruction = useCallback((fac: any, cost: number, crewMultiplier: number = 1, crystalCost: number = 0) => { 
+    if (state.credits < cost || state.crystals < crystalCost) return false; 
+    const baseHours = 4 * ((state.bootcamp as any)[fac] + 1); 
+    const hours = baseHours / crewMultiplier;
+    const finish = new Date(Date.now() + hours * 3600000).toISOString(); 
+    const newBoot = { ...state.bootcamp, constructionStarts: { ...state.bootcamp.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.bootcamp.constructionFinishes, [fac]: finish } }; 
+    runCloudUpdate({ inGameCurrency: state.credits - cost, crystals: state.crystals - crystalCost, bootcamp: sanitizeForFirestore(newBoot) }); 
+    return true; 
+  }, [state, runCloudUpdate]);
+
+  const startAcademyConstruction = useCallback((fac: any, cost: number, crewMultiplier: number = 1, crystalCost: number = 0) => { 
+    if (state.credits < cost || state.crystals < crystalCost) return false; 
+    const baseHours = 4 * ((state.academy as any)[fac] + 1); 
+    const hours = baseHours / crewMultiplier;
+    const finish = new Date(Date.now() + hours * 3600000).toISOString(); 
+    const newAcad = { ...state.academy, constructionStarts: { ...state.academy.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.academy.constructionFinishes, [fac]: finish } }; 
+    runCloudUpdate({ inGameCurrency: state.credits - cost, crystals: state.crystals - crystalCost, academy: sanitizeForFirestore(newAcad) }); 
+    return true; 
+  }, [state, runCloudUpdate]);
+
+  const startMedicalConstruction = useCallback((fac: any, cost: number, crewMultiplier: number = 1, crystalCost: number = 0) => { 
+    if (state.credits < cost || state.crystals < crystalCost) return false; 
+    const baseHours = 4 * ((state.medical as any)[fac] + 1); 
+    const hours = baseHours / crewMultiplier;
+    const finish = new Date(Date.now() + hours * 3600000).toISOString(); 
+    const newMed = { ...state.medical, constructionStarts: { ...state.medical.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.medical.constructionFinishes, [fac]: finish } }; 
+    runCloudUpdate({ inGameCurrency: state.credits - cost, crystals: state.crystals - crystalCost, medical: sanitizeForFirestore(newMed) }); 
+    return true; 
+  }, [state, runCloudUpdate]);
+
   const startCapacityExpansion = useCallback((seats: number, cost: number, hours: number) => { if (state.credits < cost) return false; const finish = new Date(Date.now() + hours * 3600000).toISOString(); const newArena = { ...state.arena, pendingCapacitySeats: seats, constructionStarts: { ...state.arena.constructionStarts, capacity: new Date().toISOString() }, constructionFinishes: { ...state.arena.constructionFinishes, capacity: finish } }; runCloudUpdate({ inGameCurrency: state.credits - cost, arena: sanitizeForFirestore(newArena) }); return true; }, [state, runCloudUpdate]);
   const hireStaffMember = useCallback((m: StaffMember) => { const updated = { ...state.staff, [m.role]: m }; runCloudUpdate({ staff: sanitizeForFirestore(updated), inGameCurrency: state.credits - (m.salary/2) }); }, [state, runCloudUpdate]);
   const trainStaffSkill = useCallback((role: StaffRole, key: 'primary'|'secondary', cost: number) => { const m = state.staff[role]; if (!m || state.crystals < cost) return false; const nm = { ...m, skills: { ...m.skills, [key]: m.skills[key]+1 } }; runCloudUpdate({ staff: sanitizeForFirestore({ ...state.staff, [role]: nm }), crystals: state.crystals - cost }); return true; }, [state, runCloudUpdate]);

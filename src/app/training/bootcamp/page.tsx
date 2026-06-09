@@ -11,20 +11,28 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { 
   ChevronLeft, Zap, Target, Waves, Microscope, 
-  Hammer, Clock, Loader2
+  Hammer, Clock, Loader2, Gem
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
+const CREWS = [
+  { id: 1, multiplier: 1, price: 0, labelRu: 'Обычная', labelEn: 'Standard' },
+  { id: 2, multiplier: 2, price: 100, labelRu: 'Малая (2x)', labelEn: 'Small (2x)' },
+  { id: 3, multiplier: 4, price: 250, labelRu: 'Средняя (4x)', labelEn: 'Medium (4x)' },
+  { id: 4, multiplier: 8, price: 600, labelRu: 'Большая (8x)', labelEn: 'Large (8x)' },
+];
+
 export default function BootcampPage() {
   const { 
-    bootcamp, credits, startBootcampConstruction, checkConstructions, language, isLoaded 
+    bootcamp, credits, crystals, startBootcampConstruction, checkConstructions, language, isLoaded 
   } = useGameState();
   const { toast } = useToast();
   
   const [selectedFacility, setSelectedFacility] = useState<string | null>(null);
+  const [selectedCrewId, setSelectedCrewId] = useState(1);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -57,6 +65,7 @@ export default function BootcampPage() {
       finishAt: "Ready at",
       crewBusy: "Bootcamp Crew Occupied",
       facilities: "Facilities Upgrades",
+      crewSelect: "Engineering Crew Selection",
       items: {
         bootcampLevel: { label: "Main Bootcamp", desc: "Speeds up player training and makes it possible for players to reach maximum skill levels." },
         tacticsHallLevel: { label: "Tactics Hall", desc: "Makes various tactical instructions more effective and eliminates their negative consequences." },
@@ -78,6 +87,7 @@ export default function BootcampPage() {
       finishAt: "Готовность в",
       crewBusy: "Бригада Буткемпа занята",
       facilities: "Улучшение объектов",
+      crewSelect: "Выбор инженерной группы",
       items: {
         bootcampLevel: { label: "Основной Буткемп", desc: "Ускоряет тренировку игроков и делает возможным достижение игроками максимальных уровней навыков." },
         tacticsHallLevel: { label: "Зал тактики", desc: "Делает различные тактические указания более эффективными и устраняет их негативные последствия во время матча." },
@@ -104,9 +114,12 @@ export default function BootcampPage() {
     if (!selectedFacility) return;
     const currentLevel = (bootcamp as any)[selectedFacility];
     const cost = 40000 * (currentLevel + 1);
-    if (startBootcampConstruction(selectedFacility as any, cost)) {
+    const crew = CREWS.find(c => c.id === selectedCrewId) || CREWS[0];
+    
+    if (startBootcampConstruction(selectedFacility as any, cost, crew.multiplier, crew.price)) {
       toast({ title: t.inProgress });
       setSelectedFacility(null);
+      setSelectedCrewId(1);
     } else {
       toast({ title: t.crewBusy, variant: "destructive" });
     }
@@ -201,33 +214,62 @@ export default function BootcampPage() {
         })}
       </div>
 
-      <Dialog open={!!selectedFacility} onOpenChange={() => setSelectedFacility(null)}>
+      <Dialog open={!!selectedFacility} onOpenChange={() => { setSelectedFacility(null); setSelectedCrewId(1); }}>
         {selectedFacility && (
-          <DialogContent className="max-w-xs bg-card border-white/5 p-6 shadow-2xl border">
-            <DialogHeader>
-              <DialogTitle className="text-center font-headline font-bold text-xl uppercase tracking-tight text-primary">
+          <DialogContent className="max-w-md bg-card border-white/10 p-0 overflow-hidden shadow-2xl border">
+            <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
+              <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">
                 {t.items[selectedFacility as keyof typeof t.items].label}
               </DialogTitle>
               <DialogDescription className="text-center text-xs mt-4 italic text-muted-foreground leading-relaxed bg-secondary/20 p-4 rounded-xl border border-white/5">
                 {t.items[selectedFacility as keyof typeof t.items].desc}
               </DialogDescription>
-            </DialogHeader>
+            </div>
 
-            <div className="grid grid-cols-2 gap-3 mt-6">
-              <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
-                 <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.cost}</p>
-                 <p className="text-sm font-bold text-accent">€ {(40000 * (((bootcamp as any)[selectedFacility] || 0) + 1)).toLocaleString()}</p>
+            <div className="p-6 space-y-6">
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-black uppercase text-accent tracking-[0.2em] flex items-center gap-2">
+                  <Zap className="w-3 h-3" /> {t.crewSelect}
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {CREWS.map((crew) => (
+                    <button
+                      key={crew.id}
+                      onClick={() => setSelectedCrewId(crew.id)}
+                      className={cn(
+                        "p-3 rounded-xl border text-left transition-all",
+                        selectedCrewId === crew.id 
+                          ? "bg-primary/20 border-primary shadow-lg ring-1 ring-primary/50" 
+                          : "bg-secondary/20 border-white/5 hover:border-white/20"
+                      )}
+                    >
+                      <p className="text-[9px] font-bold uppercase text-white truncate">{language === 'ru' ? crew.labelRu : crew.labelEn}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <Gem className="w-2.5 h-2.5 text-accent" />
+                        <span className="text-[10px] font-headline font-black text-accent">{crew.price}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
-                 <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.duration}</p>
-                 <p className="text-sm font-bold text-primary flex items-center justify-center gap-1">
-                   <Clock className="w-3 h-3" /> {4 * (((bootcamp as any)[selectedFacility] || 0) + 1)} {t.hours}
-                 </p>
+
+              <div className="grid grid-cols-2 gap-3 mt-6">
+                <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
+                   <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.cost}</p>
+                   <p className="text-sm font-bold text-accent">€ {(40000 * (((bootcamp as any)[selectedFacility] || 0) + 1)).toLocaleString()}</p>
+                </div>
+                <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
+                   <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.duration}</p>
+                   <p className="text-sm font-bold text-primary flex items-center justify-center gap-1">
+                     <Clock className="w-3 h-3" /> 
+                     {Math.ceil((4 * (((bootcamp as any)[selectedFacility] || 0) + 1)) / (CREWS.find(c => c.id === selectedCrewId)?.multiplier || 1))} {t.hours}
+                   </p>
+                </div>
               </div>
             </div>
 
-            <DialogFooter className="mt-6">
-              <Button className="w-full hero-gradient font-bold h-12 uppercase text-[10px] tracking-widest shadow-xl shadow-primary/20" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
+            <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5">
+              <Button className="w-full h-12 hero-gradient font-bold uppercase text-[10px] tracking-widest shadow-xl shadow-primary/20" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
                 {isAnyConstructing ? t.crewBusy : t.confirm}
               </Button>
             </DialogFooter>

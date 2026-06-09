@@ -11,20 +11,28 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { 
   ChevronLeft, Users, Video, Search, Music, 
-  Hammer, Clock, Loader2
+  Hammer, Clock, Loader2, Gem, Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
+const CREWS = [
+  { id: 1, multiplier: 1, price: 0, labelRu: 'Обычная', labelEn: 'Standard' },
+  { id: 2, multiplier: 2, price: 100, labelRu: 'Малая (2x)', labelEn: 'Small (2x)' },
+  { id: 3, multiplier: 4, price: 250, labelRu: 'Средняя (4x)', labelEn: 'Medium (4x)' },
+  { id: 4, multiplier: 8, price: 600, labelRu: 'Большая (8x)', labelEn: 'Large (8x)' },
+];
+
 export default function AcademyPage() {
   const { 
-    academy, credits, startAcademyConstruction, checkConstructions, language, isLoaded 
+    academy, credits, crystals, startAcademyConstruction, checkConstructions, language, isLoaded 
   } = useGameState();
   const { toast } = useToast();
   
   const [selectedFacility, setSelectedFacility] = useState<string | null>(null);
+  const [selectedCrewId, setSelectedCrewId] = useState(1);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -57,6 +65,7 @@ export default function AcademyPage() {
       finishAt: "Finalizing at",
       crewBusy: "Academy Crew Occupied",
       facilities: "Academy Objects",
+      crewSelect: "Engineering Crew Selection",
       items: {
         youthBootcampLevel: { label: "Youth Bootcamp", desc: "Significantly speeds up the training process for all youth students." },
         streamingLevel: { label: "Streaming Center", desc: "Slightly increases fan base and total number of students in the academy." },
@@ -78,6 +87,7 @@ export default function AcademyPage() {
       finishAt: "Завершение в",
       crewBusy: "Бригада Академии занята",
       facilities: "Объекты Академии",
+      crewSelect: "Выбор инженерной группы",
       items: {
         youthBootcampLevel: { label: "Молодежный Буткемп", desc: "Значительно ускоряет процесс тренировки всех юниоров академии." },
         streamingLevel: { label: "Стриминг", desc: "Немного увеличивает фанбазу и общее количество занимающихся в школе игроков." },
@@ -104,9 +114,12 @@ export default function AcademyPage() {
     if (!selectedFacility) return;
     const currentLevel = (academy as any)[selectedFacility];
     const cost = 35000 * (currentLevel + 1);
-    if (startAcademyConstruction(selectedFacility as any, cost)) {
+    const crew = CREWS.find(c => c.id === selectedCrewId) || CREWS[0];
+    
+    if (startAcademyConstruction(selectedFacility as any, cost, crew.multiplier, crew.price)) {
       toast({ title: t.inProgress });
       setSelectedFacility(null);
+      setSelectedCrewId(1);
     } else {
       toast({ title: t.crewBusy, variant: "destructive" });
     }
@@ -201,33 +214,62 @@ export default function AcademyPage() {
         })}
       </div>
 
-      <Dialog open={!!selectedFacility} onOpenChange={() => setSelectedFacility(null)}>
+      <Dialog open={!!selectedFacility} onOpenChange={() => { setSelectedFacility(null); setSelectedCrewId(1); }}>
         {selectedFacility && (
-          <DialogContent className="max-w-xs bg-card border-white/5 p-6 shadow-2xl border">
-            <DialogHeader>
-              <DialogTitle className="text-center font-headline font-bold text-xl uppercase tracking-tight text-primary">
+          <DialogContent className="max-w-md bg-card border-white/10 p-0 overflow-hidden shadow-2xl border">
+            <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
+              <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">
                 {t.items[selectedFacility as keyof typeof t.items].label}
               </DialogTitle>
               <DialogDescription className="text-center text-xs mt-4 italic text-muted-foreground leading-relaxed bg-secondary/20 p-4 rounded-xl border border-white/5">
                 {t.items[selectedFacility as keyof typeof t.items].desc}
               </DialogDescription>
-            </DialogHeader>
+            </div>
 
-            <div className="grid grid-cols-2 gap-3 mt-6">
-              <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
-                 <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.cost}</p>
-                 <p className="text-sm font-bold text-accent">€ {(35000 * (((academy as any)[selectedFacility] || 0) + 1)).toLocaleString()}</p>
+            <div className="p-6 space-y-6">
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-black uppercase text-accent tracking-[0.2em] flex items-center gap-2">
+                  <Zap className="w-3 h-3" /> {t.crewSelect}
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {CREWS.map((crew) => (
+                    <button
+                      key={crew.id}
+                      onClick={() => setSelectedCrewId(crew.id)}
+                      className={cn(
+                        "p-3 rounded-xl border text-left transition-all",
+                        selectedCrewId === crew.id 
+                          ? "bg-primary/20 border-primary shadow-lg ring-1 ring-primary/50" 
+                          : "bg-secondary/20 border-white/5 hover:border-white/20"
+                      )}
+                    >
+                      <p className="text-[9px] font-bold uppercase text-white truncate">{language === 'ru' ? crew.labelRu : crew.labelEn}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <Gem className="w-2.5 h-2.5 text-accent" />
+                        <span className="text-[10px] font-headline font-black text-accent">{crew.price}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
-                 <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.duration}</p>
-                 <p className="text-sm font-bold text-primary flex items-center justify-center gap-1">
-                   <Clock className="w-3 h-3" /> {4 * (((academy as any)[selectedFacility] || 0) + 1)} {t.hours}
-                 </p>
+
+              <div className="grid grid-cols-2 gap-3 mt-6">
+                <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
+                   <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.cost}</p>
+                   <p className="text-sm font-bold text-accent">€ {(35000 * (((academy as any)[selectedFacility] || 0) + 1)).toLocaleString()}</p>
+                </div>
+                <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
+                   <p className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{t.duration}</p>
+                   <p className="text-sm font-bold text-primary flex items-center justify-center gap-1">
+                     <Clock className="w-3 h-3" /> 
+                     {Math.ceil((4 * (((academy as any)[selectedFacility] || 0) + 1)) / (CREWS.find(c => c.id === selectedCrewId)?.multiplier || 1))} {t.hours}
+                   </p>
+                </div>
               </div>
             </div>
 
-            <DialogFooter className="mt-6">
-              <Button className="w-full hero-gradient font-bold h-12 uppercase text-[10px] tracking-widest shadow-xl shadow-primary/20" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
+            <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5">
+              <Button className="w-full h-14 hero-gradient font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-primary/20 active:scale-95 transition-all" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
                 {isAnyConstructing ? t.crewBusy : t.confirm}
               </Button>
             </DialogFooter>

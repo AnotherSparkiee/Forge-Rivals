@@ -13,7 +13,7 @@ import { Progress } from '@/components/ui/progress';
 import { 
   ChevronLeft, MessageSquare, Coffee, ShoppingBag, 
   Monitor, Car, Lightbulb, Wallet, Clock,
-  Hammer, MinusCircle, PlusCircle, Lock
+  Hammer, MinusCircle, PlusCircle, Lock, Gem, Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
@@ -21,9 +21,16 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { PlaceHolderImages } from '@/app/lib/placeholder-images';
 
+const CREWS = [
+  { id: 1, multiplier: 1, price: 0, labelRu: 'Обычная', labelEn: 'Standard' },
+  { id: 2, multiplier: 2, price: 100, labelRu: 'Малая (2x)', labelEn: 'Small (2x)' },
+  { id: 3, multiplier: 4, price: 250, labelRu: 'Средняя (4x)', labelEn: 'Medium (4x)' },
+  { id: 4, multiplier: 8, price: 600, labelRu: 'Большая (8x)', labelEn: 'Large (8x)' },
+];
+
 export default function ArenaPage() {
   const { 
-    arena, credits, startCapacityExpansion, startArenaConstruction, checkConstructions, language, isLoaded, activeLicenseTier, isPremium
+    arena, credits, crystals, startCapacityExpansion, startArenaConstruction, checkConstructions, language, isLoaded, activeLicenseTier, isPremium
   } = useGameState();
   const { toast } = useToast();
   
@@ -31,6 +38,7 @@ export default function ArenaPage() {
   const [showCapacityDialog, setShowCapacityDialog] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
   const [expansionSeats, setExpansionSeats] = useState([500]);
+  const [selectedCrewId, setSelectedCrewId] = useState(1);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -90,6 +98,7 @@ export default function ArenaPage() {
       max: "Max",
       back: "Back",
       locked: "B-Tier License Required",
+      crewSelect: "Engineering Crew Selection",
       items: {
         capacity: { label: "Stadium Capacity", desc: "Current stadium seating capacity." },
         pressCenterLevel: { label: "Press Center", desc: "The club receives income from TV broadcasts." },
@@ -124,6 +133,7 @@ export default function ArenaPage() {
       max: "Макс",
       back: "Назад",
       locked: "Нужна Лицензия B-Tier",
+      crewSelect: "Выбор инженерной группы",
       items: {
         capacity: { label: "Вместимость стадиона", desc: "Текущая вместимость зрительских мест." },
         pressCenterLevel: { label: "Пресс-центр", desc: "Клуб получает доход от телетрансляций." },
@@ -154,9 +164,12 @@ export default function ArenaPage() {
     if (!selectedFacility) return;
     const currentLevel = (arena as any)[selectedFacility];
     const cost = 15000 * (currentLevel + 1);
-    if (startArenaConstruction(selectedFacility as any, cost)) {
+    const crew = CREWS.find(c => c.id === selectedCrewId) || CREWS[0];
+    
+    if (startArenaConstruction(selectedFacility as any, cost, crew.multiplier, crew.price)) {
       toast({ title: t.inProgress });
       setSelectedFacility(null);
+      setSelectedCrewId(1);
     } else {
       toast({ title: t.crewBusy, variant: "destructive" });
     }
@@ -397,32 +410,61 @@ export default function ArenaPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!selectedFacility} onOpenChange={() => setSelectedFacility(null)}>
+      <Dialog open={!!selectedFacility} onOpenChange={() => { setSelectedFacility(null); setSelectedCrewId(1); }}>
         {selectedFacility && (
-          <DialogContent className="max-w-xs bg-card border-white/10 p-6 shadow-2xl border">
-            <DialogHeader>
-              <DialogTitle className="text-center font-headline font-bold text-xl uppercase tracking-tight text-primary">
+          <DialogContent className="max-w-md bg-card border-white/10 p-0 overflow-hidden shadow-2xl border">
+            <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
+              <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">
                 {t.items[selectedFacility as keyof typeof t.items].label}
               </DialogTitle>
               <DialogDescription className="text-center text-xs mt-4 italic text-muted-foreground leading-relaxed bg-secondary/20 p-4 rounded-xl border border-white/5">
                 {t.items[selectedFacility as keyof typeof t.items].desc}
               </DialogDescription>
-            </DialogHeader>
+            </div>
 
-            <div className="grid grid-cols-2 gap-3 mt-8">
-              <div className="bg-secondary/30 p-4 rounded-2xl text-center border border-white/5 shadow-inner">
-                 <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-widest">{t.cost}</p>
-                 <p className="text-sm font-bold text-accent italic">€ {(15000 * (((arena as any)[selectedFacility] || 0) + 1)).toLocaleString()}</p>
+            <div className="p-6 space-y-6">
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-black uppercase text-accent tracking-[0.2em] flex items-center gap-2">
+                  <Zap className="w-3 h-3" /> {t.crewSelect}
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {CREWS.map((crew) => (
+                    <button
+                      key={crew.id}
+                      onClick={() => setSelectedCrewId(crew.id)}
+                      className={cn(
+                        "p-3 rounded-xl border text-left transition-all",
+                        selectedCrewId === crew.id 
+                          ? "bg-primary/20 border-primary shadow-lg ring-1 ring-primary/50" 
+                          : "bg-secondary/20 border-white/5 hover:border-white/20"
+                      )}
+                    >
+                      <p className="text-[9px] font-bold uppercase text-white truncate">{language === 'ru' ? crew.labelRu : crew.labelEn}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <Gem className="w-2.5 h-2.5 text-accent" />
+                        <span className="text-[10px] font-headline font-black text-accent">{crew.price}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="bg-secondary/30 p-4 rounded-2xl text-center border border-white/5 shadow-inner">
-                 <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-widest">{t.duration}</p>
-                 <p className="text-sm font-bold text-primary flex items-center justify-center gap-1.5">
-                   <Clock className="w-3.5 h-3.5" /> {4 * (((arena as any)[selectedFacility] || 0) + 1)} {t.hours}
-                 </p>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-secondary/30 p-4 rounded-2xl text-center border border-white/5 shadow-inner">
+                   <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-widest">{t.cost}</p>
+                   <p className="text-sm font-bold text-accent italic">€ {(15000 * (((arena as any)[selectedFacility] || 0) + 1)).toLocaleString()}</p>
+                </div>
+                <div className="bg-secondary/30 p-4 rounded-2xl text-center border border-white/5 shadow-inner">
+                   <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-widest">{t.duration}</p>
+                   <p className="text-sm font-bold text-primary flex items-center justify-center gap-1.5">
+                     <Clock className="w-3.5 h-3.5" /> 
+                     {Math.ceil((4 * (((arena as any)[selectedFacility] || 0) + 1)) / (CREWS.find(c => c.id === selectedCrewId)?.multiplier || 1))} {t.hours}
+                   </p>
+                </div>
               </div>
             </div>
 
-            <DialogFooter className="mt-8">
+            <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5">
               <Button className="w-full h-14 hero-gradient font-black text-[10px] uppercase tracking-[0.2em] shadow-2xl shadow-primary/30 active:scale-95 transition-all" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
                 {isAnyConstructing ? t.crewBusy : t.confirm}
               </Button>
