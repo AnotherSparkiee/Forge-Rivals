@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,23 +7,20 @@ import { useToast } from '@/hooks/use-toast';
 
 /**
  * Слушатель ошибок Firebase.
- * Вместо того чтобы убивать приложение через throw, он выводит уведомление.
- * Это предотвращает белый экран при временных задержках прав доступа.
+ * Выводит уведомление пользователю при возникновении проблем с правами доступа.
  */
 export function FirebaseErrorListener() {
   const { toast } = useToast();
 
   useEffect(() => {
     const handleError = (error: FirestorePermissionError) => {
-      console.warn("[Firebase Security]:", error.message);
+      console.warn("[Firebase Security]:", error.message, error.context);
       
-      // Не показываем ошибку если это первичная инициализация (часто бывает ложной)
-      if (error.context?.path?.includes('players_v10')) return;
-
+      // Показываем визуальное уведомление об ошибке доступа
       toast({
         variant: "destructive",
-        title: "Ошибка синхронизации",
-        description: "Сервер временно ограничил доступ. Попробуйте позже.",
+        title: "Ошибка доступа",
+        description: "Действие ограничено правами безопасности. Попробуйте обновить страницу.",
       });
     };
 
