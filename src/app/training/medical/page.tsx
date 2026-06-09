@@ -52,11 +52,12 @@ export default function MedicalPage() {
       cost: "Medical Costs",
       duration: "Timeframe",
       hours: "hours",
-      level: "Level",
+      level: "Ур",
       upgrade: "Modernize",
       accelerate: "Accelerate",
       accelTitle: "Expedite Lab Renovation",
       accelDesc: "Bring in specialized medical engineers to finish the department faster.",
+      alreadyAccelerated: "Limit reached: 1 per cycle",
       inProgress: "Renovation in Progress",
       improving: "Improving...",
       finishAt: "Ready at",
@@ -76,11 +77,12 @@ export default function MedicalPage() {
       cost: "Затраты",
       duration: "Срок",
       hours: "ч",
-      level: "Уровень",
+      level: "Ур",
       upgrade: "Улучшить",
       accelerate: "Ускорить",
       accelTitle: "Ускорение медцентра",
       accelDesc: "Привлеките профильных инженеров, чтобы закончить обустройство кабинетов быстрее.",
+      alreadyAccelerated: "Лимит: 1 за постройку",
       inProgress: "Идет реновация",
       improving: "Улучшается...",
       finishAt: "Готовность в",
@@ -124,7 +126,7 @@ export default function MedicalPage() {
       toast({ title: language === 'ru' ? "Медицина ускорена!" : "Medical Rushed!" });
       setAcceleratingFacility(null);
     } else {
-      toast({ title: language === 'ru' ? "Недостаточно ресурсов" : "Insufficient Resources", variant: "destructive" });
+      toast({ title: t.alreadyAccelerated, variant: "destructive" });
     }
   };
 
@@ -135,15 +137,6 @@ export default function MedicalPage() {
     { id: 'labLevel', icon: FlaskConical, color: 'text-blue-400' },
     { id: 'psychologistLevel', icon: UserCircle, color: 'text-yellow-400' },
   ];
-
-  const formatFinishTime = (iso: string) => {
-    const date = new Date(iso);
-    return date.toLocaleString('ru-RU', { 
-      day: '2-digit', month: '2-digit', 
-      hour: '2-digit', minute: '2-digit',
-      timeZone: 'Europe/Moscow' 
-    });
-  };
 
   if (!isLoaded) return <LoadingScreen />;
 
@@ -168,6 +161,7 @@ export default function MedicalPage() {
           const level = (medical as any)[item.id] || 0;
           const finishTime = medical.constructionFinishes?.[item.id];
           const isConstructing = !!finishTime;
+          const isAccelerated = medical.isAccelerated?.[item.id];
           const progress = isConstructing ? calculateProgress(item.id) : 0;
           
           return (
@@ -183,13 +177,15 @@ export default function MedicalPage() {
                     </div>
                     <div>
                       <h3 className="text-sm font-bold uppercase">{t.items[item.id as keyof typeof t.items].label}</h3>
-                      <Badge variant="secondary" className="text-[9px] h-4 py-0 uppercase mt-1">LVL {level}</Badge>
+                      <Badge variant="secondary" className="text-[9px] h-4 py-0 uppercase mt-1">{t.level} {level}</Badge>
                     </div>
                   </div>
-                  {isConstructing ? (
+                  {isConstructing && !isAccelerated ? (
                     <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white font-black text-[9px] h-8 px-3 gap-1.5" onClick={() => setAcceleratingFacility(item.id)}>
                       <Zap className="w-3 h-3" /> {t.accelerate}
                     </Button>
+                  ) : isConstructing && isAccelerated ? (
+                    <Badge variant="outline" className="text-[7px] border-orange-500/50 text-orange-400">BOOSTED</Badge>
                   ) : (
                     <Button size="sm" variant="outline" className="h-9 px-3" onClick={() => setSelectedFacility(item.id)}>
                       <span className="text-[9px] uppercase font-bold text-primary">{t.upgrade}</span>

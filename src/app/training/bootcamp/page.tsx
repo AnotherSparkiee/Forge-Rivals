@@ -44,11 +44,6 @@ export default function BootcampPage() {
     }
   }, [isLoaded, checkConstructions]);
 
-  const isAnyConstructing = useMemo(() => {
-    if (!bootcamp) return false;
-    return Object.values(bootcamp.constructionFinishes).some(v => v !== null && v !== undefined);
-  }, [bootcamp]);
-
   const labels = {
     en: {
       title: "BOOTCAMP",
@@ -57,11 +52,12 @@ export default function BootcampPage() {
       cost: "Investment",
       duration: "Duration",
       hours: "hours",
-      level: "Level",
+      level: "Ур",
       upgrade: "Upgrade",
       accelerate: "Accelerate",
       accelTitle: "Rush Bootcamp Drills",
       accelDesc: "Bring in specialized trainers and engineers to expedite the build.",
+      alreadyAccelerated: "Limit reached: 1 per cycle",
       inProgress: "Construction in Progress",
       improving: "Improving...",
       finishAt: "Ready at",
@@ -80,11 +76,12 @@ export default function BootcampPage() {
       cost: "Инвестиции",
       duration: "Срок",
       hours: "ч",
-      level: "Уровень",
+      level: "Ур",
       upgrade: "Улучшить",
       accelerate: "Ускорить",
       accelTitle: "Ускорение буткемпа",
       accelDesc: "Привлеките профильных специалистов для ускорения работ по базе.",
+      alreadyAccelerated: "Лимит: 1 за постройку",
       inProgress: "Идет строительство",
       improving: "Улучшается...",
       finishAt: "Готовность в",
@@ -127,7 +124,7 @@ export default function BootcampPage() {
       toast({ title: language === 'ru' ? "Буткемп ускорен!" : "Bootcamp Rushed!" });
       setAcceleratingFacility(null);
     } else {
-      toast({ title: language === 'ru' ? "Недостаточно алмазов" : "Insufficient Diamonds", variant: "destructive" });
+      toast({ title: t.alreadyAccelerated, variant: "destructive" });
     }
   };
 
@@ -137,15 +134,6 @@ export default function BootcampPage() {
     { id: 'poolLevel', icon: Waves, color: 'text-blue-400' },
     { id: 'researchLevel', icon: Microscope, color: 'text-accent' },
   ];
-
-  const formatFinishTime = (iso: string) => {
-    const date = new Date(iso);
-    return date.toLocaleString('ru-RU', { 
-      day: '2-digit', month: '2-digit', 
-      hour: '2-digit', minute: '2-digit',
-      timeZone: 'Europe/Moscow' 
-    });
-  };
 
   if (!isLoaded) return <LoadingScreen />;
 
@@ -170,6 +158,7 @@ export default function BootcampPage() {
           const level = (bootcamp as any)[item.id] || 0;
           const finishTime = bootcamp.constructionFinishes?.[item.id];
           const isConstructing = !!finishTime;
+          const isAccelerated = bootcamp.isAccelerated?.[item.id];
           const progress = isConstructing ? calculateProgress(item.id) : 0;
           
           return (
@@ -185,13 +174,15 @@ export default function BootcampPage() {
                     </div>
                     <div>
                       <h3 className="text-sm font-bold uppercase">{t.items[item.id as keyof typeof t.items].label}</h3>
-                      <Badge variant="secondary" className="text-[9px] h-4 py-0 uppercase mt-1">LVL {level}</Badge>
+                      <Badge variant="secondary" className="text-[9px] h-4 py-0 uppercase mt-1">{t.level} {level}</Badge>
                     </div>
                   </div>
-                  {isConstructing ? (
+                  {isConstructing && !isAccelerated ? (
                     <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white font-black text-[9px] h-8 px-3 gap-1.5" onClick={() => setAcceleratingFacility(item.id)}>
                       <Zap className="w-3 h-3" /> {t.accelerate}
                     </Button>
+                  ) : isConstructing && isAccelerated ? (
+                    <Badge variant="outline" className="text-[7px] border-orange-500/50 text-orange-400">BOOSTED</Badge>
                   ) : (
                     <Button size="sm" variant="outline" className="h-9 px-3" onClick={() => setSelectedFacility(item.id)}>
                       <span className="text-[9px] uppercase font-bold text-primary">{t.upgrade}</span>

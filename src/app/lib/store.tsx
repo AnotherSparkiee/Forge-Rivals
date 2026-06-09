@@ -12,12 +12,12 @@ import { usePathname } from 'next/navigation';
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
 interface ArenaState {
-  capacity: number; pressCenterLevel: number; cafeLevel: number; shopLevel: number; screensLevel: number; parkingLevel: number; lightingLevel: number; pendingCapacitySeats: number | null; constructionFinishes: Record<string, string | null>; constructionStarts: Record<string, string | null>;
+  capacity: number; pressCenterLevel: number; cafeLevel: number; shopLevel: number; screensLevel: number; parkingLevel: number; lightingLevel: number; pendingCapacitySeats: number | null; constructionFinishes: Record<string, string | null>; constructionStarts: Record<string, string | null>; isAccelerated: Record<string, boolean>;
 }
-interface HQState { hrLevel: number; financeLevel: number; scoutsLevel: number; pressOfficeLevel: number; adminLevel: number; constructionFinishes: Record<string, string | null>; constructionStarts: Record<string, string | null>; }
-interface BootcampState { bootcampLevel: number; tacticsHallLevel: number; poolLevel: number; researchLevel: number; constructionFinishes: Record<string, string | null>; constructionStarts: Record<string, string | null>; }
-interface AcademyState { youthBootcampLevel: number; streamingLevel: number; scoutsLevel: number; discoLevel: number; constructionFinishes: Record<string, string | null>; constructionStarts: Record<string, string | null>; }
-interface MedicalState { physiotherapyLevel: number; massageLevel: number; psychiatristLevel: number; labLevel: number; psychologistLevel: number; constructionFinishes: Record<string, string | null>; constructionStarts: Record<string, string | null>; }
+interface HQState { hrLevel: number; financeLevel: number; scoutsLevel: number; pressOfficeLevel: number; adminLevel: number; constructionFinishes: Record<string, string | null>; constructionStarts: Record<string, string | null>; isAccelerated: Record<string, boolean>; }
+interface BootcampState { bootcampLevel: number; tacticsHallLevel: number; poolLevel: number; researchLevel: number; constructionFinishes: Record<string, string | null>; constructionStarts: Record<string, string | null>; isAccelerated: Record<string, boolean>; }
+interface AcademyState { youthBootcampLevel: number; streamingLevel: number; scoutsLevel: number; discoLevel: number; constructionFinishes: Record<string, string | null>; constructionStarts: Record<string, string | null>; isAccelerated: Record<string, boolean>; }
+interface MedicalState { physiotherapyLevel: number; massageLevel: number; psychiatristLevel: number; labLevel: number; psychologistLevel: number; constructionFinishes: Record<string, string | null>; constructionStarts: Record<string, string | null>; isAccelerated: Record<string, boolean>; }
 interface StaffState { coach: StaffMember | null; analyst: StaffMember | null; scout: StaffMember | null; doctor: StaffMember | null; financier: StaffMember | null; }
 export type MatchType = 'league' | 'cup' | 'friendly' | 'basket' | 'tournament' | 'trial';
 export interface MatchResultEntry { id: string; day: number; seasonNumber?: number; type: MatchType; opponentName: string; winner: string; scoreA: number; scoreB: number; matchSummary: string; teamStats: any; heroPerformance: any[]; playedAt: string; duration?: string; mvp?: string; preview?: any; timeline?: any[]; postMatch?: any; }
@@ -26,11 +26,11 @@ interface GameState {
   credits: number; crystals: number; experiencePoints: number; managerLevel: number; skillPoints: number; managerSkills: { sponsors: number; agents: number; training: number; medical: number; }; activeLicenseTier: number | null; ownedHeroes: Hero[]; youthAcademyHeroes: Hero[]; team: Hero[]; lineup: Record<LineupSlot, string | null>; strategy: string; lineSettings: { carry: string; mid: string; offlane: string }; rank: number; matchHistory: MatchResultEntry[]; language: 'en' | 'ru'; wins: number; draws: number; losses: number; points: number; leagueLevel: number; divisionSubId: number; groupId: number; selectedLeagueId: string | null; country: string | null; associationId: string | null; lastLeagueMatchDate: null | string; lastCupMatchDate: null | string; lastSeenMatchDay: number; seasonDay: number; seasonNumber: number; lastProcessedSeason: number; lastYouthArrivalDay: number; lastYouthArrivalSeason: number; seasonStartDate: string | null; lastRewardClaimDate: string | null; rewardDay: number; arena: ArenaState; hq: HQState; bootcamp: BootcampState; academy: AcademyState; medical: MedicalState; staff: StaffState; seasonResults: { lastRank: number; lastPoints: number; promoted: boolean; demoted: boolean; seasonNumber: number; awardedTrophy: boolean; } | null; hasEliteTrophy: boolean; isSyncing: boolean; premiumUntil: string | null;
 }
 
-const DEFAULT_ARENA: ArenaState = { capacity: 5000, pressCenterLevel: 0, cafeLevel: 0, shopLevel: 0, screensLevel: 0, parkingLevel: 0, lightingLevel: 0, pendingCapacitySeats: null, constructionFinishes: {}, constructionStarts: {} };
-const DEFAULT_HQ: HQState = { hrLevel: 0, financeLevel: 0, scoutsLevel: 0, pressOfficeLevel: 0, adminLevel: 0, constructionFinishes: {}, constructionStarts: {} };
-const DEFAULT_BOOTCAMP: BootcampState = { bootcampLevel: 0, tacticsHallLevel: 0, poolLevel: 0, researchLevel: 0, constructionFinishes: {}, constructionStarts: {} };
-const DEFAULT_ACADEMY: AcademyState = { youthBootcampLevel: 0, streamingLevel: 0, scoutsLevel: 0, discoLevel: 0, constructionFinishes: {}, constructionStarts: {} };
-const DEFAULT_MEDICAL: MedicalState = { physiotherapyLevel: 0, massageLevel: 0, psychiatristLevel: 0, labLevel: 0, psychologistLevel: 0, constructionFinishes: {}, constructionStarts: {} };
+const DEFAULT_ARENA: ArenaState = { capacity: 5000, pressCenterLevel: 0, cafeLevel: 0, shopLevel: 0, screensLevel: 0, parkingLevel: 0, lightingLevel: 0, pendingCapacitySeats: null, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} };
+const DEFAULT_HQ: HQState = { hrLevel: 0, financeLevel: 0, scoutsLevel: 0, pressOfficeLevel: 0, adminLevel: 0, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} };
+const DEFAULT_BOOTCAMP: BootcampState = { bootcampLevel: 0, tacticsHallLevel: 0, poolLevel: 0, researchLevel: 0, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} };
+const DEFAULT_ACADEMY: AcademyState = { youthBootcampLevel: 0, streamingLevel: 0, scoutsLevel: 0, discoLevel: 0, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} };
+const DEFAULT_MEDICAL: MedicalState = { physiotherapyLevel: 0, massageLevel: 0, psychiatristLevel: 0, labLevel: 0, psychologistLevel: 0, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} };
 const DEFAULT_STAFF: StaffState = { coach: null, analyst: null, scout: null, doctor: null, financier: null };
 const DEFAULT_STATE: GameState = {
   credits: 10000000, crystals: 0, experiencePoints: 0, managerLevel: 1, skillPoints: 0, managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 }, activeLicenseTier: 4, ownedHeroes: INITIAL_HEROES, youthAcademyHeroes: [], team: INITIAL_HEROES.slice(0, 5), lineup: { carry: INITIAL_HEROES.find(h => h.role === 'Carry')?.id || null, mid: INITIAL_HEROES.find(h => h.role === 'Midlaner')?.id || null, offlane: INITIAL_HEROES.find(h => h.role === 'Tank')?.id || null, support: INITIAL_HEROES.find(h => h.role === 'Jungler')?.id || null, full_support: INITIAL_HEROES.find(h => h.role === 'Support')?.id || null, sub1: null, sub2: null, res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null }, strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' }, rank: 1000, matchHistory: [], language: 'ru', wins: 0, draws: 0, losses: 0, points: 0, leagueLevel: 9, divisionSubId: 1, groupId: 1, selectedLeagueId: null, country: null, associationId: null, lastSeenMatchDay: 0, lastLeagueMatchDate: null, lastCupMatchDate: null, seasonDay: 0, seasonNumber: 0, lastProcessedSeason: 0, lastYouthArrivalDay: 0, lastYouthArrivalSeason: 0, seasonStartDate: null, lastRewardClaimDate: null, rewardDay: 1, arena: DEFAULT_ARENA, hq: DEFAULT_HQ, bootcamp: DEFAULT_BOOTCAMP, academy: DEFAULT_ACADEMY, medical: DEFAULT_MEDICAL, staff: DEFAULT_STAFF, seasonResults: null, hasEliteTrophy: false, isSyncing: false, premiumUntil: null,
@@ -205,6 +205,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           }
           nextSector.constructionFinishes[fac] = null;
           nextSector.constructionStarts[fac] = null;
+          // Reset acceleration flag when finished
+          if (nextSector.isAccelerated) nextSector.isAccelerated[fac] = false;
           changed = true;
         }
       });
@@ -321,7 +323,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const baseHours = 4 * ((state.arena as any)[fac] + 1); 
     const hours = baseHours / crewMultiplier;
     const finish = new Date(Date.now() + hours * 3600000).toISOString(); 
-    const newArena = { ...state.arena, constructionStarts: { ...state.arena.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.arena.constructionFinishes, [fac]: finish } }; 
+    const newArena = { ...state.arena, constructionStarts: { ...state.arena.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.arena.constructionFinishes, [fac]: finish }, isAccelerated: { ...state.arena.isAccelerated, [fac]: false } }; 
     runCloudUpdate({ inGameCurrency: state.credits - cost, crystals: state.crystals - crystalCost, arena: sanitizeForFirestore(newArena) }); 
     return true; 
   }, [state, runCloudUpdate]);
@@ -331,7 +333,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const baseHours = 4 * ((state.hq as any)[fac] + 1); 
     const hours = baseHours / crewMultiplier;
     const finish = new Date(Date.now() + hours * 3600000).toISOString(); 
-    const newHQ = { ...state.hq, constructionStarts: { ...state.hq.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.hq.constructionFinishes, [fac]: finish } }; 
+    const newHQ = { ...state.hq, constructionStarts: { ...state.hq.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.hq.constructionFinishes, [fac]: finish }, isAccelerated: { ...state.hq.isAccelerated, [fac]: false } }; 
     runCloudUpdate({ inGameCurrency: state.credits - cost, crystals: state.crystals - crystalCost, hq: sanitizeForFirestore(newHQ) }); 
     return true; 
   }, [state, runCloudUpdate]);
@@ -341,7 +343,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const baseHours = 4 * ((state.bootcamp as any)[fac] + 1); 
     const hours = baseHours / crewMultiplier;
     const finish = new Date(Date.now() + hours * 3600000).toISOString(); 
-    const newBoot = { ...state.bootcamp, constructionStarts: { ...state.bootcamp.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.bootcamp.constructionFinishes, [fac]: finish } }; 
+    const newBoot = { ...state.bootcamp, constructionStarts: { ...state.bootcamp.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.bootcamp.constructionFinishes, [fac]: finish }, isAccelerated: { ...state.bootcamp.isAccelerated, [fac]: false } }; 
     runCloudUpdate({ inGameCurrency: state.credits - cost, crystals: state.crystals - crystalCost, bootcamp: sanitizeForFirestore(newBoot) }); 
     return true; 
   }, [state, runCloudUpdate]);
@@ -351,7 +353,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const baseHours = 4 * ((state.academy as any)[fac] + 1); 
     const hours = baseHours / crewMultiplier;
     const finish = new Date(Date.now() + hours * 3600000).toISOString(); 
-    const newAcad = { ...state.academy, constructionStarts: { ...state.academy.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.academy.constructionFinishes, [fac]: finish } }; 
+    const newAcad = { ...state.academy, constructionStarts: { ...state.academy.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.academy.constructionFinishes, [fac]: finish }, isAccelerated: { ...state.academy.isAccelerated, [fac]: false } }; 
     runCloudUpdate({ inGameCurrency: state.credits - cost, crystals: state.crystals - crystalCost, academy: sanitizeForFirestore(newAcad) }); 
     return true; 
   }, [state, runCloudUpdate]);
@@ -361,7 +363,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const baseHours = 4 * ((state.medical as any)[fac] + 1); 
     const hours = baseHours / crewMultiplier;
     const finish = new Date(Date.now() + hours * 3600000).toISOString(); 
-    const newMed = { ...state.medical, constructionStarts: { ...state.medical.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.medical.constructionFinishes, [fac]: finish } }; 
+    const newMed = { ...state.medical, constructionStarts: { ...state.medical.constructionStarts, [fac]: new Date().toISOString() }, constructionFinishes: { ...state.medical.constructionFinishes, [fac]: finish }, isAccelerated: { ...state.medical.isAccelerated, [fac]: false } }; 
     runCloudUpdate({ inGameCurrency: state.credits - cost, crystals: state.crystals - crystalCost, medical: sanitizeForFirestore(newMed) }); 
     return true; 
   }, [state, runCloudUpdate]);
@@ -372,6 +374,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const finish = sectorState.constructionFinishes[fac];
     if (!finish) return false;
 
+    // SINGLE USE CHECK
+    if (sectorState.isAccelerated && sectorState.isAccelerated[fac]) return false;
+
     const now = Date.now();
     const remaining = new Date(finish).getTime() - now;
     if (remaining <= 0) return false;
@@ -381,7 +386,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     
     const newSector = {
       ...sectorState,
-      constructionFinishes: { ...sectorState.constructionFinishes, [fac]: newFinish }
+      constructionFinishes: { ...sectorState.constructionFinishes, [fac]: newFinish },
+      isAccelerated: { ...(sectorState.isAccelerated || {}), [fac]: true }
     };
 
     runCloudUpdate({
@@ -391,7 +397,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return true;
   }, [state, runCloudUpdate]);
 
-  const startCapacityExpansion = useCallback((seats: number, cost: number, hours: number) => { if (state.credits < cost) return false; const finish = new Date(Date.now() + hours * 3600000).toISOString(); const newArena = { ...state.arena, pendingCapacitySeats: seats, constructionStarts: { ...state.arena.constructionStarts, capacity: new Date().toISOString() }, constructionFinishes: { ...state.arena.constructionFinishes, capacity: finish } }; runCloudUpdate({ inGameCurrency: state.credits - cost, arena: sanitizeForFirestore(newArena) }); return true; }, [state, runCloudUpdate]);
+  const startCapacityExpansion = useCallback((seats: number, cost: number, hours: number) => { if (state.credits < cost) return false; const finish = new Date(Date.now() + hours * 3600000).toISOString(); const newArena = { ...state.arena, pendingCapacitySeats: seats, constructionStarts: { ...state.arena.constructionStarts, capacity: new Date().toISOString() }, constructionFinishes: { ...state.arena.constructionFinishes, capacity: finish }, isAccelerated: { ...state.arena.isAccelerated, capacity: false } }; runCloudUpdate({ inGameCurrency: state.credits - cost, arena: sanitizeForFirestore(newArena) }); return true; }, [state, runCloudUpdate]);
   const hireStaffMember = useCallback((m: StaffMember) => { const updated = { ...state.staff, [m.role]: m }; runCloudUpdate({ staff: sanitizeForFirestore(updated), inGameCurrency: state.credits - (m.salary/2) }); }, [state, runCloudUpdate]);
   const trainStaffSkill = useCallback((role: StaffRole, key: 'primary'|'secondary', cost: number) => { const m = state.staff[role]; if (!m || state.crystals < cost) return false; const nm = { ...m, skills: { ...m.skills, [key]: m.skills[key]+1 } }; runCloudUpdate({ staff: sanitizeForFirestore({ ...state.staff, [role]: nm }), crystals: state.crystals - cost }); return true; }, [state, runCloudUpdate]);
   const setTrainingFocus = useCallback((id: string, key: string | null) => { const uOwned = state.ownedHeroes.map(h => h.id === id ? { ...h, trainingFocus: key } : h); const uYouth = state.youthAcademyHeroes.map(h => h.id === id ? { ...h, trainingFocus: key } : h); runCloudUpdate({ ownedHeroes: sanitizeForFirestore(uOwned), youthAcademyHeroes: sanitizeForFirestore(uYouth) }); }, [state, runCloudUpdate]);

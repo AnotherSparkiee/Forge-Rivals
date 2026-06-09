@@ -82,11 +82,12 @@ export default function ArenaPage() {
       cost: "Cost",
       duration: "Duration",
       hours: "hours",
-      level: "Level",
+      level: "Ур",
       upgrade: "Upgrade",
       accelerate: "Accelerate",
       accelTitle: "Speed Up Project",
       accelDesc: "Hire an elite engineering crew to finish construction faster.",
+      alreadyAccelerated: "Limit reached: 1 per cycle",
       inProgress: "Construction in Progress",
       improving: "Improving...",
       finishAt: "Ready at",
@@ -117,11 +118,12 @@ export default function ArenaPage() {
       cost: "Стоимость",
       duration: "Длительность",
       hours: "ч",
-      level: "Уровень",
+      level: "Ур",
       upgrade: "Улучшить",
       accelerate: "Ускорить",
       accelTitle: "Ускорение проекта",
       accelDesc: "Наймите элитную инженерную группу, чтобы завершить строительство быстрее.",
+      alreadyAccelerated: "Лимит: 1 за постройку",
       inProgress: "Идет строительство",
       improving: "Улучшается...",
       finishAt: "Готовность в",
@@ -171,7 +173,7 @@ export default function ArenaPage() {
       toast({ title: language === 'ru' ? "Проект ускорен!" : "Project Accelerated!" });
       setAcceleratingFacility(null);
     } else {
-      toast({ title: language === 'ru' ? "Недостаточно алмазов" : "Insufficient Diamonds", variant: "destructive" });
+      toast({ title: t.alreadyAccelerated, variant: "destructive" });
     }
   };
 
@@ -183,15 +185,6 @@ export default function ArenaPage() {
     { id: 'parkingLevel', icon: Car, color: 'text-slate-400' },
     { id: 'lightingLevel', icon: Lightbulb, color: 'text-yellow-400' },
   ];
-
-  const formatFinishTime = (iso: string) => {
-    const date = new Date(iso);
-    return date.toLocaleString('ru-RU', { 
-      day: '2-digit', month: '2-digit', 
-      hour: '2-digit', minute: '2-digit',
-      timeZone: 'Europe/Moscow' 
-    });
-  };
 
   if (!isLoaded) return null;
 
@@ -231,14 +224,16 @@ export default function ArenaPage() {
                   <span className="text-[8px] font-black text-primary/40 uppercase">{t.seats.toUpperCase()}</span>
                 </div>
               </div>
-              {isCapacityConstructing ? (
+              {isCapacityConstructing && !(arena.isAccelerated?.capacity) ? (
                 <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white font-black text-[9px] h-8 px-3 gap-1.5" onClick={(e) => { e.stopPropagation(); setAcceleratingFacility('capacity'); }}>
                   <Zap className="w-3 h-3" /> {t.accelerate}
                 </Button>
-              ) : (
+              ) : !isCapacityConstructing ? (
                 <div className="p-1.5 rounded-full bg-white/5 border border-white/5">
                   <PlusCircle className="w-4 h-4 text-primary/50" />
                 </div>
+              ) : (
+                <Badge variant="outline" className="text-[7px] border-orange-500/50 text-orange-400">BOOSTED</Badge>
               )}
             </div>
             
@@ -262,6 +257,7 @@ export default function ArenaPage() {
           const level = (arena as any)[item.id] || 0;
           const finishTime = arena.constructionFinishes?.[item.id];
           const isConstructing = !!finishTime;
+          const isAccelerated = arena.isAccelerated?.[item.id];
           const progress = isConstructing ? calculateProgress(item.id) : 0;
           const isLevelLocked = (activeLicenseTier === 4 && !isPremium && level >= 10);
           
@@ -278,13 +274,15 @@ export default function ArenaPage() {
                     </div>
                     <div>
                       <h3 className="text-sm font-bold uppercase tracking-tight">{t.items[item.id as keyof typeof t.items].label}</h3>
-                      <Badge variant="outline" className="text-[8px] h-4 py-0 uppercase mt-1 border-white/10 opacity-60">LVL {level}</Badge>
+                      <Badge variant="outline" className="text-[8px] h-4 py-0 uppercase mt-1 border-white/10 opacity-60">{t.level} {level}</Badge>
                     </div>
                   </div>
-                  {isConstructing ? (
+                  {isConstructing && !isAccelerated ? (
                     <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white font-black text-[9px] h-8 px-3 gap-1.5" onClick={() => setAcceleratingFacility(item.id)}>
                       <Zap className="w-3 h-3" /> {t.accelerate}
                     </Button>
+                  ) : isConstructing && isAccelerated ? (
+                    <Badge variant="outline" className="text-[7px] border-orange-500/50 text-orange-400">BOOSTED</Badge>
                   ) : isLevelLocked ? (
                     <div className="flex items-center gap-1 text-[8px] font-black text-red-400 uppercase"><Lock className="w-3 h-3" /> MAX</div>
                   ) : (

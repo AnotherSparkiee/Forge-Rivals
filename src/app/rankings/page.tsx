@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -428,7 +429,7 @@ export default function RankingsPage() {
                               <span className={cn("text-[10px] font-bold uppercase truncate", pair.isMyMatch && pair.home?.id === user?.uid ? "text-accent" : (pair.home ? "text-white" : "text-muted-foreground/40"))}>
                                 {pair.home ? pair.home.name : t.tbd}
                               </span>
-                              {pair.home && <Badge variant="outline" className="text-[7px] h-3 px-1 py-0 border-white/10 opacity-60">DIV {pair.home.level}</Badge>}
+                              <Badge variant="outline" className="text-[7px] h-3 px-1 py-0 border-white/10 opacity-60">Ур {pair.home.level}</Badge>
                               {pair.home?.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
                             </div>
                           </div>
@@ -445,7 +446,7 @@ export default function RankingsPage() {
                               <span className={cn("text-[10px] font-bold uppercase truncate opacity-80", pair.isMyMatch && pair.away?.id === user?.uid ? "text-accent" : (pair.away ? "text-white" : "text-muted-foreground/40"))}>
                                 {pair.away ? pair.away.name : t.tbd}
                               </span>
-                              {pair.away && <Badge variant="outline" className="text-[7px] h-3 px-1 py-0 border-white/10 opacity-60">DIV {pair.away.level}</Badge>}
+                              {pair.away && <Badge variant="outline" className="text-[7px] h-3 px-1 py-0 border-white/10 opacity-60">Ур {pair.away.level}</Badge>}
                               {pair.away?.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
                             </div>
                           </div>

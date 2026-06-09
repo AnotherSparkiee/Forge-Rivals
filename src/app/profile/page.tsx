@@ -55,7 +55,7 @@ export default function ProfilePage() {
   const popularity = useMemo(() => {
     const totalInfraLevels = (
       (arena.pressCenterLevel || 0) + (arena.cafeLevel || 0) + (arena.shopLevel || 0) + 
-      (arena.screensLevel || 0) + (arena.roofLevel || 0) + (arena.lightingLevel || 0) +
+      (arena.screensLevel || 0) + (arena.parkingLevel || 0) + (arena.lightingLevel || 0) +
       (hq.hrLevel || 0) + (hq.financeLevel || 0) + (hq.scoutsLevel || 0) + 
       (hq.pressOfficeLevel || 0) + (hq.adminLevel || 0) +
       (bootcamp.bootcampLevel || 0) + (bootcamp.tacticsHallLevel || 0) + 
@@ -91,7 +91,7 @@ export default function ProfilePage() {
     en: {
       title: "LEGENDARY MANAGER",
       backToMenu: "Back to Hub",
-      lvl: "LVL",
+      lvl: "УР",
       xp: "XP Progress",
       popularity: "Club Popularity",
       logout: "LOG OUT",
@@ -187,7 +187,7 @@ export default function ProfilePage() {
             </div>
             <div className="flex items-center justify-between p-3 bg-background/40 rounded-xl border border-white/5">
               <span className="text-[9px] font-bold text-muted-foreground uppercase">Squad Size</span>
-              <span className="text-xs font-mono font-bold text-white">{ownedHeroes.length} / {isPremium ? 15 : 10}</span>
+              <span className="text-xs font-mono font-bold text-white">{ownedHeroes.length} / {isPremium ? 15 : (activeLicenseTier === 1 ? 12 : (activeLicenseTier === 2 ? 10 : (activeLicenseTier === 3 ? 8 : 7)))}</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-background/40 rounded-xl border border-white/5">
               <span className="text-[9px] font-bold text-muted-foreground uppercase">Arena Capacity</span>
@@ -222,7 +222,7 @@ export default function ProfilePage() {
                   <div>
                     <h4 className="text-xs font-bold uppercase text-white tracking-tight">{skill.label}</h4>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <p className="text-[9px] text-muted-foreground font-black">LVL {(managerSkills as any)[skill.key]}</p>
+                      <p className="text-[9px] text-muted-foreground font-black">Ур {(managerSkills as any)[skill.key]}</p>
                       <span className="w-1 h-1 rounded-full bg-white/10"></span>
                       <p className="text-[8px] text-accent font-bold uppercase">{skill.desc}</p>
                     </div>

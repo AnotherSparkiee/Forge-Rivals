@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -149,7 +150,7 @@ export default function AllManagersPage() {
       pm: "Private Messages",
       pmDesc: "Direct encrypted transmission",
       close: "CLOSE",
-      lvl: "LVL"
+      lvl: "Ур"
     },
     ru: {
       title: "ВСЕ МЕНЕДЖЕРЫ",
@@ -225,7 +226,7 @@ export default function AllManagersPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-6">
       <header className="mb-6 flex items-center gap-4">
         <Link href="/managers">
           <Button variant="ghost" size="icon" className="rounded-full">
