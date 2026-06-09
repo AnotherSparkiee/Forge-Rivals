@@ -65,6 +65,7 @@ interface GameStateContextType extends GameState {
   startBootcampConstruction: (facility: any, cost: number, crewMultiplier?: number, crystalCost?: number) => boolean; 
   startAcademyConstruction: (facility: any, cost: number, crewMultiplier?: number, crystalCost?: number) => boolean; 
   startMedicalConstruction: (facility: any, cost: number, crewMultiplier?: number, crystalCost?: number) => boolean; 
+  accelerateConstruction: (sector: string, fac: string, multiplier: number, price: number) => boolean;
   startCapacityExpansion: (seats: number, cost: number, hours: number) => boolean; 
   checkConstructions: () => void; 
   setLanguage: (lang: 'en' | 'ru') => void; 
@@ -365,6 +366,31 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return true; 
   }, [state, runCloudUpdate]);
 
+  const accelerateConstruction = useCallback((sector: string, fac: string, multiplier: number, price: number) => {
+    if (state.crystals < price) return false;
+    const sectorState = (state as any)[sector];
+    const finish = sectorState.constructionFinishes[fac];
+    if (!finish) return false;
+
+    const now = Date.now();
+    const remaining = new Date(finish).getTime() - now;
+    if (remaining <= 0) return false;
+
+    const newRemaining = remaining / multiplier;
+    const newFinish = new Date(now + newRemaining).toISOString();
+    
+    const newSector = {
+      ...sectorState,
+      constructionFinishes: { ...sectorState.constructionFinishes, [fac]: newFinish }
+    };
+
+    runCloudUpdate({
+      crystals: state.crystals - price,
+      [sector]: sanitizeForFirestore(newSector)
+    });
+    return true;
+  }, [state, runCloudUpdate]);
+
   const startCapacityExpansion = useCallback((seats: number, cost: number, hours: number) => { if (state.credits < cost) return false; const finish = new Date(Date.now() + hours * 3600000).toISOString(); const newArena = { ...state.arena, pendingCapacitySeats: seats, constructionStarts: { ...state.arena.constructionStarts, capacity: new Date().toISOString() }, constructionFinishes: { ...state.arena.constructionFinishes, capacity: finish } }; runCloudUpdate({ inGameCurrency: state.credits - cost, arena: sanitizeForFirestore(newArena) }); return true; }, [state, runCloudUpdate]);
   const hireStaffMember = useCallback((m: StaffMember) => { const updated = { ...state.staff, [m.role]: m }; runCloudUpdate({ staff: sanitizeForFirestore(updated), inGameCurrency: state.credits - (m.salary/2) }); }, [state, runCloudUpdate]);
   const trainStaffSkill = useCallback((role: StaffRole, key: 'primary'|'secondary', cost: number) => { const m = state.staff[role]; if (!m || state.crystals < cost) return false; const nm = { ...m, skills: { ...m.skills, [key]: m.skills[key]+1 } }; runCloudUpdate({ staff: sanitizeForFirestore({ ...state.staff, [role]: nm }), crystals: state.crystals - cost }); return true; }, [state, runCloudUpdate]);
@@ -399,11 +425,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     <GameStateContext.Provider value={{ 
       ...state, isLoaded, isPremium, addCredits, addCrystals, assignToRole, updateTactics, 
       startArenaConstruction, startHQConstruction, startBootcampConstruction, 
-      startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, 
-      checkConstructions, hireStaffMember, trainStaffSkill, setLanguage, recordMatch, 
-      markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, setSyncing, 
-      setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, updateHero, 
-      promoteYouthPlayer, removeHero, recoverAllFatigue, addHeroDirectly, 
+      startAcademyConstruction, startMedicalConstruction, accelerateConstruction, 
+      startCapacityExpansion, checkConstructions, hireStaffMember, trainStaffSkill, 
+      setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, 
+      setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, 
+      updateHero, promoteYouthPlayer, removeHero, recoverAllFatigue, addHeroDirectly, 
       addYouthHeroDirectly, updateProfileName, updateProfileCountry, purchaseLicense, 
       purchasePremium, upgradeManagerSkill 
     }}>

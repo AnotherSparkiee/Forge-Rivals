@@ -19,21 +19,20 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { PlaceHolderImages } from '@/app/lib/placeholder-images';
 
-const CREWS = [
-  { id: 1, multiplier: 1, price: 0, labelRu: 'Обычная', labelEn: 'Standard' },
-  { id: 2, multiplier: 2, price: 100, labelRu: 'Малая (2x)', labelEn: 'Small (2x)' },
-  { id: 3, multiplier: 4, price: 250, labelRu: 'Средняя (4x)', labelEn: 'Medium (4x)' },
-  { id: 4, multiplier: 8, price: 600, labelRu: 'Большая (8x)', labelEn: 'Large (8x)' },
+const ACCEL_CREWS = [
+  { id: 1, multiplier: 2, price: 100, labelRu: 'Малая бригада (2x)', labelEn: 'Small Crew (2x)' },
+  { id: 2, multiplier: 4, price: 250, labelRu: 'Средняя бригада (4x)', labelEn: 'Medium Crew (4x)' },
+  { id: 3, multiplier: 8, price: 600, labelRu: 'Большая бригада (8x)', labelEn: 'Large Crew (8x)' },
 ];
 
 export default function HQPage() {
   const { 
-    hq, credits, crystals, startHQConstruction, checkConstructions, language, isLoaded 
+    hq, credits, crystals, startHQConstruction, accelerateConstruction, checkConstructions, language, isLoaded 
   } = useGameState();
   const { toast } = useToast();
   
   const [selectedFacility, setSelectedFacility] = useState<string | null>(null);
-  const [selectedCrewId, setSelectedCrewId] = useState(1);
+  const [acceleratingFacility, setAcceleratingFacility] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -60,11 +59,6 @@ export default function HQPage() {
   const showStarterImage = Number(maxHQLevel) >= 0 && Number(maxHQLevel) <= 10;
   const starterImage = (PlaceHolderImages || []).find(img => img.id === 'hq-starter')?.imageUrl;
 
-  const isAnyConstructing = useMemo(() => {
-    if (!hq) return false;
-    return Object.values(hq.constructionFinishes).some(v => v !== null && v !== undefined);
-  }, [hq]);
-
   const labels = {
     en: {
       title: "HEADQUARTERS",
@@ -77,12 +71,13 @@ export default function HQPage() {
       hours: "hours",
       level: "Level",
       upgrade: "Modernize",
+      accelerate: "Accelerate",
+      accelTitle: "Rush Department Project",
+      accelDesc: "Bring in specialized admin consultants to speed up the process.",
       inProgress: "Office Renovation",
       improving: "Improving...",
       finishAt: "Finalizing at",
-      crewBusy: "Administration Crew Occupied",
       facilities: "Department Upgrades",
-      crewSelect: "Engineering Crew Selection",
       items: {
         hrLevel: { label: "HR Department", desc: "Allows hiring the necessary number of professional staff members." },
         financeLevel: { label: "Finance Dept", desc: "Provides discounts on building and facility maintenance." },
@@ -102,12 +97,13 @@ export default function HQPage() {
       hours: "ч",
       level: "Уровень",
       upgrade: "Улучшить",
+      accelerate: "Ускорить",
+      accelTitle: "Ускорение отдела",
+      accelDesc: "Привлеките внешних консультантов, чтобы закончить реорганизацию быстрее.",
       inProgress: "Идет реновация офиса",
       improving: "Улучшается...",
       finishAt: "Завершение в",
-      crewBusy: "Бригада офиса занята",
       facilities: "Улучшение отделов",
-      crewSelect: "Выбор инженерной группы",
       items: {
         hrLevel: { label: "Отдел кадров", desc: "Позволяет нанимать необходимое количество профессионального персонала." },
         financeLevel: { label: "Финансы", desc: "Дает скидки на обслуживание построек и объектов базы." },
@@ -135,14 +131,19 @@ export default function HQPage() {
     if (!selectedFacility) return;
     const currentLevel = (hq as any)[selectedFacility];
     const cost = 25000 * (currentLevel + 1);
-    const crew = CREWS.find(c => c.id === selectedCrewId) || CREWS[0];
-    
-    if (startHQConstruction(selectedFacility as any, cost, crew.multiplier, crew.price)) {
+    if (startHQConstruction(selectedFacility as any, cost)) {
       toast({ title: t.inProgress });
       setSelectedFacility(null);
-      setSelectedCrewId(1);
+    }
+  };
+
+  const handleAccelerate = (multiplier: number, price: number) => {
+    if (!acceleratingFacility) return;
+    if (accelerateConstruction('hq', acceleratingFacility, multiplier, price)) {
+      toast({ title: language === 'ru' ? "Ускорение применено!" : "Project Rushed!" });
+      setAcceleratingFacility(null);
     } else {
-      toast({ title: t.crewBusy, variant: "destructive" });
+      toast({ title: language === 'ru' ? "Недостаточно ресурсов" : "Insufficient Resources", variant: "destructive" });
     }
   };
 
@@ -163,16 +164,10 @@ export default function HQPage() {
     });
   };
 
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  if (!isLoaded) return <LoadingScreen />;
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-20">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-6">
       <header className="mb-6 flex items-center gap-4">
         <Link href="/training">
           <Button variant="ghost" size="icon" className="rounded-full">
@@ -189,13 +184,7 @@ export default function HQPage() {
         <CardContent className="p-0">
           {showStarterImage && starterImage && (
             <div className="w-full bg-background border-b border-white/5 overflow-hidden">
-               <img 
-                src={starterImage} 
-                alt="HQ Preview" 
-                className="w-full h-auto block"
-                loading="eager"
-                decoding="sync"
-               />
+               <img src={starterImage} alt="HQ Preview" className="w-full h-auto block" loading="eager" />
             </div>
           )}
           <div className="p-4">
@@ -231,10 +220,9 @@ export default function HQPage() {
                     </div>
                   </div>
                   {isConstructing ? (
-                    <div className="text-right">
-                      <p className="text-[7px] uppercase text-muted-foreground font-bold">{t.finishAt}</p>
-                      <p className="text-[9px] font-mono font-bold text-orange-400">{formatFinishTime(finishTime)}</p>
-                    </div>
+                    <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white font-black text-[9px] h-8 px-3 gap-1.5" onClick={() => setAcceleratingFacility(item.id)}>
+                      <Zap className="w-3 h-3" /> {t.accelerate}
+                    </Button>
                   ) : (
                     <Button size="sm" variant="outline" className="h-9 px-3" onClick={() => setSelectedFacility(item.id)}>
                       <span className="text-[9px] uppercase font-bold text-primary">{t.upgrade}</span>
@@ -256,9 +244,9 @@ export default function HQPage() {
         })}
       </div>
 
-      <Dialog open={!!selectedFacility} onOpenChange={() => { setSelectedFacility(null); setSelectedCrewId(1); }}>
+      <Dialog open={!!selectedFacility} onOpenChange={() => setSelectedFacility(null)}>
         {selectedFacility && (
-          <DialogContent className="max-w-md bg-card border-white/10 p-0 overflow-hidden shadow-2xl border">
+          <DialogContent className="max-w-md bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
             <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
               <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">
                 {t.items[selectedFacility as keyof typeof t.items].label}
@@ -267,54 +255,49 @@ export default function HQPage() {
                 {t.items[selectedFacility as keyof typeof t.items].desc}
               </DialogDescription>
             </div>
-
-            <div className="p-6 space-y-6">
-              <div className="space-y-3">
-                <h4 className="text-[10px] font-black uppercase text-accent tracking-[0.2em] flex items-center gap-2">
-                  <Zap className="w-3 h-3" /> {t.crewSelect}
-                </h4>
-                <div className="grid grid-cols-2 gap-2">
-                  {CREWS.map((crew) => (
-                    <button
-                      key={crew.id}
-                      onClick={() => setSelectedCrewId(crew.id)}
-                      className={cn(
-                        "p-3 rounded-xl border text-left transition-all",
-                        selectedCrewId === crew.id 
-                          ? "bg-primary/20 border-primary shadow-lg ring-1 ring-primary/50" 
-                          : "bg-secondary/20 border-white/5 hover:border-white/20"
-                      )}
-                    >
-                      <p className="text-[9px] font-bold uppercase text-white truncate">{language === 'ru' ? crew.labelRu : crew.labelEn}</p>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <Gem className="w-2.5 h-2.5 text-accent" />
-                        <span className="text-[10px] font-headline font-black text-accent">{crew.price}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+            <div className="p-6 grid grid-cols-2 gap-3">
+              <div className="bg-secondary/30 p-4 rounded-2xl text-center border border-white/5">
+                 <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-widest">{t.cost}</p>
+                 <p className="text-sm font-bold text-accent italic">€ {(25000 * (((hq as any)[selectedFacility] || 0) + 1)).toLocaleString()}</p>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-secondary/30 p-4 rounded-2xl text-center border border-white/5 shadow-inner">
-                   <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-widest">{t.cost}</p>
-                   <p className="text-sm font-bold text-accent italic">€ {(25000 * (((hq as any)[selectedFacility] || 0) + 1)).toLocaleString()}</p>
-                </div>
-                <div className="bg-secondary/30 p-4 rounded-2xl text-center border border-white/5 shadow-inner">
-                   <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-widest">{t.duration}</p>
-                   <p className="text-sm font-bold text-primary flex items-center justify-center gap-1.5">
-                     <Clock className="w-3.5 h-3.5" /> 
-                     {Math.ceil((4 * (((hq as any)[selectedFacility] || 0) + 1)) / (CREWS.find(c => c.id === selectedCrewId)?.multiplier || 1))} {t.hours}
-                   </p>
-                </div>
+              <div className="bg-secondary/30 p-4 rounded-2xl text-center border border-white/5">
+                 <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-widest">{t.duration}</p>
+                 <p className="text-sm font-bold text-primary flex items-center justify-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {4 * (((hq as any)[selectedFacility] || 0) + 1)} {t.hours}</p>
               </div>
             </div>
-
             <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5">
-              <Button className="w-full h-14 hero-gradient font-black text-[10px] uppercase tracking-[0.2em] shadow-2xl shadow-primary/30 active:scale-95 transition-all" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
-                {isAnyConstructing ? t.crewBusy : t.confirm}
+              <Button className="w-full h-14 hero-gradient font-black text-[10px] uppercase tracking-[0.2em]" onClick={handleFacilityUpgrade}>
+                {t.confirm}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      <Dialog open={!!acceleratingFacility} onOpenChange={() => setAcceleratingFacility(null)}>
+        {acceleratingFacility && (
+          <DialogContent className="max-w-md bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
+            <div className="p-6 text-center bg-gradient-to-br from-orange-500/20 via-background to-transparent border-b border-white/5">
+              <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-orange-400 flex items-center justify-center gap-2">
+                <Zap className="w-5 h-5" /> {t.accelTitle}
+              </DialogTitle>
+              <DialogDescription className="text-center text-[10px] mt-2 uppercase font-black tracking-widest opacity-60">
+                {t.accelDesc}
+              </DialogDescription>
+            </div>
+            <div className="p-4 space-y-2">
+              {ACCEL_CREWS.map((crew) => (
+                <Card key={crew.id} className="glass-card border-white/5 hover:border-orange-500/30 cursor-pointer transition-all" onClick={() => handleAccelerate(crew.multiplier, crew.price)}>
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold uppercase text-white">{language === 'ru' ? crew.labelRu : crew.labelEn}</h4>
+                      <p className="text-[8px] text-muted-foreground uppercase font-black mt-1">Остаток времени / {crew.multiplier}</p>
+                    </div>
+                    <Badge className="bg-accent text-accent-foreground font-black h-8 px-3">{crew.price} 💎</Badge>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </DialogContent>
         )}
       </Dialog>

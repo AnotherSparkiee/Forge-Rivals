@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,24 +21,24 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { PlaceHolderImages } from '@/app/lib/placeholder-images';
 
-const CREWS = [
-  { id: 1, multiplier: 1, price: 0, labelRu: 'Обычная', labelEn: 'Standard' },
-  { id: 2, multiplier: 2, price: 100, labelRu: 'Малая (2x)', labelEn: 'Small (2x)' },
-  { id: 3, multiplier: 4, price: 250, labelRu: 'Средняя (4x)', labelEn: 'Medium (4x)' },
-  { id: 4, multiplier: 8, price: 600, labelRu: 'Большая (8x)', labelEn: 'Large (8x)' },
+const ACCEL_CREWS = [
+  { id: 1, multiplier: 2, price: 100, labelRu: 'Малая бригада (2x)', labelEn: 'Small Crew (2x)' },
+  { id: 2, multiplier: 4, price: 250, labelRu: 'Средняя бригада (4x)', labelEn: 'Medium Crew (4x)' },
+  { id: 3, multiplier: 8, price: 600, labelRu: 'Большая бригада (8x)', labelEn: 'Large Crew (8x)' },
 ];
 
 export default function ArenaPage() {
   const { 
-    arena, credits, crystals, startCapacityExpansion, startArenaConstruction, checkConstructions, language, isLoaded, activeLicenseTier, isPremium
+    arena, credits, crystals, startCapacityExpansion, startArenaConstruction, 
+    accelerateConstruction, checkConstructions, language, isLoaded, activeLicenseTier, isPremium
   } = useGameState();
   const { toast } = useToast();
   
   const [selectedFacility, setSelectedFacility] = useState<string | null>(null);
+  const [acceleratingFacility, setAcceleratingFacility] = useState<string | null>(null);
   const [showCapacityDialog, setShowCapacityDialog] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
   const [expansionSeats, setExpansionSeats] = useState([500]);
-  const [selectedCrewId, setSelectedCrewId] = useState(1);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -50,13 +50,6 @@ export default function ArenaPage() {
       return () => clearInterval(timer);
     }
   }, [isLoaded, checkConstructions]);
-
-  const isAnyConstructing = useMemo(() => {
-    if (!arena || !arena.constructionFinishes) return false;
-    return Object.values(arena.constructionFinishes).some(v => v !== null && v !== undefined);
-  }, [arena]);
-
-  const isCapacityConstructing = !!arena.constructionFinishes?.capacity;
 
   const maxArenaLevel = useMemo(() => {
     if (!arena) return 0;
@@ -72,6 +65,8 @@ export default function ArenaPage() {
 
   const showStarterImage = Number(maxArenaLevel) >= 0 && Number(maxArenaLevel) <= 10;
   const starterImage = (PlaceHolderImages || []).find(img => img.id === 'arena-starter')?.imageUrl;
+
+  const isCapacityConstructing = !!arena.constructionFinishes?.capacity;
 
   const labels = {
     en: {
@@ -89,16 +84,16 @@ export default function ArenaPage() {
       hours: "hours",
       level: "Level",
       upgrade: "Upgrade",
+      accelerate: "Accelerate",
+      accelTitle: "Speed Up Project",
+      accelDesc: "Hire an elite engineering crew to finish construction faster.",
       inProgress: "Construction in Progress",
       improving: "Improving...",
       finishAt: "Ready at",
-      crewBusy: "Arena Crew Busy",
       facilities: "Facility Upgrades",
       match: "SUPPORT",
       max: "Max",
-      back: "Back",
       locked: "B-Tier License Required",
-      crewSelect: "Engineering Crew Selection",
       items: {
         capacity: { label: "Stadium Capacity", desc: "Current stadium seating capacity." },
         pressCenterLevel: { label: "Press Center", desc: "The club receives income from TV broadcasts." },
@@ -124,16 +119,16 @@ export default function ArenaPage() {
       hours: "ч",
       level: "Уровень",
       upgrade: "Улучшить",
+      accelerate: "Ускорить",
+      accelTitle: "Ускорение проекта",
+      accelDesc: "Наймите элитную инженерную группу, чтобы завершить строительство быстрее.",
       inProgress: "Идет строительство",
       improving: "Улучшается...",
       finishAt: "Готовность в",
-      crewBusy: "Бригада Арены занята",
       facilities: "Улучшение объектов",
       match: "ПОДДЕРЖКА",
       max: "Макс",
-      back: "Назад",
       locked: "Нужна Лицензия B-Tier",
-      crewSelect: "Выбор инженерной группы",
       items: {
         capacity: { label: "Вместимость стадиона", desc: "Текущая вместимость зрительских мест." },
         pressCenterLevel: { label: "Пресс-центр", desc: "Клуб получает доход от телетрансляций." },
@@ -148,7 +143,7 @@ export default function ArenaPage() {
 
   const t = labels[language as keyof typeof labels] || labels.ru;
 
-  const calculateProgress = (id: string) => {
+  const calculateProgress = useCallback((id: string) => {
     const start = arena.constructionStarts?.[id];
     const finish = arena.constructionFinishes?.[id];
     if (!finish || !start) return 0;
@@ -158,33 +153,25 @@ export default function ArenaPage() {
     const elapsed = Date.now() - startTime;
     if (total <= 0) return 100;
     return Math.min(Math.max((elapsed / total) * 100, 0), 100);
-  };
+  }, [arena]);
 
   const handleFacilityUpgrade = () => {
     if (!selectedFacility) return;
     const currentLevel = (arena as any)[selectedFacility];
     const cost = 15000 * (currentLevel + 1);
-    const crew = CREWS.find(c => c.id === selectedCrewId) || CREWS[0];
-    
-    if (startArenaConstruction(selectedFacility as any, cost, crew.multiplier, crew.price)) {
+    if (startArenaConstruction(selectedFacility as any, cost)) {
       toast({ title: t.inProgress });
       setSelectedFacility(null);
-      setSelectedCrewId(1);
-    } else {
-      toast({ title: t.crewBusy, variant: "destructive" });
     }
   };
 
-  const handleExpansion = () => {
-    const seatsToAdd = expansionSeats[0];
-    const cost = (seatsToAdd / 500) * 125000;
-    const hours = (seatsToAdd / 500) * 6;
-    if (startCapacityExpansion(seatsToAdd, cost, hours)) {
-      toast({ title: t.inProgress });
-      setShowCapacityDialog(false);
-      setIsExpanding(false);
+  const handleAccelerate = (multiplier: number, price: number) => {
+    if (!acceleratingFacility) return;
+    if (accelerateConstruction('arena', acceleratingFacility, multiplier, price)) {
+      toast({ title: language === 'ru' ? "Проект ускорен!" : "Project Accelerated!" });
+      setAcceleratingFacility(null);
     } else {
-      toast({ title: t.crewBusy, variant: "destructive" });
+      toast({ title: language === 'ru' ? "Недостаточно алмазов" : "Insufficient Diamonds", variant: "destructive" });
     }
   };
 
@@ -231,44 +218,28 @@ export default function ArenaPage() {
         <CardContent className="p-0">
           {showStarterImage && starterImage && (
             <div className="w-full bg-background border-b border-white/5 overflow-hidden">
-               <img 
-                src={starterImage} 
-                alt="Arena Preview" 
-                className="w-full h-auto block"
-                loading="eager"
-                decoding="sync"
-               />
+               <img src={starterImage} alt="Arena Preview" className="w-full h-auto block" loading="eager" />
             </div>
           )}
 
           <div className="p-4 cursor-pointer hover:bg-white/5 transition-all" onClick={() => setShowCapacityDialog(true)}>
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-4">
-                <div>
-                  <p className="text-[7px] uppercase font-black text-muted-foreground tracking-[0.05em] mb-0.5 leading-none">{t.items.capacity.label}</p>
-                  <div className="flex items-baseline gap-1.5">
-                    <p className="text-2xl font-headline font-bold text-white tracking-tighter leading-none">{arena.capacity.toLocaleString()}</p>
-                    <span className="text-[8px] font-black text-primary/40 uppercase">{t.seats.toUpperCase()}</span>
-                  </div>
+              <div>
+                <p className="text-[7px] uppercase font-black text-muted-foreground tracking-[0.05em] mb-0.5 leading-none">{t.items.capacity.label}</p>
+                <div className="flex items-baseline gap-1.5">
+                  <p className="text-2xl font-headline font-bold text-white tracking-tighter leading-none">{arena.capacity.toLocaleString()}</p>
+                  <span className="text-[8px] font-black text-primary/40 uppercase">{t.seats.toUpperCase()}</span>
                 </div>
               </div>
               {isCapacityConstructing ? (
-                <div className="text-right">
-                  <p className="text-[7px] uppercase text-orange-400 font-black tracking-widest mb-0.5">{t.inProgress}</p>
-                  <p className="text-[10px] font-mono font-bold text-white">{formatFinishTime(arena.constructionFinishes.capacity!)}</p>
-                </div>
+                <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white font-black text-[9px] h-8 px-3 gap-1.5" onClick={(e) => { e.stopPropagation(); setAcceleratingFacility('capacity'); }}>
+                  <Zap className="w-3 h-3" /> {t.accelerate}
+                </Button>
               ) : (
                 <div className="p-1.5 rounded-full bg-white/5 border border-white/5">
                   <PlusCircle className="w-4 h-4 text-primary/50" />
                 </div>
               )}
-            </div>
-
-            <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-widest pt-2 border-t border-white/5">
-              <span className="text-muted-foreground/60">{t.currentStatus}: {arena.capacity.toLocaleString()}</span>
-              <span className="text-accent flex items-center gap-1">
-                <Wallet className="w-2.5 h-2.5" /> 30k € / {t.match}
-              </span>
             </div>
             
             {isCapacityConstructing && (
@@ -297,34 +268,27 @@ export default function ArenaPage() {
           return (
             <Card key={item.id} className={cn(
               "glass-card border-white/5 overflow-hidden transition-all",
-              isConstructing && "bg-orange-500/5 border-orange-500/20",
-              isLevelLocked && "opacity-60"
+              isConstructing && "bg-orange-500/5 border-orange-500/20"
             )}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "p-2.5 rounded-xl bg-secondary/50 border border-white/5", 
-                      isConstructing ? "text-orange-400 animate-pulse" : item.color
-                    )}>
+                    <div className={cn("p-2.5 rounded-xl bg-secondary/50", isConstructing ? "text-orange-400 animate-pulse" : item.color)}>
                       {isConstructing ? <Hammer className="w-5 h-5" /> : <item.icon className="w-5 h-5" />}
                     </div>
                     <div>
                       <h3 className="text-sm font-bold uppercase tracking-tight">{t.items[item.id as keyof typeof t.items].label}</h3>
-                      <Badge variant="outline" className="text-[8px] h-4 py-0 uppercase font-black tracking-widest mt-1 border-white/10 opacity-60">LVL {level}</Badge>
+                      <Badge variant="outline" className="text-[8px] h-4 py-0 uppercase mt-1 border-white/10 opacity-60">LVL {level}</Badge>
                     </div>
                   </div>
                   {isConstructing ? (
-                    <div className="text-right">
-                      <p className="text-[7px] uppercase text-muted-foreground font-black tracking-widest">{t.finishAt}</p>
-                      <p className="text-[10px] font-mono font-bold text-orange-400">{formatFinishTime(finishTime)}</p>
-                    </div>
+                    <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white font-black text-[9px] h-8 px-3 gap-1.5" onClick={() => setAcceleratingFacility(item.id)}>
+                      <Zap className="w-3 h-3" /> {t.accelerate}
+                    </Button>
                   ) : isLevelLocked ? (
-                    <div className="flex items-center gap-1 text-[8px] font-black text-red-400 uppercase">
-                      <Lock className="w-3 h-3" /> MAX
-                    </div>
+                    <div className="flex items-center gap-1 text-[8px] font-black text-red-400 uppercase"><Lock className="w-3 h-3" /> MAX</div>
                   ) : (
-                    <Button size="sm" variant="outline" className="h-9 px-4 border-white/10 hover:bg-primary/10 hover:text-primary transition-all" onClick={() => setSelectedFacility(item.id)}>
+                    <Button size="sm" variant="outline" className="h-9 px-4 border-white/10" onClick={() => setSelectedFacility(item.id)}>
                       <span className="text-[9px] uppercase font-black tracking-widest">{t.upgrade}</span>
                     </Button>
                   )}
@@ -344,75 +308,9 @@ export default function ArenaPage() {
         })}
       </div>
 
-      <Dialog open={showCapacityDialog} onOpenChange={(open) => { setShowCapacityDialog(open); if(!open) setIsExpanding(false); }}>
-        <DialogContent className="max-w-xs bg-card border-white/10 p-6">
-          <DialogHeader>
-            <DialogTitle className="text-center font-headline font-bold text-xl uppercase tracking-tighter">{t.capacityTitle}</DialogTitle>
-            <DialogDescription className="text-center text-[10px] mt-2 font-bold uppercase tracking-widest opacity-60">
-              {t.currentStatus}: {arena.capacity} {t.seats.toUpperCase()}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-4 space-y-6">
-            <div className="flex flex-col gap-2 p-4 bg-secondary/30 rounded-2xl border border-white/5 text-center shadow-inner">
-               <p className="text-[9px] uppercase font-black text-muted-foreground tracking-[0.2em]">{t.maintenance}</p>
-               <p className="text-lg font-headline font-bold text-accent">30,000 € / {t.match}</p>
-            </div>
-
-            {!isExpanding ? (
-              <div className="grid grid-cols-2 gap-3">
-                <Button className="hero-gradient font-black text-[10px] uppercase h-12 shadow-lg shadow-primary/20" onClick={() => setIsExpanding(true)} disabled={isAnyConstructing}>
-                  <PlusCircle className="w-4 h-4 mr-2" /> {t.expand}
-                </Button>
-                <Button variant="outline" className="font-black text-[10px] uppercase h-12 border-white/10 text-muted-foreground" disabled>
-                  <span className="flex items-center gap-2"><MinusCircle className="w-4 h-4" /> {t.decrease}</span>
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-6 animate-in fade-in zoom-in duration-300">
-                <div className="space-y-4">
-                  <div className="flex justify-between text-10 font-black uppercase text-primary tracking-widest">
-                    <span>+ {expansionSeats[0]} {t.seats}</span>
-                    <span className="opacity-40">{t.max} +5000</span>
-                  </div>
-                  <Slider 
-                    value={expansionSeats} 
-                    onValueChange={setExpansionSeats} 
-                    max={5000} 
-                    min={500} 
-                    step={500} 
-                    className="py-4"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
-                     <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-tighter">{t.cost}</p>
-                     <p className="text-sm font-bold text-accent">€ {((expansionSeats[0] / 500) * 125000).toLocaleString()}</p>
-                  </div>
-                  <div className="bg-secondary/30 p-3 rounded-xl text-center border border-white/5">
-                     <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-tighter">{t.duration}</p>
-                     <p className="text-sm font-bold text-primary flex items-center justify-center gap-1">
-                       <Clock className="w-3 h-3" /> {(expansionSeats[0] / 500) * 6} {t.hours}
-                     </p>
-                  </div>
-                </div>
-
-                <Button className="w-full hero-gradient font-black text-[10px] uppercase h-14 shadow-2xl shadow-primary/30 active:scale-95 transition-all" onClick={handleExpansion} disabled={isAnyConstructing}>
-                  {isAnyConstructing ? t.crewBusy : t.confirm}
-                </Button>
-                <Button variant="ghost" className="w-full text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setIsExpanding(false)}>
-                  {t.back}
-                </Button>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!selectedFacility} onOpenChange={() => { setSelectedFacility(null); setSelectedCrewId(1); }}>
+      <Dialog open={!!selectedFacility} onOpenChange={() => setSelectedFacility(null)}>
         {selectedFacility && (
-          <DialogContent className="max-w-md bg-card border-white/10 p-0 overflow-hidden shadow-2xl border">
+          <DialogContent className="max-w-md bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
             <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
               <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">
                 {t.items[selectedFacility as keyof typeof t.items].label}
@@ -421,54 +319,49 @@ export default function ArenaPage() {
                 {t.items[selectedFacility as keyof typeof t.items].desc}
               </DialogDescription>
             </div>
-
-            <div className="p-6 space-y-6">
-              <div className="space-y-3">
-                <h4 className="text-[10px] font-black uppercase text-accent tracking-[0.2em] flex items-center gap-2">
-                  <Zap className="w-3 h-3" /> {t.crewSelect}
-                </h4>
-                <div className="grid grid-cols-2 gap-2">
-                  {CREWS.map((crew) => (
-                    <button
-                      key={crew.id}
-                      onClick={() => setSelectedCrewId(crew.id)}
-                      className={cn(
-                        "p-3 rounded-xl border text-left transition-all",
-                        selectedCrewId === crew.id 
-                          ? "bg-primary/20 border-primary shadow-lg ring-1 ring-primary/50" 
-                          : "bg-secondary/20 border-white/5 hover:border-white/20"
-                      )}
-                    >
-                      <p className="text-[9px] font-bold uppercase text-white truncate">{language === 'ru' ? crew.labelRu : crew.labelEn}</p>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <Gem className="w-2.5 h-2.5 text-accent" />
-                        <span className="text-[10px] font-headline font-black text-accent">{crew.price}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+            <div className="p-6 grid grid-cols-2 gap-3">
+              <div className="bg-secondary/30 p-4 rounded-2xl text-center border border-white/5 shadow-inner">
+                 <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-widest">{t.cost}</p>
+                 <p className="text-sm font-bold text-accent italic">€ {(15000 * (((arena as any)[selectedFacility] || 0) + 1)).toLocaleString()}</p>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-secondary/30 p-4 rounded-2xl text-center border border-white/5 shadow-inner">
-                   <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-widest">{t.cost}</p>
-                   <p className="text-sm font-bold text-accent italic">€ {(15000 * (((arena as any)[selectedFacility] || 0) + 1)).toLocaleString()}</p>
-                </div>
-                <div className="bg-secondary/30 p-4 rounded-2xl text-center border border-white/5 shadow-inner">
-                   <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-widest">{t.duration}</p>
-                   <p className="text-sm font-bold text-primary flex items-center justify-center gap-1.5">
-                     <Clock className="w-3.5 h-3.5" /> 
-                     {Math.ceil((4 * (((arena as any)[selectedFacility] || 0) + 1)) / (CREWS.find(c => c.id === selectedCrewId)?.multiplier || 1))} {t.hours}
-                   </p>
-                </div>
+              <div className="bg-secondary/30 p-4 rounded-2xl text-center border border-white/5 shadow-inner">
+                 <p className="text-[8px] uppercase font-black text-muted-foreground mb-1 tracking-widest">{t.duration}</p>
+                 <p className="text-sm font-bold text-primary flex items-center justify-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {4 * (((arena as any)[selectedFacility] || 0) + 1)} {t.hours}</p>
               </div>
             </div>
-
             <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5">
-              <Button className="w-full h-14 hero-gradient font-black text-[10px] uppercase tracking-[0.2em] shadow-2xl shadow-primary/30 active:scale-95 transition-all" onClick={handleFacilityUpgrade} disabled={isAnyConstructing}>
-                {isAnyConstructing ? t.crewBusy : t.confirm}
+              <Button className="w-full h-14 hero-gradient font-black text-[10px] uppercase tracking-[0.2em]" onClick={handleFacilityUpgrade}>
+                {t.confirm}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      <Dialog open={!!acceleratingFacility} onOpenChange={() => setAcceleratingFacility(null)}>
+        {acceleratingFacility && (
+          <DialogContent className="max-w-md bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
+            <div className="p-6 text-center bg-gradient-to-br from-orange-500/20 via-background to-transparent border-b border-white/5">
+              <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-orange-400 flex items-center justify-center gap-2">
+                <Zap className="w-5 h-5" /> {t.accelTitle}
+              </DialogTitle>
+              <DialogDescription className="text-center text-[10px] mt-2 uppercase font-black tracking-widest opacity-60">
+                {t.accelDesc}
+              </DialogDescription>
+            </div>
+            <div className="p-4 space-y-2">
+              {ACCEL_CREWS.map((crew) => (
+                <Card key={crew.id} className="glass-card border-white/5 hover:border-orange-500/30 cursor-pointer transition-all" onClick={() => handleAccelerate(crew.multiplier, crew.price)}>
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold uppercase text-white">{language === 'ru' ? crew.labelRu : crew.labelEn}</h4>
+                      <p className="text-[8px] text-muted-foreground uppercase font-black mt-1">Остаток времени / {crew.multiplier}</p>
+                    </div>
+                    <Badge className="bg-accent text-accent-foreground font-black h-8 px-3">{crew.price} 💎</Badge>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </DialogContent>
         )}
       </Dialog>
