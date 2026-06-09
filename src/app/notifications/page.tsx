@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '../lib/store';
@@ -13,7 +14,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { collection, query, where, orderBy, doc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, orderBy, doc, writeBatch, limit, getDocs } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function NotificationsPage() {
@@ -21,16 +22,19 @@ export default function NotificationsPage() {
   const router = useRouter();
   const db = useFirestore();
   const { language, isLoaded } = useGameState();
+  const [isClearing, setIsClearing] = useState(false);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
+  // Limited to 50 for performance. Older notifications will be removed via clear.
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
       collection(db, 'notifications_v6'),
       where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
+      limit(50)
     );
   }, [db, user?.uid]);
 
@@ -38,15 +42,12 @@ export default function NotificationsPage() {
 
   const displayNotifs = useMemo(() => {
     if (!notifications) return [];
-    
-    // If profile is still loading, show all notifications to prevent sharp disappearance
     if (!profile) return notifications;
 
     const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : 0;
     
     return notifications.filter(n => {
       const notifTime = n.createdAt ? new Date(n.createdAt).getTime() : 0;
-      // If setupDate is not set or notification is newer, show it
       return isNaN(notifTime) || notifTime >= setupTime;
     });
   }, [notifications, profile]);
@@ -72,12 +73,31 @@ export default function NotificationsPage() {
   };
 
   const handleClearAll = async () => {
-    if (!displayNotifs || !user) return;
-    const batch = writeBatch(db);
-    displayNotifs.forEach(n => {
-      batch.delete(doc(db, 'notifications_v6', n.id));
-    });
-    await batch.commit();
+    if (!user || isClearing) return;
+    setIsClearing(true);
+    try {
+      // Fetch up to 500 notifications (Firestore batch limit) to clear them all efficiently
+      const q = query(
+        collection(db, 'notifications_v6'),
+        where('userId', '==', user.uid),
+        limit(500)
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        setIsClearing(false);
+        return;
+      }
+
+      const batch = writeBatch(db);
+      snap.docs.forEach(d => {
+        batch.delete(d.ref);
+      });
+      await batch.commit();
+    } catch (e) {
+      console.error("Failed to clear notifications:", e);
+    } finally {
+      setIsClearing(false);
+    }
   };
 
   if (isUserLoading || !isLoaded || !user) {
@@ -97,6 +117,7 @@ export default function NotificationsPage() {
       typeSocial: "Social Activity",
       typeInfra: "Infrastructure",
       typeLeague: "League Update",
+      clearing: "Clearing..."
     },
     ru: {
       title: "УВЕДОМЛЕНИЯ",
@@ -110,6 +131,7 @@ export default function NotificationsPage() {
       typeSocial: "Друзья",
       typeInfra: "Инфраструктура",
       typeLeague: "Лига",
+      clearing: "Очистка..."
     }
   }[language as 'en' | 'ru'];
 
@@ -147,8 +169,8 @@ export default function NotificationsPage() {
           <Button variant="outline" size="sm" className="h-8 text-[8px] font-black uppercase flex-1 border-white/5 bg-secondary/20" onClick={handleMarkAllRead}>
             <CheckCircle2 className="w-3 h-3 mr-2" /> {t.markAllRead}
           </Button>
-          <Button variant="outline" size="sm" className="h-8 text-[8px] font-black uppercase flex-1 border-white/5 bg-secondary/20 text-muted-foreground" onClick={handleClearAll}>
-            <Trash2 className="w-3 h-3 mr-2" /> {t.clearAll}
+          <Button variant="outline" size="sm" className="h-8 text-[8px] font-black uppercase flex-1 border-white/5 bg-secondary/20 text-muted-foreground" onClick={handleClearAll} disabled={isClearing}>
+            {isClearing ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Trash2 className="w-3 h-3 mr-2" />} {isClearing ? t.clearing : t.clearAll}
           </Button>
         </div>
       ) : null}

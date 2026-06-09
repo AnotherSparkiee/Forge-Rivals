@@ -3,7 +3,7 @@
 
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { doc, collection, query, where } from 'firebase/firestore';
+import { doc, collection, query, where, limit, orderBy } from 'firebase/firestore';
 import { Gem, Mail, Home, Radio, Bell } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef } from 'react';
@@ -40,7 +40,8 @@ export function TopBar() {
     if (!user?.uid) return null;
     return query(
       collection(db, 'private_messages_v3'),
-      where('participants', 'array-contains', user.uid)
+      where('participants', 'array-contains', user.uid),
+      limit(50)
     );
   }, [db, user?.uid]);
 
@@ -55,12 +56,14 @@ export function TopBar() {
     });
   }, [allMessages, user, profile]);
 
+  // Capped at 100 for performance and UI sanity
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
       collection(db, 'notifications_v6'),
       where('userId', '==', user.uid),
-      where('read', '==', false)
+      where('read', '==', false),
+      limit(100)
     );
   }, [db, user?.uid]);
 
@@ -68,7 +71,7 @@ export function TopBar() {
   
   const unreadNotifCount = useMemo(() => {
     if (!notifications) return 0;
-    if (!profile) return notifications.filter(n => !n.read).length;
+    if (!profile) return notifications.length;
     const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : (profile.createdAt ? new Date(profile.createdAt).getTime() : 0);
     return notifications.filter(n => {
       const notifTime = n.createdAt ? new Date(n.createdAt).getTime() : 0;
@@ -129,7 +132,13 @@ export function TopBar() {
           <Link href="/notifications">
             <div className={cn(itemBaseClass, "w-8 rounded-full relative bg-secondary/50 border-white/5 hover:bg-white/5", unreadNotifCount > 0 && "bg-primary/20 border-primary/50 animate-pulse")}>
               <Bell className={cn("w-4 h-4", unreadNotifCount > 0 ? "text-primary" : "text-muted-foreground")} />
-              {unreadNotifCount > 0 && <div className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-1 bg-red-500 rounded-full border border-background flex items-center justify-center"><span className="text-[7px] font-black text-white leading-none">{unreadNotifCount}</span></div>}
+              {unreadNotifCount > 0 && (
+                <div className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-1 bg-red-500 rounded-full border border-background flex items-center justify-center">
+                  <span className="text-[7px] font-black text-white leading-none">
+                    {unreadNotifCount >= 100 ? '99+' : unreadNotifCount}
+                  </span>
+                </div>
+              )}
             </div>
           </Link>
           <div className={cn(itemBaseClass, "px-2 rounded-full bg-primary/10 border-primary/20")}><div className="w-3 h-3 rounded-full bg-yellow-500/20 flex items-center justify-center mr-1"><span className="text-yellow-500 text-[7px] font-bold italic">€</span></div><span className="text-[9px] font-headline font-bold text-primary">{formatCurrency(credits)}</span></div>
