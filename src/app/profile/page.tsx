@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState, getLevelThreshold } from '../lib/store';

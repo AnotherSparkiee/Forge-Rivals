@@ -11,10 +11,11 @@ import {
   Edit3, Flag, Coins, Star,
   Loader2, Info, Sparkles, ShoppingCart,
   ArrowRightLeft, Target, Calendar, User, ScrollText, ShieldCheck, Lock,
-  Crown, Award, Zap, Users, TrendingUp, CheckCircle2, ShieldAlert
+  Crown, Award, Zap, Users, TrendingUp, CheckCircle2, ShieldAlert,
+  Swords
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
-import Link from 'next/link';
+import Link from 'next/navigation';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { useToast } from '@/hooks/use-toast';
 import { COUNTRIES } from '../lib/countries-data';
@@ -27,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
+import { useRouter } from 'next/navigation';
 
 type ShopTab = 
   | 'menu'
@@ -49,6 +51,7 @@ export default function ShopPage() {
   const [newName, setNewName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
 
   const [heroNickname, setHeroNickname] = useState('');
   const [heroRole, setHeroRole] = useState<Role>('Carry');
@@ -310,7 +313,6 @@ export default function ShopPage() {
                </p>
             </div>
 
-            {/* CURRENT LICENSE */}
             <section className="space-y-3">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">{t.licenseInfo.current}</h3>
               <Card className="glass-card border-green-500/30 bg-green-500/5 overflow-hidden">
@@ -329,7 +331,6 @@ export default function ShopPage() {
               </Card>
             </section>
 
-            {/* NEXT LICENSE UPGRADE */}
             {nextTier ? (
               <section className="space-y-3">
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.licenseInfo.upgrade}</h3>
@@ -568,7 +569,7 @@ export default function ShopPage() {
                         <Coins className="w-5 h-5 text-yellow-500" />
                         <span className="text-lg font-headline font-bold text-yellow-500">{(amount * 10000).toLocaleString()} €</span>
                       </div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
                    </CardContent>
                  </Card>
                ))}

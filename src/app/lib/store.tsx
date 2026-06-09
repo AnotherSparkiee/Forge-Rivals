@@ -236,16 +236,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(s => { 
       let multiplier = 1.0;
       if (isSponsorship) {
-        // License Tier logic for Sponsors
         const tier = s.activeLicenseTier || 4;
-        if (tier === 4) multiplier = 0.5; // Standard: 50%
-        else if (tier === 3) multiplier = 1.0; // B: 100%
-        else if (tier === 2) multiplier = 1.5; // A: 100% + 50% bonus
-        else if (tier === 1) multiplier = 2.0; // S: 100% + 100% bonus
-
-        if (isPremium) multiplier += 2.0; // Premium: +200% bonus
+        if (tier === 4) multiplier = 0.5;
+        else if (tier === 3) multiplier = 1.0;
+        else if (tier === 2) multiplier = 1.5;
+        else if (tier === 1) multiplier = 2.0;
+        if (isPremium) multiplier += 2.0;
       }
-
       const finalAmount = Math.round(amount * multiplier);
       const newVal = s.credits + finalAmount; 
       runCloudUpdate({ inGameCurrency: newVal }); 
@@ -280,33 +277,22 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const matchId = customId || `match_${Date.now()}`;
     setState(s => {
       if (s.matchHistory.some(m => m.id === matchId)) return s;
-      
       let xpMultiplier = 1.0;
-      if (isPremium) {
-        xpMultiplier = 5.0;
-      } else {
+      if (isPremium) xpMultiplier = 5.0;
+      else {
         const tier = s.activeLicenseTier || 4;
         if (tier === 3) xpMultiplier = 2.0;
         else if (tier === 2) xpMultiplier = 3.0;
         else if (tier === 1) xpMultiplier = 4.0;
       }
-
       const baseXP = (result.scoreA > result.scoreB ? 150 : (result.scoreA === result.scoreB ? 50 : 25));
       const finalXP = Math.round(baseXP * xpMultiplier);
       const nextXP = s.experiencePoints + finalXP;
       const nextLevel = nextXP >= getLevelThreshold(s.managerLevel) ? s.managerLevel + 1 : s.managerLevel;
       const nextSkillPoints = nextLevel > s.managerLevel ? s.skillPoints + 1 : s.skillPoints;
-
       const matchEntry: MatchResultEntry = { id: matchId, day: matchDay, type, opponentName, winner, scoreA: result.scoreA, scoreB: result.scoreB, matchSummary: result.matchSummary || "", teamStats: result.teamStats || {}, heroPerformance: result.heroPerformance || [], playedAt: customPlayedAt || new Date().toISOString(), duration: result.duration || "", mvp: result.mvp || "", preview: result.preview || null, timeline: result.timeline || [], postMatch: result.postMatch || null };
       const newHistory = [matchEntry, ...s.matchHistory].slice(0, 100);
-      
-      runCloudUpdate({ 
-        matchHistory: sanitizeForFirestore(newHistory),
-        experiencePoints: nextXP,
-        managerLevel: nextLevel,
-        skillPoints: nextSkillPoints
-      });
-      
+      runCloudUpdate({ matchHistory: sanitizeForFirestore(newHistory), experiencePoints: nextXP, managerLevel: nextLevel, skillPoints: nextSkillPoints });
       return { ...s, matchHistory: newHistory, experiencePoints: nextXP, managerLevel: nextLevel, skillPoints: nextSkillPoints };
     });
   }, [runCloudUpdate, isPremium]);
@@ -317,14 +303,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const today = getMoscowDateString(); 
     setState(s => { 
       if (s.lastRewardClaimDate === today) return s; 
-      
       let bonusCrystals = isPremium ? 50 : 0;
-      if (s.activeLicenseTier === 1) bonusCrystals += 10; // S-Tier daily crystal bonus
-
+      if (s.activeLicenseTier === 1) bonusCrystals += 10;
       const nCredits = s.credits + cr; 
       const nCrystals = s.crystals + cry + bonusCrystals; 
       const nDay = s.rewardDay >= 30 ? 1 : s.rewardDay + 1; 
-      
       runCloudUpdate({ inGameCurrency: nCredits, crystals: nCrystals, lastRewardClaimDate: today, rewardDay: nDay }); 
       return { ...s, credits: nCredits, crystals: nCrystals, lastRewardClaimDate: today, rewardDay: nDay }; 
     }); 
