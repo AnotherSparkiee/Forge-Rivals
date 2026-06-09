@@ -1,17 +1,22 @@
-
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
-import { useUser, useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { doc, collection, query, where, deleteDoc } from 'firebase/firestore';
 import { getMoscowTime } from '@/app/lib/time-utils';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
+/**
+ * Модуль автоматического завершения аукционов.
+ * Работает на стороне клиента, разрешая сделки по истечении времени.
+ */
 export function TransferResolver() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { isLoaded, updateHero, removeHero, addCredits, language, addHeroDirectly, addYouthHeroDirectly } = useGameState();
   
+  // Лоты, которые я продаю
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v7'), where('sellerId', '==', user.uid));
@@ -19,6 +24,7 @@ export function TransferResolver() {
 
   const { data: mySales } = useCollection(marketQuery);
 
+  // Лоты, на которых я лидирую
   const purchaseQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(collection(db, 'market_v7'), where('highestBidderId', '==', user.uid));
@@ -28,8 +34,12 @@ export function TransferResolver() {
 
   const processedIds = useRef<Set<string>>(new Set());
 
-  const sendNotification = useCallback((targetUserId: string, title: string, description: string) => {
-    addDocumentNonBlocking(collection(db, 'notifications_v6'), {
+  /**
+   * Отправка уведомления с детерминированным ID для предотвращения дублей.
+   */
+  const sendNotification = useCallback((targetUserId: string, title: string, description: string, notifId: string) => {
+    const notifRef = doc(db, 'notifications_v6', notifId);
+    setDocumentNonBlocking(notifRef, {
       userId: targetUserId,
       title,
       description,
@@ -39,6 +49,7 @@ export function TransferResolver() {
     });
   }, [db]);
 
+  // Эффект разрешения продаж (я продавец)
   useEffect(() => {
     if (!isLoaded || isUserLoading || !user || !mySales) return;
 
@@ -61,18 +72,21 @@ export function TransferResolver() {
               
               addCredits(agent.currentBid);
               removeHero(heroId, 0);
-              sendNotification(user.uid, sellerTitle, sellerDesc);
+              // Уведомление продавцу
+              sendNotification(user.uid, sellerTitle, sellerDesc, `sale_done_${agent.id}`);
             } else {
+              // Возврат в состав если не купили
               updateHero(heroId, { onTransferUntil: null, transferMarketId: null });
               const title = language === 'ru' ? "Аукцион завершен" : "Auction Ended";
               const desc = language === 'ru' 
                 ? `${agent.heroData.name} остается в клубе (ставок нет).`
                 : `${agent.heroData.name} remains in club (no bids).`;
-              sendNotification(user.uid, title, desc);
+              sendNotification(user.uid, title, desc, `sale_fail_${agent.id}`);
             }
+            // Удаляем лот с рынка
             await deleteDoc(doc(db, 'market_v7', agent.id));
           } catch (e) {
-            console.error("Failed to resolve auction", e);
+            console.error("Failed to resolve auction (sale)", e);
             processedIds.current.delete(agent.id);
           }
         }
@@ -84,6 +98,7 @@ export function TransferResolver() {
     return () => clearInterval(interval);
   }, [isLoaded, isUserLoading, user, mySales, addCredits, removeHero, updateHero, language, db, sendNotification]);
 
+  // Эффект разрешения покупок (я покупатель)
   useEffect(() => {
     if (!isLoaded || isUserLoading || !user || !myPurchases) return;
 
@@ -99,6 +114,7 @@ export function TransferResolver() {
           try {
             const heroData = { ...agent.heroData, onTransferUntil: null, transferMarketId: null };
             
+            // Добавляем героя
             if (agent.isYouth) {
               addYouthHeroDirectly(heroData);
             } else {
@@ -110,7 +126,10 @@ export function TransferResolver() {
               ? `${heroData.name} теперь в вашем распоряжении.` 
               : `${heroData.name} is now under your command.`;
             
-            sendNotification(user.uid, title, desc);
+            // Уведомление покупателю с детерминированным ID
+            sendNotification(user.uid, title, desc, `buy_done_${agent.id}`);
+            
+            // Пытаемся удалить документ. Если продавец уже удалил его — это нормально.
             await deleteDoc(doc(db, 'market_v7', agent.id));
           } catch (e) {
             console.error("Failed to claim purchased hero", e);

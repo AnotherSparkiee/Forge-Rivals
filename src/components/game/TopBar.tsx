@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
@@ -12,6 +11,10 @@ import { COUNTRIES } from '@/app/lib/countries-data';
 import Link from 'next/link';
 import { getMoscowTime } from '@/app/lib/time-utils';
 
+/**
+ * Верхняя панель управления ресурсами и навигацией.
+ * Оптимизирована для работы с большим количеством уведомлений (99+).
+ */
 export function TopBar() {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
@@ -56,7 +59,7 @@ export function TopBar() {
     });
   }, [allMessages, user, profile]);
 
-  // Capped at 100 for performance and UI sanity
+  // Запрашиваем максимум 100 непрочитанных уведомлений для производительности
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
@@ -100,18 +103,20 @@ export function TopBar() {
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-[10px]" role="img" aria-label="flag">{userCountry?.flag || '🏳️'}</span>
             <div className="flex items-center gap-1 min-w-0">
-              {isPremium ? (
-                <div className="relative inline-flex items-center min-w-0 max-w-[160px]">
-                  <div className="absolute inset-0 bg-gradient-to-r from-accent/30 via-accent/5 to-transparent border-l-2 border-accent -z-10" />
-                  <span className="px-2.5 py-1 text-[9px] font-black uppercase tracking-tight truncate text-white">
-                    {profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
-                  </span>
-                </div>
-              ) : (
-                <span className="text-[9px] font-black uppercase tracking-tight whitespace-nowrap truncate max-w-[120px] text-primary">
+              <div className={cn(
+                "relative inline-flex items-center min-w-0 max-w-[160px]",
+                isPremium && "border-l-2 border-accent pl-1.5"
+              )}>
+                {isPremium && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-accent/20 via-accent/5 to-transparent -z-10" />
+                )}
+                <span className={cn(
+                  "text-[9px] font-black uppercase tracking-tight truncate",
+                  isPremium ? "text-white" : "text-primary"
+                )}>
                   {profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
                 </span>
-              )}
+              </div>
             </div>
           </div>
           {isSyncing && <Radio className="w-3.5 h-3.5 text-accent shrink-0 animate-pulse" />}

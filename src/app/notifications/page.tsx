@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '../lib/store';
@@ -17,6 +16,10 @@ import Link from 'next/link';
 import { collection, query, where, orderBy, doc, writeBatch, limit, getDocs } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
+/**
+ * Страница журнала оперативных событий.
+ * Оптимизирована для работы с 1000+ уведомлений через пакетную очистку.
+ */
 export default function NotificationsPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
@@ -27,7 +30,7 @@ export default function NotificationsPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  // Limited to 50 for performance. Older notifications will be removed via clear.
+  // Лимитируем список до 50 последних для быстродействия
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
@@ -72,11 +75,14 @@ export default function NotificationsPage() {
     await batch.commit();
   };
 
+  /**
+   * Пакетная очистка уведомлений (до 500 за раз).
+   * Позволяет быстро очистить журнал при 1000+ сообщениях.
+   */
   const handleClearAll = async () => {
     if (!user || isClearing) return;
     setIsClearing(true);
     try {
-      // Fetch up to 500 notifications (Firestore batch limit) to clear them all efficiently
       const q = query(
         collection(db, 'notifications_v6'),
         where('userId', '==', user.uid),
@@ -93,6 +99,8 @@ export default function NotificationsPage() {
         batch.delete(d.ref);
       });
       await batch.commit();
+      
+      // Если еще остались уведомления, пользователь может нажать еще раз
     } catch (e) {
       console.error("Failed to clear notifications:", e);
     } finally {
@@ -111,7 +119,7 @@ export default function NotificationsPage() {
       markAllRead: "Read All",
       clearAll: "Clear All",
       noNotifs: "Operational status quiet",
-      noNotifsDesc: "No significant tactical events detected since your club was commissioned.",
+      noNotifsDesc: "No significant tactical events detected.",
       typeMatch: "Match Event",
       typeMarket: "Market Update",
       typeSocial: "Social Activity",
@@ -125,7 +133,7 @@ export default function NotificationsPage() {
       markAllRead: "Прочитать всё",
       clearAll: "Очистить всё",
       noNotifs: "Важных событий нет",
-      noNotifsDesc: "С момента ввода клуба в эксплуатацию значимых оперативных событий не зафиксировано.",
+      noNotifsDesc: "Значимых оперативных событий не зафиксировано.",
       typeMatch: "Матчи",
       typeMarket: "Рынок",
       typeSocial: "Друзья",
@@ -224,11 +232,6 @@ export default function NotificationsPage() {
             <p className="text-xs text-muted-foreground mt-2 max-w-[240px] leading-relaxed italic">
               {t.noNotifsDesc}
             </p>
-            <Link href="/" className="mt-8">
-              <Button variant="outline" className="h-10 text-[9px] font-black uppercase tracking-widest border-white/10 px-8">
-                {language === 'ru' ? 'Вернуться в хаб' : 'Return to Hub'}
-              </Button>
-            </Link>
           </div>
         )}
       </div>
