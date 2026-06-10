@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -45,7 +44,6 @@ export default function YouthSquadPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Standardized on players_v10
   const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v10', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
@@ -106,7 +104,6 @@ export default function YouthSquadPage() {
         isYouth: true
       };
       
-      // Standardized on market_v7
       await setDoc(doc(db, 'market_v7', agentId), agentData);
       updateHero(selectedHero.id, { onTransferUntil: expiryTime.toISOString(), transferMarketId: agentId });
       toast({ title: language === 'ru' ? "Выставлен на рынок" : "Listed on Market" });
@@ -135,7 +132,7 @@ export default function YouthSquadPage() {
   if (!isLoaded || isUserLoading) return <LoadingScreen />;
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-6">
       <header className="mb-6 flex items-center gap-4">
         <Link href="/youth-academy">
           <Button variant="ghost" size="icon" className="rounded-full">
@@ -193,8 +190,8 @@ export default function YouthSquadPage() {
       <Dialog open={!!selectedHero} onOpenChange={() => setSelectedHero(null)}>
         <DialogPortal>
           {selectedHero && (
-            <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none flex flex-col rounded-none overflow-hidden outline-none animate-in fade-in zoom-in duration-300">
-              <div className="flex-1 overflow-y-auto scrollbar-hide pb-32">
+            <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none rounded-none overflow-y-auto scrollbar-hide outline-none animate-in fade-in zoom-in duration-300">
+              <div className="min-h-full flex flex-col">
                 <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4">
                   <div className="relative">
                     <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50">
@@ -225,7 +222,7 @@ export default function YouthSquadPage() {
                   </div>
                 </div>
 
-                <div className="p-4 space-y-8">
+                <div className="p-4 space-y-8 flex-1">
                   <section>
                     <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                       <Info className="w-3.5 h-3.5" /> BIOMETRICS
@@ -278,34 +275,34 @@ export default function YouthSquadPage() {
                     </div>
                   </section>
                 </div>
-              </div>
 
-              <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-12 flex flex-col gap-2 flex-shrink-0 z-[110]">
-                <div className="grid grid-cols-2 gap-2">
+                <div className="p-4 bg-gradient-to-t from-background via-background/95 to-transparent flex flex-col gap-2 pb-10">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button 
+                      variant="outline" 
+                      className="h-14 border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary font-bold uppercase text-[10px]" 
+                      onClick={handleTransfer}
+                      disabled={isTransferring}
+                    >
+                      {isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {t.onTransfer}
+                    </Button>
+                    <Button 
+                      className="h-14 hero-gradient font-black uppercase text-[10px] shadow-xl" 
+                      onClick={() => handlePromote(selectedHero.id)} 
+                      disabled={calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric < 18}
+                    >
+                      <ArrowUpCircle className="w-4 h-4 mr-2" /> 
+                      {calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric < 18 ? t.notReady : t.promote}
+                    </Button>
+                  </div>
                   <Button 
-                    variant="outline" 
-                    className="h-14 border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary font-bold uppercase text-[10px]" 
-                    onClick={handleTransfer}
-                    disabled={isTransferring}
+                    variant="ghost" 
+                    className="w-full h-10 text-[9px] font-black uppercase tracking-widest text-muted-foreground" 
+                    onClick={() => setSelectedHero(null)}
                   >
-                    {isTransferring ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {t.onTransfer}
-                  </Button>
-                  <Button 
-                    className="h-14 hero-gradient font-black uppercase text-[10px] shadow-xl" 
-                    onClick={() => handlePromote(selectedHero.id)} 
-                    disabled={calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric < 18}
-                  >
-                    <ArrowUpCircle className="w-4 h-4 mr-2" /> 
-                    {calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).numeric < 18 ? t.notReady : t.promote}
+                    {t.close}
                   </Button>
                 </div>
-                <Button 
-                  variant="ghost" 
-                  className="w-full h-10 text-[9px] font-black uppercase tracking-widest text-muted-foreground" 
-                  onClick={() => setSelectedHero(null)}
-                >
-                  {t.close}
-                </Button>
               </div>
             </DialogContent>
           )}

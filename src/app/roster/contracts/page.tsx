@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -207,7 +206,7 @@ export default function ContractsPage() {
   );
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-6">
       <header className="mb-6 flex items-center gap-4">
         <Link href="/roster">
           <Button variant="ghost" size="icon" className="rounded-full">
@@ -267,12 +266,12 @@ export default function ContractsPage() {
 
       <Dialog open={!!profileHero} onOpenChange={() => setProfileHero(null)}>
         <DialogPortal>
-          <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none flex flex-col rounded-none sm:rounded-none overflow-hidden outline-none translate-x-0 translate-y-0 top-0 left-0 animate-in fade-in zoom-in duration-300">
+          <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none rounded-none overflow-y-auto scrollbar-hide outline-none animate-in fade-in zoom-in duration-300">
             {profileHero && (
-              <>
-                <DialogHeader className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 border-b border-white/5 flex flex-col items-center text-center gap-4">
+              <div className="min-h-full flex flex-col">
+                <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/5 border-b border-white/5 flex flex-col items-center text-center gap-4">
                   <div className="relative">
-                    <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-[0_0_30px_rgba(var(--primary),0.3)] bg-secondary/50">
+                    <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50">
                       <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
                     </div>
                     <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl">
@@ -303,10 +302,9 @@ export default function ContractsPage() {
                       <p className="text-sm font-headline font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</p>
                     </div>
                   </div>
-                </DialogHeader>
+                </div>
 
-                <div className="flex-1 overflow-y-auto scrollbar-hide">
-                  <div className="p-4 space-y-8 pb-48">
+                <div className="p-4 space-y-8 flex-1">
                     <section>
                       <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                         <Info className="w-3.5 h-3.5" /> STATUS & BIOMETRICS
@@ -448,18 +446,17 @@ export default function ContractsPage() {
                         })}
                       </div>
                     </section>
-                  </div>
                 </div>
 
-                <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-12 flex-shrink-0 z-[110]">
+                <div className="p-4 bg-gradient-to-t from-background via-background/95 to-transparent flex-shrink-0 pb-10">
                   <Button 
                     className="w-full h-14 hero-gradient font-black text-[11px] tracking-[0.2em] shadow-xl rounded-xl active:scale-95 transition-transform uppercase" 
                     onClick={() => setProfileHero(null)}
                   >
-                    {language === 'ru' ? 'ЗАКРЫТЬ ДОСЬЕ' : 'CLOSE DOSSIER'}
+                    {t.profile.close}
                   </Button>
                 </div>
-              </>
+              </div>
             )}
           </DialogContent>
         </DialogPortal>
@@ -467,4 +464,3 @@ export default function ContractsPage() {
     </div>
   );
 }
-

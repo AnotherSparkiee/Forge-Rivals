@@ -322,10 +322,10 @@ export default function SquadPage() {
 
       <Dialog open={!!profileHero} onOpenChange={() => setProfileHero(null)}>
         <DialogPortal>
-          <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none flex flex-col rounded-none overflow-hidden outline-none translate-x-0 translate-y-0 top-0 left-0 animate-in fade-in zoom-in duration-300">
+          <DialogContent className="fixed inset-0 z-[100] max-w-none w-full h-full m-0 p-0 bg-background border-none rounded-none overflow-y-auto scrollbar-hide outline-none animate-in fade-in zoom-in duration-300">
             {profileHero && (
-              <>
-                <DialogHeader className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4">
+              <div className="min-h-full flex flex-col">
+                <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4">
                   <div className="relative"><div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50"><img src={profileHero.image} alt="" className="w-full h-full object-cover" /></div><div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{profileHero.country?.flag || '🏳️'}</span></div></div>
                   <div className="space-y-1">
                     <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</DialogTitle>
@@ -333,14 +333,14 @@ export default function SquadPage() {
                     <div className="flex items-center justify-center gap-2"><Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge></div>
                   </div>
                   <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto"><div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p><p className="text-xl font-headline font-bold text-accent italic leading-none">{profileHero.overallRating}</p></div><div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.salary}</p><p className="text-sm font-headline font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</p></div></div>
-                </DialogHeader>
-                <div className="flex-1 overflow-y-auto scrollbar-hide">
-                  <div className="p-4 space-y-8 pb-10">
+                </div>
+                
+                <div className="p-4 space-y-8 flex-1">
                     <section><h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Info className="w-3.5 h-3.5" /> BIOMETRICS & STATUS</h3><div className="grid grid-cols-2 gap-3"><div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5"><p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.age}</p><p className="text-xs font-bold">{calculateLiveAge(profileHero.baseAge, profileHero.hiredAt).display} {t.profile.years}</p></div><div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5"><p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.status}</p><p className={cn("text-[10px] font-bold flex items-center gap-1.5", profileHero.isInjured ? "text-red-400" : "text-green-400")}>{profileHero.isInjured ? t.profile.injured : t.profile.healthy}</p></div></div></section>
                     <section><h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Award className="w-3.5 h-3.5" /> {t.profile.stats}</h3><div className="space-y-5">{Object.entries(profileHero.proStats).map(([key, value]) => { const talent = profileHero.proTalents ? (profileHero.proTalents as any)[key] : 3.0; return (<div key={key} className="space-y-2 bg-secondary/10 p-3 rounded-xl border border-white/5"><div className="flex justify-between items-center px-0.5"><span className="text-[10px] font-bold uppercase tracking-widest">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span><div className="flex flex-col items-end"><span className="text-[10px] font-mono font-bold text-primary">{value} / 100</span>{renderStars(talent)}</div></div><Progress value={value} className="h-1 rounded-full bg-secondary/40" /></div>); })}</div></section>
-                  </div>
                 </div>
-                <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-12 flex flex-col gap-2 flex-shrink-0 z-[110]">
+
+                <div className="p-4 bg-gradient-to-t from-background via-background/95 to-transparent flex flex-col gap-2 pb-10">
                   <Button 
                     className="w-full h-14 bg-orange-600 hover:bg-orange-700 text-white font-black text-[11px] tracking-widest uppercase shadow-xl" 
                     onClick={handlePutOnTransfer}
@@ -351,7 +351,7 @@ export default function SquadPage() {
                   </Button>
                   <Button variant="ghost" className="w-full h-10 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfileHero(null)}>{t.profile.close}</Button>
                 </div>
-              </>
+              </div>
             )}
           </DialogContent>
         </DialogPortal>
