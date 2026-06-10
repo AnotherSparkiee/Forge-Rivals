@@ -38,7 +38,7 @@ export default function FriendRequestsPage() {
   const { data: requests, isLoading: isRequestsLoading } = useCollection(requestsQuery);
 
   const sendNotification = useCallback((targetUserId: string, title: string, description: string) => {
-    addDocumentNonBlocking(collection(db, 'notifications_v6'), {
+    addDocumentNonBlocking(collection(db, 'notifications_v7'), {
       userId: targetUserId,
       title,
       description,
@@ -176,7 +176,7 @@ export default function FriendRequestsPage() {
         ) : (
           <div className="py-20 flex flex-col items-center justify-center text-center opacity-30">
             <UserPlus className="w-16 h-16 mb-4" />
-            <h2 className="text-lg font-headline font-bold uppercase">{t.noRequests}</h2>
+            <h2 className="text-xl font-headline font-bold uppercase">{t.noRequests}</h2>
             <p className="text-[10px] uppercase font-bold tracking-[0.2em] mt-2 max-w-[250px]">
               {t.noRequestsDesc}
             </p>

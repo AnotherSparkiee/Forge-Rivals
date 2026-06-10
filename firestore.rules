@@ -61,7 +61,7 @@ service cloud.firestore {
     }
 
     match /notifications_v7/{docId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid);
       allow write: if isSignedIn();
     }
     

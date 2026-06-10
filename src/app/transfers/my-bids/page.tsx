@@ -62,7 +62,7 @@ export default function MyBidsPage() {
 
       addCredits(-amount);
       if (prevBidder && prevBidder !== user.uid) {
-        addDocumentNonBlocking(collection(db, 'notifications_v6'), {
+        addDocumentNonBlocking(collection(db, 'notifications_v7'), {
           userId: prevBidder, title: language === 'ru' ? "Ставка перебита!" : "Outbid!",
           description: language === 'ru' ? `Ставка на "${heroName}" перебита ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : `Bid on "${heroName}" outbid ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`,
           type: 'market', read: false, createdAt: new Date().toISOString()
