@@ -22,7 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
-// Mapping roles to their 5 primary skills based on user's tactical requirements
+// Internal mapping for simulation - no longer displayed in UI
 const ROLE_CORE_SKILLS: Record<string, string[]> = {
   'Carry': ['lastHitting', 'positioning', 'reflexes', 'tiltResistance', 'versatility'],
   'Midlaner': ['reflexes', 'lastHitting', 'ganking', 'positioning', 'tiltResistance'],
@@ -88,7 +88,6 @@ export default function SquadPage() {
       stats: language === 'ru' ? "Навыки и таланты" : "Skills & Talents",
       years: language === 'ru' ? "лет" : "yrs",
       close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
-      core: language === 'ru' ? "ОСНОВНОЙ" : "CORE",
     },
     roles: {
       carry: { label: language === 'ru' ? "Керри" : "Carry", icon: Sword, color: "text-red-400" },
@@ -250,7 +249,6 @@ export default function SquadPage() {
   if (!isLoaded) return null;
 
   if (profileHero) {
-    const coreSkills = ROLE_CORE_SKILLS[profileHero.role] || [];
     return (
       <div className="min-h-screen bg-background text-foreground animate-in fade-in slide-in-from-right-4 duration-300 overflow-y-auto scrollbar-hide pb-6">
         <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative">
@@ -309,10 +307,9 @@ export default function SquadPage() {
               <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                 <Award className="w-3.5 h-3.5" /> {t.profile.stats}
               </h3>
-              <div className="space-y-5">
+              <div className="space-y-3">
                 {Object.entries(profileHero.proStats).map(([key, value]) => { 
                   const talent = profileHero.proTalents ? (profileHero.proTalents as any)[key] : 3.0; 
-                  const isCore = coreSkills.includes(key);
                   const icons: Record<string, any> = {
                     lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
                     manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
@@ -320,26 +317,20 @@ export default function SquadPage() {
                   };
                   const Icon = icons[key] || Info;
                   return (
-                    <div key={key} className={cn(
-                      "space-y-2 p-3 rounded-xl border transition-all",
-                      isCore ? "bg-accent/5 border-accent/30 shadow-[0_0_15px_rgba(var(--accent),0.05)]" : "bg-secondary/10 border-white/5"
-                    )}>
+                    <div key={key} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10 transition-all">
                       <div className="flex justify-between items-center px-0.5">
                         <div className="flex items-center gap-2">
-                          <Icon className={cn("w-3.5 h-3.5", isCore ? "text-accent" : "text-muted-foreground/60")} />
-                          <div className="flex flex-col">
-                            <span className={cn("text-[10px] font-bold uppercase tracking-widest", isCore ? "text-white" : "text-muted-foreground")}>
-                              {t.proStatsLabels[key as keyof typeof t.proStatsLabels]}
-                            </span>
-                            {isCore && <span className="text-[6px] font-black text-accent uppercase tracking-tighter leading-none">{t.profile.core}</span>}
-                          </div>
+                          <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                            {t.proStatsLabels[key as keyof typeof t.proStatsLabels]}
+                          </span>
                         </div>
                         <div className="flex flex-col items-end">
-                          <span className={cn("text-[10px] font-mono font-bold", isCore ? "text-accent" : "text-primary")}>{value} / 100</span>
+                          <span className="text-[10px] font-mono font-bold text-primary">{value} / 100</span>
                           {renderStars(talent)}
                         </div>
                       </div>
-                      <Progress value={value} className={cn("h-1 rounded-full", isCore ? "bg-accent/10" : "bg-secondary/40")} />
+                      <Progress value={value} className="h-1 rounded-full bg-secondary/40" />
                     </div>
                   ); 
                 })}
