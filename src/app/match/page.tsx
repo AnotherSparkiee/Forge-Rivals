@@ -34,7 +34,6 @@ function MatchContent() {
   const matchIdFromUrl = searchParams.get('id');
   const [step, setStep] = useState<MatchStep>('preview');
 
-  // Standardized on players_v10
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
@@ -47,6 +46,7 @@ function MatchContent() {
       if (match) return match;
     }
     
+    // Priority 1: First unseen league match
     const unseenLeagueMatches = matchHistory
       .filter(m => {
         const matchTime = m.playedAt ? new Date(m.playedAt).getTime() : 0;
@@ -56,6 +56,7 @@ function MatchContent() {
 
     if (unseenLeagueMatches.length > 0) return unseenLeagueMatches[0];
 
+    // Priority 2: Absolute latest match overall
     const sortedHistory = [...matchHistory]
       .filter(m => {
         const matchTime = m.playedAt ? new Date(m.playedAt).getTime() : 0;

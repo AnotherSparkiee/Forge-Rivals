@@ -7,7 +7,7 @@ import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, CalendarDays, UserSearch, CalendarClock, 
   History, Calendar, CheckSquare, ChevronRight, Shield,
-  Clock, Swords, Trophy, EyeOff
+  Clock, Swords, Trophy, EyeOff, FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,6 @@ import { doc, collection, query, where } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '../lib/leagues-data';
 import { getMoscowDateString, getMoscowTime, getPyramidCupTime } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { getDeterministicTournament } from '../tournaments/iron-globe/page';
 import { getGlobalCupParticipants, getWinnerOfBranch, getEntryRound } from '../lib/cup-utils';
 
 type MatchTab = 
@@ -66,17 +65,7 @@ export default function MatchesPage() {
 
   const { data: allLeaguePlayers } = useCollection(allLeaguePlayersQuery);
 
-  const globeParticipantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', 'iron-globe'));
-  }, [db]);
-  const { data: globeParticipants } = useCollection(globeParticipantsQuery);
-
-  const brickParticipantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', 'iron-brick'));
-  }, [db]);
-  const { data: brickParticipants } = useCollection(brickParticipantsQuery);
-
-  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v4', user.uid) : null, [db, user]);
+  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v2', user.uid) : null, [db, user]);
   const { data: basketEntry } = useDoc(myBasketRef);
 
   useEffect(() => {
@@ -201,8 +190,8 @@ export default function MatchesPage() {
                 <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 border-primary shadow-[0_0_15px_rgba(var(--primary),0.2)]">
                   <User className="w-10 h-10 text-primary" />
                 </div>
-                <h3 className="text-xl font-headline font-bold italic uppercase">{info.opponent.name}</h3>
-                <Badge variant="secondary" className="mt-2 text-[10px]">{info.opponent.isPlayer ? 'REAL MANAGER' : 'ELITE BOT'} | {info.label || `DIV ${leagueLevel}.${divisionSubId}`}</Badge>
+                <h3 className="text-xl font-headline font-bold italic uppercase truncate w-full px-4 text-center">{(info.opponent as any).name}</h3>
+                <Badge variant="secondary" className="mt-2 text-[10px]">{(info.opponent as any).isPlayer ? 'REAL MANAGER' : 'ELITE BOT'} | {info.label || `DIV ${leagueLevel}.${divisionSubId}`}</Badge>
               </CardContent>
             </Card>
           </div>
@@ -232,34 +221,102 @@ export default function MatchesPage() {
           <Link key={i} href={`/match?id=${m.id}`} className="block bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between group">
              <div className="flex flex-col items-center w-16 border-r border-white/5 pr-2"><span className="text-[10px] font-mono font-bold text-accent">{m.day}</span><span className="text-[7px] text-muted-foreground uppercase">{m.type}</span></div>
              <div className="flex-1 px-4 flex items-center justify-between min-w-0">
-                <span className="text-[10px] font-bold uppercase truncate text-primary">{profile.displayName}</span>
+                <span className={cn("text-[10px] font-bold uppercase truncate text-primary", m.winner === profile.displayName ? "text-green-400" : "text-white")}>{profile.displayName}</span>
                 <div className="flex items-center gap-1.5 mx-2"><span className="text-base font-headline font-bold">{m.scoreA}</span><span className="opacity-20">:</span><span className="text-base font-headline font-bold">{m.scoreB}</span></div>
                 <span className="text-[10px] font-bold uppercase truncate text-right">{m.opponentName}</span>
              </div>
              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
           </Link>
         ))}</div>;
+      case 'league_calendar':
+        return (
+          <div className="space-y-4 animate-in fade-in duration-500">
+            {schedule.map((dayMatches, dIdx) => (
+              <div key={dIdx} className="space-y-2">
+                <h3 className="text-[10px] font-black uppercase text-accent tracking-widest px-1">{t.day} {dIdx + 1}</h3>
+                <div className="grid gap-2">
+                  {dayMatches.map((m: any, mIdx: number) => (
+                    <div key={mIdx} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between text-[10px] font-bold uppercase">
+                      <span className={cn("flex-1 text-right truncate", m.home.id === user.uid && "text-primary")}>{m.home.name}</span>
+                      <span className="px-4 opacity-30 italic">VS</span>
+                      <span className={cn("flex-1 text-left truncate", m.away.id === user.uid && "text-primary")}>{m.away.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      case 'league_played':
+        const playedUntil = isTodayPlayed ? seasonDay : Math.max(0, seasonDay - 1);
+        return (
+          <div className="space-y-6 animate-in fade-in duration-500">
+            {Array.from({ length: playedUntil }).map((_, revIdx) => {
+              const d = playedUntil - revIdx;
+              const matches = schedule[d - 1];
+              return (
+                <div key={d} className="space-y-2">
+                  <h3 className="text-[10px] font-black uppercase text-primary tracking-widest px-1">{t.day} {d}</h3>
+                  <div className="grid gap-2">
+                    {matches.map((m: any, mIdx: number) => {
+                      const [hS, aS] = getMatchResult(m.home.id, m.away.id, d, false);
+                      return (
+                        <div key={mIdx} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between">
+                          <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.home.id === user.uid && "text-primary")}>{m.home.name}</span>
+                          <div className="px-4 flex items-center gap-2">
+                            <span className="text-sm font-headline font-black italic">{hS}</span>
+                            <span className="opacity-20">:</span>
+                            <span className="text-sm font-headline font-black italic">{aS}</span>
+                          </div>
+                          <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.away.id === user.uid && "text-primary")}>{m.away.name}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+            {playedUntil === 0 && <div className="py-20 text-center opacity-30 text-xs font-bold uppercase tracking-widest">No league matches played yet.</div>}
+          </div>
+        );
       default: return null;
     }
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-20">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-24">
       <header className="mb-6 flex items-center gap-4">
-        {activeTab === 'menu' ? <Link href="/"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link> : <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}><ChevronLeft className="w-6 h-6" /></Button>}
-        <div><h1 className="text-2xl font-headline font-bold uppercase">{activeTab === 'menu' ? t.title : (t.tabs as any)[activeTab].label}</h1><p className="text-muted-foreground text-[10px] uppercase">{t.subtitle}</p></div>
+        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => activeTab === 'menu' ? router.push('/') : setActiveTab('menu')}>
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">
+            {activeTab === 'menu' ? t.title : (t.tabs as any)[activeTab].label}
+          </h1>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
+        </div>
       </header>
+
       {activeTab === 'menu' ? (
-        <div className="space-y-2">{(Object.entries(t.tabs) as any[]).map(([id, data]) => (
-          <Card key={id} className="glass-card hover:bg-white/5 cursor-pointer transition-all border-white/5" onClick={() => setActiveTab(id as MatchTab)}>
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-4"><div className="p-2 rounded-lg bg-secondary/50"><data.icon className="w-5 h-5 text-primary" /></div><div><h3 className="text-sm font-bold uppercase">{data.label}</h3><p className="text-[10px] text-muted-foreground">{data.desc}</p></div></div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            </CardContent>
-          </Card>
-        ))}</div>
+        <div className="space-y-2">
+          {(Object.entries(t.tabs) as [MatchTab, any][]).map(([id, data]) => (
+            <Card key={id} className="glass-card hover:bg-white/5 cursor-pointer transition-all border-white/5" onClick={() => setActiveTab(id)}>
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2.5 rounded-xl bg-secondary/50">
+                    <data.icon className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{data.label}</h3>
+                    <p className="text-[10px] text-muted-foreground leading-tight">{data.desc}</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : renderContent()}
     </div>
   );
 }
-
