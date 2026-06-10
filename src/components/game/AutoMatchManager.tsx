@@ -43,9 +43,9 @@ export function AutoMatchManager() {
   const { data: groupPlayers } = useCollection(teamsQuery);
 
   const allLeaguePlayersQuery = useMemoFirebase(() => {
-    if (!profile?.selectedLeagueId) return null;
-    return query(collection(db, 'players_v10'), where('selectedLeagueId', '==', profile.selectedLeagueId));
-  }, [db, profile?.selectedLeagueId]);
+    if (!selectedLeagueId) return null;
+    return query(collection(db, 'players_v10'), where('selectedLeagueId', '==', selectedLeagueId));
+  }, [db, selectedLeagueId]);
 
   const { data: allLeaguePlayers } = useCollection(allLeaguePlayersQuery);
 

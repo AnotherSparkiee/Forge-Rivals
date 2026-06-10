@@ -69,11 +69,11 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
-    match /cw_basket_v2/{userId} {
+    match /cw_basket_v2/{docId} {
       allow read, write: if isSignedIn();
     }
 
-    match /friendly_lobbies_v3/{userId} {
+    match /friendly_lobbies_v3/{docId} {
       allow read, write: if isSignedIn();
     }
 
