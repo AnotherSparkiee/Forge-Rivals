@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -7,6 +8,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, onSnapshot, setDoc, arrayUnion } from 'firebase/firestore';
 import { getMockGroupTeams, LEAGUES } from './leagues-data';
 import { usePathname } from 'next/navigation';
+import { calculateXpGain, calculateHeroOVR, ActivityType } from './xp-utils';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
@@ -22,7 +24,7 @@ export type MatchType = 'league' | 'cup' | 'friendly' | 'basket' | 'tournament' 
 export interface MatchResultEntry { id: string; day: number; seasonNumber?: number; type: MatchType; opponentName: string; winner: string; scoreA: number; scoreB: number; matchSummary: string; teamStats: any; heroPerformance: any[]; playedAt: string; duration?: string; mvp?: string; preview?: any; timeline?: any[]; postMatch?: any; }
 
 interface GameState {
-  credits: number; crystals: number; experiencePoints: number; managerLevel: number; skillPoints: number; managerSkills: { sponsors: number; agents: number; training: number; medical: number; }; activeLicenseTier: number | null; ownedHeroes: Hero[]; youthAcademyHeroes: Hero[]; team: Hero[]; lineup: Record<LineupSlot, string | null>; strategy: string; lineSettings: { carry: string; mid: string; offlane: string }; rank: number; matchHistory: MatchResultEntry[]; language: 'en' | 'ru'; wins: number; draws: number; losses: number; points: number; leagueLevel: number; divisionSubId: number; groupId: number; selectedLeagueId: string | null; country: string | null; associationId: string | null; lastLeagueMatchDate: null | string; lastCupMatchDate: null | string; lastSeenMatchDay: number; seasonDay: number; seasonNumber: number; lastProcessedSeason: number; lastYouthArrivalDay: number; lastYouthArrivalSeason: number; seasonStartDate: string | null; lastRewardClaimDate: string | null; rewardDay: number; arena: ArenaState; hq: HQState; bootcamp: BootcampState; academy: AcademyState; medical: MedicalState; staff: StaffState; seasonResults: { lastRank: number; lastPoints: number; promoted: boolean; demoted: boolean; seasonNumber: number; awardedTrophy: boolean; } | null; hasEliteTrophy: boolean; isSyncing: boolean; premiumUntil: string | null;
+  credits: number; crystals: number; experiencePoints: number; managerLevel: number; skillPoints: number; managerSkills: { sponsors: number; agents: number; training: number; medical: number; }; activeLicenseTier: number | null; ownedHeroes: Hero[]; youthAcademyHeroes: Hero[]; team: Hero[]; lineup: Record<LineupSlot, string | null>; strategy: string; lineSettings: { carry: string; mid: string; offlane: string }; rank: number; matchHistory: MatchResultEntry[]; language: 'en' | 'ru'; wins: number; draws: number; losses: number; points: number; leagueLevel: number; divisionSubId: number; groupId: number; selectedLeagueId: string | null; country: string | null; associationId: string | null; lastLeagueMatchDate: null | string; lastCupMatchDate: null | string; lastSeenMatchDay: number; seasonDay: number; seasonNumber: number; lastProcessedSeason: number; lastYouthArrivalDay: number; lastYouthArrivalSeason: number; seasonStartDate: string | null; lastRewardClaimDate: string | null; rewardDay: number; arena: ArenaState; hq: HQState; bootcamp: BootcampState; academy: AcademyState; medical: MedicalState; staff: StaffState; seasonResults: { lastRank: number; lastPoints: number; promoted: boolean; demoted: boolean; seasonNumber: number; awardedTrophy: boolean; } | null; hasEliteTrophy: boolean; isSyncing: boolean; premiumUntil: string | null; displayName: string;
 }
 
 const DEFAULT_ARENA: ArenaState = { capacity: 5000, pressCenterLevel: 0, cafeLevel: 0, shopLevel: 0, screensLevel: 0, parkingLevel: 0, lightingLevel: 0, pendingCapacitySeats: null, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} };
@@ -32,7 +34,7 @@ const DEFAULT_ACADEMY: AcademyState = { youthBootcampLevel: 0, streamingLevel: 0
 const DEFAULT_MEDICAL: MedicalState = { physiotherapyLevel: 0, massageLevel: 0, psychiatristLevel: 0, labLevel: 0, psychologistLevel: 0, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} };
 const DEFAULT_STAFF: StaffState = { coach: null, analyst: null, scout: null, doctor: null, financier: null };
 const DEFAULT_STATE: GameState = {
-  credits: 10000000, crystals: 0, experiencePoints: 0, managerLevel: 1, skillPoints: 0, managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 }, activeLicenseTier: 4, ownedHeroes: [], youthAcademyHeroes: [], team: [], lineup: { carry: null, mid: null, offlane: null, support: null, full_support: null, sub1: null, sub2: null, res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null }, strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' }, rank: 1000, matchHistory: [], language: 'ru', wins: 0, draws: 0, losses: 0, points: 0, leagueLevel: 9, divisionSubId: 1, groupId: 1, selectedLeagueId: null, country: null, associationId: null, lastSeenMatchDay: 0, lastLeagueMatchDate: null, lastCupMatchDate: null, seasonDay: 0, seasonNumber: 0, lastProcessedSeason: 0, lastYouthArrivalDay: 0, lastYouthArrivalSeason: 0, seasonStartDate: null, lastRewardClaimDate: null, rewardDay: 1, arena: DEFAULT_ARENA, hq: DEFAULT_HQ, bootcamp: DEFAULT_BOOTCAMP, academy: DEFAULT_ACADEMY, medical: DEFAULT_MEDICAL, staff: DEFAULT_STAFF, seasonResults: null, hasEliteTrophy: false, isSyncing: false, premiumUntil: null,
+  credits: 10000000, crystals: 0, experiencePoints: 0, managerLevel: 1, skillPoints: 0, managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 }, activeLicenseTier: 4, ownedHeroes: [], youthAcademyHeroes: [], team: [], lineup: { carry: null, mid: null, offlane: null, support: null, full_support: null, sub1: null, sub2: null, res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null }, strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' }, rank: 1000, matchHistory: [], language: 'ru', wins: 0, draws: 0, losses: 0, points: 0, leagueLevel: 9, divisionSubId: 1, groupId: 1, selectedLeagueId: null, country: null, associationId: null, lastSeenMatchDay: 0, lastLeagueMatchDate: null, lastCupMatchDate: null, seasonDay: 0, seasonNumber: 0, lastProcessedSeason: 0, lastYouthArrivalDay: 0, lastYouthArrivalSeason: 0, seasonStartDate: null, lastRewardClaimDate: null, rewardDay: 1, arena: DEFAULT_ARENA, hq: DEFAULT_HQ, bootcamp: DEFAULT_BOOTCAMP, academy: DEFAULT_ACADEMY, medical: DEFAULT_MEDICAL, staff: DEFAULT_STAFF, seasonResults: null, hasEliteTrophy: false, isSyncing: false, premiumUntil: null, displayName: 'Manager',
 };
 
 function sanitizeForFirestore(obj: any) { 
@@ -131,6 +133,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           const { seasonDay: globalDay, seasonNumber: globalSeason, seasonStartDate: globalStart } = getGlobalSeasonInfo();
           return {
             ...s,
+            displayName: profileData.displayName ?? s.displayName,
             credits: profileData.inGameCurrency ?? s.credits,
             crystals: profileData.crystals ?? s.crystals,
             experiencePoints: profileData.experiencePoints ?? s.experiencePoints,
@@ -276,8 +279,74 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string) => {
     if (!result) return;
     const matchId = customId || `match_${Date.now()}`;
+    const today = getMoscowDateString();
+
     setState(s => {
       if (s.matchHistory.some(m => m.id === matchId)) return s;
+      
+      // Начисление опыта игрокам за участие в матче
+      const activeHeroIds = Object.values(s.lineup).filter(Boolean) as string[];
+      const updatedHeroes = s.ownedHeroes.map(hero => {
+        if (!activeHeroIds.includes(hero.id)) return hero;
+
+        // Определяем тип активности для XP
+        let activity: ActivityType = 'friendly';
+        if (type === 'league') activity = 'league';
+        if (type === 'cup') activity = 'cup';
+        if (type === 'trial') activity = 'trial';
+        if (type === 'basket') activity = 'friendly';
+
+        // Сброс счетчика матчей если день сменился
+        const currentMatchesToday = hero.lastMatchDateXP === today ? (hero.matchesPlayedToday || 0) : 0;
+        
+        // Получаем результат игрока из heroPerformance если есть
+        const perf = result.heroPerformance?.find((p: any) => p.heroName === hero.name);
+        const win = winner === (s.displayName || "Manager");
+        const mvp = result.mvp === hero.name;
+
+        // Обновляем статы через XP
+        const nextProStats = { ...hero.proStats };
+        const nextXPStats = { ...(hero.xpStats || {}) };
+
+        Object.keys(hero.proStats).forEach(statKey => {
+          const talentVal = (hero.proTalents as any)[statKey] * 10;
+          const currentVal = (hero.proStats as any)[statKey];
+          
+          const xpGain = calculateXpGain({
+            activity,
+            currentValue: currentVal,
+            talentValue: talentVal,
+            infra: { 
+              bootcamp: s.bootcamp.bootcampLevel || 0, 
+              research: s.bootcamp.researchLevel || 0, 
+              psychologist: s.medical.psychologistLevel || 0 
+            },
+            matchResult: { win, mvp, great: mvp, fail: false },
+            matchesToday: currentMatchesToday + 1
+          });
+
+          const currentStatXP = (nextXPStats[statKey] || 0) + xpGain;
+          if (currentStatXP >= 100) {
+            const points = Math.floor(currentStatXP / 100);
+            (nextProStats as any)[statKey] = Math.min(100, currentVal + points);
+            nextXPStats[statKey] = currentStatXP % 100;
+          } else {
+            nextXPStats[statKey] = currentStatXP;
+          }
+        });
+
+        const nextOVR = calculateHeroOVR(hero.role, nextProStats);
+
+        return {
+          ...hero,
+          proStats: nextProStats,
+          xpStats: nextXPStats,
+          overallRating: nextOVR,
+          matchesPlayedToday: currentMatchesToday + 1,
+          lastMatchDateXP: today
+        };
+      });
+
       let xpMultiplier = 1.0;
       if (isPremium) xpMultiplier = 5.0;
       else {
@@ -291,10 +360,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const nextXP = s.experiencePoints + finalXP;
       const nextLevel = nextXP >= getLevelThreshold(s.managerLevel) ? s.managerLevel + 1 : s.managerLevel;
       const nextSkillPoints = nextLevel > s.managerLevel ? s.skillPoints + 1 : s.skillPoints;
+
       const matchEntry: MatchResultEntry = { id: matchId, day: matchDay, type, opponentName, winner, scoreA: result.scoreA, scoreB: result.scoreB, matchSummary: result.matchSummary || "", teamStats: result.teamStats || {}, heroPerformance: result.heroPerformance || [], playedAt: customPlayedAt || new Date().toISOString(), duration: result.duration || "", mvp: result.mvp || "", preview: result.preview || null, timeline: result.timeline || [], postMatch: result.postMatch || null };
       const newHistory = [matchEntry, ...s.matchHistory].slice(0, 100);
-      runCloudUpdate({ matchHistory: sanitizeForFirestore(newHistory), experiencePoints: nextXP, managerLevel: nextLevel, skillPoints: nextSkillPoints });
-      return { ...s, matchHistory: newHistory, experiencePoints: nextXP, managerLevel: nextLevel, skillPoints: nextSkillPoints };
+
+      runCloudUpdate({ 
+        matchHistory: sanitizeForFirestore(newHistory), 
+        experiencePoints: nextXP, 
+        managerLevel: nextLevel, 
+        skillPoints: nextSkillPoints,
+        ownedHeroes: sanitizeForFirestore(updatedHeroes)
+      });
+      return { ...s, matchHistory: newHistory, experiencePoints: nextXP, managerLevel: nextLevel, skillPoints: nextSkillPoints, ownedHeroes: updatedHeroes };
     });
   }, [runCloudUpdate, isPremium]);
 
@@ -393,13 +470,43 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       if (h.id === id && h.dailyTrainingFocus) { 
         const k = h.dailyTrainingFocus; 
         const cur = (h.proStats as any)[k] || 0; 
-        // NEW RULE: Regular hero limit is talent * 10
-        const lim = (h.proTalents ? (h.proTalents as any)[k] : 3.0) * 10; 
-        if (cur < lim) { 
-          const val = Math.min(lim, cur + Math.floor(Math.random()*3)+3); 
-          return { ...h, proStats: { ...h.proStats, [k]: val }, dailyTrainingFocus: null, dailyTrainingFinishTime: null }; 
-        } 
-        return { ...h, dailyTrainingFocus: null, dailyTrainingFinishTime: null }; 
+        const talentVal = (h.proTalents ? (h.proTalents as any)[k] : 3.0) * 10; 
+
+        // Расчет XP по новой формуле
+        const xpGain = calculateXpGain({
+          activity: 'daily',
+          currentValue: cur,
+          talentValue: talentVal,
+          infra: { 
+            bootcamp: state.bootcamp.bootcampLevel || 0, 
+            research: state.bootcamp.researchLevel || 0, 
+            psychologist: state.medical.psychologistLevel || 0 
+          },
+          matchesToday: 0 // Для тренировки не учитывается
+        });
+
+        const nextXPStats = { ...(h.xpStats || {}) };
+        const currentStatXP = (nextXPStats[k] || 0) + xpGain;
+        const nextProStats = { ...h.proStats };
+
+        if (currentStatXP >= 100) {
+          const points = Math.floor(currentStatXP / 100);
+          (nextProStats as any)[k] = Math.min(100, cur + points);
+          nextXPStats[k] = currentStatXP % 100;
+        } else {
+          nextXPStats[k] = currentStatXP;
+        }
+
+        const nextOVR = calculateHeroOVR(h.role, nextProStats);
+
+        return { 
+          ...h, 
+          proStats: nextProStats, 
+          xpStats: nextXPStats,
+          overallRating: nextOVR,
+          dailyTrainingFocus: null, 
+          dailyTrainingFinishTime: null 
+        }; 
       } 
       return h; 
     }; 

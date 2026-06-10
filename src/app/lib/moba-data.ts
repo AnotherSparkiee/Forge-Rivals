@@ -1,3 +1,4 @@
+
 export type Role = 'Tank' | 'Carry' | 'Support' | 'Midlaner' | 'Jungler';
 
 export interface Hero {
@@ -53,6 +54,9 @@ export interface Hero {
     versatility: number;
     ganking: number;
   };
+  xpStats?: Record<string, number>; // Накопленный XP для каждого стата (0-100 для 1 очка навыка)
+  matchesPlayedToday?: number; // Счетчик матчей за текущий день для расчета усталости XP
+  lastMatchDateXP?: string; // Дата последнего матча для сброса счетчика
 }
 
 export type StaffRole = 'coach' | 'analyst' | 'scout' | 'doctor' | 'financier';
@@ -153,7 +157,6 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     speed: getRandomStat(250, 360, rng)
   };
 
-  // PRO STATS REDUCED TO 50 MAX FOR REGULAR HEROES
   const proStats = {
     lastHitting: getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 45, rng),
     mapAwareness: getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 45, rng),
@@ -180,13 +183,13 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     ganking: getRandomTalent(rng),
   };
 
-  const proSum = Object.values(proStats).reduce((a, b) => a + b, 0);
-  const basePower = (baseStats.attack + (baseStats.defense / 2) + (baseStats.abilityPower / 2)) / 5;
-  // OVR calculation adjusted for lower pro stats
-  const overall = Math.round((proSum / 5) * 0.4 + basePower * 0.6);
-
   const startAge = getRandomStat(isStarter ? 17 : 18, isStarter ? 28 : 32, rng);
   const heroId = seed ? `h_det_${seed}` : `hero_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
+
+  // Индивидуальный расчет OVR для начальных героев
+  const coreKeys = ['lastHitting', 'positioning', 'reflexes', 'tiltResistance', 'versatility']; // Default Carry-like for starter
+  const coreSum = coreKeys.reduce((a, k) => a + (proStats as any)[k], 0);
+  const overall = Math.round(coreSum / 5);
 
   return {
     id: heroId,
@@ -212,7 +215,9 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     onTransferUntil: null,
     transferMarketId: null,
     proStats,
-    proTalents
+    proTalents,
+    xpStats: {},
+    matchesPlayedToday: 0
   };
 }
 
