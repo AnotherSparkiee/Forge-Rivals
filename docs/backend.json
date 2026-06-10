@@ -60,35 +60,23 @@
     "structure": [
       {
         "path": "players_v10/{userId}",
-        "description": "Root discovery pointer for player location"
-      },
-      {
-        "path": "leagues/{leagueId}/divisions/{divLevel}/groups/{groupId}/teams/{userId}",
         "definition": "PlayerProfile",
-        "description": "Primary club document"
+        "description": "Main club document"
       },
       {
-        "path": "leagues/{leagueId}/divisions/{divLevel}/groups/{groupId}/teams/{userId}/heroes/{heroId}",
+        "path": "players_v10/{userId}/heroes/{heroId}",
         "definition": "Hero",
-        "description": "Individual team players collection"
+        "description": "Team players"
       },
       {
-        "path": "leagues/{leagueId}/divisions/{divLevel}/groups/{groupId}/teams/{userId}/staff/{staffId}",
+        "path": "players_v10/{userId}/staff/{staffId}",
         "definition": "Staff",
-        "description": "Active club employees"
+        "description": "Club staff"
       },
       {
-        "path": "leagues/{leagueId}/divisions/{divLevel}/groups/{groupId}/teams/{userId}/fanclub/{docId}",
-        "description": "Fan groups and loyalty metrics"
-      },
-      {
-        "path": "leagues/{leagueId}/divisions/{divLevel}/groups/{groupId}/teams/{userId}/tournaments/{tourId}",
-        "description": "Tournament specific progression data"
-      },
-      {
-        "path": "leagues/{leagueId}/cups/{seasonNumber}/matches/{matchId}",
+        "path": "leagues_v2/{leagueId}/matches/{matchId}",
         "definition": "MatchRecord",
-        "description": "Independent league cup matches"
+        "description": "Global league match records"
       }
     ]
   }

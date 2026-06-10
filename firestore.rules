@@ -11,43 +11,24 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Root pointers for discovery
+    // Main Player Profiles & Sub-collections
     match /players_v10/{userId} {
-      allow read: if true;
-      allow create, update: if isOwner(userId);
-    }
-
-    // League Hierarchy - Deep Nesting Support
-    // Allow reading individual team docs and listing the collection for rankings
-    match /leagues/{leagueId}/divisions/{div}/groups/{group}/teams/{userId} {
       allow read: if isSignedIn();
       allow create, update: if isOwner(userId);
       
-      // Sub-collections for Heroes, Staff, Fanclub, Tournaments
       match /{allSubcollections=**} {
         allow read: if isSignedIn();
         allow write: if isOwner(userId);
       }
     }
 
-    // League Matches & Cups
-    match /leagues/{leagueId}/divisions/{div}/groups/{group}/matches/{matchId} {
+    // League Match Records
+    match /leagues_v2/{leagueId}/matches/{matchId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
     }
 
-    match /leagues/{leagueId}/cups/{season}/matches/{matchId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    // Standard collections
-    match /associations_v4/{docId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
-      allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
-    }
-
+    // Global Chat & Messages
     match /global_chat_v2/{messageId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
@@ -58,6 +39,7 @@ service cloud.firestore {
       allow write: if isSignedIn() && (resource == null || request.auth.uid in resource.data.participants || request.auth.uid in request.resource.data.participants);
     }
 
+    // Social & Market
     match /friend_requests_v4/{docId} {
       allow read, write: if isSignedIn();
     }

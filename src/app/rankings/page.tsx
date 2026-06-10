@@ -14,111 +14,42 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
-import { getMockGroupTeams, getMatchResult } from '../lib/leagues-data';
+import { getMockGroupTeams } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection, query, where, limit } from 'firebase/firestore';
-import { getMoscowTime } from '../lib/time-utils';
+import { collection, query, where, limit } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant } from '../lib/cup-utils';
 
 type RankingTab = 'menu' | 'my_league' | 'pyramid_cup';
-const MATCHES_PER_PAGE = 15;
 
 export default function RankingsPage() {
   const { user } = useUser();
   const router = useRouter();
   const { 
     rank, leagueLevel, groupId, isLoaded, language, 
-    seasonDay, seasonNumber, selectedLeagueId, displayName
+    seasonDay, selectedLeagueId, displayName
   } = useGameState();
   const db = useFirestore();
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [cupPage, setCupPage] = useState(0);
 
-  // Discover all players in the current group hierarchy for the standings
   const teamsQuery = useMemoFirebase(() => {
-    if (!selectedLeagueId) return null;
-    return query(collection(db, 'leagues', selectedLeagueId, 'divisions', leagueLevel.toString(), 'groups', groupId.toString(), 'teams'));
-  }, [db, selectedLeagueId, leagueLevel, groupId]);
-
-  const { data: groupPlayers, isLoading: isGroupPlayersLoading } = useCollection(teamsQuery);
-
-  // Discover all players for Cup seeding (requires root discovery collection)
-  const allLeaguePlayersQuery = useMemoFirebase(() => {
-    if (!selectedLeagueId) return null;
     return query(collection(db, 'players_v10'), where('selectedLeagueId', '==', selectedLeagueId));
   }, [db, selectedLeagueId]);
 
-  const { data: allLeaguePlayers } = useCollection(allLeaguePlayersQuery);
-
-  // Global Cup matches for the league
-  const leagueCupMatchesQuery = useMemoFirebase(() => {
-    if (activeTab !== 'pyramid_cup' || !selectedLeagueId) return null;
-    return query(collection(db, 'leagues', selectedLeagueId, 'cups', seasonNumber.toString(), 'matches'), limit(200));
-  }, [db, activeTab, selectedLeagueId, seasonNumber]);
-
-  const { data: leagueCupMatches } = useCollection(leagueCupMatchesQuery);
-
-  const effectiveDayForCup = useMemo(() => {
-    const mskNow = getMoscowTime();
-    return mskNow.getHours() >= 7 ? seasonDay : Math.max(0, seasonDay - 1);
-  }, [seasonDay]);
+  const { data: allPlayers, isLoading: isPlayersLoading } = useCollection(teamsQuery);
 
   const groupStandings = useMemo(() => {
-    if (!isLoaded || !groupPlayers) return [];
-    // upToDay = seasonDay to show live standings including today's result if played
-    return getMockGroupTeams(rank, displayName, leagueLevel, 1, groupId, selectedLeagueId || "ALPHA", groupPlayers, user?.uid, seasonDay);
-  }, [isLoaded, groupPlayers, rank, displayName, leagueLevel, groupId, selectedLeagueId, user?.uid, seasonDay]);
+    if (!isLoaded || !allPlayers) return [];
+    return getMockGroupTeams(rank, displayName, leagueLevel, 1, groupId, selectedLeagueId || "ALPHA", allPlayers, user?.uid, seasonDay);
+  }, [isLoaded, allPlayers, rank, displayName, leagueLevel, groupId, selectedLeagueId, user?.uid, seasonDay]);
 
-  const cupMatches = useMemo(() => {
-    if (!isLoaded || !allLeaguePlayers || activeTab !== 'pyramid_cup') return [];
-    
-    const participants = getGlobalCupParticipants(allLeaguePlayers, seasonNumber);
-    const winnersCache = new Map<string, CupParticipant | null>();
-    
-    // We show the current round matches
-    const round = Math.min(14, effectiveDayForCup === 0 ? 1 : effectiveDayForCup);
-    const participantsPerMatch = Math.pow(2, round);
-    const totalMatches = 16384 / participantsPerMatch;
-    const step = Math.pow(2, round - 1);
-    
-    const matches = [];
-    for (let m = 0; m < totalMatches; m++) {
-      const matchStartIdx = m * participantsPerMatch;
-      const h = getWinnerOfBranch(participants, round - 1, matchStartIdx, winnersCache, effectiveDayForCup);
-      const a = getWinnerOfBranch(participants, round - 1, matchStartIdx + step, winnersCache, effectiveDayForCup);
-      
-      const detMatchId = `cup_S${seasonNumber}_R${round}_M${m}`;
-      const record = leagueCupMatches?.find(gm => gm.id === detMatchId);
-      const isMyMatch = h?.id === user?.uid || a?.id === user?.uid;
-      const isPlayed = round <= effectiveDayForCup;
+  if (!isLoaded || isPlayersLoading) return <LoadingScreen />;
 
-      let sH = record?.scoreA || 0;
-      let sA = record?.scoreB || 0;
-      if (!record && isPlayed && h && a) [sH, sA] = getMatchResult(h.id, a.id, round, true);
-
-      const matchData = { id: detMatchId, home: h, away: a, isPlayed, isMyMatch, scoreH: sH, scoreA: sA, round };
-      
-      if (!searchQuery || (h?.name.toLowerCase().includes(searchQuery.toLowerCase())) || (a?.name.toLowerCase().includes(searchQuery.toLowerCase()))) {
-        matches.push(matchData);
-      }
-    }
-    // Prioritize my match at the top
-    return matches.sort((a, b) => (a.isMyMatch ? -1 : b.isMyMatch ? 1 : 0));
-  }, [allLeaguePlayers, effectiveDayForCup, searchQuery, user?.uid, leagueCupMatches, seasonNumber, isLoaded, activeTab]);
-
-  const paginatedCupMatches = useMemo(() => cupMatches.slice(cupPage * MATCHES_PER_PAGE, (cupPage + 1) * MATCHES_PER_PAGE), [cupMatches, cupPage]);
-  const totalCupPages = Math.ceil(cupMatches.length / MATCHES_PER_PAGE);
-
-  if (isGroupPlayersLoading || !isLoaded) return <LoadingScreen />;
-
-  const t = {
+  const translations = {
     en: {
-      title: "TOURNAMENT TABLES",
-      subtitle: "Global Ranking Terminal",
+      title: "RANKINGS HUB",
+      subtitle: "Global Competitive Terminals",
       my_league: "My League",
       pyramid_cup: "Pyramid Cup",
       promotion: "PROMOTION",
@@ -128,12 +59,12 @@ export default function RankingsPage() {
       back: "Back",
       menu: [
         { id: 'my_league', label: 'My League', desc: `Division ${leagueLevel}.${groupId}`, icon: Trophy, color: 'text-primary' },
-        { id: 'pyramid_cup', label: 'Pyramid Cup', desc: 'Global knockout bracket', icon: Medal, color: 'text-accent' },
+        { id: 'pyramid_cup', label: 'Pyramid Cup', desc: 'Global knockout tournament', icon: Medal, color: 'text-accent' },
       ]
     },
     ru: {
-      title: "ТУРНИРНЫЕ ТАБЛИЦЫ",
-      subtitle: "Терминал глобальных рейтингов",
+      title: "ТАБЛИЦЫ РЕЙТИНГА",
+      subtitle: "Терминалы глобальных соревнований",
       my_league: "Своя лига",
       pyramid_cup: "Кубок пирамиды",
       promotion: "ПОВЫШЕНИЕ",
@@ -143,10 +74,12 @@ export default function RankingsPage() {
       back: "Назад",
       menu: [
         { id: 'my_league', label: 'Своя лига', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Trophy, color: 'text-primary' },
-        { id: 'pyramid_cup', label: 'Кубок пирамиды', desc: 'Глобальная сетка выбывания', icon: Medal, color: 'text-accent' },
+        { id: 'pyramid_cup', label: 'Кубок пирамиды', desc: 'Глобальный турнир на выбывание', icon: Medal, color: 'text-accent' },
       ]
     }
-  }[language as 'en' | 'ru'] || t.ru;
+  };
+
+  const t = translations[language as 'en' | 'ru'] || translations.ru;
 
   const renderContent = () => {
     switch (activeTab) {
@@ -157,7 +90,6 @@ export default function RankingsPage() {
               <h3 className="text-[10px] font-black uppercase text-accent tracking-widest flex items-center gap-2">
                 <Shield className="w-3.5 h-3.5" /> DIVISION {leagueLevel}.{groupId}
               </h3>
-              <Badge variant="outline" className="text-[8px] opacity-40 border-white/10 uppercase">Season {seasonNumber}</Badge>
             </header>
 
             <div className="space-y-1">
@@ -212,83 +144,10 @@ export default function RankingsPage() {
 
       case 'pyramid_cup':
         return (
-          <div className="space-y-4 animate-in fade-in duration-500 pb-10">
-            <header className="space-y-3 px-1">
-              <h3 className="text-[10px] font-black uppercase text-accent tracking-widest flex items-center gap-2">
-                <Activity className="w-3.5 h-3.5" /> ROUND {Math.min(14, effectiveDayForCup === 0 ? 1 : effectiveDayForCup)} BRACKET
-              </h3>
-              <Input 
-                placeholder="Search team name..." 
-                value={searchQuery} 
-                onChange={e => setSearchQuery(e.target.value)} 
-                className="h-10 bg-secondary/50 border-white/10 text-xs focus-visible:ring-accent"
-              />
-            </header>
-
-            <div className="space-y-2">
-              {paginatedCupMatches.map((match) => (
-                <Card key={match.id} className={cn(
-                  "glass-card border-white/5 transition-all",
-                  match.isMyMatch && "border-accent/40 bg-accent/5 ring-1 ring-accent/20"
-                )}>
-                  <CardContent className="p-3 flex items-center justify-between gap-4">
-                    <div className="flex-1 space-y-1.5 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={cn(
-                          "text-[10px] font-bold uppercase truncate",
-                          match.home?.id === user?.uid ? "text-accent" : "text-white/80"
-                        )}>
-                          {match.home?.name || "TBD"}
-                        </span>
-                        {match.home?.id === user?.uid && <Badge className="text-[5px] h-2.5 px-0.5 bg-accent text-accent-foreground font-black">YOU</Badge>}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={cn(
-                          "text-[10px] font-bold uppercase truncate",
-                          match.away?.id === user?.uid ? "text-accent" : "text-white/80"
-                        )}>
-                          {match.away?.name || "TBD"}
-                        </span>
-                        {match.away?.id === user?.uid && <Badge className="text-[5px] h-2.5 px-0.5 bg-accent text-accent-foreground font-black">YOU</Badge>}
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-col items-center justify-center min-w-[45px] border-l border-white/5 pl-3 gap-1">
-                      <div className="text-sm font-headline font-black italic tracking-tighter text-white">
-                        {match.isPlayed ? `${match.scoreH}:${match.scoreA}` : "VS"}
-                      </div>
-                      {!match.isPlayed && <span className="text-[7px] font-black text-muted-foreground uppercase">STANDBY</span>}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-
-              {totalCupPages > 1 && (
-                <div className="flex items-center justify-center gap-4 pt-6">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    disabled={cupPage === 0} 
-                    onClick={() => setCupPage(p => p - 1)}
-                    className="h-8 w-8 rounded-full"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                    {cupPage + 1} / {totalCupPages}
-                  </span>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    disabled={cupPage >= totalCupPages - 1} 
-                    onClick={() => setCupPage(p => p + 1)}
-                    className="h-8 w-8 rounded-full"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-            </div>
+          <div className="py-20 text-center opacity-30 animate-in fade-in duration-500">
+            <Medal className="w-16 h-16 mx-auto mb-4" />
+            <h2 className="text-xl font-headline font-bold uppercase text-white">{t.pyramid_cup}</h2>
+            <p className="text-[10px] uppercase font-bold tracking-widest mt-2">Coming soon in next season update</p>
           </div>
         );
 
@@ -300,19 +159,13 @@ export default function RankingsPage() {
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
       <header className="mb-8 flex items-center gap-4">
         {activeTab === 'menu' ? (
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="rounded-full shadow-lg border border-white/5">
-              <ChevronLeft className="w-6 h-6" />
-            </Button>
-          </Link>
+          <Link href="/"><Button variant="ghost" size="icon" className="rounded-full border border-white/5"><ChevronLeft className="w-6 h-6" /></Button></Link>
         ) : (
-          <Button variant="ghost" size="icon" className="rounded-full shadow-lg border border-white/5" onClick={() => setActiveTab('menu')}>
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
+          <Button variant="ghost" size="icon" className="rounded-full border border-white/5" onClick={() => setActiveTab('menu')}><ChevronLeft className="w-6 h-6" /></Button>
         )}
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
-            {activeTab === 'menu' ? t.title : (t as any)[activeTab]}
+            {activeTab === 'menu' ? t.title : (translations as any)[language === 'ru' ? 'ru' : 'en'][activeTab].label}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{activeTab === 'menu' ? t.subtitle : t.back}</p>
         </div>
@@ -336,7 +189,7 @@ export default function RankingsPage() {
                     <p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
               </CardContent>
             </Card>
           ))}

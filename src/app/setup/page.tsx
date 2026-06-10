@@ -1,9 +1,10 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, setDoc, collection, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, writeBatch, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -21,7 +22,7 @@ export default function SetupPage() {
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const { isLoaded, selectedLeagueId: currentLeague, country: currentCountry, language } = useGameState();
+  const { isLoaded, language } = useGameState();
   
   const [step, setStep] = useState<'league' | 'country'>('league');
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
@@ -41,64 +42,45 @@ export default function SetupPage() {
     if (!user || !selectedLeagueId || !selectedCountryCode) return;
     setIsUpdating(true);
     try {
-      const targetLevel = 9;
-      const targetGroup = 1;
-      const { seasonNumber } = getGlobalSeasonInfo();
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       const uniqueSquad = getRandomStartingSquad();
-      
+      const { seasonNumber } = getGlobalSeasonInfo();
       const nowIso = new Date().toISOString();
-      // PRESERVE: Use the name from registration, do not overwrite with generic "Manager"
       const realDisplayName = profile?.displayName || user.email?.split('@')[0] || "Commander";
 
       const profileData = {
-        id: user.uid, 
-        displayName: realDisplayName, 
-        inGameCurrency: 10000000, 
+        displayName: realDisplayName,
+        selectedLeagueId,
+        leagueLevel: 9,
+        groupId: 1,
+        country: selectedCountry?.name || 'International',
+        setupDate: nowIso,
+        inGameCurrency: 10000000,
         crystals: 0,
-        experiencePoints: 0, 
-        managerLevel: 1, 
-        skillPoints: 0, 
-        createdAt: nowIso,
+        experiencePoints: 0,
+        managerLevel: 1,
+        skillPoints: 0,
+        lastProcessedSeason: Number(seasonNumber || 1),
         lineup: { 
           offlane: uniqueSquad[0].id, carry: uniqueSquad[1].id, mid: uniqueSquad[2].id, 
           support: uniqueSquad[3].id, full_support: uniqueSquad[4].id, 
           sub1: uniqueSquad[5].id, sub2: uniqueSquad[6].id
         },
-        leagueLevel: targetLevel, 
-        groupId: targetGroup, 
-        lastProcessedSeason: Number(seasonNumber || 1)
+        arena: { capacity: 5000, pressCenterLevel: 0, cafeLevel: 0, shopLevel: 0, screensLevel: 0, parkingLevel: 0, lightingLevel: 0, pendingCapacitySeats: null, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} },
+        hq: { hrLevel: 0, financeLevel: 0, scoutsLevel: 0, pressOfficeLevel: 0, adminLevel: 0, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} },
+        bootcamp: { bootcampLevel: 0, tacticsHallLevel: 0, poolLevel: 0, researchLevel: 0, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} },
+        academy: { youthBootcampLevel: 0, streamingLevel: 0, scoutsLevel: 0, discoLevel: 0, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} },
+        medical: { physiotherapyLevel: 0, massageLevel: 0, psychiatristLevel: 0, labLevel: 0, psychologistLevel: 0, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} }
       };
 
       const batch = writeBatch(db);
-
-      // 1. Root pointer for discovery - preserve displayName
       const rootRef = doc(db, 'players_v10', user.uid);
-      batch.set(rootRef, {
-        displayName: realDisplayName,
-        selectedLeagueId,
-        leagueLevel: targetLevel,
-        groupId: targetGroup,
-        country: selectedCountry?.name || 'International',
-        setupDate: nowIso
-      }, { merge: true });
-      
-      // 2. Full hierarchy data
-      const teamRef = doc(db, 'leagues', selectedLeagueId, 'divisions', targetLevel.toString(), 'groups', targetGroup.toString(), 'teams', user.uid);
-      batch.set(teamRef, profileData);
+      batch.set(rootRef, profileData, { merge: true });
 
-      // 3. Initialize Heroes sub-collection
+      // Initialize Heroes sub-collection
       uniqueSquad.forEach(hero => {
-        const heroRef = doc(collection(teamRef, 'heroes'), hero.id);
+        const heroRef = doc(collection(rootRef, 'heroes'), hero.id);
         batch.set(heroRef, JSON.parse(JSON.stringify(hero)));
-      });
-
-      // 4. Initialize Fanclub sub-collection
-      const fanclubRef = doc(teamRef, 'fanclub', 'stats');
-      batch.set(fanclubRef, {
-        loyalty: 50,
-        fanCount: 1500,
-        updatedAt: nowIso
       });
 
       await batch.commit();
