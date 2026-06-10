@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
@@ -7,7 +8,7 @@ import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, Check, Swords, Activity, Map, ArrowRight, TrendingUp,
+  ChevronLeft, Check, Swords, Activity, Map as MapIcon, ArrowRight, TrendingUp,
   ShieldCheck, Brain, Zap, Target, FileText,
   Users, Signal, EyeOff, Calendar, MapPin, Trophy, Clock, Medal,
   ShieldAlert, RefreshCw, MousePointer2
@@ -36,12 +37,6 @@ function MatchContent() {
   // Standardized on players_v10
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
-
-  useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.push('/auth/login');
-    }
-  }, [user, isUserLoading, router]);
 
   const currentResult = useMemo(() => {
     if (!profile) return null;
@@ -78,8 +73,16 @@ function MatchContent() {
   const isHistoricalViewing = !!matchIdFromUrl;
 
   useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
+
+  useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [step]);
+
+  if (isUserLoading || !isLoaded || !user) return <LoadingScreen />;
 
   const handleAcknowledgeMatch = () => {
     if (currentResult && !isHistoricalViewing && currentResult.type === 'league') {
@@ -104,8 +107,6 @@ function MatchContent() {
     else if (step === 'live') setStep('stats');
     else handleAcknowledgeMatch();
   };
-
-  if (isUserLoading || !isLoaded || !user) return <LoadingScreen />;
 
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
   const myFlag = userCountry?.flag || '🏳️';

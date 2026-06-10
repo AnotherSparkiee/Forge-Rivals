@@ -245,14 +245,17 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         else if (tier === 3) multiplier = 1.0;
         else if (tier === 2) multiplier = 1.5;
         else if (tier === 1) multiplier = 2.0;
-        if (isPremium) multiplier += 2.0;
+        
+        // Re-check premium status inside the state update to be most accurate
+        const premiumActive = s.premiumUntil && new Date(s.premiumUntil).getTime() > getMoscowTime().getTime();
+        if (premiumActive) multiplier += 2.0;
       }
       const finalAmount = Math.round(amount * multiplier);
       const newVal = s.credits + finalAmount; 
       runCloudUpdate({ inGameCurrency: newVal }); 
       return { ...s, credits: newVal }; 
     }); 
-  }, [runCloudUpdate, isPremium]);
+  }, [runCloudUpdate]);
 
   const addCrystals = useCallback((amount: number) => { setState(s => { const newVal = s.crystals + amount; runCloudUpdate({ crystals: newVal }); return { ...s, crystals: newVal }; }); }, [runCloudUpdate]);
   const setLanguage = useCallback((lang: 'en' | 'ru') => setState(s => ({ ...s, language: lang })), []);
@@ -284,7 +287,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(s => {
       if (s.matchHistory.some(m => m.id === matchId)) return s;
       
+      const premiumActive = s.premiumUntil && new Date(s.premiumUntil).getTime() > getMoscowTime().getTime();
       const activeHeroIds = Object.values(s.lineup).filter(Boolean) as string[];
+      
       const updatedHeroes = s.ownedHeroes.map(hero => {
         if (!activeHeroIds.includes(hero.id)) return hero;
 
@@ -355,7 +360,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       });
 
       let xpMultiplier = 1.0;
-      if (isPremium) xpMultiplier = 5.0;
+      if (premiumActive) xpMultiplier = 5.0;
       else {
         const tier = s.activeLicenseTier || 4;
         if (tier === 3) xpMultiplier = 2.0;
@@ -380,7 +385,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       });
       return { ...s, matchHistory: newHistory, experiencePoints: nextXP, managerLevel: nextLevel, skillPoints: nextSkillPoints, ownedHeroes: updatedHeroes };
     });
-  }, [runCloudUpdate, isPremium]);
+  }, [runCloudUpdate]);
 
   const markMatchAsSeen = useCallback((day: number) => { setState(s => { if (day <= s.lastSeenMatchDay) return s; runCloudUpdate({ lastSeenMatchDay: day }); return { ...s, lastSeenMatchDay: day }; }); }, [runCloudUpdate]);
   
@@ -388,7 +393,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const today = getMoscowDateString(); 
     setState(s => { 
       if (s.lastRewardClaimDate === today) return s; 
-      let bonusCrystals = isPremium ? 50 : 0;
+      const premiumActive = s.premiumUntil && new Date(s.premiumUntil).getTime() > getMoscowTime().getTime();
+      let bonusCrystals = premiumActive ? 50 : 0;
       if (s.activeLicenseTier === 1) bonusCrystals += 10;
       const nCredits = s.credits + cr; 
       const nCrystals = s.crystals + cry + bonusCrystals; 
@@ -396,7 +402,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       runCloudUpdate({ inGameCurrency: nCredits, crystals: nCrystals, lastRewardClaimDate: today, rewardDay: nDay }); 
       return { ...s, credits: nCredits, crystals: nCrystals, lastRewardClaimDate: today, rewardDay: nDay }; 
     }); 
-  }, [runCloudUpdate, isPremium]);
+  }, [runCloudUpdate]);
 
   const dismissSeasonResults = useCallback(() => { setState(s => { runCloudUpdate({ seasonResults: null }); return { ...s, seasonResults: null }; }); }, [runCloudUpdate]);
   

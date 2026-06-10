@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -16,7 +17,7 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { doc, collection, query, where, onSnapshot } from 'firebase/firestore';
-import { getMockGroupTeams, getSchedule, LEAGUES } from './lib/leagues-data';
+import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from './lib/leagues-data';
 import { getMoscowDateString, getMoscowTime, getPyramidCupTime } from './lib/time-utils';
 import { cn } from '@/lib/utils';
 import { getDeterministicTournament } from './tournaments/iron-globe/page';
@@ -92,7 +93,7 @@ export default function Home() {
         }
       } else {
         const q = query(collection(db, 'friendly_lobbies_v3'), where('challengerId', '==', user.uid), where('status', '==', 'accepted'));
-        onSnapshot(q, (snap) => {
+        const unsubInner = onSnapshot(q, (snap) => {
           if (!snap.empty) {
             const d = snap.docs[0].data();
             const acceptedAt = d.acceptedAt?.toMillis() || Date.now();
@@ -105,6 +106,7 @@ export default function Home() {
             setActiveFriendly(null);
           }
         });
+        return () => unsubInner();
       }
     });
     return () => unsub();

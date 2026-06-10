@@ -25,7 +25,7 @@ function sanitizeForFirestore(obj: any) {
 }
 
 export function CWBasketListener() {
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const db = useFirestore();
   const pathname = usePathname();
   const { language, strategy, team, recordMatch, ownedHeroes, lineup, matchHistory } = useGameState();
@@ -39,86 +39,89 @@ export function CWBasketListener() {
   const { data: myEntry } = useDoc(myEntryRef);
 
   useEffect(() => {
-    if (myEntry?.status === 'matched' && myEntry.matchStartTime) {
-      const currentMatchId = myEntry.matchStartTime;
-
-      if (notifiedMatchIdRef.current !== currentMatchId) {
-        const alreadyRecorded = matchHistory.some(m => m.id === currentMatchId);
-        if (pathname !== '/tournaments/cw-basket' && !alreadyRecorded) {
-          setShowModal(true);
-        }
-        notifiedMatchIdRef.current = currentMatchId;
-      }
-
-      if (!isSimulatingRef.current) {
-        const startTime = new Date(myEntry.matchStartTime).getTime();
-        
-        const checkAndSimulate = async () => {
-          if (Date.now() >= startTime && !isSimulatingRef.current) {
-            if (matchHistory.some(m => m.id === currentMatchId)) {
-              await deleteDoc(doc(db, 'cw_basket_v2', user!.uid));
-              return;
-            }
-
-            isSimulatingRef.current = true;
-            try {
-              const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
-                ...h,
-                isSub: h.id === lineup.sub1 || h.id === lineup.sub2
-              }));
-
-              const rivalSquad = getRandomStartingSquad().map((h, i) => ({
-                ...h,
-                name: `${h.name} AI`,
-                isSub: i > 4
-              }));
-
-              const result = await simulateMobaMatch({
-                teamA: { name: myEntry.userName || "My Team", strategy, heroes: squad },
-                teamB: { 
-                  name: myEntry.matchedWithName || "Rival Manager", 
-                  strategy: "Balanced Play", 
-                  heroes: rivalSquad
-                },
-                isBo2: false
-              });
-
-              const safeResult = sanitizeForFirestore(result);
-              if (!safeResult) throw new Error("Simulation failed");
-
-              recordMatch(
-                safeResult.winner, 
-                safeResult, 
-                0, 
-                myEntry.matchedWithName, 
-                'basket',
-                new Date().toISOString(),
-                currentMatchId
-              );
-
-              toast({
-                title: language === 'ru' ? "КВ матч завершен" : "CW match finished",
-                description: language === 'ru' ? `Результаты боя против ${myEntry.matchedWithName} сохранены.` : `Battle results vs ${myEntry.matchedWithName} archived.`,
-              });
-
-              await deleteDoc(doc(db, 'cw_basket_v2', user!.uid));
-            } catch (e) {
-              console.error("CW Auto-sim failed", e);
-            } finally {
-              isSimulatingRef.current = false;
-            }
-          }
-        };
-
-        const timer = setInterval(checkAndComplete, 10000);
-        checkAndSimulate();
-        return () => clearInterval(timer);
-      }
-    } else if (myEntry?.status !== 'matched') {
+    if (!user || !myEntry || myEntry.status !== 'matched' || !myEntry.matchStartTime) {
       notifiedMatchIdRef.current = null;
       setShowModal(false);
+      return;
     }
-  }, [myEntry, pathname, strategy, team, recordMatch, language, user, db, toast, matchHistory, ownedHeroes, lineup]);
+
+    const currentMatchId = myEntry.matchStartTime;
+
+    if (notifiedMatchIdRef.current !== currentMatchId) {
+      const alreadyRecorded = matchHistory.some(m => m.id === currentMatchId);
+      if (pathname !== '/tournaments/cw-basket' && !alreadyRecorded) {
+        setShowModal(true);
+      }
+      notifiedMatchIdRef.current = currentMatchId;
+    }
+
+    const startTime = new Date(myEntry.matchStartTime).getTime();
+    
+    const checkAndSimulate = async () => {
+      if (!user || isSimulatingRef.current) return;
+      const now = Date.now();
+
+      if (now >= startTime) {
+        const alreadyRecorded = matchHistory.some(m => m.id === currentMatchId);
+        if (alreadyRecorded) {
+          await deleteDoc(doc(db, 'cw_basket_v2', user.uid));
+          return;
+        }
+
+        isSimulatingRef.current = true;
+        try {
+          const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
+            ...h,
+            isSub: h.id === lineup.sub1 || h.id === lineup.sub2
+          }));
+
+          const rivalSquad = getRandomStartingSquad().map((h, i) => ({
+            ...h,
+            name: `${h.name} AI`,
+            isSub: i > 4
+          }));
+
+          const result = await simulateMobaMatch({
+            teamA: { name: myEntry.userName || "My Team", strategy, heroes: squad },
+            teamB: { 
+              name: myEntry.matchedWithName || "Rival Manager", 
+              strategy: "Balanced Play", 
+              heroes: rivalSquad
+            },
+            isBo2: false
+          });
+
+          const safeResult = sanitizeForFirestore(result);
+          if (!safeResult) throw new Error("Simulation failed");
+
+          recordMatch(
+            safeResult.winner, 
+            safeResult, 
+            0, 
+            myEntry.matchedWithName, 
+            'basket',
+            new Date().toISOString(),
+            currentMatchId
+          );
+
+          toast({
+            title: language === 'ru' ? "КВ матч завершен" : "CW match finished",
+            description: language === 'ru' ? `Результаты боя против ${myEntry.matchedWithName} сохранены.` : `Battle results vs ${myEntry.matchedWithName} archived.`,
+          });
+
+          await deleteDoc(doc(db, 'cw_basket_v2', user.uid));
+        } catch (e) {
+          console.error("CW Auto-sim failed", e);
+        } finally {
+          isSimulatingRef.current = false;
+        }
+      }
+    };
+
+    const timer = setInterval(checkAndSimulate, 10000);
+    checkAndSimulate();
+    return () => clearInterval(timer);
+  }, [user, myEntry, pathname, strategy, team, recordMatch, language, db, toast, matchHistory, ownedHeroes, lineup]);
 
   const handleAcknowledge = () => {
     setShowModal(false);

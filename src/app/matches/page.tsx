@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -37,14 +38,9 @@ export default function MatchesPage() {
     lastSeenMatchDay
   } = useGameState();
   const db = useFirestore();
+  
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
   const [countdown, setCountdown] = useState('');
-
-  useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.push('/auth/register');
-    }
-  }, [user, isUserLoading, router]);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -86,6 +82,12 @@ export default function MatchesPage() {
 
   const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v4', user.uid) : null, [db, user]);
   const { data: basketEntry } = useDoc(myBasketRef);
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/register');
+    }
+  }, [user, isUserLoading, router]);
 
   const league = useMemo(() => {
     return LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0];
@@ -321,6 +323,19 @@ export default function MatchesPage() {
     return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
   };
 
+  const displayHistory = useMemo(() => {
+    if (!profile) return [];
+    const filterTime = profile.setupDate ? new Date(profile.setupDate).getTime() : (profile.createdAt ? new Date(profile.createdAt).getTime() : 0);
+    return matchHistory.filter(m => {
+      const matchTime = m.playedAt ? new Date(m.playedAt).getTime() : 0;
+      return matchTime >= filterTime;
+    }).sort((a, b) => {
+      const timeA = a.playedAt ? new Date(a.playedAt).getTime() : 0;
+      const timeB = b.playedAt ? new Date(b.playedAt).getTime() : 0;
+      return timeB - timeA;
+    }).slice(0, 50);
+  }, [matchHistory, profile]);
+
   if (isUserLoading || !isLoaded || !user || isProfileLoading || isGroupLoading) {
     return <LoadingScreen />;
   }
@@ -379,19 +394,6 @@ export default function MatchesPage() {
   };
 
   const t = translations[language as keyof typeof translations] || translations.ru;
-
-  const displayHistory = useMemo(() => {
-    if (!profile) return [];
-    const filterTime = profile.setupDate ? new Date(profile.setupDate).getTime() : (profile.createdAt ? new Date(profile.createdAt).getTime() : 0);
-    return matchHistory.filter(m => {
-      const matchTime = m.playedAt ? new Date(m.playedAt).getTime() : 0;
-      return matchTime >= filterTime;
-    }).sort((a, b) => {
-      const timeA = a.playedAt ? new Date(a.playedAt).getTime() : 0;
-      const timeB = b.playedAt ? new Date(b.playedAt).getTime() : 0;
-      return timeB - timeA;
-    }).slice(0, 50);
-  }, [matchHistory, profile]);
 
   const renderMatchRow = (match: any, dayIdx: number) => {
     const day = dayIdx + 1;
