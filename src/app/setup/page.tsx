@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc, collection, writeBatch } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,6 +28,9 @@ export default function SetupPage() {
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
+
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.replace('/auth/register');
@@ -46,14 +49,22 @@ export default function SetupPage() {
       
       const nowIso = new Date().toISOString();
       const profileData = {
-        id: user.uid, displayName: "Commander", inGameCurrency: 10000000, crystals: 0,
-        experiencePoints: 0, managerLevel: 1, skillPoints: 0, createdAt: nowIso,
+        id: user.uid, 
+        displayName: profile?.displayName || "Manager", 
+        inGameCurrency: 10000000, 
+        crystals: 0,
+        experiencePoints: 0, 
+        managerLevel: 1, 
+        skillPoints: 0, 
+        createdAt: nowIso,
         lineup: { 
           offlane: uniqueSquad[0].id, carry: uniqueSquad[1].id, mid: uniqueSquad[2].id, 
           support: uniqueSquad[3].id, full_support: uniqueSquad[4].id, 
           sub1: uniqueSquad[5].id, sub2: uniqueSquad[6].id
         },
-        leagueLevel: targetLevel, groupId: targetGroup, lastProcessedSeason: Number(seasonNumber || 1)
+        leagueLevel: targetLevel, 
+        groupId: targetGroup, 
+        lastProcessedSeason: Number(seasonNumber || 1)
       };
 
       const batch = writeBatch(db);
@@ -104,7 +115,7 @@ export default function SetupPage() {
     }
   };
 
-  if (isUserLoading || !user) return null;
+  if (isUserLoading || isProfileLoading || !user) return <LoadingScreen />;
 
   return (
     <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
