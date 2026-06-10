@@ -288,7 +288,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       if (s.matchHistory.some(m => m.id === matchId)) return s;
       
       const premiumActive = s.premiumUntil && new Date(s.premiumUntil).getTime() > getMoscowTime().getTime();
-      const activeHeroIds = Object.values(s.lineup).filter(Boolean) as string[];
+      
+      // CRITICAL: Only the first 5 core slots get bonuses
+      const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
+      const activeHeroIds = activeSlots.map(slot => s.lineup[slot]).filter(Boolean) as string[];
       
       const updatedHeroes = s.ownedHeroes.map(hero => {
         if (!activeHeroIds.includes(hero.id)) return hero;
