@@ -70,7 +70,7 @@ interface GameStateContextType extends GameState {
   startCapacityExpansion: (seats: number, cost: number, hours: number) => boolean; 
   checkConstructions: () => void; 
   setLanguage: (lang: 'en' | 'ru') => void; 
-  recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string) => void; 
+  recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string, customSeason?: number) => void; 
   claimReward: (creditsReward: number, crystalsReward: number) => void; 
   syncStats: (groupPlayers: any[]) => void; 
   dismissSeasonResults: () => void; 
@@ -278,7 +278,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }, [state, user, runCloudUpdate]);
 
-  const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string) => {
+  const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string, customSeason?: number) => {
     if (!result) return;
     const matchId = customId || `match_${Date.now()}`;
     const today = getMoscowDateString();
@@ -286,6 +286,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(s => {
       if (s.matchHistory.some(m => m.id === matchId)) return s;
       
+      const activeSeason = customSeason || s.seasonNumber;
       const premiumActive = s.premiumUntil && new Date(s.premiumUntil).getTime() > getMoscowTime().getTime();
       
       const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
@@ -373,7 +374,25 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const nextLevel = nextXP >= getLevelThreshold(s.managerLevel) ? s.managerLevel + 1 : s.managerLevel;
       const nextSkillPoints = nextLevel > s.managerLevel ? s.skillPoints + 1 : s.skillPoints;
 
-      const matchEntry: MatchResultEntry = { id: matchId, day: matchDay, type, opponentName, winner, scoreA: result.scoreA, scoreB: result.scoreB, matchSummary: result.matchSummary || "", teamStats: result.teamStats || {}, heroPerformance: result.heroPerformance || [], playedAt: customPlayedAt || new Date().toISOString(), duration: result.duration || "", mvp: result.mvp || "", preview: result.preview || null, timeline: result.timeline || [], postMatch: result.postMatch || null };
+      const matchEntry: MatchResultEntry = { 
+        id: matchId, 
+        day: matchDay, 
+        seasonNumber: activeSeason,
+        type, 
+        opponentName, 
+        winner, 
+        scoreA: result.scoreA, 
+        scoreB: result.scoreB, 
+        matchSummary: result.matchSummary || "", 
+        teamStats: result.teamStats || {}, 
+        heroPerformance: result.heroPerformance || [], 
+        playedAt: customPlayedAt || new Date().toISOString(), 
+        duration: result.duration || "", 
+        mvp: result.mvp || "", 
+        preview: result.preview || null, 
+        timeline: result.timeline || [], 
+        postMatch: result.postMatch || null 
+      };
       const newHistory = [matchEntry, ...s.matchHistory].slice(0, 100);
 
       const typeUpdates: any = {};

@@ -153,7 +153,7 @@ export function AutoMatchManager() {
         }
 
         const canonicalWinner = forcedScoreA > forcedScoreB ? (profile.displayName || "Manager") : (forcedScoreA < forcedScoreB ? (opponent.name || "Opponent") : "Draw");
-        recordMatch(canonicalWinner, { ...result.games[0], scoreA: forcedScoreA, scoreB: forcedScoreB }, targetDay, opponent.name || "Opponent", 'league', customPlayedAt, detId);
+        recordMatch(canonicalWinner, { ...result.games[0], scoreA: forcedScoreA, scoreB: forcedScoreB }, targetDay, opponent.name || "Opponent", 'league', customPlayedAt, detId, targetSeason);
         
         if (!isCatchUp) {
           setCurrentResult({ ...result.games[0], id: detId, day: targetDay, opponentName: opponent.name, type: 'league', scoreA: forcedScoreA, scoreB: forcedScoreB });
@@ -192,7 +192,7 @@ export function AutoMatchManager() {
           matchSummary: "Seeded progression.", teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
           heroPerformance: [], preview: null, timeline: [], postMatch: null
         };
-        recordMatch(seededResult.winner, seededResult, targetDay, "SEEDED", 'cup', undefined, detId);
+        recordMatch(seededResult.winner, seededResult, targetDay, "SEEDED", 'cup', undefined, detId, targetSeason);
         return;
       }
 
@@ -208,7 +208,7 @@ export function AutoMatchManager() {
           matchSummary: "Automatic progression.", teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
           heroPerformance: [], preview: null, timeline: [], postMatch: null
         };
-        recordMatch(waitResult.winner, waitResult, targetDay, "WAITING", 'cup', undefined, detId);
+        recordMatch(waitResult.winner, waitResult, targetDay, "WAITING", 'cup', undefined, detId, targetSeason);
         return;
       }
 
@@ -231,7 +231,7 @@ export function AutoMatchManager() {
       
       if (result && result.winner) {
         const canonicalWinner = forcedA > forcedB ? (profile.displayName || "Manager") : (forcedA < forcedB ? opponent.name : "Draw");
-        recordMatch(canonicalWinner, { ...result.games[0], scoreA: forcedA, scoreB: forcedB }, targetDay, opponent.name, 'cup', undefined, detId);
+        recordMatch(canonicalWinner, { ...result.games[0], scoreA: forcedA, scoreB: forcedB }, targetDay, opponent.name, 'cup', undefined, detId, targetSeason);
         
         if (!isCatchUp) {
           setCurrentResult({ ...result.games[0], id: detId, day: targetDay, opponentName: opponent.name, type: 'cup', scoreA: forcedA, scoreB: forcedB }); 
