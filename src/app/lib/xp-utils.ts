@@ -1,7 +1,7 @@
 
 /**
  * @fileOverview Математическое ядро системы прогрессии игроков.
- * Реализует формулы XP, талантов и влияния инфраструктуры.
+ * Реализует формулы XP, талантов, влияния инфраструктуры и бесконечного OVR.
  */
 
 import { Role } from './moba-data';
@@ -110,9 +110,15 @@ export function calculateXpGain(params: {
 }
 
 /**
- * Рассчитывает OVR героя на основе 5 основных и 5 второстепенных навыков.
+ * Рассчитывает Бесконечный Динамический OVR героя.
  */
-export function calculateHeroOVR(role: Role, stats: Record<string, number>): number {
+export function calculateHeroOVR(
+  role: Role, 
+  stats: Record<string, number>,
+  totalMatches: number = 0,
+  moral: number = 50,
+  titles: { league: number; cup: number; friendly: number } = { league: 0, cup: 0, friendly: 0 }
+): number {
   const coreKeys = ROLE_CORE_SKILLS[role];
   const allKeys = Object.keys(stats);
   const secondaryKeys = allKeys.filter(k => !coreKeys.includes(k));
@@ -123,5 +129,18 @@ export function calculateHeroOVR(role: Role, stats: Record<string, number>): num
   const avgCore = coreSum / 5;
   const avgSecondary = secondarySum / 5;
   
-  return Math.round((avgCore * 0.7) + (avgSecondary * 0.3));
+  // 1. Базовый OVR (Макс 100)
+  const baseOvr = (avgCore * 0.7) + (avgSecondary * 0.3);
+  
+  // 2. Match Multiplier (Бесконечный рост)
+  const matchMultiplier = 1 + (Math.sqrt(totalMatches) / 20);
+  
+  // 3. Mood Multiplier (Мораль 50 = 1.0x)
+  const moodMultiplier = 0.9 + (moral / 500);
+  
+  // 4. Legacy Bonus (Титулы)
+  const legacyBonus = (titles.league * 5) + (titles.cup * 8) + (titles.friendly * 1);
+  
+  // Финальный расчет
+  return Math.round(baseOvr * matchMultiplier * moodMultiplier) + legacyBonus;
 }

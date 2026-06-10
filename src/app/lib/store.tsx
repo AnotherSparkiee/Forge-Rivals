@@ -284,27 +284,21 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(s => {
       if (s.matchHistory.some(m => m.id === matchId)) return s;
       
-      // Начисление опыта игрокам за участие в матче
       const activeHeroIds = Object.values(s.lineup).filter(Boolean) as string[];
       const updatedHeroes = s.ownedHeroes.map(hero => {
         if (!activeHeroIds.includes(hero.id)) return hero;
 
-        // Определяем тип активности для XP
         let activity: ActivityType = 'friendly';
         if (type === 'league') activity = 'league';
         if (type === 'cup') activity = 'cup';
+        if (type === 'tournament') activity = 'tournament_ext';
         if (type === 'trial') activity = 'trial';
         if (type === 'basket') activity = 'friendly';
 
-        // Сброс счетчика матчей если день сменился
         const currentMatchesToday = hero.lastMatchDateXP === today ? (hero.matchesPlayedToday || 0) : 0;
-        
-        // Получаем результат игрока из heroPerformance если есть
-        const perf = result.heroPerformance?.find((p: any) => p.heroName === hero.name);
         const win = winner === (s.displayName || "Manager");
         const mvp = result.mvp === hero.name;
 
-        // Обновляем статы через XP
         const nextProStats = { ...hero.proStats };
         const nextXPStats = { ...(hero.xpStats || {}) };
 
@@ -335,7 +329,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           }
         });
 
-        const nextOVR = calculateHeroOVR(hero.role, nextProStats);
+        // Бесконечный OVR расчет
+        const nextMatchesPlayed = (hero.totalMatchesPlayed || 0) + 1;
+        const nextMoral = Math.min(100, Math.max(0, (hero.moral || 50) + (win ? 2 : (result.scoreA === result.scoreB ? 0 : -2))));
+        const currentTitles = hero.titles || { league: 0, cup: 0, friendly: 0 };
+        
+        const nextOVR = calculateHeroOVR(
+          hero.role, 
+          nextProStats, 
+          nextMatchesPlayed, 
+          nextMoral, 
+          currentTitles
+        );
 
         return {
           ...hero,
@@ -343,6 +348,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           xpStats: nextXPStats,
           overallRating: nextOVR,
           matchesPlayedToday: currentMatchesToday + 1,
+          totalMatchesPlayed: nextMatchesPlayed,
+          moral: nextMoral,
           lastMatchDateXP: today
         };
       });
@@ -472,7 +479,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const cur = (h.proStats as any)[k] || 0; 
         const talentVal = (h.proTalents ? (h.proTalents as any)[k] : 3.0) * 10; 
 
-        // Расчет XP по новой формуле
         const xpGain = calculateXpGain({
           activity: 'daily',
           currentValue: cur,
@@ -482,7 +488,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             research: state.bootcamp.researchLevel || 0, 
             psychologist: state.medical.psychologistLevel || 0 
           },
-          matchesToday: 0 // Для тренировки не учитывается
+          matchesToday: 0
         });
 
         const nextXPStats = { ...(h.xpStats || {}) };
@@ -497,7 +503,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           nextXPStats[k] = currentStatXP;
         }
 
-        const nextOVR = calculateHeroOVR(h.role, nextProStats);
+        // Пересчет OVR после тренировки
+        const nextOVR = calculateHeroOVR(
+          h.role, 
+          nextProStats, 
+          h.totalMatchesPlayed || 0, 
+          h.moral || 50, 
+          h.titles || { league: 0, cup: 0, friendly: 0 }
+        );
 
         return { 
           ...h, 
