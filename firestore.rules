@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -18,6 +19,12 @@ service cloud.firestore {
         isSignedIn() && 
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['associationId', 'lastJoinedAssocAt', 'tournaments', 'tournamentHistory'])
       );
+    }
+
+    // === ГЛОБАЛЬНЫЕ МАТЧИ (v1) ===
+    match /global_matches_v1/{matchId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
     }
 
     // === ТОВАРНЫЕ РЫНКИ (v7) ===

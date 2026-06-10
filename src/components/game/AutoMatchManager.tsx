@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection, query, where, updateDoc } from 'firebase/firestore';
+import { doc, collection, query, where, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { isMatchDue, getGlobalSeasonInfo, getMoscowTime, getMoscowDateString, calculateLiveAge } from '@/app/lib/time-utils';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '@/app/lib/leagues-data';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
@@ -22,7 +22,7 @@ import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 export function AutoMatchManager() {
   const { 
     isLoaded, language, leagueLevel, divisionSubId, groupId, 
-    seasonDay, seasonNumber, lastLeagueMatchDate, lastCupMatchDate, recordMatch, strategy, rank, seasonStartDate,
+    seasonDay, seasonNumber, lastLeagueMatchDate, lastCupMatchDate, recordMatch, recordMatchGlobal, strategy, rank, seasonStartDate,
     markMatchAsSeen, matchHistory, seasonResults, dismissSeasonResults, setSyncing, ownedHeroes, lineup,
     lastProcessedSeason, staff
   } = useGameState();
@@ -74,59 +74,78 @@ export function AutoMatchManager() {
   const simulateOneLeagueMatch = useCallback(async (targetSeason: number, targetDay: number, isCatchUp: boolean) => {
     if (!groupPlayers || !user || !profile || simulationLockRef.current) return;
     
-    const detId = `league_S${targetSeason}_D${targetDay}`;
-    const alreadyRecorded = matchHistory.some(m => m.id === detId);
-    if (alreadyRecorded) return;
+    const groupTeams = getMockGroupTeams(rank, profile.displayName || "My Team", leagueLevel, divisionSubId, groupId, profile.selectedLeagueId || "ALPHA", groupPlayers || [], user.uid, 0);
+    const schedule = getSchedule(groupTeams);
+    const dayMatches = schedule[targetDay - 1];
+
+    if (!dayMatches) return;
 
     simulationLockRef.current = true;
     setIsSimulating(true);
     setSyncing(true);
     
     try {
-      const groupTeams = getMockGroupTeams(rank, profile.displayName || "My Team", leagueLevel, divisionSubId, groupId, profile.selectedLeagueId || "ALPHA", groupPlayers || [], user.uid, 0);
-      const schedule = getSchedule(groupTeams);
-      const targetMatch = schedule[targetDay - 1]?.find((m: any) => m.home.id === user.uid || m.away.id === user.uid);
-      
-      if (!targetMatch) throw new Error("No match scheduled");
-      
-      const opponent = targetMatch.home.id === user.uid ? targetMatch.away : targetMatch.home;
-      const [detScoreH, detScoreA] = getMatchResult(targetMatch.home.id, targetMatch.away.id, targetDay, false);
-      
-      const forcedScoreA = targetMatch.home.id === user.uid ? detScoreH : detScoreA;
-      const forcedScoreB = targetMatch.away.id === user.uid ? detScoreH : detScoreA;
-      
-      const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
-        name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
-        isSub: h.id === lineup.sub1 || h.id === lineup.sub2
-      }));
-
-      const botSquad = getRandomStartingSquad().map((h, i) => ({
-        name: `${h.name} AI`, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
-        isSub: i > 4
-      }));
-
-      const result = await simulateMobaMatch({
-        teamA: { name: profile.displayName || "My Team", strategy, heroes: squad },
-        teamB: { name: opponent.name || "Opponent", strategy: "Advanced Tactics", heroes: botSquad },
-        isBo2: true,
-        scoreA: forcedScoreA, 
-        scoreB: forcedScoreB
-      });
-
-      if (result && result.winner) {
-        let customPlayedAt = undefined;
-        if (isCatchUp && seasonStartDate) {
-          const d = new Date(seasonStartDate);
-          d.setDate(d.getDate() + (targetDay - 1));
-          customPlayedAt = d.toISOString();
+      // Process all matches in the group to ensure synchronization
+      for (const match of dayMatches) {
+        const isMyMatch = match.home.id === user.uid || match.away.id === user.uid;
+        const matchId = `league_S${targetSeason}_D${targetDay}_G${profile.groupId}_${match.home.id}_${match.away.id}`;
+        
+        // Check if global record exists
+        const globalRef = doc(db, 'global_matches_v1', matchId);
+        const globalSnap = await getDoc(globalRef);
+        
+        if (globalSnap.exists()) {
+          const gData = globalSnap.data();
+          if (isMyMatch) {
+             const alreadyRecorded = matchHistory.some(m => m.id === matchId);
+             if (!alreadyRecorded) {
+               recordMatch(gData.winnerId, { scoreA: gData.scoreA, scoreB: gData.scoreB, matchSummary: "Synchronized from global data." }, targetDay, gData.awayId, 'league', gData.playedAt, matchId, targetSeason);
+             }
+          }
+          continue;
         }
 
-        const canonicalWinner = forcedScoreA > forcedScoreB ? (profile.displayName || "Manager") : (forcedScoreA < forcedScoreB ? (opponent.name || "Opponent") : "Draw");
-        recordMatch(canonicalWinner, { ...result.games[0], scoreA: forcedScoreA, scoreB: forcedScoreB }, targetDay, opponent.name || "Opponent", 'league', customPlayedAt, detId, targetSeason);
-        
-        if (!isCatchUp) {
-          setCurrentResult({ ...result.games[0], id: detId, day: targetDay, opponentName: opponent.name, type: 'league', scoreA: forcedScoreA, scoreB: forcedScoreB });
-          setShowResultDialog(true);
+        const [detScoreH, detScoreA] = getMatchResult(match.home.id, match.away.id, targetDay, false);
+        const canonicalWinner = detScoreH > detScoreA ? match.home.id : (detScoreH < detScoreA ? match.away.id : "Draw");
+        const playedAt = new Date().toISOString();
+
+        if (isMyMatch) {
+          // Full AI simulation for the player's match
+          const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
+            name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
+            isSub: h.id === lineup.sub1 || h.id === lineup.sub2
+          }));
+
+          const botSquad = getRandomStartingSquad().map((h, i) => ({
+            name: `${h.name} AI`, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
+            isSub: i > 4
+          }));
+
+          const result = await simulateMobaMatch({
+            teamA: { name: profile.displayName || "My Team", strategy, heroes: squad },
+            teamB: { name: (match.home.id === user.uid ? match.away.name : match.home.name) || "Opponent", strategy: "Advanced Tactics", heroes: botSquad },
+            isBo2: true,
+            scoreA: match.home.id === user.uid ? detScoreH : detScoreA, 
+            scoreB: match.away.id === user.uid ? detScoreH : detScoreA
+          });
+
+          if (result && result.winner) {
+            const resultData = { ...result.games[0], scoreA: match.home.id === user.uid ? detScoreH : detScoreA, scoreB: match.away.id === user.uid ? detScoreH : detScoreA };
+            recordMatch(result.winner, resultData, targetDay, (match.home.id === user.uid ? match.away.name : match.home.name), 'league', playedAt, matchId, targetSeason);
+            
+            if (!isCatchUp) {
+              setCurrentResult({ ...resultData, id: matchId, day: targetDay, opponentName: (match.home.id === user.uid ? match.away.name : match.home.name), type: 'league' });
+              setShowResultDialog(true);
+            }
+          }
+        } else {
+          // Silent record for group synchronization
+          recordMatchGlobal({
+            id: matchId, season: targetSeason, day: targetDay, type: 'league',
+            homeId: match.home.id, awayId: match.away.id,
+            scoreA: detScoreH, scoreB: detScoreA, winnerId: canonicalWinner,
+            playedAt
+          });
         }
       }
     } catch (e: any) {
@@ -136,32 +155,31 @@ export function AutoMatchManager() {
       simulationLockRef.current = false;
       setSyncing(false);
     }
-  }, [groupPlayers, user, profile, strategy, rank, leagueLevel, divisionSubId, groupId, ownedHeroes, lineup, seasonStartDate, recordMatch, setSyncing, matchHistory]);
+  }, [groupPlayers, user, profile, strategy, rank, leagueLevel, divisionSubId, groupId, ownedHeroes, lineup, seasonStartDate, recordMatch, recordMatchGlobal, setSyncing, matchHistory, db]);
 
   const simulateOneCupMatch = useCallback(async (targetSeason: number, targetDay: number, isCatchUp: boolean) => {
     if (!user || !profile || !allLeaguePlayers || simulationLockRef.current) return;
     
-    const detId = `cup_S${targetSeason}_D${targetDay}`;
-    const alreadyRecorded = matchHistory.some(m => m.id === detId);
-    if (alreadyRecorded) return;
+    const participants = getGlobalCupParticipants(allLeaguePlayers, targetSeason);
+    const myIdx = participants.findIndex(p => p?.id === user.uid);
+    if (myIdx === -1) return;
+
+    const entryRound = getEntryRound(profile.leagueLevel);
+    const detMatchId = `cup_S${targetSeason}_R${targetDay}_M${Math.floor(myIdx / Math.pow(2, targetDay))}`;
 
     simulationLockRef.current = true;
     setIsSimulating(true);
     setSyncing(true);
     
     try {
-      const participants = getGlobalCupParticipants(allLeaguePlayers, targetSeason);
-      const myIdx = participants.findIndex(p => p?.id === user.uid);
-      if (myIdx === -1) return;
-
-      const entryRound = getEntryRound(profile.leagueLevel);
       if (targetDay <= entryRound) {
         const seededResult = {
           scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
           matchSummary: "Seeded progression.", teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
           heroPerformance: [], preview: null, timeline: [], postMatch: null
         };
-        recordMatch(seededResult.winner, seededResult, targetDay, "SEEDED", 'cup', undefined, detId, targetSeason);
+        recordMatch(seededResult.winner, seededResult, targetDay, "SEEDED", 'cup', undefined, detMatchId, targetSeason);
+        simulationLockRef.current = false;
         return;
       }
 
@@ -177,7 +195,8 @@ export function AutoMatchManager() {
           matchSummary: "Automatic progression.", teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
           heroPerformance: [], preview: null, timeline: [], postMatch: null
         };
-        recordMatch(waitResult.winner, waitResult, targetDay, "WAITING", 'cup', undefined, detId, targetSeason);
+        recordMatch(waitResult.winner, waitResult, targetDay, "WAITING", 'cup', undefined, detMatchId, targetSeason);
+        simulationLockRef.current = false;
         return;
       }
 
@@ -199,11 +218,11 @@ export function AutoMatchManager() {
       });
       
       if (result && result.winner) {
-        const canonicalWinner = forcedA > forcedB ? (profile.displayName || "Manager") : (forcedA < forcedB ? opponent.name : "Draw");
-        recordMatch(canonicalWinner, { ...result.games[0], scoreA: forcedA, scoreB: forcedB }, targetDay, opponent.name, 'cup', undefined, detId, targetSeason);
+        const resultData = { ...result.games[0], scoreA: forcedA, scoreB: forcedB };
+        recordMatch(result.winner, resultData, targetDay, opponent.name, 'cup', undefined, detMatchId, targetSeason);
         
         if (!isCatchUp) {
-          setCurrentResult({ ...result.games[0], id: detId, day: targetDay, opponentName: opponent.name, type: 'cup', scoreA: forcedA, scoreB: forcedB }); 
+          setCurrentResult({ ...resultData, id: detMatchId, day: targetDay, opponentName: opponent.name, type: 'cup' }); 
           setShowResultDialog(true); 
         }
       }
@@ -214,7 +233,7 @@ export function AutoMatchManager() {
       simulationLockRef.current = false;
       setSyncing(false);
     }
-  }, [allLeaguePlayers, user, profile, strategy, ownedHeroes, lineup, recordMatch, setSyncing, matchHistory]);
+  }, [allLeaguePlayers, user, profile, strategy, ownedHeroes, lineup, recordMatch, recordMatchGlobal, setSyncing, matchHistory]);
 
   useEffect(() => {
     if (!isLoaded || isUserLoading || isSimulating || !profile?.selectedLeagueId || !user) return;
@@ -222,9 +241,9 @@ export function AutoMatchManager() {
     const findAndSimulateNext = async () => {
       if (lastProcessedSeason > 0 && lastProcessedSeason < seasonNumber) {
         for (let d = 1; d <= 14; d++) {
-          const detId = `league_S${lastProcessedSeason}_D${d}`;
-          const existing = matchHistory.find(m => m.id === detId);
-          if (!existing || existing.preview === undefined) {
+          const detId = `league_S${lastProcessedSeason}_D${d}_G${profile.groupId}_${user.uid}`;
+          const existing = matchHistory.find(m => m.id.startsWith(`league_S${lastProcessedSeason}_D${d}`));
+          if (!existing) {
             await simulateOneLeagueMatch(lastProcessedSeason, d, true);
             return; 
           }
@@ -237,17 +256,15 @@ export function AutoMatchManager() {
         const cupTime = "07:00";
 
         for (let d = 1; d <= seasonDay; d++) {
-          const lId = `league_S${seasonNumber}_D${d}`;
-          const lMatch = matchHistory.find(m => m.id === lId);
+          const lMatch = matchHistory.find(m => m.type === 'league' && m.day === d && m.seasonNumber === seasonNumber);
           const lDue = (d < seasonDay) || isMatchDue(leagueTime, lastLeagueMatchDate);
           
-          if (lDue && (!lMatch || lMatch.preview === undefined)) {
+          if (lDue && !lMatch) {
             await simulateOneLeagueMatch(seasonNumber, d, d < seasonDay);
             return; 
           }
 
-          const cId = `cup_S${seasonNumber}_D${d}`;
-          const cMatch = matchHistory.find(m => m.id === cId);
+          const cMatch = matchHistory.find(m => m.type === 'cup' && m.day === d && m.seasonNumber === seasonNumber);
           const cDue = (d < seasonDay) || isMatchDue(cupTime, lastCupMatchDate);
           
           const eliminated = matchHistory.some(m => 
@@ -259,7 +276,7 @@ export function AutoMatchManager() {
             m.scoreA < m.scoreB
           );
 
-          if (!eliminated && cDue && (!cMatch || cMatch.preview === undefined)) {
+          if (!eliminated && cDue && !cMatch) {
             await simulateOneCupMatch(seasonNumber, d, d < seasonDay);
             return; 
           }
@@ -337,4 +354,3 @@ export function AutoMatchManager() {
     </>
   );
 }
-

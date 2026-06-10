@@ -5,10 +5,11 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { Hero, INITIAL_HEROES, StaffMember, StaffRole } from './moba-data';
 import { getMoscowTime, getMoscowDateString, isMatchDue, getGlobalSeasonInfo } from './time-utils';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, onSnapshot, setDoc, arrayUnion } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, arrayUnion, collection } from 'firebase/firestore';
 import { getMockGroupTeams, LEAGUES } from './leagues-data';
 import { usePathname } from 'next/navigation';
 import { calculateXpGain, calculateHeroOVR, ActivityType } from './xp-utils';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
@@ -71,6 +72,7 @@ interface GameStateContextType extends GameState {
   checkConstructions: () => void; 
   setLanguage: (lang: 'en' | 'ru') => void; 
   recordMatch: (winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string, customSeason?: number) => void; 
+  recordMatchGlobal: (matchData: any) => void;
   claimReward: (creditsReward: number, crystalsReward: number) => void; 
   syncStats: (groupPlayers: any[]) => void; 
   dismissSeasonResults: () => void; 
@@ -278,6 +280,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }, [state, user, runCloudUpdate]);
 
+  const recordMatchGlobal = useCallback((matchData: any) => {
+    if (!matchData.id) return;
+    const matchRef = doc(db, 'global_matches_v1', matchData.id);
+    setDocumentNonBlocking(matchRef, sanitizeForFirestore(matchData));
+  }, [db]);
+
   const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string, customSeason?: number) => {
     if (!result) return;
     const matchId = customId || `match_${Date.now()}`;
@@ -407,6 +415,21 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         ownedHeroes: sanitizeForFirestore(updatedHeroes),
         ...typeUpdates
       });
+
+      // Also record globally for shared visibility
+      recordMatchGlobal({
+        id: matchId,
+        season: activeSeason,
+        day: matchDay,
+        type,
+        homeId: s.id || user?.uid,
+        awayId: opponentName, // Simplify for now
+        scoreA: result.scoreA,
+        scoreB: result.scoreB,
+        winnerId: winner,
+        playedAt: matchEntry.playedAt
+      });
+
       return { 
         ...s, 
         matchHistory: newHistory, 
@@ -418,7 +441,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         lastCupMatchDate: type === 'cup' ? today : s.lastCupMatchDate
       };
     });
-  }, [runCloudUpdate]);
+  }, [runCloudUpdate, recordMatchGlobal, user?.uid]);
 
   const markMatchAsSeen = useCallback((day: number) => { setState(s => { if (day <= s.lastSeenMatchDay) return s; runCloudUpdate({ lastSeenMatchDay: day }); return { ...s, lastSeenMatchDay: day }; }); }, [runCloudUpdate]);
   
@@ -584,7 +607,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       startArenaConstruction, startHQConstruction, startBootcampConstruction, 
       startAcademyConstruction, startMedicalConstruction, accelerateConstruction, 
       startCapacityExpansion, checkConstructions, hireStaffMember, trainStaffSkill, 
-      setLanguage, recordMatch, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, 
+      setLanguage, recordMatch, recordMatchGlobal, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, 
       setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, 
       updateHero, promoteYouthPlayer, removeHero, recoverAllFatigue, addHeroDirectly, 
       addYouthHeroDirectly, updateProfileName, updateProfileCountry, purchaseLicense, 

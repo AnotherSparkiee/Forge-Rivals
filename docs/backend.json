@@ -24,6 +24,20 @@
         "requests": { "type": "array", "items": { "type": "object" } },
         "news": { "type": "array", "items": { "type": "object" } }
       }
+    },
+    "MatchRecord": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "season": { "type": "number" },
+        "day": { "type": "number" },
+        "type": { "type": "string" },
+        "homeId": { "type": "string" },
+        "awayId": { "type": "string" },
+        "scoreA": { "type": "number" },
+        "scoreB": { "type": "number" },
+        "winnerId": { "type": "string" }
+      }
     }
   },
   "auth": {
@@ -36,36 +50,12 @@
         "definition": "PlayerProfile"
       },
       {
-        "path": "market_v8/{agentId}",
-        "definition": "PlayerProfile"
-      },
-      {
-        "path": "friend_requests_v6/{requestId}",
-        "definition": "PlayerProfile"
+        "path": "global_matches_v1/{matchId}",
+        "definition": "MatchRecord"
       },
       {
         "path": "associations_v4/{assocId}",
         "definition": "Association"
-      },
-      {
-        "path": "global_chat_v4/{msgId}",
-        "definition": "PlayerProfile"
-      },
-      {
-        "path": "private_messages_v4/{msgId}",
-        "definition": "PlayerProfile"
-      },
-      {
-        "path": "friendly_lobbies_v4/{lobbyId}",
-        "definition": "PlayerProfile"
-      },
-      {
-        "path": "cw_basket_v4/{userId}",
-        "definition": "PlayerProfile"
-      },
-      {
-        "path": "notifications_v7/{notifId}",
-        "definition": "PlayerProfile"
       }
     ]
   }

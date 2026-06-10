@@ -21,7 +21,7 @@ import Link from 'next/link';
 import { getMockGroupTeams, LEAGUES, getMatchResult } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection, query, where } from 'firebase/firestore';
+import { doc, collection, query, where, limit } from 'firebase/firestore';
 import { getMoscowDateString, getPyramidCupTime, getMoscowTime } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant, getEntryRound } from '../lib/cup-utils';
@@ -59,12 +59,6 @@ export default function RankingsPage() {
   const [cupPage, setCupPage] = useState(0);
   const [viewingMatch, setViewingMatch] = useState<any | null>(null);
 
-  useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.push('/auth/register');
-    }
-  }, [user, isUserLoading, router]);
-
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
@@ -75,15 +69,17 @@ export default function RankingsPage() {
 
   const { data: allLeaguePlayers, isLoading: isLeaguePlayersLoading } = useCollection(allLeaguePlayersQuery);
 
-  const league = useMemo(() => LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0], [profile?.selectedLeagueId]);
-  const isTodayPlayed = useMemo(() => lastLeagueMatchDate === getMoscowDateString(), [lastLeagueMatchDate]);
-  
-  const winnersCache = useRef<Map<string, CupParticipant | null>>(new Map());
+  const globalMatchesQuery = useMemoFirebase(() => {
+    if (activeTab !== 'pyramid_cup' || !seasonNumber) return null;
+    return query(
+      collection(db, 'global_matches_v1'),
+      where('season', '==', seasonNumber),
+      where('type', '==', 'cup'),
+      limit(500)
+    );
+  }, [db, activeTab, seasonNumber]);
 
-  const cupParticipants = useMemo(() => {
-    if (!isLoaded || !allLeaguePlayers) return [];
-    return getGlobalCupParticipants(allLeaguePlayers, seasonNumber);
-  }, [isLoaded, allLeaguePlayers, seasonNumber]);
+  const { data: globalMatches } = useCollection(globalMatchesQuery);
 
   const effectiveDayForCup = useMemo(() => {
     const mskNow = getMoscowTime();
@@ -93,9 +89,14 @@ export default function RankingsPage() {
 
   const activeRoundToShow = selectedRound !== null ? selectedRound : Math.min(13, effectiveDayForCup === 0 ? 0 : effectiveDayForCup - 1);
 
+  const cupParticipants = useMemo(() => {
+    if (!isLoaded || !allLeaguePlayers) return [];
+    return getGlobalCupParticipants(allLeaguePlayers, seasonNumber);
+  }, [isLoaded, allLeaguePlayers, seasonNumber]);
+
   const cupMatches = useMemo(() => {
     if (cupParticipants.length === 0) return [];
-    winnersCache.current.clear();
+    const winnersCache = new Map<string, CupParticipant | null>();
     
     const round = activeRoundToShow + 1;
     const participantsPerMatch = Math.pow(2, round);
@@ -105,12 +106,11 @@ export default function RankingsPage() {
     const matches = [];
     for (let m = 0; m < totalMatches; m++) {
       const matchStartIdx = m * participantsPerMatch;
-      const h = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx, winnersCache.current, effectiveDayForCup);
-      const a = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx + step, winnersCache.current, effectiveDayForCup);
+      const h = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx, winnersCache, effectiveDayForCup);
+      const a = getWinnerOfBranch(cupParticipants, round - 1, matchStartIdx + step, winnersCache, effectiveDayForCup);
       
-      if (!h && !a && round > 1) {
-        if (searchQuery.length < 3 && round < 8) continue;
-      }
+      const detMatchId = `cup_S${seasonNumber}_R${round}_M${m}`;
+      const globalRecord = globalMatches?.find(gm => gm.id === detMatchId);
 
       const isMyMatch = h?.id === user?.uid || a?.id === user?.uid;
       const isPlayed = round <= effectiveDayForCup;
@@ -122,36 +122,21 @@ export default function RankingsPage() {
         isRealMatch = round > hEntry && round > aEntry;
       }
 
-      let sH = 0;
-      let sA = 0;
+      let sH = globalRecord?.scoreA || 0;
+      let sA = globalRecord?.scoreB || 0;
 
-      if (isPlayed && isMyMatch) {
-        const historical = matchHistory.find(match => 
-          match.type === 'cup' && 
-          match.day === round && 
-          match.seasonNumber === seasonNumber
-        );
-
-        if (historical) {
-          sH = h?.id === user?.uid ? historical.scoreA : historical.scoreB;
-          sA = a?.id === user?.uid ? historical.scoreA : historical.scoreB;
-        } else if (isRealMatch && h && a) {
-          [sH, sA] = getMatchResult(h.id, a.id, round, true);
-        } else if (h && !a) {
-          sH = 2; sA = 0;
-        } else if (!h && a) {
-          sH = 0; sA = 2;
-        }
-      } else if (isPlayed && isRealMatch && h && a) {
-        [sH, sA] = getMatchResult(h.id, a.id, round, true);
-      } else if (isPlayed && h && !a) {
-        sH = 2; sA = 0;
-      } else if (isPlayed && !h && a) {
-        sH = 0; sA = 2;
+      if (!globalRecord && isPlayed) {
+         if (isRealMatch && h && a) {
+           [sH, sA] = getMatchResult(h.id, a.id, round, true);
+         } else if (h && !a) {
+           sH = 2; sA = 0;
+         } else if (!h && a) {
+           sH = 0; sA = 2;
+         }
       }
 
       const matchData = {
-        id: `match-${round}-${m}`,
+        id: detMatchId,
         home: h,
         away: a,
         isPlayed,
@@ -159,7 +144,8 @@ export default function RankingsPage() {
         isRealMatch,
         scoreH: sH,
         scoreA: sA,
-        round
+        round,
+        globalRecord
       };
 
       if (searchQuery.trim().length > 2) {
@@ -173,7 +159,7 @@ export default function RankingsPage() {
     }
     
     return matches.sort((a, b) => (a.isMyMatch ? -1 : b.isMyMatch ? 1 : 0));
-  }, [cupParticipants, activeRoundToShow, searchQuery, user?.uid, effectiveDayForCup, matchHistory, seasonNumber]);
+  }, [cupParticipants, activeRoundToShow, searchQuery, user?.uid, effectiveDayForCup, globalMatches, seasonNumber]);
 
   const paginatedMatches = useMemo(() => {
     const start = cupPage * MATCHES_PER_PAGE;
@@ -181,6 +167,14 @@ export default function RankingsPage() {
   }, [cupMatches, cupPage]);
 
   const totalPages = Math.ceil(cupMatches.length / MATCHES_PER_PAGE);
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/register');
+    }
+  }, [user, isUserLoading, router]);
+
+  if (isUserLoading || !isLoaded || !user) return <LoadingScreen />;
 
   const labels = {
     en: {
@@ -273,8 +267,6 @@ export default function RankingsPage() {
     const seed = (match.home?.id.length || 0) + (match.away?.id.length || 0) + match.round;
     return summaries[seed % summaries.length];
   };
-
-  if (isUserLoading || !isLoaded || !user) return <LoadingScreen />;
 
   const renderRankingTable = (rankingsData: any[]) => (
     <div className="space-y-2 animate-in fade-in duration-300 pb-6">
@@ -429,7 +421,7 @@ export default function RankingsPage() {
                               <span className={cn("text-[10px] font-bold uppercase truncate", pair.isMyMatch && pair.home?.id === user?.uid ? "text-accent" : (pair.home ? "text-white" : "text-muted-foreground/40"))}>
                                 {pair.home ? pair.home.name : t.tbd}
                               </span>
-                              <Badge variant="outline" className="text-[7px] h-3 px-1 py-0 border-white/10 opacity-60">Ур {pair.home.level}</Badge>
+                              {pair.home && <Badge variant="outline" className="text-[7px] h-3 px-1 py-0 border-white/10 opacity-60">Ур {pair.home.level}</Badge>}
                               {pair.home?.isPlayer && <Badge className="text-[6px] h-3 px-1 py-0 bg-primary/20 text-primary border-primary/20">USER</Badge>}
                             </div>
                           </div>
