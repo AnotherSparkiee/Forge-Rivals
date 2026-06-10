@@ -19,7 +19,7 @@ import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
-import { getRandomStartingSquad } from '@/app/lib/moba-data';
+import { generateBotSquad } from '@/app/lib/moba-data';
 
 function sanitizeForFirestore(obj: any) {
   if (!obj) return null;
@@ -35,7 +35,7 @@ export default function TournamentsPage() {
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
-  const { language, isLoaded, strategy, ownedHeroes, lineup } = useGameState();
+  const { language, isLoaded, strategy, ownedHeroes, lineup, displayName } = useGameState();
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies_v3', user.uid) : null, [db, user]);
@@ -102,7 +102,7 @@ export default function TournamentsPage() {
         toast({ title: t.toastCancelled });
       } else {
         await setDoc(doc(db, 'friendly_lobbies_v3', user.uid), {
-          hostId: String(user.uid), hostName: String(profile.displayName || "Manager"),
+          hostId: String(user.uid), hostName: String(displayName || "Manager"),
           status: 'searching', challengerId: null, challengerName: null, isTrial: false, updatedAt: serverTimestamp()
         });
         toast({ title: t.toastPosted });
@@ -114,13 +114,42 @@ export default function TournamentsPage() {
     if (!user || !profile || isActionLoading || isBusy) return;
     setIsActionLoading(true);
     try {
-      const botId = `bot${Math.floor(Math.random() * 9000)}`;
-      const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({ name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats, isSub: h.id === lineup.sub1 || h.id === lineup.sub2 }));
-      const result = await simulateMobaMatch({ teamA: { name: String(profile.displayName || "Manager"), strategy, heroes: squad }, teamB: { name: botId, strategy: "Training", heroes: squad }, isBo2: false });
-      await setDoc(doc(db, 'friendly_lobbies_v3', user.uid), { hostId: String(user.uid), hostName: String(profile.displayName || "Manager"), status: 'accepted', challengerId: botId, challengerName: botId, matchResult: sanitizeForFirestore(result), acceptedAt: serverTimestamp(), updatedAt: serverTimestamp(), isTrial: true });
+      const botId = `bot_trial_${Math.floor(Math.random() * 9000)}`;
+      const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
+        name: h.name,
+        role: h.role,
+        overallRating: h.overallRating,
+        proStats: h.proStats,
+        isSub: h.id === lineup.sub1 || h.id === lineup.sub2
+      }));
+
+      const botSquad = generateBotSquad(25);
+
+      const simulationResult = await simulateMobaMatch({ 
+        teamA: { name: String(displayName || "Manager"), strategy, heroes: squad }, 
+        teamB: { name: "Elite Bot", strategy: "Balanced Play", heroes: botSquad }, 
+        isBo2: false 
+      });
+
+      await setDoc(doc(db, 'friendly_lobbies_v3', user.uid), { 
+        hostId: String(user.uid), 
+        hostName: String(displayName || "Manager"), 
+        status: 'accepted', 
+        challengerId: botId, 
+        challengerName: "Elite Bot", 
+        matchResult: sanitizeForFirestore(simulationResult), 
+        acceptedAt: serverTimestamp(), 
+        updatedAt: serverTimestamp(), 
+        isTrial: true 
+      });
+
       toast({ title: t.toastTrial });
       router.push('/');
-    } finally { setIsActionLoading(false); }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Trial failed", description: e.message });
+    } finally { 
+      setIsActionLoading(false); 
+    }
   };
 
   return (
@@ -135,7 +164,7 @@ export default function TournamentsPage() {
         <Link href="/tournaments/open-friendlies"><Card className="glass-card p-4 flex items-center justify-between"><div className="flex items-center gap-4"><Search className="text-accent w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">{t.open}</h3></div></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Card></Link>
         <Link href="/tournaments/cw-basket"><Card className="glass-card p-4 flex items-center justify-between"><div className="flex items-center gap-4"><ShoppingBasket className="text-green-400 w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">{t.cw}</h3></div></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Card></Link>
         <Link href="/tournaments/history"><Card className="glass-card p-4 flex items-center justify-between"><div className="flex items-center gap-4"><History className="text-muted-foreground w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">{t.history}</h3></div></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Card></Link>
-        <Card className="glass-card p-4 flex items-center justify-between cursor-pointer" onClick={handleStartTrial}><div className="flex items-center gap-4"><Gamepad2 className="text-accent w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">{t.trial}</h3></div></div></Card>
+        <Card className="glass-card p-4 flex items-center justify-between cursor-pointer" onClick={handleStartTrial}><div className="flex items-center gap-4"><Gamepad2 className="text-accent w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">{t.trial}</h3></div></div>{isActionLoading && <Loader2 className="w-4 h-4 animate-spin" />}</Card>
       </div>
     </div>
   );

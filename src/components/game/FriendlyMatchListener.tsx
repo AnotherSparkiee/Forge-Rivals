@@ -11,11 +11,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Swords, Loader2, XCircle, ShieldCheck } from 'lucide-react';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
-import { getRandomStartingSquad } from '@/app/lib/moba-data';
+import { generateBotSquad } from '@/app/lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
 const MATCH_DURATION_MS = 15 * 60 * 1000; 
+const TRIAL_DURATION_MS = 5 * 1000; 
 const LOBBY_EXPIRATION_MS = 60 * 1000; 
 
 function sanitizeForFirestore(obj: any) {
@@ -31,7 +32,7 @@ export function FriendlyMatchListener() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const router = useRouter();
-  const { language, team, strategy, recordMatch, ownedHeroes, lineup, matchHistory } = useGameState();
+  const { language, team, strategy, recordMatch, ownedHeroes, lineup, matchHistory, displayName } = useGameState();
   const { toast } = useToast();
 
   const [activeLobby, setActiveLobby] = useState<any | null>(null);
@@ -151,7 +152,8 @@ export function FriendlyMatchListener() {
         return;
       }
 
-      const finishTime = acceptedAt + MATCH_DURATION_MS;
+      const duration = data.isTrial ? TRIAL_DURATION_MS : MATCH_DURATION_MS;
+      const finishTime = acceptedAt + duration;
       
       const checkAndComplete = async () => {
         if (isSimulatingRef.current) return;
@@ -165,16 +167,27 @@ export function FriendlyMatchListener() {
 
           isSimulatingRef.current = true;
           const result = data.matchResult;
-          const finalResult = isHost ? result : {
-            ...result,
-            scoreA: result.scoreB,
-            scoreB: result.scoreA,
-            winner: result.winner === data.hostName ? data.hostName : (result.winner === "Draw" ? "Draw" : data.challengerName)
+          // Result from engine is a series, use first game
+          const game = result.games[0];
+          
+          const finalResult = isHost ? game : {
+            ...game,
+            scoreA: game.scoreB,
+            scoreB: game.scoreA,
+            winner: game.winner === data.hostName ? data.hostName : (game.winner === "Draw" ? "Draw" : data.challengerName)
           };
           
           const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
           
-          recordMatch(finalResult.winner, finalResult, 0, opponentName, matchType, new Date().toISOString(), matchUniqueId);
+          recordMatch(
+            finalResult.winner || "Draw", 
+            finalResult, 
+            0, 
+            opponentName, 
+            matchType, 
+            new Date().toISOString(), 
+            matchUniqueId
+          );
           
           toast({
             title: language === 'ru' ? "Матч завершен" : "Match Finished",
@@ -208,20 +221,14 @@ export function FriendlyMatchListener() {
           isSub: h.id === lineup.sub1 || h.id === lineup.sub2
         }));
 
-        const rivalSquad = getRandomStartingSquad().map((h, i) => ({
-          name: `${h.name} Rival`,
-          role: h.role,
-          overallRating: h.overallRating,
-          proStats: h.proStats,
-          isSub: i > 4
-        }));
+        const botSquad = generateBotSquad(25);
 
         const result = await simulateMobaMatch({
           teamA: { name: activeLobby.hostName, strategy: strategy, heroes: squad },
           teamB: { 
             name: activeLobby.challengerName || "Rival Manager", 
-            strategy: "Aggressive Play", 
-            heroes: rivalSquad
+            strategy: "Balanced Play", 
+            heroes: botSquad
           },
           isBo2: false
         });

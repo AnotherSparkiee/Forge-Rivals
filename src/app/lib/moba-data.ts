@@ -54,11 +54,11 @@ export interface Hero {
     versatility: number;
     ganking: number;
   };
-  xpStats?: Record<string, number>; // Накопленный XP для каждого стата (0-100 для 1 очка навыка)
-  matchesPlayedToday?: number; // Счетчик матчей за текущий день для расчета усталости XP
-  lastMatchDateXP?: string; // Дата последнего матча для сброса счетчика
-  totalMatchesPlayed?: number; // Всего матчей за карьеру для бесконечного OVR
-  moral?: number; // Мораль игрока (0-100)
+  xpStats?: Record<string, number>; 
+  matchesPlayedToday?: number; 
+  lastMatchDateXP?: string; 
+  totalMatchesPlayed?: number; 
+  moral?: number; 
   titles?: {
     league: number;
     cup: number;
@@ -198,7 +198,7 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     name,
     role,
     baseStats,
-    overallRating: 25, // Initial, recalculated by store
+    overallRating: 25, 
     abilitiesFocus: 'Balanced',
     image: country.url,
     description: `A unique talent from ${country.name}.`,
@@ -224,6 +224,31 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     moral: 50,
     titles: { league: 0, cup: 0, friendly: 0 }
   };
+}
+
+export function generateBotSquad(targetOvr: number = 25): any[] {
+  const roles: Role[] = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'];
+  return roles.map((role, i) => {
+    const stats = {
+      lastHitting: targetOvr,
+      mapAwareness: targetOvr,
+      positioning: targetOvr,
+      reflexes: targetOvr,
+      manaManagement: targetOvr,
+      objectiveControl: targetOvr,
+      communication: targetOvr,
+      tiltResistance: targetOvr,
+      versatility: targetOvr,
+      ganking: targetOvr
+    };
+    return {
+      name: `${role} AI ${i + 1}`,
+      role: role,
+      overallRating: targetOvr,
+      proStats: stats,
+      isSub: false
+    };
+  });
 }
 
 export function generateYouthHero(index: number, seed?: string): Hero {
@@ -295,4 +320,4 @@ export function getRandomStartingSquad(): Hero[] {
   return roles.map((role, i) => generateUniqueHero(role, i, true));
 }
 
-export const INITIAL_HEROES: Hero[] = []; // Will be populated by store if empty
+export const INITIAL_HEROES: Hero[] = []; 

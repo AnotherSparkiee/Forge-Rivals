@@ -5,7 +5,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { Hero, StaffMember, StaffRole } from './moba-data';
 import { getMoscowTime, getMoscowDateString, isMatchDue, getGlobalSeasonInfo } from './time-utils';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, onSnapshot, setDoc, arrayUnion, collection, query, where, getDoc, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, arrayUnion, collection, query, where, getDoc, getDocs, writeBatch, deleteDoc } from 'firebase/firestore';
 import { getMockGroupTeams, LEAGUES } from './leagues-data';
 import { usePathname } from 'next/navigation';
 import { calculateXpGain, calculateHeroOVR, ActivityType } from './xp-utils';
@@ -22,7 +22,7 @@ interface AcademyState { youthBootcampLevel: number; streamingLevel: number; sco
 interface MedicalState { physiotherapyLevel: number; massageLevel: number; psychiatristLevel: number; labLevel: number; psychologistLevel: number; constructionFinishes: Record<string, string | null>; constructionStarts: Record<string, string | null>; isAccelerated: Record<string, boolean>; }
 interface StaffState { coach: StaffMember | null; analyst: StaffMember | null; scout: StaffMember | null; doctor: StaffMember | null; financier: StaffMember | null; }
 export type MatchType = 'league' | 'cup' | 'friendly' | 'basket' | 'tournament' | 'trial';
-export interface MatchResultEntry { id: string; day: number; seasonNumber?: number; type: MatchType; opponentName: string; winner: string; scoreA: number; scoreB: number; matchSummary: string; teamStats: any; heroPerformance: any[]; playedAt: string; duration?: string; mvp?: string; preview?: any; timeline?: any[]; postMatch?: any; }
+export interface MatchResultEntry { id: string; day: number; seasonNumber?: number; type: MatchType; opponentName: string; winner: string; scoreA: number; scoreB: number; matchSummary: string; teamStats: any; heroPerformance: any[]; playedAt: string; timeline?: any[]; duration?: string; mvp?: string; preview?: any; postMatch?: any; }
 
 interface GameState {
   credits: number; crystals: number; experiencePoints: number; managerLevel: number; skillPoints: number; managerSkills: { sponsors: number; agents: number; training: number; medical: number; }; activeLicenseTier: number | null; ownedHeroes: Hero[]; youthAcademyHeroes: Hero[]; team: Hero[]; lineup: Record<LineupSlot, string | null>; strategy: string; lineSettings: { carry: string; mid: string; offlane: string }; rank: number; matchHistory: MatchResultEntry[]; language: 'en' | 'ru'; wins: number; draws: number; losses: number; points: number; leagueLevel: number; divisionSubId: number; groupId: number; selectedLeagueId: string | null; country: string | null; associationId: string | null; lastLeagueMatchDate: null | string; lastCupMatchDate: null | string; lastSeenMatchDay: number; seasonDay: number; seasonNumber: number; lastProcessedSeason: number; lastYouthArrivalDay: number; lastYouthArrivalSeason: number; seasonStartDate: string | null; lastRewardClaimDate: string | null; rewardDay: number; arena: ArenaState; hq: HQState; bootcamp: BootcampState; academy: AcademyState; medical: MedicalState; staff: StaffState; seasonResults: { lastRank: number; lastPoints: number; promoted: boolean; demoted: boolean; seasonNumber: number; awardedTrophy: boolean; } | null; hasEliteTrophy: boolean; isSyncing: boolean; premiumUntil: string | null; displayName: string; id: string;
@@ -151,7 +151,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         if (selectedLeagueId && level !== undefined && group !== undefined) {
           const teamRef = doc(db, 'leagues', selectedLeagueId, 'divisions', level.toString(), 'groups', group.toString(), 'teams', user.uid);
           
-          // Subscribe to sub-collections: heroes, staff, tournaments
+          // Subscribe to sub-collections: heroes, staff
           const heroesUnsub = onSnapshot(collection(teamRef, 'heroes'), (snap) => {
             const list = snap.docs.map(d => ({ ...d.data(), id: d.id } as Hero));
             setState(s => ({ ...s, ownedHeroes: list }));
@@ -316,7 +316,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const isPlayedToday = isMatchDue(league?.startTime || "23:00", state.lastLeagueMatchDate);
       const completedDays = isPlayedToday ? globalDay : Math.max(0, globalDay - 1);
       if (lastSyncRef.current?.season === globalSeason && lastSyncRef.current?.day === completedDays && lastSyncRef.current?.leagueId === state.selectedLeagueId) return;
-      const groupTeams = getMockGroupTeams(state.rank, state.country || "My Team", state.leagueLevel, state.divisionSubId, state.groupId, state.selectedLeagueId || "ALPHA", groupPlayers, user.uid, completedDays);
+      const groupTeams = getMockGroupTeams(state.rank, state.displayName || "My Team", state.leagueLevel, state.divisionSubId, state.groupId, state.selectedLeagueId || "ALPHA", groupPlayers, user.uid, completedDays);
       const myTeam = groupTeams.find(t => t.id === user.uid);
       if (!myTeam) return;
       lastSyncRef.current = { season: globalSeason, day: completedDays, leagueId: state.selectedLeagueId };
@@ -344,7 +344,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
       const activeHeroIds = activeSlots.map(slot => s.lineup[slot]).filter(Boolean) as string[];
       
-      // Update each active hero in sub-collection
       const teamRef = getTeamRef(s.selectedLeagueId, s.leagueLevel, s.groupId, s.id);
       if (teamRef) {
         s.ownedHeroes.forEach(hero => {
@@ -393,7 +392,22 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      const matchEntry: MatchResultEntry = { id: matchId, day: matchDay, seasonNumber: activeSeason, type, opponentName, winner, scoreA: result.scoreA, scoreB: result.scoreB, matchSummary: result.matchSummary || "", teamStats: result.teamStats || {}, heroPerformance: result.heroPerformance || [], playedAt: customPlayedAt || new Date().toISOString() };
+      const matchEntry: MatchResultEntry = { 
+        id: matchId, 
+        day: matchDay, 
+        seasonNumber: activeSeason, 
+        type, 
+        opponentName, 
+        winner, 
+        scoreA: result.scoreA, 
+        scoreB: result.scoreB, 
+        matchSummary: result.matchSummary || "", 
+        teamStats: result.teamStats || {}, 
+        heroPerformance: result.scoreboard || result.heroPerformance || [], 
+        timeline: result.timeline || [],
+        playedAt: customPlayedAt || new Date().toISOString() 
+      };
+      
       const newHistory = [matchEntry, ...s.matchHistory].slice(0, 100);
 
       const updateData: any = { matchHistory: sanitizeForFirestore(newHistory) };
@@ -459,7 +473,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const nextXPStats = { ...(h.xpStats || {}) }; const currentStatXP = (nextXPStats[k] || 0) + xpGain; const nextProStats = { ...h.proStats };
     if (currentStatXP >= 100) { (nextProStats as any)[k] = Math.min(100, ((h.proStats as any)[k] || 0) + Math.floor(currentStatXP / 100)); nextXPStats[k] = currentStatXP % 100; } else nextXPStats[k] = currentStatXP;
     
-    const teamRef = getTeamRef(state.selectedLeagueId, state.leagueLevel, state.groupId, state.id);
+    const teamRef = getTeamRef(state.selectedLeagueId, state.leagueLevel, state.groupId, id);
     if (!teamRef) return;
     updateDocumentNonBlocking(doc(teamRef, 'heroes', id), { proStats: nextProStats, xpStats: nextXPStats, overallRating: calculateHeroOVR(h.role, nextProStats, h.totalMatchesPlayed || 0, h.moral || 50, h.titles || { league: 0, cup: 0, friendly: 0 }), dailyTrainingFocus: null, dailyTrainingFinishTime: null });
   }, [state, getTeamRef]);
@@ -473,8 +487,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [state, getTeamRef, addCredits, addCrystals]);
 
   const promoteYouthPlayer = useCallback((id: string) => { 
-    // For MVP, youth are just heroes with low age. Moving to core means just updating a flag or similar if needed.
-    // In our system they are already in the heroes collection.
   }, []);
 
   const removeHero = useCallback((id: string, cr = 0) => { 

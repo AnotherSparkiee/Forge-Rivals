@@ -7,7 +7,7 @@ import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@
 import { doc, collection, query, where, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { isMatchDue, getGlobalSeasonInfo, getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '@/app/lib/leagues-data';
-import { getRandomStartingSquad } from '@/app/lib/moba-data';
+import { generateBotSquad } from '@/app/lib/moba-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { 
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription
@@ -73,7 +73,7 @@ export function AutoMatchManager() {
           const gData = globalSnap.data();
           if (isMyMatch) {
              const alreadyRecorded = matchHistory.some(m => m.id === matchId);
-             if (!alreadyRecorded) recordMatch(gData.winnerId, { scoreA: gData.scoreA, scoreB: gData.scoreB, matchSummary: "Sync" }, targetDay, gData.awayId, 'league', gData.playedAt, matchId, targetSeason);
+             if (!alreadyRecorded) recordMatch(gData.winnerId, { ...gData, scoreA: gData.scoreA, scoreB: gData.scoreB }, targetDay, gData.awayId, 'league', gData.playedAt, matchId, targetSeason);
           }
           continue;
         }
@@ -83,11 +83,11 @@ export function AutoMatchManager() {
 
         if (isMyMatch) {
           const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({ name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats, isSub: false }));
-          const botSquad = getRandomStartingSquad().map((h) => ({ name: `${h.name} AI`, role: h.role, overallRating: h.overallRating, proStats: h.proStats, isSub: false }));
+          const botSquad = generateBotSquad(25);
 
           const result = await simulateMobaMatch({
             teamA: { name: displayName, strategy, heroes: squad },
-            teamB: { name: (match.home.id === user.uid ? match.away.name : match.home.name), strategy: "Balanced", heroes: botSquad },
+            teamB: { name: (match.home.id === user.uid ? match.away.name : match.home.name), strategy: "Balanced Play", heroes: botSquad },
             isBo2: true, scoreA: match.home.id === user.uid ? detScoreH : detScoreA, scoreB: match.away.id === user.uid ? detScoreH : detScoreA
           });
 
@@ -138,11 +138,11 @@ export function AutoMatchManager() {
 
       const [forcedA, forcedB] = getMatchResult(user.uid, opponent.id, targetDay, true);
       const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({ name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats, isSub: false }));
-      const botSquad = getRandomStartingSquad().map((h) => ({ name: `${h.name} AI`, role: h.role, overallRating: h.overallRating, proStats: h.proStats, isSub: false }));
+      const botSquad = generateBotSquad(25);
 
       const result = await simulateMobaMatch({
         teamA: { name: displayName, strategy, heroes: squad },
-        teamB: { name: opponent.name, strategy: "Defensive", heroes: botSquad },
+        teamB: { name: opponent.name, strategy: "Defensive Play", heroes: botSquad },
         isBo2: false, isBo3: true, scoreA: forcedA, scoreB: forcedB
       });
       
