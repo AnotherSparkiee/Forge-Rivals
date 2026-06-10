@@ -2,8 +2,8 @@
 /**
  * @fileOverview Архитектурный модуль симуляции матчей Lines of Enmity.
  * 
- * Генерирует данные пошагово: Превью, 2D-Обзор, Итоговая статистика.
- * Оптимизирован для стабильности в Next.js 15 Server Actions.
+ * Алгоритмический расчет на основе тактик, OVR и статов.
+ * Поддержка Bo1/Bo2/Bo3, KDA, CS и текстовой трансляции.
  */
 
 import {ai} from '@/ai/genkit';
@@ -23,17 +23,17 @@ const ProStatsSchema = z.object({
 });
 
 const HeroStatsSchema = z.object({
-  name: z.string().describe('Имя героя.'),
-  role: z.string().describe('Роль героя.'),
-  overallRating: z.number().describe('Общий рейтинг.'),
-  proStats: ProStatsSchema.describe('10 ключевых характеристик.'),
-  isSub: z.boolean().optional().describe('Флаг запасного игрока.'),
+  name: z.string(),
+  role: z.string(),
+  overallRating: z.number(),
+  proStats: ProStatsSchema,
+  isSub: z.boolean().optional(),
 });
 
 const TeamSchema = z.object({
-  name: z.string().describe('Название команды.'),
-  heroes: z.array(HeroStatsSchema).describe('Состав (Основа + Замены).'),
-  strategy: z.string().describe('Тактическая установка.'),
+  name: z.string(),
+  heroes: z.array(HeroStatsSchema),
+  strategy: z.string().describe('Агрессивный, Сбалансированный_Атака, Сбалансированный_Защита, Сдержанный, Быстрый_Штурм, Быстрый_Пуш'),
 });
 
 const SimulateMobaMatchInputSchema = z.object({
@@ -41,147 +41,236 @@ const SimulateMobaMatchInputSchema = z.object({
   teamB: TeamSchema,
   isBo2: z.boolean().default(true),
   isBo3: z.boolean().default(false),
-  scoreA: z.number().optional().describe('Принудительный счет для команды А.'),
-  scoreB: z.number().optional().describe('Принудительный счет для команды Б.'),
 });
 export type SimulateMobaMatchInput = z.infer<typeof SimulateMobaMatchInputSchema>;
 
-const SimulateMobaMatchOutputSchema = z.object({
-  winner: z.string(),
+const GameStatsSchema = z.object({
   scoreA: z.number(),
   scoreB: z.number(),
   duration: z.string(),
   mvp: z.string(),
   matchSummary: z.string(),
-  
-  preview: z.object({
-    teamAOrv: z.number(),
-    teamBOrv: z.number(),
-    keyMatchup: z.string().describe('Описание ключевого противостояния игроков на линии.'),
-    winProbabilityA: z.number().describe('Вероятность победы команды А в %.'),
-  }),
-
   timeline: z.array(z.object({
-    phase: z.enum(['Early', 'Mid', 'Late']),
     time: z.string(),
-    event: z.string().describe('Описание события на карте с упоминанием статов.'),
-    score: z.string().describe('Текущий счет на момент события.'),
+    event: z.string(),
+    type: z.string(),
   })),
+  scoreboard: z.array(z.object({
+    name: z.string(),
+    team: z.string(),
+    kills: z.number(),
+    deaths: z.number(),
+    assists: z.number(),
+    cs: z.number(),
+    kdaRatio: z.string(),
+  })),
+});
 
-  postMatch: z.object({
-    lineRatings: z.object({
-      laning: z.object({ a: z.number(), b: z.number() }),
-      teamfight: z.object({ a: z.number(), b: z.number() }),
-      macro: z.object({ a: z.number(), b: z.number() }),
-      mental: z.object({ a: z.number(), b: z.number() }),
-    }),
-    scoreboard: z.array(z.object({
-      name: z.string(),
-      team: z.string(),
-      kda: z.string(),
-      gpm: z.number(),
-    })),
-    analysis: z.string().describe('Математический вывод причины победы на основе 10 статов.'),
-  }),
-  
-  teamStats: z.object({
-    teamA: z.object({ kills: z.number(), towersDestroyed: z.number() }),
-    teamB: z.object({ kills: z.number(), towersDestroyed: z.number() }),
-  }),
-  heroPerformance: z.array(z.any()),
+const SimulateMobaMatchOutputSchema = z.object({
+  winner: z.string(),
+  seriesScore: z.string(),
+  games: z.array(GameStatsSchema),
+  aggregateStats: z.array(z.object({
+    name: z.string(),
+    totalKills: z.number(),
+    avgKda: z.string(),
+    totalCs: z.number(),
+  })),
 });
 export type SimulateMobaMatchOutput = z.infer<typeof SimulateMobaMatchOutputSchema>;
 
 /**
- * Процедурный откат. Гарантирует возврат валидного объекта даже при пустых входных данных.
+ * Вспомогательный класс для генерации текста по шаблонам.
  */
-function generateFallbackSimulation(input: SimulateMobaMatchInput): SimulateMobaMatchOutput {
-  const heroesA = input.teamA?.heroes || [];
-  const heroesB = input.teamB?.heroes || [];
-
-  const scoreboard = [...heroesA, ...heroesB].map(h => ({
-    name: h.name || "Unknown Unit",
-    team: heroesA.some(th => th.name === h.name) ? 'A' : 'B',
-    kda: "0/0/0",
-    gpm: 450
-  }));
-
-  const forcedScoreA = input.scoreA !== undefined ? input.scoreA : 1;
-  const forcedScoreB = input.scoreB !== undefined ? input.scoreB : 1;
-  const winner = forcedScoreA > forcedScoreB ? (input.teamA?.name || "Team A") : (forcedScoreA < forcedScoreB ? (input.teamB?.name || "Team B") : "Draw");
-
-  return {
-    winner, 
-    scoreA: forcedScoreA, 
-    scoreB: forcedScoreB, 
-    duration: "34:12", 
-    mvp: heroesA[0]?.name || "Unknown Unit",
-    matchSummary: "Fallback simulation active due to AI unavailability.",
-    preview: { teamAOrv: 35, teamBOrv: 35, keyMatchup: "Midlane battle", winProbabilityA: 50 },
-    timeline: [{ phase: 'Mid', time: '15:00', event: 'Equal trade in jungle', score: `${forcedScoreA}:${forcedScoreB}` }],
-    postMatch: {
-      lineRatings: { laning: { a: 70, b: 70 }, teamfight: { a: 70, b: 70 }, macro: { a: 70, b: 70 }, mental: { a: 70, b: 70 } },
-      scoreboard: scoreboard,
-      analysis: "Mathematical parity (Fallback Engine)."
-    },
-    teamStats: { teamA: { kills: 15, towersDestroyed: 7 }, teamB: { kills: 15, towersDestroyed: 7 } },
-    heroPerformance: scoreboard.map(s => ({ heroName: s.name, kills: 0, deaths: 0, assists: 0 }))
+class NarrativeGenerator {
+  private templates = {
+    farm: [
+      "{player} из {team} идеально добивает пачку крипов, используя навык Добивание ({val}).",
+      "{player} сосредоточен на фарме. Его навык Добивание ({val}) позволяет забирать каждого монстра.",
+      "Линия {team} пуста, {player} спокойно забирает ресурсы (Добив: {val})."
+    ],
+    kill: [
+      "{player} совершает блестящий ганк! Навык Ганкинг ({val}) застает противника врасплох.",
+      "Невероятный килл от {player}! Благодаря Рефлексам ({val}) он уворачивается от заклинания и наносит ответный удар.",
+      "Ошибка позиционки от врага! {player} наказывает оппонента, используя Позиционирование ({val})."
+    ],
+    teamfight: [
+      "Масштабный замес у реки! {player} координирует действия через Коммуникацию ({val}).",
+      "Команда {team} врывается в драку! {player} показывает мастерство Контроля ({val}).",
+      "Жесткий размен! {player} удерживает позицию благодаря Стрессоустойчивости ({val})."
+    ],
+    objective: [
+      "{player} забирает важный объект на карте! Контроль объектов ({val}) на высоте.",
+      "Команда {team} пушит вышку. {player} руководит процессом (Объекты: {val}).",
+      "Борьба за Рошана! {player} вовремя прожимает кнопки (Рефлексы: {val}) и забирает бафф."
+    ]
   };
-}
 
-/**
- * Обертка для вызова потока. 
- * В Next.js 15 Server Actions мы должны гарантировать, что возвращаем чистый JSON-объект без undefined.
- */
-export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<SimulateMobaMatchOutput> {
-  try {
-    const {output} = await simulateMobaMatchFlow(input);
-    const finalResult = output ? output : generateFallbackSimulation(input);
-    
-    // Глубокая очистка объекта от undefined для предотвращения ошибок сериализации в Server Actions
-    return JSON.parse(JSON.stringify(finalResult));
-  } catch (error: any) {
-    console.error("AI Simulation failed. Fallback active.", error.message);
-    return JSON.parse(JSON.stringify(generateFallbackSimulation(input)));
+  generate(type: 'farm' | 'kill' | 'teamfight' | 'objective', player: string, team: string, val: number) {
+    const list = this.templates[type];
+    const tpl = list[Math.floor(Math.random() * list.length)];
+    return tpl.replace('{player}', player).replace('{team}', team).replace('{val}', val.toString());
   }
 }
 
-const prompt = ai.definePrompt({
-  name: 'simulateMobaMatchPrompt',
-  input: {schema: SimulateMobaMatchInputSchema},
-  output: {schema: SimulateMobaMatchOutputSchema},
-  prompt: `Действуй как архитектурный модуль симуляции матчей для игры Lines of Enmity. Твоя задача — сгенерировать полные данные для матча, учитывая 10 характеристик игроков. Генерируй данные ПОШАГОВО (Preview, Timeline, PostMatch).
+/**
+ * Ядро симуляции одного матча.
+ */
+function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number): z.infer<typeof GameStatsSchema> {
+  const { teamA, teamB } = input;
+  const narrative = new NarrativeGenerator();
+  
+  // 1. Расчет базовой силы
+  const getPower = (team: any) => team.heroes.slice(0, 5).reduce((acc: number, h: any) => acc + h.overallRating, 0);
+  const getAvgStat = (team: any, stat: keyof typeof ProStatsSchema._type) => 
+    team.heroes.slice(0, 5).reduce((acc: number, h: any) => acc + h.proStats[stat], 0) / 5;
 
-ДАННЫЕ КОМАНД:
-Команда А: {{{teamA.name}}} (Стратегия: {{{teamA.strategy}}})
-Герои Команды А:
-{{#each teamA.heroes}}
-- {{{name}}} ({{{role}}}), OVR: {{{overallRating}}}, Sub: {{#if isSub}}Да{{else}}Нет{{/if}}
-  Статы: Добив: {{{proStats.lastHitting}}}, Карта: {{{proStats.mapAwareness}}}, Позиционка: {{{proStats.positioning}}}, Рефлексы: {{{proStats.reflexes}}}, Мана: {{{proStats.manaManagement}}}, Объекты: {{{proStats.objectiveControl}}}, Коммуникация: {{{proStats.communication}}}, Стрессоустойчивость: {{{proStats.tiltResistance}}}, Универсальность: {{{proStats.versatility}}}, Ганкинг: {{{proStats.ganking}}}
-{{/each}}
+  let atkA = 1.0, defA = 1.0, atkB = 1.0, defB = 1.0;
+  const logs: string[] = [];
 
-Команда Б: {{{teamB.name}}} (Стратегия: {{{teamB.strategy}}})
-Герои Команды Б:
-{{#each teamB.heroes}}
-- {{{name}}} ({{{role}}}), OVR: {{{overallRating}}}, Sub: {{#if isSub}}Да{{else}}Нет{{/if}}
-  Статы: Добив: {{{proStats.lastHitting}}}, Карта: {{{proStats.mapAwareness}}}, Позиционка: {{{proStats.positioning}}}, Рефлексы: {{{proStats.reflexes}}}, Мана: {{{proStats.manaManagement}}}, Объекты: {{{proStats.objectiveControl}}}, Коммуникация: {{{proStats.communication}}}, Стрессоустойчивость: {{{proStats.tiltResistance}}}, Универсальность: {{{proStats.versatility}}}, Ганкинг: {{{proStats.ganking}}}
-{{/each}}
+  // 2. Применение тактик
+  const applyTactics = (team: any, enemy: any) => {
+    let a = 1.0, d = 1.0;
+    const strat = team.strategy;
+    if (strat === 'Агрессивный' || strat === 'Aggressive Play') {
+      a = 1.25; d = 1.15;
+      if (getAvgStat(team, 'tiltResistance') < 50) { a *= 0.8; logs.push(`${team.name} тильтанула от собственной агрессии.`); }
+    } else if (strat === 'Сбалансированный_Атака' || strat === 'Side Pressure') {
+      a = 1.15; d = 0.85;
+    } else if (strat === 'Сбалансированный_Защита' || strat === 'Balanced Play') {
+      d = 1.15; a = 0.85;
+    } else if (strat === 'Сдержанный' || strat === 'Defensive Play') {
+      if (getAvgStat(team, 'objectiveControl') > getAvgStat(enemy, 'objectiveControl')) a *= 0.75; else d *= 0.70;
+    } else if (strat === 'Быстрый_Штурм' || strat === 'Fast Pace') {
+      const power = getAvgStat(team, 'versatility') + getAvgStat(team, 'ganking');
+      const oppPower = getAvgStat(enemy, 'versatility') + getAvgStat(enemy, 'ganking');
+      if (power > oppPower) a *= 1.30; else a *= 0.80;
+    } else if (strat === 'Быстрый_Пуш') {
+      if (getAvgStat(team, 'objectiveControl') > getAvgStat(enemy, 'objectiveControl')) a *= 1.20; else d *= 0.75;
+    }
+    return { a, d };
+  };
 
-ЛОГИКА РАСЧЕТА:
-1. Используй веса для 10 характеристик.
-2. Фазы: Early (Фарм, Мана, Рефлексы), Mid (Ганки, Карта, Коммуникация), Late (Позиционка, Стресс, Объекты).
-3. Механика Тильта: Если разница по золоту большая, игроки с низкой Стрессоустойчивостью получают -10% ко всем характеристикам.
-4. Механика Банов: Если Универсальность < 60, игрок играет на 10% слабее.
-5. Механика Замен: Sub в составе дает штраф -15% к Коммуникации всей команды.
+  const modsA = applyTactics(teamA, teamB);
+  const modsB = applyTactics(teamB, teamA);
 
-ТРЕБОВАНИЯ К ВЫВОДУ:
-{{#if scoreA}}
-ФИНАЛЬНЫЙ СЧЕТ ДОЛЖЕН БЫТЬ СТРОГО: {{{teamA.name}}} {{{scoreA}}} - {{{teamB.name}}} {{{scoreB}}}.
-{{/if}}
+  const basePowerA = getPower(teamA);
+  const basePowerB = getPower(teamB);
 
-Заполни объект 'preview' (Stage 1), массив 'timeline' (Stage 2: 5-6 событий) и объект 'postMatch' (Stage 3). 
-В 'timeline' описывай события на Top, Mid, Bot или Jungle, связывая их с конкретными статами игроков.`,
-});
+  const finalPowerA = (basePowerA * modsA.a + basePowerA * modsA.d) * (0.85 + Math.random() * 0.3);
+  const finalPowerB = (basePowerB * modsB.a + basePowerB * modsB.d) * (0.85 + Math.random() * 0.3);
+
+  // 3. Результат
+  const scoreA = finalPowerA > finalPowerB ? (Math.random() > 0.5 ? 20 : 35) : Math.floor(Math.random() * 15);
+  const scoreB = finalPowerB > finalPowerA ? (Math.random() > 0.5 ? 20 : 35) : Math.floor(Math.random() * 15);
+
+  // 4. Трансляция и Скорборд
+  const timeline: any[] = [];
+  const playerStats = new Map<string, any>();
+  [...teamA.heroes.slice(0, 5), ...teamB.heroes.slice(0, 5)].forEach(h => {
+    playerStats.set(h.name, { kills: 0, deaths: 0, assists: 0, cs: 0, team: teamA.heroes.includes(h) ? teamA.name : teamB.name });
+  });
+
+  const durationMins = 35 + Math.floor(Math.random() * 10);
+  for (let m = 1; m <= durationMins; m++) {
+    const time = `${m}:00`;
+    const side = Math.random() > 0.5 ? teamA : teamB;
+    const oppSide = side === teamA ? teamB : teamA;
+    const hero = side.heroes[Math.floor(Math.random() * 5)];
+    const oppHero = oppSide.heroes[Math.floor(Math.random() * 5)];
+    
+    const rand = Math.random();
+    if (rand < 0.4) {
+      // Farm
+      const ps = playerStats.get(hero.name);
+      ps.cs += 5 + Math.floor(hero.proStats.lastHitting / 10);
+      if (m % 5 === 0) timeline.push({ time, type: 'farm', event: narrative.generate('farm', hero.name, side.name, hero.proStats.lastHitting) });
+    } else if (rand < 0.7) {
+      // Kill
+      const ps = playerStats.get(hero.name);
+      const ops = playerStats.get(oppHero.name);
+      ps.kills++; ops.deaths++;
+      const assistHero = side.heroes.find(h => h.name !== hero.name);
+      if (assistHero) playerStats.get(assistHero.name).assists++;
+      timeline.push({ time, type: 'kill', event: narrative.generate('kill', hero.name, side.name, hero.proStats.ganking) });
+    } else if (rand < 0.9) {
+      // Objective
+      timeline.push({ time, type: 'objective', event: narrative.generate('objective', hero.name, side.name, hero.proStats.objectiveControl) });
+    } else {
+      // Teamfight
+      timeline.push({ time, type: 'teamfight', event: narrative.generate('teamfight', hero.name, side.name, hero.proStats.communication) });
+    }
+  }
+
+  const scoreboard = Array.from(playerStats.entries()).map(([name, s]) => ({
+    name,
+    team: s.team,
+    kills: s.kills,
+    deaths: s.deaths,
+    assists: s.assists,
+    cs: s.cs,
+    kdaRatio: ((s.kills + s.assists) / Math.max(1, s.deaths)).toFixed(2)
+  }));
+
+  return {
+    scoreA: finalPowerA > finalPowerB ? 1 : 0,
+    scoreB: finalPowerB > finalPowerA ? 1 : 0,
+    duration: `${durationMins}:12`,
+    mvp: scoreboard.sort((a, b) => parseFloat(b.kdaRatio) - parseFloat(a.kdaRatio))[0].name,
+    matchSummary: logs.length > 0 ? logs.join(' ') : "Дисциплинированная игра обеих команд.",
+    timeline: timeline.slice(0, 8),
+    scoreboard
+  };
+}
+
+export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<SimulateMobaMatchOutput> {
+  try {
+    const numGames = input.isBo3 ? 3 : (input.isBo2 ? 2 : 1);
+    const games: any[] = [];
+    let winsA = 0, winsB = 0;
+
+    for (let i = 0; i < numGames; i++) {
+      const game = runSingleGame(input, i);
+      games.push(game);
+      winsA += game.scoreA;
+      winsB += game.scoreB;
+      if (input.isBo3 && (winsA === 2 || winsB === 2)) break;
+    }
+
+    const winner = winsA > winsB ? input.teamA.name : (winsA < winsB ? input.teamB.name : "Draw");
+
+    // Агрегация статов
+    const aggMap = new Map<string, any>();
+    games.forEach(g => {
+      g.scoreboard.forEach((s: any) => {
+        const cur = aggMap.get(s.name) || { kills: 0, assists: 0, deaths: 0, cs: 0 };
+        aggMap.set(s.name, {
+          kills: cur.kills + s.kills,
+          assists: cur.assists + s.assists,
+          deaths: cur.deaths + s.deaths,
+          cs: cur.cs + s.cs
+        });
+      });
+    });
+
+    const aggregateStats = Array.from(aggMap.entries()).map(([name, s]) => ({
+      name,
+      totalKills: s.kills,
+      totalCs: s.cs,
+      avgKda: ((s.kills + s.assists) / Math.max(1, s.deaths)).toFixed(2)
+    }));
+
+    return {
+      winner,
+      seriesScore: `${winsA}-${winsB}`,
+      games,
+      aggregateStats
+    };
+  } catch (error: any) {
+    console.error("Simulation Critical Error", error);
+    throw error;
+  }
+}
 
 const simulateMobaMatchFlow = ai.defineFlow(
   {
@@ -190,8 +279,6 @@ const simulateMobaMatchFlow = ai.defineFlow(
     outputSchema: SimulateMobaMatchOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    if (!output) throw new Error("AI returned empty output");
-    return output;
+    return await simulateMobaMatch(input);
   }
 );
