@@ -98,7 +98,7 @@ export default function FanclubPage() {
                    <ShieldCheck className="w-5 h-5 text-primary" />
                    <span className="text-xs font-bold uppercase tracking-tight">Main Ultras Section</span>
                  </div>
-                 <Badge className="bg-primary text-primary-foreground text-[8px] font-black uppercase">Level 1</Badge>
+                 <Badge className="bg-primary text-primary-foreground text-[8px] font-black uppercase">Ур 1</Badge>
                </div>
                <div className="bg-secondary/20 p-4 rounded-xl border border-dashed border-white/10 flex items-center justify-center opacity-40">
                  <p className="text-[8px] font-black uppercase tracking-[0.2em]">New Slot: 10,000 XP Required</p>
@@ -161,7 +161,7 @@ export default function FanclubPage() {
 
   if (activeTab === 'menu') {
     return (
-      <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+      <div className="max-w-md mx-auto px-4 pt-8 pb-4">
         <header className="mb-8 flex items-center gap-4">
           <Link href="/">
             <Button variant="ghost" size="icon" className="rounded-full">
@@ -219,7 +219,7 @@ export default function FanclubPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-8 flex items-center gap-4">
         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}>
           <ChevronLeft className="w-6 h-6" />

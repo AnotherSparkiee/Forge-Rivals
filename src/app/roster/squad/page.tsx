@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
@@ -104,6 +103,18 @@ export default function SquadPage() {
       res6: { label: "Res 6", icon: Users, color: "text-muted-foreground/40" },
       res7: { label: "Res 7", icon: Users, color: "text-muted-foreground/40" },
       res8: { label: "Res 8", icon: Users, color: "text-muted-foreground/40" },
+    },
+    proStatsLabels: {
+      lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
+      mapAwareness: language === 'ru' ? "Контроль карты" : "Map Awareness",
+      positioning: language === 'ru' ? "Позиционка" : "Positioning",
+      reflexes: language === 'ru' ? "Рефлексы" : "Reflexes",
+      manaManagement: language === 'ru' ? "Менеджмент маны" : "Mana Management",
+      objectiveControl: language === 'ru' ? "Объекты" : "Objective Control",
+      communication: language === 'ru' ? "Коммуникация" : "Communication",
+      tiltResistance: language === 'ru' ? "Стрессоустойчивость" : "Tilt Resistance",
+      versatility: language === 'ru' ? "Универсальность" : "Versatility",
+      ganking: language === 'ru' ? "Ганкинг" : "Ganking",
     }
   };
 
@@ -128,7 +139,7 @@ export default function SquadPage() {
   const handleStartPress = (hero: Hero | undefined) => {
     if (!hero) return;
     longPressTimer.current = setTimeout(() => {
-      setSelectedHero(hero);
+      setProfileHero(hero);
     }, 600);
   };
 

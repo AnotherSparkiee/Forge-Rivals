@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -415,7 +414,7 @@ export default function AssociationPage() {
                 <Shield className="w-10 h-10 text-primary" />
               </div>
               <h2 className="text-2xl font-headline font-bold text-white uppercase italic">{assoc?.name}</h2>
-              <Badge className="bg-primary/20 text-primary text-[10px] uppercase font-black tracking-widest mt-2 px-3">Level {assoc?.level || 1}</Badge>
+              <Badge className="bg-primary/20 text-primary text-[10px] uppercase font-black tracking-widest mt-2 px-3">Ур {assoc?.level || 1}</Badge>
               <p className="text-xs text-muted-foreground italic mt-4 px-6">"{assoc?.description}"</p>
               <div className="mt-8 w-full flex flex-col gap-2">
                 {isCurrentMyAssoc && !isOwner && (
