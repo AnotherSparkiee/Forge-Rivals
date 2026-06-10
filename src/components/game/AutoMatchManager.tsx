@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { isMatchDue, getGlobalSeasonInfo, getMoscowTime, getMoscowDateString, calculateLiveAge } from '@/app/lib/time-utils';
+import { isMatchDue, getGlobalSeasonInfo, getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '@/app/lib/leagues-data';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
@@ -17,67 +17,44 @@ import { Zap, ArrowRight, FileText, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getGlobalCupParticipants, getWinnerOfBranch, CupParticipant, getEntryRound } from '@/app/lib/cup-utils';
 import { useRouter } from 'next/navigation';
-import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 export function AutoMatchManager() {
   const { 
-    isLoaded, language, leagueLevel, divisionSubId, groupId, 
-    seasonDay, seasonNumber, lastLeagueMatchDate, lastCupMatchDate, recordMatch, recordMatchGlobal, strategy, rank, seasonStartDate,
+    isLoaded, language, leagueLevel, groupId, 
+    seasonDay, seasonNumber, lastLeagueMatchDate, lastCupMatchDate, recordMatch, recordMatchGlobal, strategy, rank, 
     markMatchAsSeen, matchHistory, seasonResults, dismissSeasonResults, setSyncing, ownedHeroes, lineup,
-    lastProcessedSeason, staff
+    lastProcessedSeason, selectedLeagueId, displayName
   } = useGameState();
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const db = useFirestore();
   const router = useRouter();
   
   const [isSimulating, setIsSimulating] = useState(false);
   const [showResultDialog, setShowResultDialog] = useState(false);
   const [currentResult, setCurrentResult] = useState<any | null>(null);
-  
   const simulationLockRef = useRef(false);
-  const winnersCache = useRef<Map<string, CupParticipant | null>>(new Map());
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
-  const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
+  // Standings discovery from the hierarchical team collection
+  const teamsQuery = useMemoFirebase(() => {
+    if (!selectedLeagueId || !user) return null;
+    return query(collection(db, 'leagues', selectedLeagueId, 'divisions', leagueLevel.toString(), 'groups', groupId.toString(), 'teams'));
+  }, [db, selectedLeagueId, leagueLevel, groupId, user]);
 
-  const groupQuery = useMemoFirebase(() => {
-    if (!profile?.selectedLeagueId || !user?.uid) return null;
-    return query(
-      collection(db, 'players_v10'),
-      where('selectedLeagueId', '==', profile.selectedLeagueId),
-      where('leagueLevel', '==', profile.leagueLevel),
-      where('groupId', '==', profile.groupId)
-    );
-  }, [db, profile?.selectedLeagueId, profile?.leagueLevel, profile?.groupId, user?.uid]);
-
-  const { data: groupPlayers } = useCollection(groupQuery);
+  const { data: groupPlayers } = useCollection(teamsQuery);
 
   const allLeaguePlayersQuery = useMemoFirebase(() => {
-    if (!profile?.selectedLeagueId) return null;
-    return query(collection(db, 'players_v10'), where('selectedLeagueId', '==', profile.selectedLeagueId));
-  }, [db, profile?.selectedLeagueId]);
+    if (!selectedLeagueId) return null;
+    return query(collection(db, 'players_v10'), where('selectedLeagueId', '==', selectedLeagueId));
+  }, [db, selectedLeagueId]);
 
   const { data: allLeaguePlayers } = useCollection(allLeaguePlayersQuery);
 
-  const sendNotification = useCallback((userId: string, title: string, description: string, id: string) => {
-    const notifRef = doc(db, 'notifications_v7', id);
-    setDocumentNonBlocking(notifRef, {
-      userId,
-      title,
-      description,
-      type: 'league',
-      read: false,
-      createdAt: new Date().toISOString()
-    });
-  }, [db]);
-
   const simulateOneLeagueMatch = useCallback(async (targetSeason: number, targetDay: number, isCatchUp: boolean) => {
-    if (!groupPlayers || !user || !profile || simulationLockRef.current) return;
+    if (!groupPlayers || !user || !selectedLeagueId || simulationLockRef.current) return;
     
-    const groupTeams = getMockGroupTeams(rank, profile.displayName || "My Team", leagueLevel, divisionSubId, groupId, profile.selectedLeagueId || "ALPHA", groupPlayers || [], user.uid, 0);
+    const groupTeams = getMockGroupTeams(rank, displayName, leagueLevel, 1, groupId, selectedLeagueId, groupPlayers || [], user.uid, 0);
     const schedule = getSchedule(groupTeams);
     const dayMatches = schedule[targetDay - 1];
-
     if (!dayMatches) return;
 
     simulationLockRef.current = true;
@@ -85,86 +62,55 @@ export function AutoMatchManager() {
     setSyncing(true);
     
     try {
-      // Process all matches in the group to ensure synchronization
       for (const match of dayMatches) {
         const isMyMatch = match.home.id === user.uid || match.away.id === user.uid;
-        const matchId = `league_S${targetSeason}_D${targetDay}_G${profile.groupId}_${match.home.id}_${match.away.id}`;
+        const matchId = `league_S${targetSeason}_D${targetDay}_${match.home.id}_${match.away.id}`;
         
-        // Check if global record exists
-        const globalRef = doc(db, 'global_matches_v1', matchId);
+        const globalRef = doc(db, 'leagues', selectedLeagueId, 'divisions', leagueLevel.toString(), 'groups', groupId.toString(), 'matches', matchId);
         const globalSnap = await getDoc(globalRef);
         
         if (globalSnap.exists()) {
           const gData = globalSnap.data();
           if (isMyMatch) {
              const alreadyRecorded = matchHistory.some(m => m.id === matchId);
-             if (!alreadyRecorded) {
-               recordMatch(gData.winnerId, { scoreA: gData.scoreA, scoreB: gData.scoreB, matchSummary: "Synchronized from global data." }, targetDay, gData.awayId, 'league', gData.playedAt, matchId, targetSeason);
-             }
+             if (!alreadyRecorded) recordMatch(gData.winnerId, { scoreA: gData.scoreA, scoreB: gData.scoreB, matchSummary: "Sync" }, targetDay, gData.awayId, 'league', gData.playedAt, matchId, targetSeason);
           }
           continue;
         }
 
         const [detScoreH, detScoreA] = getMatchResult(match.home.id, match.away.id, targetDay, false);
-        const canonicalWinner = detScoreH > detScoreA ? match.home.id : (detScoreH < detScoreA ? match.away.id : "Draw");
         const playedAt = new Date().toISOString();
 
         if (isMyMatch) {
-          // Full AI simulation for the player's match
-          const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
-            name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
-            isSub: h.id === lineup.sub1 || h.id === lineup.sub2
-          }));
-
-          const botSquad = getRandomStartingSquad().map((h, i) => ({
-            name: `${h.name} AI`, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
-            isSub: i > 4
-          }));
+          const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({ name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats, isSub: false }));
+          const botSquad = getRandomStartingSquad().map((h) => ({ name: `${h.name} AI`, role: h.role, overallRating: h.overallRating, proStats: h.proStats, isSub: false }));
 
           const result = await simulateMobaMatch({
-            teamA: { name: profile.displayName || "My Team", strategy, heroes: squad },
-            teamB: { name: (match.home.id === user.uid ? match.away.name : match.home.name) || "Opponent", strategy: "Advanced Tactics", heroes: botSquad },
-            isBo2: true,
-            scoreA: match.home.id === user.uid ? detScoreH : detScoreA, 
-            scoreB: match.away.id === user.uid ? detScoreH : detScoreA
+            teamA: { name: displayName, strategy, heroes: squad },
+            teamB: { name: (match.home.id === user.uid ? match.away.name : match.home.name), strategy: "Balanced", heroes: botSquad },
+            isBo2: true, scoreA: match.home.id === user.uid ? detScoreH : detScoreA, scoreB: match.away.id === user.uid ? detScoreH : detScoreA
           });
 
-          if (result && result.winner) {
-            const resultData = { ...result.games[0], scoreA: match.home.id === user.uid ? detScoreH : detScoreA, scoreB: match.away.id === user.uid ? detScoreH : detScoreA };
-            recordMatch(result.winner, resultData, targetDay, (match.home.id === user.uid ? match.away.name : match.home.name), 'league', playedAt, matchId, targetSeason);
-            
-            if (!isCatchUp) {
-              setCurrentResult({ ...resultData, id: matchId, day: targetDay, opponentName: (match.home.id === user.uid ? match.away.name : match.home.name), type: 'league' });
-              setShowResultDialog(true);
-            }
+          if (result) {
+            const res = { ...result.games[0], scoreA: match.home.id === user.uid ? detScoreH : detScoreA, scoreB: match.away.id === user.uid ? detScoreH : detScoreA };
+            recordMatch(result.winner, res, targetDay, (match.home.id === user.uid ? match.away.name : match.home.name), 'league', playedAt, matchId, targetSeason);
+            if (!isCatchUp) { setCurrentResult({ ...res, id: matchId, day: targetDay, opponentName: (match.home.id === user.uid ? match.away.name : match.home.name), type: 'league' }); setShowResultDialog(true); }
           }
         } else {
-          // Silent record for group synchronization
-          recordMatchGlobal({
-            id: matchId, season: targetSeason, day: targetDay, type: 'league',
-            homeId: match.home.id, awayId: match.away.id,
-            scoreA: detScoreH, scoreB: detScoreA, winnerId: canonicalWinner,
-            playedAt
-          });
+          recordMatchGlobal({ id: matchId, season: targetSeason, day: targetDay, type: 'league', homeId: match.home.id, awayId: match.away.id, scoreA: detScoreH, scoreB: detScoreA, winnerId: detScoreH > detScoreA ? match.home.id : (detScoreH < detScoreA ? match.away.id : "Draw"), playedAt });
         }
       }
-    } catch (e: any) {
-      console.error("League Simulation failed", e);
-    } finally {
-      setIsSimulating(false);
-      simulationLockRef.current = false;
-      setSyncing(false);
-    }
-  }, [groupPlayers, user, profile, strategy, rank, leagueLevel, divisionSubId, groupId, ownedHeroes, lineup, seasonStartDate, recordMatch, recordMatchGlobal, setSyncing, matchHistory, db]);
+    } finally { setIsSimulating(false); simulationLockRef.current = false; setSyncing(false); }
+  }, [groupPlayers, user, selectedLeagueId, leagueLevel, groupId, displayName, strategy, rank, ownedHeroes, lineup, recordMatch, recordMatchGlobal, setSyncing, matchHistory, db]);
 
   const simulateOneCupMatch = useCallback(async (targetSeason: number, targetDay: number, isCatchUp: boolean) => {
-    if (!user || !profile || !allLeaguePlayers || simulationLockRef.current) return;
+    if (!user || !selectedLeagueId || !allLeaguePlayers || simulationLockRef.current) return;
     
     const participants = getGlobalCupParticipants(allLeaguePlayers, targetSeason);
     const myIdx = participants.findIndex(p => p?.id === user.uid);
     if (myIdx === -1) return;
 
-    const entryRound = getEntryRound(profile.leagueLevel);
+    const entryRound = getEntryRound(leagueLevel);
     const detMatchId = `cup_S${targetSeason}_R${targetDay}_M${Math.floor(myIdx / Math.pow(2, targetDay))}`;
 
     simulationLockRef.current = true;
@@ -173,184 +119,72 @@ export function AutoMatchManager() {
     
     try {
       if (targetDay <= entryRound) {
-        const seededResult = {
-          scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
-          matchSummary: "Seeded progression.", teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
-          heroPerformance: [], preview: null, timeline: [], postMatch: null
-        };
+        const seededResult = { scoreA: 2, scoreB: 0, winner: displayName, matchSummary: "Seeded.", teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } }, heroPerformance: [], preview: null, timeline: [], postMatch: null };
         recordMatch(seededResult.winner, seededResult, targetDay, "SEEDED", 'cup', undefined, detMatchId, targetSeason);
-        simulationLockRef.current = false;
         return;
       }
 
-      winnersCache.current.clear();
+      const winnersCache = new Map<string, any>();
       const step = Math.pow(2, targetDay - 1);
       const myBranchStart = Math.floor(myIdx / step) * step;
       const oppBranchStart = myBranchStart ^ step;
-      const opponent = getWinnerOfBranch(participants, targetDay - 1, oppBranchStart, winnersCache.current, targetDay - 1);
+      const opponent = getWinnerOfBranch(participants, targetDay - 1, oppBranchStart, winnersCache, targetDay - 1);
       
       if (!opponent) {
-        const waitResult = {
-          scoreA: 2, scoreB: 0, winner: profile.displayName || "Manager",
-          matchSummary: "Automatic progression.", teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } },
-          heroPerformance: [], preview: null, timeline: [], postMatch: null
-        };
+        const waitResult = { scoreA: 2, scoreB: 0, winner: displayName, matchSummary: "Wait.", teamStats: { teamA: { kills: 0, towersDestroyed: 0 }, teamB: { kills: 0, towersDestroyed: 0 } }, heroPerformance: [], preview: null, timeline: [], postMatch: null };
         recordMatch(waitResult.winner, waitResult, targetDay, "WAITING", 'cup', undefined, detMatchId, targetSeason);
-        simulationLockRef.current = false;
         return;
       }
 
       const [forcedA, forcedB] = getMatchResult(user.uid, opponent.id, targetDay, true);
-      const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
-        name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
-        isSub: h.id === lineup.sub1 || h.id === lineup.sub2
-      }));
-
-      const botSquad = getRandomStartingSquad().map((h, i) => ({
-        name: `${h.name} AI`, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
-        isSub: i > 4
-      }));
+      const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({ name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats, isSub: false }));
+      const botSquad = getRandomStartingSquad().map((h) => ({ name: `${h.name} AI`, role: h.role, overallRating: h.overallRating, proStats: h.proStats, isSub: false }));
 
       const result = await simulateMobaMatch({
-        teamA: { name: profile.displayName || "Manager", strategy, heroes: squad },
-        teamB: { name: opponent.name, strategy: "Tournament Execution", heroes: botSquad },
+        teamA: { name: displayName, strategy, heroes: squad },
+        teamB: { name: opponent.name, strategy: "Defensive", heroes: botSquad },
         isBo2: false, isBo3: true, scoreA: forcedA, scoreB: forcedB
       });
       
-      if (result && result.winner) {
-        const resultData = { ...result.games[0], scoreA: forcedA, scoreB: forcedB };
-        recordMatch(result.winner, resultData, targetDay, opponent.name, 'cup', undefined, detMatchId, targetSeason);
-        
-        if (!isCatchUp) {
-          setCurrentResult({ ...resultData, id: detMatchId, day: targetDay, opponentName: opponent.name, type: 'cup' }); 
-          setShowResultDialog(true); 
-        }
+      if (result) {
+        const res = { ...result.games[0], scoreA: forcedA, scoreB: forcedB };
+        recordMatch(result.winner, res, targetDay, opponent.name, 'cup', undefined, detMatchId, targetSeason);
+        if (!isCatchUp) { setCurrentResult({ ...res, id: detMatchId, day: targetDay, opponentName: opponent.name, type: 'cup' }); setShowResultDialog(true); }
       }
-    } catch (e: any) {
-      console.error("Cup simulation failed", e);
-    } finally {
-      setIsSimulating(false);
-      simulationLockRef.current = false;
-      setSyncing(false);
-    }
-  }, [allLeaguePlayers, user, profile, strategy, ownedHeroes, lineup, recordMatch, recordMatchGlobal, setSyncing, matchHistory]);
+    } finally { setIsSimulating(false); simulationLockRef.current = false; setSyncing(false); }
+  }, [allLeaguePlayers, user, selectedLeagueId, leagueLevel, displayName, strategy, ownedHeroes, lineup, recordMatch, setSyncing]);
 
   useEffect(() => {
-    if (!isLoaded || isUserLoading || isSimulating || !profile?.selectedLeagueId || !user) return;
-
-    const findAndSimulateNext = async () => {
-      if (lastProcessedSeason > 0 && lastProcessedSeason < seasonNumber) {
-        for (let d = 1; d <= 14; d++) {
-          const detId = `league_S${lastProcessedSeason}_D${d}_G${profile.groupId}_${user.uid}`;
-          const existing = matchHistory.find(m => m.id.startsWith(`league_S${lastProcessedSeason}_D${d}`));
-          if (!existing) {
-            await simulateOneLeagueMatch(lastProcessedSeason, d, true);
-            return; 
-          }
-        }
-      }
-
+    if (!isLoaded || isSimulating || !selectedLeagueId || !user) return;
+    const findNext = async () => {
       if (seasonDay > 0 && seasonDay <= 14) {
-        const league = LEAGUES.find(l => l.id === profile.selectedLeagueId);
-        const leagueTime = league?.startTime || '23:00';
-        const cupTime = "07:00";
-
+        const leagueTime = LEAGUES.find(l => l.id === selectedLeagueId)?.startTime || '23:00';
         for (let d = 1; d <= seasonDay; d++) {
           const lMatch = matchHistory.find(m => m.type === 'league' && m.day === d && m.seasonNumber === seasonNumber);
-          const lDue = (d < seasonDay) || isMatchDue(leagueTime, lastLeagueMatchDate);
-          
-          if (lDue && !lMatch) {
-            await simulateOneLeagueMatch(seasonNumber, d, d < seasonDay);
-            return; 
-          }
-
+          if (isMatchDue(leagueTime, lastLeagueMatchDate) && !lMatch) { await simulateOneLeagueMatch(seasonNumber, d, d < seasonDay); return; }
           const cMatch = matchHistory.find(m => m.type === 'cup' && m.day === d && m.seasonNumber === seasonNumber);
-          const cDue = (d < seasonDay) || isMatchDue(cupTime, lastCupMatchDate);
-          
-          const eliminated = matchHistory.some(m => 
-            (m.type === 'cup' || m.type === 'tournament') && 
-            m.seasonNumber === seasonNumber && 
-            m.day < d && 
-            m.opponentName !== 'SEEDED' && 
-            m.opponentName !== 'WAITING' &&
-            m.scoreA < m.scoreB
-          );
-
-          if (!eliminated && cDue && !cMatch) {
-            await simulateOneCupMatch(seasonNumber, d, d < seasonDay);
-            return; 
-          }
+          if (isMatchDue("07:00", lastCupMatchDate) && !cMatch) { await simulateOneCupMatch(seasonNumber, d, d < seasonDay); return; }
         }
       }
     };
-
-    const timer = setTimeout(findAndSimulateNext, 2500);
+    const timer = setTimeout(findNext, 3000);
     return () => clearTimeout(timer);
-  }, [isLoaded, isUserLoading, isSimulating, seasonDay, seasonNumber, lastProcessedSeason, matchHistory, profile?.selectedLeagueId, lastLeagueMatchDate, lastCupMatchDate, simulateOneLeagueMatch, simulateOneCupMatch, user]);
+  }, [isLoaded, isSimulating, seasonDay, seasonNumber, matchHistory, selectedLeagueId, lastLeagueMatchDate, lastCupMatchDate, simulateOneLeagueMatch, simulateOneCupMatch, user]);
 
-  const handleGoToReport = () => {
-    setShowResultDialog(false);
-    const targetId = currentResult?.id;
-    if (currentResult && currentResult.type === 'league') markMatchAsSeen(currentResult.day);
-    if (targetId) router.push(`/match?id=${targetId}`);
-  };
-
-  const t = { 
-    congrats: language === 'ru' ? 'СЕЗОН ЗАВЕРШЕН!' : 'SEASON COMPLETE!', 
-    pos: language === 'ru' ? 'Ваше место:' : 'Your Place:', 
-    pts: language === 'ru' ? 'Набрано очков:' : 'Points Scored:', 
-    next: language === 'ru' ? 'СЛЕДУЮЩИЙ СЕЗОН' : 'NEXT SEASON',
-    alert: language === 'ru' ? 'ТАКТИЧЕСКАЯ СВОДКА' : 'TACTICAL ALERT',
-    proceed: language === 'ru' ? 'ПЕРЕЙТИ К ОТЧЕТУ' : 'PROCEED TO REPORT',
-    desc: language === 'ru' ? 'Технический отчет о столкновении расшифрован и готов к изучению.' : 'Technical after-action report decrypted and ready for evaluation.'
-  };
+  if (!isLoaded || !user) return null;
 
   return (
-    <>
-      <Dialog open={showResultDialog} onOpenChange={setShowResultDialog}>
-        <DialogContent className="max-w-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
-          <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
-            <div className="mx-auto w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary shadow-[0_0_20px_rgba(var(--primary),0.3)]">
-              <Zap className="w-8 h-8 text-primary animate-pulse" />
-            </div>
-            <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">{t.alert}</DialogTitle>
-          </div>
-          <div className="p-6 space-y-4">
-            <div className="bg-secondary/30 rounded-xl border border-white/5 p-4 flex items-center gap-4">
-              <div className="p-2 rounded-lg bg-primary/20"><FileText className="w-5 h-5 text-primary" /></div>
-              <p className="text-xs leading-relaxed text-muted-foreground italic">"{t.desc}"</p>
-            </div>
-          </div>
-          <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5">
-            <Button className="w-full h-12 hero-gradient font-bold uppercase text-xs tracking-widest" onClick={handleGoToReport}>
-              <ArrowRight className="w-4 h-4 mr-2" /> {t.proceed}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!seasonResults} onOpenChange={(open) => !open && dismissSeasonResults()}>
-        <DialogContent className="max-md p-0 overflow-hidden bg-background border-white/10 shadow-2xl">
-          <div className="p-8 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
-            <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-primary">{t.congrats}</DialogTitle>
-          </div>
-          <div className="p-8 space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-secondary/30 p-4 rounded-xl border border-white/5 text-center">
-                <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">{t.pos}</p>
-                <p className="text-3xl font-headline font-bold text-accent">{seasonResults?.lastRank}</p>
-              </div>
-              <div className="bg-secondary/30 p-4 rounded-xl border border-white/5 text-center">
-                <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">{t.pts}</p>
-                <p className="text-3xl font-headline font-bold text-primary">{seasonResults?.lastPoints}</p>
-              </div>
-            </div>
-          </div>
-          <DialogFooter className="p-6 bg-secondary/20 border-t border-white/5">
-            <Button className="w-full h-14 hero-gradient font-bold uppercase text-xs" onClick={dismissSeasonResults}>{t.next}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+    <Dialog open={showResultDialog} onOpenChange={setShowResultDialog}>
+      <DialogContent className="max-w-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
+        <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
+          <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">TACTICAL ALERT</DialogTitle>
+        </div>
+        <div className="p-6">
+           <Button className="w-full h-12 hero-gradient font-black text-xs" onClick={() => { setShowResultDialog(false); router.push(`/match?id=${currentResult?.id}`); }}>
+             PROCEED TO REPORT
+           </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

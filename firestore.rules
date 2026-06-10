@@ -11,96 +11,67 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // === ОСНОВНЫЕ ПРОФИЛИ (v10) ===
+    // Root pointers
     match /players_v10/{userId} {
       allow read: if true;
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || (
-        isSignedIn() && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['associationId', 'lastJoinedAssocAt', 'tournaments', 'tournamentHistory'])
-      );
+      allow create, update: if isOwner(userId);
     }
 
-    // === ГЛОБАЛЬНЫЕ МАТЧИ (v1) ===
-    match /global_matches_v1/{matchId} {
+    // League Hierarchy
+    match /leagues/{leagueId}/divisions/{div}/groups/{group}/teams/{userId} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if isOwner(userId);
     }
 
-    // === ТОВАРНЫЕ РЫНКИ (v7) ===
-    match /market_v7/{docId} {
+    match /leagues/{leagueId}/divisions/{div}/groups/{group}/matches/{matchId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn() && (
-        resource.data.sellerId == request.auth.uid || 
-        resource.data.highestBidderId == request.auth.uid ||
-        resource.data.sellerId == 'system'
-      );
+      allow write: if isSignedIn();
     }
 
-    // === ТОВАРИЩЕСКИЕ МАТЧИ (v3) ===
-    match /friendly_lobbies_v3/{userId} {
+    // Pyramid Cup (per League)
+    match /leagues/{leagueId}/cups/{season}/matches/{matchId} {
       allow read: if isSignedIn();
-      allow create, delete: if isOwner(userId);
-      allow update: if isSignedIn();
+      allow write: if isSignedIn();
     }
 
-    // === КОРЗИНА КВ (v2) ===
-    match /cw_basket_v2/{userId} {
-      allow read: if isSignedIn();
-      allow create, delete: if isOwner(userId);
-      allow update: if isSignedIn();
-    }
-
-    // === ЧАТЫ ===
-    match /global_chat_v2/{messageId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if false;
-    }
-
-    match /private_messages_v3/{messageId} {
-      allow read: if isSignedIn() && (request.auth.uid in resource.data.participants);
-      allow create: if isSignedIn() && (request.auth.uid in request.resource.data.participants);
-      allow update: if isSignedIn() && (request.auth.uid in resource.data.participants);
-      allow delete: if false;
-    }
-
-    // === УВЕДОМЛЕНИЯ (v7) ===
-    match /notifications_v7/{docId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || 
-        request.auth.uid == 'system'
-      );
-    }
-
-    // === ЗАЯВКИ В ДРУЗЬЯ (v4) ===
-    match /friend_requests_v4/{docId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.fromId == request.auth.uid;
-      allow update, delete: if isSignedIn() && (
-        resource.data.fromId == request.auth.uid || 
-        resource.data.toId == request.auth.uid
-      );
-    }
-
-    // === АССОЦИАЦИИ (v4) ===
+    // Standard collections
     match /associations_v4/{docId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && (
-        resource.data.ownerId == request.auth.uid || 
-        resource.data.deputyId == request.auth.uid ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requests']) ||
-        request.resource.data.diff(resource.data).affectedKeys().hasAny(['members', 'memberNames', 'membersData', 'news'])
-      );
+      allow update: if isSignedIn();
       allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
-    // === ВСЁ ОСТАЛЬНОЕ — ЗАПРЕЩЕНО ===
+    match /global_chat_v2/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+    }
+
+    match /private_messages_v3/{messageId} {
+      allow read, write: if isSignedIn() && (request.auth.uid in resource.data.participants || request.auth.uid in request.resource.data.participants);
+    }
+
+    match /friend_requests_v4/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /notifications_v7/{docId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create, update, delete: if isSignedIn();
+    }
+    
+    match /market_v7/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /cw_basket_v2/{userId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /friendly_lobbies_v3/{userId} {
+      allow read, write: if isSignedIn();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

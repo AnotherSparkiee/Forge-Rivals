@@ -7,22 +7,12 @@
         "id": { "type": "string" },
         "displayName": { "type": "string" },
         "email": { "type": "string" },
-        "associationId": { "type": "string" }
-      },
-      "additionalProperties": true
-    },
-    "Association": {
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "description": { "type": "string" },
-        "ownerId": { "type": "string" },
-        "deputyId": { "type": "string" },
-        "members": { "type": "array", "items": { "type": "string" } },
-        "membersData": { "type": "array", "items": { "type": "object" } },
-        "requests": { "type": "array", "items": { "type": "object" } },
-        "news": { "type": "array", "items": { "type": "object" } }
+        "leagueId": { "type": "string" },
+        "divisionLevel": { "type": "number" },
+        "groupId": { "type": "number" },
+        "inGameCurrency": { "type": "number" },
+        "crystals": { "type": "number" },
+        "ownedHeroes": { "type": "array" }
       }
     },
     "MatchRecord": {
@@ -31,7 +21,6 @@
         "id": { "type": "string" },
         "season": { "type": "number" },
         "day": { "type": "number" },
-        "type": { "type": "string" },
         "homeId": { "type": "string" },
         "awayId": { "type": "string" },
         "scoreA": { "type": "number" },
@@ -41,21 +30,28 @@
     }
   },
   "auth": {
-    "providers": ["password", "anonymous", "google.com"]
+    "providers": ["password", "google.com"]
   },
   "firestore": {
     "structure": [
       {
-        "path": "players_v11/{userId}",
-        "definition": "PlayerProfile"
+        "path": "players_v10/{userId}",
+        "description": "Root pointer for player location (league, div, group)"
       },
       {
-        "path": "global_matches_v1/{matchId}",
-        "definition": "MatchRecord"
+        "path": "leagues/{leagueId}/divisions/{divLevel}/groups/{groupId}/teams/{userId}",
+        "definition": "PlayerProfile",
+        "description": "Primary team data within a specific group"
       },
       {
-        "path": "associations_v4/{assocId}",
-        "definition": "Association"
+        "path": "leagues/{leagueId}/cups/{seasonNumber}/matches/{matchId}",
+        "definition": "MatchRecord",
+        "description": "Pyramid Cup matches specific to a league"
+      },
+      {
+        "path": "leagues/{leagueId}/divisions/{divLevel}/groups/{groupId}/matches/{matchId}",
+        "definition": "MatchRecord",
+        "description": "League matches within a specific group"
       }
     ]
   }
