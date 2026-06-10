@@ -38,7 +38,7 @@ export function AutoMatchManager() {
   const winnersCache = useRef<Map<string, CupParticipant | null>>(new Map());
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
-  const { data: profile } = useDoc(userRef);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   const groupQuery = useMemoFirebase(() => {
     if (!profile?.selectedLeagueId || !user?.uid) return null;
@@ -53,12 +53,9 @@ export function AutoMatchManager() {
   const { data: groupPlayers } = useCollection(groupQuery);
 
   const allLeaguePlayersQuery = useMemoFirebase(() => {
-    if (!profile?.selectedLeagueId || !user?.uid) return null;
-    return query(
-      collection(db, 'players_v10'),
-      where('selectedLeagueId', '==', profile.selectedLeagueId)
-    );
-  }, [db, profile?.selectedLeagueId, user?.uid]);
+    if (!profile?.selectedLeagueId) return null;
+    return query(collection(db, 'players_v10'), where('selectedLeagueId', '==', profile.selectedLeagueId));
+  }, [db, profile?.selectedLeagueId]);
 
   const { data: allLeaguePlayers } = useCollection(allLeaguePlayersQuery);
 
@@ -73,34 +70,6 @@ export function AutoMatchManager() {
       createdAt: new Date().toISOString()
     });
   }, [db]);
-
-  useEffect(() => {
-    if (!isLoaded || isUserLoading || !user || !profile) return;
-    if (seasonDay === 1 && lastProcessedSeason < seasonNumber) {
-      ownedHeroes.forEach(hero => {
-        const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
-        if (liveAge.numeric >= 33) {
-          const title = language === 'ru' ? "Завершение карьеры" : "Career Retirement";
-          const desc = language === 'ru' 
-            ? `Ваш игрок ${hero.name} покидает расположение команды в конце текущего сезона по возрасту.`
-            : `Your player ${hero.name} is leaving the team at the end of this season due to age.`;
-          sendNotification(user.uid, title, desc, `retire_hero_${hero.id}_S${seasonNumber}`);
-        }
-      });
-      Object.values(staff).forEach(member => {
-        if (!member) return;
-        const liveAge = calculateLiveAge(member.baseAge, member.hiredAt);
-        if (liveAge.numeric >= 65) {
-          const title = language === 'ru' ? "Завершение контракта" : "Contract Expiry";
-          const desc = language === 'ru'
-            ? `Специалист ${member.firstName} ${member.lastName} покидает расположение команды в конце сезона.`
-            : `Staff member ${member.firstName} ${member.lastName} is leaving the team at the end of the season.`;
-          sendNotification(user.uid, title, desc, `retire_staff_${member.id}_S${seasonNumber}`);
-        }
-      });
-      updateDoc(userRef!, { lastProcessedSeason: seasonNumber });
-    }
-  }, [isLoaded, isUserLoading, user, profile, seasonDay, seasonNumber, lastProcessedSeason, ownedHeroes, staff, language, sendNotification, userRef]);
 
   const simulateOneLeagueMatch = useCallback(async (targetSeason: number, targetDay: number, isCatchUp: boolean) => {
     if (!groupPlayers || !user || !profile || simulationLockRef.current) return;
@@ -368,3 +337,4 @@ export function AutoMatchManager() {
     </>
   );
 }
+
