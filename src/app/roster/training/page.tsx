@@ -86,7 +86,6 @@ export default function TrainingPage() {
       </header>
 
       <div className="space-y-6">
-        {/* INFO CARD */}
         <Card className="bg-primary/5 border-primary/20">
           <CardContent className="p-4 flex gap-4">
             <Info className="w-5 h-5 text-primary shrink-0" />
@@ -96,14 +95,13 @@ export default function TrainingPage() {
           </CardContent>
         </Card>
 
-        {/* HERO LIST */}
         <div className="space-y-3">
           {ownedHeroes.map((hero) => {
             const currentFocus = hero.trainingFocus;
             const focusSkillValue = currentFocus ? (hero.proStats as any)[currentFocus] : 0;
-            // Added safety check for proTalents
+            // NEW LIMIT: Talent * 10
             const focusSkillTalent = (currentFocus && hero.proTalents) ? (hero.proTalents as any)[currentFocus] : (currentFocus ? 3.0 : 0);
-            const isAtLimit = currentFocus && focusSkillValue >= focusSkillTalent * 20;
+            const isAtLimit = currentFocus && focusSkillValue >= focusSkillTalent * 10;
 
             return (
               <Card key={hero.id} className="glass-card border-white/5 overflow-hidden">
@@ -150,16 +148,17 @@ export default function TrainingPage() {
                         </div>
                         <div className="flex flex-col items-end">
                           <span className={cn("text-[9px] font-mono font-bold", isAtLimit ? "text-yellow-500" : "text-primary")}>
-                            {focusSkillValue} / {Math.round(focusSkillTalent * 20)}
+                            {focusSkillValue} / {Math.round(focusSkillTalent * 10)}
                           </span>
                           {renderStars(focusSkillTalent)}
                         </div>
                       </div>
                       <div className="relative">
-                        <Progress value={focusSkillValue} max={100} className="h-1 rounded-full bg-secondary/40" />
+                        {/* Progress bar maxed at 50 for regular heroes */}
+                        <Progress value={focusSkillValue} max={50} className="h-1 rounded-full bg-secondary/40" />
                         <div 
                           className="absolute top-0 h-1 bg-yellow-500/20 border-r border-yellow-500/50" 
-                          style={{ left: 0, width: `${focusSkillTalent * 20}%` }}
+                          style={{ left: 0, width: `${(focusSkillTalent * 10 / 50) * 100}%` }}
                         />
                       </div>
                       {isAtLimit && (

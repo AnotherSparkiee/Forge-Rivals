@@ -22,15 +22,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
-// Internal mapping for simulation - no longer displayed in UI
-const ROLE_CORE_SKILLS: Record<string, string[]> = {
-  'Carry': ['lastHitting', 'positioning', 'reflexes', 'tiltResistance', 'versatility'],
-  'Midlaner': ['reflexes', 'lastHitting', 'ganking', 'positioning', 'tiltResistance'],
-  'Tank': ['objectiveControl', 'positioning', 'objectiveControl', 'tiltResistance', 'versatility'],
-  'Jungler': ['ganking', 'objectiveControl', 'objectiveControl', 'communication', 'versatility'],
-  'Support': ['communication', 'objectiveControl', 'positioning', 'objectiveControl', 'tiltResistance'],
-};
-
 export default function SquadPage() {
   const { ownedHeroes, lineup, assignToRole, isLoaded, language, updateHero, isPremium, activeLicenseTier } = useGameState();
   const { user } = useUser();
@@ -326,11 +317,11 @@ export default function SquadPage() {
                           </span>
                         </div>
                         <div className="flex flex-col items-end">
-                          <span className="text-[10px] font-mono font-bold text-primary">{value} / 100</span>
+                          <span className="text-[10px] font-mono font-bold text-primary">{value} / 50</span>
                           {renderStars(talent)}
                         </div>
                       </div>
-                      <Progress value={value} className="h-1 rounded-full bg-secondary/40" />
+                      <Progress value={value} max={50} className="h-1 rounded-full bg-secondary/40" />
                     </div>
                   ); 
                 })}

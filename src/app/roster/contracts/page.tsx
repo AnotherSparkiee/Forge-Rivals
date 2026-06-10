@@ -245,9 +245,9 @@ export default function ContractsPage() {
                           <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
                           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                         </div>
-                        <div className="flex flex-col items-end"><span className="text-[10px] font-mono font-bold text-primary">{value} / 100</span>{renderStars(talent)}</div>
+                        <div className="flex flex-col items-end"><span className="text-[10px] font-mono font-bold text-primary">{value} / 50</span>{renderStars(talent)}</div>
                       </div>
-                      <Progress value={value} className="h-1 rounded-full bg-secondary/40" />
+                      <Progress value={value} max={50} className="h-1 rounded-full bg-secondary/40" />
                     </div>
                   );
                 })}

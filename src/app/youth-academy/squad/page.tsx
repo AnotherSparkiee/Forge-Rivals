@@ -21,15 +21,6 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-// Internal mapping for simulation - no longer displayed in UI
-const ROLE_CORE_SKILLS: Record<string, string[]> = {
-  'Carry': ['lastHitting', 'positioning', 'reflexes', 'tiltResistance', 'versatility'],
-  'Midlaner': ['reflexes', 'lastHitting', 'ganking', 'positioning', 'tiltResistance'],
-  'Tank': ['objectiveControl', 'positioning', 'objectiveControl', 'tiltResistance', 'versatility'],
-  'Jungler': ['ganking', 'objectiveControl', 'objectiveControl', 'communication', 'versatility'],
-  'Support': ['communication', 'objectiveControl', 'positioning', 'objectiveControl', 'tiltResistance'],
-};
-
 export default function YouthSquadPage() {
   const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, updateHero, managerSkills } = useGameState();
   const { user, isUserLoading } = useUser();
@@ -160,8 +151,8 @@ export default function YouthSquadPage() {
             </h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
-                <p className="text-[7px] font-black text-muted-foreground uppercase">Age</p>
-                <p className={cn("text-xs font-bold", liveAge.numeric < 18 ? "text-red-400" : "text-white")}>{liveAge.display} {t.years}</p>
+                <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.age}</p>
+                <p className="text-xs font-bold">{calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).display} {t.years}</p>
               </div>
               <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
                 <p className="text-[7px] font-black text-muted-foreground uppercase">{t.status}</p>
@@ -190,9 +181,9 @@ export default function YouthSquadPage() {
                         <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
                         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                       </div>
-                      <div className="flex flex-col items-end"><span className="text-[10px] font-mono font-bold text-primary">{value} / 100</span>{renderStars(talent)}</div>
+                      <div className="flex flex-col items-end"><span className="text-[10px] font-mono font-bold text-primary">{value} / 50</span>{renderStars(talent)}</div>
                     </div>
-                    <Progress value={value} className="h-1 rounded-full bg-secondary/40" />
+                    <Progress value={value} max={50} className="h-1 rounded-full bg-secondary/40" />
                   </div>
                 );
               })}

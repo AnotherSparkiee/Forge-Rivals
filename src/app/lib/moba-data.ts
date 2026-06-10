@@ -153,17 +153,18 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     speed: getRandomStat(250, 360, rng)
   };
 
+  // PRO STATS REDUCED TO 50 MAX FOR REGULAR HEROES
   const proStats = {
-    lastHitting: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
-    mapAwareness: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
-    positioning: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
-    reflexes: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
-    manaManagement: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
-    objectiveControl: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
-    communication: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
-    tiltResistance: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
-    versatility: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
-    ganking: getRandomStat(isStarter ? 35 : 40, isStarter ? 65 : 98, rng),
+    lastHitting: getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 45, rng),
+    mapAwareness: getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 45, rng),
+    positioning: getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 45, rng),
+    reflexes: getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 45, rng),
+    manaManagement: getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 45, rng),
+    objectiveControl: getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 45, rng),
+    communication: getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 45, rng),
+    tiltResistance: getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 45, rng),
+    versatility: getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 45, rng),
+    ganking: getRandomStat(isStarter ? 15 : 20, isStarter ? 35 : 45, rng),
   };
 
   const proTalents = {
@@ -181,7 +182,8 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
 
   const proSum = Object.values(proStats).reduce((a, b) => a + b, 0);
   const basePower = (baseStats.attack + (baseStats.defense / 2) + (baseStats.abilityPower / 2)) / 5;
-  const overall = Math.round((proSum / 10) * 0.4 + basePower * 0.6);
+  // OVR calculation adjusted for lower pro stats
+  const overall = Math.round((proSum / 5) * 0.4 + basePower * 0.6);
 
   const startAge = getRandomStat(isStarter ? 17 : 18, isStarter ? 28 : 32, rng);
   const heroId = seed ? `h_det_${seed}` : `hero_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
@@ -242,16 +244,16 @@ export function generateYouthHero(index: number, seed?: string): Hero {
   };
   
   hero.proStats = {
-    lastHitting: getRandomStat(10, 30, rng),
-    mapAwareness: getRandomStat(10, 30, rng),
-    positioning: getRandomStat(10, 30, rng),
-    reflexes: getRandomStat(10, 30, rng),
-    manaManagement: getRandomStat(10, 30, rng),
-    objectiveControl: getRandomStat(10, 30, rng),
-    communication: getRandomStat(10, 30, rng),
-    tiltResistance: getRandomStat(10, 30, rng),
-    versatility: getRandomStat(10, 30, rng),
-    ganking: getRandomStat(10, 30, rng),
+    lastHitting: getRandomStat(5, 15, rng),
+    mapAwareness: getRandomStat(5, 15, rng),
+    positioning: getRandomStat(5, 15, rng),
+    reflexes: getRandomStat(5, 15, rng),
+    manaManagement: getRandomStat(5, 15, rng),
+    objectiveControl: getRandomStat(5, 15, rng),
+    communication: getRandomStat(5, 15, rng),
+    tiltResistance: getRandomStat(5, 15, rng),
+    versatility: getRandomStat(5, 15, rng),
+    ganking: getRandomStat(5, 15, rng),
   };
 
   return hero;
@@ -283,69 +285,4 @@ export function getRandomStartingSquad(): Hero[] {
   return roles.map((role, i) => generateUniqueHero(role, i, true));
 }
 
-export const INITIAL_HEROES: Hero[] = [
-  {
-    id: 'h1',
-    name: 'Ironclad Bastion',
-    role: 'Tank',
-    baseStats: { attack: 40, defense: 90, health: 1500, abilityPower: 10, speed: 280 },
-    overallRating: 34,
-    abilitiesFocus: 'Defensive',
-    image: 'https://i.postimg.cc/PPS3QFFM/de-1.jpg',
-    description: 'An unbreakable shield on the battlefield.',
-    price: 0,
-    baseAge: 24,
-    hiredAt: "2024-01-01T00:00:00.000Z",
-    age: 24,
-    salary: 4500,
-    form: 85,
-    fatigue: 12,
-    country: { code: 'DE', name: 'Германия', flag: '🇩🇪' },
-    isInjured: false,
-    trainingFocus: null,
-    dailyTrainingFocus: null,
-    dailyTrainingFinishTime: null,
-    onTransferUntil: null,
-    transferMarketId: null,
-    proStats: {
-      lastHitting: 45, mapAwareness: 88, positioning: 92, reflexes: 60, manaManagement: 55,
-      objectiveControl: 80, communication: 95, tiltResistance: 98, versatility: 70, ganking: 40
-    },
-    proTalents: {
-      lastHitting: 3.5, mapAwareness: 4.5, positioning: 5.0, reflexes: 3.5, manaManagement: 3.0,
-      objectiveControl: 4.0, communication: 5.0, tiltResistance: 5.0, versatility: 4.0, ganking: 3.0
-    }
-  },
-  {
-    id: 'h2',
-    name: 'Swift Gale',
-    role: 'Carry',
-    baseStats: { attack: 85, defense: 30, health: 800, abilityPower: 20, speed: 340 },
-    overallRating: 38,
-    abilitiesFocus: 'Aggressive',
-    image: 'https://i.postimg.cc/43mv7dsH/kr-1.jpg',
-    description: 'Deals massive physical damage from afar.',
-    price: 0,
-    baseAge: 19,
-    hiredAt: "2024-01-01T00:00:00.000Z",
-    age: 19,
-    salary: 8200,
-    form: 92,
-    fatigue: 25,
-    country: { code: 'KR', name: 'Южная Корея', flag: '🇰🇷' },
-    isInjured: false,
-    trainingFocus: null,
-    dailyTrainingFocus: null,
-    dailyTrainingFinishTime: null,
-    onTransferUntil: null,
-    transferMarketId: null,
-    proStats: {
-      lastHitting: 98, mapAwareness: 75, positioning: 85, reflexes: 95, manaManagement: 70,
-      objectiveControl: 65, communication: 60, tiltResistance: 75, versatility: 80, ganking: 50
-    },
-    proTalents: {
-      lastHitting: 5.0, mapAwareness: 4.0, positioning: 4.5, reflexes: 5.0, manaManagement: 4.0,
-      objectiveControl: 3.5, communication: 3.5, tiltResistance: 4.0, versatility: 4.0, ganking: 3.0
-    }
-  }
-];
+export const INITIAL_HEROES: Hero[] = []; // Will be populated by store if empty

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -33,7 +32,7 @@ const DEFAULT_ACADEMY: AcademyState = { youthBootcampLevel: 0, streamingLevel: 0
 const DEFAULT_MEDICAL: MedicalState = { physiotherapyLevel: 0, massageLevel: 0, psychiatristLevel: 0, labLevel: 0, psychologistLevel: 0, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} };
 const DEFAULT_STAFF: StaffState = { coach: null, analyst: null, scout: null, doctor: null, financier: null };
 const DEFAULT_STATE: GameState = {
-  credits: 10000000, crystals: 0, experiencePoints: 0, managerLevel: 1, skillPoints: 0, managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 }, activeLicenseTier: 4, ownedHeroes: INITIAL_HEROES, youthAcademyHeroes: [], team: INITIAL_HEROES.slice(0, 5), lineup: { carry: INITIAL_HEROES.find(h => h.role === 'Carry')?.id || null, mid: INITIAL_HEROES.find(h => h.role === 'Midlaner')?.id || null, offlane: INITIAL_HEROES.find(h => h.role === 'Tank')?.id || null, support: INITIAL_HEROES.find(h => h.role === 'Jungler')?.id || null, full_support: INITIAL_HEROES.find(h => h.role === 'Support')?.id || null, sub1: null, sub2: null, res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null }, strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' }, rank: 1000, matchHistory: [], language: 'ru', wins: 0, draws: 0, losses: 0, points: 0, leagueLevel: 9, divisionSubId: 1, groupId: 1, selectedLeagueId: null, country: null, associationId: null, lastSeenMatchDay: 0, lastLeagueMatchDate: null, lastCupMatchDate: null, seasonDay: 0, seasonNumber: 0, lastProcessedSeason: 0, lastYouthArrivalDay: 0, lastYouthArrivalSeason: 0, seasonStartDate: null, lastRewardClaimDate: null, rewardDay: 1, arena: DEFAULT_ARENA, hq: DEFAULT_HQ, bootcamp: DEFAULT_BOOTCAMP, academy: DEFAULT_ACADEMY, medical: DEFAULT_MEDICAL, staff: DEFAULT_STAFF, seasonResults: null, hasEliteTrophy: false, isSyncing: false, premiumUntil: null,
+  credits: 10000000, crystals: 0, experiencePoints: 0, managerLevel: 1, skillPoints: 0, managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 }, activeLicenseTier: 4, ownedHeroes: [], youthAcademyHeroes: [], team: [], lineup: { carry: null, mid: null, offlane: null, support: null, full_support: null, sub1: null, sub2: null, res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null }, strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' }, rank: 1000, matchHistory: [], language: 'ru', wins: 0, draws: 0, losses: 0, points: 0, leagueLevel: 9, divisionSubId: 1, groupId: 1, selectedLeagueId: null, country: null, associationId: null, lastSeenMatchDay: 0, lastLeagueMatchDate: null, lastCupMatchDate: null, seasonDay: 0, seasonNumber: 0, lastProcessedSeason: 0, lastYouthArrivalDay: 0, lastYouthArrivalSeason: 0, seasonStartDate: null, lastRewardClaimDate: null, rewardDay: 1, arena: DEFAULT_ARENA, hq: DEFAULT_HQ, bootcamp: DEFAULT_BOOTCAMP, academy: DEFAULT_ACADEMY, medical: DEFAULT_MEDICAL, staff: DEFAULT_STAFF, seasonResults: null, hasEliteTrophy: false, isSyncing: false, premiumUntil: null,
 };
 
 function sanitizeForFirestore(obj: any) { 
@@ -205,7 +204,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           }
           nextSector.constructionFinishes[fac] = null;
           nextSector.constructionStarts[fac] = null;
-          // Reset acceleration flag when finished
           if (nextSector.isAccelerated) nextSector.isAccelerated[fac] = false;
           changed = true;
         }
@@ -267,7 +265,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const isPlayedToday = isMatchDue(league?.startTime || "23:00", state.lastLeagueMatchDate);
       const completedDays = isPlayedToday ? globalDay : Math.max(0, globalDay - 1);
       if (lastSyncRef.current?.season === globalSeason && lastSyncRef.current?.day === completedDays && lastSyncRef.current?.leagueId === state.selectedLeagueId) return;
-      const groupTeams = getMockGroupTeams(state.rank, state.country || "My Team", state.leagueLevel, state.divisionSubId, state.groupId, state.selectedLeagueId, groupPlayers, user.uid, completedDays);
+      const groupTeams = getMockGroupTeams(state.rank, state.country || "My Team", state.leagueLevel, state.divisionSubId, state.groupId, state.selectedLeagueId || "ALPHA", groupPlayers, user.uid, completedDays);
       const myTeam = groupTeams.find(t => t.id === user.uid);
       if (!myTeam) return;
       lastSyncRef.current = { season: globalSeason, day: completedDays, leagueId: state.selectedLeagueId };
@@ -373,27 +371,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const sectorState = (state as any)[sector];
     const finish = sectorState.constructionFinishes[fac];
     if (!finish) return false;
-
-    // SINGLE USE CHECK
     if (sectorState.isAccelerated && sectorState.isAccelerated[fac]) return false;
-
     const now = Date.now();
     const remaining = new Date(finish).getTime() - now;
     if (remaining <= 0) return false;
-
     const newRemaining = remaining / multiplier;
     const newFinish = new Date(now + newRemaining).toISOString();
-    
-    const newSector = {
-      ...sectorState,
-      constructionFinishes: { ...sectorState.constructionFinishes, [fac]: newFinish },
-      isAccelerated: { ...(sectorState.isAccelerated || {}), [fac]: true }
-    };
-
-    runCloudUpdate({
-      crystals: state.crystals - price,
-      [sector]: sanitizeForFirestore(newSector)
-    });
+    const newSector = { ...sectorState, constructionFinishes: { ...sectorState.constructionFinishes, [fac]: newFinish }, isAccelerated: { ...(sectorState.isAccelerated || {}), [fac]: true } };
+    runCloudUpdate({ crystals: state.crystals - price, [sector]: sanitizeForFirestore(newSector) });
     return true;
   }, [state, runCloudUpdate]);
 
@@ -402,7 +387,27 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const trainStaffSkill = useCallback((role: StaffRole, key: 'primary'|'secondary', cost: number) => { const m = state.staff[role]; if (!m || state.crystals < cost) return false; const nm = { ...m, skills: { ...m.skills, [key]: m.skills[key]+1 } }; runCloudUpdate({ staff: sanitizeForFirestore({ ...state.staff, [role]: nm }), crystals: state.crystals - cost }); return true; }, [state, runCloudUpdate]);
   const setTrainingFocus = useCallback((id: string, key: string | null) => { const uOwned = state.ownedHeroes.map(h => h.id === id ? { ...h, trainingFocus: key } : h); const uYouth = state.youthAcademyHeroes.map(h => h.id === id ? { ...h, trainingFocus: key } : h); runCloudUpdate({ ownedHeroes: sanitizeForFirestore(uOwned), youthAcademyHeroes: sanitizeForFirestore(uYouth) }); }, [state, runCloudUpdate]);
   const startDailyHeroTraining = useCallback((id: string, key: string) => { const finish = new Date(Date.now() + 86400000).toISOString(); const uOwned = state.ownedHeroes.map(h => h.id === id ? { ...h, dailyTrainingFocus: key, dailyTrainingFinishTime: finish } : h); const uYouth = state.youthAcademyHeroes.map(h => h.id === id ? { ...h, dailyTrainingFocus: key, dailyTrainingFinishTime: finish } : h); runCloudUpdate({ ownedHeroes: sanitizeForFirestore(uOwned), youthAcademyHeroes: sanitizeForFirestore(uYouth) }); }, [state, runCloudUpdate]);
-  const claimDailyHeroTraining = useCallback((id: string) => { const proc = (h: Hero) => { if (h.id === id && h.dailyTrainingFocus) { const k = h.dailyTrainingFocus; const cur = (h.proStats as any)[k] || 0; const lim = (h.proTalents ? (h.proTalents as any)[k] : 3.0) * 20; if (cur < lim) { const val = Math.min(lim, cur + Math.floor(Math.random()*3)+3); return { ...h, proStats: { ...h.proStats, [k]: val }, dailyTrainingFocus: null, dailyTrainingFinishTime: null }; } return { ...h, dailyTrainingFocus: null, dailyTrainingFinishTime: null }; } return h; }; const uO = state.ownedHeroes.map(proc); const uY = state.youthAcademyHeroes.map(proc); runCloudUpdate({ ownedHeroes: sanitizeForFirestore(uO), youthAcademyHeroes: sanitizeForFirestore(uY) }); }, [state, runCloudUpdate]);
+  
+  const claimDailyHeroTraining = useCallback((id: string) => { 
+    const proc = (h: Hero) => { 
+      if (h.id === id && h.dailyTrainingFocus) { 
+        const k = h.dailyTrainingFocus; 
+        const cur = (h.proStats as any)[k] || 0; 
+        // NEW RULE: Regular hero limit is talent * 10
+        const lim = (h.proTalents ? (h.proTalents as any)[k] : 3.0) * 10; 
+        if (cur < lim) { 
+          const val = Math.min(lim, cur + Math.floor(Math.random()*3)+3); 
+          return { ...h, proStats: { ...h.proStats, [k]: val }, dailyTrainingFocus: null, dailyTrainingFinishTime: null }; 
+        } 
+        return { ...h, dailyTrainingFocus: null, dailyTrainingFinishTime: null }; 
+      } 
+      return h; 
+    }; 
+    const uO = state.ownedHeroes.map(proc); 
+    const uY = state.youthAcademyHeroes.map(proc); 
+    runCloudUpdate({ ownedHeroes: sanitizeForFirestore(uO), youthAcademyHeroes: sanitizeForFirestore(uY) }); 
+  }, [state, runCloudUpdate]);
+
   const updateHero = useCallback((id: string, up: Partial<Hero>, cr = 0, cy = 0) => { const uO = state.ownedHeroes.map(h => h.id === id ? { ...h, ...up } : h); const uY = state.youthAcademyHeroes.map(h => h.id === id ? { ...h, ...up } : h); runCloudUpdate({ ownedHeroes: sanitizeForFirestore(uO), youthAcademyHeroes: sanitizeForFirestore(uY), inGameCurrency: state.credits - cr, crystals: state.crystals - cy }); }, [state, runCloudUpdate]);
   const promoteYouthPlayer = useCallback((id: string) => { const h = state.youthAcademyHeroes.find(x => x.id === id); if (!h) return; runCloudUpdate({ youthAcademyHeroes: sanitizeForFirestore(state.youthAcademyHeroes.filter(x => x.id !== id)), ownedHeroes: sanitizeForFirestore([...state.ownedHeroes, h]) }); }, [state, runCloudUpdate]);
   const removeHero = useCallback((id: string, cr = 0) => { runCloudUpdate({ ownedHeroes: sanitizeForFirestore(state.ownedHeroes.filter(x => x.id !== id)), youthAcademyHeroes: sanitizeForFirestore(state.youthAcademyHeroes.filter(x => x.id !== id)), inGameCurrency: state.credits + cr }); }, [state, runCloudUpdate]);
@@ -411,20 +416,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const addYouthHeroDirectly = useCallback((h: Hero) => { runCloudUpdate({ youthAcademyHeroes: arrayUnion(sanitizeForFirestore(h)) }); }, [runCloudUpdate]);
   const updateProfileName = useCallback((n: string) => runCloudUpdate({ displayName: n }), [runCloudUpdate]);
   const updateProfileCountry = useCallback((c: string) => runCloudUpdate({ country: c }), [runCloudUpdate]);
-  
-  const purchaseLicense = useCallback((t: number, c: number) => { 
-    if (state.crystals < c) return false; 
-    runCloudUpdate({ crystals: state.crystals - c, activeLicenseTier: t }); 
-    return true; 
-  }, [state.crystals, runCloudUpdate]);
-  
-  const purchasePremium = useCallback(() => {
-    if (state.crystals < 5000) return false;
-    const expiry = new Date(getMoscowTime().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    runCloudUpdate({ crystals: state.crystals - 5000, premiumUntil: expiry });
-    return true;
-  }, [state.crystals, runCloudUpdate]);
-
+  const purchaseLicense = useCallback((t: number, c: number) => { if (state.crystals < c) return false; runCloudUpdate({ crystals: state.crystals - c, activeLicenseTier: t }); return true; }, [state.crystals, runCloudUpdate]);
+  const purchasePremium = useCallback(() => { if (state.crystals < 5000) return false; const expiry = new Date(getMoscowTime().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(); runCloudUpdate({ crystals: state.crystals - 5000, premiumUntil: expiry }); return true; }, [state.crystals, runCloudUpdate]);
   const upgradeManagerSkill = useCallback((k: keyof GameState['managerSkills']) => { if (state.skillPoints <= 0) return; const ns = { ...state.managerSkills, [k]: state.managerSkills[k]+1 }; runCloudUpdate({ managerSkills: ns, skillPoints: state.skillPoints - 1 }); }, [state, runCloudUpdate]);
 
   return (
