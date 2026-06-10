@@ -45,7 +45,7 @@ export function FriendlyMatchListener() {
   const isSimulatingRef = useRef(false);
 
   const sendNotification = useCallback((targetUserId: string, title: string, description: string) => {
-    addDocumentNonBlocking(collection(db, 'notifications_v6'), {
+    addDocumentNonBlocking(collection(db, 'notifications_v7'), {
       userId: targetUserId,
       title,
       description,
@@ -92,18 +92,12 @@ export function FriendlyMatchListener() {
       if (handledChallengeIdRef.current !== challengeId) {
         setShowChallengeModal(true);
         handledChallengeIdRef.current = challengeId;
-        
-        sendNotification(
-          activeLobby.hostId, 
-          language === 'ru' ? "Получен вызов!" : "Challenge Received!", 
-          language === 'ru' ? `Менеджер ${activeLobby.challengerName} бросил вам вызов.` : `Manager ${activeLobby.challengerName} challenged you.`
-        );
       }
     } else if (activeLobby?.status !== 'challenged') {
       setShowChallengeModal(false);
       handledChallengeIdRef.current = null;
     }
-  }, [activeLobby, language, sendNotification]);
+  }, [activeLobby]);
 
   useEffect(() => {
     const data = activeLobby || challengeResult;
@@ -123,7 +117,7 @@ export function FriendlyMatchListener() {
           });
         }
       };
-      const expirationTimer = setInterval(checkExpiration, 5000);
+      const expirationTimer = setInterval(checkExpiration, 10000);
       return () => clearInterval(expirationTimer);
     }
 
@@ -131,7 +125,7 @@ export function FriendlyMatchListener() {
       if (!isHost) {
         toast({
           title: language === 'ru' ? "Вызов отклонен" : "Challenge Rejected",
-          description: language === 'ru' ? `Менеджер ${data.hostName} отклонил ваш вызов.` : `Manager ${data.hostName} отклонил ваш вызов.`,
+          description: language === 'ru' ? `Менеджер ${data.hostName} отклонил ваш вызов.` : `Manager ${data.hostName} rejected your challenge.`,
           variant: "destructive"
         });
       }
@@ -160,44 +154,43 @@ export function FriendlyMatchListener() {
         const now = Date.now();
 
         if (now >= finishTime) {
-          if (matchHistory.some(m => m.id === matchUniqueId)) {
-            if (isHost) deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
-            return;
-          }
-
           isSimulatingRef.current = true;
-          const result = data.matchResult;
-          // Result from engine is a series, use first game
-          const game = result.games[0];
-          
-          const finalResult = isHost ? game : {
-            ...game,
-            scoreA: game.scoreB,
-            scoreB: game.scoreA,
-            winner: game.winner === data.hostName ? data.hostName : (game.winner === "Draw" ? "Draw" : data.challengerName)
-          };
-          
-          const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
-          
-          recordMatch(
-            finalResult.winner || "Draw", 
-            finalResult, 
-            0, 
-            opponentName, 
-            matchType, 
-            new Date().toISOString(), 
-            matchUniqueId
-          );
-          
-          toast({
-            title: language === 'ru' ? "Матч завершен" : "Match Finished",
-            description: language === 'ru' ? `Отчет боя против ${opponentName} готов.` : `Battle report vs ${opponentName} is ready.`,
-          });
+          try {
+            const result = data.matchResult;
+            const game = result.games[0];
+            
+            const finalResult = isHost ? game : {
+              ...game,
+              scoreA: game.scoreB,
+              scoreB: game.scoreA,
+              winner: game.winner === data.hostName ? data.hostName : (game.winner === "Draw" ? "Draw" : data.challengerName)
+            };
+            
+            const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
+            
+            recordMatch(
+              finalResult.winner || "Draw", 
+              finalResult, 
+              0, 
+              opponentName, 
+              matchType, 
+              new Date().toISOString(), 
+              matchUniqueId
+            );
+            
+            toast({
+              title: language === 'ru' ? "Матч завершен" : "Match Finished",
+              description: language === 'ru' ? `Отчет боя против ${opponentName} готов.` : `Battle report vs ${opponentName} is ready.`,
+            });
 
-          if (isHost) {
-            await deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
+            if (isHost) {
+              await deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
+            }
+          } catch (e) {
+            console.error("Friendly completion error:", e);
+          } finally {
+            isSimulatingRef.current = false;
           }
-          isSimulatingRef.current = false;
         }
       };
 
@@ -205,7 +198,7 @@ export function FriendlyMatchListener() {
       checkAndComplete();
       return () => clearInterval(timer);
     }
-  }, [activeLobby, challengeResult, user, language, recordMatch, db, toast, matchHistory, ownedHeroes, lineup]);
+  }, [activeLobby, challengeResult, user, language, recordMatch, db, toast, matchHistory]);
 
   const handleHostRespond = async (accept: boolean) => {
     if (!activeLobby) return;

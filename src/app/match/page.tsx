@@ -27,7 +27,7 @@ function MatchContent() {
   const searchParams = useSearchParams();
   const db = useFirestore();
   const { 
-    language, isLoaded, markMatchAsSeen, lastSeenMatchDay,
+    language, isLoaded, markMatchAsSeen, markMatchIdAsSeen, lastSeenMatchDay,
     matchHistory
   } = useGameState();
 
@@ -46,7 +46,11 @@ function MatchContent() {
       if (match) return match;
     }
     
-    // Priority 1: First unseen league match
+    // Priority 1: Any unseen match (explicitly seen === false)
+    const unseenMatch = matchHistory.find(m => m.seen === false);
+    if (unseenMatch) return unseenMatch;
+
+    // Priority 2: First unseen league match (by day)
     const unseenLeagueMatches = matchHistory
       .filter(m => {
         const matchTime = m.playedAt ? new Date(m.playedAt).getTime() : 0;
@@ -56,7 +60,7 @@ function MatchContent() {
 
     if (unseenLeagueMatches.length > 0) return unseenLeagueMatches[0];
 
-    // Priority 2: Absolute latest match overall
+    // Priority 3: Absolute latest match overall
     const sortedHistory = [...matchHistory]
       .filter(m => {
         const matchTime = m.playedAt ? new Date(m.playedAt).getTime() : 0;
@@ -86,11 +90,18 @@ function MatchContent() {
   if (isUserLoading || !isLoaded || !user) return <LoadingScreen />;
 
   const handleAcknowledgeMatch = () => {
-    if (currentResult && !isHistoricalViewing && currentResult.type === 'league') {
-      markMatchAsSeen(currentResult.day);
-      router.push('/');
+    if (currentResult) {
+      // Mark as seen globally
+      markMatchIdAsSeen(currentResult.id);
+      
+      if (!isHistoricalViewing && currentResult.type === 'league') {
+        markMatchAsSeen(currentResult.day);
+        router.push('/');
+      } else {
+        router.push('/matches');
+      }
     } else {
-      router.push('/matches');
+      router.push('/');
     }
   };
 

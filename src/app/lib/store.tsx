@@ -5,7 +5,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { Hero, StaffMember, StaffRole } from './moba-data';
 import { getMoscowTime, getMoscowDateString, isMatchDue, getGlobalSeasonInfo } from './time-utils';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, onSnapshot, setDoc, arrayUnion, collection, query, where, getDoc, getDocs, writeBatch, deleteDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, arrayUnion, collection, query, where, getDoc, getDocs, writeBatch, deleteDoc, updateDoc } from 'firebase/firestore';
 import { getMockGroupTeams, LEAGUES } from './leagues-data';
 import { usePathname } from 'next/navigation';
 import { calculateXpGain, calculateHeroOVR, ActivityType } from './xp-utils';
@@ -22,7 +22,7 @@ interface AcademyState { youthBootcampLevel: number; streamingLevel: number; sco
 interface MedicalState { physiotherapyLevel: number; massageLevel: number; psychiatristLevel: number; labLevel: number; psychologistLevel: number; constructionFinishes: Record<string, string | null>; constructionStarts: Record<string, string | null>; isAccelerated: Record<string, boolean>; }
 interface StaffState { coach: StaffMember | null; analyst: StaffMember | null; scout: StaffMember | null; doctor: StaffMember | null; financier: StaffMember | null; }
 export type MatchType = 'league' | 'cup' | 'friendly' | 'basket' | 'tournament' | 'trial';
-export interface MatchResultEntry { id: string; day: number; seasonNumber?: number; type: MatchType; opponentName: string; winner: string; scoreA: number; scoreB: number; matchSummary: string; teamStats: any; heroPerformance: any[]; playedAt: string; timeline?: any[]; duration?: string; mvp?: string; preview?: any; postMatch?: any; }
+export interface MatchResultEntry { id: string; day: number; seasonNumber?: number; type: MatchType; opponentName: string; winner: string; scoreA: number; scoreB: number; matchSummary: string; teamStats: any; heroPerformance: any[]; playedAt: string; timeline?: any[]; duration?: string; mvp?: string; preview?: any; postMatch?: any; seen?: boolean; }
 
 interface GameState {
   credits: number; crystals: number; experiencePoints: number; managerLevel: number; skillPoints: number; managerSkills: { sponsors: number; agents: number; training: number; medical: number; }; activeLicenseTier: number | null; ownedHeroes: Hero[]; youthAcademyHeroes: Hero[]; team: Hero[]; lineup: Record<LineupSlot, string | null>; strategy: string; lineSettings: { carry: string; mid: string; offlane: string }; rank: number; matchHistory: MatchResultEntry[]; language: 'en' | 'ru'; wins: number; draws: number; losses: number; points: number; leagueLevel: number; divisionSubId: number; groupId: number; selectedLeagueId: string | null; country: string | null; associationId: string | null; lastLeagueMatchDate: null | string; lastCupMatchDate: null | string; lastSeenMatchDay: number; seasonDay: number; seasonNumber: number; lastProcessedSeason: number; lastYouthArrivalDay: number; lastYouthArrivalSeason: number; seasonStartDate: string | null; lastRewardClaimDate: string | null; rewardDay: number; arena: ArenaState; hq: HQState; bootcamp: BootcampState; academy: AcademyState; medical: MedicalState; staff: StaffState; seasonResults: { lastRank: number; lastPoints: number; promoted: boolean; demoted: boolean; seasonNumber: number; awardedTrophy: boolean; } | null; hasEliteTrophy: boolean; isSyncing: boolean; premiumUntil: string | null; displayName: string; id: string;
@@ -94,6 +94,7 @@ interface GameStateContextType extends GameState {
   purchasePremium: () => boolean;
   upgradeManagerSkill: (skillKey: keyof GameState['managerSkills']) => void; 
   markMatchAsSeen: (day: number) => void;
+  markMatchIdAsSeen: (matchId: string) => void;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
@@ -333,95 +334,109 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [db, state.selectedLeagueId, state.leagueLevel, state.groupId]);
 
   const recordMatch = useCallback((winner: string, result: any, matchDay: number, opponentName: string, type: MatchResultEntry['type'], customPlayedAt?: string, customId?: string, customSeason?: number) => {
-    if (!result) return;
+    if (!result || !user || !state.selectedLeagueId) return;
     const matchId = customId || `match_${Date.now()}`;
     const today = getMoscowDateString();
 
-    setState(s => {
-      if (s.matchHistory.some(m => m.id === matchId)) return s;
-      
-      const activeSeason = customSeason || s.seasonNumber;
-      const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
-      const activeHeroIds = activeSlots.map(slot => s.lineup[slot]).filter(Boolean) as string[];
-      
-      const teamRef = getTeamRef(s.selectedLeagueId, s.leagueLevel, s.groupId, s.id);
-      if (teamRef) {
-        s.ownedHeroes.forEach(hero => {
-          if (!activeHeroIds.includes(hero.id)) return;
-          
-          let activity: ActivityType = 'friendly';
-          if (type === 'league') activity = 'league';
-          if (type === 'cup') activity = 'cup';
-          if (type === 'tournament') activity = 'tournament_ext';
-          if (type === 'trial') activity = 'trial';
-          if (type === 'basket') activity = 'friendly';
+    if (state.matchHistory.some(m => m.id === matchId)) return;
 
-          const currentMatchesToday = hero.lastMatchDateXP === today ? (hero.matchesPlayedToday || 0) : 0;
-          const win = winner === (s.displayName || "Manager");
-          const mvp = result.mvp === hero.name;
+    const activeSeason = customSeason || state.seasonNumber;
+    const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
+    const activeHeroIds = activeSlots.map(slot => state.lineup[slot]).filter(Boolean) as string[];
+    
+    const teamRef = getTeamRef(state.selectedLeagueId, state.leagueLevel, state.groupId, state.id);
+    if (teamRef) {
+      state.ownedHeroes.forEach(hero => {
+        if (!activeHeroIds.includes(hero.id)) return;
+        
+        let activity: ActivityType = 'friendly';
+        if (type === 'league') activity = 'league';
+        if (type === 'cup') activity = 'cup';
+        if (type === 'tournament') activity = 'tournament_ext';
+        if (type === 'trial') activity = 'trial';
+        if (type === 'basket') activity = 'friendly';
 
-          const nextProStats = { ...hero.proStats };
-          const nextXPStats = { ...(hero.xpStats || {}) };
+        const currentMatchesToday = hero.lastMatchDateXP === today ? (hero.matchesPlayedToday || 0) : 0;
+        const win = winner === (state.displayName || "Manager");
+        const mvp = result.mvp === hero.name;
 
-          Object.keys(hero.proStats).forEach(statKey => {
-            const talentVal = (hero.proTalents as any)[statKey] * 10;
-            const currentVal = (hero.proStats as any)[statKey];
-            const xpGain = calculateXpGain({
-              activity, currentValue: currentVal, talentValue: talentVal,
-              infra: { bootcamp: s.bootcamp.bootcampLevel || 0, research: s.bootcamp.researchLevel || 0, psychologist: s.medical.psychologistLevel || 0 },
-              matchResult: { win, mvp, great: mvp, fail: false },
-              matchesToday: currentMatchesToday + 1
-            });
-            const currentStatXP = (nextXPStats[statKey] || 0) + xpGain;
-            if (currentStatXP >= 100) {
-              const points = Math.floor(currentStatXP / 100);
-              (nextProStats as any)[statKey] = Math.min(100, currentVal + points);
-              nextXPStats[statKey] = currentStatXP % 100;
-            } else {
-              nextXPStats[statKey] = currentStatXP;
-            }
+        const nextProStats = { ...hero.proStats };
+        const nextXPStats = { ...(hero.xpStats || {}) };
+
+        Object.keys(hero.proStats).forEach(statKey => {
+          const talentVal = (hero.proTalents as any)[statKey] * 10;
+          const currentVal = (hero.proStats as any)[statKey];
+          const xpGain = calculateXpGain({
+            activity, currentValue: currentVal, talentValue: talentVal,
+            infra: { bootcamp: state.bootcamp.bootcampLevel || 0, research: state.bootcamp.researchLevel || 0, psychologist: state.medical.psychologistLevel || 0 },
+            matchResult: { win, mvp, great: mvp, fail: false },
+            matchesToday: currentMatchesToday + 1
           });
-
-          const nextMatchesPlayed = (hero.totalMatchesPlayed || 0) + 1;
-          const nextMoral = Math.min(100, Math.max(0, (hero.moral || 50) + (win ? 2 : (result.scoreA === result.scoreB ? 0 : -2))));
-          const nextOVR = calculateHeroOVR(hero.role, nextProStats, nextMatchesPlayed, nextMoral, hero.titles || { league: 0, cup: 0, friendly: 0 });
-
-          updateDocumentNonBlocking(doc(teamRef, 'heroes', hero.id), {
-            proStats: nextProStats, xpStats: nextXPStats, overallRating: nextOVR, matchesPlayedToday: currentMatchesToday + 1, totalMatchesPlayed: nextMatchesPlayed, moral: nextMoral, lastMatchDateXP: today
-          });
+          const currentStatXP = (nextXPStats[statKey] || 0) + xpGain;
+          if (currentStatXP >= 100) {
+            const points = Math.floor(currentStatXP / 100);
+            (nextProStats as any)[statKey] = Math.min(50, currentVal + points); // Max 50 for normal heroes
+            nextXPStats[statKey] = currentStatXP % 100;
+          } else {
+            nextXPStats[statKey] = currentStatXP;
+          }
         });
-      }
 
-      const matchEntry: MatchResultEntry = { 
-        id: matchId, 
-        day: matchDay, 
-        seasonNumber: activeSeason, 
-        type, 
-        opponentName, 
-        winner, 
-        scoreA: result.scoreA, 
-        scoreB: result.scoreB, 
-        matchSummary: result.matchSummary || "", 
-        teamStats: result.teamStats || {}, 
-        heroPerformance: result.scoreboard || result.heroPerformance || [], 
-        timeline: result.timeline || [],
-        playedAt: customPlayedAt || new Date().toISOString() 
-      };
-      
-      const newHistory = [matchEntry, ...s.matchHistory].slice(0, 100);
+        const nextMatchesPlayed = (hero.totalMatchesPlayed || 0) + 1;
+        const nextMoral = Math.min(100, Math.max(0, (hero.moral || 50) + (win ? 2 : (result.scoreA === result.scoreB ? 0 : -2))));
+        const nextOVR = calculateHeroOVR(hero.role, nextProStats, nextMatchesPlayed, nextMoral, hero.titles || { league: 0, cup: 0, friendly: 0 });
 
+        updateDocumentNonBlocking(doc(teamRef, 'heroes', hero.id), {
+          proStats: nextProStats, xpStats: nextXPStats, overallRating: nextOVR, matchesPlayedToday: currentMatchesToday + 1, totalMatchesPlayed: nextMatchesPlayed, moral: nextMoral, lastMatchDateXP: today
+        });
+      });
+    }
+
+    const matchEntry: MatchResultEntry = { 
+      id: matchId, 
+      day: matchDay, 
+      seasonNumber: activeSeason, 
+      type, 
+      opponentName, 
+      winner, 
+      scoreA: result.scoreA, 
+      scoreB: result.scoreB, 
+      matchSummary: result.matchSummary || "", 
+      teamStats: result.teamStats || {}, 
+      heroPerformance: result.scoreboard || result.heroPerformance || [], 
+      timeline: result.timeline || [],
+      playedAt: customPlayedAt || new Date().toISOString(),
+      seen: false
+    };
+    
+    const newHistory = [matchEntry, ...state.matchHistory].slice(0, 100);
+
+    // Persist to Firestore directly
+    if (teamRef) {
       const updateData: any = { matchHistory: sanitizeForFirestore(newHistory) };
       if (type === 'league') updateData.lastLeagueMatchDate = today;
       if (type === 'cup') updateData.lastCupMatchDate = today;
+      updateDoc(teamRef, updateData).catch(e => console.warn("RecordMatch Firestore Err:", e.message));
+    }
 
-      runCloudUpdate(updateData);
-      recordMatchGlobal({ id: matchId, season: activeSeason, day: matchDay, type, homeId: s.id, awayId: opponentName, scoreA: result.scoreA, scoreB: result.scoreB, winnerId: winner, playedAt: matchEntry.playedAt });
+    recordMatchGlobal({ id: matchId, season: activeSeason, day: matchDay, type, homeId: state.id, awayId: opponentName, scoreA: result.scoreA, scoreB: result.scoreB, winnerId: winner, playedAt: matchEntry.playedAt });
 
-      return { ...s, matchHistory: newHistory, lastLeagueMatchDate: type === 'league' ? today : s.lastLeagueMatchDate, lastCupMatchDate: type === 'cup' ? today : s.lastCupMatchDate };
-    });
-  }, [runCloudUpdate, recordMatchGlobal, getTeamRef]);
+    setState(s => ({ ...s, matchHistory: newHistory, lastLeagueMatchDate: type === 'league' ? today : s.lastLeagueMatchDate, lastCupMatchDate: type === 'cup' ? today : s.lastCupMatchDate }));
+  }, [user, state, getTeamRef, recordMatchGlobal]);
 
   const markMatchAsSeen = useCallback((day: number) => { setState(s => { if (day <= s.lastSeenMatchDay) return s; runCloudUpdate({ lastSeenMatchDay: day }); return { ...s, lastSeenMatchDay: day }; }); }, [runCloudUpdate]);
+  
+  const markMatchIdAsSeen = useCallback((matchId: string) => {
+    setState(s => {
+      const newHistory = s.matchHistory.map(m => m.id === matchId ? { ...m, seen: true } : m);
+      const teamRef = getTeamRef(s.selectedLeagueId, s.leagueLevel, s.groupId, s.id);
+      if (teamRef) {
+        updateDoc(teamRef, { matchHistory: sanitizeForFirestore(newHistory) }).catch(() => {});
+      }
+      return { ...s, matchHistory: newHistory };
+    });
+  }, [getTeamRef]);
+
   const claimReward = useCallback((cr: number, cry: number) => { const today = getMoscowDateString(); setState(s => { if (s.lastRewardClaimDate === today) return s; const premiumActive = s.premiumUntil && new Date(s.premiumUntil).getTime() > getMoscowTime().getTime(); let bonusCrystals = premiumActive ? 50 : 0; if (s.activeLicenseTier === 1) bonusCrystals += 10; const nCredits = s.credits + cr; const nCrystals = s.crystals + cry + bonusCrystals; const nDay = s.rewardDay >= 30 ? 1 : s.rewardDay + 1; runCloudUpdate({ inGameCurrency: nCredits, crystals: nCrystals, lastRewardClaimDate: today, rewardDay: nDay }); return { ...s, credits: nCredits, crystals: nCrystals, lastRewardClaimDate: today, rewardDay: nDay }; }); }, [runCloudUpdate]);
   const dismissSeasonResults = useCallback(() => { setState(s => { runCloudUpdate({ seasonResults: null }); return { ...s, seasonResults: null }; }); }, [runCloudUpdate]);
   
@@ -471,9 +486,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const k = h.dailyTrainingFocus; const talentVal = (h.proTalents ? (h.proTalents as any)[k] : 3.0) * 10; 
     const xpGain = calculateXpGain({ activity: 'daily', currentValue: (h.proStats as any)[k] || 0, talentValue: talentVal, infra: { bootcamp: state.bootcamp.bootcampLevel || 0, research: state.bootcamp.researchLevel || 0, psychologist: state.medical.psychologistLevel || 0 }, matchesToday: 0 });
     const nextXPStats = { ...(h.xpStats || {}) }; const currentStatXP = (nextXPStats[k] || 0) + xpGain; const nextProStats = { ...h.proStats };
-    if (currentStatXP >= 100) { (nextProStats as any)[k] = Math.min(100, ((h.proStats as any)[k] || 0) + Math.floor(currentStatXP / 100)); nextXPStats[k] = currentStatXP % 100; } else nextXPStats[k] = currentStatXP;
+    if (currentStatXP >= 100) { (nextProStats as any)[k] = Math.min(50, ((h.proStats as any)[k] || 0) + Math.floor(currentStatXP / 100)); nextXPStats[k] = currentStatXP % 100; } else nextXPStats[k] = currentStatXP;
     
-    const teamRef = getTeamRef(state.selectedLeagueId, state.leagueLevel, state.groupId, id);
+    const teamRef = getTeamRef(state.selectedLeagueId, state.leagueLevel, state.groupId, state.id);
     if (!teamRef) return;
     updateDocumentNonBlocking(doc(teamRef, 'heroes', id), { proStats: nextProStats, xpStats: nextXPStats, overallRating: calculateHeroOVR(h.role, nextProStats, h.totalMatchesPlayed || 0, h.moral || 50, h.titles || { league: 0, cup: 0, friendly: 0 }), dailyTrainingFocus: null, dailyTrainingFinishTime: null });
   }, [state, getTeamRef]);
@@ -531,7 +546,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       startArenaConstruction, startHQConstruction, startBootcampConstruction, 
       startAcademyConstruction, startMedicalConstruction, accelerateConstruction, 
       startCapacityExpansion, checkConstructions, hireStaffMember, trainStaffSkill, 
-      setLanguage, recordMatch, recordMatchGlobal, markMatchAsSeen, claimReward, syncStats, dismissSeasonResults, 
+      setLanguage, recordMatch, recordMatchGlobal, markMatchAsSeen, markMatchIdAsSeen, claimReward, syncStats, dismissSeasonResults, 
       setSyncing, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, 
       updateHero, promoteYouthPlayer, removeHero, recoverAllFatigue, addHeroDirectly, 
       addYouthHeroDirectly, updateProfileName, updateProfileCountry, purchaseLicense, 

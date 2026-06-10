@@ -267,7 +267,12 @@ export default function Home() {
   const unseenCount = useMemo(() => {
     if (!profile) return 0;
     const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : 0;
-    return matchHistory.filter(m => m.type === 'league' && m.day > lastSeenMatchDay && (m.playedAt ? new Date(m.playedAt).getTime() : 0) >= setupTime).length;
+    
+    // Count both league progression and individual unseen matches
+    const leagueUnseen = matchHistory.filter(m => m.type === 'league' && m.day > lastSeenMatchDay && (m.playedAt ? new Date(m.playedAt).getTime() : 0) >= setupTime).length;
+    const otherUnseen = matchHistory.filter(m => m.type !== 'league' && m.seen === false && (m.playedAt ? new Date(m.playedAt).getTime() : 0) >= setupTime).length;
+    
+    return leagueUnseen + otherUnseen;
   }, [matchHistory, lastSeenMatchDay, profile]);
 
   if (isUserLoading || !isLoaded || !user || isProfileLoading || isGroupLoading) return <LoadingScreen />;
