@@ -1,11 +1,10 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
-  Trophy, Medal, ChevronLeft, swords, ChevronRight,
+  Trophy, Medal, ChevronLeft, Swords, ChevronRight,
   LayoutDashboard, Loader2, Target, Timer, ChevronsLeft, ChevronsRight,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
   Skull, Crosshair, FileText, ArrowUp, ArrowDown

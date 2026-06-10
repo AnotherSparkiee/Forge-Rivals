@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -15,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { useGameState } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
