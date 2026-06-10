@@ -101,12 +101,12 @@ export function getSchedule(teams: any[]) {
 /**
  * Builds the group standings table by simulating all matches up to a specific day.
  * This is the SOURCE OF TRUTH for online rankings.
- * CRITICAL: Strictly filters out players without valid names.
+ * CRITICAL: Strictly filters out players without valid names to avoid "Commander" spam.
  */
 export function getMockGroupTeams(
   playerRank: number, 
   playerName: string = "Player Team",
-  level: number = 1,
+  level: number = 9,
   division: number = 1,
   group: number = 1,
   leagueId: string = "ALPHA",
@@ -118,13 +118,19 @@ export function getMockGroupTeams(
   
   // 1. Add valid real players from Firestore
   const playersList = Array.isArray(realPlayers) ? realPlayers : [];
+  // Stable sort by ID before anything else to ensure consistent slot assignment
   const sortedRealPlayers = [...playersList].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
   
   sortedRealPlayers.forEach(p => {
     const isMe = p.id === currentPlayerId;
     
-    // STRICT FILTER: Filter out players with empty names or default "Unknown Commander" string.
-    const hasValidName = p.displayName && p.displayName.trim().length >= 2 && p.displayName !== "Unknown Commander";
+    // STRICT FILTER: Only allow players with names longer than 1 char 
+    // and NOT the default "Commander" or "Unknown Commander" strings.
+    const hasValidName = p.displayName && 
+                        p.displayName.trim().length >= 2 && 
+                        p.displayName !== "Commander" && 
+                        p.displayName !== "Unknown Commander" &&
+                        p.displayName !== "Manager";
 
     if (hasValidName || isMe) {
       teams.push({
@@ -140,14 +146,14 @@ export function getMockGroupTeams(
     }
   });
 
-  // 2. Fill remaining slots with bots to maintain TEAMS_PER_GROUP (8)
+  // 2. Fill remaining slots with UNIQUE bots to maintain TEAMS_PER_GROUP (8)
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   for (let i = 0; i < botsNeeded; i++) {
     const botIdNum = (Number(level) * 1000) + (Number(group) * 10) + i + 1000;
-    const botName = `bot${botIdNum}`;
+    const botName = `Elite Bot ${botIdNum}`;
     
     teams.push({
-      id: botName,
+      id: `bot_${botIdNum}`,
       name: botName,
       wins: 0,
       draws: 0,
@@ -161,7 +167,7 @@ export function getMockGroupTeams(
   // Ensure we don't exceed 8 teams (strict cap for league stability)
   const finalTeams = teams.slice(0, TEAMS_PER_GROUP);
 
-  // Final sort by ID for deterministic cross-client scheduling
+  // Final deterministic sort by ID for cross-client scheduling
   finalTeams.sort((a, b) => a.id.localeCompare(b.id));
 
   // 3. Simulate matches strictly up to upToDay
@@ -185,8 +191,8 @@ export function getMockGroupTeams(
     }
   }
 
-  // 4. Final SORTING for display: Points DESC, then Wins DESC
-  return finalTeams.sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name));
+  // 4. Final SORTING for display: Points DESC, then Wins DESC, then ID
+  return finalTeams.sort((a, b) => b.points - a.points || b.wins - a.wins || a.id.localeCompare(b.id));
 }
 
 export function applyResult(home: any, away: any, hScore: number, aScore: number) {
