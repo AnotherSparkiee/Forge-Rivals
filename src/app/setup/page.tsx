@@ -48,9 +48,11 @@ export default function SetupPage() {
       const uniqueSquad = getRandomStartingSquad();
       
       const nowIso = new Date().toISOString();
+      const realDisplayName = profile?.displayName || user.email?.split('@')[0] || "Manager";
+
       const profileData = {
         id: user.uid, 
-        displayName: profile?.displayName || "Manager", 
+        displayName: realDisplayName, 
         inGameCurrency: 10000000, 
         crystals: 0,
         experiencePoints: 0, 
@@ -69,9 +71,10 @@ export default function SetupPage() {
 
       const batch = writeBatch(db);
 
-      // 1. Root pointer for discovery
+      // 1. Root pointer for discovery - preserve displayName
       const rootRef = doc(db, 'players_v10', user.uid);
       batch.set(rootRef, {
+        displayName: realDisplayName,
         selectedLeagueId,
         leagueLevel: targetLevel,
         groupId: targetGroup,

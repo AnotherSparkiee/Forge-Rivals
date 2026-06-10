@@ -175,7 +175,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
                 return {
                   ...s,
                   id: user.uid,
-                  displayName: profileData.displayName ?? rootData.displayName ?? s.displayName,
+                  // Root profile is the master for displayName
+                  displayName: rootData.displayName ?? profileData.displayName ?? s.displayName,
                   credits: profileData.inGameCurrency ?? s.credits,
                   crystals: profileData.crystals ?? s.crystals,
                   experiencePoints: profileData.experiencePoints ?? s.experiencePoints,
