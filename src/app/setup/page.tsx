@@ -48,7 +48,8 @@ export default function SetupPage() {
       const uniqueSquad = getRandomStartingSquad();
       
       const nowIso = new Date().toISOString();
-      const realDisplayName = profile?.displayName || user.email?.split('@')[0] || "Manager";
+      // PRESERVE: Use the name from registration, do not overwrite with generic "Manager"
+      const realDisplayName = profile?.displayName || user.email?.split('@')[0] || "Commander";
 
       const profileData = {
         id: user.uid, 

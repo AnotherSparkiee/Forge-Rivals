@@ -172,11 +172,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
               const profileData = docSnap.data();
               setState(s => {
                 const { seasonDay: globalDay, seasonNumber: globalSeason, seasonStartDate: globalStart } = getGlobalSeasonInfo();
+                
+                // PRIORITY: Root profile displayName is the master name
+                const finalDisplayName = rootData.displayName && rootData.displayName !== "Manager" && rootData.displayName !== "Commander"
+                   ? rootData.displayName 
+                   : (profileData.displayName || rootData.displayName || s.displayName);
+
                 return {
                   ...s,
                   id: user.uid,
-                  // Root profile is the master for displayName
-                  displayName: rootData.displayName ?? profileData.displayName ?? s.displayName,
+                  displayName: finalDisplayName,
                   credits: profileData.inGameCurrency ?? s.credits,
                   crystals: profileData.crystals ?? s.crystals,
                   experiencePoints: profileData.experiencePoints ?? s.experiencePoints,
@@ -489,7 +494,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const nextXPStats = { ...(h.xpStats || {}) }; const currentStatXP = (nextXPStats[k] || 0) + xpGain; const nextProStats = { ...h.proStats };
     if (currentStatXP >= 100) { (nextProStats as any)[k] = Math.min(50, ((h.proStats as any)[k] || 0) + Math.floor(currentStatXP / 100)); nextXPStats[k] = currentStatXP % 100; } else nextXPStats[k] = currentStatXP;
     
-    const teamRef = getTeamRef(state.selectedLeagueId, state.leagueLevel, state.groupId, state.id);
+    const teamRef = getTeamRef(state.selectedLeagueId, state.leagueLevel, state.groupId, id);
     if (!teamRef) return;
     updateDocumentNonBlocking(doc(teamRef, 'heroes', id), { proStats: nextProStats, xpStats: nextXPStats, overallRating: calculateHeroOVR(h.role, nextProStats, h.totalMatchesPlayed || 0, h.moral || 50, h.titles || { league: 0, cup: 0, friendly: 0 }), dailyTrainingFocus: null, dailyTrainingFinishTime: null });
   }, [state, getTeamRef]);
