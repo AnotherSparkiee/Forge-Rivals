@@ -7,12 +7,36 @@
         "id": { "type": "string" },
         "displayName": { "type": "string" },
         "email": { "type": "string" },
-        "leagueId": { "type": "string" },
-        "divisionLevel": { "type": "number" },
+        "selectedLeagueId": { "type": "string" },
+        "leagueLevel": { "type": "number" },
         "groupId": { "type": "number" },
         "inGameCurrency": { "type": "number" },
         "crystals": { "type": "number" },
-        "ownedHeroes": { "type": "array" }
+        "managerLevel": { "type": "number" }
+      }
+    },
+    "Hero": {
+      "type": "object",
+      "description": "Individual cyber-athlete entity",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "overallRating": { "type": "number" },
+        "moral": { "type": "number" },
+        "fatigue": { "type": "number" },
+        "proStats": { "type": "object" }
+      }
+    },
+    "Staff": {
+      "type": "object",
+      "description": "Professional club personnel",
+      "properties": {
+        "id": { "type": "string" },
+        "role": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "salary": { "type": "number" }
       }
     },
     "MatchRecord": {
@@ -36,22 +60,35 @@
     "structure": [
       {
         "path": "players_v10/{userId}",
-        "description": "Root pointer for player location (league, div, group)"
+        "description": "Root discovery pointer for player location"
       },
       {
         "path": "leagues/{leagueId}/divisions/{divLevel}/groups/{groupId}/teams/{userId}",
         "definition": "PlayerProfile",
-        "description": "Primary team data within a specific group"
+        "description": "Primary club document"
+      },
+      {
+        "path": "leagues/{leagueId}/divisions/{divLevel}/groups/{groupId}/teams/{userId}/heroes/{heroId}",
+        "definition": "Hero",
+        "description": "Individual team players collection"
+      },
+      {
+        "path": "leagues/{leagueId}/divisions/{divLevel}/groups/{groupId}/teams/{userId}/staff/{staffId}",
+        "definition": "Staff",
+        "description": "Active club employees"
+      },
+      {
+        "path": "leagues/{leagueId}/divisions/{divLevel}/groups/{groupId}/teams/{userId}/fanclub/{docId}",
+        "description": "Fan groups and loyalty metrics"
+      },
+      {
+        "path": "leagues/{leagueId}/divisions/{divLevel}/groups/{groupId}/teams/{userId}/tournaments/{tourId}",
+        "description": "Tournament specific progression data"
       },
       {
         "path": "leagues/{leagueId}/cups/{seasonNumber}/matches/{matchId}",
         "definition": "MatchRecord",
-        "description": "Pyramid Cup matches specific to a league"
-      },
-      {
-        "path": "leagues/{leagueId}/divisions/{divLevel}/groups/{groupId}/matches/{matchId}",
-        "definition": "MatchRecord",
-        "description": "League matches within a specific group"
+        "description": "Independent league cup matches"
       }
     ]
   }

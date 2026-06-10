@@ -1,18 +1,21 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, ChevronRight, Heart, Users, Ticket, 
   BusFront, Signature, Info, Star, ShieldCheck, 
-  TrendingUp, Zap, Sparkles
+  TrendingUp, Zap, Sparkles, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
 
 type FanclubTab = 
   | 'menu'
@@ -22,10 +25,19 @@ type FanclubTab =
   | 'autograph';
 
 export default function FanclubPage() {
-  const { language, isLoaded } = useGameState();
+  const { language, isLoaded, selectedLeagueId, leagueLevel, groupId } = useGameState();
+  const { user } = useUser();
+  const db = useFirestore();
   const [activeTab, setActiveTab] = useState<FanclubTab>('menu');
 
-  if (!isLoaded) return <LoadingScreen />;
+  const fanclubRef = useMemoFirebase(() => {
+    if (!user || !selectedLeagueId) return null;
+    return doc(db, 'leagues', selectedLeagueId, 'divisions', leagueLevel.toString(), 'groups', groupId.toString(), 'teams', user.uid, 'fanclub', 'stats');
+  }, [db, user, selectedLeagueId, leagueLevel, groupId]);
+
+  const { data: fanData, isLoading: isFanLoading } = useDoc(fanclubRef);
+
+  if (!isLoaded || isFanLoading) return <LoadingScreen />;
 
   const translations = {
     en: {
@@ -131,31 +143,16 @@ export default function FanclubPage() {
           </div>
         );
 
-      case 'organized_trip':
-        return (
-          <div className="py-20 text-center opacity-30 animate-in fade-in duration-500">
-            <div className="w-16 h-16 rounded-full border-2 border-dashed border-muted-foreground mx-auto mb-4 flex items-center justify-center">
-              <BusFront className="w-8 h-8" />
-            </div>
-            <p className="text-xs font-black uppercase tracking-widest leading-relaxed">
-              Logistic node restricted.<br/>Requires Division 7 clearance.
-            </p>
+      default: return (
+        <div className="py-20 text-center opacity-30 animate-in fade-in duration-500">
+          <div className="w-16 h-16 rounded-full border-2 border-dashed border-muted-foreground mx-auto mb-4 flex items-center justify-center">
+            <Info className="w-8 h-8" />
           </div>
-        );
-
-      case 'autograph':
-        return (
-          <div className="py-20 text-center opacity-30 animate-in fade-in duration-500">
-            <div className="w-16 h-16 rounded-full border-2 border-dashed border-muted-foreground mx-auto mb-4 flex items-center justify-center">
-              <Signature className="w-8 h-8" />
-            </div>
-            <p className="text-xs font-black uppercase tracking-widest leading-relaxed">
-              Media event scheduling offline.<br/>Upgrade HQ Press Office to unlock.
-            </p>
-          </div>
-        );
-
-      default: return null;
+          <p className="text-xs font-black uppercase tracking-widest leading-relaxed">
+            Module data offline.<br/>Establishing uplink...
+          </p>
+        </div>
+      );
     }
   };
 
@@ -181,13 +178,13 @@ export default function FanclubPage() {
            <Card className="glass-card bg-primary/5 border-primary/20">
              <CardContent className="p-4 text-center">
                 <p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Fan Count</p>
-                <p className="text-xl font-headline font-black italic text-primary">12.5k</p>
+                <p className="text-xl font-headline font-black italic text-primary">{(fanData?.fanCount || 0).toLocaleString()}</p>
              </CardContent>
            </Card>
            <Card className="glass-card bg-accent/5 border-accent/20">
              <CardContent className="p-4 text-center">
                 <p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Loyalty</p>
-                <p className="text-xl font-headline font-black italic text-accent">85%</p>
+                <p className="text-xl font-headline font-black italic text-accent">{fanData?.loyalty || 0}%</p>
              </CardContent>
            </Card>
         </div>

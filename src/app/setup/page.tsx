@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, writeBatch } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -48,7 +48,6 @@ export default function SetupPage() {
       const profileData = {
         id: user.uid, displayName: "Commander", inGameCurrency: 10000000, crystals: 0,
         experiencePoints: 0, managerLevel: 1, skillPoints: 0, createdAt: nowIso,
-        ownedHeroes: uniqueSquad, ownedHeroIds: uniqueSquad.map(h => h.id),
         lineup: { 
           offlane: uniqueSquad[0].id, carry: uniqueSquad[1].id, mid: uniqueSquad[2].id, 
           support: uniqueSquad[3].id, full_support: uniqueSquad[4].id, 
@@ -57,8 +56,11 @@ export default function SetupPage() {
         leagueLevel: targetLevel, groupId: targetGroup, lastProcessedSeason: Number(seasonNumber || 1)
       };
 
+      const batch = writeBatch(db);
+
       // 1. Root pointer for discovery
-      await setDoc(doc(db, 'players_v10', user.uid), {
+      const rootRef = doc(db, 'players_v10', user.uid);
+      batch.set(rootRef, {
         selectedLeagueId,
         leagueLevel: targetLevel,
         groupId: targetGroup,
@@ -67,8 +69,24 @@ export default function SetupPage() {
       }, { merge: true });
       
       // 2. Full hierarchy data
-      const hierarchyPath = doc(db, 'leagues', selectedLeagueId, 'divisions', targetLevel.toString(), 'groups', targetGroup.toString(), 'teams', user.uid);
-      await setDoc(hierarchyPath, profileData);
+      const teamRef = doc(db, 'leagues', selectedLeagueId, 'divisions', targetLevel.toString(), 'groups', targetGroup.toString(), 'teams', user.uid);
+      batch.set(teamRef, profileData);
+
+      // 3. Initialize Heroes sub-collection
+      uniqueSquad.forEach(hero => {
+        const heroRef = doc(collection(teamRef, 'heroes'), hero.id);
+        batch.set(heroRef, JSON.parse(JSON.stringify(hero)));
+      });
+
+      // 4. Initialize Fanclub sub-collection
+      const fanclubRef = doc(teamRef, 'fanclub', 'stats');
+      batch.set(fanclubRef, {
+        loyalty: 50,
+        fanCount: 1500,
+        updatedAt: nowIso
+      });
+
+      await batch.commit();
 
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('lote_hub_entered', 'true');

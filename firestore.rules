@@ -11,24 +11,30 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Root pointers
+    // Root pointers for discovery
     match /players_v10/{userId} {
       allow read: if true;
       allow create, update: if isOwner(userId);
     }
 
-    // League Hierarchy
+    // League Hierarchy - Deep Nesting Support
     match /leagues/{leagueId}/divisions/{div}/groups/{group}/teams/{userId} {
       allow read: if isSignedIn();
       allow create, update: if isOwner(userId);
+      
+      // Sub-collections for Heroes, Staff, Fanclub, Tournaments
+      match /{allSubcollections=**} {
+        allow read: if isSignedIn();
+        allow write: if isOwner(userId);
+      }
     }
 
+    // League Matches & Cups
     match /leagues/{leagueId}/divisions/{div}/groups/{group}/matches/{matchId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
     }
 
-    // Pyramid Cup (per League)
     match /leagues/{leagueId}/cups/{season}/matches/{matchId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
@@ -37,8 +43,7 @@ service cloud.firestore {
     // Standard collections
     match /associations_v4/{docId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
+      allow create, update: if isSignedIn();
       allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
@@ -57,7 +62,7 @@ service cloud.firestore {
 
     match /notifications_v7/{docId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create, update, delete: if isSignedIn();
+      allow write: if isSignedIn();
     }
     
     match /market_v7/{docId} {
