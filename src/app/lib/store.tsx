@@ -246,7 +246,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         else if (tier === 2) multiplier = 1.5;
         else if (tier === 1) multiplier = 2.0;
         
-        // Re-check premium status inside the state update to be most accurate
         const premiumActive = s.premiumUntil && new Date(s.premiumUntil).getTime() > getMoscowTime().getTime();
         if (premiumActive) multiplier += 2.0;
       }
@@ -289,7 +288,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       
       const premiumActive = s.premiumUntil && new Date(s.premiumUntil).getTime() > getMoscowTime().getTime();
       
-      // CRITICAL: Only the first 5 core slots get bonuses
       const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
       const activeHeroIds = activeSlots.map(slot => s.lineup[slot]).filter(Boolean) as string[];
       
@@ -337,7 +335,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           }
         });
 
-        // Бесконечный OVR расчет
         const nextMatchesPlayed = (hero.totalMatchesPlayed || 0) + 1;
         const nextMoral = Math.min(100, Math.max(0, (hero.moral || 50) + (win ? 2 : (result.scoreA === result.scoreB ? 0 : -2))));
         const currentTitles = hero.titles || { league: 0, cup: 0, friendly: 0 };
@@ -379,14 +376,28 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const matchEntry: MatchResultEntry = { id: matchId, day: matchDay, type, opponentName, winner, scoreA: result.scoreA, scoreB: result.scoreB, matchSummary: result.matchSummary || "", teamStats: result.teamStats || {}, heroPerformance: result.heroPerformance || [], playedAt: customPlayedAt || new Date().toISOString(), duration: result.duration || "", mvp: result.mvp || "", preview: result.preview || null, timeline: result.timeline || [], postMatch: result.postMatch || null };
       const newHistory = [matchEntry, ...s.matchHistory].slice(0, 100);
 
+      const typeUpdates: any = {};
+      if (type === 'league') typeUpdates.lastLeagueMatchDate = today;
+      if (type === 'cup') typeUpdates.lastCupMatchDate = today;
+
       runCloudUpdate({ 
         matchHistory: sanitizeForFirestore(newHistory), 
         experiencePoints: nextXP, 
         managerLevel: nextLevel, 
         skillPoints: nextSkillPoints,
-        ownedHeroes: sanitizeForFirestore(updatedHeroes)
+        ownedHeroes: sanitizeForFirestore(updatedHeroes),
+        ...typeUpdates
       });
-      return { ...s, matchHistory: newHistory, experiencePoints: nextXP, managerLevel: nextLevel, skillPoints: nextSkillPoints, ownedHeroes: updatedHeroes };
+      return { 
+        ...s, 
+        matchHistory: newHistory, 
+        experiencePoints: nextXP, 
+        managerLevel: nextLevel, 
+        skillPoints: nextSkillPoints, 
+        ownedHeroes: updatedHeroes,
+        lastLeagueMatchDate: type === 'league' ? today : s.lastLeagueMatchDate,
+        lastCupMatchDate: type === 'cup' ? today : s.lastCupMatchDate
+      };
     });
   }, [runCloudUpdate]);
 
@@ -512,7 +523,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           nextXPStats[k] = currentStatXP;
         }
 
-        // Пересчет OVR после тренировки
         const nextOVR = calculateHeroOVR(
           h.role, 
           nextProStats, 

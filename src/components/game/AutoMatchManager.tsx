@@ -74,11 +74,9 @@ export function AutoMatchManager() {
     });
   }, [db]);
 
-  // RETIREMENT CHECK (Start of Season)
   useEffect(() => {
     if (!isLoaded || isUserLoading || !user || !profile) return;
     if (seasonDay === 1 && lastProcessedSeason < seasonNumber) {
-      // 1. Process Players
       ownedHeroes.forEach(hero => {
         const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
         if (liveAge.numeric >= 33) {
@@ -89,8 +87,6 @@ export function AutoMatchManager() {
           sendNotification(user.uid, title, desc, `retire_hero_${hero.id}_S${seasonNumber}`);
         }
       });
-
-      // 2. Process Staff
       Object.values(staff).forEach(member => {
         if (!member) return;
         const liveAge = calculateLiveAge(member.baseAge, member.hiredAt);
@@ -102,8 +98,6 @@ export function AutoMatchManager() {
           sendNotification(user.uid, title, desc, `retire_staff_${member.id}_S${seasonNumber}`);
         }
       });
-
-      // Update processed season to prevent double notifications
       updateDoc(userRef!, { lastProcessedSeason: seasonNumber });
     }
   }, [isLoaded, isUserLoading, user, profile, seasonDay, seasonNumber, lastProcessedSeason, ownedHeroes, staff, language, sendNotification, userRef]);
@@ -159,10 +153,10 @@ export function AutoMatchManager() {
         }
 
         const canonicalWinner = forcedScoreA > forcedScoreB ? (profile.displayName || "Manager") : (forcedScoreA < forcedScoreB ? (opponent.name || "Opponent") : "Draw");
-        recordMatch(canonicalWinner, { ...result, scoreA: forcedScoreA, scoreB: forcedScoreB }, targetDay, opponent.name || "Opponent", 'league', customPlayedAt, detId);
+        recordMatch(canonicalWinner, { ...result.games[0], scoreA: forcedScoreA, scoreB: forcedScoreB }, targetDay, opponent.name || "Opponent", 'league', customPlayedAt, detId);
         
         if (!isCatchUp) {
-          setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, type: 'league', scoreA: forcedScoreA, scoreB: forcedScoreB });
+          setCurrentResult({ ...result.games[0], id: detId, day: targetDay, opponentName: opponent.name, type: 'league', scoreA: forcedScoreA, scoreB: forcedScoreB });
           setShowResultDialog(true);
         }
       }
@@ -237,10 +231,10 @@ export function AutoMatchManager() {
       
       if (result && result.winner) {
         const canonicalWinner = forcedA > forcedB ? (profile.displayName || "Manager") : (forcedA < forcedB ? opponent.name : "Draw");
-        recordMatch(canonicalWinner, { ...result, scoreA: forcedA, scoreB: forcedB }, targetDay, opponent.name, 'cup', undefined, detId);
+        recordMatch(canonicalWinner, { ...result.games[0], scoreA: forcedA, scoreB: forcedB }, targetDay, opponent.name, 'cup', undefined, detId);
         
         if (!isCatchUp) {
-          setCurrentResult({ ...result, id: detId, day: targetDay, opponentName: opponent.name, type: 'cup', scoreA: forcedA, scoreB: forcedB }); 
+          setCurrentResult({ ...result.games[0], id: detId, day: targetDay, opponentName: opponent.name, type: 'cup', scoreA: forcedA, scoreB: forcedB }); 
           setShowResultDialog(true); 
         }
       }
@@ -277,9 +271,8 @@ export function AutoMatchManager() {
           const lId = `league_S${seasonNumber}_D${d}`;
           const lMatch = matchHistory.find(m => m.id === lId);
           const lDue = (d < seasonDay) || isMatchDue(leagueTime, lastLeagueMatchDate);
-          const isFadedWaiting = lMatch?.opponentName === 'WAITING' && d < seasonDay;
-
-          if ((lDue && (!lMatch || lMatch.preview === undefined)) || isFadedWaiting) {
+          
+          if (lDue && (!lMatch || lMatch.preview === undefined)) {
             await simulateOneLeagueMatch(seasonNumber, d, d < seasonDay);
             return; 
           }
@@ -296,10 +289,8 @@ export function AutoMatchManager() {
             m.opponentName !== 'WAITING' &&
             m.scoreA < m.scoreB
           );
-          
-          const isCupWaiting = cMatch?.opponentName === 'WAITING' && (d < seasonDay || isMatchDue(cupTime, null));
 
-          if (!eliminated && cDue && (!cMatch || cMatch.preview === undefined || isCupWaiting)) {
+          if (!eliminated && cDue && (!cMatch || cMatch.preview === undefined)) {
             await simulateOneCupMatch(seasonNumber, d, d < seasonDay);
             return; 
           }

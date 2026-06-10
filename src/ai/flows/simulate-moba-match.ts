@@ -1,9 +1,11 @@
+
 'use server';
 /**
  * @fileOverview Архитектурный модуль симуляции матчей Lines of Enmity.
  * 
  * Алгоритмический расчет на основе тактик, OVR и статов.
  * Поддержка Bo1/Bo2/Bo3, KDA, CS и текстовой трансляции.
+ * Поддержка принудительного результата для синхронизации лиги.
  */
 
 import {ai} from '@/ai/genkit';
@@ -41,6 +43,8 @@ const SimulateMobaMatchInputSchema = z.object({
   teamB: TeamSchema,
   isBo2: z.boolean().default(true),
   isBo3: z.boolean().default(false),
+  scoreA: z.number().optional().describe('Принудительный счет для команды А'),
+  scoreB: z.number().optional().describe('Принудительный счет для команды Б'),
 });
 export type SimulateMobaMatchInput = z.infer<typeof SimulateMobaMatchInputSchema>;
 
@@ -54,6 +58,7 @@ const GameStatsSchema = z.object({
     time: z.string(),
     event: z.string(),
     type: z.string(),
+    score: z.string().optional(),
   })),
   scoreboard: z.array(z.object({
     name: z.string(),
@@ -116,19 +121,16 @@ class NarrativeGenerator {
 /**
  * Ядро симуляции одного матча.
  */
-function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number): z.infer<typeof GameStatsSchema> {
+function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number, forcedScoreA?: number, forcedScoreB?: number): z.infer<typeof GameStatsSchema> {
   const { teamA, teamB } = input;
   const narrative = new NarrativeGenerator();
   
-  // 1. Расчет базовой силы
   const getPower = (team: any) => team.heroes.slice(0, 5).reduce((acc: number, h: any) => acc + h.overallRating, 0);
   const getAvgStat = (team: any, stat: keyof typeof ProStatsSchema._type) => 
     team.heroes.slice(0, 5).reduce((acc: number, h: any) => acc + h.proStats[stat], 0) / 5;
 
-  let atkA = 1.0, defA = 1.0, atkB = 1.0, defB = 1.0;
   const logs: string[] = [];
 
-  // 2. Применение тактик
   const applyTactics = (team: any, enemy: any) => {
     let a = 1.0, d = 1.0;
     const strat = team.strategy;
@@ -160,16 +162,17 @@ function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number): z.infe
   const finalPowerA = (basePowerA * modsA.a + basePowerA * modsA.d) * (0.85 + Math.random() * 0.3);
   const finalPowerB = (basePowerB * modsB.a + basePowerB * modsB.d) * (0.85 + Math.random() * 0.3);
 
-  // 3. Результат
-  const scoreA = finalPowerA > finalPowerB ? (Math.random() > 0.5 ? 20 : 35) : Math.floor(Math.random() * 15);
-  const scoreB = finalPowerB > finalPowerA ? (Math.random() > 0.5 ? 20 : 35) : Math.floor(Math.random() * 15);
+  let scoreA = forcedScoreA !== undefined ? forcedScoreA : (finalPowerA > finalPowerB ? 1 : 0);
+  let scoreB = forcedScoreB !== undefined ? forcedScoreB : (finalPowerB > finalPowerA ? 1 : 0);
 
-  // 4. Трансляция и Скорборд
   const timeline: any[] = [];
   const playerStats = new Map<string, any>();
   [...teamA.heroes.slice(0, 5), ...teamB.heroes.slice(0, 5)].forEach(h => {
-    playerStats.set(h.name, { kills: 0, deaths: 0, assists: 0, cs: 0, team: teamA.heroes.includes(h) ? teamA.name : teamB.name });
+    playerStats.set(h.name, { kills: 0, deaths: 0, assists: 0, cs: 0, team: teamA.heroes.some(th => th.name === h.name) ? teamA.name : teamB.name });
   });
+
+  let currentScoreA = 0;
+  let currentScoreB = 0;
 
   const durationMins = 35 + Math.floor(Math.random() * 10);
   for (let m = 1; m <= durationMins; m++) {
@@ -181,24 +184,21 @@ function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number): z.infe
     
     const rand = Math.random();
     if (rand < 0.4) {
-      // Farm
       const ps = playerStats.get(hero.name);
       ps.cs += 5 + Math.floor(hero.proStats.lastHitting / 10);
-      if (m % 5 === 0) timeline.push({ time, type: 'farm', event: narrative.generate('farm', hero.name, side.name, hero.proStats.lastHitting) });
+      if (m % 10 === 0) timeline.push({ time, type: 'farm', event: narrative.generate('farm', hero.name, side.name, hero.proStats.lastHitting), score: `${currentScoreA}:${currentScoreB}` });
     } else if (rand < 0.7) {
-      // Kill
       const ps = playerStats.get(hero.name);
       const ops = playerStats.get(oppHero.name);
       ps.kills++; ops.deaths++;
+      if (side === teamA) currentScoreA++; else currentScoreB++;
       const assistHero = side.heroes.find(h => h.name !== hero.name);
       if (assistHero) playerStats.get(assistHero.name).assists++;
-      timeline.push({ time, type: 'kill', event: narrative.generate('kill', hero.name, side.name, hero.proStats.ganking) });
+      timeline.push({ time, type: 'kill', event: narrative.generate('kill', hero.name, side.name, hero.proStats.ganking), score: `${currentScoreA}:${currentScoreB}` });
     } else if (rand < 0.9) {
-      // Objective
-      timeline.push({ time, type: 'objective', event: narrative.generate('objective', hero.name, side.name, hero.proStats.objectiveControl) });
+      timeline.push({ time, type: 'objective', event: narrative.generate('objective', hero.name, side.name, hero.proStats.objectiveControl), score: `${currentScoreA}:${currentScoreB}` });
     } else {
-      // Teamfight
-      timeline.push({ time, type: 'teamfight', event: narrative.generate('teamfight', hero.name, side.name, hero.proStats.communication) });
+      timeline.push({ time, type: 'teamfight', event: narrative.generate('teamfight', hero.name, side.name, hero.proStats.communication), score: `${currentScoreA}:${currentScoreB}` });
     }
   }
 
@@ -213,12 +213,12 @@ function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number): z.infe
   }));
 
   return {
-    scoreA: finalPowerA > finalPowerB ? 1 : 0,
-    scoreB: finalPowerB > finalPowerA ? 1 : 0,
+    scoreA,
+    scoreB,
     duration: `${durationMins}:12`,
     mvp: scoreboard.sort((a, b) => parseFloat(b.kdaRatio) - parseFloat(a.kdaRatio))[0].name,
     matchSummary: logs.length > 0 ? logs.join(' ') : "Дисциплинированная игра обеих команд.",
-    timeline: timeline.slice(0, 8),
+    timeline: timeline.slice(0, 10),
     scoreboard
   };
 }
@@ -230,7 +230,25 @@ export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<
     let winsA = 0, winsB = 0;
 
     for (let i = 0; i < numGames; i++) {
-      const game = runSingleGame(input, i);
+      // Для Bo2 в Лиге мы можем передать вынужденный счет для каждой игры, если он задан.
+      // Но обычно scoreA/scoreB в input — это суммарный результат.
+      // Если это Bo2, мы распределим forcedScore по играм.
+      let forcedA = undefined;
+      let forcedB = undefined;
+
+      if (input.isBo2 && input.scoreA !== undefined && input.scoreB !== undefined) {
+        if (input.scoreA === 2) { forcedA = 1; forcedB = 0; }
+        else if (input.scoreB === 2) { forcedA = 0; forcedB = 1; }
+        else if (input.scoreA === 1 && input.scoreB === 1) {
+          forcedA = i === 0 ? 1 : 0;
+          forcedB = i === 0 ? 0 : 1;
+        }
+      } else if (!input.isBo2 && input.scoreA !== undefined) {
+        forcedA = input.scoreA > input.scoreB! ? 1 : 0;
+        forcedB = input.scoreB! > input.scoreA! ? 1 : 0;
+      }
+
+      const game = runSingleGame(input, i, forcedA, forcedB);
       games.push(game);
       winsA += game.scoreA;
       winsB += game.scoreB;
@@ -239,7 +257,6 @@ export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<
 
     const winner = winsA > winsB ? input.teamA.name : (winsA < winsB ? input.teamB.name : "Draw");
 
-    // Агрегация статов
     const aggMap = new Map<string, any>();
     games.forEach(g => {
       g.scoreboard.forEach((s: any) => {
