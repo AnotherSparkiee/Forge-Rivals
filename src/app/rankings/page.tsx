@@ -6,24 +6,23 @@ import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   Trophy, Medal, ChevronLeft, ChevronRight, 
-  LayoutDashboard, Search, Crown, Shield, 
+  Search, Crown, Shield, 
   ArrowUp, ArrowDown, Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import { getMockGroupTeams } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, limit } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 type RankingTab = 'menu' | 'my_league' | 'pyramid_cup';
 
 export default function RankingsPage() {
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { 
     rank, leagueLevel, groupId, isLoaded, language, 
@@ -34,6 +33,7 @@ export default function RankingsPage() {
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
 
   const teamsQuery = useMemoFirebase(() => {
+    if (!selectedLeagueId) return null;
     return query(collection(db, 'players_v10'), where('selectedLeagueId', '==', selectedLeagueId));
   }, [db, selectedLeagueId]);
 
@@ -41,10 +41,11 @@ export default function RankingsPage() {
 
   const groupStandings = useMemo(() => {
     if (!isLoaded || !allPlayers) return [];
+    // We filter by leagueLevel and groupId in the data helper
     return getMockGroupTeams(rank, displayName, leagueLevel, 1, groupId, selectedLeagueId || "ALPHA", allPlayers, user?.uid, seasonDay);
   }, [isLoaded, allPlayers, rank, displayName, leagueLevel, groupId, selectedLeagueId, user?.uid, seasonDay]);
 
-  if (!isLoaded || isPlayersLoading) return <LoadingScreen />;
+  if (isUserLoading || !isLoaded || isPlayersLoading) return <LoadingScreen />;
 
   const translations = {
     en: {
@@ -145,9 +146,11 @@ export default function RankingsPage() {
       case 'pyramid_cup':
         return (
           <div className="py-20 text-center opacity-30 animate-in fade-in duration-500">
-            <Medal className="w-16 h-16 mx-auto mb-4" />
+            <div className="w-20 h-20 rounded-full border-2 border-dashed border-muted-foreground mx-auto mb-6 flex items-center justify-center">
+              <Medal className="w-10 h-10" />
+            </div>
             <h2 className="text-xl font-headline font-bold uppercase text-white">{t.pyramid_cup}</h2>
-            <p className="text-[10px] uppercase font-bold tracking-widest mt-2">Coming soon in next season update</p>
+            <p className="text-[10px] uppercase font-bold tracking-widest mt-2 max-w-[250px] mx-auto">Coming soon in next season update</p>
           </div>
         );
 
@@ -165,7 +168,7 @@ export default function RankingsPage() {
         )}
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
-            {activeTab === 'menu' ? t.title : (translations as any)[language === 'ru' ? 'ru' : 'en'][activeTab].label}
+            {activeTab === 'menu' ? t.title : (t.menu.find(m => m.id === activeTab)?.label || t.title)}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{activeTab === 'menu' ? t.subtitle : t.back}</p>
         </div>

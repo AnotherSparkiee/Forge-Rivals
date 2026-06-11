@@ -45,8 +45,7 @@ service cloud.firestore {
     }
 
     match /notifications_v7/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read, write: if isSignedIn();
     }
     
     match /market_v7/{docId} {
@@ -58,6 +57,11 @@ service cloud.firestore {
     }
 
     match /friendly_lobbies_v3/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Associations
+    match /associations_v4/{docId} {
       allow read, write: if isSignedIn();
     }
 

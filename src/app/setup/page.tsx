@@ -46,10 +46,9 @@ export default function SetupPage() {
       const uniqueSquad = getRandomStartingSquad();
       const { seasonNumber } = getGlobalSeasonInfo();
       const nowIso = new Date().toISOString();
-      const realDisplayName = profile?.displayName || user.email?.split('@')[0] || "Commander";
-
+      // DO NOT overwrite displayName here, keep what was entered at registration
+      
       const profileData = {
-        displayName: realDisplayName,
         selectedLeagueId,
         leagueLevel: 9,
         groupId: 1,
