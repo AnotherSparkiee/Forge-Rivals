@@ -8,8 +8,8 @@ import { LoadingScreen } from './LoadingScreen';
 import { useGameState } from '@/app/lib/store';
 
 /**
- * Критический страж маршрутов.
- * Теперь разрешает доступ к "/" без пользователя, так как "/" — страница входа.
+ * КРИТИЧЕСКИЙ СТРАЖ МАРШРУТОВ
+ * Гарантирует, что неавторизованные пользователи всегда видят только "/"
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
@@ -26,9 +26,10 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     const isAuthPage = pathname?.startsWith('/auth');
     const isSetupPage = pathname === '/setup';
 
-    // 1. Если не авторизован и не на странице входа/регистрации/корня -> на корень
+    // 1. ЕСЛИ НЕ АВТОРИЗОВАН
     if (!user) {
-      if (!isAuthPage && !isRoot) {
+      // Разрешаем только главную и страницы авторизации
+      if (!isRoot && !isAuthPage) {
         router.replace('/');
       } else {
         setIsInitialCheckDone(true);
@@ -36,18 +37,19 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       return;
     }
 
-    // 2. Проверка полноты профиля
+    // 2. ЕСЛИ АВТОРИЗОВАН
     const isProfileComplete = !!(selectedLeagueId && country);
     
     if (!isProfileComplete) {
-      if (!isSetupPage && !isAuthPage && !isRoot) {
+      // Если профиль не настроен, пускаем ТОЛЬКО на /setup или / (где сработает логика рендера)
+      if (!isSetupPage && !isRoot && !isAuthPage) {
         router.replace('/setup');
       } else {
         setIsInitialCheckDone(true);
       }
     } else {
-      // Профиль полный, если зашли на страницы авторизации -> на хаб
-      if (isAuthPage) {
+      // Профиль настроен, если зашли на страницы авторизации или настройки -> на хаб (корень)
+      if (isAuthPage || isSetupPage) {
         router.replace('/');
       } else {
         setIsInitialCheckDone(true);
@@ -55,6 +57,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     }
   }, [user, isUserLoading, isLoaded, selectedLeagueId, country, router, pathname]);
 
+  // Пока идет первичная проверка или загрузка данных — показываем сплэш-экран
   if (isUserLoading || !isInitialCheckDone) {
     return <LoadingScreen />;
   }
