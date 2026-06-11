@@ -2,49 +2,44 @@
 {
   "entities": {
     "PlayerProfile": {
+      "title": "PlayerProfile",
+      "description": "Root pointer for user location in the pyramid",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "displayName": { "type": "string" },
-        "email": { "type": "string" },
         "selectedLeagueId": { "type": "string" },
         "leagueLevel": { "type": "number" },
         "groupId": { "type": "number" },
-        "inGameCurrency": { "type": "number" },
+        "setupDate": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Team": {
+      "title": "Team",
+      "description": "Actual club data within a specific league group",
+      "type": "object",
+      "properties": {
+        "credits": { "type": "number" },
         "crystals": { "type": "number" },
-        "managerLevel": { "type": "number" }
+        "points": { "type": "number" },
+        "wins": { "type": "number" },
+        "draws": { "type": "number" },
+        "losses": { "type": "number" },
+        "strategy": { "type": "string" }
       }
     },
-    "Hero": {
-      "type": "object",
-      "description": "Individual cyber-athlete entity",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "role": { "type": "string" },
-        "overallRating": { "type": "number" },
-        "moral": { "type": "number" },
-        "fatigue": { "type": "number" },
-        "proStats": { "type": "object" }
-      }
-    },
-    "Staff": {
-      "type": "object",
-      "description": "Professional club personnel",
-      "properties": {
-        "id": { "type": "string" },
-        "role": { "type": "string" },
-        "firstName": { "type": "string" },
-        "lastName": { "type": "string" },
-        "salary": { "type": "number" }
-      }
-    },
-    "MatchRecord": {
+    "Match": {
+      "title": "Match",
+      "description": "Global match record managed by Cloud Functions",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "season": { "type": "number" },
-        "day": { "type": "number" },
+        "leagueId": { "type": "string" },
+        "divisionId": { "type": "number" },
+        "groupId": { "type": "number" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "type": { "type": "string", "enum": ["league", "cup"] },
+        "status": { "type": "string", "enum": ["pending", "live", "finished"] },
         "homeId": { "type": "string" },
         "awayId": { "type": "string" },
         "scoreA": { "type": "number" },
@@ -61,22 +56,17 @@
       {
         "path": "players_v10/{userId}",
         "definition": "PlayerProfile",
-        "description": "Main club document"
+        "description": "User account pointers"
       },
       {
-        "path": "players_v10/{userId}/heroes/{heroId}",
-        "definition": "Hero",
-        "description": "Team players"
+        "path": "leagues_v2/{leagueId}/divisions/{divId}/groups/{groupId}/teams/{userId}",
+        "definition": "Team",
+        "description": "Clubs within the pyramidal structure"
       },
       {
-        "path": "players_v10/{userId}/staff/{staffId}",
-        "definition": "Staff",
-        "description": "Club staff"
-      },
-      {
-        "path": "leagues_v2/{leagueId}/matches/{matchId}",
-        "definition": "MatchRecord",
-        "description": "Global league match records"
+        "path": "matches_v1/{matchId}",
+        "definition": "Match",
+        "description": "Source of Truth for all scheduled engagements"
       }
     ]
   }
