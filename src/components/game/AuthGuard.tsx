@@ -9,7 +9,7 @@ import { useGameState } from '@/app/lib/store';
 
 /**
  * Критический страж маршрутов.
- * Предотвращает доступ к игре без полной регистрации (лига, страна).
+ * Теперь разрешает доступ к "/" без пользователя, так как "/" — страница входа.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
@@ -22,40 +22,36 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isUserLoading || !isLoaded) return;
 
+    const isRoot = pathname === '/';
     const isAuthPage = pathname?.startsWith('/auth');
     const isSetupPage = pathname === '/setup';
-    const isHubEntered = typeof window !== 'undefined' && sessionStorage.getItem('lote_hub_entered') === 'true';
 
-    // 1. ЗАЩИТА ПРИ ОТСУТСТВИИ ПОЛЬЗОВАТЕЛЯ
+    // 1. Если не авторизован и не на странице входа/регистрации/корня -> на корень
     if (!user) {
-      if (!isAuthPage) {
-        router.replace('/auth/register');
+      if (!isAuthPage && !isRoot) {
+        router.replace('/');
       } else {
         setIsInitialCheckDone(true);
       }
       return;
     }
 
-    // 2. ПРИНУДИТЕЛЬНЫЙ ВХОД (если не нажата кнопка входа в текущей сессии)
-    // Исключаем страницы авторизации и настройки из этого правила
-    if (pathname === '/' && !isHubEntered && !isAuthPage && !isSetupPage) {
-      router.replace('/auth/register');
-      return;
-    }
-
-    // 3. ПРОВЕРКА ПОЛНОТЫ ПРОФИЛЯ
-    // Если пользователь вошел, но не выбрал лигу/страну, пускаем только на /setup
+    // 2. Проверка полноты профиля
     const isProfileComplete = !!(selectedLeagueId && country);
     
     if (!isProfileComplete) {
-      if (!isSetupPage && !isAuthPage) {
+      if (!isSetupPage && !isAuthPage && !isRoot) {
         router.replace('/setup');
       } else {
         setIsInitialCheckDone(true);
       }
     } else {
-      // Профиль полный
-      setIsInitialCheckDone(true);
+      // Профиль полный, если зашли на страницы авторизации -> на хаб
+      if (isAuthPage) {
+        router.replace('/');
+      } else {
+        setIsInitialCheckDone(true);
+      }
     }
   }, [user, isUserLoading, isLoaded, selectedLeagueId, country, router, pathname]);
 

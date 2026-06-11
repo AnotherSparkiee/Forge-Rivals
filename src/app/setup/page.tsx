@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, setDoc, writeBatch, collection } from 'firebase/firestore';
+import { doc, writeBatch, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -29,24 +29,24 @@ export default function SetupPage() {
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  // NEW COLLECTION players_v11
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      router.replace('/auth/register');
+      router.replace('/');
     }
   }, [user, isUserLoading, router]);
 
   const handleCompleteSetup = async () => {
-    if (!user || !selectedLeagueId || !selectedCountryCode) return;
+    if (!user || !selectedLeagueId || !selectedCountryCode || !profile) return;
     setIsUpdating(true);
     try {
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       const uniqueSquad = getRandomStartingSquad();
       const { seasonNumber } = getGlobalSeasonInfo();
       const nowIso = new Date().toISOString();
-      // DO NOT overwrite displayName here, keep what was entered at registration
       
       const profileData = {
         selectedLeagueId,
@@ -54,44 +54,48 @@ export default function SetupPage() {
         groupId: 1,
         country: selectedCountry?.name || 'International',
         setupDate: nowIso,
-        inGameCurrency: 10000000,
-        crystals: 0,
-        experiencePoints: 0,
-        managerLevel: 1,
-        skillPoints: 0,
-        lastProcessedSeason: Number(seasonNumber || 1),
         lineup: { 
           offlane: uniqueSquad[0].id, carry: uniqueSquad[1].id, mid: uniqueSquad[2].id, 
           support: uniqueSquad[3].id, full_support: uniqueSquad[4].id, 
           sub1: uniqueSquad[5].id, sub2: uniqueSquad[6].id
-        },
-        arena: { capacity: 5000, pressCenterLevel: 0, cafeLevel: 0, shopLevel: 0, screensLevel: 0, parkingLevel: 0, lightingLevel: 0, pendingCapacitySeats: null, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} },
-        hq: { hrLevel: 0, financeLevel: 0, scoutsLevel: 0, pressOfficeLevel: 0, adminLevel: 0, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} },
-        bootcamp: { bootcampLevel: 0, tacticsHallLevel: 0, poolLevel: 0, researchLevel: 0, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} },
-        academy: { youthBootcampLevel: 0, streamingLevel: 0, scoutsLevel: 0, discoLevel: 0, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} },
-        medical: { physiotherapyLevel: 0, massageLevel: 0, psychiatristLevel: 0, labLevel: 0, psychologistLevel: 0, constructionFinishes: {}, constructionStarts: {}, isAccelerated: {} }
+        }
+      };
+
+      const teamData = {
+        id: user.uid,
+        displayName: profile.displayName || "Manager",
+        credits: 10000000,
+        crystals: 0,
+        experiencePoints: 0,
+        managerLevel: 1,
+        managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
+        arena: { capacity: 5000 },
+        hq: {}, bootcamp: {}, academy: {}, medical: {},
+        lineup: profileData.lineup,
+        strategy: 'Balanced Play',
+        lastProcessedSeason: Number(seasonNumber || 1),
+        matchHistory: [],
+        createdAt: nowIso
       };
 
       const batch = writeBatch(db);
-      const rootRef = doc(db, 'players_v10', user.uid);
-      batch.set(rootRef, profileData, { merge: true });
+      const rootRef = doc(db, 'players_v11', user.uid);
+      batch.update(rootRef, profileData);
 
-      // Initialize Heroes sub-collection
+      // Hierarchical Team Data
+      const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', '9', 'groups', '1', 'teams', user.uid);
+      batch.set(teamRef, teamData);
+
+      // Initialize Heroes sub-collection in the hierarchy
       uniqueSquad.forEach(hero => {
-        const heroRef = doc(collection(rootRef, 'heroes'), hero.id);
+        const heroRef = doc(collection(teamRef, 'heroes'), hero.id);
         batch.set(heroRef, JSON.parse(JSON.stringify(hero)));
       });
 
       await batch.commit();
 
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('lote_hub_entered', 'true');
-      }
-      
-      toast({
-        title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!",
-      });
-
+      sessionStorage.setItem('lote_hub_entered', 'true');
+      toast({ title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!" });
       router.replace('/');
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });

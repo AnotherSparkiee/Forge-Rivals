@@ -54,7 +54,7 @@
   "firestore": {
     "structure": [
       {
-        "path": "players_v10/{userId}",
+        "path": "players_v11/{userId}",
         "definition": "PlayerProfile",
         "description": "User account pointers"
       },
