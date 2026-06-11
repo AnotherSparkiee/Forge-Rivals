@@ -9,7 +9,8 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { 
   Users, Trophy, Zap, UserSearch, Swords, ChevronRight,
   MessageSquare, UserCog, Coins, Heart, Store, Shield, 
-  ArrowRight, Loader2, Check, Lock, UserPlus
+  ArrowRight, Loader2, Check, Lock, UserPlus,
+  ShoppingCart, GraduationCap, CalendarDays, Medal
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -118,7 +119,7 @@ export default function Home() {
           </DropdownMenu>
         </div>
 
-        <div className="w-full max-w-sm space-y-8 relative z-10">
+        <div className="w-full max-sm space-y-8 relative z-10">
           <div className="text-center">
             <div className="mx-auto w-24 h-24 mb-6 relative">
               <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full" />
