@@ -29,8 +29,8 @@ export default function SetupPage() {
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // NEW COLLECTION players_v11
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
+  // REVERT TO V10
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   useEffect(() => {
@@ -79,7 +79,7 @@ export default function SetupPage() {
       };
 
       const batch = writeBatch(db);
-      const rootRef = doc(db, 'players_v11', user.uid);
+      const rootRef = doc(db, 'players_v10', user.uid);
       batch.update(rootRef, profileData);
 
       // Hierarchical Team Data

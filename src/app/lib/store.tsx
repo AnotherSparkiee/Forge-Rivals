@@ -3,7 +3,7 @@
 
 /**
  * @fileOverview Глобальное хранилище данных клуба.
- * Реализует иерархическую загрузку: Root Pointer (players_v11) -> League Group -> Team Data.
+ * Реализует иерархическую загрузку: Root Pointer (players_v10) -> League Group -> Team Data.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -132,8 +132,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // 1. Get Root Pointer (v11)
-    const rootRef = doc(db, 'players_v11', user.uid);
+    // 1. Get Root Pointer (v10 REVERT)
+    const rootRef = doc(db, 'players_v10', user.uid);
     const unsubRoot = onSnapshot(rootRef, (snap) => {
       if (!snap.exists()) {
         setState(s => ({ ...s, isLoaded: true, id: user.uid }));
@@ -221,7 +221,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const getRefs = useCallback(() => {
     const s = stateRef.current;
     if (!user || !s.selectedLeagueId) return null;
-    const root = doc(db, 'players_v11', user.uid);
+    const root = doc(db, 'players_v10', user.uid);
     const team = doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', String(s.groupId), 'teams', user.uid);
     return { root, team };
   }, [user, db]);
@@ -312,7 +312,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, recordMatch, 
     markMatchAsSeen, markMatchIdAsSeen, setLanguage,
     hireStaffMember,
-    // (Other stubs for brevity, they should follow same pattern as players_v11)
   } as any;
 
   return (

@@ -41,8 +41,8 @@ export default function Home() {
   const db = useFirestore();
   const { toast } = useToast();
   const { 
-    language, setLanguage, isLoaded, country, selectedLeagueId,
-    displayName, credits, crystals, managerLevel, experiencePoints
+    language, setLanguage, isLoaded, selectedLeagueId,
+    displayName
   } = useGameState();
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -56,7 +56,7 @@ export default function Home() {
     let emailToUse = identifier;
     try {
       if (!identifier.includes('@')) {
-        const usersRef = collection(db, 'players_v11');
+        const usersRef = collection(db, 'players_v10');
         const q = query(usersRef, where('displayName', '==', identifier), limit(1));
         const querySnapshot = await getDocs(q);
         if (querySnapshot.empty) throw new Error(language === 'ru' ? "Клуб не найден" : "Team not found");
@@ -71,8 +71,8 @@ export default function Home() {
     }
   };
 
-  // 1. ЭКРАН ЗАГРУЗКИ
-  if (isUserLoading || !isLoaded) return <LoadingScreen />;
+  // 1. ЭКРАН ЗАГРУЗКИ (Firebase Auth Initialization)
+  if (isUserLoading) return <LoadingScreen />;
 
   // 2. ЭКРАН ВХОДА (Если не авторизован)
   if (!user) {
@@ -119,7 +119,7 @@ export default function Home() {
           </DropdownMenu>
         </div>
 
-        <div className="w-full max-sm space-y-8 relative z-10">
+        <div className="w-full max-w-sm space-y-8 relative z-10">
           <div className="text-center">
             <div className="mx-auto w-24 h-24 mb-6 relative">
               <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full" />
@@ -166,7 +166,9 @@ export default function Home() {
     );
   }
 
-  // 3. ЭКРАН ХАБА (Если авторизован и профиль полный)
+  // 3. ЭКРАН ХАБА (Если авторизован и профиль загружен)
+  if (!isLoaded) return <LoadingScreen />;
+
   const tHub = {
     en: { nextMatch: "Next Engagement", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals" },
     ru: { nextMatch: "Следующий матч", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы" }

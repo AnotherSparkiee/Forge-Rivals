@@ -14,7 +14,6 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, UserPlus, ArrowRight } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
-import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 function cleanData(obj: any) {
@@ -74,8 +73,9 @@ export default function RegisterPage() {
         createdAt: new Date().toISOString(),
         lastProcessedSeason: Number(seasonNumber || 1)
       };
-      // NEW COLLECTION players_v11
-      await setDoc(doc(db, 'players_v11', userCredential.user.uid), cleanData(profileData));
+      
+      // REVERT TO V10
+      await setDoc(doc(db, 'players_v10', userCredential.user.uid), cleanData(profileData));
       toast({ title: t.successTitle });
       router.push('/setup');
     } catch (error: any) {

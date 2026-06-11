@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
@@ -12,7 +13,6 @@ import Link from 'next/link';
 
 /**
  * Верхняя панель управления ресурсами и навигацией.
- * Оптимизирована для работы с коллекцией notifications_v7.
  */
 export function TopBar() {
   const pathname = usePathname();
@@ -21,6 +21,7 @@ export function TopBar() {
   const db = useFirestore();
   const lastSyncTriggerRef = useRef<string>("");
 
+  // REVERT TO V10
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
@@ -58,7 +59,6 @@ export function TopBar() {
     });
   }, [allMessages, user, profile]);
 
-  // Запрашиваем максимум 100 непрочитанных уведомлений
   const notificationsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(

@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Metadata } from 'next';
@@ -21,17 +22,18 @@ import { useUser } from '@/firebase';
 function GameInterface({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user } = useUser();
-  const { isLoaded, selectedLeagueId } = useGameState();
+  const { isLoaded } = useGameState();
+  
   const isAuthOrSetup = pathname?.startsWith('/auth') || pathname === '/setup';
 
-  // Strict check: only render game systems if the user is logged in, profile loaded, and NOT on auth/setup pages
-  const shouldRenderGameSystems = !!user && isLoaded && !!selectedLeagueId && !isAuthOrSetup;
+  // Render TopBar and BottomNav if user is logged in and not on auth/setup pages
+  const shouldRenderBars = !!user && isLoaded && !isAuthOrSetup;
 
   return (
     <>
-      {shouldRenderGameSystems && (
+      {shouldRenderBars && <TopBar />}
+      {shouldRenderBars && (
         <>
-          <TopBar />
           <AutoMatchManager />
           <FriendlyMatchListener />
           <CWBasketListener />
@@ -41,14 +43,19 @@ function GameInterface({ children }: { children: React.ReactNode }) {
       )}
       
       <Suspense fallback={<LoadingScreen />}>
-        <main>
+        <main className={cn(shouldRenderBars ? "pt-14 pb-20" : "")}>
           {children}
         </main>
       </Suspense>
 
-      {shouldRenderGameSystems && <BottomNav />}
+      {shouldRenderBars && <BottomNav />}
     </>
   );
+}
+
+// Utility to merge classes safely in layout
+function cn(...classes: any[]) {
+  return classes.filter(Boolean).join(' ');
 }
 
 export default function RootLayout({
@@ -63,7 +70,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-body antialiased min-h-screen bg-background text-foreground pt-14 pb-20" suppressHydrationWarning>
+      <body className="font-body antialiased min-h-screen bg-background text-foreground" suppressHydrationWarning>
         <FirebaseClientProvider>
           <GameStateProvider>
             <AuthGuard>
