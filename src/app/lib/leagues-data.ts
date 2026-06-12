@@ -39,22 +39,8 @@ export const LEAGUES: LeagueOption[] = [
 ];
 
 /**
- * Deterministic ID for a match to prevent duplicates during generation.
- */
-export function generateDeterministicMatchId(
-  leagueId: string,
-  level: number,
-  groupId: number,
-  season: number,
-  day: number,
-  index: number
-): string {
-  return `match_${leagueId}_L${level}_G${groupId}_S${season}_D${day}_I${index}`;
-}
-
-/**
- * Deterministic match result based on team IDs and day.
- * STRICT Bo2 Format: Returns series score [2, 0], [1, 1], or [0, 2].
+ * Deterministic result generator for Bo2 Format.
+ * Strictly returns [2, 0], [1, 1], or [0, 2].
  */
 export function getMatchResult(homeId: string, awayId: string, day: number, isBo3: boolean = false): [number, number] {
   const combinedId = (homeId || "") + (awayId || "");
@@ -63,7 +49,7 @@ export function getMatchResult(homeId: string, awayId: string, day: number, isBo
     hash = ((hash << 5) - hash) + combinedId.charCodeAt(i);
     hash |= 0;
   }
-  const seed = Math.abs(hash + day * 13);
+  const seed = Math.abs(hash + day * 37); // Specific salt for day
   const val = seed % 100;
   
   if (isBo3) {
@@ -72,17 +58,13 @@ export function getMatchResult(homeId: string, awayId: string, day: number, isBo
     if (val < 70) return [1, 2]; 
     return [0, 2];
   } else {
-    // Bo2 Format: 35% Home Win (2:0), 30% Draw (1:1), 35% Away Win (0:2)
-    // EXCLUDES 1:0 and 0:1
-    if (val < 35) return [2, 0];
-    if (val < 65) return [1, 1];
-    return [0, 2];
+    // STRICT Bo2 Logic: No 1:0 or 0:1
+    if (val < 35) return [2, 0]; // 35% Win
+    if (val < 65) return [1, 1]; // 30% Draw
+    return [0, 2];               // 35% Loss
   }
 }
 
-/**
- * Generates a 14-day Round Robin schedule for 8 teams.
- */
 export function getSchedule(teams: any[]) {
   const n = teams.length;
   if (n !== 8) return []; 
@@ -124,7 +106,8 @@ export function getSchedule(teams: any[]) {
 }
 
 /**
- * Builds the group standings table based ONLY on database matches.
+ * Rebuilt standings logic.
+ * Exclusively driven by actual database results.
  */
 export function getMockGroupTeams(
   playerRank: number, 
@@ -139,15 +122,15 @@ export function getMockGroupTeams(
   dbMatches: any[] = []
 ) {
   const teams: any[] = [];
-  const sortedRealPlayers = [...(realPlayers || [])].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
   
+  // 1. Initialize participants
+  const sortedRealPlayers = [...(realPlayers || [])].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
   sortedRealPlayers.forEach(p => {
-    const isMe = p.id === currentPlayerId;
     teams.push({
       id: p.id,
       name: p.displayName || "Unknown Manager",
       wins: 0, draws: 0, losses: 0, points: 0,
-      isPlayer: true, isMe: isMe
+      isPlayer: true, isMe: p.id === currentPlayerId
     });
   });
 
@@ -165,7 +148,7 @@ export function getMockGroupTeams(
   const finalTeams = teams.slice(0, TEAMS_PER_GROUP);
   finalTeams.sort((a, b) => a.id.localeCompare(b.id));
 
-  // APPLY ACTUAL DB RESULTS
+  // 2. Aggregate actual results from Firestore
   if (dbMatches && dbMatches.length > 0) {
     dbMatches.forEach(m => {
       if (m.status === 'finished') {
@@ -178,21 +161,20 @@ export function getMockGroupTeams(
     });
   }
 
-  return finalTeams.sort((a, b) => b.points - a.points || b.wins - a.wins || a.id.localeCompare(b.id));
+  // 3. Sort by Points -> Wins -> ID (alphabetical fallback)
+  return finalTeams.sort((a, b) => 
+    b.points - a.points || 
+    b.wins - a.wins || 
+    a.id.localeCompare(b.id)
+  );
 }
 
-/**
- * Applies Series Result to league table (3-1-0 logic).
- * 2:0 -> 3 pts
- * 1:1 -> 1 pt
- * 0:2 -> 0 pts
- */
 export function applyResult(home: any, away: any, hScore: number, aScore: number) {
   if (hScore > aScore) {
     home.wins++; 
     home.points += 3; 
     away.losses++;
-  } else if (hScore === aScore && hScore > 0) {
+  } else if (hScore === aScore) {
     home.draws++; 
     home.points += 1; 
     away.draws++; 

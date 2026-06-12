@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser, useAuth, useFirestore } from '@/firebase';
 import { useGameState } from './lib/store';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { 
@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getSeasonDateLabel } from './lib/time-utils';
+import { getMoscowTime, getGlobalSeasonInfo, getSeasonDateLabel } from './lib/time-utils';
 import { LEAGUES } from './lib/leagues-data';
 import {
   DropdownMenu,
@@ -39,7 +39,7 @@ export default function Home() {
   const { toast } = useToast();
   const { 
     language, setLanguage, isLoaded, selectedLeagueId,
-    groupMatches, seasonDay
+    groupMatches
   } = useGameState();
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -72,17 +72,14 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), [isLoaded]);
 
-  // Unified Next Match Logic
+  // Unified Next Match Logic: Finds the earliest available pending game
   const nextMatchData = useMemo(() => {
     if (!isLoaded || !groupMatches || groupMatches.length === 0) return null;
     
-    // Find earliest pending match in the database
-    // This ignores season finished state and always looks for the next battle
     const sortedMatches = [...groupMatches]
       .filter(m => {
         const isParticipant = m.homeId === user?.uid || m.awayId === user?.uid;
-        const isNotFinished = m.status !== 'finished';
-        return isParticipant && isNotFinished;
+        return m.status === 'pending';
       })
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
