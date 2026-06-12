@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -39,8 +38,7 @@ export default function Home() {
   const { toast } = useToast();
   const { 
     language, setLanguage, isLoaded, selectedLeagueId,
-    lastLeagueMatchDate, groupMatches,
-    seasonDay, seasonNumber, activeSeasonNumber
+    groupMatches, seasonDay
   } = useGameState();
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -79,11 +77,10 @@ export default function Home() {
     
     const mskNow = getMoscowTime().getTime();
     
-    // Ищем самый ранний матч в массиве groupMatches, который еще не начался
+    // В период подготовки (15-16) мы ищем самый первый матч сезона 1
     const sortedMatches = [...groupMatches]
       .filter(m => {
         const matchTime = new Date(m.startTime).getTime();
-        // В период подготовки (День 15-16) мы показываем первый матч сезона
         return matchTime > mskNow && (m.homeId === user?.uid || m.awayId === user?.uid);
       })
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
@@ -110,15 +107,6 @@ export default function Home() {
     const timer = setInterval(() => {
       const mskNow = getMoscowTime();
       
-      // Логика перехода сезонов: если мы в периоде ожидания 16:00 на 15 день
-      if (seasonInfo.seasonDay === 15 && mskNow.getHours() < 16) {
-        const transitionTarget = new Date(mskNow);
-        transitionTarget.setHours(16, 0, 0, 0);
-        const diff = transitionTarget.getTime() - mskNow.getTime();
-        setCountdown(diff > 0 ? formatDiff(diff) : '00:00:00');
-        return;
-      }
-
       const matchInfo = nextMatchData;
       if (!matchInfo) {
         setCountdown('00:00:00');
@@ -131,18 +119,15 @@ export default function Home() {
       if (diff <= 0) {
         setCountdown('00:00:00');
       } else {
-        setCountdown(formatDiff(diff));
+        const hh = Math.floor(diff / 3600000);
+        const mm = Math.floor((diff % 3600000) / 60000);
+        const ss = Math.floor((diff % 60000) / 1000);
+        setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
       }
     }, 1000);
 
-    const formatDiff = (ms: number) => {
-      const hh = Math.floor(ms / 3600000);
-      const mm = Math.floor((ms % 3600000) / 60000);
-      const ss = Math.floor((ms % 60000) / 1000);
-      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-    };
     return () => clearInterval(timer);
-  }, [isLoaded, selectedLeagueId, league, seasonInfo, nextMatchData]);
+  }, [isLoaded, selectedLeagueId, nextMatchData]);
 
   if (isUserLoading) return <LoadingScreen />;
 
@@ -176,7 +161,7 @@ export default function Home() {
                 <CardHeader><CardTitle className="font-headline text-center uppercase tracking-widest text-accent text-lg">{tAuth.title}</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2"><Label>{tAuth.userLabel}</Label><Input value={identifier} onChange={e => setIdentifier(e.target.value)} required className="bg-secondary/50 h-12" /></div>
-                  <div className="space-y-2"><Label>{tAuth.passLabel}</Label><Input type="password" password value={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50 h-12" /></div>
+                  <div className="space-y-2"><Label>{tAuth.passLabel}</Label><Input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50 h-12" /></div>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-4">
                   <Button type="submit" className="w-full h-14 hero-gradient font-black text-xs uppercase" disabled={isAuthLoading}>{isAuthLoading ? <Loader2 className="animate-spin" /> : tAuth.submit}</Button>
@@ -200,8 +185,8 @@ export default function Home() {
   if (!isLoaded) return <LoadingScreen />;
 
   const tHub = {
-    en: { nextMatch: seasonInfo.seasonDay === 15 ? "Season Transition" : "Next Engagement", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", transition: "Forming new groups...", sync: "SYNCING CALENDAR..." },
-    ru: { nextMatch: seasonInfo.seasonDay === 15 ? "Смена сезона" : "Следующий матч", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", transition: "Формирование новых групп...", sync: "СИНХРОНИЗАЦИЯ..." }
+    en: { nextMatch: seasonInfo.isTransitionPhase ? "Season Transition" : "Next Engagement", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", transition: "Forming new groups...", sync: "SYNCING CALENDAR..." },
+    ru: { nextMatch: seasonInfo.isTransitionPhase ? "Смена сезона" : "Следующий матч", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", transition: "Формирование новых групп...", sync: "СИНХРОНИЗАЦИЯ..." }
   }[language as 'en' | 'ru'] || { nextMatch: "Match", battleBtn: "Overview", navTitle: "Terminals", transition: "Transition", sync: "SYNCING..." };
 
   const menu = [ 
@@ -222,7 +207,7 @@ export default function Home() {
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6">
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
-          {seasonInfo.seasonDay === 15 ? <RefreshCw className="w-6 h-6 text-accent animate-spin" /> : <UserSearch className="w-6 h-6 text-accent" />} 
+          {seasonInfo.isTransitionPhase ? <RefreshCw className="w-6 h-6 text-accent animate-spin" /> : <UserSearch className="w-6 h-6 text-accent" />} 
           {tHub.nextMatch}
         </h1>
       </header>
@@ -230,66 +215,59 @@ export default function Home() {
       <section className="mb-8">
         <Card className={cn(
           "glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden",
-          seasonInfo.seasonDay === 15 && "border-accent/30 from-accent/10"
+          seasonInfo.isTransitionPhase && "border-accent/30 from-accent/10"
         )}>
           <CardContent className="p-6">
             <div className="text-center space-y-4">
-              {seasonInfo.seasonDay === 15 && mskNow.getHours() < 16 ? (
-                <>
-                  <RefreshCw className="w-12 h-12 mx-auto text-accent animate-spin" />
-                  <p className="text-xs font-headline font-bold text-white uppercase">{tHub.transition}</p>
-                </>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex flex-col items-center gap-1">
-                    <Badge variant="outline" className="bg-primary/10 border-primary/20 text-primary text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5">
-                      {nextMatchData?.type || tHub.sync}
-                    </Badge>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Calendar className="w-3 h-3" />
-                      <span className="text-[10px] font-mono font-bold">{nextMatchData?.dateLabel || '--.--'} {nextMatchData?.time || '--:--'}</span>
-                    </div>
+              <div className="space-y-4">
+                <div className="flex flex-col items-center gap-1">
+                  <Badge variant="outline" className="bg-primary/10 border-primary/20 text-primary text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5">
+                    {nextMatchData?.type || tHub.sync}
+                  </Badge>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Calendar className="w-3 h-3" />
+                    <span className="text-[10px] font-mono font-bold">{nextMatchData?.dateLabel || '--.--'} {nextMatchData?.time || '--:--'}</span>
                   </div>
-
-                  {nextMatchData ? (
-                    <>
-                      <div className="flex items-center justify-between gap-4 py-2">
-                        <div className={cn("flex-1 text-right", nextMatchData.isHome && "text-primary")}>
-                          <p className="text-[7px] font-black uppercase opacity-40 mb-1">{nextMatchData.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
-                          <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData.match.homeName}</p>
-                        </div>
-                        <div className="px-3 py-1 rounded-lg bg-background/60 border border-white/5 flex flex-col items-center">
-                          <Swords className="w-4 h-4 text-accent" />
-                          <span className="text-[8px] font-black text-accent mt-1">VS</span>
-                        </div>
-                        <div className={cn("flex-1 text-left", !nextMatchData.isHome && "text-primary")}>
-                          <p className="text-[7px] font-black uppercase opacity-40 mb-1">{!nextMatchData.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
-                          <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData.match.awayName}</p>
-                        </div>
-                      </div>
-
-                      {nextMatchData.isHome ? (
-                        <div className="flex items-center justify-center gap-2 text-[8px] font-black text-primary/60 uppercase tracking-widest">
-                          <HomeIcon className="w-3 h-3" /> {language === 'ru' ? 'ВАШ АРЕНА' : 'OWN ARENA'}
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center gap-2 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
-                          <MapPin className="w-3 h-3" /> {language === 'ru' ? 'ВЫЕЗДНОЙ СЕКТОР' : 'AWAY SECTOR'}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="py-4 opacity-30 flex flex-col items-center">
-                       <Loader2 className="w-6 h-6 animate-spin mb-2" />
-                       <p className="text-[10px] font-bold uppercase">{tHub.sync}</p>
-                    </div>
-                  )}
                 </div>
-              )}
+
+                {nextMatchData ? (
+                  <>
+                    <div className="flex items-center justify-between gap-4 py-2">
+                      <div className={cn("flex-1 text-right", nextMatchData.isHome && "text-primary")}>
+                        <p className="text-[7px] font-black uppercase opacity-40 mb-1">{nextMatchData.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
+                        <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData.match.homeName}</p>
+                      </div>
+                      <div className="px-3 py-1 rounded-lg bg-background/60 border border-white/5 flex flex-col items-center">
+                        <Swords className="w-4 h-4 text-accent" />
+                        <span className="text-[8px] font-black text-accent mt-1">VS</span>
+                      </div>
+                      <div className={cn("flex-1 text-left", !nextMatchData.isHome && "text-primary")}>
+                        <p className="text-[7px] font-black uppercase opacity-40 mb-1">{!nextMatchData.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
+                        <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData.match.awayName}</p>
+                      </div>
+                    </div>
+
+                    {nextMatchData.isHome ? (
+                      <div className="flex items-center justify-center gap-2 text-[8px] font-black text-primary/60 uppercase tracking-widest">
+                        <HomeIcon className="w-3 h-3" /> {language === 'ru' ? 'ВАШ АРЕНА' : 'OWN ARENA'}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
+                        <MapPin className="w-3 h-3" /> {language === 'ru' ? 'ВЫЕЗДНОЙ СЕКТОР' : 'AWAY SECTOR'}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="py-4 opacity-30 flex flex-col items-center">
+                     <Loader2 className="w-6 h-6 animate-spin mb-2" />
+                     <p className="text-[10px] font-bold uppercase">{tHub.sync}</p>
+                  </div>
+                )}
+              </div>
               
               <div className="bg-background/60 py-3 rounded-2xl border border-white/5 shadow-inner">
                 <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                  {seasonInfo.seasonDay === 15 ? "Transition Countdown" : "Match Start Protocol"}
+                  {seasonInfo.isTransitionPhase ? "Transition Countdown" : "Match Start Protocol"}
                 </p>
                 <div className="flex items-center justify-center gap-2">
                   <Timer className="w-4 h-4 text-accent" />

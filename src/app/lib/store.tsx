@@ -1,4 +1,3 @@
-
 'use client';
 
 /**
@@ -119,13 +118,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
+  const [lang, setLang] = useState('ru');
+  
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
-  const [lang, setLang] = useState('ru');
   const setLanguage = (l: string) => setLang(l);
 
-  // Group Matches Listener
+  // Group Matches Listener - MUST USE ACTIVE SEASON NUMBER
   const groupMatchesQuery = useMemoFirebase(() => {
     const s = stateRef.current;
     if (!s.selectedLeagueId || !s.isLoaded || !user) return null;
@@ -232,7 +232,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => unsubRoot();
   }, [user, isUserLoading, db, lang, processSeasonTransition, dbMatches]);
 
-  // LAZY CALENDAR GENERATOR
+  // CALENDAR GENERATOR
   useEffect(() => {
     const s = stateRef.current;
     if (!s.isLoaded || !s.selectedLeagueId || !user) return;
@@ -279,7 +279,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           
           const startTime = new Date(getMoscowTime());
           
-          // Расчет даты начала: если сегодня день 15-16, то Day 1 будет через (17-day) дней.
           let daysToMatch = 0;
           if (info.seasonDay >= 15) {
             daysToMatch = (17 - info.seasonDay) + (day - 1);

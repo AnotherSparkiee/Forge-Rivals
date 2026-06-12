@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Ядро расчетов времени на основе UTC.
  * Все игровые события синхронизированы относительно 00:00 UTC.
@@ -44,8 +43,8 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
   
   const targetDate = new Date(mskNow);
   
-  // Если мы находимся в межсезонье (15-16), то Day 1 — это начало нового цикла
-  if (info.seasonDay >= 15) {
+  // Если мы в фазе подготовки (15-16), то Day 1 — это завтра или послезавтра
+  if (info.isTransitionPhase) {
     const daysUntilNewSeason = (17 - info.seasonDay);
     targetDate.setDate(mskNow.getDate() + daysUntilNewSeason + (dayOfSeason - 1));
   } else {
@@ -61,15 +60,16 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
 
 /**
  * Глобальный расчет сезона. 
- * Цикл: 16 дней.
+ * Цикл: 16 дней (14 игры + 2 переход).
  */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   
-  // Базовая точка: Завтра 00:00 MSK станет Днем 1 Сезона 1.
-  // Сегодня (воскресенье) — это День 16 (Preparation).
+  // КРИТИЧЕСКИЙ СБРОС: Точка отсчета Сезона 1.
+  // Завтра 00:00 MSK наступит Сезон 1, День 1.
+  // Сегодня — День 16 (Preparation).
   const baseDate = new Date(mskNow);
-  baseDate.setDate(mskNow.getDate() + 1); // Завтра
+  baseDate.setDate(mskNow.getDate() + 1); 
   baseDate.setHours(0, 0, 0, 0);
   
   const epoch = baseDate.getTime(); 
@@ -78,9 +78,9 @@ export function getGlobalSeasonInfo() {
   
   const cycleDuration = 16; 
   
-  // Рассчитываем текущий день и номер сезона
-  // Если diffDays < 0, то мы в периоде подготовки к Сезону 1.
+  // Текущий день в цикле
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
+  // Номер сезона
   let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
   
   // В период подготовки (день 15-16) мы уже работаем с БУДУЩИМ сезоном
@@ -90,13 +90,13 @@ export function getGlobalSeasonInfo() {
     seasonDay: currentSeasonDay,
     seasonNumber: currentSeasonNumber,
     isTransitionPhase: isTransitionPhase,
-    // Эффективный номер сезона для генерации/поиска матчей
+    // Эффективный номер сезона для генерации и поиска матчей
     activeSeasonNumber: isTransitionPhase ? currentSeasonNumber + 1 : currentSeasonNumber
   };
 }
 
 /**
- * Возвращает конец московского дня (для истечения аукционов)
+ * Возвращает конец московского дня
  */
 export function getEndOfMoscowDay(): string {
   const now = getMoscowTime();
@@ -106,7 +106,7 @@ export function getEndOfMoscowDay(): string {
 }
 
 /**
- * Рассчитывает возраст игрока в реальном времени.
+ * Возвращает возраст игрока
  */
 export function calculateLiveAge(baseAge: number, hiredAtIso: string) {
   const hiredAt = new Date(hiredAtIso).getTime();
