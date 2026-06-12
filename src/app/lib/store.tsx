@@ -1,3 +1,4 @@
+
 'use client';
 
 /**
@@ -279,9 +280,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           
           const startTime = new Date(mskNow);
           
-          // Расчет дней до матча:
-          // Если сейчас день 16 подготовки, то День 1 - это завтра (+1 день).
-          // Если сейчас день 1 нового сезона, то День 1 - это сегодня (+0 дней).
           let daysToMatch = 0;
           if (isTransitionPhase) {
             daysToMatch = (17 - seasonDay) + (day - 1);
@@ -479,13 +477,33 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const refs = getRefs(); if (!refs) return;
     const s = stateRef.current;
     const mId = matchId || `match_${Date.now()}`;
+    
+    // Предотвращаем дублирование истории
+    if (s.matchHistory.some(m => m.id === mId)) return;
+
     const newEntry = {
-      id: mId, winner, scoreA: result.scoreA, scoreB: result.scoreB,
-      matchSummary: result.matchSummary, opponentName, type, playedAt, reward,
-      seen: false, day: s.seasonDay, seasonNumber: s.seasonNumber,
-      heroPerformance: result.scoreboard || []
+      id: mId, 
+      winner, 
+      scoreA: result.scoreA, 
+      scoreB: result.scoreB,
+      matchSummary: result.matchSummary, 
+      opponentName, 
+      type, 
+      playedAt, 
+      reward,
+      seen: false, 
+      day: s.seasonDay, 
+      seasonNumber: s.seasonNumber,
+      timeline: result.timeline || [],
+      scoreboard: result.scoreboard || [],
+      mvp: result.mvp,
+      duration: result.duration
     };
-    setDoc(refs.team, { credits: s.credits + reward, matchHistory: arrayUnion(newEntry) }, { merge: true });
+    
+    setDoc(refs.team, { 
+      credits: s.credits + reward, 
+      matchHistory: arrayUnion(newEntry) 
+    }, { merge: true });
   };
 
   const markMatchAsSeen = (day: number) => {
@@ -526,3 +544,4 @@ export function useGameState() {
   if (context === undefined) throw new Error('useGameState must be used within a GameStateProvider');
   return context;
 }
+

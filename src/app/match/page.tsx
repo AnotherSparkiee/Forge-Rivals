@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,7 +16,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { doc } from 'firebase/firestore';
+import { doc, collection, query, where } from 'firebase/firestore';
 import { COUNTRIES } from '../lib/countries-data';
 
 type MatchStep = 'preview' | 'live' | 'stats';
@@ -28,7 +28,7 @@ function MatchContent() {
   const db = useFirestore();
   const { 
     language, isLoaded, markMatchAsSeen, markMatchIdAsSeen, lastSeenMatchDay,
-    matchHistory
+    matchHistory, selectedLeagueId, leagueLevel, groupId
   } = useGameState();
 
   const matchIdFromUrl = searchParams.get('id');
@@ -37,45 +37,51 @@ function MatchContent() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
+  // Пытаемся найти матч в истории или напрямую в БД
+  const groupMatchesQuery = useMemoFirebase(() => {
+    if (!selectedLeagueId || !matchIdFromUrl) return null;
+    return query(
+      collection(db, 'matches_v1'),
+      where('leagueId', '==', selectedLeagueId),
+      where('divisionId', '==', leagueLevel),
+      where('groupId', '==', groupId)
+    );
+  }, [db, selectedLeagueId, leagueLevel, groupId, matchIdFromUrl]);
+
+  const { data: dbMatches } = useCollection(groupMatchesQuery);
+
   const currentResult = useMemo(() => {
     if (!profile) return null;
-    const setupTime = profile.setupDate ? new Date(profile.setupDate).getTime() : (profile.createdAt ? new Date(profile.createdAt).getTime() : 0);
-
+    
+    // 1. Если есть ID в URL, ищем в БД или истории
     if (matchIdFromUrl) {
-      const match = matchHistory.find(m => m.id === matchIdFromUrl);
-      if (match) return match;
+      const fromDb = dbMatches?.find(m => m.id === matchIdFromUrl);
+      if (fromDb && fromDb.status === 'finished') {
+        const isHome = fromDb.homeId === user?.uid;
+        return {
+          id: fromDb.id,
+          opponentName: isHome ? fromDb.awayName : fromDb.homeName,
+          scoreA: isHome ? fromDb.scoreA : fromDb.scoreB,
+          scoreB: isHome ? fromDb.scoreB : fromDb.scoreA,
+          type: fromDb.type,
+          playedAt: fromDb.finishedAt || fromDb.startTime,
+          timeline: fromDb.simulation?.timeline || [],
+          matchSummary: fromDb.simulation?.matchSummary || "Match finalized.",
+          scoreboard: fromDb.simulation?.scoreboard || [],
+          mvp: fromDb.simulation?.mvp,
+          duration: fromDb.simulation?.duration
+        };
+      }
+      const fromHistory = matchHistory.find(m => m.id === matchIdFromUrl);
+      if (fromHistory) return fromHistory;
     }
     
-    // Priority 1: Any unseen match (explicitly seen === false)
+    // 2. Иначе берем последний несмотренный из истории
     const unseenMatch = matchHistory.find(m => m.seen === false);
     if (unseenMatch) return unseenMatch;
 
-    // Priority 2: First unseen league match (by day)
-    const unseenLeagueMatches = matchHistory
-      .filter(m => {
-        const matchTime = m.playedAt ? new Date(m.playedAt).getTime() : 0;
-        return m.type === 'league' && m.day > lastSeenMatchDay && matchTime >= setupTime;
-      })
-      .sort((a, b) => a.day - b.day);
-
-    if (unseenLeagueMatches.length > 0) return unseenLeagueMatches[0];
-
-    // Priority 3: Absolute latest match overall
-    const sortedHistory = [...matchHistory]
-      .filter(m => {
-        const matchTime = m.playedAt ? new Date(m.playedAt).getTime() : 0;
-        return matchTime >= setupTime;
-      })
-      .sort((a, b) => {
-        const timeA = new Date(a.playedAt).getTime();
-        const timeB = new Date(b.playedAt).getTime();
-        return timeB - timeA;
-      });
-
-    return sortedHistory[0] || null;
-  }, [matchHistory, matchIdFromUrl, lastSeenMatchDay, profile]);
-
-  const isHistoricalViewing = !!matchIdFromUrl;
+    return matchHistory[matchHistory.length - 1] || null;
+  }, [matchHistory, dbMatches, matchIdFromUrl, user?.uid, profile]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -83,23 +89,12 @@ function MatchContent() {
     }
   }, [user, isUserLoading, router]);
 
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [step]);
-
   if (isUserLoading || !isLoaded || !user) return <LoadingScreen />;
 
   const handleAcknowledgeMatch = () => {
     if (currentResult) {
-      // Mark as seen globally
       markMatchIdAsSeen(currentResult.id);
-      
-      if (!isHistoricalViewing && currentResult.type === 'league') {
-        markMatchAsSeen(currentResult.day);
-        router.push('/');
-      } else {
-        router.push('/matches');
-      }
+      router.push('/');
     } else {
       router.push('/');
     }
@@ -107,14 +102,6 @@ function MatchContent() {
 
   const handleNext = () => {
     if (!currentResult) return;
-    const isTechnicalResult = currentResult.opponentName === 'WAITING' || currentResult.opponentName === 'SEEDED' || !currentResult.preview;
-    
-    if (isTechnicalResult) {
-      if (step === 'stats') handleAcknowledgeMatch();
-      else setStep('stats');
-      return;
-    }
-
     if (step === 'preview') setStep('live');
     else if (step === 'live') setStep('stats');
     else handleAcknowledgeMatch();
@@ -137,9 +124,7 @@ function MatchContent() {
         league: "PRO LEAGUE", 
         cup: "PYRAMID CUP", 
         friendly: "FRIENDLY MATCH", 
-        basket: "CW BASKET",
-        tournament: "TOURNAMENT",
-        trial: "TRIAL MATCH"
+        basket: "CW BASKET"
       }
     },
     ru: {
@@ -155,15 +140,12 @@ function MatchContent() {
         league: "ПРОФ. ЛИГА", 
         cup: "КУБОК ПИРАМИДЫ", 
         friendly: "ТОВ. МАТЧ", 
-        basket: "КВ КОРЗИНА",
-        tournament: "ТУРНИР",
-        trial: "ПРОБНЫЙ МАТЧ"
+        basket: "КВ КОРЗИНА"
       }
     }
   };
 
   const t = labels[language as keyof typeof labels] || labels.ru;
-  const isTechnicalResult = currentResult?.opponentName === 'WAITING' || currentResult?.opponentName === 'SEEDED' || !currentResult?.preview;
 
   if (!currentResult) return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4">
@@ -193,43 +175,41 @@ function MatchContent() {
 
         {step === 'preview' && (
           <div className="space-y-6 animate-in fade-in duration-500">
-            {isTechnicalResult ? (
-              <Card className="glass-card border-accent/20 bg-accent/5 p-8 text-center">
-                <ShieldCheck className="w-16 h-16 text-accent mx-auto mb-4 animate-pulse" />
-                <h2 className="text-xl font-headline font-bold text-white uppercase">{t.technicalWin}</h2>
-                <Badge className="mt-6 bg-accent text-accent-foreground text-[8px] font-black uppercase h-5">AUTOMATIC ADVANCEMENT</Badge>
-              </Card>
-            ) : (
-              <Card className="glass-card border-white/10 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden">
-                <div className="grid grid-cols-2 divide-x divide-white/5">
-                  <div className="p-6 flex flex-col items-center gap-3 text-center">
-                    <div className="relative">
-                      <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-primary/30 flex items-center justify-center shadow-xl"><span className="text-3xl">{myFlag}</span></div>
-                      <Badge className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[7px] font-black uppercase px-2 h-4 border-none">{t.home}</Badge>
-                    </div>
-                    <h3 className="text-xs font-headline font-bold uppercase tracking-tight text-white mt-1">{profile?.displayName || "MY TEAM"}</h3>
+            <Card className="glass-card border-white/10 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden">
+              <div className="grid grid-cols-2 divide-x divide-white/5">
+                <div className="p-6 flex flex-col items-center gap-3 text-center">
+                  <div className="relative">
+                    <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-primary/30 flex items-center justify-center shadow-xl"><span className="text-3xl">{myFlag}</span></div>
+                    <Badge className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[7px] font-black uppercase px-2 h-4 border-none">{t.home}</Badge>
                   </div>
-                  <div className="p-6 flex flex-col items-center gap-3 text-center">
-                    <div className="relative">
-                      <div className="w-16 h-16 rounded-2xl bg-secondary/50 border-white/10 flex items-center justify-center shadow-xl"><span className="text-3xl">🏳️</span></div>
-                      <Badge variant="outline" className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-background border-white/20 text-muted-foreground text-[7px] font-black uppercase px-2 h-4">{t.away}</Badge>
-                    </div>
-                    <h3 className="text-xs font-headline font-bold uppercase tracking-tight text-white mt-1">{currentResult.opponentName}</h3>
+                  <h3 className="text-xs font-headline font-bold uppercase tracking-tight text-white mt-1">{profile?.displayName || "MY TEAM"}</h3>
+                </div>
+                <div className="p-6 flex flex-col items-center gap-3 text-center">
+                  <div className="relative">
+                    <div className="w-16 h-16 rounded-2xl bg-secondary/50 border-white/10 flex items-center justify-center shadow-xl"><span className="text-3xl">🏳️</span></div>
+                    <Badge variant="outline" className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-background border-white/20 text-muted-foreground text-[7px] font-black uppercase px-2 h-4">{t.away}</Badge>
                   </div>
+                  <h3 className="text-xs font-headline font-bold uppercase tracking-tight text-white mt-1">{currentResult.opponentName}</h3>
                 </div>
-                <div className="bg-black/40 border-t border-white/5 p-3 flex items-center justify-around">
-                  <div className="flex items-center gap-2"><MapPin className="w-3 h-3 text-accent" /><div><p className="text-[7px] font-black text-muted-foreground uppercase">{t.arena}</p><p className="text-[9px] font-bold text-accent uppercase">Operational HQ</p></div></div>
-                  <div className="flex items-center gap-2"><Users className="w-3 h-3 text-primary" /><div><p className="text-[7px] font-black text-muted-foreground uppercase">{t.spectators}</p><p className="text-[9px] font-bold text-primary tabular-nums">{(profile?.arena?.capacity || 5000).toLocaleString()}</p></div></div>
-                </div>
-              </Card>
-            )}
+              </div>
+            </Card>
           </div>
         )}
 
         {step === 'live' && (
           <div className="space-y-4 animate-in slide-in-from-right-4 duration-500">
-            {isTechnicalResult ? <p className="text-center opacity-40">SIGNAL UNAVAILABLE</p> : (currentResult.timeline || []).map((event: any, i: number) => (
-              <Card key={i} className="glass-card border-white/5 bg-secondary/20"><CardContent className="p-4 flex gap-4"><div className="w-12 border-r border-white/5 pr-2"><span className="text-[10px] font-mono font-bold text-accent">{event.time}</span></div><div className="flex-1 space-y-2"><p className="text-sm leading-relaxed text-muted-foreground">{event.event}</p><Badge className="bg-black/40 text-[9px] font-mono font-bold text-white ml-auto block w-fit">{event.score}</Badge></div></CardContent></Card>
+            {(currentResult.timeline || []).map((event: any, i: number) => (
+              <Card key={i} className="glass-card border-white/5 bg-secondary/20">
+                <CardContent className="p-4 flex gap-4">
+                  <div className="w-12 border-r border-white/5 pr-2">
+                    <span className="text-[10px] font-mono font-bold text-accent">{event.time}</span>
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <p className="text-sm leading-relaxed text-muted-foreground">{event.event}</p>
+                    <Badge className="bg-black/40 text-[9px] font-mono font-bold text-white ml-auto block w-fit">{event.score}</Badge>
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         )}
@@ -246,10 +226,32 @@ function MatchContent() {
                 {currentResult.scoreA > currentResult.scoreB ? "VICTORY" : (currentResult.scoreA === currentResult.scoreB ? "DRAW" : "DEFEAT")}
               </Badge>
             </div>
-            <Card className="glass-card p-6 bg-primary/5 border-primary/20"><p className="text-xs leading-relaxed italic text-center text-primary-foreground/80">"{currentResult.matchSummary}"</p></Card>
-            {currentResult.postMatch?.analysis && (
-              <Card className="glass-card border-green-500/20 bg-green-500/5 p-6"><h3 className="text-[10px] font-black text-green-400 uppercase mb-2 flex items-center gap-2"><ShieldCheck className="w-3 h-3" /> {t.analysis}</h3><p className="text-sm leading-relaxed text-green-100 italic">{currentResult.postMatch.analysis}</p></Card>
-            )}
+            
+            <Card className="glass-card p-6 bg-primary/5 border-primary/20">
+              <p className="text-xs leading-relaxed italic text-center text-primary-foreground/80">
+                "{currentResult.matchSummary}"
+              </p>
+            </Card>
+
+            <div className="space-y-3">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">{t.scoreboard}</h3>
+              <div className="grid gap-2">
+                {(currentResult.scoreboard || []).map((p: any, i: number) => (
+                  <div key={i} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center border border-white/10">
+                        {p.name === currentResult.mvp ? <Trophy className="w-4 h-4 text-yellow-500" /> : <User className="w-4 h-4 text-muted-foreground" />}
+                      </div>
+                      <span className="text-[11px] font-bold uppercase">{p.name}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-[10px] font-mono font-bold text-primary">{p.kills}/{p.deaths}/{p.assists}</span>
+                      <Badge variant="outline" className="text-[8px] font-mono border-white/10">{p.cs} CS</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -281,3 +283,4 @@ export default function MatchPage() {
     </Suspense>
   );
 }
+

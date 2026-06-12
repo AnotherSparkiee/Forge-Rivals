@@ -2,61 +2,182 @@
 'use client';
 
 /**
- * @fileOverview Монитор матчей (Passive Sync).
- * Слушает коллекцию matches_v1. Клиент БОЛЬШЕ не симулирует матчи.
- * Движок симуляции перенесен в Cloud Functions (Source of Truth).
+ * @fileOverview Автоматический симулятор матчей.
+ * Обнаруживает матчи, время которых пришло, собирает данные команд и проводит расчет.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc, getDocs, getDoc } from 'firebase/firestore';
 import { 
   Dialog, DialogContent, DialogTitle, DialogDescription
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
-import { Swords, Trophy } from 'lucide-react';
+import { Swords, Trophy, Loader2 } from 'lucide-react';
+import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
+import { generateBotSquad } from '@/app/lib/moba-data';
+import { useToast } from '@/hooks/use-toast';
+
+function sanitize(obj: any) {
+  return JSON.parse(JSON.stringify(obj));
+}
 
 export function AutoMatchManager() {
-  const { isLoaded, selectedLeagueId, leagueLevel, groupId, id: userId } = useGameState();
+  const { 
+    isLoaded, selectedLeagueId, leagueLevel, groupId, id: userId, 
+    strategy, ownedHeroes, lineup, recordMatch, displayName
+  } = useGameState();
   const db = useFirestore();
   const router = useRouter();
+  const { toast } = useToast();
   
   const [showResultDialog, setShowResultDialog] = useState(false);
   const [lastMatch, setLastMatch] = useState<any | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const processingMatches = useRef<Set<string>>(new Set());
 
-  // Слушаем только ЗАВЕРШЕННЫЕ матчи для данной группы
-  const matchQuery = useMemoFirebase(() => {
+  // Слушаем все матчи нашей группы
+  const groupMatchesQuery = useMemoFirebase(() => {
     if (!selectedLeagueId || !userId) return null;
     return query(
       collection(db, 'matches_v1'),
       where('leagueId', '==', selectedLeagueId),
       where('divisionId', '==', leagueLevel),
-      where('groupId', '==', groupId),
-      where('status', '==', 'finished'),
-      orderBy('startTime', 'desc'),
-      limit(1)
+      where('groupId', '==', groupId)
     );
   }, [db, selectedLeagueId, leagueLevel, groupId, userId]);
 
-  const { data: matches } = useCollection(matchQuery);
+  const { data: matches } = useCollection(groupMatchesQuery);
+
+  const performSimulation = async (match: any) => {
+    if (processingMatches.current.has(match.id)) return;
+    processingMatches.current.add(match.id);
+    setIsSimulating(true);
+
+    try {
+      console.log(`ARCHITECT: Starting simulation for match ${match.id}`);
+      
+      const isHome = match.homeId === userId;
+      const opponentId = isHome ? match.awayId : match.homeId;
+      const opponentIsBot = opponentId.startsWith('bot');
+
+      // 1. Собираем состав текущего пользователя
+      const mySquad = ownedHeroes
+        .filter(h => Object.values(lineup).includes(h.id))
+        .map(h => ({
+          name: h.name,
+          role: h.role,
+          overallRating: h.overallRating,
+          proStats: h.proStats,
+          isSub: h.id === lineup.sub1 || h.id === lineup.sub2
+        }));
+
+      let opponentSquad: any[] = [];
+      let opponentStrategy = 'Balanced Play';
+
+      if (opponentIsBot) {
+        opponentSquad = generateBotSquad(25); // Базовый OVR ботов 25
+      } else {
+        // Загружаем данные другого игрока
+        const oppTeamRef = doc(db, 'leagues_v2', match.leagueId, 'divisions', String(match.divisionId), 'groups', String(match.groupId), 'teams', opponentId);
+        const oppSnap = await getDoc(oppTeamRef);
+        if (oppSnap.exists()) {
+          const oppData = oppSnap.data();
+          opponentStrategy = oppData.strategy || 'Balanced Play';
+          const oppHeroesSnap = await getDocs(collection(oppTeamRef, 'heroes'));
+          const oppLineup = oppData.lineup || {};
+          opponentSquad = oppHeroesSnap.docs
+            .filter(d => Object.values(oppLineup).includes(d.id))
+            .map(d => {
+              const h = d.data();
+              return {
+                name: h.name,
+                role: h.role,
+                overallRating: h.overallRating,
+                proStats: h.proStats,
+                isSub: d.id === oppLineup.sub1 || d.id === oppLineup.sub2
+              };
+            });
+        }
+        
+        // Если не удалось загрузить (пустой ростер), заполняем ботами
+        if (opponentSquad.length < 5) opponentSquad = generateBotSquad(20);
+      }
+
+      // 2. Запускаем симуляцию
+      const teamAData = isHome 
+        ? { name: displayName, strategy, heroes: mySquad }
+        : { name: match.homeName, strategy: opponentStrategy, heroes: opponentSquad };
+      
+      const teamBData = isHome
+        ? { name: match.awayName, strategy: opponentStrategy, heroes: opponentSquad }
+        : { name: displayName, strategy, heroes: mySquad };
+
+      const simulationResult = await simulateMobaMatch({
+        teamA: teamAData,
+        teamB: teamBData,
+        isBo2: false
+      });
+
+      // 3. Сохраняем в БД для синхронизации
+      const matchRef = doc(db, 'matches_v1', match.id);
+      const finishedData = {
+        status: 'finished',
+        scoreA: simulationResult.games[0].scoreA,
+        scoreB: simulationResult.games[0].scoreB,
+        winnerId: simulationResult.winner === teamAData.name ? match.homeId : (simulationResult.winner === "Draw" ? null : match.awayId),
+        simulation: sanitize(simulationResult.games[0]),
+        finishedAt: new Date().toISOString()
+      };
+
+      await updateDoc(matchRef, finishedData);
+
+      // 4. Записываем в локальную историю и выдаем награду
+      const myResult = isHome ? simulationResult.games[0] : {
+        ...simulationResult.games[0],
+        scoreA: simulationResult.games[0].scoreB,
+        scoreB: simulationResult.games[0].scoreA,
+      };
+
+      recordMatch(
+        simulationResult.winner === displayName ? displayName : (simulationResult.winner === "Draw" ? "Draw" : (isHome ? match.awayName : match.homeName)),
+        myResult,
+        50000, // Базовая награда за матч
+        isHome ? match.awayName : match.homeName,
+        'league',
+        new Date().toISOString(),
+        match.id
+      );
+
+      setLastMatch({ ...match, ...finishedData });
+      setShowResultDialog(true);
+      
+      toast({ title: language === 'ru' ? "Матч завершен!" : "Match Completed!" });
+
+    } catch (error) {
+      console.error("Simulation failed", error);
+    } finally {
+      setIsSimulating(false);
+    }
+  };
 
   useEffect(() => {
-    if (matches && matches.length > 0) {
-      const match = matches[0];
-      const isMyMatch = match.homeId === userId || match.awayId === userId;
-      
-      // Показываем уведомление, если матч свежий (в пределах последнего часа)
-      const matchTime = new Date(match.startTime).getTime();
-      const now = Date.now();
-      
-      if (isMyMatch && (now - matchTime < 3600000) && lastMatch?.id !== match.id) {
-        setLastMatch(match);
-        setShowResultDialog(true);
-      }
+    if (!matches || !userId) return;
+
+    const mskNow = Date.now();
+    
+    // Ищем матчи, время которых пришло, но они еще не завершены
+    const pendingMatch = matches.find(m => {
+      const startTime = new Date(m.startTime).getTime();
+      return m.status === 'pending' && mskNow >= startTime && (m.homeId === userId || m.awayId === userId);
+    });
+
+    if (pendingMatch && !isSimulating) {
+      performSimulation(pendingMatch);
     }
-  }, [matches, userId, lastMatch]);
+  }, [matches, userId, isSimulating]);
 
   if (!isLoaded || !selectedLeagueId) return null;
 
@@ -87,3 +208,4 @@ export function AutoMatchManager() {
     </Dialog>
   );
 }
+
