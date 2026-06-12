@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
@@ -11,7 +10,7 @@ import {
   ChevronLeft, Check, Swords, Activity, Map as MapIcon, ArrowRight, TrendingUp,
   ShieldCheck, Brain, Zap, Target, FileText,
   Users, Signal, EyeOff, Calendar, MapPin, Trophy, Clock, Medal,
-  ShieldAlert, RefreshCw, MousePointer2
+  ShieldAlert, RefreshCw, MousePointer2, User
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -264,7 +263,7 @@ function MatchContent() {
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-t border-white/10 h-24 flex items-center px-6">
-        <div className="w-full max-w-md mx-auto flex gap-3">
+        <div className="w-full max-md mx-auto flex gap-3">
           <Button variant="outline" className="flex-1 h-12 uppercase font-black text-[10px]" onClick={(e) => { e.stopPropagation(); router.back(); }}>{t.exit}</Button>
           <Button className="flex-[2] h-12 hero-gradient border-none font-black text-[10px] uppercase shadow-lg shadow-primary/20" onClick={(e) => { e.stopPropagation(); handleNext(); }}>
             {step === 'stats' ? <Check className="w-4 h-4 mr-2" /> : <ArrowRight className="w-4 h-4 mr-2" />}
@@ -283,4 +282,3 @@ export default function MatchPage() {
     </Suspense>
   );
 }
-
