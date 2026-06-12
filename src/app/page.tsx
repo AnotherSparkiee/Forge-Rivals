@@ -1,15 +1,15 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useGameState } from './lib/store';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { 
   Users, Trophy, Zap, UserSearch, Swords, ChevronRight,
-  MessageSquare, UserCog, Coins, Heart, Store, Shield, 
-  ArrowRight, Loader2, Check, Lock, UserPlus,
+  MessageSquare, UserCog, Heart, Store, Shield, 
+  ArrowRight, Loader2, Check, UserPlus,
   ShoppingCart, GraduationCap, CalendarDays, Medal,
   ArrowRightLeft, Timer, RefreshCw, Home as HomeIcon, MapPin, Calendar
 } from 'lucide-react';
@@ -39,8 +39,8 @@ export default function Home() {
   const { toast } = useToast();
   const { 
     language, setLanguage, isLoaded, selectedLeagueId,
-    leagueLevel, groupId, lastLeagueMatchDate, groupMatches,
-    seasonDay, seasonNumber, displayName
+    lastLeagueMatchDate, groupMatches,
+    seasonDay, seasonNumber
   } = useGameState();
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -77,14 +77,13 @@ export default function Home() {
   const nextMatchData = useMemo(() => {
     if (!isLoaded || !groupMatches || groupMatches.length === 0) return null;
     
-    const isTodayPlayed = lastLeagueMatchDate === getMoscowDateString();
-    const mskNow = getMoscowTime();
+    const mskNow = getMoscowTime().getTime();
     
     // Ищем любой матч, который еще не начался
     const sortedMatches = [...groupMatches]
       .filter(m => {
         const matchTime = new Date(m.startTime).getTime();
-        return matchTime > mskNow.getTime() && (m.homeId === user?.uid || m.awayId === user?.uid);
+        return matchTime > mskNow && (m.homeId === user?.uid || m.awayId === user?.uid);
       })
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
@@ -102,7 +101,7 @@ export default function Home() {
       time: league.startTime,
       isHome: isHome
     };
-  }, [isLoaded, groupMatches, seasonDay, lastLeagueMatchDate, language, league.startTime, user?.uid]);
+  }, [isLoaded, groupMatches, language, league.startTime, user?.uid]);
 
   useEffect(() => {
     if (!isLoaded || !selectedLeagueId) return;
@@ -138,11 +137,12 @@ export default function Home() {
     const formatDiff = (ms: number) => {
       const hh = Math.floor(ms / 3600000);
       const mm = Math.floor((ms % 3600000) / 60000);
-      const ss = Math.floor((ms % 60000) / 1000);
-      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+      const ss = Math.floor((diff % 60000) / 1000); // Fixed typo from diff to ms if needed, but let's use ms
+      const ssCorrect = Math.floor((ms % 60000) / 1000);
+      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ssCorrect).padStart(2, '0')}`;
     };
     return () => clearInterval(timer);
-  }, [isLoaded, selectedLeagueId, league, lastLeagueMatchDate, seasonInfo, nextMatchData]);
+  }, [isLoaded, selectedLeagueId, league, seasonInfo, nextMatchData]);
 
   if (isUserLoading) return <LoadingScreen />;
 

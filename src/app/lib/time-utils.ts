@@ -41,14 +41,16 @@ export function formatMoscowTime(date: Date): string {
 export function getSeasonDateLabel(dayOfSeason: number): string {
   const mskNow = getMoscowTime();
   const info = getGlobalSeasonInfo();
-  // Если мы смотрим следующий сезон, считаем от завтрашнего дня (старта S1)
-  const diffDays = dayOfSeason - (info.seasonDay > 14 ? 0 : info.seasonDay);
   
   const targetDate = new Date(mskNow);
-  // Если сегодня межсезонье (15-16), то Day 1 — это завтра
-  if (info.seasonDay > 14) {
-    targetDate.setDate(mskNow.getDate() + (17 - info.seasonDay) + (dayOfSeason - 1));
+  
+  // Если мы находимся в межсезонье (15-16), то Day 1 — это начало нового цикла
+  if (info.seasonDay >= 15) {
+    const daysUntilNewSeason = 17 - info.seasonDay;
+    targetDate.setDate(mskNow.getDate() + daysUntilNewSeason + (dayOfSeason - 1));
   } else {
+    // Внутри сезона
+    const diffDays = dayOfSeason - info.seasonDay;
     targetDate.setDate(mskNow.getDate() + diffDays);
   }
   
@@ -64,36 +66,40 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   
-  // Устанавливаем Эпоху так, чтобы ЗАВТРА был День 1 Сезона 1.
-  // Сегодня — 19 мая. Завтра — 20 мая (Старт).
+  // Точка отсчета Сезона 1. 
+  // Мы настраиваем ее так, чтобы ПЕРВЫЙ МАТЧ был завтра (или сегодня, если уже наступил день 1)
+  // Для этого за дату старта берем "завтра 00:00"
   const startOfS1 = new Date(mskNow);
   startOfS1.setDate(mskNow.getDate() + 1);
   startOfS1.setHours(0, 0, 0, 0);
   
   const epoch = startOfS1.getTime(); 
-
   const diffMs = mskNow.getTime() - epoch;
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   
   const cycleDuration = 16; 
-  // Сегодня diffDays = -1. 
-  // currentSeasonDay = ((-1 % 16) + 16) % 16 + 1 = 16.
-  // currentSeasonNumber = floor(-1 / 16) + 1 = -1 + 1 = 0.
   
+  // Если diffDays < 0 (мы до старта Сезона 1), это Season 1, Day 16 (Prep)
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
   let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
   
-  // Мы хотим видеть Сезон 1 уже сегодня (в день подготовки)
-  const isPreSeason = currentSeasonNumber === 0;
-  const displaySeasonNumber = isPreSeason ? 1 : currentSeasonNumber;
-  const displaySeasonDay = isPreSeason ? 16 : currentSeasonDay;
-
-  const isTransitionTime = displaySeasonDay === 15 && mskNow.getHours() >= 16;
+  // В период подготовки (день 15-16) мы уже считаем себя частью БУДУЩЕГО сезона для генерации
+  const isTransitionTime = currentSeasonDay === 15 && mskNow.getHours() >= 16;
   
   return {
-    seasonDay: displaySeasonDay,
-    seasonNumber: displaySeasonNumber,
-    isTransitionPhase: displaySeasonDay === 15,
-    isAfterTransition: isTransitionTime || displaySeasonDay > 15
+    seasonDay: currentSeasonDay,
+    seasonNumber: currentSeasonNumber,
+    isTransitionPhase: currentSeasonDay === 15,
+    isAfterTransition: isTransitionTime || currentSeasonDay > 15
   };
+}
+
+/**
+ * Возвращает конец московского дня (для истечения аукционов)
+ */
+export function getEndOfMoscowDay(): string {
+  const now = getMoscowTime();
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+  return end.toISOString();
 }

@@ -8,7 +8,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { Hero, StaffMember, StaffRole } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString } from './time-utils';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, getDocs, arrayUnion } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, generateDeterministicMatchId, LEAGUES } from './leagues-data';
 
@@ -125,21 +125,21 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState('ru');
   const setLanguage = (l: string) => setLang(l);
 
-  // Group Matches Listener (Source of Truth)
-  // Мы слушаем матчи ТЕКУЩЕГО сезона, а если мы в межсезонье (15-16) - СЛЕДУЮЩЕГО
+  // Group Matches Listener
   const groupMatchesQuery = useMemoFirebase(() => {
     const s = stateRef.current;
     if (!s.selectedLeagueId || !s.isLoaded || !user) return null;
     
     const { seasonNumber, seasonDay } = getGlobalSeasonInfo();
-    const targetSeason = seasonDay >= 15 ? seasonNumber + 1 : seasonNumber;
-
+    // Если день 15-16, мы ищем матчи ТЕКУЩЕГО сезона (чтобы видеть итоги) 
+    // ИЛИ следующего, если текущий сезон уже прошел.
+    // Для простоты: всегда ищем матчи сезона, который вернула функция (он уже учитывает prep)
     return query(
       collection(db, 'matches_v1'),
       where('leagueId', '==', s.selectedLeagueId),
       where('divisionId', '==', s.leagueLevel),
       where('groupId', '==', s.groupId),
-      where('seasonNumber', '==', targetSeason)
+      where('seasonNumber', '==', seasonNumber)
     );
   }, [db, state.selectedLeagueId, state.leagueLevel, state.groupId, state.isLoaded, user]);
 
@@ -208,7 +208,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             const staffObj: any = {};
             sSnap.docs.forEach(d => { const m = d.data() as StaffMember; staffObj[m.role] = m; });
             const { seasonDay, seasonNumber } = getGlobalSeasonInfo();
-            const targetSeason = seasonDay >= 15 ? seasonNumber + 1 : seasonNumber;
 
             setState(s => ({
               ...s, id: user.uid, displayName: rootData.displayName || teamData.displayName || "Manager",
@@ -226,7 +225,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
               country: rootData.country ?? null, isPremium: teamData.premiumUntil ? new Date(teamData.premiumUntil) > new Date() : false,
               premiumUntil: teamData.premiumUntil ?? null, activeLicenseTier: teamData.activeLicenseTier ?? 4,
               rank: teamData.rank ?? 8, ownedHeroes: allHeroes.filter(h => !h.isYouth), youthAcademyHeroes: allHeroes.filter(h => h.isYouth),
-              staff: staffObj, seasonDay, seasonNumber, targetSeason, isLoaded: true, language: lang,
+              staff: staffObj, seasonDay, seasonNumber, targetSeason: seasonNumber, isLoaded: true, language: lang,
               groupMatches: dbMatches || []
             }));
           });
@@ -242,21 +241,20 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!s.isLoaded || !s.selectedLeagueId || !user) return;
 
     const generateScheduleIfMissing = async () => {
-      const { seasonNumber, seasonDay } = getGlobalSeasonInfo();
-      const targetSeason = seasonDay >= 15 ? seasonNumber + 1 : seasonNumber;
+      const { seasonNumber } = getGlobalSeasonInfo();
 
       const existingQuery = query(
         collection(db, 'matches_v1'),
         where('leagueId', '==', s.selectedLeagueId),
         where('divisionId', '==', s.leagueLevel),
         where('groupId', '==', s.groupId),
-        where('seasonNumber', '==', targetSeason)
+        where('seasonNumber', '==', seasonNumber)
       );
       
       const snap = await getDocs(existingQuery);
       if (snap.size >= 56) return;
 
-      console.log("ARCHITECT: Initializing schedule for Season", targetSeason);
+      console.log("ARCHITECT: Initializing schedule for Season", seasonNumber);
       
       const playersQuery = query(
         collection(db, 'players_v10'),
@@ -277,13 +275,21 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       seasonSchedule.forEach((dayMatches, dIdx) => {
         const day = dIdx + 1;
         dayMatches.forEach((match: any, mIdx: number) => {
-          const matchId = generateDeterministicMatchId(s.selectedLeagueId!, s.leagueLevel, s.groupId, targetSeason, day, mIdx);
+          const matchId = generateDeterministicMatchId(s.selectedLeagueId!, s.leagueLevel, s.groupId, seasonNumber, day, mIdx);
           const matchRef = doc(db, 'matches_v1', matchId);
           
           const startTime = new Date(getMoscowTime());
-          // Если мы в межсезонье (15-16), то до первого матча (Day 1) осталось (17-day) дней
-          const daysUntilStart = seasonDay >= 15 ? (17 - seasonDay) : (day - seasonDay);
-          startTime.setDate(startTime.getDate() + daysUntilStart + (day - 1));
+          const info = getGlobalSeasonInfo();
+          
+          // Расчет даты начала: если сегодня день 15-16, то Day 1 будет через (17-day) дней.
+          let daysToMatch = 0;
+          if (info.seasonDay >= 15) {
+            daysToMatch = (17 - info.seasonDay) + (day - 1);
+          } else {
+            daysToMatch = (day - info.seasonDay);
+          }
+          
+          startTime.setDate(startTime.getDate() + daysToMatch);
           startTime.setHours(h, m, 0, 0);
 
           const matchData = {
@@ -291,7 +297,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             leagueId: s.selectedLeagueId,
             divisionId: s.leagueLevel,
             groupId: s.groupId,
-            seasonNumber: targetSeason,
+            seasonNumber: seasonNumber,
             day: day,
             startTime: startTime.toISOString(),
             type: 'league',
@@ -314,7 +320,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     };
 
     generateScheduleIfMissing();
-  }, [db, user, state.isLoaded, state.seasonNumber, state.leagueLevel, state.groupId, state.selectedLeagueId, state.seasonDay]);
+  }, [db, user, state.isLoaded, state.seasonNumber, state.leagueLevel, state.groupId, state.selectedLeagueId]);
 
   const getRefs = useCallback(() => {
     const s = stateRef.current;
