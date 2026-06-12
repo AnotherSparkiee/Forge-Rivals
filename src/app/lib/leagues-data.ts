@@ -119,7 +119,7 @@ export function getSchedule(teams: any[]) {
 }
 
 /**
- * Builds the group standings table by simulating all matches up to a specific day.
+ * Builds the group standings table by prioritizing actual DB matches.
  */
 export function getMockGroupTeams(
   playerRank: number, 
@@ -130,7 +130,8 @@ export function getMockGroupTeams(
   leagueId: string = "ALPHA",
   realPlayers: any[] = [],
   currentPlayerId?: string,
-  upToDay: number = 0 
+  upToDay: number = 0,
+  dbMatches: any[] = []
 ) {
   const teams: any[] = [];
   const sortedRealPlayers = [...(realPlayers || [])].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
@@ -163,20 +164,17 @@ export function getMockGroupTeams(
   const finalTeams = teams.slice(0, TEAMS_PER_GROUP);
   finalTeams.sort((a, b) => a.id.localeCompare(b.id));
 
-  if (upToDay > 0) {
-    const seasonSchedule = getSchedule(finalTeams);
-    const limit = Math.min(upToDay, SEASON_DURATION_DAYS);
-    for (let d = 1; d <= limit; d++) {
-      const matches = seasonSchedule[d - 1];
-      if (!matches) continue;
-      matches.forEach((m: any) => {
-        const home = finalTeams.find(t => t.id === m.home.id);
-        const away = finalTeams.find(t => t.id === m.away.id);
-        if (!home || !away) return;
-        const [hScore, aScore] = getMatchResult(home.id, away.id, d, false);
-        applyResult(home, away, hScore, aScore);
-      });
-    }
+  // 1. First, apply actual results from database matches (Sync)
+  if (dbMatches && dbMatches.length > 0) {
+    dbMatches.forEach(m => {
+      if (m.status === 'finished') {
+        const home = finalTeams.find(t => t.id === m.homeId);
+        const away = finalTeams.find(t => t.id === m.awayId);
+        if (home && away) {
+          applyResult(home, away, m.scoreA, m.scoreB);
+        }
+      }
+    });
   }
 
   return finalTeams.sort((a, b) => b.points - a.points || b.wins - a.wins || a.id.localeCompare(b.id));

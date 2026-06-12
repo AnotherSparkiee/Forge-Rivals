@@ -2,8 +2,8 @@
 'use client';
 
 /**
- * @fileOverview Автоматический симулятор матчей.
- * Обнаруживает матчи, время которых пришло, собирает данные команд и проводит расчет.
+ * @fileOverview Глобальный синхронизированный симулятор матчей.
+ * Обрабатывает ВСЕ матчи группы одновременно для поддержания единого рейтинга.
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -28,7 +28,8 @@ function sanitize(obj: any) {
 export function AutoMatchManager() {
   const { 
     isLoaded, selectedLeagueId, leagueLevel, groupId, id: userId, 
-    strategy, ownedHeroes, lineup, recordMatch, displayName, language
+    strategy, ownedHeroes, lineup, recordMatch, displayName, language,
+    groupMatches
   } = useGameState();
   const db = useFirestore();
   const router = useRouter();
@@ -37,99 +38,59 @@ export function AutoMatchManager() {
   const [showResultDialog, setShowResultDialog] = useState(false);
   const [lastMatch, setLastMatch] = useState<any | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
-  const processingMatches = useRef<Set<string>>(new Set());
-
-  const groupMatchesQuery = useMemoFirebase(() => {
-    if (!selectedLeagueId || !userId) return null;
-    return query(
-      collection(db, 'matches_v1'),
-      where('leagueId', '==', selectedLeagueId),
-      where('divisionId', '==', leagueLevel),
-      where('groupId', '==', groupId)
-    );
-  }, [db, selectedLeagueId, leagueLevel, groupId, userId]);
-
-  const { data: matches } = useCollection(groupMatchesQuery);
+  
+  // Отслеживание матчей, которые уже симулируются этим клиентом
+  const processedMatches = useRef<Set<string>>(new Set());
 
   const performSimulation = async (match: any) => {
-    if (processingMatches.current.has(match.id)) return;
-    processingMatches.current.add(match.id);
-    setIsSimulating(true);
+    if (processedMatches.current.has(match.id)) return;
+    processedMatches.current.add(match.id);
+    
+    // Метка для UI только если это наш матч
+    const isOurMatch = match.homeId === userId || match.awayId === userId;
+    if (isOurMatch) setIsSimulating(true);
 
     try {
-      console.log(`ARCHITECT: Starting simulation for match ${match.id}`);
+      console.log(`ARCHITECT: Syncing group match ${match.id}`);
       
       const isHome = match.homeId === userId;
-      const opponentId = isHome ? match.awayId : match.homeId;
-      const opponentIsBot = String(opponentId).startsWith('bot');
+      const isAway = match.awayId === userId;
 
-      // 1. Prepare Squads
-      const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
-      const myHeroes = activeSlots
-        .map(slot => ownedHeroes.find(h => h.id === lineup[slot]))
-        .filter(Boolean);
-
-      let mySquad = myHeroes.map(h => ({
-        name: h!.name,
-        role: h!.role,
-        overallRating: h!.overallRating,
-        proStats: h!.proStats,
-        isSub: false
-      }));
-
-      if (mySquad.length < 5) {
-        const fillers = generateBotSquad(20).slice(0, 5 - mySquad.length);
-        mySquad = [...mySquad, ...fillers];
-      }
-
-      let opponentSquad: any[] = [];
-      let opponentStrategy = 'Balanced Play';
-
-      if (opponentIsBot) {
-        opponentSquad = generateBotSquad(25);
-      } else {
-        const oppTeamRef = doc(db, 'leagues_v2', match.leagueId, 'divisions', String(match.divisionId), 'groups', String(match.groupId), 'teams', opponentId);
-        const oppSnap = await getDoc(oppTeamRef);
-        if (oppSnap.exists()) {
-          const oppData = oppSnap.data();
-          opponentStrategy = oppData.strategy || 'Balanced Play';
-          const oppHeroesSnap = await getDocs(collection(oppTeamRef, 'heroes'));
-          const oppLineup = oppData.lineup || {};
-          
-          opponentSquad = activeSlots
-            .map(slot => oppHeroesSnap.docs.find(d => d.id === oppLineup[slot])?.data())
-            .filter(Boolean)
-            .map(h => ({
-              name: h!.name,
-              role: h!.role,
-              overallRating: h!.overallRating,
-              proStats: h!.proStats,
-              isSub: false
-            }));
-        }
-        
-        if (opponentSquad.length < 5) {
-          const fillers = generateBotSquad(20).slice(0, 5 - opponentSquad.length);
-          opponentSquad = [...opponentSquad, ...fillers];
-        }
-      }
-
-      // 2. Deterministic Result Calculation (for points consistency)
+      // 1. Детерминированный результат (для консистентности очков в группе)
       const [finalScoreA, finalScoreB] = getMatchResult(match.homeId, match.awayId, match.day, false);
 
-      // 3. Detailed Simulation
-      const teamAData = { name: match.homeName, strategy: isHome ? strategy : opponentStrategy, heroes: isHome ? mySquad : opponentSquad };
-      const teamBData = { name: match.awayName, strategy: !isHome ? strategy : opponentStrategy, heroes: !isHome ? mySquad : opponentSquad };
+      // 2. Сбор данных для симуляции
+      let squadA: any[] = [];
+      let squadB: any[] = [];
+      let strategyA = 'Balanced Play';
+      let strategyB = 'Balanced Play';
 
+      // Если это наш матч, берем реальных героев. Если нет - ботов (для синхронности группы)
+      if (isOurMatch) {
+        const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
+        const myHeroes = activeSlots.map(slot => ownedHeroes.find(h => h.id === lineup[slot])).filter(Boolean);
+        const mySquad = myHeroes.map(h => ({
+          name: h!.name, role: h!.role, overallRating: h!.overallRating, proStats: h!.proStats, isSub: false
+        }));
+        
+        if (isHome) { squadA = mySquad; strategyA = strategy; squadB = generateBotSquad(25); }
+        else { squadB = mySquad; strategyB = strategy; squadA = generateBotSquad(25); }
+      } else {
+        // Матч других игроков группы
+        squadA = generateBotSquad(25);
+        squadB = generateBotSquad(25);
+      }
+
+      // 3. AI Симуляция (для таймлайна и статистики)
       const simulationResult = await simulateMobaMatch({
-        teamA: teamAData,
-        teamB: teamBData,
+        teamA: { name: match.homeName, strategy: strategyA, heroes: squadA },
+        teamB: { name: match.awayName, strategy: strategyB, heroes: squadB },
         isBo2: true,
         scoreA: finalScoreA,
         scoreB: finalScoreB
       });
 
-      // 4. Save to Source of Truth
+      // 4. Глобальное обновление в matches_v1
       const matchRef = doc(db, 'matches_v1', match.id);
       const finishedData = {
         status: 'finished',
@@ -142,57 +103,59 @@ export function AutoMatchManager() {
 
       await updateDoc(matchRef, finishedData);
 
-      // 5. Local Record for history tab
-      const myResultScoreA = isHome ? finalScoreA : finalScoreB;
-      const myResultScoreB = isHome ? finalScoreB : finalScoreA;
-      
-      const myWinner = myResultScoreA > myResultScoreB ? displayName : (myResultScoreA === myResultScoreB ? "Draw" : (isHome ? match.awayName : match.homeName));
+      // 5. Локальная запись в историю (только если наш матч)
+      if (isOurMatch) {
+        const myResultScoreA = isHome ? finalScoreA : finalScoreB;
+        const myResultScoreB = isHome ? finalScoreB : finalScoreA;
+        const myWinner = myResultScoreA > myResultScoreB ? displayName : (myResultScoreA === myResultScoreB ? "Draw" : (isHome ? match.awayName : match.homeName));
 
-      recordMatch(
-        myWinner,
-        {
-          scoreA: myResultScoreA,
-          scoreB: myResultScoreB,
-          duration: simulationResult.games[0].duration,
-          mvp: simulationResult.games[0].mvp,
-          matchSummary: simulationResult.games[0].matchSummary,
-          games: simulationResult.games,
-          seriesScore: simulationResult.seriesScore
-        },
-        50000,
-        isHome ? match.awayName : match.homeName,
-        'league',
-        new Date().toISOString(),
-        match.id
-      );
+        recordMatch(
+          myWinner,
+          {
+            scoreA: myResultScoreA,
+            scoreB: myResultScoreB,
+            duration: simulationResult.games[0].duration,
+            mvp: simulationResult.games[0].mvp,
+            matchSummary: simulationResult.games[0].matchSummary,
+            games: simulationResult.games,
+            seriesScore: simulationResult.seriesScore,
+            timeline: simulationResult.games[0].timeline,
+            scoreboard: simulationResult.games[0].scoreboard
+          },
+          50000,
+          isHome ? match.awayName : match.homeName,
+          'league',
+          new Date().toISOString(),
+          match.id
+        );
 
-      setLastMatch({ ...match, ...finishedData });
-      setShowResultDialog(true);
-      toast({ title: language === 'ru' ? "Матч завершен!" : "Match Completed!" });
+        setLastMatch({ ...match, ...finishedData });
+        setShowResultDialog(true);
+        toast({ title: language === 'ru' ? "Ваш матч завершен!" : "Your match completed!" });
+      }
 
     } catch (error) {
       console.error("Simulation failed", error);
-      processingMatches.current.delete(match.id);
+      processedMatches.current.delete(match.id);
     } finally {
-      setIsSimulating(false);
+      if (isOurMatch) setIsSimulating(false);
     }
   };
 
   useEffect(() => {
-    if (!matches || !userId || !isLoaded) return;
+    if (!groupMatches || !userId || !isLoaded) return;
     const mskNow = Date.now();
     
-    // Find earliest match that should have started and is not finished
-    const pendingMatch = matches.find(m => {
+    // Ищем ВСЕ матчи группы, время которых пришло, но они еще не завершены
+    const pendingMatches = groupMatches.filter(m => {
       const startTime = new Date(m.startTime).getTime();
-      const isParticipant = m.homeId === userId || m.awayId === userId;
-      return m.status === 'pending' && mskNow >= startTime && isParticipant;
+      return m.status === 'pending' && mskNow >= startTime;
     });
 
-    if (pendingMatch && !isSimulating) {
-      performSimulation(pendingMatch);
-    }
-  }, [matches, userId, isSimulating, isLoaded]);
+    pendingMatches.forEach(match => {
+      performSimulation(match);
+    });
+  }, [groupMatches, userId, isLoaded]);
 
   if (!isLoaded || !selectedLeagueId) return null;
 

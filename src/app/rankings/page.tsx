@@ -26,7 +26,7 @@ export default function RankingsPage() {
   const router = useRouter();
   const { 
     rank, leagueLevel, groupId, isLoaded, language, 
-    seasonDay, selectedLeagueId, displayName
+    seasonDay, selectedLeagueId, displayName, groupMatches
   } = useGameState();
   const db = useFirestore();
   
@@ -55,8 +55,8 @@ export default function RankingsPage() {
 
   const standings = useMemo(() => {
     if (!isLoaded) return [];
-    const effectiveDay = seasonInfo.isTransitionPhase ? 0 : seasonDay;
     
+    // We only use actual results for the standings now
     return getMockGroupTeams(
       rank, 
       displayName, 
@@ -66,9 +66,10 @@ export default function RankingsPage() {
       contextLeagueId, 
       contextPlayers || [], 
       user?.uid, 
-      effectiveDay
+      0, // Don't use mocks anymore
+      groupMatches || [] // Official Source
     );
-  }, [isLoaded, contextPlayers, rank, displayName, contextLevel, contextGroup, contextLeagueId, user?.uid, seasonDay, seasonInfo]);
+  }, [isLoaded, contextPlayers, rank, displayName, contextLevel, contextGroup, contextLeagueId, user?.uid, groupMatches]);
 
   if (isUserLoading || !isLoaded) return <LoadingScreen />;
 
@@ -81,7 +82,7 @@ export default function RankingsPage() {
       all_pyramids: "All Pyramids",
       pyramid_cup: "Pyramid Cup",
       pts: "PTS",
-      winLoss: "W-D-L",
+      winLoss: "W-N-P",
       back: "Back",
       division: "Division",
       group: "Group",

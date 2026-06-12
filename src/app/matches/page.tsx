@@ -14,12 +14,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '../lib/leagues-data';
-import { getMoscowDateString, getMoscowTime, getSeasonDateLabel, getGlobalSeasonInfo } from '../lib/time-utils';
+import { LEAGUES, getSeasonDateLabel, SEASON_DURATION_DAYS } from '../lib/leagues-data';
+import { getMoscowTime } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { getGlobalCupParticipants, getWinnerOfBranch, getEntryRound } from '../lib/cup-utils';
 
 type MatchTab = 
   | 'menu'
@@ -34,8 +33,7 @@ export default function MatchesPage() {
   const router = useRouter();
   const { 
     isLoaded, language, leagueLevel, groupId, seasonDay, rank, 
-    lastLeagueMatchDate, lastCupMatchDate, seasonNumber, matchHistory, 
-    groupMatches, displayName
+    matchHistory, groupMatches, displayName
   } = useGameState();
   const db = useFirestore();
   
@@ -57,8 +55,6 @@ export default function MatchesPage() {
   const leagueNextMatch = useMemo(() => {
     if (!isLoaded || !groupMatches || groupMatches.length === 0) return null;
     
-    const mskNow = getMoscowTime();
-    
     const sortedMatches = [...groupMatches]
       .filter(m => {
         const isParticipant = m.homeId === user?.uid || m.awayId === user?.uid;
@@ -79,7 +75,6 @@ export default function MatchesPage() {
       match: myMatch,
       time: league.startTime, 
       type: 'league', 
-      isCup: false,
       label: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE'
     };
   }, [isLoaded, groupMatches, league, user?.uid, language]);
@@ -183,7 +178,9 @@ export default function MatchesPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-lg font-headline font-black italic tracking-widest text-primary">{m.scoreA}:{m.scoreB}</p>
-                  <p className={cn("text-[7px] font-black uppercase", m.winner === displayName ? "text-green-400" : "text-red-400")}>{m.winner === displayName ? 'VICTORY' : 'DEFEAT'}</p>
+                  <p className={cn("text-[7px] font-black uppercase", m.winner === displayName ? "text-green-400" : (m.winner === "Draw" ? "text-accent" : "text-red-400"))}>
+                    {m.winner === displayName ? 'VICTORY' : (m.winner === "Draw" ? 'DRAW' : 'DEFEAT')}
+                  </p>
                 </div>
               </div>
             </Link>
@@ -220,27 +217,37 @@ export default function MatchesPage() {
           </div>
         );
       case 'league_played':
-        const played = groupMatches
-          .filter(m => m.status === 'finished')
-          .sort((a, b) => new Date(b.finishedAt || b.startTime).getTime() - new Date(a.finishedAt || a.startTime).getTime());
-        if (played.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">No league results yet</div>;
-        return <div className="space-y-3">
-          {played.map(m => (
-            <Link key={m.id} href={`/match?id=${m.id}`} className="block">
-              <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
-                <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2">
-                  <span className="text-[8px] text-muted-foreground uppercase">{getSeasonDateLabel(m.day)}</span>
-                  <span className="text-[10px] font-mono font-bold text-primary">DAY {m.day}</span>
+        if (!groupMatches || groupMatches.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">No league results yet</div>;
+        const playedDays = Array.from({ length: 14 }, (_, i) => i + 1);
+        return (
+          <div className="space-y-4 animate-in fade-in duration-500">
+            {playedDays.map(d => {
+              const matchesForDay = groupMatches.filter(m => m.day === d && m.status === 'finished');
+              if (matchesForDay.length === 0) return null;
+              return (
+                <div key={d} className="space-y-2">
+                  <div className="flex justify-between items-center px-1">
+                    <h3 className="text-[10px] font-black uppercase text-primary tracking-widest">{t.day} {d}</h3>
+                    <span className="text-[8px] font-bold text-muted-foreground uppercase">{getSeasonDateLabel(d)}</span>
+                  </div>
+                  <div className="grid gap-2">
+                    {matchesForDay.map((m: any) => (
+                      <Link key={m.id} href={`/match?id=${m.id}`} className="block">
+                        <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3 group hover:bg-white/5 transition-all">
+                          <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.homeId === user.uid && "text-accent")}>{m.homeName}</span>
+                          <div className="px-3 flex flex-col items-center">
+                            <span className="text-lg font-headline font-black italic text-white leading-none">{m.scoreA}:{m.scoreB}</span>
+                          </div>
+                          <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.awayId === user.uid && "text-accent")}>{m.awayName}</span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex-1 flex items-center justify-between min-w-0">
-                   <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.homeId === user.uid && "text-accent")}>{m.homeName}</span>
-                   <div className="px-3 flex flex-col items-center"><span className="text-lg font-headline font-black italic text-white leading-none">{m.scoreA}:{m.scoreB}</span></div>
-                   <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.awayId === user.uid && "text-accent")}>{m.awayName}</span>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>;
+              );
+            })}
+          </div>
+        );
       default: return null;
     }
   };
@@ -255,7 +262,7 @@ export default function MatchesPage() {
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">
             {activeTab === 'menu' ? t.title : (t.tabs as any)[activeTab].label}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{activeTab === 'menu' ? t.subtitle : t.back}</p>
         </div>
       </header>
 
