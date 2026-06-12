@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Core logic for League structure, deterministic scheduling, and Bo2 result generation.
  */
@@ -74,7 +73,7 @@ export function getStableGroupTeams(level: any, group: any, leagueId: string, al
   for (let i = 0; i < botsNeeded; i++) {
     // Deterministic Bot ID
     const botId = `bot_${leagueId}_L${lvl}_G${grp}_${i + 1}`;
-    // Deterministic Display Name (Strict Format)
+    // Deterministic Display Name (Strict Format: Elite Bot Level.Group.Index)
     const botName = `Elite Bot ${lvl}.${grp}.${i + 1}`;
     teams.push({ id: botId, name: botName, isBot: true });
   }

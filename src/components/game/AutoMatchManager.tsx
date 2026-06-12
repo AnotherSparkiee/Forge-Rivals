@@ -1,7 +1,7 @@
-
 /**
- * @fileOverview Autonomous Season Engine (Catch-up Distributed Heartbeat).
+ * @fileOverview Autonomous Season Engine (Synchronized Heartbeat).
  * Handles synchronized Bo2 match simulation and season transitions.
+ * Forces regeneration if data standard changes.
  */
 
 'use client';
@@ -56,8 +56,13 @@ export function AutoMatchManager() {
         // --- PHASE 1: INITIALIZE GROUP & CALENDAR ---
         const teams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, allGroupPlayers);
 
-        if (!groupSnap.exists() || groupSnap.data().seasonId !== activeSeason) {
-          console.log("[Engine] Initializing Season:", activeSeason);
+        // Force regeneration if season mismatch OR if bot naming standard is wrong
+        const forceRegen = !groupSnap.exists() || 
+                           groupSnap.data().seasonId !== activeSeason ||
+                           (groupSnap.data().teams?.[0]?.name?.includes('Bot') && !groupSnap.data().teams?.[0]?.name?.includes('.'));
+
+        if (forceRegen) {
+          console.log("[Engine] Initializing Season (Forced):", activeSeason);
           const calendar = generateSeasonCalendar(teams);
           
           const batch = writeBatch(db);
@@ -71,7 +76,7 @@ export function AutoMatchManager() {
 
           calendar.forEach((m) => {
             const matchId = `match_${selectedLeagueId}_g${groupId}_s${activeSeason}_d${m.day}_h${m.homeId}`;
-            const matchDate = new Date('2025-03-03T00:00:00+03:00'); // Epoch
+            const matchDate = new Date('2025-03-10T00:00:00+03:00'); // New Epoch
             matchDate.setDate(matchDate.getDate() + (activeSeason - 1) * 16 + (m.day - 1));
             const [hh, mm] = league.startTime.split(':').map(Number);
             matchDate.setHours(hh, mm, 0, 0);
@@ -111,8 +116,7 @@ export function AutoMatchManager() {
           const correctHome = teams.find(t => t.id === m.homeId);
           const correctAway = teams.find(t => t.id === m.awayId);
 
-          // 2.1 SYNC NAMES (Self-healing for bot names)
-          // If the match doc has old/incorrect names but correct IDs, update it immediately
+          // 2.1 SYNC NAMES (Fixing ghost names in existing docs)
           if ((correctHome && m.homeName !== correctHome.name) || (correctAway && m.awayName !== correctAway.name)) {
             batch.update(matchDoc.ref, {
               homeName: correctHome?.name || m.homeName,
@@ -156,16 +160,7 @@ export function AutoMatchManager() {
 
         if (batchCount > 0) {
           await batch.commit();
-          console.log(`[Engine] Synchronized ${batchCount} group match updates.`);
-        }
-
-        // --- PHASE 3: SEASON END TRANSITION ---
-        const groupData = groupSnap.data();
-        if (seasonInfo.isTransitionPhase && groupData.lastProcessedDate !== todayStr && groupData.seasonId === activeSeason - 1) {
-          console.log("[Engine] Season Ended. Performing Migration...");
-          // Promotion/Relegation Logic (simplified for brevity)
-          batch.update(groupRef, { lastProcessedDate: todayStr });
-          await batch.commit();
+          console.log(`[Engine] Synchronized ${batchCount} updates in group.`);
         }
 
       } catch (e: any) {

@@ -61,13 +61,13 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
 /**
  * Глобальный расчет сезона. 
  * Цикл: 16 дней (14 игры + 2 переход).
- * СТАТИЧЕСКАЯ ЭПОХА: Сезон 1 начинается 3 Марта 2025 в 00:00 MSK.
+ * СТАТИЧЕСКАЯ ЭПОХА: Сезон 1 ПЕРЕЗАПУЩЕН 10 Марта 2025 в 00:00 MSK.
  */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   
-  // ФИКСИРОВАННАЯ ТОЧКА ОТСЧЕТА (Понедельник, 3 Марта 2025)
-  const epochDate = new Date('2025-03-03T00:00:00+03:00');
+  // ФИКСИРОВАННАЯ ТОЧКА ОТСЧЕТА (Понедельник, 10 Марта 2025) - ПЕРЕЗАПУСК
+  const epochDate = new Date('2025-03-10T00:00:00+03:00');
   
   const diffMs = mskNow.getTime() - epochDate.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
