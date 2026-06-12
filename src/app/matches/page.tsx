@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -50,21 +51,22 @@ export default function MatchesPage() {
 
   const league = useMemo(() => LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0], [profile?.selectedLeagueId]);
 
+  const myMatches = useMemo(() => {
+    if (!groupMatches || !user) return [];
+    return groupMatches.filter(m => m.homeId === user.uid || m.awayId === user.uid);
+  }, [groupMatches, user]);
+
   const leagueNextMatch = useMemo(() => {
-    if (!isLoaded || !groupMatches || groupMatches.length === 0 || !user) return null;
+    if (!myMatches.length) return null;
     
-    const sortedMatches = [...groupMatches]
-      .filter(m => {
-        const isParticipant = m.homeId === user.uid || m.awayId === user.uid;
-        const isNotFinished = m.status !== 'finished';
-        return isParticipant && isNotFinished;
-      })
+    const sorted = [...myMatches]
+      .filter(m => m.status !== 'finished')
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
-    if (sortedMatches.length === 0) return null;
+    if (!sorted.length) return null;
 
-    const myMatch = sortedMatches[0];
-    const isHome = myMatch.homeId === user.uid;
+    const myMatch = sorted[0];
+    const isHome = myMatch.homeId === user?.uid;
     const oppName = isHome ? myMatch.awayName : myMatch.homeName;
 
     return { 
@@ -75,7 +77,7 @@ export default function MatchesPage() {
       type: 'league', 
       label: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE'
     };
-  }, [isLoaded, groupMatches, league, user, language]);
+  }, [myMatches, league, user, language]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -142,12 +144,8 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_future':
-        if (!groupMatches || groupMatches.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">Syncing schedule...</div>;
-        const future = groupMatches
-          .filter(m => {
-            const isParticipant = m.homeId === user.uid || m.awayId === user.uid;
-            return m.status === 'pending' && isParticipant;
-          })
+        const future = myMatches
+          .filter(m => m.status === 'pending')
           .sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         return <div className="space-y-3">
           {future.map(m => (

@@ -1,17 +1,17 @@
+
 'use client';
 
 /**
  * @fileOverview Global Group Autonomous Match Persistence & Schedule Initialization.
- * Ensures the league calendar exists and processes due matches deterministically.
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState, LineupSlot } from '@/app/lib/store';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, updateDoc, setDoc, getDoc, writeBatch, collection, query, where, getDocs } from 'firebase/firestore';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
-import { getMatchResult, generateDeterministicDayMatches, TEAMS_PER_GROUP } from '@/app/lib/leagues-data';
+import { getMatchResult, generateDeterministicDayMatches, getStableGroupTeams } from '@/app/lib/leagues-data';
 
 function sanitize(obj: any) {
   try {
@@ -31,12 +31,15 @@ export function AutoMatchManager() {
   const processingRef = useRef<Set<string>>(new Set());
   const initTriggeredRef = useRef<string>("");
 
-  /**
-   * Initializes the schedule for the current group if it doesn't exist.
-   * Generates all 14 days of the season in advance.
-   */
+  const leaguePlayersQuery = useMemoFirebase(() => {
+    if (!selectedLeagueId) return null;
+    return query(collection(db, 'players_v10'), where('selectedLeagueId', '==', selectedLeagueId));
+  }, [db, selectedLeagueId]);
+
+  const { data: allLeaguePlayers } = useCollection(leaguePlayersQuery);
+
   const ensureScheduleExists = async () => {
-    if (!selectedLeagueId || !leagueLevel || !groupId || !seasonNumber) return;
+    if (!selectedLeagueId || !leagueLevel || !groupId || !seasonNumber || !allLeaguePlayers) return;
     
     const syncKey = `${selectedLeagueId}_${leagueLevel}_${groupId}_${seasonNumber}`;
     if (initTriggeredRef.current === syncKey) return;
@@ -47,29 +50,11 @@ export function AutoMatchManager() {
       const firstSnap = await getDoc(doc(db, 'matches_v1', firstMatchId));
       
       if (!firstSnap.exists()) {
-        console.log("Initializing autonomous group schedule for:", syncKey);
+        console.log("Initializing synchronized schedule for group:", syncKey);
         
-        // 1. Get real players in this group to assign correct names
-        const playersRef = collection(db, 'players_v10');
-        const q = query(playersRef, 
-          where('selectedLeagueId', '==', selectedLeagueId),
-          where('leagueLevel', '==', Number(leagueLevel)),
-          where('groupId', '==', Number(groupId))
-        );
-        const playerSnaps = await getDocs(q);
-        const realTeams = playerSnaps.docs.map(d => ({ id: d.id, name: d.data().displayName || "Manager" }));
-        
-        const teams: any[] = [...realTeams];
-        const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
-        for (let i = 0; i < botsNeeded; i++) {
-          const botId = `bot_${leagueLevel}_${groupId}_${i}`;
-          teams.push({ id: botId, name: `Elite Bot ${i + 1}` });
-        }
-        
-        // Deterministic sort for pairing
-        teams.sort((a, b) => a.id.localeCompare(b.id));
-        
+        const teams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, allLeaguePlayers);
         const batch = writeBatch(db);
+        
         for (let d = 1; d <= 14; d++) {
           const dayMatches = generateDeterministicDayMatches(leagueLevel, groupId, selectedLeagueId, seasonNumber, d, teams);
           dayMatches.forEach(m => {
@@ -83,9 +68,6 @@ export function AutoMatchManager() {
     }
   };
 
-  /**
-   * Processes a single match that is due according to the clock.
-   */
   const processPendingMatch = async (match: any) => {
     if (processingRef.current.has(match.id)) return;
     processingRef.current.add(match.id);
@@ -97,25 +79,17 @@ export function AutoMatchManager() {
       let simulationResult;
 
       if (isOurMatch) {
-        // Full AI Simulation for player match
         const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
         const myHeroes = activeSlots.map(slot => ownedHeroes.find(h => h.id === lineup[slot])).filter(Boolean);
         
         const mySquad = myHeroes.map(h => ({ 
-          name: h!.name, 
-          role: h!.role, 
-          overallRating: h!.overallRating, 
-          proStats: h!.proStats, 
-          isSub: false 
+          name: h!.name, role: h!.role, overallRating: h!.overallRating, proStats: h!.proStats, isSub: false 
         }));
         
         while (mySquad.length < 5) {
           mySquad.push({ 
-            name: `Training Bot ${mySquad.length + 1}`, 
-            role: 'Support', 
-            overallRating: 20, 
-            proStats: generateBotSquad(20)[0].proStats, 
-            isSub: false 
+            name: `Reserve AI`, role: 'Support', overallRating: 20, 
+            proStats: generateBotSquad(20)[0].proStats, isSub: false 
           });
         }
         
@@ -126,33 +100,19 @@ export function AutoMatchManager() {
         simulationResult = await simulateMobaMatch({
           teamA: { name: match.homeName, strategy: stratA, heroes: match.homeId === userId ? mySquad : opponentSquad },
           teamB: { name: match.awayName, strategy: stratB, heroes: match.awayId === userId ? mySquad : opponentSquad },
-          isBo2: true, 
-          scoreA: finalScoreH, 
-          scoreB: finalScoreA
+          isBo2: true, scoreA: finalScoreH, scoreB: finalScoreA
         });
 
-        // Record for local history (normalize scores from user perspective)
         const myScoreA = match.homeId === userId ? finalScoreH : finalScoreA;
         const myScoreB = match.homeId === userId ? finalScoreA : finalScoreH;
         const opponentName = match.homeId === userId ? match.awayName : match.homeName;
 
         recordMatch(
           myScoreA > myScoreB ? (match.homeId === userId ? match.homeName : match.awayName) : (myScoreA === myScoreB ? "Draw" : opponentName),
-          { 
-            ...simulationResult.games[0], 
-            scoreA: myScoreA, 
-            scoreB: myScoreB, 
-            games: simulationResult.games, 
-            seriesScore: `${myScoreA}-${myScoreB}`
-          },
-          50000,
-          opponentName,
-          'league',
-          new Date().toISOString(),
-          match.id
+          { ...simulationResult.games[0], scoreA: myScoreA, scoreB: myScoreB, games: simulationResult.games, seriesScore: `${myScoreA}-${myScoreB}` },
+          50000, opponentName, 'league', new Date().toISOString(), match.id
         );
       } else {
-        // Fast deterministic simulation for other matches in the group
         simulationResult = { 
           winner: finalScoreH > finalScoreA ? match.homeName : (finalScoreH === finalScoreA ? "Draw" : match.awayName), 
           seriesScore: `${finalScoreH}-${finalScoreA}`, 
@@ -163,7 +123,6 @@ export function AutoMatchManager() {
         };
       }
 
-      // Persist result to the global match record
       await updateDoc(doc(db, 'matches_v1', match.id), {
         status: 'finished',
         scoreA: finalScoreH,
@@ -181,21 +140,18 @@ export function AutoMatchManager() {
   };
 
   useEffect(() => {
-    if (!isLoaded || !userId) return;
-    
+    if (!isLoaded || !userId || !allLeaguePlayers) return;
     ensureScheduleExists();
 
     if (!groupMatches || groupMatches.length === 0) return;
     const now = Date.now();
-    
-    // Find any matches whose startTime has passed but they are still 'pending'
     const dueMatches = groupMatches.filter(m => {
       const startTime = new Date(m.startTime).getTime();
       return m.status === 'pending' && now >= startTime;
     });
 
     dueMatches.forEach(processPendingMatch);
-  }, [groupMatches, isLoaded, userId, selectedLeagueId, leagueLevel, groupId, seasonNumber]);
+  }, [groupMatches, isLoaded, userId, selectedLeagueId, leagueLevel, groupId, seasonNumber, allLeaguePlayers]);
 
   return null;
 }

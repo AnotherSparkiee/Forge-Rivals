@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -71,27 +72,22 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // Unified Next Match Logic: Finds the earliest available pending game FOR THE USER
   const nextMatchData = useMemo(() => {
     if (!isLoaded || !groupMatches || groupMatches.length === 0 || !user) return null;
     
-    const sortedMatches = [...groupMatches]
-      .filter(m => {
-        const isParticipant = m.homeId === user.uid || m.awayId === user.uid;
-        return m.status === 'pending' && isParticipant;
-      })
-      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    // Find my next match that is not finished
+    const myNext = [...groupMatches]
+      .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished')
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
 
-    if (sortedMatches.length === 0) return null;
+    if (!myNext) return null;
 
-    const myMatch = sortedMatches[0];
-    const isHome = myMatch.homeId === user.uid;
-
+    const isHome = myNext.homeId === user.uid;
     return {
-      match: myMatch,
-      opponentName: isHome ? myMatch.awayName : myMatch.homeName,
-      day: myMatch.day,
-      dateLabel: getSeasonDateLabel(myMatch.day),
+      match: myNext,
+      opponentName: isHome ? myNext.awayName : myNext.homeName,
+      day: myNext.day,
+      dateLabel: getSeasonDateLabel(myNext.day),
       type: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE',
       time: league.startTime,
       isHome: isHome
@@ -103,7 +99,6 @@ export default function Home() {
 
     const timer = setInterval(() => {
       const mskNow = getMoscowTime();
-      
       const matchInfo = nextMatchData;
       if (!matchInfo) {
         setCountdown('00:00:00');

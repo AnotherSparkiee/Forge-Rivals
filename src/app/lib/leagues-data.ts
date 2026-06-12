@@ -18,7 +18,6 @@ export const GROUPS_PER_DIVISION = 8;
 export const TEAMS_PER_GROUP = 8;
 export const SEASON_DURATION_DAYS = 14;
 
-// 16 Leagues from 08:00 to 23:00 MSK
 export const LEAGUES: LeagueOption[] = [
   { id: 'ALPHA', startTime: '08:00', description: 'Early morning shift.' },
   { id: 'BETA', startTime: '09:00', description: 'Morning operations.' },
@@ -39,8 +38,43 @@ export const LEAGUES: LeagueOption[] = [
 ];
 
 /**
- * STRICT DETERMINISTIC RESULT GENERATOR.
- * Returns only [2,0], [1,1], [0,2] based on seeded IDs.
+ * GROUND TRUTH: Returns 8 teams for a specific group in a stable order.
+ */
+export function getStableGroupTeams(
+  level: number,
+  group: number,
+  leagueId: string,
+  allLeaguePlayers: any[] = []
+) {
+  // 1. Get real players assigned to this specific group
+  const groupPlayers = allLeaguePlayers.filter(p => 
+    p.selectedLeagueId === leagueId && 
+    Number(p.leagueLevel) === Number(level) && 
+    Number(p.groupId) === Number(group)
+  ).map(p => ({
+    id: p.id,
+    name: p.displayName || "Unknown Commander",
+    isBot: false
+  }));
+
+  // 2. Fill with deterministic bots
+  const teams = [...groupPlayers];
+  const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
+  for (let i = 0; i < botsNeeded; i++) {
+    const botId = `bot_${leagueId}_${level}_${group}_${i}`;
+    teams.push({
+      id: botId,
+      name: `Elite Bot ${i + 1}`,
+      isBot: true
+    });
+  }
+
+  // 3. Sort by ID to ensure Team 1 is always the same for everyone
+  return teams.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/**
+ * Deterministic Bo2 Match Result [2,0], [1,1], [0,2]
  */
 export function getMatchResult(homeId: string, awayId: string, day: number = 0, season: number = 1): [number, number] {
   const combinedId = `${homeId}-${awayId}-${day}-${season}`;
@@ -52,61 +86,26 @@ export function getMatchResult(homeId: string, awayId: string, day: number = 0, 
   const seed = Math.abs(hash);
   const val = seed % 100;
   
-  // Bo2 Logic: 35% Home Win (2:0), 30% Draw (1:1), 35% Away Win (0:2)
   if (val < 35) return [2, 0];
   if (val < 65) return [1, 1];
   return [0, 2];
 }
 
 /**
- * Standings calculation logic.
- * Strictly aggregates from Firestore data for ground truth.
+ * Standings strictly aggregated from real match documents.
  */
 export function getGroupStandings(
   level: number,
   group: number,
   leagueId: string,
   seasonNumber: number,
-  realPlayers: any[] = [],
+  allLeaguePlayers: any[] = [],
   dbMatches: any[] = []
 ) {
-  const teams: any[] = [];
-  
-  // 1. Setup participants
-  const groupPlayers = realPlayers.filter(p => 
-    p.selectedLeagueId === leagueId && 
-    Number(p.leagueLevel) === Number(level) && 
-    Number(p.groupId) === Number(group)
-  );
+  const teams = getStableGroupTeams(level, group, leagueId, allLeaguePlayers).map(t => ({
+    ...t, wins: 0, draws: 0, losses: 0, points: 0
+  }));
 
-  groupPlayers.forEach(p => {
-    teams.push({ 
-      id: p.id, 
-      name: p.displayName || "Manager", 
-      wins: 0, 
-      draws: 0, 
-      losses: 0, 
-      points: 0 
-    });
-  });
-
-  const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
-  for (let i = 0; i < botsNeeded; i++) {
-    const botId = `bot_${leagueId}_${level}_${group}_${i}`;
-    teams.push({ 
-      id: botId, 
-      name: `Elite Bot ${i + 1}`, 
-      wins: 0, 
-      draws: 0, 
-      losses: 0, 
-      points: 0 
-    });
-  }
-  
-  // Sorting is crucial for consistent indexing in matches
-  teams.sort((a, b) => a.id.localeCompare(b.id));
-
-  // 2. Aggregate from DB matches
   const groupSpecificMatches = dbMatches.filter(m => 
     Number(m.divisionId) === Number(level) && 
     Number(m.groupId) === Number(group) && 
@@ -126,23 +125,16 @@ export function getGroupStandings(
 
 export function applyResult(home: any, away: any, hScore: number, aScore: number) {
   if (hScore > aScore) {
-    home.wins++; 
-    home.points += 3; 
-    away.losses++;
+    home.wins++; home.points += 3; away.losses++;
   } else if (hScore === aScore) {
-    home.draws++; 
-    home.points += 1; 
-    away.draws++; 
-    away.points += 1;
+    home.draws++; home.points += 1; away.draws++; away.points += 1;
   } else {
-    away.wins++; 
-    away.points += 3; 
-    home.losses++;
+    away.wins++; away.points += 3; home.losses++;
   }
 }
 
 /**
- * Generates the deterministic match schedule for a specific day/group/season.
+ * Standard Circle Algorithm for Round-Robin schedule.
  */
 export function generateDeterministicDayMatches(
   level: number, 
@@ -153,12 +145,9 @@ export function generateDeterministicDayMatches(
   teams: any[]
 ) {
   const matches: any[] = [];
-  const league = LEAGUES.find(l => l.id === leagueId) || LEAGUES[0];
-  
   const n = teams.length;
   const participants = Array.from({ length: n }, (_, i) => i);
   
-  // Standard circle algorithm for round robin
   for (let r = 1; r < day; r++) {
     const last = participants.pop()!;
     participants.splice(1, 0, last);
@@ -169,34 +158,22 @@ export function generateDeterministicDayMatches(
     pairings.push([participants[i], participants[n - 1 - i]]);
   }
 
-  // Deterministic Season Epoch (Match with time-utils)
   const epochDate = new Date('2025-03-03T00:00:00+03:00');
   const seasonStart = new Date(epochDate.getTime() + (season - 1) * 16 * 24 * 60 * 60 * 1000);
   const matchDate = new Date(seasonStart.getTime() + (day - 1) * 24 * 60 * 60 * 1000);
+  
+  const league = LEAGUES.find(l => l.id === leagueId) || LEAGUES[0];
   const [hours, mins] = league.startTime.split(':').map(Number);
   matchDate.setHours(hours, mins, 0, 0);
 
   pairings.forEach(([hIdx, aIdx], i) => {
     const home = teams[hIdx];
     const away = teams[aIdx];
-    const matchId = `match_${season}_${leagueId}_${level}_${group}_d${day}_m${i}`;
-    
     matches.push({
-      id: matchId,
-      day,
-      seasonNumber: season,
-      leagueId,
-      divisionId: level,
-      groupId: group,
-      homeId: home.id,
-      homeName: home.name,
-      awayId: away.id,
-      awayName: away.name,
-      startTime: matchDate.toISOString(),
-      status: 'pending',
-      scoreA: 0,
-      scoreB: 0,
-      type: 'league'
+      id: `match_${season}_${leagueId}_${level}_${group}_d${day}_m${i}`,
+      day, seasonNumber: season, leagueId, divisionId: level, groupId: group,
+      homeId: home.id, homeName: home.name, awayId: away.id, awayName: away.name,
+      startTime: matchDate.toISOString(), status: 'pending', scoreA: 0, scoreB: 0, type: 'league'
     });
   });
 
