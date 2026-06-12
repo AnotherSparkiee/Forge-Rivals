@@ -61,13 +61,13 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
 /**
  * Глобальный расчет сезона. 
  * Цикл: 16 дней (14 игры + 2 переход).
+ * СИНХРОНИЗАЦИЯ: Сезон 1 начинается ЗАВТРА в 00:00 MSK.
  */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   
   // КРИТИЧЕСКИЙ СБРОС: Точка отсчета Сезона 1.
   // Завтра 00:00 MSK наступит Сезон 1, День 1.
-  // Сегодня — День 16 (Preparation).
   const baseDate = new Date(mskNow);
   baseDate.setDate(mskNow.getDate() + 1); 
   baseDate.setHours(0, 0, 0, 0);
@@ -78,20 +78,22 @@ export function getGlobalSeasonInfo() {
   
   const cycleDuration = 16; 
   
-  // Текущий день в цикле
+  // Текущий день в цикле. Если diffDays отрицательный (до старта), 
+  // то расчет даст 15 или 16 день предыдущего "нулевого" цикла.
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
-  // Номер сезона
   let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
   
   // В период подготовки (день 15-16) мы уже работаем с БУДУЩИМ сезоном
   const isTransitionPhase = currentSeasonDay >= 15;
   
+  // Для первого запуска: если сезон получился 0 или меньше, форсируем 1
+  const effectiveSeason = Math.max(1, isTransitionPhase ? currentSeasonNumber + 1 : currentSeasonNumber);
+  
   return {
     seasonDay: currentSeasonDay,
-    seasonNumber: currentSeasonNumber,
+    seasonNumber: Math.max(1, currentSeasonNumber),
     isTransitionPhase: isTransitionPhase,
-    // Эффективный номер сезона для генерации и поиска матчей
-    activeSeasonNumber: isTransitionPhase ? currentSeasonNumber + 1 : currentSeasonNumber
+    activeSeasonNumber: effectiveSeason
   };
 }
 

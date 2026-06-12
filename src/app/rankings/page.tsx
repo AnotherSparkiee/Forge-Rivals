@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -6,9 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   Trophy, Medal, ChevronLeft, ChevronRight, 
-  Search, Crown, Shield, 
-  ArrowUp, ArrowDown, Activity, Globe,
-  Layers, List, LayoutGrid, Loader2
+  Crown, Shield, Globe, Layers, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -19,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { getGlobalSeasonInfo } from '../lib/time-utils';
 
 type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'pyramid_cup';
 
@@ -33,12 +31,10 @@ export default function RankingsPage() {
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
   
-  // States for deep navigation in pyramids
   const [navLeague, setNavLeague] = useState<string | null>(null);
   const [navLevel, setNavLevel] = useState<number | null>(null);
   const [navGroup, setNavGroup] = useState<number | null>(null);
 
-  // Data for the table view (current context)
   const contextLeagueId = navLeague || selectedLeagueId || "ALPHA";
   const contextLevel = navLevel || leagueLevel;
   const contextGroup = navGroup || groupId;
@@ -54,8 +50,13 @@ export default function RankingsPage() {
 
   const { data: contextPlayers, isLoading: isPlayersLoading } = useCollection(playersQuery);
 
+  const seasonInfo = useMemo(() => getGlobalSeasonInfo(), [isLoaded]);
+
   const standings = useMemo(() => {
     if (!isLoaded) return [];
+    // Если мы в фазе перехода, то таблицы должны быть пустыми (upToDay = 0)
+    const effectiveDay = seasonInfo.isTransitionPhase ? 0 : seasonDay;
+    
     return getMockGroupTeams(
       rank, 
       displayName, 
@@ -65,9 +66,9 @@ export default function RankingsPage() {
       contextLeagueId, 
       contextPlayers || [], 
       user?.uid, 
-      seasonDay
+      effectiveDay
     );
-  }, [isLoaded, contextPlayers, rank, displayName, contextLevel, contextGroup, contextLeagueId, user?.uid, seasonDay]);
+  }, [isLoaded, contextPlayers, rank, displayName, contextLevel, contextGroup, contextLeagueId, user?.uid, seasonDay, seasonInfo]);
 
   if (isUserLoading || !isLoaded) return <LoadingScreen />;
 
@@ -79,14 +80,9 @@ export default function RankingsPage() {
       my_pyramid: "My Pyramid",
       all_pyramids: "All Pyramids",
       pyramid_cup: "Pyramid Cup",
-      promotion: "PROMOTION",
-      relegation: "RELEGATION",
       pts: "PTS",
       winLoss: "W-L",
       back: "Back",
-      selectLeague: "Select League",
-      selectLevel: "Select Division",
-      selectGroup: "Select Group",
       division: "Division",
       group: "Group",
       groups: "Groups",
@@ -105,14 +101,9 @@ export default function RankingsPage() {
       my_pyramid: "Своя пирамида",
       all_pyramids: "Все пирамиды",
       pyramid_cup: "Кубок пирамиды",
-      promotion: "ПОВЫШЕНИЕ",
-      relegation: "ВЫЛЕТ",
       pts: "ОЧК",
       winLoss: "В-П",
       back: "Назад",
-      selectLeague: "Выберите лигу",
-      selectLevel: "Выберите дивизион",
-      selectGroup: "Выберите группу",
       division: "Дивизион",
       group: "Группа",
       groups: "Групп",
@@ -187,9 +178,6 @@ export default function RankingsPage() {
       case 'my_pyramid':
         if (navGroup !== null) return renderTable(true);
         if (navLevel !== null) {
-          // Division level view: show all groups in this level
-          // Based on 8 teams per group rule and doubling groups per level
-          // For simplicity and matching GROUPS_PER_DIVISION from leagues-data:
           const groupCount = Math.pow(2, navLevel - 1); 
           return (
             <div className="space-y-4 animate-in fade-in duration-500">
@@ -272,7 +260,7 @@ export default function RankingsPage() {
                <Button variant="ghost" size="sm" className="h-8 text-[10px] font-black uppercase text-primary" onClick={() => setNavLeague(null)}>
                  <ChevronLeft className="w-4 h-4 mr-1" /> {t.back}
                </Button>
-               <h3 className="text-[10px] font-black uppercase text-accent tracking-widest px-1">{navLeague} / {t.selectLevel}</h3>
+               <h3 className="text-[10px] font-black uppercase text-accent tracking-widest px-1">{navLeague} / Select Level</h3>
                {Array.from({ length: 9 }).map((_, i) => (
                  <Card key={i+1} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => setNavLevel(i + 1)}>
                    <CardContent className="p-4 flex items-center justify-between">
