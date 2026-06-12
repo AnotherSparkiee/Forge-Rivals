@@ -15,25 +15,30 @@ service cloud.firestore {
     match /players_v10/{userId} {
       allow read: if isSignedIn();
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
+      // Migration logic requires updating other players (promotions/relegations)
+      allow update: if isSignedIn(); 
     }
 
     // Pyramidal League Structure
-    match /leagues_v2/{leagueId}/divisions/{divId}/groups/{groupId}/teams/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isOwner(userId);
+    match /leagues_v2/{leagueId}/divisions/{divId}/groups/{groupId} {
+      allow read, write: if isSignedIn();
       
-      match /heroes/{heroId} {
+      match /teams/{userId} {
         allow read: if isSignedIn();
         allow write: if isOwner(userId);
-      }
-      match /staff/{staffId} {
-        allow read: if isSignedIn();
-        allow write: if isOwner(userId);
-      }
-      match /fanclub/{docId} {
-        allow read: if isSignedIn();
-        allow write: if isOwner(userId);
+        
+        match /heroes/{heroId} {
+          allow read: if isSignedIn();
+          allow write: if isOwner(userId);
+        }
+        match /staff/{staffId} {
+          allow read: if isSignedIn();
+          allow write: if isOwner(userId);
+        }
+        match /fanclub/{docId} {
+          allow read: if isSignedIn();
+          allow write: if isOwner(userId);
+        }
       }
     }
 

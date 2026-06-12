@@ -74,7 +74,6 @@ export default function Home() {
   const nextMatchData = useMemo(() => {
     if (!isLoaded || !groupMatches || !user) return null;
     
-    // STRICT FILTER: Match must include user AND be in the future
     const mskNow = getMoscowTime();
     const myNext = [...groupMatches]
       .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished')
@@ -100,7 +99,7 @@ export default function Home() {
     const timer = setInterval(() => {
       const mskNow = getMoscowTime();
       if (!nextMatchData?.match?.startTime) {
-        setCountdown('00:00:00');
+        setCountdown(language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...');
         return;
       }
 
@@ -118,7 +117,7 @@ export default function Home() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isLoaded, selectedLeagueId, nextMatchData]);
+  }, [isLoaded, selectedLeagueId, nextMatchData, language]);
 
   if (isUserLoading) return <LoadingScreen />;
 
@@ -252,7 +251,7 @@ export default function Home() {
                 </p>
                 <div className="flex items-center justify-center gap-2">
                   <Timer className="w-4 h-4 text-accent" />
-                  <p className="text-3xl font-headline font-bold text-primary tabular-nums tracking-tighter">{countdown || '00:00:00'}</p>
+                  <p className="text-xl font-headline font-bold text-primary tabular-nums tracking-tighter">{countdown || '00:00:00'}</p>
                 </div>
               </div>
             </div>

@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Core logic for League structure, deterministic scheduling, and Bo2 result generation.
  */

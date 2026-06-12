@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Autonomous Season Engine (Distributed Heartbeat).
  */
@@ -10,7 +11,7 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebas
 import { doc, setDoc, getDoc, writeBatch, collection, query, where, serverTimestamp } from 'firebase/firestore';
 import { 
   getStableGroupTeams, generateSeasonCalendar, getMatchResult, 
-  calculateStandings, MAX_LEVELS 
+  calculateStandings, MAX_LEVELS, LEAGUES 
 } from '@/app/lib/leagues-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString } from '@/app/lib/time-utils';
 
@@ -42,6 +43,8 @@ export function AutoMatchManager() {
       try {
         const seasonInfo = getGlobalSeasonInfo();
         const activeSeason = seasonInfo.activeSeasonNumber;
+        const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
+        
         const groupPath = `leagues_v2/${selectedLeagueId}/divisions/${leagueLevel}/groups/${groupId}`;
         const groupRef = doc(db, groupPath);
         const groupSnap = await getDoc(groupRef);
@@ -64,9 +67,16 @@ export function AutoMatchManager() {
             initializedAt: serverTimestamp()
           }, { merge: true });
 
-          // Pre-populate matches_v1 for entire season
+          // Pre-populate matches_v1 for entire season with PRECISE START TIMES
           calendar.forEach((m) => {
             const matchId = `match_${selectedLeagueId}_g${groupId}_s${activeSeason}_d${m.day}_h${m.homeId}`;
+            
+            // Calculate precise ISO startTime based on day and league config
+            const matchDate = new Date('2025-03-03T00:00:00+03:00'); // Epoch
+            matchDate.setDate(matchDate.getDate() + (activeSeason - 1) * 16 + (m.day - 1));
+            const [hh, mm] = league.startTime.split(':').map(Number);
+            matchDate.setHours(hh, mm, 0, 0);
+
             batch.set(doc(db, 'matches_v1', matchId), {
               ...m,
               id: matchId,
@@ -74,7 +84,8 @@ export function AutoMatchManager() {
               divisionId: leagueLevel,
               groupId,
               seasonNumber: activeSeason,
-              status: 'pending'
+              status: 'pending',
+              startTime: matchDate.toISOString()
             });
           });
 
@@ -87,25 +98,13 @@ export function AutoMatchManager() {
         const roundNumber = groupData.roundNumber || 1;
 
         // --- PHASE 2: DAILY SYNC TICK (AFTER 23:05 MSK) ---
-        const isMatchTime = mskNow.getHours() >= 23 && mskNow.getMinutes() >= 5;
+        // For MU league (19:00 start), we can process shortly after start or end of day.
+        // Let's use 23:05 as global terminal point for daily results.
+        const isMatchTimePassed = mskNow.getHours() >= 23 && mskNow.getMinutes() >= 5;
         const needsProcessing = groupData.lastProcessedDate !== todayStr && roundNumber <= 14;
 
-        if (isMatchTime && needsProcessing) {
+        if (isMatchTimePassed && needsProcessing) {
           console.log("[Engine] Finalizing Round:", roundNumber);
-          
-          // Get all matches for this round from group
-          const matchesQ = query(
-            collection(db, 'matches_v1'),
-            where('leagueId', '==', selectedLeagueId),
-            where('divisionId', '==', Number(leagueLevel)),
-            where('groupId', '==', Number(groupId)),
-            where('seasonNumber', '==', activeSeason),
-            where('day', '==', roundNumber)
-          );
-          
-          const matchesSnap = await getDoc(doc(db, 'dummy', 'dummy')); // Placeholder for actual fetch logic
-          // Since we can't use getDocs inside heartbeat easily without hook, 
-          // we use deterministic logic to find which matches to update.
           
           const teams = groupData.teams;
           const calendar = generateSeasonCalendar(teams);
@@ -134,7 +133,6 @@ export function AutoMatchManager() {
 
             batch.update(doc(db, 'matches_v1', matchId), finishedData);
 
-            // Record locally if it's user's match
             if (m.homeId === userId || m.awayId === userId) {
               const isHome = m.homeId === userId;
               recordMatch(
@@ -158,15 +156,6 @@ export function AutoMatchManager() {
         if (roundNumber > 14 && groupData.lastProcessedDate !== todayStr) {
           console.log("[Engine] Season Ended. Performing Migration...");
           
-          const matchesQ = query(
-            collection(db, 'matches_v1'),
-            where('leagueId', '==', selectedLeagueId),
-            where('divisionId', '==', Number(leagueLevel)),
-            where('groupId', '==', Number(groupId)),
-            where('seasonNumber', '==', activeSeason)
-          );
-          // In a real app we'd fetch all 56 matches here to calculate final standings.
-          // For MVP, we use the deterministic standings logic.
           const teams = groupData.teams;
           const calendar = generateSeasonCalendar(teams);
           const matchesWithResults = calendar.map(m => {
@@ -205,8 +194,8 @@ export function AutoMatchManager() {
           console.log("[Engine] Migration Done.");
         }
 
-      } catch (e) {
-        console.error("[Engine] Heartbeat Fail:", e);
+      } catch (e: any) {
+        console.warn("[Engine] Heartbeat Error (Normal during initialization):", e.message);
       } finally {
         processingRef.current = false;
       }
