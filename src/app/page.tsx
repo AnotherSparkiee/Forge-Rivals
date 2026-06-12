@@ -72,13 +72,12 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), [isLoaded]);
 
-  // Unified Next Match Logic - Filtering only PENDING matches to avoid showing finished ones
+  // Unified Next Match Logic
   const nextMatchData = useMemo(() => {
     if (!isLoaded || !groupMatches || groupMatches.length === 0) return null;
     
-    const mskNow = getMoscowTime().getTime();
-    
-    // Find earliest pending match that is either in the future or currently ongoing but not finished
+    // Find earliest pending match in the database
+    // This ignores season finished state and always looks for the next battle
     const sortedMatches = [...groupMatches]
       .filter(m => {
         const isParticipant = m.homeId === user?.uid || m.awayId === user?.uid;
@@ -119,7 +118,6 @@ export default function Home() {
       const diff = target.getTime() - mskNow.getTime();
       
       if (diff <= 0) {
-        // If countdown reached zero, we show 00:00:00 until simulation completes and switches to next
         setCountdown('00:00:00');
       } else {
         const hh = Math.floor(diff / 3600000);
@@ -188,9 +186,9 @@ export default function Home() {
   if (!isLoaded) return <LoadingScreen />;
 
   const tHub = {
-    en: { nextMatch: seasonInfo.isTransitionPhase ? "Season Transition" : "Next Engagement", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", transition: "Forming new groups...", sync: "SYNCING CALENDAR..." },
-    ru: { nextMatch: seasonInfo.isTransitionPhase ? "Смена сезона" : "Следующий матч", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", transition: "Формирование новых групп...", sync: "СИНХРОНИЗАЦИЯ..." }
-  }[language as 'en' | 'ru'] || { nextMatch: "Match", battleBtn: "Overview", navTitle: "Terminals", transition: "Transition", sync: "SYNCING..." };
+    en: { nextMatch: seasonInfo.isTransitionPhase ? "Season Transition" : "Next Engagement", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", transition: "Forming new groups...", sync: "CALENDAR SYNC" },
+    ru: { nextMatch: seasonInfo.isTransitionPhase ? "Смена сезона" : "Следующий матч", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", transition: "Формирование новых групп...", sync: "СИНХРОНИЗАЦИЯ" }
+  }[language as 'en' | 'ru'] || { nextMatch: "Match", battleBtn: "Overview", navTitle: "Terminals", transition: "Transition", sync: "SYNCING" };
 
   const menu = [ 
     { label: language === 'ru' ? 'Ростер' : 'Roster', href: '/roster', icon: Users, desc: language === 'ru' ? 'Состав команды' : 'Squad management' }, 
@@ -270,7 +268,7 @@ export default function Home() {
               
               <div className="bg-background/60 py-3 rounded-2xl border border-white/5 shadow-inner">
                 <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                  {seasonInfo.isTransitionPhase ? "Transition Countdown" : "Match Start Protocol"}
+                  {seasonInfo.isTransitionPhase ? "Preparation Countdown" : "Match Start Protocol"}
                 </p>
                 <div className="flex items-center justify-center gap-2">
                   <Timer className="w-4 h-4 text-accent" />

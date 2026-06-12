@@ -16,8 +16,8 @@ import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { LEAGUES, getSeasonDateLabel, SEASON_DURATION_DAYS } from '../lib/leagues-data';
-import { getMoscowTime } from '../lib/time-utils';
+import { LEAGUES, SEASON_DURATION_DAYS } from '../lib/leagues-data';
+import { getMoscowTime, getSeasonDateLabel } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 type MatchTab = 
