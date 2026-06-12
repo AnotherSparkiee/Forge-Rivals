@@ -46,7 +46,7 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
   
   // Если мы находимся в межсезонье (15-16), то Day 1 — это начало нового цикла
   if (info.seasonDay >= 15) {
-    const daysUntilNewSeason = 17 - info.seasonDay;
+    const daysUntilNewSeason = (17 - info.seasonDay);
     targetDate.setDate(mskNow.getDate() + daysUntilNewSeason + (dayOfSeason - 1));
   } else {
     // Внутри сезона
@@ -66,31 +66,32 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   
-  // Точка отсчета Сезона 1. 
-  // Мы настраиваем ее так, чтобы ПЕРВЫЙ МАТЧ был завтра (или сегодня, если уже наступил день 1)
-  // Для этого за дату старта берем "завтра 00:00"
-  const startOfS1 = new Date(mskNow);
-  startOfS1.setDate(mskNow.getDate() + 1);
-  startOfS1.setHours(0, 0, 0, 0);
+  // Базовая точка: Завтра 00:00 MSK станет Днем 1 Сезона 1.
+  // Сегодня (воскресенье) — это День 16 (Preparation).
+  const baseDate = new Date(mskNow);
+  baseDate.setDate(mskNow.getDate() + 1); // Завтра
+  baseDate.setHours(0, 0, 0, 0);
   
-  const epoch = startOfS1.getTime(); 
+  const epoch = baseDate.getTime(); 
   const diffMs = mskNow.getTime() - epoch;
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   
   const cycleDuration = 16; 
   
-  // Если diffDays < 0 (мы до старта Сезона 1), это Season 1, Day 16 (Prep)
+  // Рассчитываем текущий день и номер сезона
+  // Если diffDays < 0, то мы в периоде подготовки к Сезону 1.
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
   let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
   
-  // В период подготовки (день 15-16) мы уже считаем себя частью БУДУЩЕГО сезона для генерации
-  const isTransitionTime = currentSeasonDay === 15 && mskNow.getHours() >= 16;
+  // В период подготовки (день 15-16) мы уже работаем с БУДУЩИМ сезоном
+  const isTransitionPhase = currentSeasonDay >= 15;
   
   return {
     seasonDay: currentSeasonDay,
     seasonNumber: currentSeasonNumber,
-    isTransitionPhase: currentSeasonDay === 15,
-    isAfterTransition: isTransitionTime || currentSeasonDay > 15
+    isTransitionPhase: isTransitionPhase,
+    // Эффективный номер сезона для генерации/поиска матчей
+    activeSeasonNumber: isTransitionPhase ? currentSeasonNumber + 1 : currentSeasonNumber
   };
 }
 
@@ -102,4 +103,19 @@ export function getEndOfMoscowDay(): string {
   const end = new Date(now);
   end.setHours(23, 59, 59, 999);
   return end.toISOString();
+}
+
+/**
+ * Рассчитывает возраст игрока в реальном времени.
+ */
+export function calculateLiveAge(baseAge: number, hiredAtIso: string) {
+  const hiredAt = new Date(hiredAtIso).getTime();
+  const now = getMoscowTime().getTime();
+  const daysPassed = (now - hiredAt) / (1000 * 60 * 60 * 24);
+  const seasonsPassed = daysPassed / 16; 
+  const age = baseAge + seasonsPassed;
+  return {
+    numeric: age,
+    display: age.toFixed(1)
+  };
 }

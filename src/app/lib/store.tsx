@@ -51,7 +51,7 @@ interface GameState {
   rank: number;
   seasonDay: number;
   seasonNumber: number;
-  targetSeason: number;
+  activeSeasonNumber: number;
   isSyncing: boolean;
   language: string;
   lastProcessedSeason: number;
@@ -103,7 +103,7 @@ const DEFAULT_STATE: GameState = {
   managerLevel: 1, skillPoints: 0, lastProcessedSeason: 0,
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeLicenseTier: null,
-  rank: 8, seasonDay: 1, seasonNumber: 1, targetSeason: 1, isSyncing: false, language: 'ru',
+  rank: 8, seasonDay: 1, seasonNumber: 1, activeSeasonNumber: 1, isSyncing: false, language: 'ru',
   addCrystals: () => {}, addCredits: () => {}, updateHero: () => {}, removeHero: () => {}, assignToRole: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
   syncStats: () => {}, setTrainingFocus: () => {}, startDailyHeroTraining: () => {}, claimDailyHeroTraining: () => {},
@@ -130,24 +130,21 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const s = stateRef.current;
     if (!s.selectedLeagueId || !s.isLoaded || !user) return null;
     
-    const { seasonNumber, seasonDay } = getGlobalSeasonInfo();
-    // Если день 15-16, мы ищем матчи ТЕКУЩЕГО сезона (чтобы видеть итоги) 
-    // ИЛИ следующего, если текущий сезон уже прошел.
-    // Для простоты: всегда ищем матчи сезона, который вернула функция (он уже учитывает prep)
+    const info = getGlobalSeasonInfo();
     return query(
       collection(db, 'matches_v1'),
       where('leagueId', '==', s.selectedLeagueId),
       where('divisionId', '==', s.leagueLevel),
       where('groupId', '==', s.groupId),
-      where('seasonNumber', '==', seasonNumber)
+      where('seasonNumber', '==', info.activeSeasonNumber)
     );
   }, [db, state.selectedLeagueId, state.leagueLevel, state.groupId, state.isLoaded, user]);
 
   const { data: dbMatches } = useCollection(groupMatchesQuery);
 
   const processSeasonTransition = useCallback(async (userId: string, rootData: any, teamData: any) => {
-    const { seasonNumber, isAfterTransition } = getGlobalSeasonInfo();
-    if (!isAfterTransition || teamData.lastProcessedSeason >= seasonNumber) return;
+    const { activeSeasonNumber } = getGlobalSeasonInfo();
+    if (teamData.lastProcessedSeason >= activeSeasonNumber) return;
 
     console.log("ARCHITECT: Season transition triggered for", userId);
     const groupTeams = getMockGroupTeams(8, teamData.displayName || "My Team", rootData.leagueLevel, 1, rootData.groupId, rootData.selectedLeagueId, [], userId, 14);
@@ -166,7 +163,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const newTeamRef = doc(db, 'leagues_v2', rootData.selectedLeagueId, 'divisions', String(newLevel), 'groups', String(newGroupId), 'teams', userId);
 
     batch.update(rootRef, { leagueLevel: newLevel, groupId: newGroupId });
-    batch.set(newTeamRef, { ...teamData, lastProcessedSeason: seasonNumber, wins: 0, draws: 0, losses: 0, points: 0 }, { merge: true });
+    batch.set(newTeamRef, { ...teamData, lastProcessedSeason: activeSeasonNumber, wins: 0, draws: 0, losses: 0, points: 0 }, { merge: true });
     if (oldTeamRef.path !== newTeamRef.path) batch.delete(oldTeamRef);
 
     await batch.commit();
@@ -207,7 +204,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           const staffUnsub = onSnapshot(collection(teamRef, 'staff'), (sSnap) => {
             const staffObj: any = {};
             sSnap.docs.forEach(d => { const m = d.data() as StaffMember; staffObj[m.role] = m; });
-            const { seasonDay, seasonNumber } = getGlobalSeasonInfo();
+            const info = getGlobalSeasonInfo();
 
             setState(s => ({
               ...s, id: user.uid, displayName: rootData.displayName || teamData.displayName || "Manager",
@@ -225,7 +222,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
               country: rootData.country ?? null, isPremium: teamData.premiumUntil ? new Date(teamData.premiumUntil) > new Date() : false,
               premiumUntil: teamData.premiumUntil ?? null, activeLicenseTier: teamData.activeLicenseTier ?? 4,
               rank: teamData.rank ?? 8, ownedHeroes: allHeroes.filter(h => !h.isYouth), youthAcademyHeroes: allHeroes.filter(h => h.isYouth),
-              staff: staffObj, seasonDay, seasonNumber, targetSeason: seasonNumber, isLoaded: true, language: lang,
+              staff: staffObj, seasonDay: info.seasonDay, seasonNumber: info.seasonNumber, activeSeasonNumber: info.activeSeasonNumber, isLoaded: true, language: lang,
               groupMatches: dbMatches || []
             }));
           });
@@ -241,20 +238,20 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!s.isLoaded || !s.selectedLeagueId || !user) return;
 
     const generateScheduleIfMissing = async () => {
-      const { seasonNumber } = getGlobalSeasonInfo();
+      const { activeSeasonNumber } = getGlobalSeasonInfo();
 
       const existingQuery = query(
         collection(db, 'matches_v1'),
         where('leagueId', '==', s.selectedLeagueId),
         where('divisionId', '==', s.leagueLevel),
         where('groupId', '==', s.groupId),
-        where('seasonNumber', '==', seasonNumber)
+        where('seasonNumber', '==', activeSeasonNumber)
       );
       
       const snap = await getDocs(existingQuery);
       if (snap.size >= 56) return;
 
-      console.log("ARCHITECT: Initializing schedule for Season", seasonNumber);
+      console.log("ARCHITECT: Initializing schedule for Season", activeSeasonNumber);
       
       const playersQuery = query(
         collection(db, 'players_v10'),
@@ -272,14 +269,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const leagueInfo = LEAGUES.find(l => l.id === s.selectedLeagueId) || LEAGUES[0];
       const [h, m] = leagueInfo.startTime.split(':').map(Number);
       
+      const info = getGlobalSeasonInfo();
+
       seasonSchedule.forEach((dayMatches, dIdx) => {
         const day = dIdx + 1;
         dayMatches.forEach((match: any, mIdx: number) => {
-          const matchId = generateDeterministicMatchId(s.selectedLeagueId!, s.leagueLevel, s.groupId, seasonNumber, day, mIdx);
+          const matchId = generateDeterministicMatchId(s.selectedLeagueId!, s.leagueLevel, s.groupId, activeSeasonNumber, day, mIdx);
           const matchRef = doc(db, 'matches_v1', matchId);
           
           const startTime = new Date(getMoscowTime());
-          const info = getGlobalSeasonInfo();
           
           // Расчет даты начала: если сегодня день 15-16, то Day 1 будет через (17-day) дней.
           let daysToMatch = 0;
@@ -297,7 +295,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             leagueId: s.selectedLeagueId,
             divisionId: s.leagueLevel,
             groupId: s.groupId,
-            seasonNumber: seasonNumber,
+            seasonNumber: activeSeasonNumber,
             day: day,
             startTime: startTime.toISOString(),
             type: 'league',
@@ -320,7 +318,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     };
 
     generateScheduleIfMissing();
-  }, [db, user, state.isLoaded, state.seasonNumber, state.leagueLevel, state.groupId, state.selectedLeagueId]);
+  }, [db, user, state.isLoaded, state.activeSeasonNumber, state.leagueLevel, state.groupId, state.selectedLeagueId]);
 
   const getRefs = useCallback(() => {
     const s = stateRef.current;

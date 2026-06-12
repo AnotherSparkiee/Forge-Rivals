@@ -40,7 +40,7 @@ export default function Home() {
   const { 
     language, setLanguage, isLoaded, selectedLeagueId,
     lastLeagueMatchDate, groupMatches,
-    seasonDay, seasonNumber
+    seasonDay, seasonNumber, activeSeasonNumber
   } = useGameState();
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -79,10 +79,11 @@ export default function Home() {
     
     const mskNow = getMoscowTime().getTime();
     
-    // Ищем любой матч, который еще не начался
+    // Ищем самый ранний матч в массиве groupMatches, который еще не начался
     const sortedMatches = [...groupMatches]
       .filter(m => {
         const matchTime = new Date(m.startTime).getTime();
+        // В период подготовки (День 15-16) мы показываем первый матч сезона
         return matchTime > mskNow && (m.homeId === user?.uid || m.awayId === user?.uid);
       })
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
@@ -109,7 +110,7 @@ export default function Home() {
     const timer = setInterval(() => {
       const mskNow = getMoscowTime();
       
-      // Логика перехода сезонов
+      // Логика перехода сезонов: если мы в периоде ожидания 16:00 на 15 день
       if (seasonInfo.seasonDay === 15 && mskNow.getHours() < 16) {
         const transitionTarget = new Date(mskNow);
         transitionTarget.setHours(16, 0, 0, 0);
@@ -137,9 +138,8 @@ export default function Home() {
     const formatDiff = (ms: number) => {
       const hh = Math.floor(ms / 3600000);
       const mm = Math.floor((ms % 3600000) / 60000);
-      const ss = Math.floor((diff % 60000) / 1000); // Fixed typo from diff to ms if needed, but let's use ms
-      const ssCorrect = Math.floor((ms % 60000) / 1000);
-      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ssCorrect).padStart(2, '0')}`;
+      const ss = Math.floor((ms % 60000) / 1000);
+      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
     };
     return () => clearInterval(timer);
   }, [isLoaded, selectedLeagueId, league, seasonInfo, nextMatchData]);
@@ -176,7 +176,7 @@ export default function Home() {
                 <CardHeader><CardTitle className="font-headline text-center uppercase tracking-widest text-accent text-lg">{tAuth.title}</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2"><Label>{tAuth.userLabel}</Label><Input value={identifier} onChange={e => setIdentifier(e.target.value)} required className="bg-secondary/50 h-12" /></div>
-                  <div className="space-y-2"><Label>{tAuth.passLabel}</Label><Input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50 h-12" /></div>
+                  <div className="space-y-2"><Label>{tAuth.passLabel}</Label><Input type="password" password value={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50 h-12" /></div>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-4">
                   <Button type="submit" className="w-full h-14 hero-gradient font-black text-xs uppercase" disabled={isAuthLoading}>{isAuthLoading ? <Loader2 className="animate-spin" /> : tAuth.submit}</Button>
@@ -234,7 +234,7 @@ export default function Home() {
         )}>
           <CardContent className="p-6">
             <div className="text-center space-y-4">
-              {seasonInfo.seasonDay === 15 ? (
+              {seasonInfo.seasonDay === 15 && mskNow.getHours() < 16 ? (
                 <>
                   <RefreshCw className="w-12 h-12 mx-auto text-accent animate-spin" />
                   <p className="text-xs font-headline font-bold text-white uppercase">{tHub.transition}</p>
@@ -270,7 +270,7 @@ export default function Home() {
 
                       {nextMatchData.isHome ? (
                         <div className="flex items-center justify-center gap-2 text-[8px] font-black text-primary/60 uppercase tracking-widest">
-                          <HomeIcon className="w-3 h-3" /> {language === 'ru' ? 'ВАША АРЕНА' : 'OWN ARENA'}
+                          <HomeIcon className="w-3 h-3" /> {language === 'ru' ? 'ВАШ АРЕНА' : 'OWN ARENA'}
                         </div>
                       ) : (
                         <div className="flex items-center justify-center gap-2 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
