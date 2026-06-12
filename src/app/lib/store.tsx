@@ -9,7 +9,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { Hero, StaffMember, StaffRole } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString } from './time-utils';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, getDocs } from 'firebase/firestore';
+import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, getDocs, arrayUnion } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, generateDeterministicMatchId, LEAGUES } from './leagues-data';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
@@ -242,8 +242,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         where('leagueId', '==', s.selectedLeagueId),
         where('divisionId', '==', s.leagueLevel),
         where('groupId', '==', s.groupId),
-        where('seasonNumber', '==', s.seasonNumber),
-        serverTimestamp() // Dummy addition to trigger ref
+        where('seasonNumber', '==', s.seasonNumber)
       );
       
       const snap = await getDocs(existingQuery);
