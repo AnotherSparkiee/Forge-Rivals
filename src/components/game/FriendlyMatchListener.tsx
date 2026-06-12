@@ -14,6 +14,7 @@ import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { getMatchResult } from '@/app/lib/leagues-data';
 
 const MATCH_DURATION_MS = 15 * 60 * 1000; 
 const TRIAL_DURATION_MS = 5 * 1000; 
@@ -157,20 +158,20 @@ export function FriendlyMatchListener() {
           isSimulatingRef.current = true;
           try {
             const result = data.matchResult;
-            const game = result.games[0];
             
-            const finalResult = isHost ? game : {
-              ...game,
-              scoreA: game.scoreB,
-              scoreB: game.scoreA,
-              winner: game.winner === data.hostName ? data.hostName : (game.winner === "Draw" ? "Draw" : data.challengerName)
-            };
+            // Format result based on host/challenger perspective
+            const seriesScoreParts = result.seriesScore.split('-');
+            const winsA = parseInt(seriesScoreParts[0]);
+            const winsB = parseInt(seriesScoreParts[1]);
+
+            const myScoreA = isHost ? winsA : winsB;
+            const myScoreB = isHost ? winsB : winsA;
             
             const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
             
             recordMatch(
-              finalResult.winner || "Draw", 
-              finalResult, 
+              myScoreA > myScoreB ? (isHost ? data.hostName : data.challengerName) : (myScoreA === myScoreB ? "Draw" : opponentName), 
+              { ...result.games[0], scoreA: myScoreA, scoreB: myScoreB, seriesScore: `${myScoreA}-${myScoreB}`, games: result.games }, 
               0, 
               opponentName, 
               matchType, 
@@ -216,6 +217,9 @@ export function FriendlyMatchListener() {
 
         const botSquad = generateBotSquad(25);
 
+        // ENFORCE Bo2 FOR FRIENDLIES TOO
+        const [finalScoreA, finalScoreB] = getMatchResult(activeLobby.hostId, activeLobby.challengerId, 0, false);
+
         const result = await simulateMobaMatch({
           teamA: { name: activeLobby.hostName, strategy: strategy, heroes: squad },
           teamB: { 
@@ -223,7 +227,9 @@ export function FriendlyMatchListener() {
             strategy: "Balanced Play", 
             heroes: botSquad
           },
-          isBo2: false
+          isBo2: true,
+          scoreA: finalScoreA,
+          scoreB: finalScoreB
         });
         
         await updateDoc(lobbyRef, {

@@ -54,8 +54,7 @@ export function generateDeterministicMatchId(
 
 /**
  * Deterministic match result based on team IDs and day.
- * Returns series score for Bo2 (2:0, 1:1, 0:2)
- * Ensuring all clients get exactly same result.
+ * STRICT Bo2 Format: Returns series score [2, 0], [1, 1], or [0, 2].
  */
 export function getMatchResult(homeId: string, awayId: string, day: number, isBo3: boolean = false): [number, number] {
   const combinedId = (homeId || "") + (awayId || "");
@@ -73,7 +72,8 @@ export function getMatchResult(homeId: string, awayId: string, day: number, isBo
     if (val < 70) return [1, 2]; 
     return [0, 2];
   } else {
-    // Bo2 Format: 35% Home Win, 30% Draw, 35% Away Win
+    // Bo2 Format: 35% Home Win (2:0), 30% Draw (1:1), 35% Away Win (0:2)
+    // EXCLUDES 1:0 and 0:1
     if (val < 35) return [2, 0];
     if (val < 65) return [1, 1];
     return [0, 2];
@@ -182,18 +182,24 @@ export function getMockGroupTeams(
 }
 
 /**
- * Applies Bo2 Result to league table.
+ * Applies Series Result to league table (3-1-0 logic).
  * 2:0 -> 3 pts
  * 1:1 -> 1 pt
  * 0:2 -> 0 pts
  */
 export function applyResult(home: any, away: any, hScore: number, aScore: number) {
-  if (hScore === 2) {
-    home.wins++; home.points += 3; away.losses++;
-  } else if (hScore === 1 && aScore === 1) {
-    home.draws++; home.points += 1; 
-    away.draws++; away.points += 1;
-  } else if (aScore === 2) {
-    away.wins++; away.points += 3; home.losses++;
+  if (hScore > aScore) {
+    home.wins++; 
+    home.points += 3; 
+    away.losses++;
+  } else if (hScore === aScore && hScore > 0) {
+    home.draws++; 
+    home.points += 1; 
+    away.draws++; 
+    away.points += 1;
+  } else if (aScore > hScore) {
+    away.wins++; 
+    away.points += 3; 
+    home.losses++;
   }
 }

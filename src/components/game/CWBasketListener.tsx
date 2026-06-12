@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { usePathname } from 'next/navigation';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
+import { getMatchResult } from '@/app/lib/leagues-data';
 
 function sanitizeForFirestore(obj: any) {
   if (!obj) return null;
@@ -28,7 +29,7 @@ export function CWBasketListener() {
   const { user } = useUser();
   const db = useFirestore();
   const pathname = usePathname();
-  const { language, strategy, team, recordMatch, ownedHeroes, lineup, matchHistory } = useGameState();
+  const { language, strategy, recordMatch, ownedHeroes, lineup, matchHistory } = useGameState();
   const { toast } = useToast();
 
   const [showModal, setShowModal] = useState(false);
@@ -81,6 +82,9 @@ export function CWBasketListener() {
             isSub: i > 4
           }));
 
+          // ENFORCE Bo2 FOR BASKET
+          const [finalScoreA, finalScoreB] = getMatchResult(user.uid, myEntry.matchedWithId || "rival", 0, false);
+
           const result = await simulateMobaMatch({
             teamA: { name: myEntry.userName || "My Team", strategy, heroes: squad },
             teamB: { 
@@ -88,15 +92,21 @@ export function CWBasketListener() {
               strategy: "Balanced Play", 
               heroes: rivalSquad
             },
-            isBo2: false
+            isBo2: true,
+            scoreA: finalScoreA,
+            scoreB: finalScoreB
           });
 
           const safeResult = sanitizeForFirestore(result);
           if (!safeResult) throw new Error("Simulation failed");
 
+          const seriesScoreParts = safeResult.seriesScore.split('-');
+          const winsA = parseInt(seriesScoreParts[0]);
+          const winsB = parseInt(seriesScoreParts[1]);
+
           recordMatch(
             safeResult.winner, 
-            safeResult, 
+            { ...safeResult.games[0], scoreA: winsA, scoreB: winsB, seriesScore: safeResult.seriesScore, games: safeResult.games }, 
             0, 
             myEntry.matchedWithName, 
             'basket',
@@ -121,7 +131,7 @@ export function CWBasketListener() {
     const timer = setInterval(checkAndSimulate, 10000);
     checkAndSimulate();
     return () => clearInterval(timer);
-  }, [user, myEntry, pathname, strategy, team, recordMatch, language, db, toast, matchHistory, ownedHeroes, lineup]);
+  }, [user, myEntry, pathname, strategy, recordMatch, language, db, toast, matchHistory, ownedHeroes, lineup]);
 
   const handleAcknowledge = () => {
     setShowModal(false);

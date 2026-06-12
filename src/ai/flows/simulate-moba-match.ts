@@ -4,8 +4,8 @@
  * @fileOverview Архитектурный модуль симуляции матчей Lines of Enmity.
  * 
  * Алгоритмический расчет на основе тактик, OVR и статов.
- * Поддержка Bo1/Bo2/Bo3, KDA, CS и текстовой трансляции.
- * Поддержка принудительного результата для синхронизации лиги.
+ * Поддержка Bo2/Bo3, KDA, CS и текстовой трансляции.
+ * Исключает результаты 1:0 для формата Bo2.
  */
 
 import {ai} from '@/ai/genkit';
@@ -85,9 +85,6 @@ const SimulateMobaMatchOutputSchema = z.object({
 });
 export type SimulateMobaMatchOutput = z.infer<typeof SimulateMobaMatchOutputSchema>;
 
-/**
- * Вспомогательный класс для генерации текста по шаблонам.
- */
 class NarrativeGenerator {
   private templates = {
     farm: [
@@ -119,9 +116,6 @@ class NarrativeGenerator {
   }
 }
 
-/**
- * Ядро симуляции одного матча.
- */
 function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number, forcedMapWinner?: 'A' | 'B'): z.infer<typeof GameStatsSchema> {
   const { teamA, teamB } = input;
   const narrative = new NarrativeGenerator();
@@ -142,7 +136,6 @@ function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number, forcedM
   const powerA = activeA.reduce((acc, h) => acc + h.overallRating, 0) * (modsA.a + modsA.d);
   const powerB = activeB.reduce((acc, h) => acc + h.overallRating, 0) * (modsB.a + modsB.d);
 
-  // Determine map winner
   let finalScoreA = 0;
   let finalScoreB = 0;
 
@@ -221,7 +214,7 @@ export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<
   for (let i = 0; i < numGames; i++) {
     let forced: 'A' | 'B' | undefined = undefined;
     
-    // Forced Result Logic for League synchronization
+    // Strict Forced Result Logic for Bo2
     if (input.isBo2 && input.scoreA !== undefined && input.scoreB !== undefined) {
       if (input.scoreA === 2) forced = 'A';
       else if (input.scoreB === 2) forced = 'B';
