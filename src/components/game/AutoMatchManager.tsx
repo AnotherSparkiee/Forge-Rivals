@@ -76,7 +76,8 @@ export function AutoMatchManager() {
 
           calendar.forEach((m) => {
             const matchId = `match_${selectedLeagueId}_g${groupId}_s${activeSeason}_d${m.day}_h${m.homeId}`;
-            const matchDate = new Date('2025-03-10T00:00:00+03:00'); // New Epoch
+            // NEW EPOCH: June 13, 2026
+            const matchDate = new Date('2026-06-13T00:00:00+03:00');
             matchDate.setDate(matchDate.getDate() + (activeSeason - 1) * 16 + (m.day - 1));
             const [hh, mm] = league.startTime.split(':').map(Number);
             matchDate.setHours(hh, mm, 0, 0);
