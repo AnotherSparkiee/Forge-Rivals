@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from './lib/store';
@@ -11,7 +11,7 @@ import {
   MessageSquare, UserCog, Coins, Heart, Store, Shield, 
   ArrowRight, Loader2, Check, Lock, UserPlus,
   ShoppingCart, GraduationCap, CalendarDays, Medal,
-  ArrowRightLeft, Timer, RefreshCw
+  ArrowRightLeft, Timer, RefreshCw, Home as HomeIcon, MapPin, Calendar
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString } from './lib/time-utils';
+import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getSeasonDateLabel } from './lib/time-utils';
 import { LEAGUES, getSchedule, getMockGroupTeams } from './lib/leagues-data';
 import {
   DropdownMenu,
@@ -70,12 +70,9 @@ export default function Home() {
     }
   };
 
-  // Расчет следующего матча
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
-  
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), [isLoaded]);
 
-  // Определение следующего соперника
   const groupQuery = useMemoFirebase(() => {
     if (!selectedLeagueId || !user?.uid) return null;
     return query(
@@ -88,71 +85,51 @@ export default function Home() {
 
   const { data: groupPlayers } = useCollection(groupQuery);
 
-  const nextOpponentName = useMemo(() => {
+  const nextMatchData = useMemo(() => {
     if (!isLoaded || !groupPlayers || seasonDay > 14 || seasonDay === 0) return null;
     
-    // 1. Подготовка команд группы
-    const teams = getMockGroupTeams(
-      8, 
-      displayName, 
-      leagueLevel, 
-      1, 
-      groupId, 
-      selectedLeagueId || "ALPHA", 
-      groupPlayers, 
-      user?.uid, 
-      0 
-    );
-
-    // 2. Генерация расписания
-    const schedule = getSchedule(teams);
-    
-    // 3. Определение игрового дня
-    const targetDay = lastLeagueMatchDate === getMoscowDateString() ? seasonDay + 1 : seasonDay;
+    const isTodayPlayed = lastLeagueMatchDate === getMoscowDateString();
+    const targetDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
     if (targetDay > 14) return null;
 
+    const teams = getMockGroupTeams(8, displayName, leagueLevel, 1, groupId, selectedLeagueId || "ALPHA", groupPlayers, user?.uid, 0);
+    const schedule = getSchedule(teams);
     const dayMatches = schedule[targetDay - 1];
     if (!dayMatches) return null;
 
     const myMatch = dayMatches.find((m: any) => m.home.id === user?.uid || m.away.id === user?.uid);
     if (!myMatch) return null;
 
-    const opp = myMatch.home.id === user?.uid ? myMatch.away : myMatch.home;
-    return opp.name;
-  }, [isLoaded, groupPlayers, seasonDay, lastLeagueMatchDate, leagueLevel, groupId, selectedLeagueId, displayName, user?.uid]);
+    return {
+      match: myMatch,
+      day: targetDay,
+      dateLabel: getSeasonDateLabel(targetDay),
+      type: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE',
+      time: league.startTime,
+      isHome: myMatch.home.id === user?.uid
+    };
+  }, [isLoaded, groupPlayers, seasonDay, lastLeagueMatchDate, leagueLevel, groupId, selectedLeagueId, displayName, user?.uid, language, league.startTime]);
 
   useEffect(() => {
     if (!isLoaded || !selectedLeagueId) return;
 
     const timer = setInterval(() => {
       const mskNow = getMoscowTime();
-      
-      // Логика перехода Day 15
       if (seasonInfo.seasonDay === 15) {
         const transitionTarget = new Date(mskNow);
         transitionTarget.setHours(16, 0, 0, 0);
-        
         const diff = transitionTarget.getTime() - mskNow.getTime();
-        if (diff > 0) {
-          setCountdown(formatDiff(diff));
-          return;
-        } else {
-          setCountdown('00:00:00');
-          return;
-        }
+        setCountdown(diff > 0 ? formatDiff(diff) : '00:00:00');
+        return;
       }
 
-      // Обычная логика матчей
       const [h, m] = league.startTime.split(':').map(Number);
       const target = new Date(mskNow);
       target.setHours(h, m, 0, 0);
-
-      // Если сегодня уже было (по дате в профиле), значит следующий завтра
-      const todayStr = mskNow.toISOString().split('T')[0];
+      const todayStr = getMoscowDateString();
       if (mskNow.getTime() >= target.getTime() || lastLeagueMatchDate === todayStr) {
         target.setDate(target.getDate() + 1);
       }
-
       const diff = target.getTime() - mskNow.getTime();
       setCountdown(formatDiff(diff));
     }, 1000);
@@ -163,7 +140,6 @@ export default function Home() {
       const ss = Math.floor((ms % 60000) / 1000);
       return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
     };
-
     return () => clearInterval(timer);
   }, [isLoaded, selectedLeagueId, league, lastLeagueMatchDate, seasonInfo]);
 
@@ -187,7 +163,7 @@ export default function Home() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <div className="w-full max-w-sm space-y-8 relative z-10">
+        <div className="w-full max-sm space-y-8 relative z-10">
           <div className="text-center">
             <div className="mx-auto w-24 h-24 mb-6 relative"><div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full" /><img src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png" alt="Logo" className="w-full h-full object-contain relative z-10" /></div>
             <h1 className="text-3xl font-headline font-bold tracking-tighter text-primary">LINES OF ENMITY</h1>
@@ -263,19 +239,41 @@ export default function Home() {
                   <p className="text-xs font-headline font-bold text-white uppercase">{tHub.transition}</p>
                 </>
               ) : (
-                <div className="space-y-3">
-                  <Shield className="w-10 h-10 mx-auto text-primary opacity-40" />
-                  <div className="flex flex-col items-center">
-                    <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground mb-1">
-                      {language === 'ru' ? 'ВАШ СЛЕДУЮЩИЙ СОПЕРНИК' : 'YOUR NEXT OPPONENT'}
-                    </p>
-                    <div className="flex items-center gap-2 bg-background/40 px-4 py-1.5 rounded-full border border-white/5">
-                      <Users className="w-3.5 h-3.5 text-accent" />
-                      <span className="text-sm font-headline font-bold text-white uppercase italic tracking-tight">
-                        {nextOpponentName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ ЛИГИ' : 'LEAGUE SYNC')}
-                      </span>
+                <div className="space-y-4">
+                  <div className="flex flex-col items-center gap-1">
+                    <Badge variant="outline" className="bg-primary/10 border-primary/20 text-primary text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5">
+                      {nextMatchData?.type || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ' : 'SYNCING')}
+                    </Badge>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Calendar className="w-3 h-3" />
+                      <span className="text-[10px] font-mono font-bold">{nextMatchData?.dateLabel || '--.--'} {nextMatchData?.time || '--:--'}</span>
                     </div>
                   </div>
+
+                  <div className="flex items-center justify-between gap-4 py-2">
+                    <div className={cn("flex-1 text-right", nextMatchData?.isHome && "text-primary")}>
+                      <p className="text-[7px] font-black uppercase opacity-40 mb-1">{nextMatchData?.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
+                      <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData?.match.home.name || '---'}</p>
+                    </div>
+                    <div className="px-3 py-1 rounded-lg bg-background/60 border border-white/5 flex flex-col items-center">
+                      <Swords className="w-4 h-4 text-accent" />
+                      <span className="text-[8px] font-black text-accent mt-1">VS</span>
+                    </div>
+                    <div className={cn("flex-1 text-left", !nextMatchData?.isHome && "text-primary")}>
+                      <p className="text-[7px] font-black uppercase opacity-40 mb-1">{!nextMatchData?.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
+                      <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData?.match.away.name || '---'}</p>
+                    </div>
+                  </div>
+
+                  {nextMatchData?.isHome ? (
+                    <div className="flex items-center justify-center gap-2 text-[8px] font-black text-primary/60 uppercase tracking-widest">
+                      <HomeIcon className="w-3 h-3" /> {language === 'ru' ? 'ВАША АРЕНА' : 'OWN ARENA'}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-2 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
+                      <MapPin className="w-3 h-3" /> {language === 'ru' ? 'ВЫЕЗДНОЙ СЕКТОР' : 'AWAY SECTOR'}
+                    </div>
+                  )}
                 </div>
               )}
               

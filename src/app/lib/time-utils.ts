@@ -36,6 +36,22 @@ export function formatMoscowTime(date: Date): string {
 }
 
 /**
+ * Возвращает дату конкретного дня сезона в формате MM.DD
+ */
+export function getSeasonDateLabel(dayOfSeason: number): string {
+  const mskNow = getMoscowTime();
+  const info = getGlobalSeasonInfo();
+  const diffDays = dayOfSeason - info.seasonDay;
+  
+  const targetDate = new Date(mskNow);
+  targetDate.setDate(mskNow.getDate() + diffDays);
+  
+  const m = String(targetDate.getMonth() + 1).padStart(2, '0');
+  const d = String(targetDate.getDate()).padStart(2, '0');
+  return `${m}.${d}`;
+}
+
+/**
  * Возвращает ISO строку конца текущего дня по МСК (23:59:59)
  */
 export function getEndOfMoscowDay(): string {
@@ -85,7 +101,7 @@ export function getGlobalSeasonInfo() {
     seasonNumber: currentSeasonNumber,
     isTransitionPhase: currentSeasonDay === 15,
     isAfterTransition: isTransitionTime || currentSeasonDay > 15,
-    msUntilTransition: 0 // Will be calculated in components
+    msUntilTransition: 0
   };
 }
 
