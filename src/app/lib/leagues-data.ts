@@ -73,7 +73,6 @@ export function getGroupStandings(
   const teams: any[] = [];
   
   // 1. Setup participants
-  // We need to find all real players who BELONG to this specific group
   const groupPlayers = realPlayers.filter(p => 
     p.selectedLeagueId === leagueId && 
     Number(p.leagueLevel) === Number(level) && 
@@ -93,7 +92,7 @@ export function getGroupStandings(
 
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   for (let i = 0; i < botsNeeded; i++) {
-    const botId = `bot_${level}_${group}_${i}`;
+    const botId = `bot_${leagueId}_${level}_${group}_${i}`;
     teams.push({ 
       id: botId, 
       name: `Elite Bot ${i + 1}`, 
@@ -108,7 +107,6 @@ export function getGroupStandings(
   teams.sort((a, b) => a.id.localeCompare(b.id));
 
   // 2. Aggregate from DB matches
-  // Matches must belong to this specific group and season
   const groupSpecificMatches = dbMatches.filter(m => 
     Number(m.divisionId) === Number(level) && 
     Number(m.groupId) === Number(group) && 
