@@ -78,16 +78,19 @@ export default function SetupPage() {
 
       const batch = writeBatch(db);
       const rootRef = doc(db, 'players_v10', user.uid);
+      
+      // Инициализируем указатели в корневом профиле
       batch.update(rootRef, pointerData);
 
-      // Hierarchical Team Data - The core Source of Truth for the Pyramid
+      // Инициализируем основной документ команды в иерархии
+      // Используем setDoc чтобы гарантированно создать документ, если его не было
       const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', '9', 'groups', '1', 'teams', user.uid);
-      batch.set(teamRef, teamData);
+      batch.set(teamRef, teamData, { merge: true });
 
-      // Initialize Heroes sub-collection in the hierarchy
+      // Инициализируем героев
       uniqueSquad.forEach(hero => {
         const heroRef = doc(collection(teamRef, 'heroes'), hero.id);
-        batch.set(heroRef, JSON.parse(JSON.stringify(hero)));
+        batch.set(heroRef, JSON.parse(JSON.stringify(hero)), { merge: true });
       });
 
       await batch.commit();
@@ -95,6 +98,7 @@ export default function SetupPage() {
       toast({ title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!" });
       router.replace('/');
     } catch (e: any) {
+      console.error("Critical Sync Error", e);
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
       setIsUpdating(false);

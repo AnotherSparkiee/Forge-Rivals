@@ -4,13 +4,14 @@
 /**
  * @fileOverview Глобальное хранилище данных клуба.
  * Реализует иерархическую загрузку: Root Pointer (players_v10) -> League Group -> Team Data.
+ * Использует setDoc(..., { merge: true }) для предотвращения ошибок отсутствия документа.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { Hero, StaffMember, StaffRole } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString } from './time-utils';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, onSnapshot, collection, updateDoc, setDoc, deleteDoc, arrayUnion } from 'firebase/firestore';
+import { doc, onSnapshot, collection, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
@@ -144,7 +145,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
 
       // 2. Subscribe to Team Data in Pyramid Hierarchy
-      const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', String(groupId), 'teams', user.uid);
+      const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel || 9), 'groups', String(groupId || 1), 'teams', user.uid);
       
       const unsubTeam = onSnapshot(teamRef, (teamSnap) => {
         const teamData = teamSnap.data() || {};
@@ -168,7 +169,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
               ...s,
               id: user.uid,
               displayName: rootData.displayName || teamData.displayName || "Manager",
-              selectedLeagueId, leagueLevel, groupId,
+              selectedLeagueId, 
+              leagueLevel: leagueLevel || 9, 
+              groupId: groupId || 1,
               credits: teamData.credits ?? 0,
               crystals: teamData.crystals ?? 0,
               experiencePoints: teamData.experiencePoints ?? 0,
@@ -212,58 +215,58 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const s = stateRef.current;
     if (!user || !s.selectedLeagueId) return null;
     const root = doc(db, 'players_v10', user.uid);
-    const team = doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', String(s.groupId), 'teams', user.uid);
+    const team = doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel || 9), 'groups', String(s.groupId || 1), 'teams', user.uid);
     return { root, team };
   }, [user, db]);
 
   const addCrystals = (amount: number) => {
     const refs = getRefs(); if (!refs) return;
-    updateDoc(refs.team, { crystals: Math.max(0, stateRef.current.crystals + amount) });
+    setDoc(refs.team, { crystals: Math.max(0, stateRef.current.crystals + amount) }, { merge: true });
   };
 
   const addCredits = (amount: number) => {
     const refs = getRefs(); if (!refs) return;
-    updateDoc(refs.team, { credits: Math.max(0, stateRef.current.credits + amount) });
+    setDoc(refs.team, { credits: Math.max(0, stateRef.current.credits + amount) }, { merge: true });
   };
 
   const updateHero = (id: string, data: Partial<Hero>, costCredits = 0, costCrystals = 0) => {
     const refs = getRefs(); if (!refs) return;
     const heroRef = doc(collection(refs.team, 'heroes'), id);
-    updateDoc(heroRef, data);
+    setDoc(heroRef, data, { merge: true });
     if (costCredits || costCrystals) {
-      updateDoc(refs.team, { 
+      setDoc(refs.team, { 
         credits: stateRef.current.credits - costCredits,
         crystals: stateRef.current.crystals - costCrystals
-      });
+      }, { merge: true });
     }
   };
 
   const removeHero = (id: string, refund: number) => {
     const refs = getRefs(); if (!refs) return;
     deleteDoc(doc(collection(refs.team, 'heroes'), id));
-    if (refund > 0) updateDoc(refs.team, { credits: stateRef.current.credits + refund });
+    if (refund > 0) setDoc(refs.team, { credits: stateRef.current.credits + refund }, { merge: true });
   };
 
   const assignToRole = (role: LineupSlot, heroId: string | null) => {
     const refs = getRefs(); if (!refs) return;
     const newLineup = { ...stateRef.current.lineup, [role]: heroId };
-    updateDoc(refs.team, { lineup: newLineup });
+    setDoc(refs.team, { lineup: newLineup }, { merge: true });
   };
 
   const updateTactics = (strategy: string, lineSettings: any) => {
     const refs = getRefs(); if (!refs) return;
-    updateDoc(refs.team, { strategy, lineSettings });
+    setDoc(refs.team, { strategy, lineSettings }, { merge: true });
   };
 
   const claimReward = (credits: number, crystals: number) => {
     const refs = getRefs(); if (!refs) return;
     const today = getMoscowDateString();
-    updateDoc(refs.team, {
+    setDoc(refs.team, {
       credits: stateRef.current.credits + credits,
       crystals: stateRef.current.crystals + crystals,
       lastRewardClaimDate: today,
       rewardDay: (stateRef.current.rewardDay % 30) + 1
-    });
+    }, { merge: true });
   };
 
   const setLanguage = (l: string) => setLang(l);
