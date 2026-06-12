@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LEAGUES } from '@/app/lib/leagues-data';
 import { COUNTRIES } from '@/app/lib/countries-data';
-import { Loader2, Clock, CheckCircle2, Flag, Globe } from 'lucide-react';
+import { Loader2, Flag, Globe } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useGameState } from '@/app/lib/store';
@@ -22,14 +22,13 @@ export default function SetupPage() {
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const { isLoaded, language } = useGameState();
+  const { language } = useGameState();
   
   const [step, setStep] = useState<'league' | 'country'>('league');
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // REVERT TO V10
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
@@ -48,30 +47,29 @@ export default function SetupPage() {
       const { seasonNumber } = getGlobalSeasonInfo();
       const nowIso = new Date().toISOString();
       
-      const profileData = {
+      const pointerData = {
         selectedLeagueId,
         leagueLevel: 9,
         groupId: 1,
         country: selectedCountry?.name || 'International',
-        setupDate: nowIso,
-        lineup: { 
-          offlane: uniqueSquad[0].id, carry: uniqueSquad[1].id, mid: uniqueSquad[2].id, 
-          support: uniqueSquad[3].id, full_support: uniqueSquad[4].id, 
-          sub1: uniqueSquad[5].id, sub2: uniqueSquad[6].id
-        }
+        setupDate: nowIso
       };
 
       const teamData = {
         id: user.uid,
         displayName: profile.displayName || "Manager",
-        credits: 10000000,
-        crystals: 0,
+        credits: 1000000, // Starting budget
+        crystals: 50,    // Starting crystals
         experiencePoints: 0,
         managerLevel: 1,
         managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
         arena: { capacity: 5000 },
         hq: {}, bootcamp: {}, academy: {}, medical: {},
-        lineup: profileData.lineup,
+        lineup: { 
+          offlane: uniqueSquad[0].id, carry: uniqueSquad[1].id, mid: uniqueSquad[2].id, 
+          support: uniqueSquad[3].id, full_support: uniqueSquad[4].id, 
+          sub1: uniqueSquad[5].id, sub2: uniqueSquad[6].id
+        },
         strategy: 'Balanced Play',
         lastProcessedSeason: Number(seasonNumber || 1),
         matchHistory: [],
@@ -80,9 +78,9 @@ export default function SetupPage() {
 
       const batch = writeBatch(db);
       const rootRef = doc(db, 'players_v10', user.uid);
-      batch.update(rootRef, profileData);
+      batch.update(rootRef, pointerData);
 
-      // Hierarchical Team Data
+      // Hierarchical Team Data - The core Source of Truth for the Pyramid
       const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', '9', 'groups', '1', 'teams', user.uid);
       batch.set(teamRef, teamData);
 
@@ -94,7 +92,6 @@ export default function SetupPage() {
 
       await batch.commit();
 
-      sessionStorage.setItem('lote_hub_entered', 'true');
       toast({ title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!" });
       router.replace('/');
     } catch (e: any) {
@@ -114,6 +111,7 @@ export default function SetupPage() {
           <h1 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter">
             {step === 'league' ? 'SELECT MATCH TIME' : 'CHOOSE CLUB FLAG'}
           </h1>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-2">Operational Node Initialization</p>
         </header>
         <div className="flex-1">
           {step === 'league' ? (
@@ -121,11 +119,12 @@ export default function SetupPage() {
               {LEAGUES.map((l) => (
                 <Card 
                   key={l.id} 
-                  className={cn("glass-card border-white/5 cursor-pointer", selectedLeagueId === l.id && "ring-2 ring-primary")} 
+                  className={cn("glass-card border-white/5 cursor-pointer transition-all", selectedLeagueId === l.id ? "ring-2 ring-primary bg-primary/5" : "hover:bg-white/5")} 
                   onClick={() => setSelectedLeagueId(l.id)}
                 >
                   <CardContent className="p-4 text-center">
                     <span className="text-xl font-headline font-bold text-white">{l.startTime}</span>
+                    <p className="text-[7px] text-muted-foreground uppercase mt-1">MSK TIME</p>
                   </CardContent>
                 </Card>
               ))}
@@ -135,11 +134,12 @@ export default function SetupPage() {
               {COUNTRIES.map((c) => (
                 <Card 
                   key={c.code} 
-                  className={cn("glass-card border-white/5 cursor-pointer", selectedCountryCode === c.code && "ring-2 ring-accent")} 
+                  className={cn("glass-card border-white/5 cursor-pointer transition-all", selectedCountryCode === c.code ? "ring-2 ring-accent bg-accent/5" : "hover:bg-white/5")} 
                   onClick={() => setSelectedCountryCode(c.code)}
                 >
                   <CardContent className="p-4 text-center">
                     <span className="text-3xl">{c.flag}</span>
+                    <p className="text-[7px] text-muted-foreground uppercase mt-2 truncate">{c.name}</p>
                   </CardContent>
                 </Card>
               ))}
@@ -147,8 +147,8 @@ export default function SetupPage() {
           )}
         </div>
         <footer className="mt-12">
-          <Button disabled={isUpdating} onClick={step === 'league' ? () => setStep('country') : handleCompleteSetup} className="w-full h-16 hero-gradient font-black">
-            {isUpdating ? <Loader2 className="animate-spin" /> : 'FINALIZE PROFILE'}
+          <Button disabled={isUpdating || (step === 'league' && !selectedLeagueId) || (step === 'country' && !selectedCountryCode)} onClick={step === 'league' ? () => setStep('country') : handleCompleteSetup} className="w-full h-16 hero-gradient font-black text-xs tracking-widest uppercase shadow-xl">
+            {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'league' ? 'CONTINUE' : 'FINALIZE PROFILE')}
           </Button>
         </footer>
       </div>

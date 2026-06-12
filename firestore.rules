@@ -11,10 +11,11 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Root profile (Pointers)
+    // Root profile (Pointers & Callsigns)
     match /players_v10/{userId} {
       allow read: if isSignedIn();
-      allow create, update: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
     }
 
     // Pyramidal League Structure
@@ -36,7 +37,7 @@ service cloud.firestore {
       }
     }
 
-    // Global Matches (READ ONLY for clients)
+    // Global Matches (READ ONLY for clients, WRITE for Server Account)
     match /matches_v1/{matchId} {
       allow read: if isSignedIn();
       allow write: if false; 

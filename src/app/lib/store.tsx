@@ -6,11 +6,11 @@
  * Реализует иерархическую загрузку: Root Pointer (players_v10) -> League Group -> Team Data.
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
-import { Hero, StaffMember, StaffRole, Role } from './moba-data';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
+import { Hero, StaffMember, StaffRole } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString } from './time-utils';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, onSnapshot, collection, query, where, getDocs, updateDoc, setDoc, deleteDoc, writeBatch, arrayUnion } from 'firebase/firestore';
+import { doc, onSnapshot, collection, updateDoc, setDoc, deleteDoc, arrayUnion } from 'firebase/firestore';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
@@ -51,6 +51,7 @@ interface GameState {
   seasonDay: number;
   seasonNumber: number;
   isSyncing: boolean;
+  language: string;
 
   // Actions
   addCrystals: (amount: number) => void;
@@ -71,14 +72,6 @@ interface GameState {
   markMatchIdAsSeen: (id: string) => void;
   syncStats: (groupPlayers: any[]) => void;
   upgradeManagerSkill: (skill: keyof GameState['managerSkills']) => void;
-  startArenaConstruction: (id: string, cost: number) => boolean;
-  startHQConstruction: (id: string, cost: number) => boolean;
-  startBootcampConstruction: (id: string, cost: number) => boolean;
-  startAcademyConstruction: (id: string, cost: number) => boolean;
-  startMedicalConstruction: (id: string, cost: number) => boolean;
-  accelerateConstruction: (category: string, id: string, multiplier: number, costCrystals: number) => boolean;
-  checkConstructions: () => void;
-  startCapacityExpansion: (seats: number, cost: number) => boolean;
   addHeroDirectly: (hero: Hero) => void;
   addYouthHeroDirectly: (hero: Hero) => void;
   promoteYouthPlayer: (heroId: string) => void;
@@ -87,7 +80,6 @@ interface GameState {
   purchaseLicense: (tier: number, cost: number) => boolean;
   purchasePremium: () => boolean;
   setLanguage: (lang: string) => void;
-  language: string;
 }
 
 const DEFAULT_STATE: GameState = {
@@ -106,9 +98,7 @@ const DEFAULT_STATE: GameState = {
   addCrystals: () => {}, addCredits: () => {}, updateHero: () => {}, removeHero: () => {}, assignToRole: () => {}, updateTactics: () => {},
   setTrainingFocus: () => {}, startDailyHeroTraining: () => {}, claimDailyHeroTraining: () => {}, recoverAllFatigue: () => false,
   hireStaffMember: () => {}, trainStaffSkill: () => false, claimReward: () => {}, recordMatch: () => {}, markMatchAsSeen: () => {},
-  markMatchIdAsSeen: () => {}, syncStats: () => {}, upgradeManagerSkill: () => {}, startArenaConstruction: () => false,
-  startHQConstruction: () => false, startBootcampConstruction: () => false, startAcademyConstruction: () => false, startMedicalConstruction: () => false,
-  accelerateConstruction: () => false, checkConstructions: () => {}, startCapacityExpansion: () => false,
+  markMatchIdAsSeen: () => {}, syncStats: () => {}, upgradeManagerSkill: () => {},
   addHeroDirectly: () => {}, addYouthHeroDirectly: () => {}, promoteYouthPlayer: () => {}, updateProfileName: () => {}, updateProfileCountry: () => {},
   purchaseLicense: () => false, purchasePremium: () => false, setLanguage: () => {}
 };
@@ -132,7 +122,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // 1. Get Root Pointer (v10 REVERT)
+    // 1. Get Root Pointer
     const rootRef = doc(db, 'players_v10', user.uid);
     const unsubRoot = onSnapshot(rootRef, (snap) => {
       if (!snap.exists()) {
@@ -153,13 +143,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // 2. Subscribe to Team Data in Hierarchy
+      // 2. Subscribe to Team Data in Pyramid Hierarchy
       const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', String(groupId), 'teams', user.uid);
       
       const unsubTeam = onSnapshot(teamRef, (teamSnap) => {
         const teamData = teamSnap.data() || {};
         
-        // 3. Sub-collections
+        // 3. Sub-collections (Heroes and Staff)
         const heroesUnsub = onSnapshot(collection(teamRef, 'heroes'), (hSnap) => {
           const allHeroes = hSnap.docs.map(d => ({ ...d.data(), id: d.id } as Hero));
           const owned = allHeroes.filter(h => !h.isYouth);
@@ -177,7 +167,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             setState(s => ({
               ...s,
               id: user.uid,
-              displayName: rootData.displayName || "Manager",
+              displayName: rootData.displayName || teamData.displayName || "Manager",
               selectedLeagueId, leagueLevel, groupId,
               credits: teamData.credits ?? 0,
               crystals: teamData.crystals ?? 0,
@@ -265,53 +255,23 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     updateDoc(refs.team, { strategy, lineSettings });
   };
 
-  const hireStaffMember = (member: StaffMember) => {
-    const refs = getRefs(); if (!refs) return;
-    const staffRef = doc(collection(refs.team, 'staff'), member.id);
-    setDoc(staffRef, JSON.parse(JSON.stringify(member)));
-    updateDoc(refs.team, { credits: stateRef.current.credits - (member.salary / 2) });
-  };
-
-  const recordMatch = (winner: string, result: any, xpGain: number, opponentName: string, type: string, playedAt: string, matchId?: string) => {
+  const claimReward = (credits: number, crystals: number) => {
     const refs = getRefs(); if (!refs) return;
     const today = getMoscowDateString();
-    const newMatch = {
-      id: matchId || `${type}_${Date.now()}`,
-      winner, scoreA: result.scoreA, scoreB: result.scoreB,
-      matchSummary: result.matchSummary, timeline: result.timeline,
-      opponentName, type, playedAt, seen: false,
-      day: stateRef.current.seasonDay, seasonNumber: stateRef.current.seasonNumber
-    };
-    
     updateDoc(refs.team, {
-      matchHistory: arrayUnion(newMatch),
-      ...(type === 'league' ? { lastLeagueMatchDate: today } : {}),
-      ...(type === 'cup' ? { lastCupMatchDate: today } : {})
+      credits: stateRef.current.credits + credits,
+      crystals: stateRef.current.crystals + crystals,
+      lastRewardClaimDate: today,
+      rewardDay: (stateRef.current.rewardDay % 30) + 1
     });
-  };
-
-  const markMatchAsSeen = (day: number) => {
-    const refs = getRefs(); if (!refs) return;
-    updateDoc(refs.team, { lastSeenMatchDay: day });
-  };
-
-  const markMatchIdAsSeen = (id: string) => {
-    const refs = getRefs(); if (!refs) return;
-    const history = [...stateRef.current.matchHistory];
-    const idx = history.findIndex(m => m.id === id);
-    if (idx !== -1) {
-      history[idx].seen = true;
-      updateDoc(refs.team, { matchHistory: history });
-    }
   };
 
   const setLanguage = (l: string) => setLang(l);
 
   const value = {
     ...state,
-    addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, recordMatch, 
-    markMatchAsSeen, markMatchIdAsSeen, setLanguage,
-    hireStaffMember,
+    addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, 
+    claimReward, setLanguage,
   } as any;
 
   return (
