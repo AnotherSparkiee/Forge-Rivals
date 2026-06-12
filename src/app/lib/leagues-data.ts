@@ -57,6 +57,7 @@ export function getStableGroupTeams(level: any, group: any, leagueId: string, al
   const lvl = Number(level);
   const grp = Number(group);
 
+  // Filter players strictly for this specific group
   const groupPlayers = allLeaguePlayers.filter(p => 
     p.selectedLeagueId === leagueId && 
     Number(p.leagueLevel) === lvl && 
@@ -71,14 +72,14 @@ export function getStableGroupTeams(level: any, group: any, leagueId: string, al
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   
   for (let i = 0; i < botsNeeded; i++) {
-    // Deterministic Bot ID: League_Level_Group_Index
+    // Deterministic Bot ID
     const botId = `bot_${leagueId}_L${lvl}_G${grp}_${i + 1}`;
-    // Deterministic Display Name: Elite Bot [Level].[Group].[Index]
+    // Deterministic Display Name (Strict Format)
     const botName = `Elite Bot ${lvl}.${grp}.${i + 1}`;
     teams.push({ id: botId, name: botName, isBot: true });
   }
 
-  // Sort by ID for deterministic ordering in calendar generation
+  // Sort by ID to ensure deterministic order across all clients
   return teams.sort((a, b) => a.id.localeCompare(b.id));
 }
 
