@@ -1,185 +1,174 @@
-'use client';
-
 /**
- * @fileOverview Global Autonomous Match Synchronizer (Surrogate Cloud Function).
- * 
- * Logic:
- * 1. Synchronous Completion: All matches of a round finish at the same time for the whole group.
- * 2. Automatic Initialization: Generates the full 56-match calendar for Season 1 if missing.
- * 3. Batch Writes: Results are committed to Firestore in batches for absolute consistency.
+ * @fileOverview Autonomous Season Engine (Distributed Heartbeat).
+ * Handles:
+ * 1. Automatic Group/Calendar initialization.
+ * 2. Synchronized Round Simulation (Bo2).
+ * 3. Season Transition (Promotion/Relegation).
  */
 
-import { useEffect, useRef, useCallback } from 'react';
-import { useGameState, LineupSlot } from '@/app/lib/store';
+'use client';
+
+import { useEffect, useRef } from 'react';
+import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, setDoc, getDoc, writeBatch, collection, query, where, serverTimestamp } from 'firebase/firestore';
-import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
-import { generateBotSquad } from '@/app/lib/moba-data';
-import { getMatchResult, generateDeterministicDayMatches, getStableGroupTeams } from '@/app/lib/leagues-data';
-import { getMoscowTime } from '@/app/lib/time-utils';
-
-function sanitize(obj: any) {
-  try {
-    return JSON.parse(JSON.stringify(obj));
-  } catch (e) {
-    return null;
-  }
-}
+import { 
+  getStableGroupTeams, generateSeasonCalendar, getMatchResult, 
+  calculateStandings, MAX_LEVELS 
+} from '@/app/lib/leagues-data';
+import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString } from '@/app/lib/time-utils';
 
 export function AutoMatchManager() {
-  const { 
-    isLoaded, id: userId, 
-    strategy, ownedHeroes, lineup, recordMatch,
-    groupMatches, seasonNumber, leagueLevel, groupId, selectedLeagueId, displayName
-  } = useGameState();
+  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, seasonNumber, recordMatch, displayName } = useGameState();
   const db = useFirestore();
-  
-  const processingRoundsRef = useRef<Set<number>>(new Set());
-  const initTriggeredRef = useRef<string>("");
+  const processingRef = useRef(false);
 
-  const leaguePlayersQuery = useMemoFirebase(() => {
+  // Sync all players in current group
+  const groupPlayersQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
-    return query(collection(db, 'players_v10'), where('selectedLeagueId', '==', selectedLeagueId));
-  }, [db, selectedLeagueId]);
+    return query(
+      collection(db, 'players_v10'), 
+      where('selectedLeagueId', '==', selectedLeagueId),
+      where('leagueLevel', '==', Number(leagueLevel)),
+      where('groupId', '==', Number(groupId))
+    );
+  }, [db, selectedLeagueId, leagueLevel, groupId]);
 
-  const { data: allLeaguePlayers } = useCollection(leaguePlayersQuery);
-
-  /**
-   * Initializes the group's full seasonal calendar (56 matches) if it doesn't exist.
-   */
-  const ensureGroupScheduleExists = useCallback(async () => {
-    if (!selectedLeagueId || !leagueLevel || !groupId || !seasonNumber || !allLeaguePlayers) return;
-    
-    const syncKey = `init_${selectedLeagueId}_${leagueLevel}_${groupId}_s${seasonNumber}`;
-    if (initTriggeredRef.current === syncKey) return;
-    initTriggeredRef.current = syncKey;
-
-    try {
-      const firstMatchId = `match_${seasonNumber}_${selectedLeagueId}_${leagueLevel}_${groupId}_d1_m0`;
-      const firstSnap = await getDoc(doc(db, 'matches_v1', firstMatchId));
-      
-      if (!firstSnap.exists()) {
-        console.log("[Autonomous] Initializing full seasonal calendar for group:", syncKey);
-        const teams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, allLeaguePlayers);
-        const batch = writeBatch(db);
-        
-        for (let d = 1; d <= 14; d++) {
-          const dayMatches = generateDeterministicDayMatches(leagueLevel, groupId, selectedLeagueId, seasonNumber, d, teams);
-          dayMatches.forEach(m => {
-            batch.set(doc(db, 'matches_v1', m.id), m, { merge: true });
-          });
-        }
-        await batch.commit();
-        console.log("[Autonomous] Calendar synchronized successfully.");
-      }
-    } catch (e) {
-      console.error("[Autonomous] Schedule sync failed:", e);
-    }
-  }, [selectedLeagueId, leagueLevel, groupId, seasonNumber, allLeaguePlayers, db]);
-
-  /**
-   * Synchronously processes an entire round (all 4 matches in the group).
-   */
-  const processGroupRound = async (day: number, roundMatches: any[]) => {
-    if (processingRoundsRef.current.has(day)) return;
-    processingRoundsRef.current.add(day);
-
-    console.log(`[Autonomous] Heartbeat: Processing Day ${day} for group ${groupId}...`);
-    const batch = writeBatch(db);
-    const finishedAt = new Date().toISOString();
-
-    try {
-      for (const match of roundMatches) {
-        // Ensure we don't overwrite if someone else just finished it
-        const [scoreH, scoreA] = getMatchResult(match.homeId, match.awayId, day, seasonNumber);
-        const isOurMatch = match.homeId === userId || match.awayId === userId;
-
-        let simulation;
-        if (isOurMatch) {
-          // Full AI Simulation for player match
-          const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
-          const mySquad = activeSlots.map(slot => ownedHeroes.find(h => h.id === lineup[slot])).filter(Boolean).map(h => ({
-            name: h!.name, role: h!.role, overallRating: h!.overallRating, proStats: h!.proStats, isSub: false
-          }));
-          while (mySquad.length < 5) mySquad.push({ name: `AI Mercenary`, role: 'Support', overallRating: 20, proStats: generateBotSquad(20)[0].proStats, isSub: false });
-          
-          const opponentSquad = generateBotSquad(25);
-          const result = await simulateMobaMatch({
-            teamA: { name: match.homeName, strategy: match.homeId === userId ? strategy : 'Balanced Play', heroes: match.homeId === userId ? mySquad : opponentSquad },
-            teamB: { name: match.awayName, strategy: match.awayId === userId ? strategy : 'Balanced Play', heroes: match.awayId === userId ? mySquad : opponentSquad },
-            isBo2: true, scoreA: scoreH, scoreB: scoreA
-          });
-          simulation = sanitize(result);
-
-          // Record locally for player's "My Played"
-          const myWins = match.homeId === userId ? scoreH : scoreA;
-          const oppWins = match.homeId === userId ? scoreA : scoreH;
-          recordMatch(
-            myWins > oppWins ? displayName : (myWins === oppWins ? "Draw" : (match.homeId === userId ? match.awayName : match.homeName)),
-            { ...result.games[0], scoreA: myWins, scoreB: oppWins, games: result.games, seriesScore: `${myWins}-${oppWins}` },
-            50000, match.homeId === userId ? match.awayName : match.homeName, 'league', finishedAt, match.id
-          );
-        } else {
-          // Standard Bo2 simulation for bot matches
-          simulation = {
-            winner: scoreH > scoreA ? match.homeName : (scoreH === scoreA ? "Draw" : match.awayName),
-            seriesScore: `${scoreH}-${scoreA}`,
-            games: [
-              { scoreA: scoreH > 0 ? 1 : 0, scoreB: scoreA > 0 ? 0 : 0, duration: "35:00", matchSummary: "Pro performance.", timeline: [], scoreboard: [] },
-              { scoreA: scoreH > 1 ? 1 : 0, scoreB: scoreA > 1 ? 1 : 0, duration: "35:00", matchSummary: "Pro performance.", timeline: [], scoreboard: [] }
-            ]
-          };
-        }
-
-        batch.update(doc(db, 'matches_v1', match.id), {
-          status: 'finished',
-          scoreA: scoreH,
-          scoreB: scoreA,
-          winnerId: scoreH > scoreA ? match.homeId : (scoreH < scoreA ? match.awayId : null),
-          simulation,
-          finishedAt
-        });
-      }
-
-      await batch.commit();
-      console.log(`[Autonomous] Round ${day} finalized for group.`);
-    } catch (e) {
-      console.error(`[Autonomous] Round ${day} processing error:`, e);
-    } finally {
-      processingRoundsRef.current.delete(day);
-    }
-  };
+  const { data: allGroupPlayers } = useCollection(groupPlayersQuery);
 
   useEffect(() => {
-    if (!isLoaded || !userId || !allLeaguePlayers) return;
+    if (!isLoaded || !userId || !selectedLeagueId || processingRef.current) return;
 
-    // Phase 1: Initialize global calendar
-    ensureGroupScheduleExists();
+    const heartbeat = async () => {
+      processingRef.current = true;
+      try {
+        const seasonInfo = getGlobalSeasonInfo();
+        const groupPath = `leagues_v2/${selectedLeagueId}/divisions/${leagueLevel}/groups/${groupId}`;
+        const groupRef = doc(db, groupPath);
+        const groupSnap = await getDoc(groupRef);
+        
+        const todayStr = getMoscowDateString();
+        const mskNow = getMoscowTime();
+        
+        // --- PHASE 1: INITIALIZE GROUP ---
+        if (!groupSnap.exists() || groupSnap.data().seasonId !== seasonInfo.activeSeasonNumber) {
+          console.log("[Engine] Initializing New Season for Group:", groupId);
+          const teams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, allGroupPlayers || []);
+          const calendar = generateSeasonCalendar(teams);
+          
+          await setDoc(groupRef, {
+            seasonId: seasonInfo.activeSeasonNumber,
+            roundNumber: 1,
+            teams,
+            calendar,
+            lastProcessedDate: todayStr,
+            initializedAt: serverTimestamp()
+          }, { merge: true });
+          processingRef.current = false;
+          return;
+        }
 
-    if (!groupMatches || groupMatches.length === 0) return;
+        const groupData = groupSnap.data();
+        const roundNumber = groupData.roundNumber || 1;
 
-    // Phase 2: Heartbeat - Process all pending rounds up to now
-    const now = getMoscowTime().getTime();
-    
-    // Group matches by day to process rounds synchronously
-    const rounds: Record<number, any[]> = {};
-    groupMatches.forEach(m => {
-      if (m.status === 'pending') {
-        const round = Number(m.day);
-        if (!rounds[round]) rounds[round] = [];
-        rounds[round].push(m);
+        // --- PHASE 2: DAILY SIMULATION (23:05 TICK) ---
+        const isMatchTime = mskNow.getHours() >= 23 && mskNow.getMinutes() >= 5;
+        const isNotProcessedToday = groupData.lastProcessedDate !== todayStr;
+
+        if (isMatchTime && isNotProcessedToday && roundNumber <= 14) {
+          console.log("[Engine] Ticking Round:", roundNumber);
+          const batch = writeBatch(db);
+          const updatedCalendar = [...groupData.calendar];
+          
+          // Filter matches for current day
+          updatedCalendar.forEach((m, idx) => {
+            if (m.day === roundNumber && m.status === 'pending') {
+              const [sA, sB] = getMatchResult(m.homeId, m.awayId, roundNumber, seasonInfo.activeSeasonNumber);
+              updatedCalendar[idx] = { ...m, scoreA: sA, scoreB: sB, status: 'finished' };
+              
+              // Record locally if it's user's match
+              if (m.homeId === userId || m.awayId === userId) {
+                const isHome = m.homeId === userId;
+                recordMatch(
+                  sA > sB ? (isHome ? displayName : m.awayName) : (sA === sB ? "Draw" : (isHome ? m.awayName : displayName)),
+                  { scoreA: isHome ? sA : sB, scoreB: isHome ? sB : sA, games: [] },
+                  30000, isHome ? m.awayName : m.homeName, 'league', mskNow.toISOString(), `match_s${seasonInfo.activeSeasonNumber}_d${roundNumber}`
+                );
+              }
+
+              // Also store in global matches for UI consistency
+              const globalMatchRef = doc(db, 'matches_v1', `match_${selectedLeagueId}_g${groupId}_s${seasonInfo.activeSeasonNumber}_d${roundNumber}_${m.homeId}`);
+              batch.set(globalMatchRef, {
+                ...updatedCalendar[idx],
+                leagueId: selectedLeagueId,
+                divisionId: leagueLevel,
+                groupId,
+                seasonNumber: seasonInfo.activeSeasonNumber,
+                finishedAt: serverTimestamp()
+              });
+            }
+          });
+
+          batch.update(groupRef, {
+            calendar: updatedCalendar,
+            roundNumber: roundNumber + 1,
+            lastProcessedDate: todayStr
+          });
+
+          await batch.commit();
+          console.log("[Engine] Round finalized.");
+        }
+
+        // --- PHASE 3: SEASON TRANSITION (PROMOTION / RELEGATION) ---
+        if (roundNumber > 14 && isNotProcessedToday) {
+          console.log("[Engine] Season End. Performing Transition...");
+          const standings = calculateStandings(groupData.teams, groupData.calendar);
+          const batch = writeBatch(db);
+
+          for (let i = 0; i < standings.length; i++) {
+            const team = standings[i];
+            const pos = i + 1;
+            
+            if (team.isBot) continue; // Bots don't have profile docs
+
+            let newLevel = leagueLevel;
+            let newGroup = groupId;
+
+            // Winner -> Up (if not Div 1)
+            if (pos === 1 && leagueLevel > 1) {
+              newLevel = leagueLevel - 1;
+              newGroup = Math.ceil(groupId / 2);
+            } 
+            // Last 2 -> Down (if not Div 9)
+            else if (pos >= 7 && leagueLevel < MAX_LEVELS) {
+              newLevel = leagueLevel + 1;
+              newGroup = (pos === 7) ? (groupId * 2 - 1) : (groupId * 2);
+            }
+
+            const teamProfileRef = doc(db, 'players_v10', team.id);
+            batch.update(teamProfileRef, {
+              leagueLevel: newLevel,
+              groupId: newGroup,
+              lastProcessedSeason: seasonInfo.activeSeasonNumber
+            });
+          }
+
+          batch.update(groupRef, { lastProcessedDate: todayStr });
+          await batch.commit();
+          console.log("[Engine] Global Migration Complete.");
+        }
+
+      } catch (e) {
+        console.error("[Engine] Critical Fail:", e);
+      } finally {
+        processingRef.current = false;
       }
-    });
+    };
 
-    const sortedPendingDays = Object.keys(rounds).map(Number).sort((a, b) => a - b);
-
-    for (const day of sortedPendingDays) {
-      const roundStartTime = new Date(rounds[day][0].startTime).getTime();
-      if (now >= roundStartTime) {
-        processGroupRound(day, rounds[day]);
-      }
-    }
-  }, [groupMatches, isLoaded, userId, selectedLeagueId, leagueLevel, groupId, seasonNumber, allLeaguePlayers, ensureGroupScheduleExists, db]);
+    heartbeat();
+    const interval = setInterval(heartbeat, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, seasonNumber, allGroupPlayers, db, recordMatch, displayName]);
 
   return null;
 }

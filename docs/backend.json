@@ -11,40 +11,20 @@
         "selectedLeagueId": { "type": "string" },
         "leagueLevel": { "type": "number" },
         "groupId": { "type": "number" },
+        "lastProcessedSeason": { "type": "number" },
         "setupDate": { "type": "string", "format": "date-time" }
       }
     },
-    "Team": {
-      "title": "Team",
-      "description": "Actual club data within a specific league group",
+    "LeagueGroup": {
+      "title": "LeagueGroup",
+      "description": "Synchronized state for a single group of 8 teams",
       "type": "object",
       "properties": {
-        "credits": { "type": "number" },
-        "crystals": { "type": "number" },
-        "points": { "type": "number" },
-        "wins": { "type": "number" },
-        "draws": { "type": "number" },
-        "losses": { "type": "number" },
-        "strategy": { "type": "string" }
-      }
-    },
-    "Match": {
-      "title": "Match",
-      "description": "Global match record managed by Cloud Functions",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "leagueId": { "type": "string" },
-        "divisionId": { "type": "number" },
-        "groupId": { "type": "number" },
-        "startTime": { "type": "string", "format": "date-time" },
-        "type": { "type": "string", "enum": ["league", "cup"] },
-        "status": { "type": "string", "enum": ["pending", "live", "finished"] },
-        "homeId": { "type": "string" },
-        "awayId": { "type": "string" },
-        "scoreA": { "type": "number" },
-        "scoreB": { "type": "number" },
-        "winnerId": { "type": "string" }
+        "seasonId": { "type": "number" },
+        "roundNumber": { "type": "number" },
+        "teams": { "type": "array" },
+        "calendar": { "type": "array" },
+        "lastProcessedDate": { "type": "string" }
       }
     }
   },
@@ -52,22 +32,17 @@
     "providers": ["password", "google.com"]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "players_v10/{userId}",
-        "definition": "PlayerProfile",
-        "description": "User account pointers"
-      },
-      {
-        "path": "leagues_v2/{leagueId}/divisions/{divId}/groups/{groupId}/teams/{userId}",
-        "definition": "Team",
-        "description": "Clubs within the pyramidal structure"
-      },
-      {
-        "path": "matches_v1/{matchId}",
-        "definition": "Match",
-        "description": "Source of Truth for all scheduled engagements"
-      }
-    ]
+    "/players_v10/{userId}": {
+      "schema": "PlayerProfile",
+      "description": "User account and location"
+    },
+    "/leagues_v2/{leagueId}/divisions/{divId}/groups/{groupId}": {
+      "schema": "LeagueGroup",
+      "description": "Autonomous group engine state"
+    },
+    "/matches_v1/{matchId}": {
+      "schema": "Match",
+      "description": "Historical record of all matches"
+    }
   }
 }
