@@ -41,7 +41,6 @@ export const LEAGUES: LeagueOption[] = [
 /**
  * STRICT DETERMINISTIC RESULT GENERATOR.
  * Returns only [2,0], [1,1], [0,2] based on seeded IDs.
- * Used by all match listeners and table generators for 100% sync.
  */
 export function getMatchResult(homeId: string, awayId: string, day: number = 0, season: number = 1): [number, number] {
   const combinedId = `${homeId}-${awayId}-${day}-${season}`;
@@ -53,7 +52,7 @@ export function getMatchResult(homeId: string, awayId: string, day: number = 0, 
   const seed = Math.abs(hash);
   const val = seed % 100;
   
-  // 35% Home Win (2:0), 30% Draw (1:1), 35% Away Win (0:2)
+  // Bo2 Logic: 35% Home Win (2:0), 30% Draw (1:1), 35% Away Win (0:2)
   if (val < 35) return [2, 0];
   if (val < 65) return [1, 1];
   return [0, 2];
@@ -61,7 +60,7 @@ export function getMatchResult(homeId: string, awayId: string, day: number = 0, 
 
 /**
  * Standings calculation logic.
- * Exclusively uses real Firestore data for ground truth.
+ * Strictly aggregates from Firestore data for ground truth.
  */
 export function getGroupStandings(
   level: number,
@@ -74,7 +73,7 @@ export function getGroupStandings(
 ) {
   const teams: any[] = [];
   
-  // 1. Setup participants (Real players)
+  // 1. Setup participants
   const sortedPlayers = [...(realPlayers || [])].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
   sortedPlayers.forEach(p => {
     teams.push({ 
@@ -87,7 +86,6 @@ export function getGroupStandings(
     });
   });
 
-  // 2. Add Bots to fill the group to 8 teams
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   for (let i = 0; i < botsNeeded; i++) {
     const botId = `bot_${level}_${group}_${i}`;
@@ -101,37 +99,24 @@ export function getGroupStandings(
     });
   }
   
-  // Sort teams by ID for deterministic processing
   teams.sort((a, b) => a.id.localeCompare(b.id));
 
-  // 3. Aggregate results
-  // We check both Firestore (dbMatches) and "future" matches if they are already due
-  const nowMs = Date.now();
-  
-  // Instead of just dbMatches, we can deterministically infer results for passed time
-  // to ensure tables are NEVER empty if matches should have happened
-  for (let d = 1; d <= 14; d++) {
-    const dayMatches = generateDeterministicDayMatches(level, group, leagueId, seasonNumber, d, teams);
-    
-    dayMatches.forEach(m => {
-      const startTime = new Date(m.startTime).getTime();
-      const dbMatch = dbMatches.find(dbm => dbm.id === m.id);
-      
-      if (dbMatch?.status === 'finished') {
-        const home = teams.find(t => t.id === dbMatch.homeId);
-        const away = teams.find(t => t.id === dbMatch.awayId);
-        if (home && away) applyResult(home, away, dbMatch.scoreA, dbMatch.scoreB);
-      } else if (nowMs >= startTime) {
-        // Fallback for real-time display if DB record isn't "finished" yet
-        const [sA, sB] = getMatchResult(m.homeId, m.awayId, d, seasonNumber);
-        const home = teams.find(t => t.id === m.homeId);
-        const away = teams.find(t => t.id === m.awayId);
-        if (home && away) applyResult(home, away, sA, sB);
-      }
-    });
-  }
+  // 2. Aggregate from DB matches
+  // Matches must belong to this specific group and season
+  const groupSpecificMatches = dbMatches.filter(m => 
+    m.divisionId === level && 
+    m.groupId === group && 
+    m.leagueId === leagueId && 
+    m.seasonNumber === seasonNumber &&
+    m.status === 'finished'
+  );
 
-  // 4. Return sorted standings: Points > Wins > ID
+  groupSpecificMatches.forEach(m => {
+    const home = teams.find(t => t.id === m.homeId);
+    const away = teams.find(t => t.id === m.awayId);
+    if (home && away) applyResult(home, away, m.scoreA, m.scoreB);
+  });
+
   return teams.sort((a, b) => b.points - a.points || b.wins - a.wins || a.id.localeCompare(b.id));
 }
 
@@ -166,38 +151,32 @@ export function generateDeterministicDayMatches(
   const matches: any[] = [];
   const league = LEAGUES.find(l => l.id === leagueId) || LEAGUES[0];
   
-  // Simple Round-Robin Pairing (Deterministic)
-  // Day 1: 0-7, 1-6, 2-5, 3-4
-  // Day 2: 0-6, 7-5, 1-4, 2-3 ... and so on
   const n = teams.length;
-  const pairings: [number, number][] = [];
+  const participants = Array.from({ length: n }, (_, i) => i);
   
   // Standard circle algorithm for round robin
-  const participants = Array.from({ length: n }, (_, i) => i);
   for (let r = 1; r < day; r++) {
     const last = participants.pop()!;
     participants.splice(1, 0, last);
   }
 
+  const pairings: [number, number][] = [];
   for (let i = 0; i < n / 2; i++) {
     pairings.push([participants[i], participants[n - 1 - i]]);
   }
+
+  // Deterministic Season Epoch
+  const epochDate = new Date('2025-03-03T00:00:00+03:00');
+  const seasonStart = new Date(epochDate.getTime() + (season - 1) * 16 * 24 * 60 * 60 * 1000);
+  const matchDate = new Date(seasonStart.getTime() + (day - 1) * 24 * 60 * 60 * 1000);
+  const [hours, mins] = league.startTime.split(':').map(Number);
+  matchDate.setHours(hours, mins, 0, 0);
 
   pairings.forEach(([hIdx, aIdx], i) => {
     const home = teams[hIdx];
     const away = teams[aIdx];
     const matchId = `match_${season}_${leagueId}_${level}_${group}_d${day}_m${i}`;
     
-    // Set start time based on league schedule and day
-    const startTime = new Date();
-    // Reset to start of season (Season 1 starts March 3, 2025)
-    const epochDate = new Date('2025-03-03T00:00:00+03:00');
-    const seasonStart = new Date(epochDate.getTime() + (season - 1) * 16 * 24 * 60 * 60 * 1000);
-    const matchDate = new Date(seasonStart.getTime() + (day - 1) * 24 * 60 * 60 * 1000);
-    
-    const [hours, mins] = league.startTime.split(':').map(Number);
-    matchDate.setHours(hours, mins, 0, 0);
-
     matches.push({
       id: matchId,
       day,
@@ -210,7 +189,10 @@ export function generateDeterministicDayMatches(
       awayId: away.id,
       awayName: away.name,
       startTime: matchDate.toISOString(),
-      status: 'pending'
+      status: 'pending',
+      scoreA: 0,
+      scoreB: 0,
+      type: 'league'
     });
   });
 

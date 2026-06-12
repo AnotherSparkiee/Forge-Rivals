@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
@@ -15,8 +15,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, collection, query, where } from 'firebase/firestore';
-import { LEAGUES, SEASON_DURATION_DAYS } from '../lib/leagues-data';
+import { doc } from 'firebase/firestore';
+import { LEAGUES } from '../lib/leagues-data';
 import { getMoscowTime, getSeasonDateLabel } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
@@ -32,7 +32,7 @@ export default function MatchesPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { 
-    isLoaded, language, leagueLevel, groupId, seasonDay, rank, 
+    isLoaded, language, leagueLevel, groupId, 
     matchHistory, groupMatches, displayName
   } = useGameState();
   const db = useFirestore();
@@ -51,7 +51,6 @@ export default function MatchesPage() {
 
   const league = useMemo(() => LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0], [profile?.selectedLeagueId]);
 
-  // NEXT LEAGUE MATCH
   const leagueNextMatch = useMemo(() => {
     if (!isLoaded || !groupMatches || groupMatches.length === 0) return null;
     
@@ -106,6 +105,7 @@ export default function MatchesPage() {
     subtitle: language === 'ru' ? "Расписание и История" : "Tactical Schedule & History",
     day: language === 'ru' ? "День" : "Day",
     startsIn: language === 'ru' ? "ДО МАТЧА ОСТАЛОСЬ:" : "TIME UNTIL MATCH:",
+    back: language === 'ru' ? "Назад" : "Back",
     tabs: {
       next_opponent: { label: language === 'ru' ? "Следующий соперник" : "Next Opponent", desc: language === 'ru' ? "Досье на ближайшего врага" : "Detailed brief on your next rival", icon: UserSearch },
       my_future: { label: language === 'ru' ? "Свои будущие" : "My Future", desc: language === 'ru' ? "Предстоящие игры команды" : "Upcoming matches for your team", icon: CalendarClock },

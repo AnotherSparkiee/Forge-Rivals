@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,7 +18,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { doc, collection, query, where } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { COUNTRIES } from '../lib/countries-data';
 
 type MatchStep = 'preview' | 'live' | 'stats';
@@ -30,12 +30,13 @@ function MatchContent() {
   const db = useFirestore();
   const { 
     language, isLoaded, markMatchIdAsSeen,
-    matchHistory, selectedLeagueId, leagueLevel, groupId,
-    arena, id: myId
+    matchHistory, id: myId, arena
   } = useGameState();
 
   const matchIdFromUrl = searchParams.get('id');
   const [step, setStep] = useState<MatchStep>('preview');
+  const [globalMatchData, setGlobalMatchData] = useState<any | null>(null);
+  const [isGlobalLoading, setIsGlobalLoading] = useState(true);
   
   // Live Simulation State
   const [activeGameIdx, setActiveGameIdx] = useState(0);
@@ -46,59 +47,67 @@ function MatchContent() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  const fanclubRef = useMemoFirebase(() => {
-    if (!user || !selectedLeagueId) return null;
-    return doc(db, 'leagues_v2', selectedLeagueId, 'divisions', leagueLevel.toString(), 'groups', groupId.toString(), 'teams', user.uid, 'fanclub', 'stats');
-  }, [db, user, selectedLeagueId, leagueLevel, groupId]);
-  const { data: fanData } = useDoc(fanclubRef);
+  // Fetch match data from global repository if needed
+  useEffect(() => {
+    if (!matchIdFromUrl) {
+      setIsGlobalLoading(false);
+      return;
+    }
 
-  const groupMatchesQuery = useMemoFirebase(() => {
-    if (!selectedLeagueId || !matchIdFromUrl) return null;
-    return query(
-      collection(db, 'matches_v1'),
-      where('id', '==', matchIdFromUrl)
-    );
-  }, [db, selectedLeagueId, matchIdFromUrl]);
-
-  const { data: dbMatches } = useCollection(groupMatchesQuery);
+    const fetchMatch = async () => {
+      setIsGlobalLoading(true);
+      try {
+        const matchRef = doc(db, 'matches_v1', matchIdFromUrl);
+        const snap = await getDoc(matchRef);
+        if (snap.exists()) {
+          setGlobalMatchData(snap.data());
+        }
+      } catch (e) {
+        console.error("Failed to fetch global match", e);
+      } finally {
+        setIsGlobalLoading(false);
+      }
+    };
+    fetchMatch();
+  }, [matchIdFromUrl, db]);
 
   const currentResult = useMemo(() => {
-    if (!profile) return null;
+    if (isGlobalLoading) return null;
     
-    const fromDb = dbMatches?.[0];
-    if (fromDb && fromDb.status === 'finished') {
-      const isHome = fromDb.homeId === user?.uid;
+    // 1. Try global match data first (from autonomous processing)
+    if (globalMatchData && globalMatchData.status === 'finished') {
+      const isHome = globalMatchData.homeId === user?.uid;
       return {
-        id: fromDb.id,
+        id: globalMatchData.id,
         isHome,
-        homeName: fromDb.homeName,
-        awayName: fromDb.awayName,
-        opponentName: isHome ? fromDb.awayName : fromDb.homeName,
-        scoreA: isHome ? fromDb.scoreA : fromDb.scoreB,
-        scoreB: isHome ? fromDb.scoreB : fromDb.scoreA,
-        type: fromDb.type,
-        day: fromDb.day,
-        playedAt: fromDb.finishedAt || fromDb.startTime,
-        games: fromDb.simulation?.games || [fromDb.simulation],
-        seriesScore: fromDb.simulation?.seriesScore || `${fromDb.scoreA}-${fromDb.scoreB}`,
-        winner: fromDb.simulation?.winner
+        homeName: globalMatchData.homeName,
+        awayName: globalMatchData.awayName,
+        opponentName: isHome ? globalMatchData.awayName : globalMatchData.homeName,
+        scoreA: isHome ? globalMatchData.scoreA : globalMatchData.scoreB,
+        scoreB: isHome ? globalMatchData.scoreB : globalMatchData.scoreA,
+        type: globalMatchData.type,
+        day: globalMatchData.day,
+        playedAt: globalMatchData.finishedAt || globalMatchData.startTime,
+        games: globalMatchData.simulation?.games || [globalMatchData.simulation],
+        seriesScore: globalMatchData.simulation?.seriesScore || `${globalMatchData.scoreA}-${globalMatchData.scoreB}`,
+        winner: globalMatchData.simulation?.winner
       };
     }
 
+    // 2. Fallback to local history
     const fromHistory = matchHistory.find(m => m.id === matchIdFromUrl);
     if (fromHistory) return { ...fromHistory, isHome: fromHistory.opponentName !== fromHistory.homeName };
 
     return null;
-  }, [matchHistory, dbMatches, matchIdFromUrl, user?.uid, profile]);
+  }, [matchHistory, globalMatchData, isGlobalLoading, user?.uid]);
 
   const attendance = useMemo(() => {
     if (!arena || !currentResult) return 0;
     if (!currentResult.isHome) return Math.floor((arena.capacity || 5000) * 0.85); 
-    const fanCount = fanData?.fanCount || 5000;
     const baseCap = arena.capacity || 5000;
     const fillingFactor = 0.7 + (Math.random() * 0.3);
-    return Math.min(baseCap, Math.floor(fanCount * fillingFactor));
-  }, [arena, fanData, currentResult]);
+    return Math.floor(baseCap * fillingFactor);
+  }, [arena, currentResult]);
 
   useEffect(() => {
     if (step !== 'live' || !currentResult || !currentResult.games) return;
@@ -107,7 +116,13 @@ function MatchContent() {
     if (!game) return;
 
     const events = game.timeline || [];
-    const totalRealTime = 120; 
+    if (events.length === 0) {
+      // If no timeline, skip to stats
+      setTimeout(() => setStep('stats'), 1000);
+      return;
+    }
+
+    const totalRealTime = 120; // 2 minutes per game
     const intervalMs = (totalRealTime * 1000) / Math.max(1, events.length);
 
     let currentEvt = 0;
@@ -127,7 +142,7 @@ function MatchContent() {
               setActiveGameIdx(prev => prev + 1);
               setVisibleEvents([]);
               setIsTransitioning(false);
-            }, 10000); 
+            }, 10000); // 10s pause
           }, 3000);
         } else {
           setTimeout(() => setStep('stats'), 5000);
@@ -138,7 +153,7 @@ function MatchContent() {
     return () => clearInterval(timer);
   }, [step, activeGameIdx, currentResult]);
 
-  if (isUserLoading || !isLoaded || !user || !currentResult) return <LoadingScreen />;
+  if (isUserLoading || isGlobalLoading || !isLoaded || !user || !currentResult) return <LoadingScreen />;
 
   const handleAcknowledgeMatch = () => {
     markMatchIdAsSeen(currentResult.id);
@@ -165,7 +180,7 @@ function MatchContent() {
       mapTransition: "Switching to next tactical map...",
       mapScore: "Series Standings",
       round: "Round", stage: "Stage", tournament: "Tournament",
-      tournamentTypes: { league: "PRO LEAGUE", cup: "PYRAMID CUP", friendly: "FRIENDLY", trial: "TRIAL" }
+      tournamentTypes: { league: "PRO LEAGUE", cup: "PYRAMID CUP", friendly: "FRIENDLY", trial: "TRIAL", basket: "CW BASKET" }
     },
     ru: {
       reportTitle: "ОФИЦИАЛЬНЫЙ ОТЧЕТ",
@@ -177,7 +192,7 @@ function MatchContent() {
       mapTransition: "Подготовка к следующей карте...",
       mapScore: "Счет в серии",
       round: "Тур", stage: "Стадия", tournament: "Турнир",
-      tournamentTypes: { league: "ПРОФ. ЛИГА", cup: "КУБОК ПИРАМИДЫ", friendly: "ТОВ. МАТЧ", trial: "ПРОБНЫЙ МАТЧ" }
+      tournamentTypes: { league: "ПРОФ. ЛИГА", cup: "КУБОК ПИРАМИДЫ", friendly: "ТОВ. МАТЧ", trial: "ПРОБНЫЙ МАТЧ", basket: "КВ КОРЗИНА" }
     }
   };
 
@@ -186,8 +201,8 @@ function MatchContent() {
   const renderStatsTable = (game: any) => {
     const scoreboard = game.scoreboard || [];
     const isHome = currentResult?.isHome;
-    const hName = isHome ? profile?.displayName : currentResult?.opponentName;
-    const aName = isHome ? currentResult?.opponentName : profile?.displayName;
+    const hName = currentResult?.homeName;
+    const aName = currentResult?.awayName;
     
     const homeHeroes = scoreboard.filter((p: any) => p.team === hName);
     const awayHeroes = scoreboard.filter((p: any) => p.team === aName);
@@ -217,15 +232,15 @@ function MatchContent() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <p className="text-[8px] font-black uppercase tracking-widest text-primary mb-2 flex items-center gap-2">
-             <ShieldCheck className="w-3 h-3" /> {isHome ? t.home : t.away}
+             <ShieldCheck className="w-3 h-3" /> {t.home}
           </p>
-          {homeHeroes.map(p => renderHeroRow(p, 'left'))}
+          {homeHeroes.length > 0 ? homeHeroes.map(p => renderHeroRow(p, 'left')) : <p className="text-[8px] opacity-30 italic">No telemetry data</p>}
         </div>
         <div className="space-y-2">
           <p className="text-[8px] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2 justify-end">
-             {isHome ? t.away : t.home} <Swords className="w-3 h-3" />
+             {t.away} <Swords className="w-3 h-3" />
           </p>
-          {awayHeroes.map(p => renderHeroRow(p, 'right'))}
+          {awayHeroes.length > 0 ? awayHeroes.map(p => renderHeroRow(p, 'right')) : <p className="text-[8px] text-right opacity-30 italic">No telemetry data</p>}
         </div>
       </div>
     );
@@ -259,8 +274,8 @@ function MatchContent() {
               <div className="grid grid-cols-2 divide-x divide-white/5">
                 <div className="p-6 flex flex-col items-center gap-3 text-center">
                   <div className="relative">
-                    <div className="w-20 h-20 rounded-2xl bg-secondary/50 border border-primary/30 flex items-center justify-center shadow-xl">
-                      <span className="text-4xl">{currentResult.isHome ? myFlag : '🏳️'}</span>
+                    <div className="w-20 h-20 rounded-2xl bg-secondary/50 border border-primary/30 flex items-center justify-center shadow-xl text-4xl">
+                      {currentResult.homeName?.includes(profile?.displayName || 'XYZ') ? myFlag : '🏳️'}
                     </div>
                     <Badge className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[7px] font-black uppercase px-2 h-4 border-none">HOME</Badge>
                   </div>
@@ -268,8 +283,8 @@ function MatchContent() {
                 </div>
                 <div className="p-6 flex flex-col items-center gap-3 text-center">
                   <div className="relative">
-                    <div className="w-20 h-20 rounded-2xl bg-secondary/50 border-white/10 flex items-center justify-center shadow-xl">
-                      <span className="text-4xl">{!currentResult.isHome ? myFlag : '🏳️'}</span>
+                    <div className="w-20 h-20 rounded-2xl bg-secondary/50 border-white/10 flex items-center justify-center shadow-xl text-4xl">
+                      {currentResult.awayName?.includes(profile?.displayName || 'XYZ') ? myFlag : '🏳️'}
                     </div>
                     <Badge variant="outline" className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-background border-white/20 text-muted-foreground text-[7px] font-black uppercase px-2 h-4">AWAY</Badge>
                   </div>
@@ -359,7 +374,7 @@ function MatchContent() {
                 <TabsContent key={idx} value={`map${idx+1}`} className="space-y-6">
                   <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl text-center">
                     <p className="text-[9px] text-primary/60 italic leading-relaxed">
-                      "{game.matchSummary}"
+                      "{game.matchSummary || 'Standard tactical protocol executed.'}"
                     </p>
                   </div>
                   
