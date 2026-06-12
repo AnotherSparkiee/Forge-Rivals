@@ -67,15 +67,20 @@ export function getGroupStandings(
   group: number,
   leagueId: string,
   seasonNumber: number,
-  currentDay: number,
   realPlayers: any[] = [],
   dbMatches: any[] = []
 ) {
   const teams: any[] = [];
   
   // 1. Setup participants
-  const sortedPlayers = [...(realPlayers || [])].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
-  sortedPlayers.forEach(p => {
+  // We need to find all real players who BELONG to this specific group
+  const groupPlayers = realPlayers.filter(p => 
+    p.selectedLeagueId === leagueId && 
+    Number(p.leagueLevel) === Number(level) && 
+    Number(p.groupId) === Number(group)
+  );
+
+  groupPlayers.forEach(p => {
     teams.push({ 
       id: p.id, 
       name: p.displayName || "Manager", 
@@ -99,15 +104,16 @@ export function getGroupStandings(
     });
   }
   
+  // Sorting is crucial for consistent indexing in matches
   teams.sort((a, b) => a.id.localeCompare(b.id));
 
   // 2. Aggregate from DB matches
   // Matches must belong to this specific group and season
   const groupSpecificMatches = dbMatches.filter(m => 
-    m.divisionId === level && 
-    m.groupId === group && 
+    Number(m.divisionId) === Number(level) && 
+    Number(m.groupId) === Number(group) && 
     m.leagueId === leagueId && 
-    m.seasonNumber === seasonNumber &&
+    Number(m.seasonNumber) === Number(seasonNumber) &&
     m.status === 'finished'
   );
 
@@ -165,7 +171,7 @@ export function generateDeterministicDayMatches(
     pairings.push([participants[i], participants[n - 1 - i]]);
   }
 
-  // Deterministic Season Epoch
+  // Deterministic Season Epoch (Match with time-utils)
   const epochDate = new Date('2025-03-03T00:00:00+03:00');
   const seasonStart = new Date(epochDate.getTime() + (season - 1) * 16 * 24 * 60 * 60 * 1000);
   const matchDate = new Date(seasonStart.getTime() + (day - 1) * 24 * 60 * 60 * 1000);

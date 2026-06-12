@@ -9,7 +9,7 @@
 import { useEffect, useRef } from 'react';
 import { useGameState, LineupSlot } from '@/app/lib/store';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, updateDoc, setDoc, getDoc, writeBatch } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, getDoc, writeBatch, collection, query, where, getDocs } from 'firebase/firestore';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
 import { getMatchResult, generateDeterministicDayMatches, TEAMS_PER_GROUP } from '@/app/lib/leagues-data';
@@ -50,11 +50,25 @@ export function AutoMatchManager() {
       if (!firstSnap.exists()) {
         console.log("Initializing autonomous group schedule for:", syncKey);
         
-        const teams: any[] = [];
-        for (let i = 0; i < TEAMS_PER_GROUP; i++) {
+        // 1. Get real players in this group to assign correct names
+        const playersRef = collection(db, 'players_v10');
+        const q = query(playersRef, 
+          where('selectedLeagueId', '==', selectedLeagueId),
+          where('leagueLevel', '==', Number(leagueLevel)),
+          where('groupId', '==', Number(groupId))
+        );
+        const playerSnaps = await getDocs(q);
+        const realTeams = playerSnaps.docs.map(d => ({ id: d.id, name: d.data().displayName || "Manager" }));
+        
+        const teams: any[] = [...realTeams];
+        const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
+        for (let i = 0; i < botsNeeded; i++) {
           const botId = `bot_${leagueLevel}_${groupId}_${i}`;
           teams.push({ id: botId, name: `Elite Bot ${i + 1}` });
         }
+        
+        // Deterministic sort for pairing
+        teams.sort((a, b) => a.id.localeCompare(b.id));
         
         const batch = writeBatch(db);
         for (let d = 1; d <= 14; d++) {
@@ -78,7 +92,7 @@ export function AutoMatchManager() {
     processingRef.current.add(match.id);
 
     try {
-      const [finalScoreA, finalScoreB] = getMatchResult(match.homeId, match.awayId, match.day, seasonNumber);
+      const [finalScoreH, finalScoreA] = getMatchResult(match.homeId, match.awayId, match.day, seasonNumber);
       const isOurMatch = match.homeId === userId || match.awayId === userId;
       
       let simulationResult;
@@ -114,17 +128,17 @@ export function AutoMatchManager() {
           teamA: { name: match.homeName, strategy: stratA, heroes: match.homeId === userId ? mySquad : opponentSquad },
           teamB: { name: match.awayName, strategy: stratB, heroes: match.awayId === userId ? mySquad : opponentSquad },
           isBo2: true, 
-          scoreA: finalScoreA, 
-          scoreB: finalScoreB
+          scoreA: finalScoreH, 
+          scoreB: finalScoreA
         });
 
         // Record for local history
         recordMatch(
-          finalScoreA > finalScoreB ? match.homeName : (finalScoreA === finalScoreB ? "Draw" : match.awayName),
+          finalScoreH > finalScoreA ? match.homeName : (finalScoreH === finalScoreA ? "Draw" : match.awayName),
           { 
             ...simulationResult.games[0], 
-            scoreA: finalScoreA, 
-            scoreB: finalScoreB, 
+            scoreA: finalScoreH, 
+            scoreB: finalScoreA, 
             games: simulationResult.games, 
             seriesScore: simulationResult.seriesScore 
           },
@@ -137,11 +151,11 @@ export function AutoMatchManager() {
       } else {
         // Fast deterministic simulation for other matches in the group
         simulationResult = { 
-          winner: finalScoreA > finalScoreB ? match.homeName : (finalScoreA === finalScoreB ? "Draw" : match.awayName), 
-          seriesScore: `${finalScoreA}-${finalScoreB}`, 
+          winner: finalScoreH > finalScoreA ? match.homeName : (finalScoreH === finalScoreA ? "Draw" : match.awayName), 
+          seriesScore: `${finalScoreH}-${finalScoreA}`, 
           games: [
-            { scoreA: finalScoreA > 0 ? 1 : 0, scoreB: finalScoreB > 0 ? 0 : 0, duration: "35:00", matchSummary: "Standard performance.", timeline: [], scoreboard: [] },
-            { scoreA: finalScoreA > 1 ? 1 : 0, scoreB: finalScoreB > 1 ? 1 : 0, duration: "35:00", matchSummary: "Standard performance.", timeline: [], scoreboard: [] }
+            { scoreA: finalScoreH > 0 ? 1 : 0, scoreB: finalScoreA > 0 ? 0 : 0, duration: "35:00", matchSummary: "Standard performance.", timeline: [], scoreboard: [] },
+            { scoreA: finalScoreH > 1 ? 1 : 0, scoreB: finalScoreA > 1 ? 1 : 0, duration: "35:00", matchSummary: "Standard performance.", timeline: [], scoreboard: [] }
           ] 
         };
       }
@@ -149,15 +163,16 @@ export function AutoMatchManager() {
       // Persist result to the global match record
       await updateDoc(doc(db, 'matches_v1', match.id), {
         status: 'finished',
-        scoreA: finalScoreA,
-        scoreB: finalScoreB,
-        winnerId: finalScoreA > finalScoreB ? match.homeId : (finalScoreA < finalScoreB ? match.awayId : null),
+        scoreA: finalScoreH,
+        scoreB: finalScoreA,
+        winnerId: finalScoreH > finalScoreA ? match.homeId : (finalScoreH < finalScoreA ? match.awayId : null),
         simulation: sanitize(simulationResult),
         finishedAt: new Date().toISOString()
       });
 
     } catch (e) {
       console.error("Match persistence failed", match.id, e);
+    } finally {
       processingRef.current.delete(match.id);
     }
   };
@@ -167,7 +182,7 @@ export function AutoMatchManager() {
     
     ensureScheduleExists();
 
-    if (!groupMatches) return;
+    if (!groupMatches || groupMatches.length === 0) return;
     const now = Date.now();
     
     // Find any matches whose startTime has passed but they are still 'pending'
