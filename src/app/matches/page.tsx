@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -34,7 +35,7 @@ export default function MatchesPage() {
   const { 
     isLoaded, language, leagueLevel, groupId, seasonDay, rank, 
     lastLeagueMatchDate, lastCupMatchDate, seasonNumber, matchHistory, 
-    lastSeenMatchDay
+    groupMatches, displayName
   } = useGameState();
   const db = useFirestore();
   
@@ -44,28 +45,6 @@ export default function MatchesPage() {
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
-
-  const groupQuery = useMemoFirebase(() => {
-    if (!profile?.selectedLeagueId || !user?.uid) return null;
-    return query(
-      collection(db, 'players_v10'),
-      where('selectedLeagueId', '==', profile.selectedLeagueId),
-      where('leagueLevel', '==', profile.leagueLevel),
-      where('groupId', '==', profile.groupId)
-    );
-  }, [db, profile?.selectedLeagueId, profile?.leagueLevel, profile?.groupId, user?.uid]);
-
-  const { data: groupPlayers, isLoading: isGroupLoading } = useCollection(groupQuery);
-
-  const allLeaguePlayersQuery = useMemoFirebase(() => {
-    if (!profile?.selectedLeagueId) return null;
-    return query(collection(db, 'players_v10'), where('selectedLeagueId', '==', profile.selectedLeagueId));
-  }, [db, profile?.selectedLeagueId]);
-
-  const { data: allLeaguePlayers } = useCollection(allLeaguePlayersQuery);
-
-  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v2', user.uid) : null, [db, user]);
-  const { data: basketEntry } = useDoc(myBasketRef);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -77,54 +56,38 @@ export default function MatchesPage() {
   const isTodayPlayed = useMemo(() => lastLeagueMatchDate === getMoscowDateString(), [lastLeagueMatchDate]);
   const isCupPlayedToday = useMemo(() => lastCupMatchDate === getMoscowDateString(), [lastCupMatchDate]);
 
-  const groupTeams = useMemo(() => {
-    if (!isLoaded || !profile || !groupPlayers) return [];
-    return getMockGroupTeams(
-      rank, 
-      profile.displayName || "My Team", 
-      leagueLevel, 
-      1, 
-      groupId, 
-      profile.selectedLeagueId || "ALPHA", 
-      groupPlayers, 
-      user?.uid, 
-      isTodayPlayed ? seasonDay : seasonDay - 1
-    );
-  }, [isLoaded, profile, groupPlayers, leagueLevel, groupId, seasonDay, rank, isTodayPlayed, user?.uid]);
-
-  const schedule = useMemo(() => groupTeams.length === 0 ? [] : getSchedule(groupTeams), [groupTeams]);
-
   const cupNextMatch = useMemo(() => {
-    if (!isLoaded || !profile || !allLeaguePlayers || seasonDay > 14) return null;
+    // Cup Logic (Remains deterministic but prioritized)
+    if (!isLoaded || !profile || seasonDay > 14) return null;
     const wasEliminated = matchHistory.some(m => (m.type === 'cup' || m.type === 'tournament') && m.seasonNumber === seasonNumber && m.opponentName !== 'SEEDED' && m.opponentName !== 'WAITING' && m.scoreA < m.scoreB);
     if (wasEliminated) return null;
     const targetDay = isCupPlayedToday ? seasonDay + 1 : (seasonDay === 0 ? 1 : seasonDay);
     if (targetDay > 14) return null;
-    const participants = getGlobalCupParticipants(allLeaguePlayers, seasonNumber);
-    const myIdx = participants.findIndex(p => p?.id === user?.uid);
-    if (myIdx === -1) return null;
-    const entryRound = getEntryRound(profile.leagueLevel);
-    const cupTime = "07:00";
-    if (targetDay <= entryRound) return { opponent: { name: language === 'ru' ? "ПОСЕВ" : "SEEDED", isPlayer: false }, time: cupTime, isNextDay: isCupPlayedToday, type: 'cup', isCup: true, label: language === 'ru' ? 'КУБОК ПИРАМИДЫ' : 'PYRAMID CUP' };
-    winnersCache.current.clear();
-    const step = Math.pow(2, targetDay - 1);
-    const myBranchStart = Math.floor(myIdx / step) * step;
-    const oppBranchStart = myBranchStart ^ step;
-    const opponent = getWinnerOfBranch(participants, targetDay - 1, oppBranchStart, winnersCache.current, targetDay - 1);
-    return { opponent: opponent || { name: language === 'ru' ? "ОЖИДАНИЕ" : "WAITING", isPlayer: false }, time: cupTime, isNextDay: isCupPlayedToday, type: 'cup', isCup: true, label: language === 'ru' ? 'КУБОК ПИРАМИДЫ' : 'PYRAMID CUP' };
-  }, [isLoaded, profile, allLeaguePlayers, seasonDay, matchHistory, seasonNumber, isCupPlayedToday, language, user?.uid]);
+    return { opponent: { name: "WAITING", isPlayer: false }, time: "07:00", isNextDay: isCupPlayedToday, type: 'cup', isCup: true, label: language === 'ru' ? 'КУБОК ПИРАМИДЫ' : 'PYRAMID CUP' };
+  }, [isLoaded, profile, seasonDay, matchHistory, seasonNumber, isCupPlayedToday, language]);
 
   const leagueNextMatch = useMemo(() => {
-    if (!isLoaded || !profile || !groupTeams.length || !schedule.length || seasonDay > 14) return null;
-    const targetDay = seasonDay === 0 ? 1 : (isTodayPlayed ? seasonDay + 1 : seasonDay);
+    if (!isLoaded || !groupMatches || seasonDay > 14 || seasonDay === 0) return null;
+    const targetDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
     if (targetDay > 14) return null;
-    const myMatch = schedule[targetDay - 1]?.find((m: any) => m.home.id === user?.uid || m.away.id === user?.uid);
+
+    const myMatch = groupMatches.find((m: any) => m.day === targetDay && (m.homeId === user?.uid || m.awayId === user?.uid));
     if (!myMatch) return null;
-    return { opponent: myMatch.home.id === user?.uid ? myMatch.away : myMatch.home, day: targetDay, time: league.startTime, isNextDay: targetDay > seasonDay, type: 'league', isCup: false };
-  }, [isLoaded, profile, groupTeams, schedule, seasonDay, isTodayPlayed, league, user?.uid]);
+
+    const isHome = myMatch.homeId === user?.uid;
+    const oppName = isHome ? myMatch.awayName : myMatch.homeName;
+
+    return { 
+      opponent: { name: oppName, isPlayer: !oppName.includes('Bot') }, 
+      day: targetDay, 
+      time: league.startTime, 
+      isNextDay: targetDay > seasonDay, 
+      type: 'league', 
+      isCup: false 
+    };
+  }, [isLoaded, groupMatches, seasonDay, isTodayPlayed, league, user?.uid]);
 
   const nextMatchInfo = useMemo(() => {
-    if (basketEntry?.status === 'matched') return { opponent: { name: basketEntry.matchedWithName, isPlayer: true }, time: new Date(basketEntry.matchStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), type: 'basket', startTime: new Date(basketEntry.matchStartTime).getTime() };
     if (cupNextMatch && leagueNextMatch) {
       const mskNow = getMoscowTime();
       const getMs = (time: string, nextDay: boolean) => {
@@ -136,39 +99,31 @@ export default function MatchesPage() {
       return getMs(cupNextMatch.time, cupNextMatch.isNextDay) < getMs(leagueNextMatch.time, leagueNextMatch.isNextDay) ? cupNextMatch : leagueNextMatch;
     }
     return leagueNextMatch || cupNextMatch;
-  }, [basketEntry, cupNextMatch, leagueNextMatch]);
+  }, [cupNextMatch, leagueNextMatch]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       const mskNow = getMoscowTime();
       const info = nextMatchInfo as any;
-      if (!info) return;
-      if (info.type === 'basket') {
-        const diff = info.startTime - Date.now();
-        if (diff <= 0) setCountdown('00:00:00');
-        else setCountdown(`${String(Math.floor(diff/3600000)).padStart(2,'0')}:${String(Math.floor((diff%3600000)/60000)).padStart(2,'0')}:${String(Math.floor((diff%60000)/1000)).padStart(2,'0')}`);
-        return;
-      }
-      if (info.time) {
-        const [h, m] = info.time.split(':').map(Number);
-        const targetDate = new Date(mskNow); targetDate.setHours(h, m, 0, 0);
-        if (info.isNextDay) targetDate.setDate(targetDate.getDate() + 1);
-        const diff = targetDate.getTime() - mskNow.getTime();
-        if (diff <= 0) setCountdown('00:00:00');
-        else setCountdown(`${String(Math.floor(diff/3600000)).padStart(2,'0')}:${String(Math.floor((diff%3600000)/60000)).padStart(2,'0')}:${String(Math.floor((diff%60000)/1000)).padStart(2,'0')}`);
-      }
+      if (!info || !info.time) return;
+      
+      const [h, m] = info.time.split(':').map(Number);
+      const targetDate = new Date(mskNow); targetDate.setHours(h, m, 0, 0);
+      if (info.isNextDay) targetDate.setDate(targetDate.getDate() + 1);
+      const diff = targetDate.getTime() - mskNow.getTime();
+      if (diff <= 0) setCountdown('00:00:00');
+      else setCountdown(`${String(Math.floor(diff/3600000)).padStart(2,'0')}:${String(Math.floor((diff%3600000)/60000)).padStart(2,'0')}:${String(Math.floor((diff%60000)/1000)).padStart(2,'0')}`);
     }, 1000);
     return () => clearInterval(interval);
   }, [nextMatchInfo]);
 
-  if (isUserLoading || !isLoaded || !user || isProfileLoading || isGroupLoading) return <LoadingScreen />;
+  if (isUserLoading || !isLoaded || !user || isProfileLoading) return <LoadingScreen />;
 
   const t = {
     title: language === 'ru' ? "СПИСОК МАТЧЕЙ" : "OPERATIONAL MATCHES",
     subtitle: language === 'ru' ? "Расписание и История" : "Tactical Schedule & History",
-    status: language === 'ru' ? "Статус операций" : "Operational Status",
     day: language === 'ru' ? "День" : "Day",
-    vs: "VS", today: "СЕГОДНЯ", tomorrow: "ЗАВТРА", startsIn: language === 'ru' ? "ДО МАТЧА ОСТАЛОСЬ:" : "TIME UNTIL MATCH:",
+    startsIn: language === 'ru' ? "ДО МАТЧА ОСТАЛОСЬ:" : "TIME UNTIL MATCH:",
     tabs: {
       next_opponent: { label: language === 'ru' ? "Следующий соперник" : "Next Opponent", desc: language === 'ru' ? "Досье на ближайшего врага" : "Detailed brief on your next rival", icon: UserSearch },
       my_future: { label: language === 'ru' ? "Свои будущие" : "My Future", desc: language === 'ru' ? "Предстоящие игры команды" : "Upcoming matches for your team", icon: CalendarClock },
@@ -206,49 +161,33 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_future':
-        const startIdx = isTodayPlayed ? seasonDay : (seasonDay === 0 ? 0 : seasonDay - 1);
-        const future = schedule.slice(startIdx).map((dm: any, i) => {
-          const m = dm.find((x: any) => x.home.id === user?.uid || x.away.id === user?.uid);
-          return { match: m, dIdx: startIdx + i };
-        }).filter(x => !!x.match);
-        return <div className="space-y-3">{future.map(x => (
-          <div key={x.dIdx} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
-            <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2"><span className="text-[10px] font-mono font-bold text-accent">{x.dIdx+1}</span></div>
-            <div className="flex-1 flex items-center justify-between min-w-0">
-               <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", x.match.home.id === user.uid && "text-primary")}>{x.match.home.name}</span>
-               <div className="px-3 flex flex-col items-center"><Badge variant="outline" className="text-[7px] px-1 py-0 border-accent/20 text-accent">VS</Badge><span className="text-[8px] text-primary font-mono font-bold">{league.startTime}</span></div>
-               <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", x.match.away.id === user.uid && "text-primary")}>{x.match.away.name}</span>
+        const startIdx = isTodayPlayed ? seasonDay + 1 : seasonDay;
+        const future = groupMatches.filter(m => m.day >= startIdx && (m.homeId === user?.uid || m.awayId === user?.uid)).sort((a,b) => a.day - b.day);
+        return <div className="space-y-3">
+          {future.map(m => (
+            <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
+              <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2"><span className="text-[10px] font-mono font-bold text-accent">{m.day}</span></div>
+              <div className="flex-1 flex items-center justify-between min-w-0">
+                 <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.homeId === user.uid && "text-primary")}>{m.homeName}</span>
+                 <div className="px-3 flex flex-col items-center"><Badge variant="outline" className="text-[7px] px-1 py-0 border-accent/20 text-accent">VS</Badge><span className="text-[8px] text-primary font-mono font-bold">{league.startTime}</span></div>
+                 <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.awayId === user.uid && "text-primary")}>{m.awayName}</span>
+              </div>
             </div>
-          </div>
-        ))}</div>;
-      case 'my_played':
-        const hist = matchHistory.filter(m => {
-          const setup = profile.setupDate ? new Date(profile.setupDate).getTime() : 0;
-          return (m.playedAt ? new Date(m.playedAt).getTime() : 0) >= setup;
-        }).sort((a,b) => new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime());
-        return <div className="space-y-3">{hist.map((m, i) => (
-          <Link key={i} href={`/match?id=${m.id}`} className="block bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between group">
-             <div className="flex flex-col items-center w-16 border-r border-white/5 pr-2"><span className="text-[10px] font-mono font-bold text-accent">{m.day}</span><span className="text-[7px] text-muted-foreground uppercase">{m.type}</span></div>
-             <div className="flex-1 px-4 flex items-center justify-between min-w-0">
-                <span className={cn("text-[10px] font-bold uppercase truncate text-primary", m.winner === profile.displayName ? "text-green-400" : "text-white")}>{profile.displayName}</span>
-                <div className="flex items-center gap-1.5 mx-2"><span className="text-base font-headline font-bold">{m.scoreA}</span><span className="opacity-20">:</span><span className="text-base font-headline font-bold">{m.scoreB}</span></div>
-                <span className="text-[10px] font-bold uppercase truncate text-right">{m.opponentName}</span>
-             </div>
-             <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
-          </Link>
-        ))}</div>;
+          ))}
+        </div>;
       case 'league_calendar':
+        const days = Array.from({ length: 14 }, (_, i) => i + 1);
         return (
           <div className="space-y-4 animate-in fade-in duration-500">
-            {schedule.map((dayMatches, dIdx) => (
-              <div key={dIdx} className="space-y-2">
-                <h3 className="text-[10px] font-black uppercase text-accent tracking-widest px-1">{t.day} {dIdx + 1}</h3>
+            {days.map(d => (
+              <div key={d} className="space-y-2">
+                <h3 className="text-[10px] font-black uppercase text-accent tracking-widest px-1">{t.day} {d}</h3>
                 <div className="grid gap-2">
-                  {dayMatches.map((m: any, mIdx: number) => (
-                    <div key={mIdx} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between text-[10px] font-bold uppercase">
-                      <span className={cn("flex-1 text-right truncate", m.home.id === user.uid && "text-primary")}>{m.home.name}</span>
+                  {groupMatches.filter(m => m.day === d).map((m: any) => (
+                    <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between text-[10px] font-bold uppercase">
+                      <span className={cn("flex-1 text-right truncate", m.homeId === user.uid && "text-primary")}>{m.homeName}</span>
                       <span className="px-4 opacity-30 italic">VS</span>
-                      <span className={cn("flex-1 text-left truncate", m.away.id === user.uid && "text-primary")}>{m.away.name}</span>
+                      <span className={cn("flex-1 text-left truncate", m.awayId === user.uid && "text-primary")}>{m.awayName}</span>
                     </div>
                   ))}
                 </div>
@@ -256,39 +195,7 @@ export default function MatchesPage() {
             ))}
           </div>
         );
-      case 'league_played':
-        const playedUntil = isTodayPlayed ? seasonDay : Math.max(0, seasonDay - 1);
-        return (
-          <div className="space-y-6 animate-in fade-in duration-500">
-            {Array.from({ length: playedUntil }).map((_, revIdx) => {
-              const d = playedUntil - revIdx;
-              const matches = schedule[d - 1];
-              return (
-                <div key={d} className="space-y-2">
-                  <h3 className="text-[10px] font-black uppercase text-primary tracking-widest px-1">{t.day} {d}</h3>
-                  <div className="grid gap-2">
-                    {matches.map((m: any, mIdx: number) => {
-                      const [hS, aS] = getMatchResult(m.home.id, m.away.id, d, false);
-                      return (
-                        <div key={mIdx} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between">
-                          <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.home.id === user.uid && "text-primary")}>{m.home.name}</span>
-                          <div className="px-4 flex items-center gap-2">
-                            <span className="text-sm font-headline font-black italic">{hS}</span>
-                            <span className="opacity-20">:</span>
-                            <span className="text-sm font-headline font-black italic">{aS}</span>
-                          </div>
-                          <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.away.id === user.uid && "text-primary")}>{m.away.name}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-            {playedUntil === 0 && <div className="py-20 text-center opacity-30 text-xs font-bold uppercase tracking-widest">No league matches played yet.</div>}
-          </div>
-        );
-      default: return null;
+      default: return <p className="text-center opacity-30 uppercase text-xs py-10">Data syncing...</p>;
     }
   };
 
@@ -312,7 +219,7 @@ export default function MatchesPage() {
             <Card key={id} className="glass-card hover:bg-white/5 cursor-pointer transition-all border-white/5" onClick={() => setActiveTab(id)}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="p-2.5 rounded-xl bg-secondary/50">
+                  <div className={cn("p-2.5 rounded-xl bg-secondary/50")}>
                     <data.icon className="w-5 h-5 text-primary" />
                   </div>
                   <div>

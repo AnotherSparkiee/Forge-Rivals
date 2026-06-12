@@ -39,8 +39,21 @@ export const LEAGUES: LeagueOption[] = [
 ];
 
 /**
+ * Deterministic ID for a match to prevent duplicates during generation.
+ */
+export function generateDeterministicMatchId(
+  leagueId: string,
+  level: number,
+  groupId: number,
+  season: number,
+  day: number,
+  index: number
+): string {
+  return `match_${leagueId}_L${level}_G${groupId}_S${season}_D${day}_I${index}`;
+}
+
+/**
  * Deterministic match result based on team IDs and day.
- * Supports Bo2 (League) and Bo3 (Cup)
  */
 export function getMatchResult(homeId: string, awayId: string, day: number, isBo3: boolean = false): [number, number] {
   const hId = homeId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -49,13 +62,11 @@ export function getMatchResult(homeId: string, awayId: string, day: number, isBo
   const val = seed % 100;
   
   if (isBo3) {
-    // Bo3 (Cup): 2:0, 2:1, 1:2, 0:2. No Draws.
     if (val < 30) return [2, 0]; 
     if (val < 50) return [2, 1]; 
     if (val < 70) return [1, 2]; 
     return [0, 2];
   } else {
-    // Bo2 (League): 2:0, 1:1, 0:2
     if (val < 40) return [2, 0]; 
     if (val < 70) return [1, 1]; 
     return [0, 2]; 
@@ -100,8 +111,6 @@ export function getSchedule(teams: any[]) {
 
 /**
  * Builds the group standings table by simulating all matches up to a specific day.
- * This is the SOURCE OF TRUTH for online rankings.
- * CRITICAL: Strictly filters out players without valid names to avoid "Commander" spam.
  */
 export function getMockGroupTeams(
   playerRank: number, 
@@ -115,99 +124,61 @@ export function getMockGroupTeams(
   upToDay: number = 0 
 ) {
   const teams: any[] = [];
-  
-  // 1. Add valid real players from Firestore
-  const playersList = Array.isArray(realPlayers) ? realPlayers : [];
-  // Stable sort by ID before anything else to ensure consistent slot assignment
-  const sortedRealPlayers = [...playersList].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+  const sortedRealPlayers = [...(realPlayers || [])].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
   
   sortedRealPlayers.forEach(p => {
     const isMe = p.id === currentPlayerId;
-    
-    // STRICT FILTER: Only allow players with names longer than 1 char 
-    // and NOT the default "Commander" or "Unknown Commander" strings.
-    const hasValidName = p.displayName && 
-                        p.displayName.trim().length >= 2 && 
-                        p.displayName !== "Commander" && 
-                        p.displayName !== "Unknown Commander" &&
-                        p.displayName !== "Manager";
+    const hasValidName = p.displayName && p.displayName.trim().length >= 2 && p.displayName !== "Manager";
 
     if (hasValidName || isMe) {
       teams.push({
         id: p.id,
         name: isMe ? (playerName || p.displayName || "My Team") : p.displayName,
-        wins: 0,
-        draws: 0,
-        losses: 0,
-        points: 0,
-        isPlayer: true,
-        isMe: isMe
+        wins: 0, draws: 0, losses: 0, points: 0,
+        isPlayer: true, isMe: isMe
       });
     }
   });
 
-  // 2. Fill remaining slots with UNIQUE bots to maintain TEAMS_PER_GROUP (8)
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   for (let i = 0; i < botsNeeded; i++) {
     const botIdNum = (Number(level) * 1000) + (Number(group) * 10) + i + 1000;
-    const botName = `Elite Bot ${botIdNum}`;
-    
     teams.push({
       id: `bot_${botIdNum}`,
-      name: botName,
-      wins: 0,
-      draws: 0,
-      losses: 0,
-      points: 0,
-      isPlayer: false,
-      isMe: false
+      name: `Elite Bot ${botIdNum}`,
+      wins: 0, draws: 0, losses: 0, points: 0,
+      isPlayer: false, isMe: false
     });
   }
 
-  // Ensure we don't exceed 8 teams (strict cap for league stability)
   const finalTeams = teams.slice(0, TEAMS_PER_GROUP);
-
-  // Final deterministic sort by ID for cross-client scheduling
   finalTeams.sort((a, b) => a.id.localeCompare(b.id));
 
-  // 3. Simulate matches strictly up to upToDay
   if (upToDay > 0) {
     const seasonSchedule = getSchedule(finalTeams);
     const limit = Math.min(upToDay, SEASON_DURATION_DAYS);
-
     for (let d = 1; d <= limit; d++) {
       const matches = seasonSchedule[d - 1];
       if (!matches) continue;
-
       matches.forEach((m: any) => {
         const home = finalTeams.find(t => t.id === m.home.id);
         const away = finalTeams.find(t => t.id === m.away.id);
-        
         if (!home || !away) return;
-
         const [hScore, aScore] = getMatchResult(home.id, away.id, d, false);
         applyResult(home, away, hScore, aScore);
       });
     }
   }
 
-  // 4. Final SORTING for display: Points DESC, then Wins DESC, then ID
   return finalTeams.sort((a, b) => b.points - a.points || b.wins - a.wins || a.id.localeCompare(b.id));
 }
 
 export function applyResult(home: any, away: any, hScore: number, aScore: number) {
   if (hScore > aScore) {
-    home.wins++;
-    home.points += 3;
-    away.losses++;
+    home.wins++; home.points += 3; away.losses++;
   } else if (hScore === aScore) {
-    home.draws++;
-    home.points += 1;
-    away.draws++;
-    away.points += 1;
+    home.draws++; home.points += 1; away.draws++; away.points += 1;
   } else if (aScore > hScore) {
-    away.wins++;
-    away.points += 3;
-    home.losses++;
+    away.wins++; away.points += 3; home.losses++;
   }
 }

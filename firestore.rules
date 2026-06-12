@@ -37,10 +37,11 @@ service cloud.firestore {
       }
     }
 
-    // Global Matches (READ ONLY for clients, WRITE for Server Account)
+    // Global Matches (READ ONLY for clients, WRITE for authenticated users during generation)
     match /matches_v1/{matchId} {
       allow read: if isSignedIn();
-      allow write: if false; 
+      allow create: if isSignedIn(); 
+      allow update: if isSignedIn(); 
     }
 
     // Market & Auctions

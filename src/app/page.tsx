@@ -24,7 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getSeasonDateLabel } from './lib/time-utils';
-import { LEAGUES, getSchedule, getMockGroupTeams } from './lib/leagues-data';
+import { LEAGUES } from './lib/leagues-data';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,7 +39,7 @@ export default function Home() {
   const { toast } = useToast();
   const { 
     language, setLanguage, isLoaded, selectedLeagueId,
-    leagueLevel, groupId, lastLeagueMatchDate, matchHistory,
+    leagueLevel, groupId, lastLeagueMatchDate, groupMatches,
     seasonDay, seasonNumber, displayName
   } = useGameState();
 
@@ -73,42 +73,34 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), [isLoaded]);
 
-  const groupQuery = useMemoFirebase(() => {
-    if (!selectedLeagueId || !user?.uid) return null;
-    return query(
-      collection(db, 'players_v10'),
-      where('selectedLeagueId', '==', selectedLeagueId),
-      where('leagueLevel', '==', leagueLevel),
-      where('groupId', '==', groupId)
-    );
-  }, [db, selectedLeagueId, leagueLevel, groupId, user?.uid]);
-
-  const { data: groupPlayers } = useCollection(groupQuery);
-
+  // Unified Next Match Logic
   const nextMatchData = useMemo(() => {
-    if (!isLoaded || !groupPlayers || seasonDay > 14 || seasonDay === 0) return null;
+    if (!isLoaded || !groupMatches || seasonDay > 14 || seasonDay === 0) return null;
     
     const isTodayPlayed = lastLeagueMatchDate === getMoscowDateString();
     const targetDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
     if (targetDay > 14) return null;
 
-    const teams = getMockGroupTeams(8, displayName, leagueLevel, 1, groupId, selectedLeagueId || "ALPHA", groupPlayers, user?.uid, 0);
-    const schedule = getSchedule(teams);
-    const dayMatches = schedule[targetDay - 1];
-    if (!dayMatches) return null;
+    // Find the match for targetDay in groupMatches
+    const myMatch = groupMatches.find((m: any) => 
+      m.day === targetDay && 
+      (m.homeId === user?.uid || m.awayId === user?.uid)
+    );
 
-    const myMatch = dayMatches.find((m: any) => m.home.id === user?.uid || m.away.id === user?.uid);
     if (!myMatch) return null;
+
+    const isHome = myMatch.homeId === user?.uid;
 
     return {
       match: myMatch,
+      opponentName: isHome ? myMatch.awayName : myMatch.homeName,
       day: targetDay,
       dateLabel: getSeasonDateLabel(targetDay),
       type: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE',
       time: league.startTime,
-      isHome: myMatch.home.id === user?.uid
+      isHome: isHome
     };
-  }, [isLoaded, groupPlayers, seasonDay, lastLeagueMatchDate, leagueLevel, groupId, selectedLeagueId, displayName, user?.uid, language, league.startTime]);
+  }, [isLoaded, groupMatches, seasonDay, lastLeagueMatchDate, language, league.startTime, user?.uid]);
 
   useEffect(() => {
     if (!isLoaded || !selectedLeagueId) return;
@@ -206,7 +198,7 @@ export default function Home() {
   const menu = [ 
     { label: language === 'ru' ? 'Ростер' : 'Roster', href: '/roster', icon: Users, desc: language === 'ru' ? 'Состав команды' : 'Squad management' }, 
     { label: language === 'ru' ? 'Инфраструктура' : 'Infrastructure', href: '/training', icon: Zap, desc: language === 'ru' ? 'База клуба' : 'Facility growth' }, 
-    { label: language === 'ru' ? 'Трансферы' : 'Transfers', href: '/transfers', icon: ArrowRightLeft, desc: language === 'ru' ? 'Рынок героев' : 'Asset market' }, 
+    { label: language === 'ru' ? 'Трансферы' : 'Transfers', href: '/transfers', icon: ShoppingCart, desc: language === 'ru' ? 'Рынок героев' : 'Asset market' }, 
     { label: language === 'ru' ? 'Магазин' : 'Shop', href: '/shop', icon: Store, desc: language === 'ru' ? 'Покупка ресурсов' : 'Resource acquisition' },
     { label: language === 'ru' ? 'Фан-клуб' : 'Fan-club', href: '/fanclub', icon: Heart, desc: language === 'ru' ? 'Болельщики' : 'Supporter management' },
     { label: language === 'ru' ? 'Юношеская школа' : 'Youth Academy', href: '/youth-academy', icon: GraduationCap, desc: language === 'ru' ? 'Центр талантов' : 'Rising stars' },
@@ -253,7 +245,7 @@ export default function Home() {
                   <div className="flex items-center justify-between gap-4 py-2">
                     <div className={cn("flex-1 text-right", nextMatchData?.isHome && "text-primary")}>
                       <p className="text-[7px] font-black uppercase opacity-40 mb-1">{nextMatchData?.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
-                      <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData?.match.home.name || '---'}</p>
+                      <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData?.match.homeName || '---'}</p>
                     </div>
                     <div className="px-3 py-1 rounded-lg bg-background/60 border border-white/5 flex flex-col items-center">
                       <Swords className="w-4 h-4 text-accent" />
@@ -261,7 +253,7 @@ export default function Home() {
                     </div>
                     <div className={cn("flex-1 text-left", !nextMatchData?.isHome && "text-primary")}>
                       <p className="text-[7px] font-black uppercase opacity-40 mb-1">{!nextMatchData?.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
-                      <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData?.match.away.name || '---'}</p>
+                      <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData?.match.awayName || '---'}</p>
                     </div>
                   </div>
 
