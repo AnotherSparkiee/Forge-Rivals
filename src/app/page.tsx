@@ -73,15 +73,16 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), [isLoaded]);
 
-  // Unified Next Match Logic
+  // Unified Next Match Logic (Strictly based on groupMatches from Store)
   const nextMatchData = useMemo(() => {
-    if (!isLoaded || !groupMatches || seasonDay > 14 || seasonDay === 0) return null;
+    if (!isLoaded || !groupMatches || groupMatches.length === 0 || seasonDay > 14 || seasonDay === 0) return null;
     
     const isTodayPlayed = lastLeagueMatchDate === getMoscowDateString();
     const targetDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
+    
     if (targetDay > 14) return null;
 
-    // Find the match for targetDay in groupMatches
+    // Find the current/next official match from the pre-generated DB schedule
     const myMatch = groupMatches.find((m: any) => 
       m.day === targetDay && 
       (m.homeId === user?.uid || m.awayId === user?.uid)
@@ -107,6 +108,7 @@ export default function Home() {
 
     const timer = setInterval(() => {
       const mskNow = getMoscowTime();
+      
       if (seasonInfo.seasonDay === 15) {
         const transitionTarget = new Date(mskNow);
         transitionTarget.setHours(16, 0, 0, 0);
@@ -115,15 +117,20 @@ export default function Home() {
         return;
       }
 
-      const [h, m] = league.startTime.split(':').map(Number);
-      const target = new Date(mskNow);
-      target.setHours(h, m, 0, 0);
-      const todayStr = getMoscowDateString();
-      if (mskNow.getTime() >= target.getTime() || lastLeagueMatchDate === todayStr) {
-        target.setDate(target.getDate() + 1);
+      const matchInfo = nextMatchData;
+      if (!matchInfo) {
+        setCountdown('00:00:00');
+        return;
       }
+
+      const target = new Date(matchInfo.match.startTime);
       const diff = target.getTime() - mskNow.getTime();
-      setCountdown(formatDiff(diff));
+      
+      if (diff <= 0) {
+        setCountdown('00:00:00');
+      } else {
+        setCountdown(formatDiff(diff));
+      }
     }, 1000);
 
     const formatDiff = (ms: number) => {
@@ -133,7 +140,7 @@ export default function Home() {
       return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
     };
     return () => clearInterval(timer);
-  }, [isLoaded, selectedLeagueId, league, lastLeagueMatchDate, seasonInfo]);
+  }, [isLoaded, selectedLeagueId, league, lastLeagueMatchDate, seasonInfo, nextMatchData]);
 
   if (isUserLoading) return <LoadingScreen />;
 
@@ -191,9 +198,9 @@ export default function Home() {
   if (!isLoaded) return <LoadingScreen />;
 
   const tHub = {
-    en: { nextMatch: seasonInfo.seasonDay === 15 ? "Season Transition" : "Next Engagement", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", transition: "Forming new groups..." },
-    ru: { nextMatch: seasonInfo.seasonDay === 15 ? "Смена сезона" : "Следующий матч", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", transition: "Формирование новых групп..." }
-  }[language as 'en' | 'ru'] || { nextMatch: "Match", battleBtn: "Overview", navTitle: "Terminals", transition: "Transition" };
+    en: { nextMatch: seasonInfo.seasonDay === 15 ? "Season Transition" : "Next Engagement", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", transition: "Forming new groups...", sync: "SYNCING CALENDAR..." },
+    ru: { nextMatch: seasonInfo.seasonDay === 15 ? "Смена сезона" : "Следующий матч", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", transition: "Формирование новых групп...", sync: "СИНХРОНИЗАЦИЯ..." }
+  }[language as 'en' | 'ru'] || { nextMatch: "Match", battleBtn: "Overview", navTitle: "Terminals", transition: "Transition", sync: "SYNCING..." };
 
   const menu = [ 
     { label: language === 'ru' ? 'Ростер' : 'Roster', href: '/roster', icon: Users, desc: language === 'ru' ? 'Состав команды' : 'Squad management' }, 
@@ -234,7 +241,7 @@ export default function Home() {
                 <div className="space-y-4">
                   <div className="flex flex-col items-center gap-1">
                     <Badge variant="outline" className="bg-primary/10 border-primary/20 text-primary text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5">
-                      {nextMatchData?.type || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ' : 'SYNCING')}
+                      {nextMatchData?.type || tHub.sync}
                     </Badge>
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Calendar className="w-3 h-3" />
@@ -242,28 +249,37 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-4 py-2">
-                    <div className={cn("flex-1 text-right", nextMatchData?.isHome && "text-primary")}>
-                      <p className="text-[7px] font-black uppercase opacity-40 mb-1">{nextMatchData?.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
-                      <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData?.match.homeName || '---'}</p>
-                    </div>
-                    <div className="px-3 py-1 rounded-lg bg-background/60 border border-white/5 flex flex-col items-center">
-                      <Swords className="w-4 h-4 text-accent" />
-                      <span className="text-[8px] font-black text-accent mt-1">VS</span>
-                    </div>
-                    <div className={cn("flex-1 text-left", !nextMatchData?.isHome && "text-primary")}>
-                      <p className="text-[7px] font-black uppercase opacity-40 mb-1">{!nextMatchData?.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
-                      <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData?.match.awayName || '---'}</p>
-                    </div>
-                  </div>
+                  {nextMatchData ? (
+                    <>
+                      <div className="flex items-center justify-between gap-4 py-2">
+                        <div className={cn("flex-1 text-right", nextMatchData.isHome && "text-primary")}>
+                          <p className="text-[7px] font-black uppercase opacity-40 mb-1">{nextMatchData.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
+                          <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData.match.homeName}</p>
+                        </div>
+                        <div className="px-3 py-1 rounded-lg bg-background/60 border border-white/5 flex flex-col items-center">
+                          <Swords className="w-4 h-4 text-accent" />
+                          <span className="text-[8px] font-black text-accent mt-1">VS</span>
+                        </div>
+                        <div className={cn("flex-1 text-left", !nextMatchData.isHome && "text-primary")}>
+                          <p className="text-[7px] font-black uppercase opacity-40 mb-1">{!nextMatchData.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
+                          <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData.match.awayName}</p>
+                        </div>
+                      </div>
 
-                  {nextMatchData?.isHome ? (
-                    <div className="flex items-center justify-center gap-2 text-[8px] font-black text-primary/60 uppercase tracking-widest">
-                      <HomeIcon className="w-3 h-3" /> {language === 'ru' ? 'ВАША АРЕНА' : 'OWN ARENA'}
-                    </div>
+                      {nextMatchData.isHome ? (
+                        <div className="flex items-center justify-center gap-2 text-[8px] font-black text-primary/60 uppercase tracking-widest">
+                          <HomeIcon className="w-3 h-3" /> {language === 'ru' ? 'ВАША АРЕНА' : 'OWN ARENA'}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center gap-2 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
+                          <MapPin className="w-3 h-3" /> {language === 'ru' ? 'ВЫЕЗДНОЙ СЕКТОР' : 'AWAY SECTOR'}
+                        </div>
+                      )}
+                    </>
                   ) : (
-                    <div className="flex items-center justify-center gap-2 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
-                      <MapPin className="w-3 h-3" /> {language === 'ru' ? 'ВЫЕЗДНОЙ СЕКТОР' : 'AWAY SECTOR'}
+                    <div className="py-4 opacity-30 flex flex-col items-center">
+                       <Loader2 className="w-6 h-6 animate-spin mb-2" />
+                       <p className="text-[10px] font-bold uppercase">{tHub.sync}</p>
                     </div>
                   )}
                 </div>

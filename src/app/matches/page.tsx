@@ -41,7 +41,6 @@ export default function MatchesPage() {
   
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
   const [countdown, setCountdown] = useState('');
-  const winnersCache = useRef<Map<string, any>>(new Map());
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -56,8 +55,8 @@ export default function MatchesPage() {
   const isTodayPlayed = useMemo(() => lastLeagueMatchDate === getMoscowDateString(), [lastLeagueMatchDate]);
   const isCupPlayedToday = useMemo(() => lastCupMatchDate === getMoscowDateString(), [lastCupMatchDate]);
 
+  // NEXT CUP MATCH (Deterministic for now, based on day)
   const cupNextMatch = useMemo(() => {
-    // Cup Logic (Remains deterministic but prioritized)
     if (!isLoaded || !profile || seasonDay > 14) return null;
     const wasEliminated = matchHistory.some(m => (m.type === 'cup' || m.type === 'tournament') && m.seasonNumber === seasonNumber && m.opponentName !== 'SEEDED' && m.opponentName !== 'WAITING' && m.scoreA < m.scoreB);
     if (wasEliminated) return null;
@@ -66,8 +65,9 @@ export default function MatchesPage() {
     return { opponent: { name: "WAITING", isPlayer: false }, time: "07:00", isNextDay: isCupPlayedToday, type: 'cup', isCup: true, label: language === 'ru' ? 'КУБОК ПИРАМИДЫ' : 'PYRAMID CUP' };
   }, [isLoaded, profile, seasonDay, matchHistory, seasonNumber, isCupPlayedToday, language]);
 
+  // NEXT LEAGUE MATCH (Strictly synchronized with the DB schedule)
   const leagueNextMatch = useMemo(() => {
-    if (!isLoaded || !groupMatches || seasonDay > 14 || seasonDay === 0) return null;
+    if (!isLoaded || !groupMatches || groupMatches.length === 0 || seasonDay > 14 || seasonDay === 0) return null;
     const targetDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
     if (targetDay > 14) return null;
 
@@ -80,12 +80,14 @@ export default function MatchesPage() {
     return { 
       opponent: { name: oppName, isPlayer: !oppName.includes('Bot') }, 
       day: targetDay, 
+      match: myMatch,
       time: league.startTime, 
       isNextDay: targetDay > seasonDay, 
       type: 'league', 
-      isCup: false 
+      isCup: false,
+      label: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE'
     };
-  }, [isLoaded, groupMatches, seasonDay, isTodayPlayed, league, user?.uid]);
+  }, [isLoaded, groupMatches, seasonDay, isTodayPlayed, league, user?.uid, language]);
 
   const nextMatchInfo = useMemo(() => {
     if (cupNextMatch && leagueNextMatch) {
@@ -107,12 +109,23 @@ export default function MatchesPage() {
       const info = nextMatchInfo as any;
       if (!info || !info.time) return;
       
-      const [h, m] = info.time.split(':').map(Number);
-      const targetDate = new Date(mskNow); targetDate.setHours(h, m, 0, 0);
-      if (info.isNextDay) targetDate.setDate(targetDate.getDate() + 1);
-      const diff = targetDate.getTime() - mskNow.getTime();
+      let target;
+      if (info.type === 'league' && info.match) {
+        target = new Date(info.match.startTime);
+      } else {
+        const [h, m] = info.time.split(':').map(Number);
+        target = new Date(mskNow); target.setHours(h, m, 0, 0);
+        if (info.isNextDay) target.setDate(target.getDate() + 1);
+      }
+
+      const diff = target.getTime() - mskNow.getTime();
       if (diff <= 0) setCountdown('00:00:00');
-      else setCountdown(`${String(Math.floor(diff/3600000)).padStart(2,'0')}:${String(Math.floor((diff%3600000)/60000)).padStart(2,'0')}:${String(Math.floor((diff%60000)/1000)).padStart(2,'0')}`);
+      else {
+        const hh = Math.floor(diff / 3600000);
+        const mm = Math.floor((diff % 3600000) / 60000);
+        const ss = Math.floor((diff % 60000) / 1000);
+        setCountdown(`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`);
+      }
     }, 1000);
     return () => clearInterval(interval);
   }, [nextMatchInfo]);
@@ -136,7 +149,7 @@ export default function MatchesPage() {
   const renderContent = () => {
     switch (activeTab) {
       case 'next_opponent':
-        if (!nextMatchInfo) return <p className="text-center py-10 text-muted-foreground uppercase text-xs">Season Finished</p>;
+        if (!nextMatchInfo) return <p className="text-center py-20 text-muted-foreground uppercase text-xs">Season Finished</p>;
         const info = nextMatchInfo as any;
         return (
           <div className="space-y-6 animate-in fade-in duration-500">
@@ -161,6 +174,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_future':
+        if (!groupMatches || groupMatches.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">Syncing schedule...</div>;
         const startIdx = isTodayPlayed ? seasonDay + 1 : seasonDay;
         const future = groupMatches.filter(m => m.day >= startIdx && (m.homeId === user?.uid || m.awayId === user?.uid)).sort((a,b) => a.day - b.day);
         return <div className="space-y-3">
@@ -176,6 +190,7 @@ export default function MatchesPage() {
           ))}
         </div>;
       case 'league_calendar':
+        if (!groupMatches || groupMatches.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">Syncing calendar...</div>;
         const days = Array.from({ length: 14 }, (_, i) => i + 1);
         return (
           <div className="space-y-4 animate-in fade-in duration-500">

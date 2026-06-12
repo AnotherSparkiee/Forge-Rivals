@@ -111,6 +111,7 @@ export function getSchedule(teams: any[]) {
 
 /**
  * Builds the group standings table by simulating all matches up to a specific day.
+ * PROPERLY DETERMINISTIC: Sorts real players before filling with bots.
  */
 export function getMockGroupTeams(
   playerRank: number, 
@@ -124,6 +125,7 @@ export function getMockGroupTeams(
   upToDay: number = 0 
 ) {
   const teams: any[] = [];
+  // 1. Sort all found real players by ID for deterministic slotting
   const sortedRealPlayers = [...(realPlayers || [])].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
   
   sortedRealPlayers.forEach(p => {
@@ -140,6 +142,7 @@ export function getMockGroupTeams(
     }
   });
 
+  // 2. Fill remaining slots with Elite Bots (also deterministic)
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   for (let i = 0; i < botsNeeded; i++) {
     const botIdNum = (Number(level) * 1000) + (Number(group) * 10) + i + 1000;
@@ -151,6 +154,7 @@ export function getMockGroupTeams(
     });
   }
 
+  // 3. Take exactly 8 teams and sort by ID once more to ensure round-robin matches indices
   const finalTeams = teams.slice(0, TEAMS_PER_GROUP);
   finalTeams.sort((a, b) => a.id.localeCompare(b.id));
 
