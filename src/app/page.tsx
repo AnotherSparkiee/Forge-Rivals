@@ -135,8 +135,8 @@ export default function Home() {
 
     const formatDiff = (ms: number) => {
       const hh = Math.floor(ms / 3600000);
-      const mm = Math.floor((ms % 3600000) / 60000);
-      const ss = Math.floor((ms % 60000) / 1000);
+      const mm = Math.floor((diff % 3600000) / 60000);
+      const ss = Math.floor((diff % 60000) / 1000);
       return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
     };
     return () => clearInterval(timer);

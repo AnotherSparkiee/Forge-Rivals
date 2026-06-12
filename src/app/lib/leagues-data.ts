@@ -73,39 +73,56 @@ export function getMatchResult(homeId: string, awayId: string, day: number, isBo
   }
 }
 
+/**
+ * Generates a 14-day Round Robin schedule for 8 teams.
+ * Guaranteed Home-and-Away cycle with alternating status.
+ */
 export function getSchedule(teams: any[]) {
   const n = teams.length;
-  if (n === 0) return [];
-  const rounds = n - 1;
+  if (n !== 8) return []; // System strictly designed for 8-team groups
+  
+  const rounds = n - 1; // 7 rounds in a single circle
   const half = n / 2;
 
   const teamsCopy = [...teams];
-  const fullSchedule = [];
+  const circleMatches = [];
 
+  // Circle Method for Round Robin
   for (let r = 0; r < rounds; r++) {
     const roundMatches = [];
     for (let i = 0; i < half; i++) {
       const home = teamsCopy[i];
       const away = teamsCopy[n - 1 - i];
-      roundMatches.push({ home, away });
+      
+      // Alternate home/away based on round for better distribution
+      if (r % 2 === 0) {
+        roundMatches.push({ home, away });
+      } else {
+        roundMatches.push({ home: away, away: home });
+      }
     }
-    fullSchedule.push(roundMatches);
+    circleMatches.push(roundMatches);
+    
+    // Rotate teams: fix first team, move others
     const last = teamsCopy.pop();
     if (last) teamsCopy.splice(1, 0, last);
   }
 
+  // Create full 14-day season
   const seasonSchedule = [];
-  for (let d = 1; d <= SEASON_DURATION_DAYS; d++) {
+  for (let d = 1; d <= 14; d++) {
     const matchDayIdx = (d - 1) % rounds;
-    const isSecondRound = d > rounds;
-    const dayMatches = fullSchedule[matchDayIdx];
+    const isSecondCircle = d > rounds;
+    const dayMatches = circleMatches[matchDayIdx];
     
-    if (isSecondRound) {
+    if (isSecondCircle) {
+      // Reverse home/away status for the second encounter
       seasonSchedule.push(dayMatches.map(m => ({ home: m.away, away: m.home })));
     } else {
       seasonSchedule.push(dayMatches);
     }
   }
+  
   return seasonSchedule;
 }
 
@@ -158,6 +175,7 @@ export function getMockGroupTeams(
   const finalTeams = teams.slice(0, TEAMS_PER_GROUP);
   finalTeams.sort((a, b) => a.id.localeCompare(b.id));
 
+  // 4. Calculate standings based on the FIXED schedule
   if (upToDay > 0) {
     const seasonSchedule = getSchedule(finalTeams);
     const limit = Math.min(upToDay, SEASON_DURATION_DAYS);
