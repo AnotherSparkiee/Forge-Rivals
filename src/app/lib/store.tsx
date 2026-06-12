@@ -2,7 +2,7 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище данных клуба с системой предварительной генерации матчей.
+ * @fileOverview Глобальное хранилище данных клуба с системой синхронизированных матчей.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
@@ -33,8 +33,6 @@ interface GameState {
   lineSettings: any;
   rewardDay: number;
   lastRewardClaimDate: string | null;
-  lastLeagueMatchDate: string | null;
-  lastCupMatchDate: string | null;
   matchHistory: any[];
   groupMatches: any[]; 
   lastSeenMatchDay: number;
@@ -98,7 +96,7 @@ const DEFAULT_STATE: GameState = {
   ownedHeroes: [], youthAcademyHeroes: [],
   staff: { coach: null, analyst: null, scout: null, doctor: null, financier: null },
   strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' },
-  rewardDay: 1, lastRewardClaimDate: null, lastLeagueMatchDate: null, lastCupMatchDate: null, matchHistory: [], groupMatches: [], lastSeenMatchDay: 0,
+  rewardDay: 1, lastRewardClaimDate: null, matchHistory: [], groupMatches: [], lastSeenMatchDay: 0,
   managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
   managerLevel: 1, skillPoints: 0, lastProcessedSeason: 0,
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
@@ -126,49 +124,20 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const setLanguage = (l: string) => setLang(l);
 
-  // Group Matches Listener - Centralized for all components
+  // Group Matches Listener - Syncs the entire group
   const groupMatchesQuery = useMemoFirebase(() => {
-    // Only run if the root data is fully loaded
     if (!state.selectedLeagueId || !state.id) return null;
-    
-    const info = getGlobalSeasonInfo();
+    const { activeSeasonNumber } = getGlobalSeasonInfo();
     return query(
       collection(db, 'matches_v1'),
       where('leagueId', '==', state.selectedLeagueId),
       where('divisionId', '==', state.leagueLevel),
       where('groupId', '==', state.groupId),
-      where('seasonNumber', '==', info.activeSeasonNumber)
+      where('seasonNumber', '==', activeSeasonNumber)
     );
   }, [db, state.selectedLeagueId, state.leagueLevel, state.groupId, state.id]);
 
   const { data: dbMatches } = useCollection(groupMatchesQuery);
-
-  const processSeasonTransition = useCallback(async (userId: string, rootData: any, teamData: any) => {
-    const { activeSeasonNumber } = getGlobalSeasonInfo();
-    if (teamData.lastProcessedSeason >= activeSeasonNumber) return;
-
-    console.log("ARCHITECT: Season transition triggered for", userId);
-    const groupTeams = getMockGroupTeams(8, teamData.displayName || "My Team", rootData.leagueLevel, 1, rootData.groupId, rootData.selectedLeagueId, [], userId, 14);
-    const myRank = groupTeams.findIndex(t => t.id === userId) + 1;
-
-    let newLevel = rootData.leagueLevel;
-    if (myRank === 1 && newLevel > 1) newLevel--;
-    if (myRank >= 7 && newLevel < 9) newLevel++;
-
-    const maxGroups = Math.pow(2, newLevel - 1);
-    const newGroupId = Math.floor(Math.random() * maxGroups) + 1;
-
-    const batch = writeBatch(db);
-    const rootRef = doc(db, 'players_v10', userId);
-    const oldTeamRef = doc(db, 'leagues_v2', rootData.selectedLeagueId, 'divisions', String(rootData.leagueLevel), 'groups', String(rootData.groupId), 'teams', userId);
-    const newTeamRef = doc(db, 'leagues_v2', rootData.selectedLeagueId, 'divisions', String(newLevel), 'groups', String(newGroupId), 'teams', userId);
-
-    batch.update(rootRef, { leagueLevel: newLevel, groupId: newGroupId });
-    batch.set(newTeamRef, { ...teamData, lastProcessedSeason: activeSeasonNumber, wins: 0, draws: 0, losses: 0, points: 0 }, { merge: true });
-    if (oldTeamRef.path !== newTeamRef.path) batch.delete(oldTeamRef);
-
-    await batch.commit();
-  }, [db]);
 
   useEffect(() => {
     if (isUserLoading || !user) {
@@ -198,8 +167,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const unsubTeam = onSnapshot(teamRef, (teamSnap) => {
         if (!teamSnap.exists()) return;
         const teamData = teamSnap.data() || {};
-        processSeasonTransition(user.uid, rootData, teamData);
-
+        
         const heroesUnsub = onSnapshot(collection(teamRef, 'heroes'), (hSnap) => {
           const allHeroes = hSnap.docs.map(d => ({ ...d.data(), id: d.id } as Hero));
           const staffUnsub = onSnapshot(collection(teamRef, 'staff'), (sSnap) => {
@@ -215,7 +183,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
               skillPoints: teamData.skillPoints ?? 0, lineup: teamData.lineup || s.lineup,
               strategy: teamData.strategy || 'Balanced Play', lineSettings: teamData.lineSettings || s.lineSettings,
               rewardDay: teamData.rewardDay ?? 1, lastRewardClaimDate: teamData.lastRewardClaimDate ?? null,
-              lastLeagueMatchDate: teamData.lastLeagueMatchDate ?? null, lastCupMatchDate: teamData.lastCupMatchDate ?? null,
               matchHistory: teamData.matchHistory ?? [], lastSeenMatchDay: teamData.lastSeenMatchDay ?? 0,
               managerSkills: teamData.managerSkills ?? { sponsors: 0, agents: 0, training: 0, medical: 0 },
               arena: teamData.arena ?? { capacity: 5000 }, hq: teamData.hq ?? {}, bootcamp: teamData.bootcamp ?? {},
@@ -231,94 +198,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       });
     });
     return () => unsubRoot();
-  }, [user, isUserLoading, db, lang, processSeasonTransition, dbMatches]);
-
-  // CALENDAR GENERATOR
-  useEffect(() => {
-    const s = stateRef.current;
-    if (!s.isLoaded || !s.selectedLeagueId || !user) return;
-
-    const generateScheduleIfMissing = async () => {
-      const { activeSeasonNumber, seasonDay, isTransitionPhase } = getGlobalSeasonInfo();
-
-      const existingQuery = query(
-        collection(db, 'matches_v1'),
-        where('leagueId', '==', s.selectedLeagueId),
-        where('divisionId', '==', s.leagueLevel),
-        where('groupId', '==', s.groupId),
-        where('seasonNumber', '==', activeSeasonNumber)
-      );
-      
-      const snap = await getDocs(existingQuery);
-      if (snap.size >= 56) return;
-
-      console.log("ARCHITECT: Initializing schedule for Season", activeSeasonNumber);
-      
-      const playersQuery = query(
-        collection(db, 'players_v10'),
-        where('selectedLeagueId', '==', s.selectedLeagueId),
-        where('leagueLevel', '==', s.leagueLevel),
-        where('groupId', '==', s.groupId)
-      );
-      const playersSnap = await getDocs(playersQuery);
-      const players = playersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      
-      const teams = getMockGroupTeams(8, s.displayName, s.leagueLevel, 1, s.groupId, s.selectedLeagueId!, players, s.id, 0);
-      const seasonSchedule = getSchedule(teams);
-      
-      const batch = writeBatch(db);
-      const leagueInfo = LEAGUES.find(l => l.id === s.selectedLeagueId) || LEAGUES[0];
-      const [h, m] = leagueInfo.startTime.split(':').map(Number);
-      
-      const mskNow = getMoscowTime();
-
-      seasonSchedule.forEach((dayMatches, dIdx) => {
-        const day = dIdx + 1;
-        dayMatches.forEach((match: any, mIdx: number) => {
-          const matchId = generateDeterministicMatchId(s.selectedLeagueId!, s.leagueLevel, s.groupId, activeSeasonNumber, day, mIdx);
-          const matchRef = doc(db, 'matches_v1', matchId);
-          
-          const startTime = new Date(mskNow);
-          
-          let daysToMatch = 0;
-          if (isTransitionPhase) {
-            daysToMatch = (17 - seasonDay) + (day - 1);
-          } else {
-            daysToMatch = (day - seasonDay);
-          }
-          
-          startTime.setDate(startTime.getDate() + daysToMatch);
-          startTime.setHours(h, m, 0, 0);
-
-          const matchData = {
-            id: matchId,
-            leagueId: s.selectedLeagueId,
-            divisionId: s.leagueLevel,
-            groupId: s.groupId,
-            seasonNumber: activeSeasonNumber,
-            day: day,
-            startTime: startTime.toISOString(),
-            type: 'league',
-            status: 'pending',
-            homeId: match.home.id,
-            homeName: match.home.name,
-            awayId: match.away.id,
-            awayName: match.away.name,
-            scoreA: 0,
-            scoreB: 0,
-            winnerId: null,
-            createdAt: serverTimestamp()
-          };
-          batch.set(matchRef, matchData, { merge: true });
-        });
-      });
-      
-      await batch.commit();
-      console.log("ARCHITECT: Schedule synchronized.");
-    };
-
-    generateScheduleIfMissing();
-  }, [db, user, state.isLoaded, state.activeSeasonNumber, state.leagueLevel, state.groupId, state.selectedLeagueId]);
+  }, [user, isUserLoading, db, lang, dbMatches]);
 
   const getRefs = useCallback(() => {
     const s = stateRef.current;
@@ -478,7 +358,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const s = stateRef.current;
     const mId = matchId || `match_${Date.now()}`;
     
-    // Предотвращаем дублирование истории
     if (s.matchHistory.some(m => m.id === mId)) return;
 
     const newEntry = {
@@ -486,7 +365,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       winner, 
       scoreA: result.scoreA, 
       scoreB: result.scoreB,
-      matchSummary: result.matchSummary, 
+      matchSummary: result.matchSummary || "Combat protocol finalized.", 
       opponentName, 
       type, 
       playedAt, 
@@ -544,4 +423,3 @@ export function useGameState() {
   if (context === undefined) throw new Error('useGameState must be used within a GameStateProvider');
   return context;
 }
-

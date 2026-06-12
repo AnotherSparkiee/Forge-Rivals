@@ -2,14 +2,14 @@
 'use client';
 
 /**
- * @fileOverview Глобальный синхронизированный симулятор матчей.
- * Обрабатывает ВСЕ матчи группы одновременно для поддержания единого рейтинга.
+ * @fileOverview Глобальный синхронизированный менеджер матчей.
+ * Гарантирует проведение всех матчей группы и запись их в Firestore.
  */
 
 import { useState, useEffect, useRef } from 'react';
 import { useGameState, LineupSlot } from '@/app/lib/store';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, updateDoc, getDocs, getDoc } from 'firebase/firestore';
+import { useUser, useFirestore } from '@/firebase';
+import { collection, query, where, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { 
   Dialog, DialogContent, DialogTitle, DialogDescription
 } from '@/components/ui/dialog';
@@ -27,7 +27,7 @@ function sanitize(obj: any) {
 
 export function AutoMatchManager() {
   const { 
-    isLoaded, selectedLeagueId, leagueLevel, groupId, id: userId, 
+    isLoaded, selectedLeagueId, id: userId, 
     strategy, ownedHeroes, lineup, recordMatch, displayName, language,
     groupMatches
   } = useGameState();
@@ -37,35 +37,24 @@ export function AutoMatchManager() {
   
   const [showResultDialog, setShowResultDialog] = useState(false);
   const [lastMatch, setLastMatch] = useState<any | null>(null);
-  const [isSimulating, setIsSimulating] = useState(false);
-  
-  // Отслеживание матчей, которые уже симулируются этим клиентом
   const processedMatches = useRef<Set<string>>(new Set());
 
   const performSimulation = async (match: any) => {
     if (processedMatches.current.has(match.id)) return;
     processedMatches.current.add(match.id);
     
-    // Метка для UI только если это наш матч
     const isOurMatch = match.homeId === userId || match.awayId === userId;
-    if (isOurMatch) setIsSimulating(true);
 
     try {
-      console.log(`ARCHITECT: Syncing group match ${match.id}`);
-      
-      const isHome = match.homeId === userId;
-      const isAway = match.awayId === userId;
-
-      // 1. Детерминированный результат (для консистентности очков в группе)
+      // 1. Детерминированный результат (единый для всех клиентов)
       const [finalScoreA, finalScoreB] = getMatchResult(match.homeId, match.awayId, match.day, false);
 
-      // 2. Сбор данных для симуляции
-      let squadA: any[] = [];
-      let squadB: any[] = [];
+      // 2. Сбор данных (только если это наш матч)
       let strategyA = 'Balanced Play';
       let strategyB = 'Balanced Play';
+      let squadA = generateBotSquad(25);
+      let squadB = generateBotSquad(25);
 
-      // Если это наш матч, берем реальных героев. Если нет - ботов (для синхронности группы)
       if (isOurMatch) {
         const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
         const myHeroes = activeSlots.map(slot => ownedHeroes.find(h => h.id === lineup[slot])).filter(Boolean);
@@ -73,15 +62,11 @@ export function AutoMatchManager() {
           name: h!.name, role: h!.role, overallRating: h!.overallRating, proStats: h!.proStats, isSub: false
         }));
         
-        if (isHome) { squadA = mySquad; strategyA = strategy; squadB = generateBotSquad(25); }
-        else { squadB = mySquad; strategyB = strategy; squadA = generateBotSquad(25); }
-      } else {
-        // Матч других игроков группы
-        squadA = generateBotSquad(25);
-        squadB = generateBotSquad(25);
+        if (match.homeId === userId) { squadA = mySquad; strategyA = strategy; }
+        else { squadB = mySquad; strategyB = strategy; }
       }
 
-      // 3. AI Симуляция (для таймлайна и статистики)
+      // 3. AI Симуляция
       const simulationResult = await simulateMobaMatch({
         teamA: { name: match.homeName, strategy: strategyA, heroes: squadA },
         teamB: { name: match.awayName, strategy: strategyB, heroes: squadB },
@@ -90,7 +75,7 @@ export function AutoMatchManager() {
         scoreB: finalScoreB
       });
 
-      // 4. Глобальное обновление в matches_v1
+      // 4. Запись в БД (Source of Truth)
       const matchRef = doc(db, 'matches_v1', match.id);
       const finishedData = {
         status: 'finished',
@@ -103,17 +88,18 @@ export function AutoMatchManager() {
 
       await updateDoc(matchRef, finishedData);
 
-      // 5. Локальная запись в историю (только если наш матч)
+      // 5. Персональная история и уведомление
       if (isOurMatch) {
-        const myResultScoreA = isHome ? finalScoreA : finalScoreB;
-        const myResultScoreB = isHome ? finalScoreB : finalScoreA;
-        const myWinner = myResultScoreA > myResultScoreB ? displayName : (myResultScoreA === myResultScoreB ? "Draw" : (isHome ? match.awayName : match.homeName));
+        const isHome = match.homeId === userId;
+        const myScoreA = isHome ? finalScoreA : finalScoreB;
+        const myScoreB = isHome ? finalScoreB : finalScoreA;
+        const myWinner = myScoreA > myScoreB ? displayName : (myScoreA === myScoreB ? "Draw" : (isHome ? match.awayName : match.homeName));
 
         recordMatch(
           myWinner,
           {
-            scoreA: myResultScoreA,
-            scoreB: myResultScoreB,
+            scoreA: myScoreA,
+            scoreB: myScoreB,
             duration: simulationResult.games[0].duration,
             mvp: simulationResult.games[0].mvp,
             matchSummary: simulationResult.games[0].matchSummary,
@@ -131,31 +117,28 @@ export function AutoMatchManager() {
 
         setLastMatch({ ...match, ...finishedData });
         setShowResultDialog(true);
-        toast({ title: language === 'ru' ? "Ваш матч завершен!" : "Your match completed!" });
+        toast({ title: language === 'ru' ? "Матч завершен!" : "Match completed!" });
       }
-
     } catch (error) {
-      console.error("Simulation failed", error);
+      console.error("Simulation failed for", match.id, error);
       processedMatches.current.delete(match.id);
-    } finally {
-      if (isOurMatch) setIsSimulating(false);
     }
   };
 
   useEffect(() => {
-    if (!groupMatches || !userId || !isLoaded) return;
-    const mskNow = Date.now();
+    if (!isLoaded || !groupMatches || !userId) return;
+    const now = Date.now();
     
-    // Ищем ВСЕ матчи группы, время которых пришло, но они еще не завершены
-    const pendingMatches = groupMatches.filter(m => {
+    // Ищем все матчи группы, время которых пришло
+    const dueMatches = groupMatches.filter(m => {
       const startTime = new Date(m.startTime).getTime();
-      return m.status === 'pending' && mskNow >= startTime;
+      return m.status === 'pending' && now >= startTime;
     });
 
-    pendingMatches.forEach(match => {
+    dueMatches.forEach(match => {
       performSimulation(match);
     });
-  }, [groupMatches, userId, isLoaded]);
+  }, [groupMatches, isLoaded, userId]);
 
   if (!isLoaded || !selectedLeagueId) return null;
 
@@ -163,7 +146,7 @@ export function AutoMatchManager() {
     <Dialog open={showResultDialog} onOpenChange={setShowResultDialog}>
       <DialogContent className="max-w-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
         <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
-          <div className="mx-auto w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary shadow-[0_0_20px_rgba(var(--primary),0.3)]">
+          <div className="mx-auto w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary">
             <Trophy className="w-8 h-8 text-primary animate-bounce" />
           </div>
           <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">OFFICIAL RESULT</DialogTitle>

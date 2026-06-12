@@ -55,11 +55,16 @@ export function generateDeterministicMatchId(
 /**
  * Deterministic match result based on team IDs and day.
  * Returns series score for Bo2 (2:0, 1:1, 0:2)
+ * Ensuring all clients get exactly same result.
  */
 export function getMatchResult(homeId: string, awayId: string, day: number, isBo3: boolean = false): [number, number] {
-  const hId = homeId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const aId = awayId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const seed = (hId * 13) + (aId * 37) + (day * 7);
+  const combinedId = (homeId || "") + (awayId || "");
+  let hash = 0;
+  for (let i = 0; i < combinedId.length; i++) {
+    hash = ((hash << 5) - hash) + combinedId.charCodeAt(i);
+    hash |= 0;
+  }
+  const seed = Math.abs(hash + day * 13);
   const val = seed % 100;
   
   if (isBo3) {
@@ -68,10 +73,10 @@ export function getMatchResult(homeId: string, awayId: string, day: number, isBo
     if (val < 70) return [1, 2]; 
     return [0, 2];
   } else {
-    // Bo2 Format
-    if (val < 35) return [2, 0]; // Home win
-    if (val < 65) return [1, 1]; // Draw
-    return [0, 2]; // Away win
+    // Bo2 Format: 35% Home Win, 30% Draw, 35% Away Win
+    if (val < 35) return [2, 0];
+    if (val < 65) return [1, 1];
+    return [0, 2];
   }
 }
 
@@ -119,7 +124,7 @@ export function getSchedule(teams: any[]) {
 }
 
 /**
- * Builds the group standings table by prioritizing actual DB matches.
+ * Builds the group standings table based ONLY on database matches.
  */
 export function getMockGroupTeams(
   playerRank: number, 
@@ -138,16 +143,12 @@ export function getMockGroupTeams(
   
   sortedRealPlayers.forEach(p => {
     const isMe = p.id === currentPlayerId;
-    const hasValidName = p.displayName && p.displayName.trim().length >= 2 && p.displayName !== "Manager";
-
-    if (hasValidName || isMe) {
-      teams.push({
-        id: p.id,
-        name: isMe ? (playerName || p.displayName || "My Team") : p.displayName,
-        wins: 0, draws: 0, losses: 0, points: 0,
-        isPlayer: true, isMe: isMe
-      });
-    }
+    teams.push({
+      id: p.id,
+      name: p.displayName || "Unknown Manager",
+      wins: 0, draws: 0, losses: 0, points: 0,
+      isPlayer: true, isMe: isMe
+    });
   });
 
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
@@ -164,7 +165,7 @@ export function getMockGroupTeams(
   const finalTeams = teams.slice(0, TEAMS_PER_GROUP);
   finalTeams.sort((a, b) => a.id.localeCompare(b.id));
 
-  // 1. First, apply actual results from database matches (Sync)
+  // APPLY ACTUAL DB RESULTS
   if (dbMatches && dbMatches.length > 0) {
     dbMatches.forEach(m => {
       if (m.status === 'finished') {
@@ -188,14 +189,11 @@ export function getMockGroupTeams(
  */
 export function applyResult(home: any, away: any, hScore: number, aScore: number) {
   if (hScore === 2) {
-    // Home Win
     home.wins++; home.points += 3; away.losses++;
   } else if (hScore === 1 && aScore === 1) {
-    // Draw
     home.draws++; home.points += 1; 
     away.draws++; away.points += 1;
   } else if (aScore === 2) {
-    // Away Win
     away.wins++; away.points += 3; home.losses++;
   }
 }
