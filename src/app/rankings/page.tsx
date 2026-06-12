@@ -7,19 +7,20 @@ import { useGameState } from '../lib/store';
 import { 
   Trophy, Medal, ChevronLeft, ChevronRight, 
   Search, Crown, Shield, 
-  ArrowUp, ArrowDown, Activity
+  ArrowUp, ArrowDown, Activity, Globe,
+  Layers, List, LayoutGrid, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
-import { getMockGroupTeams } from '../lib/leagues-data';
+import { getMockGroupTeams, LEAGUES } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-type RankingTab = 'menu' | 'my_league' | 'pyramid_cup';
+type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'pyramid_cup';
 
 export default function RankingsPage() {
   const { user, isUserLoading } = useUser();
@@ -31,115 +32,268 @@ export default function RankingsPage() {
   const db = useFirestore();
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
+  
+  // States for deep navigation in pyramids
+  const [navLeague, setNavLeague] = useState<string | null>(null);
+  const [navLevel, setNavLevel] = useState<number | null>(null);
+  const [navGroup, setNavGroup] = useState<number | null>(null);
 
-  const teamsQuery = useMemoFirebase(() => {
-    if (!selectedLeagueId) return null;
-    return query(collection(db, 'players_v10'), where('selectedLeagueId', '==', selectedLeagueId));
-  }, [db, selectedLeagueId]);
+  // Data for the table view (current context)
+  const contextLeagueId = navLeague || selectedLeagueId || "ALPHA";
+  const contextLevel = navLevel || leagueLevel;
+  const contextGroup = navGroup || groupId;
 
-  const { data: allPlayers, isLoading: isPlayersLoading } = useCollection(teamsQuery);
+  const playersQuery = useMemoFirebase(() => {
+    return query(
+      collection(db, 'players_v10'), 
+      where('selectedLeagueId', '==', contextLeagueId),
+      where('leagueLevel', '==', contextLevel),
+      where('groupId', '==', contextGroup)
+    );
+  }, [db, contextLeagueId, contextLevel, contextGroup]);
 
-  const groupStandings = useMemo(() => {
-    if (!isLoaded || !allPlayers) return [];
-    // We filter by leagueLevel and groupId in the data helper
-    return getMockGroupTeams(rank, displayName, leagueLevel, 1, groupId, selectedLeagueId || "ALPHA", allPlayers, user?.uid, seasonDay);
-  }, [isLoaded, allPlayers, rank, displayName, leagueLevel, groupId, selectedLeagueId, user?.uid, seasonDay]);
+  const { data: contextPlayers, isLoading: isPlayersLoading } = useCollection(playersQuery);
 
-  if (isUserLoading || !isLoaded || isPlayersLoading) return <LoadingScreen />;
+  const standings = useMemo(() => {
+    if (!isLoaded) return [];
+    return getMockGroupTeams(
+      rank, 
+      displayName, 
+      contextLevel, 
+      1, 
+      contextGroup, 
+      contextLeagueId, 
+      contextPlayers || [], 
+      user?.uid, 
+      seasonDay
+    );
+  }, [isLoaded, contextPlayers, rank, displayName, contextLevel, contextGroup, contextLeagueId, user?.uid, seasonDay]);
+
+  if (isUserLoading || !isLoaded) return <LoadingScreen />;
 
   const translations = {
     en: {
       title: "RANKINGS HUB",
       subtitle: "Global Competitive Terminals",
       my_league: "My League",
+      my_pyramid: "My Pyramid",
+      all_pyramids: "All Pyramids",
       pyramid_cup: "Pyramid Cup",
       promotion: "PROMOTION",
       relegation: "RELEGATION",
       pts: "PTS",
       winLoss: "W-L",
       back: "Back",
+      selectLeague: "Select League",
+      selectLevel: "Select Division",
+      selectGroup: "Select Group",
+      division: "Division",
+      group: "Group",
+      groups: "Groups",
+      teams: "Teams",
       menu: [
-        { id: 'my_league', label: 'My League', desc: `Division ${leagueLevel}.${groupId}`, icon: Trophy, color: 'text-primary' },
-        { id: 'pyramid_cup', label: 'Pyramid Cup', desc: 'Global knockout tournament', icon: Medal, color: 'text-accent' },
+        { id: 'my_league', label: 'My League', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
+        { id: 'my_pyramid', label: 'My Pyramid', desc: `Structure of ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
+        { id: 'all_pyramids', label: 'All Pyramids', desc: 'Global 16-league data', icon: Globe, color: 'text-blue-400' },
+        { id: 'pyramid_cup', label: 'Pyramid Cup', desc: 'Knockout tournament', icon: Medal, color: 'text-yellow-500' },
       ]
     },
     ru: {
       title: "ТАБЛИЦЫ РЕЙТИНГА",
       subtitle: "Терминалы глобальных соревнований",
       my_league: "Своя лига",
+      my_pyramid: "Своя пирамида",
+      all_pyramids: "Все пирамиды",
       pyramid_cup: "Кубок пирамиды",
       promotion: "ПОВЫШЕНИЕ",
       relegation: "ВЫЛЕТ",
       pts: "ОЧК",
       winLoss: "В-П",
       back: "Назад",
+      selectLeague: "Выберите лигу",
+      selectLevel: "Выберите дивизион",
+      selectGroup: "Выберите группу",
+      division: "Дивизион",
+      group: "Группа",
+      groups: "Групп",
+      teams: "Команд",
       menu: [
-        { id: 'my_league', label: 'Своя лига', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Trophy, color: 'text-primary' },
-        { id: 'pyramid_cup', label: 'Кубок пирамиды', desc: 'Глобальный турнир на выбывание', icon: Medal, color: 'text-accent' },
+        { id: 'my_league', label: 'Своя лига', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
+        { id: 'my_pyramid', label: 'Своя пирамида', desc: `Структура лиги ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
+        { id: 'all_pyramids', label: 'Все пирамиды', desc: 'Данные всех 16 лиг', icon: Globe, color: 'text-blue-400' },
+        { id: 'pyramid_cup', label: 'Кубок пирамиды', desc: 'Турнир на выбывание', icon: Medal, color: 'text-yellow-500' },
       ]
     }
   };
 
   const t = translations[language as 'en' | 'ru'] || translations.ru;
 
+  const resetDeepNav = () => {
+    setNavLeague(null);
+    setNavLevel(null);
+    setNavGroup(null);
+  };
+
+  const renderTable = (showBreadcrumbs = false) => (
+    <div className="space-y-4 animate-in fade-in duration-500">
+      {showBreadcrumbs && (
+        <div className="flex items-center gap-2 px-1 mb-4 overflow-x-auto scrollbar-hide">
+          <Button variant="ghost" size="sm" className="h-6 text-[8px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setNavGroup(null)}>
+            {contextLeagueId} / DIV {contextLevel}
+          </Button>
+          <ChevronRight className="w-3 h-3 text-muted-foreground" />
+          <Badge className="bg-primary text-primary-foreground text-[8px] font-black uppercase">GROUP {contextGroup}</Badge>
+        </div>
+      )}
+
+      <div className="space-y-1">
+        <div className="grid grid-cols-[30px_1fr_60px_40px] items-center px-4 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest">
+          <span>#</span>
+          <span>Team</span>
+          <span className="text-center">{t.winLoss}</span>
+          <span className="text-right">{t.pts}</span>
+        </div>
+
+        {isPlayersLoading ? (
+          <div className="py-20 text-center opacity-50"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
+        ) : standings.map((entry, i) => (
+          <div 
+            key={entry.id} 
+            className={cn(
+              "grid grid-cols-[30px_1fr_60px_40px] items-center p-3 rounded-xl border transition-all",
+              entry.isMe ? "bg-primary/20 border-primary/40 ring-1 ring-primary/20" : "bg-secondary/20 border-white/5",
+              i < 2 && !entry.isMe && "border-green-500/10",
+              i >= 6 && !entry.isMe && "border-red-500/10"
+            )}
+          >
+            <div className={cn("text-xs font-black italic", i < 2 ? "text-green-400" : (i >= 6 ? "text-red-400" : "text-muted-foreground"))}>{i + 1}</div>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-[11px] font-bold uppercase truncate text-white">{entry.name}</span>
+              {entry.isMe && <Badge className="text-[6px] h-3 px-1 bg-primary text-primary-foreground font-black">YOU</Badge>}
+            </div>
+            <div className="text-center font-mono text-[10px] font-bold text-muted-foreground">{entry.wins}-{entry.losses}</div>
+            <div className="text-right font-headline font-black text-primary italic">{entry.points}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   const renderContent = () => {
     switch (activeTab) {
       case 'my_league':
+        return renderTable();
+
+      case 'my_pyramid':
+        if (navGroup !== null) return renderTable(true);
+        if (navLevel !== null) {
+          // Division level view: show all groups in this level
+          // Based on 8 teams per group rule and doubling groups per level
+          // For simplicity and matching GROUPS_PER_DIVISION from leagues-data:
+          const groupCount = Math.pow(2, navLevel - 1); 
+          return (
+            <div className="space-y-4 animate-in fade-in duration-500">
+               <Button variant="ghost" size="sm" className="h-8 text-[10px] font-black uppercase text-primary" onClick={() => setNavLevel(null)}>
+                 <ChevronLeft className="w-4 h-4 mr-1" /> {t.back}
+               </Button>
+               <h3 className="text-[10px] font-black uppercase text-accent tracking-widest px-1">
+                 {t.division} {navLevel} / {groupCount} {t.groups}
+               </h3>
+               <div className="grid grid-cols-2 gap-2">
+                 {Array.from({ length: Math.min(groupCount, 64) }).map((_, i) => (
+                   <Card key={i} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => setNavGroup(i + 1)}>
+                     <CardContent className="p-4 flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase">{t.group} {i + 1}</span>
+                        <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                     </CardContent>
+                   </Card>
+                 ))}
+                 {groupCount > 64 && <div className="col-span-2 py-4 text-center opacity-40 text-[8px] uppercase font-black">Showing first 64 groups</div>}
+               </div>
+            </div>
+          );
+        }
         return (
-          <div className="space-y-4 animate-in fade-in duration-500">
-            <header className="flex items-center justify-between px-1">
-              <h3 className="text-[10px] font-black uppercase text-accent tracking-widest flex items-center gap-2">
-                <Shield className="w-3.5 h-3.5" /> DIVISION {leagueLevel}.{groupId}
-              </h3>
-            </header>
+          <div className="space-y-3 animate-in fade-in duration-500">
+            {Array.from({ length: 9 }).map((_, i) => {
+              const lvl = i + 1;
+              const gCount = Math.pow(2, lvl - 1);
+              return (
+                <Card key={lvl} className={cn(
+                  "glass-card border-white/5 hover:border-primary/30 transition-all cursor-pointer",
+                  lvl === leagueLevel && "border-primary/40 bg-primary/5"
+                )} onClick={() => setNavLevel(lvl)}>
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-2.5 rounded-xl bg-secondary/50 text-primary">
+                        <span className="text-sm font-black italic">{lvl}</span>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold uppercase">{t.division} {lvl}</h3>
+                        <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest">{gCount} {t.groups} / {gCount * 8} {t.teams}</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        );
 
-            <div className="space-y-1">
-              <div className="grid grid-cols-[30px_1fr_60px_40px] items-center px-4 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest">
-                <span>#</span>
-                <span>Team</span>
-                <span className="text-center">{t.winLoss}</span>
-                <span className="text-right">{t.pts}</span>
-              </div>
-
-              {groupStandings.map((entry, i) => {
-                const isPromo = i < 2;
-                const isRel = i >= 6;
-                return (
-                  <div 
-                    key={entry.id} 
-                    className={cn(
-                      "grid grid-cols-[30px_1fr_60px_40px] items-center p-3 rounded-xl border transition-all",
-                      entry.isMe ? "bg-primary/20 border-primary/40 ring-1 ring-primary/20 scale-[1.02] z-10" : "bg-secondary/20 border-white/5",
-                      isPromo && !entry.isMe && "border-green-500/10",
-                      isRel && !entry.isMe && "border-red-500/10 opacity-80"
-                    )}
-                  >
-                    <div className={cn("text-xs font-black italic", isPromo ? "text-green-400" : (isRel ? "text-red-400" : "text-muted-foreground"))}>
-                      {i + 1}
-                    </div>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-[11px] font-bold uppercase truncate text-white">{entry.name}</span>
-                      {entry.isMe && <Badge className="text-[6px] h-3 px-1 bg-primary text-primary-foreground font-black">YOU</Badge>}
-                    </div>
-                    <div className="text-center font-mono text-[10px] font-bold text-muted-foreground">
-                      {entry.wins}-{entry.losses}
-                    </div>
-                    <div className="text-right font-headline font-black text-primary italic">
-                      {entry.points}
-                    </div>
-                  </div>
-                );
-              })}
+      case 'all_pyramids':
+        if (navGroup !== null) return renderTable(true);
+        if (navLevel !== null) {
+           const groupCount = Math.pow(2, navLevel - 1);
+           return (
+             <div className="space-y-4 animate-in fade-in duration-500">
+                <Button variant="ghost" size="sm" className="h-8 text-[10px] font-black uppercase text-primary" onClick={() => setNavLevel(null)}>
+                  <ChevronLeft className="w-4 h-4 mr-1" /> {t.back}
+                </Button>
+                <h3 className="text-[10px] font-black uppercase text-accent tracking-widest px-1">
+                  {navLeague} / {t.division} {navLevel}
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {Array.from({ length: Math.min(groupCount, 64) }).map((_, i) => (
+                    <Card key={i} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => setNavGroup(i + 1)}>
+                      <CardContent className="p-4 flex items-center justify-between">
+                         <span className="text-[10px] font-bold uppercase">{t.group} {i + 1}</span>
+                         <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+             </div>
+           );
+        }
+        if (navLeague !== null) {
+          return (
+            <div className="space-y-3 animate-in fade-in duration-500">
+               <Button variant="ghost" size="sm" className="h-8 text-[10px] font-black uppercase text-primary" onClick={() => setNavLeague(null)}>
+                 <ChevronLeft className="w-4 h-4 mr-1" /> {t.back}
+               </Button>
+               <h3 className="text-[10px] font-black uppercase text-accent tracking-widest px-1">{navLeague} / {t.selectLevel}</h3>
+               {Array.from({ length: 9 }).map((_, i) => (
+                 <Card key={i+1} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => setNavLevel(i + 1)}>
+                   <CardContent className="p-4 flex items-center justify-between">
+                     <span className="text-sm font-bold uppercase">{t.division} {i + 1}</span>
+                     <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                   </CardContent>
+                 </Card>
+               ))}
             </div>
-
-            <div className="grid grid-cols-2 gap-2 mt-4 px-1">
-              <div className="flex items-center gap-2 text-[8px] font-black text-green-400 uppercase tracking-widest">
-                <ArrowUp className="w-2.5 h-2.5" /> {t.promotion} (1-2)
-              </div>
-              <div className="flex items-center gap-2 text-[8px] font-black text-red-400 uppercase tracking-widest justify-end">
-                <ArrowDown className="w-2.5 h-2.5" /> {t.relegation} (7-8)
-              </div>
-            </div>
+          );
+        }
+        return (
+          <div className="grid grid-cols-2 gap-2 animate-in fade-in duration-500">
+            {LEAGUES.map((l) => (
+              <Card key={l.id} className="glass-card border-white/5 hover:border-primary/30 transition-all cursor-pointer" onClick={() => setNavLeague(l.id)}>
+                <CardContent className="p-4 text-center">
+                   <h3 className="text-sm font-black italic text-primary">{l.id}</h3>
+                   <p className="text-[8px] text-muted-foreground uppercase font-bold mt-1 tracking-widest">{l.startTime} MSK</p>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         );
 
@@ -164,7 +318,7 @@ export default function RankingsPage() {
         {activeTab === 'menu' ? (
           <Link href="/"><Button variant="ghost" size="icon" className="rounded-full border border-white/5"><ChevronLeft className="w-6 h-6" /></Button></Link>
         ) : (
-          <Button variant="ghost" size="icon" className="rounded-full border border-white/5" onClick={() => setActiveTab('menu')}><ChevronLeft className="w-6 h-6" /></Button>
+          <Button variant="ghost" size="icon" className="rounded-full border border-white/5" onClick={() => { setActiveTab('menu'); resetDeepNav(); }}><ChevronLeft className="w-6 h-6" /></Button>
         )}
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
