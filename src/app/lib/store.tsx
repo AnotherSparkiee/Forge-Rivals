@@ -125,20 +125,20 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const setLanguage = (l: string) => setLang(l);
 
-  // Group Matches Listener
+  // Group Matches Listener - Centralized for all components
   const groupMatchesQuery = useMemoFirebase(() => {
-    const s = stateRef.current;
-    if (!s.selectedLeagueId || !s.isLoaded || !user) return null;
+    // Only run if the root data is fully loaded
+    if (!state.selectedLeagueId || !state.id) return null;
     
     const info = getGlobalSeasonInfo();
     return query(
       collection(db, 'matches_v1'),
-      where('leagueId', '==', s.selectedLeagueId),
-      where('divisionId', '==', s.leagueLevel),
-      where('groupId', '==', s.groupId),
+      where('leagueId', '==', state.selectedLeagueId),
+      where('divisionId', '==', state.leagueLevel),
+      where('groupId', '==', state.groupId),
       where('seasonNumber', '==', info.activeSeasonNumber)
     );
-  }, [db, state.selectedLeagueId, state.leagueLevel, state.groupId, state.isLoaded, user]);
+  }, [db, state.selectedLeagueId, state.leagueLevel, state.groupId, state.id]);
 
   const { data: dbMatches } = useCollection(groupMatchesQuery);
 

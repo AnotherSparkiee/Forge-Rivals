@@ -1,6 +1,6 @@
 /**
  * @fileOverview Ядро расчетов времени на основе UTC.
- * Все игровые события синхронизированы относительно 00:00 UTC.
+ * Все игровые события синхронизированы относительно фиксированной эпохи.
  */
 
 /**
@@ -43,12 +43,13 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
   
   const targetDate = new Date(mskNow);
   
-  // Если мы в фазе подготовки (15-16), то Day 1 — это завтра или послезавтра
   if (info.isTransitionPhase) {
+    // В фазе подготовки (15-16) мы смотрим на следующий сезон
+    // Рассчитываем сколько дней осталось до конца текущего 16-дневного цикла
     const daysUntilNewSeason = (17 - info.seasonDay);
     targetDate.setDate(mskNow.getDate() + daysUntilNewSeason + (dayOfSeason - 1));
   } else {
-    // Внутри сезона
+    // Внутри активного сезона
     const diffDays = dayOfSeason - info.seasonDay;
     targetDate.setDate(mskNow.getDate() + diffDays);
   }
@@ -61,32 +62,29 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
 /**
  * Глобальный расчет сезона. 
  * Цикл: 16 дней (14 игры + 2 переход).
- * СИНХРОНИЗАЦИЯ: Сезон 1 начинается ЗАВТРА в 00:00 MSK.
+ * СТАТИЧЕСКАЯ ЭПОХА: Сезон 1 начинается 3 Марта 2025 в 00:00 MSK.
  */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   
-  // КРИТИЧЕСКИЙ СБРОС: Точка отсчета Сезона 1.
-  // Завтра 00:00 MSK наступит Сезон 1, День 1.
-  const baseDate = new Date(mskNow);
-  baseDate.setDate(mskNow.getDate() + 1); 
-  baseDate.setHours(0, 0, 0, 0);
+  // ФИКСИРОВАННАЯ ТОЧКА ОТСЧЕТА (Понедельник, 3 Марта 2025)
+  // Это гарантирует, что seasonNumber не меняется произвольно.
+  const epochDate = new Date('2025-03-03T00:00:00+03:00');
   
-  const epoch = baseDate.getTime(); 
-  const diffMs = mskNow.getTime() - epoch;
+  const diffMs = mskNow.getTime() - epochDate.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   
   const cycleDuration = 16; 
   
-  // Текущий день в цикле.
+  // Текущий день в цикле (1-16)
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
   let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
   
-  // В период подготовки (день 15-16) мы уже работаем с БУДУЩИМ сезоном
-  const isTransitionPhase = currentSeasonDay >= 15;
+  // Если diffDays отрицательный (время до 3 марта), seasonNumber будет <= 0.
+  // Форсируем Сезон 1 для периода подготовки.
+  const isTransitionPhase = currentSeasonDay >= 15 || currentSeasonNumber < 1;
   
-  // Для первого запуска: если сезон получился 0 или меньше, форсируем 1
-  const effectiveSeason = Math.max(1, isTransitionPhase ? currentSeasonNumber + 1 : currentSeasonNumber);
+  const effectiveSeason = Math.max(1, (currentSeasonDay >= 15) ? currentSeasonNumber + 1 : currentSeasonNumber);
   
   return {
     seasonDay: currentSeasonDay,

@@ -71,18 +71,19 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), [isLoaded]);
 
-  // Unified Next Match Logic
+  // Unified Next Match Logic - Global Search across all group matches
   const nextMatchData = useMemo(() => {
-    if (!isLoaded || !groupMatches || groupMatches.length === 0) return null;
+    if (!isLoaded || !groupMatches) return null;
+    if (groupMatches.length === 0) return null;
     
     const mskNow = getMoscowTime().getTime();
     
-    // Ищем любой матч, который еще не прошел.
-    // В фазе подготовки (дни 15-16) это будет самый первый матч нового сезона.
+    // Ищем любой матч, который еще не прошел, независимо от дня.
+    // Это гарантирует, что в фазе подготовки мы увидим завтрашний матч (День 1).
     const sortedMatches = [...groupMatches]
       .filter(m => {
         const matchTime = new Date(m.startTime).getTime();
-        // Включаем матчи, которые стартуют сегодня или в будущем
+        // Включаем только матчи, которые стартуют в будущем
         return matchTime > mskNow && (m.homeId === user?.uid || m.awayId === user?.uid);
       })
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
@@ -251,7 +252,7 @@ export default function Home() {
 
                     {nextMatchData.isHome ? (
                       <div className="flex items-center justify-center gap-2 text-[8px] font-black text-primary/60 uppercase tracking-widest">
-                        <HomeIcon className="w-3 h-3" /> {language === 'ru' ? 'ВАШ АРЕНА' : 'OWN ARENA'}
+                        <HomeIcon className="w-3 h-3" /> {language === 'ru' ? 'ВАША АРЕНА' : 'OWN ARENA'}
                       </div>
                     ) : (
                       <div className="flex items-center justify-center gap-2 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
