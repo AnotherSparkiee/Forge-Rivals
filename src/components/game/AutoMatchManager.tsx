@@ -41,6 +41,7 @@ export function AutoMatchManager() {
 
   /**
    * Performs deterministic simulation for any match in the group.
+   * This ensures all managers in the group see the same result.
    */
   const processGroupMatch = async (match: any) => {
     if (processingRef.current.has(match.id)) return;
@@ -60,10 +61,10 @@ export function AutoMatchManager() {
         const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
         const myHeroes = activeSlots.map(slot => ownedHeroes.find(h => h.id === lineup[slot])).filter(Boolean);
         
-        // Fill empty slots with bots to prevent crashes
         const mySquad = myHeroes.map(h => ({
           name: h!.name, role: h!.role, overallRating: h!.overallRating, proStats: h!.proStats, isSub: false
         }));
+        // Fill empty slots with bots
         while (mySquad.length < 5) {
           mySquad.push({ name: `Substitute Bot ${mySquad.length + 1}`, role: 'Support', overallRating: 20, proStats: generateBotSquad(20)[0].proStats, isSub: false });
         }
@@ -79,6 +80,7 @@ export function AutoMatchManager() {
         }
       } else {
         // Ghost simulation for bot vs bot or other players
+        // We use identical squads and deterministic result to ensure all clients record the same data
         squadA = generateBotSquad(25);
         squadB = generateBotSquad(25);
         stratA = 'Balanced Play';
@@ -105,7 +107,7 @@ export function AutoMatchManager() {
         finishedAt: new Date().toISOString()
       });
 
-      // 5. Personal local history and UI feedback
+      // 5. Personal local history and UI feedback only if it's our match
       if (isOurMatch) {
         const isHome = match.homeId === userId;
         const myScoreA = isHome ? finalScoreA : finalScoreB;
@@ -146,7 +148,7 @@ export function AutoMatchManager() {
     if (!isLoaded || !groupMatches || !userId) return;
     const now = Date.now();
     
-    // Check ALL matches in the group schedule
+    // Check ALL matches in the group schedule for the current day
     const dueMatches = groupMatches.filter(m => {
       const startTime = new Date(m.startTime).getTime();
       return m.status === 'pending' && now >= startTime;

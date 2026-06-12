@@ -49,7 +49,7 @@ export function getMatchResult(homeId: string, awayId: string, day: number, isBo
     hash = ((hash << 5) - hash) + combinedId.charCodeAt(i);
     hash |= 0;
   }
-  const seed = Math.abs(hash + day * 37); // Specific salt for day
+  const seed = Math.abs(hash + day * 37); 
   const val = seed % 100;
   
   if (isBo3) {
@@ -58,55 +58,15 @@ export function getMatchResult(homeId: string, awayId: string, day: number, isBo
     if (val < 70) return [1, 2]; 
     return [0, 2];
   } else {
-    // STRICT Bo2 Logic: No 1:0 or 0:1
-    if (val < 35) return [2, 0]; // 35% Win
-    if (val < 65) return [1, 1]; // 30% Draw
-    return [0, 2];               // 35% Loss
+    // STRICT Bo2 Logic for Synchronized League
+    if (val < 35) return [2, 0]; 
+    if (val < 65) return [1, 1]; 
+    return [0, 2];              
   }
-}
-
-export function getSchedule(teams: any[]) {
-  const n = teams.length;
-  if (n !== 8) return []; 
-  
-  const rounds = n - 1; 
-  const half = n / 2;
-
-  const teamsCopy = [...teams];
-  const circleMatches = [];
-
-  for (let r = 0; r < rounds; r++) {
-    const roundMatches = [];
-    for (let i = 0; i < half; i++) {
-      const home = teamsCopy[i];
-      const away = teamsCopy[n - 1 - i];
-      if (r % 2 === 0) {
-        roundMatches.push({ home, away });
-      } else {
-        roundMatches.push({ home: away, away: home });
-      }
-    }
-    circleMatches.push(roundMatches);
-    const last = teamsCopy.pop();
-    if (last) teamsCopy.splice(1, 0, last);
-  }
-
-  const seasonSchedule = [];
-  for (let d = 1; d <= 14; d++) {
-    const matchDayIdx = (d - 1) % rounds;
-    const isSecondCircle = d > rounds;
-    const dayMatches = circleMatches[matchDayIdx];
-    if (isSecondCircle) {
-      seasonSchedule.push(dayMatches.map(m => ({ home: m.away, away: m.home })));
-    } else {
-      seasonSchedule.push(dayMatches);
-    }
-  }
-  return seasonSchedule;
 }
 
 /**
- * Rebuilt standings logic.
+ * standing table logic.
  * Exclusively driven by actual database results.
  */
 export function getMockGroupTeams(
