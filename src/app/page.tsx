@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { getMoscowTime, getGlobalSeasonInfo } from './lib/time-utils';
+import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString } from './lib/time-utils';
 import { LEAGUES, getSchedule, getMockGroupTeams } from './lib/leagues-data';
 import {
   DropdownMenu,
@@ -74,6 +74,52 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), [isLoaded]);
+
+  // Определение следующего соперника
+  const groupQuery = useMemoFirebase(() => {
+    if (!selectedLeagueId || !user?.uid) return null;
+    return query(
+      collection(db, 'players_v10'),
+      where('selectedLeagueId', '==', selectedLeagueId),
+      where('leagueLevel', '==', leagueLevel),
+      where('groupId', '==', groupId)
+    );
+  }, [db, selectedLeagueId, leagueLevel, groupId, user?.uid]);
+
+  const { data: groupPlayers } = useCollection(groupQuery);
+
+  const nextOpponentName = useMemo(() => {
+    if (!isLoaded || !groupPlayers || seasonDay > 14 || seasonDay === 0) return null;
+    
+    // 1. Подготовка команд группы
+    const teams = getMockGroupTeams(
+      8, 
+      displayName, 
+      leagueLevel, 
+      1, 
+      groupId, 
+      selectedLeagueId || "ALPHA", 
+      groupPlayers, 
+      user?.uid, 
+      0 
+    );
+
+    // 2. Генерация расписания
+    const schedule = getSchedule(teams);
+    
+    // 3. Определение игрового дня
+    const targetDay = lastLeagueMatchDate === getMoscowDateString() ? seasonDay + 1 : seasonDay;
+    if (targetDay > 14) return null;
+
+    const dayMatches = schedule[targetDay - 1];
+    if (!dayMatches) return null;
+
+    const myMatch = dayMatches.find((m: any) => m.home.id === user?.uid || m.away.id === user?.uid);
+    if (!myMatch) return null;
+
+    const opp = myMatch.home.id === user?.uid ? myMatch.away : myMatch.home;
+    return opp.name;
+  }, [isLoaded, groupPlayers, seasonDay, lastLeagueMatchDate, leagueLevel, groupId, selectedLeagueId, displayName, user?.uid]);
 
   useEffect(() => {
     if (!isLoaded || !selectedLeagueId) return;
@@ -217,10 +263,20 @@ export default function Home() {
                   <p className="text-xs font-headline font-bold text-white uppercase">{tHub.transition}</p>
                 </>
               ) : (
-                <>
-                  <Shield className="w-12 h-12 mx-auto text-primary opacity-40" />
-                  <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">League Intelligence Link Active</p>
-                </>
+                <div className="space-y-3">
+                  <Shield className="w-10 h-10 mx-auto text-primary opacity-40" />
+                  <div className="flex flex-col items-center">
+                    <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground mb-1">
+                      {language === 'ru' ? 'ВАШ СЛЕДУЮЩИЙ СОПЕРНИК' : 'YOUR NEXT OPPONENT'}
+                    </p>
+                    <div className="flex items-center gap-2 bg-background/40 px-4 py-1.5 rounded-full border border-white/5">
+                      <Users className="w-3.5 h-3.5 text-accent" />
+                      <span className="text-sm font-headline font-bold text-white uppercase italic tracking-tight">
+                        {nextOpponentName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ ЛИГИ' : 'LEAGUE SYNC')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               )}
               
               <div className="bg-background/60 py-3 rounded-2xl border border-white/5 shadow-inner">
