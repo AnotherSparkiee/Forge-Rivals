@@ -82,31 +82,31 @@ export function calculateLiveAge(baseAge: number, hiredAt: string) {
  * День 15: Переход (16:00 MSK).
  * День 16: Межсезонье.
  * 
- * RESET FOR SEASON 1: Epoch adjusted so tomorrow is Day 1.
+ * RESET FOR SEASON 1: Epoch adjusted so Day 1 starts TOMORROW.
  */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   
-  // Adjusted Epoch to make tomorrow Day 1 of Season 1
-  // If today is 2024-05-21 (example), epoch is set so today is day 16.
+  // Мы хотим, чтобы завтра был День 1 Сезона 1.
+  // Значит сегодня (mskNow) должен быть День 16 Сезона 0.
   const today = new Date(mskNow);
   today.setHours(0,0,0,0);
   
-  // We want (Today - Epoch) % 16 to be 15 (Day 16)
-  // So tomorrow (Day 1) will be 0 % 16.
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
+  
+  // Эпоха — это начало Дня 1 Сезона 1.
   const epoch = tomorrow.getTime(); 
 
   const diffMs = mskNow.getTime() - epoch;
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   
   const cycleDuration = 16; 
-  // Modulo math to get 1-16 range
+  // Модульное смещение для диапазона 1-16
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
   let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
   
-  // Adjust for Season 1 start
+  // Принудительная коррекция для старта
   if (currentSeasonNumber < 1) currentSeasonNumber = 1;
 
   const isTransitionTime = currentSeasonDay === 15 && mskNow.getHours() >= 16;

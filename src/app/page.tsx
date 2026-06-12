@@ -73,22 +73,36 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), [isLoaded]);
 
-  // Unified Next Match Logic (Strictly based on groupMatches from Store)
+  // Unified Next Match Logic
   const nextMatchData = useMemo(() => {
-    if (!isLoaded || !groupMatches || groupMatches.length === 0 || seasonDay > 14 || seasonDay === 0) return null;
+    if (!isLoaded || !groupMatches || groupMatches.length === 0) return null;
     
     const isTodayPlayed = lastLeagueMatchDate === getMoscowDateString();
-    const targetDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
     
-    if (targetDay > 14) return null;
-
-    // Find the current/next official match from the pre-generated DB schedule
+    // Если сегодня сыграно или сейчас межсезонье (День 15-16), ищем ПЕРВЫЙ матч нового сезона (День 1)
+    const targetDay = (isTodayPlayed || seasonDay > 14 || seasonDay === 0) ? 1 : seasonDay;
+    
     const myMatch = groupMatches.find((m: any) => 
       m.day === targetDay && 
       (m.homeId === user?.uid || m.awayId === user?.uid)
     );
 
-    if (!myMatch) return null;
+    if (!myMatch) {
+      // Fallback: берем любой ближайший доступный матч
+      const futureMatches = [...groupMatches]
+        .filter(m => (m.homeId === user?.uid || m.awayId === user?.uid))
+        .sort((a,b) => a.day - b.day);
+      if (futureMatches.length > 0) return {
+        match: futureMatches[0],
+        opponentName: futureMatches[0].homeId === user?.uid ? futureMatches[0].awayName : futureMatches[0].homeName,
+        day: futureMatches[0].day,
+        dateLabel: getSeasonDateLabel(futureMatches[0].day),
+        type: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE',
+        time: league.startTime,
+        isHome: futureMatches[0].homeId === user?.uid
+      };
+      return null;
+    }
 
     const isHome = myMatch.homeId === user?.uid;
 
@@ -109,7 +123,8 @@ export default function Home() {
     const timer = setInterval(() => {
       const mskNow = getMoscowTime();
       
-      if (seasonInfo.seasonDay === 15) {
+      // Логика перехода сезонов
+      if (seasonInfo.seasonDay === 15 && mskNow.getHours() < 16) {
         const transitionTarget = new Date(mskNow);
         transitionTarget.setHours(16, 0, 0, 0);
         const diff = transitionTarget.getTime() - mskNow.getTime();
@@ -135,8 +150,8 @@ export default function Home() {
 
     const formatDiff = (ms: number) => {
       const hh = Math.floor(ms / 3600000);
-      const mm = Math.floor((diff % 3600000) / 60000);
-      const ss = Math.floor((diff % 60000) / 1000);
+      const mm = Math.floor((ms % 3600000) / 60000);
+      const ss = Math.floor((ms % 60000) / 1000);
       return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
     };
     return () => clearInterval(timer);
@@ -205,7 +220,7 @@ export default function Home() {
   const menu = [ 
     { label: language === 'ru' ? 'Ростер' : 'Roster', href: '/roster', icon: Users, desc: language === 'ru' ? 'Состав команды' : 'Squad management' }, 
     { label: language === 'ru' ? 'Инфраструктура' : 'Infrastructure', href: '/training', icon: Zap, desc: language === 'ru' ? 'База клуба' : 'Facility growth' }, 
-    { label: language === 'ru' ? 'Трансферы' : 'Transfers', href: '/transfers', icon: ShoppingCart, desc: language === 'ru' ? 'Рынок героев' : 'Asset market' }, 
+    { label: language === 'ru' ? 'Трансферы' : 'Transfers', href: '/transfers', icon: ArrowRightLeft, desc: language === 'ru' ? 'Рынок героев' : 'Asset market' }, 
     { label: language === 'ru' ? 'Магазин' : 'Shop', href: '/shop', icon: Store, desc: language === 'ru' ? 'Покупка ресурсов' : 'Resource acquisition' },
     { label: language === 'ru' ? 'Фан-клуб' : 'Fan-club', href: '/fanclub', icon: Heart, desc: language === 'ru' ? 'Болельщики' : 'Supporter management' },
     { label: language === 'ru' ? 'Юношеская школа' : 'Youth Academy', href: '/youth-academy', icon: GraduationCap, desc: language === 'ru' ? 'Центр талантов' : 'Rising stars' },

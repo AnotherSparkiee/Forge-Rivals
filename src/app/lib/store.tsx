@@ -144,7 +144,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!isAfterTransition || teamData.lastProcessedSeason >= seasonNumber) return;
 
     console.log("ARCHITECT: Season transition triggered for", userId);
-    // Use deterministic group simulation for rankings
     const groupTeams = getMockGroupTeams(8, teamData.displayName || "My Team", rootData.leagueLevel, 1, rootData.groupId, rootData.selectedLeagueId, [], userId, 14);
     const myRank = groupTeams.findIndex(t => t.id === userId) + 1;
 
@@ -230,13 +229,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => unsubRoot();
   }, [user, isUserLoading, db, lang, processSeasonTransition, dbMatches]);
 
-  // LAZY CALENDAR GENERATOR (Runs once per group per season)
+  // LAZY CALENDAR GENERATOR
   useEffect(() => {
     const s = stateRef.current;
-    if (!s.isLoaded || !s.selectedLeagueId || s.seasonDay > 14 || s.seasonDay === 0 || !user) return;
+    // Разрешаем генерацию даже в межсезонье (Day 15/16), чтобы видеть соперников на завтра
+    if (!s.isLoaded || !s.selectedLeagueId || !user) return;
 
     const generateScheduleIfMissing = async () => {
-      // 1. Check if matches already exist for this specific group/season
       const existingQuery = query(
         collection(db, 'matches_v1'),
         where('leagueId', '==', s.selectedLeagueId),
@@ -246,11 +245,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       );
       
       const snap = await getDocs(existingQuery);
-      if (snap.size >= 56) return; // 14 days * 4 matches = 56 matches per group
+      if (snap.size >= 56) return;
 
-      console.log("ARCHITECT: Generating official group schedule for Season", s.seasonNumber);
+      console.log("ARCHITECT: Initializing schedule for Season", s.seasonNumber);
       
-      // 2. Fetch all real players in the group
       const playersQuery = query(
         collection(db, 'players_v10'),
         where('selectedLeagueId', '==', s.selectedLeagueId),
@@ -260,7 +258,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const playersSnap = await getDocs(playersQuery);
       const players = playersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       
-      // 3. Generate deterministic teams (Real + Elite Bots)
       const teams = getMockGroupTeams(8, s.displayName, s.leagueLevel, 1, s.groupId, s.selectedLeagueId!, players, s.id, 0);
       const seasonSchedule = getSchedule(teams);
       
@@ -274,8 +271,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           const matchId = generateDeterministicMatchId(s.selectedLeagueId!, s.leagueLevel, s.groupId, s.seasonNumber, day, mIdx);
           const matchRef = doc(db, 'matches_v1', matchId);
           
-          // Setup exact start time for this match in the league
           const startTime = new Date(getMoscowTime());
+          // Устанавливаем время на конкретный день сезона
           startTime.setDate(startTime.getDate() + (day - s.seasonDay));
           startTime.setHours(h, m, 0, 0);
 
@@ -303,11 +300,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       });
       
       await batch.commit();
-      console.log("ARCHITECT: Official schedule synchronized.");
+      console.log("ARCHITECT: Schedule synchronized.");
     };
 
     generateScheduleIfMissing();
-  }, [db, user, state.isLoaded, state.seasonNumber, state.leagueLevel, state.groupId, state.selectedLeagueId]);
+  }, [db, user, state.isLoaded, state.seasonNumber, state.leagueLevel, state.groupId, state.selectedLeagueId, state.seasonDay]);
 
   const getRefs = useCallback(() => {
     const s = stateRef.current;

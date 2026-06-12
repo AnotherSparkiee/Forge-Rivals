@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '../lib/leagues-data';
-import { getMoscowDateString, getMoscowTime } from '../lib/time-utils';
+import { getMoscowDateString, getMoscowTime, getSeasonDateLabel } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { getGlobalCupParticipants, getWinnerOfBranch, getEntryRound } from '../lib/cup-utils';
 
@@ -55,24 +55,28 @@ export default function MatchesPage() {
   const isTodayPlayed = useMemo(() => lastLeagueMatchDate === getMoscowDateString(), [lastLeagueMatchDate]);
   const isCupPlayedToday = useMemo(() => lastCupMatchDate === getMoscowDateString(), [lastCupMatchDate]);
 
-  // NEXT CUP MATCH (Deterministic for now, based on day)
-  const cupNextMatch = useMemo(() => {
-    if (!isLoaded || !profile || seasonDay > 14) return null;
-    const wasEliminated = matchHistory.some(m => (m.type === 'cup' || m.type === 'tournament') && m.seasonNumber === seasonNumber && m.opponentName !== 'SEEDED' && m.opponentName !== 'WAITING' && m.scoreA < m.scoreB);
-    if (wasEliminated) return null;
-    const targetDay = isCupPlayedToday ? seasonDay + 1 : (seasonDay === 0 ? 1 : seasonDay);
-    if (targetDay > 14) return null;
-    return { opponent: { name: "WAITING", isPlayer: false }, time: "07:00", isNextDay: isCupPlayedToday, type: 'cup', isCup: true, label: language === 'ru' ? 'КУБОК ПИРАМИДЫ' : 'PYRAMID CUP' };
-  }, [isLoaded, profile, seasonDay, matchHistory, seasonNumber, isCupPlayedToday, language]);
-
-  // NEXT LEAGUE MATCH (Strictly synchronized with the DB schedule)
+  // NEXT LEAGUE MATCH
   const leagueNextMatch = useMemo(() => {
-    if (!isLoaded || !groupMatches || groupMatches.length === 0 || seasonDay > 14 || seasonDay === 0) return null;
-    const targetDay = isTodayPlayed ? seasonDay + 1 : seasonDay;
-    if (targetDay > 14) return null;
+    if (!isLoaded || !groupMatches || groupMatches.length === 0) return null;
+    
+    // Если сегодня сыграно или сейчас межсезонье, ищем ПЕРВЫЙ матч нового сезона
+    const targetDay = (isTodayPlayed || seasonDay > 14 || seasonDay === 0) ? 1 : seasonDay;
 
     const myMatch = groupMatches.find((m: any) => m.day === targetDay && (m.homeId === user?.uid || m.awayId === user?.uid));
-    if (!myMatch) return null;
+    
+    if (!myMatch) {
+       const futureMatches = [...groupMatches]
+        .filter(m => (m.homeId === user?.uid || m.awayId === user?.uid))
+        .sort((a,b) => a.day - b.day);
+       if (futureMatches.length > 0) return {
+         opponent: { name: futureMatches[0].homeId === user?.uid ? futureMatches[0].awayName : futureMatches[0].homeName },
+         match: futureMatches[0],
+         time: league.startTime,
+         type: 'league',
+         label: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE'
+       };
+       return null;
+    }
 
     const isHome = myMatch.homeId === user?.uid;
     const oppName = isHome ? myMatch.awayName : myMatch.homeName;
@@ -82,43 +86,21 @@ export default function MatchesPage() {
       day: targetDay, 
       match: myMatch,
       time: league.startTime, 
-      isNextDay: targetDay > seasonDay, 
       type: 'league', 
       isCup: false,
       label: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE'
     };
   }, [isLoaded, groupMatches, seasonDay, isTodayPlayed, league, user?.uid, language]);
 
-  const nextMatchInfo = useMemo(() => {
-    if (cupNextMatch && leagueNextMatch) {
-      const mskNow = getMoscowTime();
-      const getMs = (time: string, nextDay: boolean) => {
-        const [h, m] = time.split(':').map(Number);
-        const d = new Date(mskNow); d.setHours(h, m, 0, 0);
-        if (nextDay) d.setDate(d.getDate() + 1);
-        return d.getTime();
-      };
-      return getMs(cupNextMatch.time, cupNextMatch.isNextDay) < getMs(leagueNextMatch.time, leagueNextMatch.isNextDay) ? cupNextMatch : leagueNextMatch;
-    }
-    return leagueNextMatch || cupNextMatch;
-  }, [cupNextMatch, leagueNextMatch]);
-
   useEffect(() => {
     const interval = setInterval(() => {
       const mskNow = getMoscowTime();
-      const info = nextMatchInfo as any;
-      if (!info || !info.time) return;
+      const info = leagueNextMatch as any;
+      if (!info || !info.match) return;
       
-      let target;
-      if (info.type === 'league' && info.match) {
-        target = new Date(info.match.startTime);
-      } else {
-        const [h, m] = info.time.split(':').map(Number);
-        target = new Date(mskNow); target.setHours(h, m, 0, 0);
-        if (info.isNextDay) target.setDate(target.getDate() + 1);
-      }
-
+      const target = new Date(info.match.startTime);
       const diff = target.getTime() - mskNow.getTime();
+      
       if (diff <= 0) setCountdown('00:00:00');
       else {
         const hh = Math.floor(diff / 3600000);
@@ -128,7 +110,7 @@ export default function MatchesPage() {
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [nextMatchInfo]);
+  }, [leagueNextMatch]);
 
   if (isUserLoading || !isLoaded || !user || isProfileLoading) return <LoadingScreen />;
 
@@ -149,11 +131,11 @@ export default function MatchesPage() {
   const renderContent = () => {
     switch (activeTab) {
       case 'next_opponent':
-        if (!nextMatchInfo) return <p className="text-center py-20 text-muted-foreground uppercase text-xs">Season Finished</p>;
-        const info = nextMatchInfo as any;
+        if (!leagueNextMatch) return <p className="text-center py-20 text-muted-foreground uppercase text-xs">Season Finished</p>;
+        const info = leagueNextMatch as any;
         return (
           <div className="space-y-6 animate-in fade-in duration-500">
-            <Card className={cn("glass-card border-primary/20 bg-primary/5", (info.type === 'cup') && "border-accent/30 bg-accent/5")}>
+            <Card className="glass-card border-primary/20 bg-primary/5">
               <CardHeader className="text-center">
                 <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">{info.label || "Intelligence Report"}</CardTitle>
                 <div className="flex flex-col items-center mt-4">
@@ -175,12 +157,15 @@ export default function MatchesPage() {
         );
       case 'my_future':
         if (!groupMatches || groupMatches.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">Syncing schedule...</div>;
-        const startIdx = isTodayPlayed ? seasonDay + 1 : seasonDay;
+        const startIdx = (isTodayPlayed || seasonDay > 14 || seasonDay === 0) ? 1 : seasonDay;
         const future = groupMatches.filter(m => m.day >= startIdx && (m.homeId === user?.uid || m.awayId === user?.uid)).sort((a,b) => a.day - b.day);
         return <div className="space-y-3">
           {future.map(m => (
             <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
-              <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2"><span className="text-[10px] font-mono font-bold text-accent">{m.day}</span></div>
+              <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2">
+                <span className="text-[8px] text-muted-foreground uppercase">{getSeasonDateLabel(m.day)}</span>
+                <span className="text-[10px] font-mono font-bold text-accent">DAY {m.day}</span>
+              </div>
               <div className="flex-1 flex items-center justify-between min-w-0">
                  <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.homeId === user.uid && "text-primary")}>{m.homeName}</span>
                  <div className="px-3 flex flex-col items-center"><Badge variant="outline" className="text-[7px] px-1 py-0 border-accent/20 text-accent">VS</Badge><span className="text-[8px] text-primary font-mono font-bold">{league.startTime}</span></div>
@@ -196,7 +181,10 @@ export default function MatchesPage() {
           <div className="space-y-4 animate-in fade-in duration-500">
             {days.map(d => (
               <div key={d} className="space-y-2">
-                <h3 className="text-[10px] font-black uppercase text-accent tracking-widest px-1">{t.day} {d}</h3>
+                <div className="flex justify-between items-center px-1">
+                  <h3 className="text-[10px] font-black uppercase text-accent tracking-widest">{t.day} {d}</h3>
+                  <span className="text-[8px] font-bold text-muted-foreground uppercase">{getSeasonDateLabel(d)}</span>
+                </div>
                 <div className="grid gap-2">
                   {groupMatches.filter(m => m.day === d).map((m: any) => (
                     <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between text-[10px] font-bold uppercase">
