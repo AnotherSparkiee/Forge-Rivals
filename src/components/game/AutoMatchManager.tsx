@@ -37,7 +37,6 @@ export function AutoMatchManager() {
       const [finalScoreA, finalScoreB] = getMatchResult(match.homeId, match.awayId, match.day, seasonNumber);
 
       // 2. Only perform detailed AI simulation if the match belongs to this user
-      // or if we want to "volunteer" as the group processor.
       const isOurMatch = match.homeId === userId || match.awayId === userId;
       
       let simulationResult;
@@ -45,11 +44,24 @@ export function AutoMatchManager() {
       if (isOurMatch) {
         const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
         const myHeroes = activeSlots.map(slot => ownedHeroes.find(h => h.id === lineup[slot])).filter(Boolean);
-        const mySquad = myHeroes.map(h => ({ name: h!.name, role: h!.role, overallRating: h!.overallRating, proStats: h!.proStats, isSub: false }));
+        
+        const mySquad = myHeroes.map(h => ({ 
+          name: h!.name, 
+          role: h!.role, 
+          overallRating: h!.overallRating, 
+          proStats: h!.proStats, 
+          isSub: false 
+        }));
         
         // Add fillers if needed
         while (mySquad.length < 5) {
-          mySquad.push({ name: `Bot ${mySquad.length + 1}`, role: 'Support', overallRating: 20, proStats: generateBotSquad(20)[0].proStats, isSub: false });
+          mySquad.push({ 
+            name: `Bot ${mySquad.length + 1}`, 
+            role: 'Support', 
+            overallRating: 20, 
+            proStats: generateBotSquad(20)[0].proStats, 
+            isSub: false 
+          });
         }
         
         const opponentSquad = generateBotSquad(25);
@@ -59,13 +71,21 @@ export function AutoMatchManager() {
         simulationResult = await simulateMobaMatch({
           teamA: { name: match.homeName, strategy: stratA, heroes: match.homeId === userId ? mySquad : opponentSquad },
           teamB: { name: match.awayName, strategy: stratB, heroes: match.awayId === userId ? mySquad : opponentSquad },
-          isBo2: true, scoreA: finalScoreA, scoreB: finalScoreB
+          isBo2: true, 
+          scoreA: finalScoreA, 
+          scoreB: finalScoreB
         });
 
-        // Save to local matchHistory for "Svoi Sygrannye"
+        // Save to personal recordMatch
         recordMatch(
           finalScoreA > finalScoreB ? match.homeName : (finalScoreA === finalScoreB ? "Draw" : match.awayName),
-          { ...simulationResult.games[0], scoreA: isOurMatch && match.homeId === userId ? finalScoreA : finalScoreB, scoreB: isOurMatch && match.homeId === userId ? finalScoreB : finalScoreA, games: simulationResult.games, seriesScore: simulationResult.seriesScore },
+          { 
+            ...simulationResult.games[0], 
+            scoreA: finalScoreA, 
+            scoreB: finalScoreB, 
+            games: simulationResult.games, 
+            seriesScore: simulationResult.seriesScore 
+          },
           50000,
           match.homeId === userId ? match.awayName : match.homeName,
           'league',
@@ -73,8 +93,15 @@ export function AutoMatchManager() {
           match.id
         );
       } else {
-        // Fast deterministic mock simulation for others to avoid heavy AI calls for every match in league
-        simulationResult = { winner: finalScoreA > finalScoreB ? match.homeName : (finalScoreA === finalScoreB ? "Draw" : match.awayName), seriesScore: `${finalScoreA}-${finalScoreB}`, games: [] };
+        // Fast deterministic mock simulation for bot-vs-bot or other-vs-other
+        simulationResult = { 
+          winner: finalScoreA > finalScoreB ? match.homeName : (finalScoreA === finalScoreB ? "Draw" : match.awayName), 
+          seriesScore: `${finalScoreA}-${finalScoreB}`, 
+          games: [
+            { scoreA: finalScoreA > 0 ? 1 : 0, scoreB: finalScoreB > 0 ? 0 : 0, timeline: [], scoreboard: [] },
+            { scoreA: finalScoreA > 1 ? 1 : 0, scoreB: finalScoreB > 1 ? 1 : 0, timeline: [], scoreboard: [] }
+          ] 
+        };
       }
 
       // 3. Persist to Global Database
@@ -97,7 +124,7 @@ export function AutoMatchManager() {
     if (!isLoaded || !groupMatches || !userId) return;
     const now = Date.now();
     
-    // Check all matches in the group schedule.
+    // Check matches due for simulation
     const dueMatches = groupMatches.filter(m => {
       const startTime = new Date(m.startTime).getTime();
       return m.status === 'pending' && now >= startTime;

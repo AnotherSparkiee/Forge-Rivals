@@ -70,47 +70,70 @@ export function getGroupStandings(
   seasonNumber: number,
   currentDay: number,
   realPlayers: any[] = [],
-  dbMatches: any[] = [],
-  isTransitionPhase: boolean = false
+  dbMatches: any[] = []
 ) {
-  if (isTransitionPhase) return [];
-
   const teams: any[] = [];
   
-  // 1. Setup participants
+  // 1. Setup participants (Real players)
   const sortedPlayers = [...(realPlayers || [])].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
   sortedPlayers.forEach(p => {
-    teams.push({ id: p.id, name: p.displayName || "Manager", wins: 0, draws: 0, losses: 0, points: 0 });
+    teams.push({ 
+      id: p.id, 
+      name: p.displayName || "Manager", 
+      wins: 0, 
+      draws: 0, 
+      losses: 0, 
+      points: 0 
+    });
   });
 
+  // 2. Add Bots to fill the group to 8 teams
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   for (let i = 0; i < botsNeeded; i++) {
     const botId = `bot_${level}_${group}_${i}`;
-    teams.push({ id: botId, name: `Elite Bot ${i + 1}`, wins: 0, draws: 0, losses: 0, points: 0 });
+    teams.push({ 
+      id: botId, 
+      name: `Elite Bot ${i + 1}`, 
+      wins: 0, 
+      draws: 0, 
+      losses: 0, 
+      points: 0 
+    });
   }
+  
+  // Sort teams by ID for deterministic processing
   teams.sort((a, b) => a.id.localeCompare(b.id));
 
-  // 2. Aggregate results from DB matches
-  // Matches are processed by AutoMatchManager. If they are in DB, they count.
-  dbMatches.forEach(match => {
-    if (match.status === 'finished') {
-      const home = teams.find(t => t.id === match.homeId);
-      const away = teams.find(t => t.id === match.awayId);
-      if (home && away) {
-        applyResult(home, away, match.scoreA, match.scoreB);
+  // 3. Aggregate results from DB matches
+  if (dbMatches && dbMatches.length > 0) {
+    dbMatches.forEach(match => {
+      if (match.status === 'finished') {
+        const home = teams.find(t => t.id === match.homeId);
+        const away = teams.find(t => t.id === match.awayId);
+        if (home && away) {
+          applyResult(home, away, match.scoreA, match.scoreB);
+        }
       }
-    }
-  });
+    });
+  }
 
+  // 4. Return sorted standings: Points > Wins > ID
   return teams.sort((a, b) => b.points - a.points || b.wins - a.wins || a.id.localeCompare(b.id));
 }
 
 export function applyResult(home: any, away: any, hScore: number, aScore: number) {
   if (hScore > aScore) {
-    home.wins++; home.points += 3; away.losses++;
+    home.wins++; 
+    home.points += 3; 
+    away.losses++;
   } else if (hScore === aScore) {
-    home.draws++; home.points += 1; away.draws++; away.points += 1;
+    home.draws++; 
+    home.points += 1; 
+    away.draws++; 
+    away.points += 1;
   } else {
-    away.wins++; away.points += 3; home.losses++;
+    away.wins++; 
+    away.points += 3; 
+    home.losses++;
   }
 }
