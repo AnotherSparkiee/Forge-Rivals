@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -10,7 +9,8 @@ import {
   Users, Trophy, Zap, UserSearch, Swords, ChevronRight,
   MessageSquare, UserCog, Coins, Heart, Store, Shield, 
   ArrowRight, Loader2, Check, Lock, UserPlus,
-  ShoppingCart, GraduationCap, CalendarDays, Medal
+  ShoppingCart, GraduationCap, CalendarDays, Medal,
+  ArrowRightLeft
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -177,7 +177,9 @@ export default function Home() {
   const menu = [ 
     { label: language === 'ru' ? 'Ростер' : 'Roster', href: '/roster', icon: Users, desc: language === 'ru' ? 'Состав команды' : 'Squad management' }, 
     { label: language === 'ru' ? 'Инфраструктура' : 'Infrastructure', href: '/training', icon: Zap, desc: language === 'ru' ? 'База клуба' : 'Facility growth' }, 
-    { label: language === 'ru' ? 'Трансферы' : 'Transfers', href: '/transfers', icon: ShoppingCart, desc: language === 'ru' ? 'Рынок героев' : 'Asset market' }, 
+    { label: language === 'ru' ? 'Трансферы' : 'Transfers', href: '/transfers', icon: ArrowRightLeft, desc: language === 'ru' ? 'Рынок героев' : 'Asset market' }, 
+    { label: language === 'ru' ? 'Магазин' : 'Shop', href: '/shop', icon: Store, desc: language === 'ru' ? 'Покупка ресурсов' : 'Resource acquisition' },
+    { label: language === 'ru' ? 'Фан-клуб' : 'Fan-club', href: '/fanclub', icon: Heart, desc: language === 'ru' ? 'Болельщики' : 'Supporter management' },
     { label: language === 'ru' ? 'Юношеская школа' : 'Youth Academy', href: '/youth-academy', icon: GraduationCap, desc: language === 'ru' ? 'Центр талантов' : 'Rising stars' },
     { label: language === 'ru' ? 'Таблицы' : 'Rankings', href: '/rankings', icon: Trophy, desc: language === 'ru' ? 'Рейтинги' : 'Official standings' }, 
     { label: language === 'ru' ? 'Матчи' : 'Matches', href: '/matches', icon: CalendarDays, desc: language === 'ru' ? 'Расписание' : 'Schedule' }, 
