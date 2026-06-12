@@ -1,8 +1,9 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from './lib/store';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { 
@@ -10,7 +11,7 @@ import {
   MessageSquare, UserCog, Coins, Heart, Store, Shield, 
   ArrowRight, Loader2, Check, Lock, UserPlus,
   ShoppingCart, GraduationCap, CalendarDays, Medal,
-  ArrowRightLeft
+  ArrowRightLeft, Timer, RefreshCw
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,8 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { getMoscowTime, getGlobalSeasonInfo } from './lib/time-utils';
+import { LEAGUES, getSchedule, getMockGroupTeams } from './lib/leagues-data';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,12 +32,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-/**
- * ГЛАВНАЯ СТРАНИЦА - ИНТЕЛЛЕКТУАЛЬНЫЙ ШЛЮЗ
- * 1. Не авторизован -> Форма Входа / Регистрации.
- * 2. Авторизован, но нет лиги -> Переход в /setup (через AuthGuard).
- * 3. Авторизован и настроен -> Командный Хаб.
- */
 export default function Home() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
@@ -42,13 +39,15 @@ export default function Home() {
   const { toast } = useToast();
   const { 
     language, setLanguage, isLoaded, selectedLeagueId,
-    displayName
+    leagueLevel, groupId, lastLeagueMatchDate, matchHistory,
+    seasonDay, seasonNumber, displayName
   } = useGameState();
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [countdown, setCountdown] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,64 +70,83 @@ export default function Home() {
     }
   };
 
-  // 1. ЭКРАН ЗАГРУЗКИ (Firebase Auth Initialization)
+  // Расчет следующего матча
+  const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
+  
+  const seasonInfo = useMemo(() => getGlobalSeasonInfo(), [isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded || !selectedLeagueId) return;
+
+    const timer = setInterval(() => {
+      const mskNow = getMoscowTime();
+      
+      // Логика перехода Day 15
+      if (seasonInfo.seasonDay === 15) {
+        const transitionTarget = new Date(mskNow);
+        transitionTarget.setHours(16, 0, 0, 0);
+        
+        const diff = transitionTarget.getTime() - mskNow.getTime();
+        if (diff > 0) {
+          setCountdown(formatDiff(diff));
+          return;
+        } else {
+          setCountdown('00:00:00');
+          return;
+        }
+      }
+
+      // Обычная логика матчей
+      const [h, m] = league.startTime.split(':').map(Number);
+      const target = new Date(mskNow);
+      target.setHours(h, m, 0, 0);
+
+      // Если сегодня уже было (по дате в профиле), значит следующий завтра
+      const todayStr = mskNow.toISOString().split('T')[0];
+      if (mskNow.getTime() >= target.getTime() || lastLeagueMatchDate === todayStr) {
+        target.setDate(target.getDate() + 1);
+      }
+
+      const diff = target.getTime() - mskNow.getTime();
+      setCountdown(formatDiff(diff));
+    }, 1000);
+
+    const formatDiff = (ms: number) => {
+      const hh = Math.floor(ms / 3600000);
+      const mm = Math.floor((ms % 3600000) / 60000);
+      const ss = Math.floor((ms % 60000) / 1000);
+      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    };
+
+    return () => clearInterval(timer);
+  }, [isLoaded, selectedLeagueId, league, lastLeagueMatchDate, seasonInfo]);
+
   if (isUserLoading) return <LoadingScreen />;
 
-  // 2. ЭКРАН ВХОДА (Если не авторизован)
   if (!user) {
     const tAuth = {
-      en: { 
-        title: authMode === 'login' ? "Sync Credentials" : "Initiate Profile", 
-        userLabel: "Email or Team Name", 
-        passLabel: "Access Key", 
-        submit: authMode === 'login' ? "ESTABLISH LINK" : "INITIALIZE", 
-        toggle: authMode === 'login' ? "New manager? Create profile" : "Already registered? Sync link",
-        subtitle: "COMMAND CENTER ACCESS" 
-      },
-      ru: { 
-        title: authMode === 'login' ? "Синхронизация" : "Создание профиля", 
-        userLabel: "Почта или Название клуба", 
-        passLabel: "Ключ доступа (Пароль)", 
-        submit: authMode === 'login' ? "УСТАНОВИТЬ СВЯЗЬ" : "СОЗДАТЬ", 
-        toggle: authMode === 'login' ? "Новый менеджер? Создать профиль" : "Есть аккаунт? Войти",
-        subtitle: "ДОСТУП К КОМАНДНОМУ ЦЕНТРУ" 
-      }
+      en: { title: authMode === 'login' ? "Sync Credentials" : "Initiate Profile", userLabel: "Email or Team Name", passLabel: "Access Key", submit: authMode === 'login' ? "ESTABLISH LINK" : "INITIALIZE", toggle: authMode === 'login' ? "New manager? Create profile" : "Already registered? Sync link", subtitle: "COMMAND CENTER ACCESS" },
+      ru: { title: authMode === 'login' ? "Синхронизация" : "Создание профиля", userLabel: "Почта или Название клуба", passLabel: "Ключ доступа (Пароль)", submit: authMode === 'login' ? "УСТАНОВИТЬ СВЯЗЬ" : "СОЗДАТЬ", toggle: authMode === 'login' ? "Новый менеджер? Создать профиль" : "Есть аккаунт? Войти", subtitle: "ДОСТУП К КОМАНДНОМУ ЦЕНТРУ" }
     }[language as 'en' | 'ru'] || { title: "Auth", userLabel: "User", passLabel: "Pass", submit: "Connect", toggle: "Switch", subtitle: "ACCESS" };
 
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-background relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)]" />
-        
         <div className="fixed top-4 right-4 z-[9999]">
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="w-10 h-10 p-0 rounded-full text-xl bg-card/80 backdrop-blur-xl border-white/10">
-                {language === 'en' ? '🇺🇸' : '🇷🇺'}
-              </Button>
-            </DropdownMenuTrigger>
+            <DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="w-10 h-10 p-0 rounded-full text-xl bg-card/80 backdrop-blur-xl border-white/10">{language === 'en' ? '🇺🇸' : '🇷🇺'}</Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="bg-card/95 backdrop-blur-2xl border-white/10 p-1">
-              <DropdownMenuItem onClick={() => setLanguage('en')} className="flex items-center justify-between py-3 px-4 rounded-lg">
-                <div className="flex items-center gap-3"><span>🇺🇸</span><span className="font-bold text-xs uppercase">English</span></div>
-                {language === 'en' && <Check className="w-4 h-4" />}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLanguage('ru')} className="flex items-center justify-between py-3 px-4 rounded-lg">
-                <div className="flex items-center gap-3"><span>🇷🇺</span><span className="font-bold text-xs uppercase">Русский</span></div>
-                {language === 'ru' && <Check className="w-4 h-4" />}
-              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLanguage('en')} className="flex items-center justify-between py-3 px-4 rounded-lg"><div className="flex items-center gap-3"><span>🇺🇸</span><span className="font-bold text-xs uppercase">English</span></div>{language === 'en' && <Check className="w-4 h-4" />}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLanguage('ru')} className="flex items-center justify-between py-3 px-4 rounded-lg"><div className="flex items-center gap-3"><span>🇷🇺</span><span className="font-bold text-xs uppercase">Русский</span></div>{language === 'ru' && <Check className="w-4 h-4" />}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-
         <div className="w-full max-w-sm space-y-8 relative z-10">
           <div className="text-center">
-            <div className="mx-auto w-24 h-24 mb-6 relative">
-              <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full" />
-              <img src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png" alt="Logo" className="w-full h-full object-contain relative z-10" />
-            </div>
+            <div className="mx-auto w-24 h-24 mb-6 relative"><div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full" /><img src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png" alt="Logo" className="w-full h-full object-contain relative z-10" /></div>
             <h1 className="text-3xl font-headline font-bold tracking-tighter text-primary">LINES OF ENMITY</h1>
             <p className="text-muted-foreground mt-2 text-[10px] uppercase tracking-[0.3em] font-black">{tAuth.subtitle}</p>
           </div>
-
           <Card className="glass-card">
             {authMode === 'login' ? (
               <form onSubmit={handleLogin}>
@@ -138,26 +156,16 @@ export default function Home() {
                   <div className="space-y-2"><Label>{tAuth.passLabel}</Label><Input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50 h-12" /></div>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-4">
-                  <Button type="submit" className="w-full h-14 hero-gradient font-black text-xs uppercase" disabled={isAuthLoading}>
-                    {isAuthLoading ? <Loader2 className="animate-spin" /> : tAuth.submit}
-                  </Button>
-                  <button type="button" onClick={() => setAuthMode('register')} className="text-[10px] text-center text-muted-foreground uppercase font-bold hover:text-primary transition-colors">
-                    {tAuth.toggle}
-                  </button>
+                  <Button type="submit" className="w-full h-14 hero-gradient font-black text-xs uppercase" disabled={isAuthLoading}>{isAuthLoading ? <Loader2 className="animate-spin" /> : tAuth.submit}</Button>
+                  <button type="button" onClick={() => setAuthMode('register')} className="text-[10px] text-center text-muted-foreground uppercase font-bold hover:text-primary transition-colors">{tAuth.toggle}</button>
                 </CardFooter>
               </form>
             ) : (
               <div className="p-6 text-center">
                 <CardTitle className="font-headline uppercase tracking-widest text-accent text-lg mb-4">{tAuth.title}</CardTitle>
                 <p className="text-xs text-muted-foreground mb-6 italic">"To initiate a new profile, navigate to the specialized registration terminal."</p>
-                <Link href="/auth/register" className="block w-full">
-                  <Button className="w-full h-14 hero-gradient font-black text-xs uppercase">
-                    <UserPlus className="w-4 h-4 mr-2" /> {language === 'ru' ? 'К РЕГИСТРАЦИИ' : 'TO REGISTRATION'}
-                  </Button>
-                </Link>
-                <button onClick={() => setAuthMode('login')} className="mt-4 text-[10px] text-muted-foreground uppercase font-bold hover:text-primary">
-                  {tAuth.toggle}
-                </button>
+                <Link href="/auth/register" className="block w-full"><Button className="w-full h-14 hero-gradient font-black text-xs uppercase"><UserPlus className="w-4 h-4 mr-2" /> {language === 'ru' ? 'К РЕГИСТРАЦИИ' : 'TO REGISTRATION'}</Button></Link>
+                <button onClick={() => setAuthMode('login')} className="mt-4 text-[10px] text-muted-foreground uppercase font-bold hover:text-primary">{tAuth.toggle}</button>
               </div>
             )}
           </Card>
@@ -166,13 +174,12 @@ export default function Home() {
     );
   }
 
-  // 3. ЭКРАН ХАБА (Если авторизован и профиль загружен)
   if (!isLoaded) return <LoadingScreen />;
 
   const tHub = {
-    en: { nextMatch: "Next Engagement", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals" },
-    ru: { nextMatch: "Следующий матч", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы" }
-  }[language as 'en' | 'ru'] || { nextMatch: "Match", battleBtn: "Overview", navTitle: "Terminals" };
+    en: { nextMatch: seasonInfo.seasonDay === 15 ? "Season Transition" : "Next Engagement", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", transition: "Forming new groups..." },
+    ru: { nextMatch: seasonInfo.seasonDay === 15 ? "Смена сезона" : "Следующий матч", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", transition: "Формирование новых групп..." }
+  }[language as 'en' | 'ru'] || { nextMatch: "Match", battleBtn: "Overview", navTitle: "Terminals", transition: "Transition" };
 
   const menu = [ 
     { label: language === 'ru' ? 'Ростер' : 'Roster', href: '/roster', icon: Users, desc: language === 'ru' ? 'Состав команды' : 'Squad management' }, 
@@ -192,22 +199,50 @@ export default function Home() {
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6">
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
-          <UserSearch className="w-6 h-6 text-accent" /> {tHub.nextMatch}
+          {seasonInfo.seasonDay === 15 ? <RefreshCw className="w-6 h-6 text-accent animate-spin" /> : <UserSearch className="w-6 h-6 text-accent" />} 
+          {tHub.nextMatch}
         </h1>
       </header>
 
       <section className="mb-8">
-        <Card className="glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden">
-          <CardContent className="p-0 text-center py-10 opacity-40">
-             <Shield className="w-12 h-12 mx-auto mb-4" />
-             <p className="text-[10px] uppercase font-black tracking-widest">Awaiting match synchronization...</p>
+        <Card className={cn(
+          "glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden",
+          seasonInfo.seasonDay === 15 && "border-accent/30 from-accent/10"
+        )}>
+          <CardContent className="p-6">
+            <div className="text-center space-y-4">
+              {seasonInfo.seasonDay === 15 ? (
+                <>
+                  <RefreshCw className="w-12 h-12 mx-auto text-accent animate-spin" />
+                  <p className="text-xs font-headline font-bold text-white uppercase">{tHub.transition}</p>
+                </>
+              ) : (
+                <>
+                  <Shield className="w-12 h-12 mx-auto text-primary opacity-40" />
+                  <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">League Intelligence Link Active</p>
+                </>
+              )}
+              
+              <div className="bg-background/60 py-3 rounded-2xl border border-white/5 shadow-inner">
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">
+                  {seasonInfo.seasonDay === 15 ? "Transition Countdown" : "Match Start Protocol"}
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <Timer className="w-4 h-4 text-accent" />
+                  <p className="text-3xl font-headline font-bold text-primary tabular-nums tracking-tighter">{countdown || '00:00:00'}</p>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </section>
 
       <Link href="/match" className="block relative mb-8">
-        <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1">
-          <div className="flex items-center gap-2"><Swords className="w-6 h-6" /><span className="text-xl font-headline font-bold italic uppercase">{tHub.battleBtn}</span></div>
+        <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1 transition-all active:scale-[0.98]">
+          <div className="flex items-center gap-2">
+            <Swords className="w-6 h-6" />
+            <span className="text-xl font-headline font-bold italic uppercase">{tHub.battleBtn}</span>
+          </div>
         </Button>
       </Link>
 
@@ -216,13 +251,13 @@ export default function Home() {
         <div className="grid grid-cols-1 gap-2">
           {menu.map((item) => (
             <Link key={item.label} href={item.href}>
-              <Card className="glass-card hover:bg-white/5 transition-colors border-white/5">
+              <Card className="glass-card hover:bg-white/5 transition-colors border-white/5 group">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="p-2 rounded-lg bg-secondary/50"><item.icon className="w-5 h-5 text-primary" /></div>
-                    <div><h3 className="text-sm font-bold uppercase">{item.label}</h3><p className="text-[10px] text-muted-foreground">{item.desc}</p></div>
+                    <div className="p-2 rounded-lg bg-secondary/50 group-hover:bg-primary/20 transition-colors"><item.icon className="w-5 h-5 text-primary" /></div>
+                    <div><h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{item.label}</h3><p className="text-[10px] text-muted-foreground">{item.desc}</p></div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-all" />
                 </CardContent>
               </Card>
             </Link>

@@ -1,14 +1,20 @@
 
 /**
- * @fileOverview Серверная логика расчета времени матчей.
- * Исключает Race Conditions при планировании Лиги и Кубка.
+ * @fileOverview Ядро расчетов времени на основе UTC.
+ * Все игровые события синхронизированы относительно 00:00 UTC.
  */
 
+/**
+ * Возвращает текущее время по Москве (UTC+3)
+ */
 export function getMoscowTime(): Date {
   const now = new Date();
-  return new Date(now.toLocaleString("en-US", { timeZone: "Europe/Moscow" }));
+  return new Date(now.getTime() + (now.getTimezoneOffset() + 180) * 60000);
 }
 
+/**
+ * Возвращает текущую дату по Москве в формате YYYY-MM-DD
+ */
 export function getMoscowDateString(): string {
   const msk = getMoscowTime();
   const year = msk.getFullYear();
@@ -39,23 +45,12 @@ export function getEndOfMoscowDay(): string {
 }
 
 /**
- * Рассчитывает время Кубка Пирамиды.
- * ПРАВИЛО: Время Лиги (X) - 12 часов.
- */
-export function getPyramidCupTime(leagueStartTime: string): string {
-  const [hours, minutes] = leagueStartTime.split(':').map(Number);
-  let cupHours = hours - 12;
-  if (cupHours < 0) cupHours += 24;
-  return `${String(cupHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-}
-
-/**
  * Рассчитывает возраст игрока с учетом прогрессии времени.
  */
 export function calculateLiveAge(baseAge: number, hiredAt: string) {
   const hired = new Date(hiredAt).getTime();
   const now = getMoscowTime().getTime();
-  // 1 реальный день = ~0.1 года прогрессии для динамики
+  // 1 реальный день = ~0.1 года прогрессии
   const diffDays = (now - hired) / (1000 * 60 * 60 * 24);
   const age = baseAge + (diffDays * 0.1);
   return {
@@ -64,18 +59,33 @@ export function calculateLiveAge(baseAge: number, hiredAt: string) {
   };
 }
 
+/**
+ * Глобальный расчет сезона. 
+ * Цикл: 16 дней.
+ * День 1-14: Матчи.
+ * День 15: Переход (16:00 MSK).
+ * День 16: Межсезонье.
+ */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
+  // Epoch: 2024-01-01
   const epoch = Date.UTC(2024, 0, 1);
   const nowUtc = Date.UTC(mskNow.getFullYear(), mskNow.getMonth(), mskNow.getDate());
   const diffDays = Math.floor((nowUtc - epoch) / (1000 * 60 * 60 * 24));
+  
   const cycleDuration = 16; 
   const currentSeasonDay = (diffDays % cycleDuration) + 1;
   const currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
   
+  // Проверка фазы перехода (Day 15, 16:00 MSK = 13:00 UTC)
+  const isTransitionTime = currentSeasonDay === 15 && mskNow.getHours() >= 16;
+  
   return {
     seasonDay: currentSeasonDay,
-    seasonNumber: currentSeasonNumber
+    seasonNumber: currentSeasonNumber,
+    isTransitionPhase: currentSeasonDay === 15,
+    isAfterTransition: isTransitionTime || currentSeasonDay > 15,
+    msUntilTransition: 0 // Will be calculated in components
   };
 }
 
