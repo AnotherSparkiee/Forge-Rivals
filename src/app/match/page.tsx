@@ -7,12 +7,13 @@ import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   ChevronLeft, Check, Swords, Activity, ArrowRight, 
   ShieldCheck, Zap, Target, FileText,
   Users, Trophy, Clock, Medal,
   ShieldAlert, User, MapPin, Info,
-  TrendingUp, Timer, ChevronRight
+  TrendingUp, Timer, ChevronRight, Loader2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -40,7 +41,6 @@ function MatchContent() {
   const [activeGameIdx, setActiveGameIdx] = useState(0);
   const [visibleEvents, setVisibleEvents] = useState<any[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [gameTime, setGameTime] = useState(0); // 0 to 120 seconds
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
@@ -65,7 +65,6 @@ function MatchContent() {
   const currentResult = useMemo(() => {
     if (!profile) return null;
     
-    // Check DB first for rich data
     const fromDb = dbMatches?.[0];
     if (fromDb && fromDb.status === 'finished') {
       const isHome = fromDb.homeId === user?.uid;
@@ -80,7 +79,7 @@ function MatchContent() {
         type: fromDb.type,
         day: fromDb.day,
         playedAt: fromDb.finishedAt || fromDb.startTime,
-        games: fromDb.simulation?.games || [fromDb.simulation], // Support multi-game Bo2
+        games: fromDb.simulation?.games || [fromDb.simulation],
         seriesScore: fromDb.simulation?.seriesScore || `${fromDb.scoreA}-${fromDb.scoreB}`,
         winner: fromDb.simulation?.winner
       };
@@ -92,17 +91,15 @@ function MatchContent() {
     return null;
   }, [matchHistory, dbMatches, matchIdFromUrl, user?.uid, profile]);
 
-  // Attendance Logic
   const attendance = useMemo(() => {
     if (!arena || !currentResult) return 0;
-    if (!currentResult.isHome) return Math.floor((arena.capacity || 5000) * 0.85); // Estimated away stadium
+    if (!currentResult.isHome) return Math.floor((arena.capacity || 5000) * 0.85); 
     const fanCount = fanData?.fanCount || 5000;
     const baseCap = arena.capacity || 5000;
     const fillingFactor = 0.7 + (Math.random() * 0.3);
     return Math.min(baseCap, Math.floor(fanCount * fillingFactor));
   }, [arena, fanData, currentResult]);
 
-  // LIVE SIMULATION EFFECT
   useEffect(() => {
     if (step !== 'live' || !currentResult || !currentResult.games) return;
 
@@ -110,7 +107,7 @@ function MatchContent() {
     if (!game) return;
 
     const events = game.timeline || [];
-    const totalRealTime = 120; // 2 minutes per game
+    const totalRealTime = 120; 
     const intervalMs = (totalRealTime * 1000) / Math.max(1, events.length);
 
     let currentEvt = 0;
@@ -123,7 +120,6 @@ function MatchContent() {
         }
       } else {
         clearInterval(timer);
-        // Map Finished
         if (activeGameIdx < currentResult.games.length - 1) {
           setTimeout(() => {
             setIsTransitioning(true);
@@ -131,10 +127,9 @@ function MatchContent() {
               setActiveGameIdx(prev => prev + 1);
               setVisibleEvents([]);
               setIsTransitioning(false);
-            }, 10000); // 10s pause between maps
+            }, 10000); 
           }, 3000);
         } else {
-          // All games finished
           setTimeout(() => setStep('stats'), 5000);
         }
       }
@@ -143,21 +138,16 @@ function MatchContent() {
     return () => clearInterval(timer);
   }, [step, activeGameIdx, currentResult]);
 
-  if (isUserLoading || !isLoaded || !user) return <LoadingScreen />;
+  if (isUserLoading || !isLoaded || !user || !currentResult) return <LoadingScreen />;
 
   const handleAcknowledgeMatch = () => {
-    if (currentResult) {
-      markMatchIdAsSeen(currentResult.id);
-      router.push('/');
-    } else {
-      router.push('/');
-    }
+    markMatchIdAsSeen(currentResult.id);
+    router.push('/');
   };
 
   const handleNext = () => {
-    if (!currentResult) return;
     if (step === 'preview') setStep('live');
-    else if (step === 'live') { /* Live proceeds automatically or via skipping? Let's allow skip to stats */ setStep('stats'); }
+    else if (step === 'live') setStep('stats'); 
     else handleAcknowledgeMatch();
   };
 
@@ -175,7 +165,7 @@ function MatchContent() {
       mapTransition: "Switching to next tactical map...",
       mapScore: "Series Standings",
       round: "Round", stage: "Stage", tournament: "Tournament",
-      tournamentTypes: { league: "PRO LEAGUE", cup: "PYRAMID CUP", friendly: "FRIENDLY", basket: "CW BASKET" }
+      tournamentTypes: { league: "PRO LEAGUE", cup: "PYRAMID CUP", friendly: "FRIENDLY", trial: "TRIAL" }
     },
     ru: {
       reportTitle: "ОФИЦИАЛЬНЫЙ ОТЧЕТ",
@@ -187,7 +177,7 @@ function MatchContent() {
       mapTransition: "Подготовка к следующей карте...",
       mapScore: "Счет в серии",
       round: "Тур", stage: "Стадия", tournament: "Турнир",
-      tournamentTypes: { league: "ПРОФ. ЛИГА", cup: "КУБОК ПИРАМИДЫ", friendly: "ТОВ. МАТЧ", basket: "КВ КОРЗИНА" }
+      tournamentTypes: { league: "ПРОФ. ЛИГА", cup: "КУБОК ПИРАМИДЫ", friendly: "ТОВ. МАТЧ", trial: "ПРОБНЫЙ МАТЧ" }
     }
   };
 
@@ -196,10 +186,11 @@ function MatchContent() {
   const renderStatsTable = (game: any) => {
     const scoreboard = game.scoreboard || [];
     const isHome = currentResult?.isHome;
+    const hName = isHome ? profile?.displayName : currentResult?.opponentName;
+    const aName = isHome ? currentResult?.opponentName : profile?.displayName;
     
-    // Separate teams
-    const homeHeroes = scoreboard.filter((p: any) => p.team === currentResult?.homeName);
-    const awayHeroes = scoreboard.filter((p: any) => p.team === currentResult?.awayName);
+    const homeHeroes = scoreboard.filter((p: any) => p.team === hName);
+    const awayHeroes = scoreboard.filter((p: any) => p.team === aName);
 
     const renderHeroRow = (p: any, side: 'left' | 'right') => (
       <div key={p.name} className={cn(
@@ -218,10 +209,6 @@ function MatchContent() {
             <span className="text-[9px] font-mono font-bold text-primary">{p.kills}/{p.deaths}/{p.assists}</span>
             <span className="text-[8px] text-muted-foreground uppercase font-black">{p.cs} CS</span>
           </div>
-        </div>
-        <div className="hidden sm:block text-right">
-          <p className="text-[7px] text-muted-foreground uppercase font-black">GPM</p>
-          <p className="text-[10px] font-mono font-bold text-accent">{Math.floor(p.cs * 15 + p.kills * 150) / 40}</p>
         </div>
       </div>
     );
@@ -255,8 +242,7 @@ function MatchContent() {
               {t.tournamentTypes[currentResult.type as keyof typeof t.tournamentTypes] || "ENGAGEMENT"}
             </Badge>
             <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">
-              {currentResult.type === 'league' ? `${t.round} ${currentResult.day}` : 
-               currentResult.type === 'cup' ? `${t.stage} 1/${Math.pow(2, 9 - leagueLevel)}` : t.tournament}
+              {currentResult.type === 'league' ? `${t.round} ${currentResult.day}` : t.tournament}
             </p>
           </div>
           <h1 className="text-sm font-headline font-bold text-white uppercase tracking-tighter">{t.reportTitle}</h1>
@@ -274,18 +260,18 @@ function MatchContent() {
                 <div className="p-6 flex flex-col items-center gap-3 text-center">
                   <div className="relative">
                     <div className="w-20 h-20 rounded-2xl bg-secondary/50 border border-primary/30 flex items-center justify-center shadow-xl">
-                      <span className="text-4xl">{myFlag}</span>
+                      <span className="text-4xl">{currentResult.isHome ? myFlag : '🏳️'}</span>
                     </div>
-                    <Badge className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[7px] font-black uppercase px-2 h-4 border-none">{t.home}</Badge>
+                    <Badge className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[7px] font-black uppercase px-2 h-4 border-none">HOME</Badge>
                   </div>
                   <h3 className="text-xs font-headline font-bold uppercase tracking-tight text-white mt-2 italic">{currentResult.homeName}</h3>
                 </div>
                 <div className="p-6 flex flex-col items-center gap-3 text-center">
                   <div className="relative">
                     <div className="w-20 h-20 rounded-2xl bg-secondary/50 border-white/10 flex items-center justify-center shadow-xl">
-                      <span className="text-4xl">🏳️</span>
+                      <span className="text-4xl">{!currentResult.isHome ? myFlag : '🏳️'}</span>
                     </div>
-                    <Badge variant="outline" className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-background border-white/20 text-muted-foreground text-[7px] font-black uppercase px-2 h-4">{t.away}</Badge>
+                    <Badge variant="outline" className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-background border-white/20 text-muted-foreground text-[7px] font-black uppercase px-2 h-4">AWAY</Badge>
                   </div>
                   <h3 className="text-xs font-headline font-bold uppercase tracking-tight text-white mt-2 italic">{currentResult.awayName}</h3>
                 </div>

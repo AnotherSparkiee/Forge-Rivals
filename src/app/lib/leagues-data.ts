@@ -54,6 +54,7 @@ export function generateDeterministicMatchId(
 
 /**
  * Deterministic match result based on team IDs and day.
+ * Returns series score for Bo2 (2:0, 1:1, 0:2)
  */
 export function getMatchResult(homeId: string, awayId: string, day: number, isBo3: boolean = false): [number, number] {
   const hId = homeId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -67,34 +68,31 @@ export function getMatchResult(homeId: string, awayId: string, day: number, isBo
     if (val < 70) return [1, 2]; 
     return [0, 2];
   } else {
-    if (val < 40) return [2, 0]; 
-    if (val < 70) return [1, 1]; 
-    return [0, 2]; 
+    // Bo2 Format
+    if (val < 35) return [2, 0]; // Home win
+    if (val < 65) return [1, 1]; // Draw
+    return [0, 2]; // Away win
   }
 }
 
 /**
  * Generates a 14-day Round Robin schedule for 8 teams.
- * Guaranteed Home-and-Away cycle with alternating status.
  */
 export function getSchedule(teams: any[]) {
   const n = teams.length;
-  if (n !== 8) return []; // System strictly designed for 8-team groups
+  if (n !== 8) return []; 
   
-  const rounds = n - 1; // 7 rounds in a single circle
+  const rounds = n - 1; 
   const half = n / 2;
 
   const teamsCopy = [...teams];
   const circleMatches = [];
 
-  // Circle Method for Round Robin
   for (let r = 0; r < rounds; r++) {
     const roundMatches = [];
     for (let i = 0; i < half; i++) {
       const home = teamsCopy[i];
       const away = teamsCopy[n - 1 - i];
-      
-      // Alternate home/away based on round for better distribution
       if (r % 2 === 0) {
         roundMatches.push({ home, away });
       } else {
@@ -102,33 +100,26 @@ export function getSchedule(teams: any[]) {
       }
     }
     circleMatches.push(roundMatches);
-    
-    // Rotate teams: fix first team, move others
     const last = teamsCopy.pop();
     if (last) teamsCopy.splice(1, 0, last);
   }
 
-  // Create full 14-day season
   const seasonSchedule = [];
   for (let d = 1; d <= 14; d++) {
     const matchDayIdx = (d - 1) % rounds;
     const isSecondCircle = d > rounds;
     const dayMatches = circleMatches[matchDayIdx];
-    
     if (isSecondCircle) {
-      // Reverse home/away status for the second encounter
       seasonSchedule.push(dayMatches.map(m => ({ home: m.away, away: m.home })));
     } else {
       seasonSchedule.push(dayMatches);
     }
   }
-  
   return seasonSchedule;
 }
 
 /**
  * Builds the group standings table by simulating all matches up to a specific day.
- * PROPERLY DETERMINISTIC: Sorts real players before filling with bots.
  */
 export function getMockGroupTeams(
   playerRank: number, 
@@ -142,7 +133,6 @@ export function getMockGroupTeams(
   upToDay: number = 0 
 ) {
   const teams: any[] = [];
-  // 1. Sort all found real players by ID for deterministic slotting
   const sortedRealPlayers = [...(realPlayers || [])].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
   
   sortedRealPlayers.forEach(p => {
@@ -159,7 +149,6 @@ export function getMockGroupTeams(
     }
   });
 
-  // 2. Fill remaining slots with Elite Bots (also deterministic)
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   for (let i = 0; i < botsNeeded; i++) {
     const botIdNum = (Number(level) * 1000) + (Number(group) * 10) + i + 1000;
@@ -171,11 +160,9 @@ export function getMockGroupTeams(
     });
   }
 
-  // 3. Take exactly 8 teams and sort by ID once more to ensure round-robin matches indices
   const finalTeams = teams.slice(0, TEAMS_PER_GROUP);
   finalTeams.sort((a, b) => a.id.localeCompare(b.id));
 
-  // 4. Calculate standings based on the FIXED schedule
   if (upToDay > 0) {
     const seasonSchedule = getSchedule(finalTeams);
     const limit = Math.min(upToDay, SEASON_DURATION_DAYS);
@@ -195,12 +182,22 @@ export function getMockGroupTeams(
   return finalTeams.sort((a, b) => b.points - a.points || b.wins - a.wins || a.id.localeCompare(b.id));
 }
 
+/**
+ * Applies Bo2 Result to league table.
+ * 2:0 -> 3 pts
+ * 1:1 -> 1 pt
+ * 0:2 -> 0 pts
+ */
 export function applyResult(home: any, away: any, hScore: number, aScore: number) {
-  if (hScore > aScore) {
+  if (hScore === 2) {
+    // Home Win
     home.wins++; home.points += 3; away.losses++;
-  } else if (hScore === aScore) {
-    home.draws++; home.points += 1; away.draws++; away.points += 1;
-  } else if (aScore > hScore) {
+  } else if (hScore === 1 && aScore === 1) {
+    // Draw
+    home.draws++; home.points += 1; 
+    away.draws++; away.points += 1;
+  } else if (aScore === 2) {
+    // Away Win
     away.wins++; away.points += 3; home.losses++;
   }
 }

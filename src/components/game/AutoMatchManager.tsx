@@ -1,3 +1,4 @@
+
 'use client';
 
 /**
@@ -18,6 +19,7 @@ import { Trophy } from 'lucide-react';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
+import { getMatchResult } from '@/app/lib/leagues-data';
 
 function sanitize(obj: any) {
   return JSON.parse(JSON.stringify(obj));
@@ -37,7 +39,6 @@ export function AutoMatchManager() {
   const [isSimulating, setIsSimulating] = useState(false);
   const processingMatches = useRef<Set<string>>(new Set());
 
-  // Слушаем все матчи нашей группы
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!selectedLeagueId || !userId) return null;
     return query(
@@ -62,20 +63,20 @@ export function AutoMatchManager() {
       const opponentId = isHome ? match.awayId : match.homeId;
       const opponentIsBot = opponentId.startsWith('bot');
 
-      // 1. Собираем активную пятерку игрока
+      // 1. Prepare Squads
       const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
-      let mySquad = activeSlots
+      const myHeroes = activeSlots
         .map(slot => ownedHeroes.find(h => h.id === lineup[slot]))
-        .filter(h => !!h)
-        .map(h => ({
-          name: h!.name,
-          role: h!.role,
-          overallRating: h!.overallRating,
-          proStats: h!.proStats,
-          isSub: false
-        }));
+        .filter(Boolean);
 
-      // Если состав пуст или неполный (что странно для PRO), заполняем ботами для стабильности
+      let mySquad = myHeroes.map(h => ({
+        name: h!.name,
+        role: h!.role,
+        overallRating: h!.overallRating,
+        proStats: h!.proStats,
+        isSub: false
+      }));
+
       if (mySquad.length < 5) {
         const fillers = generateBotSquad(20).slice(0, 5 - mySquad.length);
         mySquad = [...mySquad, ...fillers];
@@ -97,7 +98,7 @@ export function AutoMatchManager() {
           
           opponentSquad = activeSlots
             .map(slot => oppHeroesSnap.docs.find(d => d.id === oppLineup[slot])?.data())
-            .filter(h => !!h)
+            .filter(Boolean)
             .map(h => ({
               name: h!.name,
               role: h!.role,
@@ -113,44 +114,53 @@ export function AutoMatchManager() {
         }
       }
 
-      // 2. Запускаем симуляцию
-      const teamAData = isHome 
-        ? { name: displayName, strategy, heroes: mySquad }
-        : { name: match.homeName, strategy: opponentStrategy, heroes: opponentSquad };
-      
-      const teamBData = isHome
-        ? { name: match.awayName, strategy: opponentStrategy, heroes: opponentSquad }
-        : { name: displayName, strategy, heroes: mySquad };
+      // 2. Deterministic Result Calculation (for points consistency)
+      const homeId = match.homeId;
+      const awayId = match.awayId;
+      const [finalScoreA, finalScoreB] = getMatchResult(homeId, awayId, match.day, false);
+
+      // 3. Detailed Simulation
+      const teamAData = { name: match.homeName, strategy: isHome ? strategy : opponentStrategy, heroes: isHome ? mySquad : opponentSquad };
+      const teamBData = { name: match.awayName, strategy: !isHome ? strategy : opponentStrategy, heroes: !isHome ? mySquad : opponentSquad };
 
       const simulationResult = await simulateMobaMatch({
         teamA: teamAData,
         teamB: teamBData,
-        isBo2: false
+        isBo2: true,
+        scoreA: finalScoreA,
+        scoreB: finalScoreB
       });
 
-      // 3. Сохраняем в БД
+      // 4. Save to Source of Truth
       const matchRef = doc(db, 'matches_v1', match.id);
       const finishedData = {
         status: 'finished',
-        scoreA: simulationResult.games[0].scoreA,
-        scoreB: simulationResult.games[0].scoreB,
-        winnerId: simulationResult.winner === teamAData.name ? match.homeId : (simulationResult.winner === "Draw" ? null : match.awayId),
-        simulation: sanitize(simulationResult.games[0]),
+        scoreA: finalScoreA,
+        scoreB: finalScoreB,
+        winnerId: finalScoreA > finalScoreB ? match.homeId : (finalScoreA < finalScoreB ? match.awayId : null),
+        simulation: sanitize(simulationResult),
         finishedAt: new Date().toISOString()
       };
 
       await updateDoc(matchRef, finishedData);
 
-      // 4. Локальная история
-      const myResult = isHome ? simulationResult.games[0] : {
-        ...simulationResult.games[0],
-        scoreA: simulationResult.games[0].scoreB,
-        scoreB: simulationResult.games[0].scoreA,
-      };
+      // 5. Local Record
+      const myResultScoreA = isHome ? finalScoreA : finalScoreB;
+      const myResultScoreB = isHome ? finalScoreB : finalScoreA;
+      
+      const myWinner = myResultScoreA > myResultScoreB ? displayName : (myResultScoreA === myResultScoreB ? "Draw" : (isHome ? match.awayName : match.homeName));
 
       recordMatch(
-        simulationResult.winner === displayName ? displayName : (simulationResult.winner === "Draw" ? "Draw" : (isHome ? match.awayName : match.homeName)),
-        myResult,
+        myWinner,
+        {
+          scoreA: myResultScoreA,
+          scoreB: myResultScoreB,
+          duration: simulationResult.games[0].duration,
+          mvp: simulationResult.games[0].mvp,
+          matchSummary: simulationResult.games[0].matchSummary,
+          games: simulationResult.games,
+          seriesScore: simulationResult.seriesScore
+        },
         50000,
         isHome ? match.awayName : match.homeName,
         'league',
@@ -170,7 +180,7 @@ export function AutoMatchManager() {
   };
 
   useEffect(() => {
-    if (!matches || !userId) return;
+    if (!matches || !userId || !isLoaded) return;
     const mskNow = Date.now();
     const pendingMatch = matches.find(m => {
       const startTime = new Date(m.startTime).getTime();
@@ -179,7 +189,7 @@ export function AutoMatchManager() {
     if (pendingMatch && !isSimulating) {
       performSimulation(pendingMatch);
     }
-  }, [matches, userId, isSimulating]);
+  }, [matches, userId, isSimulating, isLoaded]);
 
   if (!isLoaded || !selectedLeagueId) return null;
 

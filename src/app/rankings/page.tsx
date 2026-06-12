@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -54,7 +55,6 @@ export default function RankingsPage() {
 
   const standings = useMemo(() => {
     if (!isLoaded) return [];
-    // Если мы в фазе перехода, то таблицы должны быть пустыми (upToDay = 0)
     const effectiveDay = seasonInfo.isTransitionPhase ? 0 : seasonDay;
     
     return getMockGroupTeams(
@@ -81,7 +81,7 @@ export default function RankingsPage() {
       all_pyramids: "All Pyramids",
       pyramid_cup: "Pyramid Cup",
       pts: "PTS",
-      winLoss: "W-L",
+      winLoss: "W-D-L",
       back: "Back",
       division: "Division",
       group: "Group",
@@ -102,7 +102,7 @@ export default function RankingsPage() {
       all_pyramids: "Все пирамиды",
       pyramid_cup: "Кубок пирамиды",
       pts: "ОЧК",
-      winLoss: "В-П",
+      winLoss: "В-Н-П",
       back: "Назад",
       division: "Дивизион",
       group: "Группа",
@@ -138,7 +138,7 @@ export default function RankingsPage() {
       )}
 
       <div className="space-y-1">
-        <div className="grid grid-cols-[30px_1fr_60px_40px] items-center px-4 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest">
+        <div className="grid grid-cols-[30px_1fr_75px_40px] items-center px-4 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest">
           <span>#</span>
           <span>Team</span>
           <span className="text-center">{t.winLoss}</span>
@@ -151,7 +151,7 @@ export default function RankingsPage() {
           <div 
             key={entry.id} 
             className={cn(
-              "grid grid-cols-[30px_1fr_60px_40px] items-center p-3 rounded-xl border transition-all",
+              "grid grid-cols-[30px_1fr_75px_40px] items-center p-3 rounded-xl border transition-all",
               entry.isMe ? "bg-primary/20 border-primary/40 ring-1 ring-primary/20" : "bg-secondary/20 border-white/5",
               i < 2 && !entry.isMe && "border-green-500/10",
               i >= 6 && !entry.isMe && "border-red-500/10"
@@ -162,7 +162,9 @@ export default function RankingsPage() {
               <span className="text-[11px] font-bold uppercase truncate text-white">{entry.name}</span>
               {entry.isMe && <Badge className="text-[6px] h-3 px-1 bg-primary text-primary-foreground font-black">YOU</Badge>}
             </div>
-            <div className="text-center font-mono text-[10px] font-bold text-muted-foreground">{entry.wins}-{entry.losses}</div>
+            <div className="text-center font-mono text-[10px] font-bold text-muted-foreground">
+              {entry.wins}-{entry.draws}-{entry.losses}
+            </div>
             <div className="text-right font-headline font-black text-primary italic">{entry.points}</div>
           </div>
         ))}

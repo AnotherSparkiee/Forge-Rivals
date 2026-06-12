@@ -122,33 +122,38 @@ class NarrativeGenerator {
 /**
  * Ядро симуляции одного матча.
  */
-function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number, forcedScoreA?: number, forcedScoreB?: number): z.infer<typeof GameStatsSchema> {
+function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number, forcedMapWinner?: 'A' | 'B'): z.infer<typeof GameStatsSchema> {
   const { teamA, teamB } = input;
   const narrative = new NarrativeGenerator();
   
-  const activeA = teamA.heroes.slice(0, 5);
-  const activeB = teamB.heroes.slice(0, 5);
+  const activeA = teamA.heroes.filter(h => !h.isSub).slice(0, 5);
+  const activeB = teamB.heroes.filter(h => !h.isSub).slice(0, 5);
 
-  const getAvgStat = (heroes: any[], stat: keyof typeof ProStatsSchema._type) => {
-    if (heroes.length === 0) return 0;
-    return heroes.reduce((acc: number, h: any) => acc + h.proStats[stat], 0) / heroes.length;
-  };
-
-  const applyTactics = (heroes: any[], enemyHeroes: any[], strategy: string) => {
+  const applyTactics = (strategy: string) => {
     let a = 1.0, d = 1.0;
     if (strategy === 'Aggressive Play') { a = 1.25; d = 1.15; }
     else if (strategy === 'Defensive Play') { d = 1.25; a = 0.85; }
     return { a, d };
   };
 
-  const modsA = applyTactics(activeA, activeB, teamA.strategy);
-  const modsB = applyTactics(activeB, activeA, teamB.strategy);
+  const modsA = applyTactics(teamA.strategy);
+  const modsB = applyTactics(teamB.strategy);
 
   const powerA = activeA.reduce((acc, h) => acc + h.overallRating, 0) * (modsA.a + modsA.d);
   const powerB = activeB.reduce((acc, h) => acc + h.overallRating, 0) * (modsB.a + modsB.d);
 
-  let finalScoreA = forcedScoreA !== undefined ? forcedScoreA : (powerA > powerB ? 1 : 0);
-  let finalScoreB = forcedScoreB !== undefined ? forcedScoreB : (powerB > powerA ? 1 : 0);
+  // Determine map winner
+  let finalScoreA = 0;
+  let finalScoreB = 0;
+
+  if (forcedMapWinner === 'A') {
+    finalScoreA = 1;
+  } else if (forcedMapWinner === 'B') {
+    finalScoreB = 1;
+  } else {
+    finalScoreA = powerA > powerB ? 1 : 0;
+    finalScoreB = powerA > powerB ? 0 : 1;
+  }
 
   const timeline: any[] = [];
   const playerStats = new Map<string, any>();
@@ -165,14 +170,17 @@ function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number, forcedS
   for (let m = 1; m <= duration; m++) {
     const time = `${m}:00`;
     const side = Math.random() > 0.5 ? activeA : activeB;
+    if (side.length === 0) continue;
+
     const sideName = side === activeA ? teamA.name : teamB.name;
     const oppSide = side === activeA ? activeB : activeA;
-    
-    if (side.length === 0 || oppSide.length === 0) continue;
+    if (oppSide.length === 0) continue;
 
     const hero = side[Math.floor(Math.random() * side.length)];
     const oppHero = oppSide[Math.floor(Math.random() * oppSide.length)];
     
+    if (!hero || !oppHero) continue;
+
     const rand = Math.random();
     if (rand < 0.4) {
       const ps = playerStats.get(hero.name);
@@ -211,14 +219,22 @@ export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<
   let winsA = 0, winsB = 0;
 
   for (let i = 0; i < numGames; i++) {
-    let fA = undefined, fB = undefined;
-    if (input.isBo2 && input.scoreA !== undefined) {
-      if (input.scoreA === 2) { fA = 1; fB = 0; }
-      else if (input.scoreB === 2) { fA = 0; fB = 1; }
-      else if (input.scoreA === 1 && input.scoreB === 1) { fA = i === 0 ? 1 : 0; fB = i === 0 ? 0 : 1; }
+    let forced: 'A' | 'B' | undefined = undefined;
+    
+    // Forced Result Logic for League synchronization
+    if (input.isBo2 && input.scoreA !== undefined && input.scoreB !== undefined) {
+      if (input.scoreA === 2) forced = 'A';
+      else if (input.scoreB === 2) forced = 'B';
+      else if (input.scoreA === 1 && input.scoreB === 1) {
+        forced = i === 0 ? 'A' : 'B';
+      }
     }
-    const g = runSingleGame(input, i, fA, fB);
-    games.push(g); winsA += g.scoreA; winsB += g.scoreB;
+
+    const g = runSingleGame(input, i, forced);
+    games.push(g); 
+    winsA += g.scoreA; 
+    winsB += g.scoreB;
+    
     if (input.isBo3 && (winsA === 2 || winsB === 2)) break;
   }
 
