@@ -2,18 +2,17 @@
 'use client';
 
 /**
- * @fileOverview Global Group Autonomous Match Persistence.
- * This component acts as a background "worker" that ensures deterministic
- * results are persisted to Firestore for detailed logging and history.
+ * @fileOverview Global Group Autonomous Match Persistence & Schedule Initialization.
+ * Ensures the league calendar exists and processes due matches deterministically.
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState, LineupSlot } from '@/app/lib/store';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, getDoc, collection, writeBatch } from 'firebase/firestore';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
-import { getMatchResult } from '@/app/lib/leagues-data';
+import { getMatchResult, generateDeterministicDayMatches, TEAMS_PER_GROUP } from '@/app/lib/leagues-data';
 
 function sanitize(obj: any) {
   return JSON.parse(JSON.stringify(obj));
@@ -22,21 +21,62 @@ function sanitize(obj: any) {
 export function AutoMatchManager() {
   const { 
     isLoaded, id: userId, 
-    strategy, ownedHeroes, lineup, recordMatch, displayName,
-    groupMatches, seasonNumber
+    strategy, ownedHeroes, lineup, recordMatch,
+    groupMatches, seasonNumber, leagueLevel, groupId, selectedLeagueId
   } = useGameState();
   const db = useFirestore();
   const processingRef = useRef<Set<string>>(new Set());
+  const initTriggeredRef = useRef<string>("");
+
+  /**
+   * Initializes the schedule for the current group if it doesn't exist.
+   */
+  const ensureScheduleExists = async () => {
+    if (!selectedLeagueId || !leagueLevel || !groupId || !seasonNumber) return;
+    
+    const syncKey = `${selectedLeagueId}_${leagueLevel}_${groupId}_${seasonNumber}`;
+    if (initTriggeredRef.current === syncKey) return;
+    initTriggeredRef.current = syncKey;
+
+    try {
+      // Check if first match of the season exists
+      const firstMatchId = `match_${seasonNumber}_${selectedLeagueId}_${leagueLevel}_${groupId}_d1_m0`;
+      const firstSnap = await getDoc(doc(db, 'matches_v1', firstMatchId));
+      
+      if (!firstSnap.exists()) {
+        console.log("Initializing group schedule for:", syncKey);
+        
+        // 1. Get participants (we need names for bots)
+        const teams: any[] = [];
+        // For schedule init, we just need IDs to match getGroupStandings logic
+        for (let i = 0; i < TEAMS_PER_GROUP; i++) {
+          const botId = `bot_${leagueLevel}_${groupId}_${i}`;
+          teams.push({ id: botId, name: `Elite Bot ${i + 1}` });
+        }
+        
+        // Note: Real players will override these IDs in getGroupStandings,
+        // but the pairing logic remains identical because it's based on indices.
+
+        const batch = writeBatch(db);
+        for (let d = 1; d <= 14; d++) {
+          const dayMatches = generateDeterministicDayMatches(leagueLevel, groupId, selectedLeagueId, seasonNumber, d, teams);
+          dayMatches.forEach(m => {
+            batch.set(doc(db, 'matches_v1', m.id), m, { merge: true });
+          });
+        }
+        await batch.commit();
+      }
+    } catch (e) {
+      console.error("Schedule initialization failed", e);
+    }
+  };
 
   const processPendingMatch = async (match: any) => {
     if (processingRef.current.has(match.id)) return;
     processingRef.current.add(match.id);
 
     try {
-      // 1. Get deterministic result (SAME FOR EVERYONE)
       const [finalScoreA, finalScoreB] = getMatchResult(match.homeId, match.awayId, match.day, seasonNumber);
-
-      // 2. Only perform detailed AI simulation if the match belongs to this user
       const isOurMatch = match.homeId === userId || match.awayId === userId;
       
       let simulationResult;
@@ -53,7 +93,6 @@ export function AutoMatchManager() {
           isSub: false 
         }));
         
-        // Add fillers if needed
         while (mySquad.length < 5) {
           mySquad.push({ 
             name: `Bot ${mySquad.length + 1}`, 
@@ -76,7 +115,6 @@ export function AutoMatchManager() {
           scoreB: finalScoreB
         });
 
-        // Save to personal recordMatch
         recordMatch(
           finalScoreA > finalScoreB ? match.homeName : (finalScoreA === finalScoreB ? "Draw" : match.awayName),
           { 
@@ -93,7 +131,6 @@ export function AutoMatchManager() {
           match.id
         );
       } else {
-        // Fast deterministic mock simulation for bot-vs-bot or other-vs-other
         simulationResult = { 
           winner: finalScoreA > finalScoreB ? match.homeName : (finalScoreA === finalScoreB ? "Draw" : match.awayName), 
           seriesScore: `${finalScoreA}-${finalScoreB}`, 
@@ -104,7 +141,6 @@ export function AutoMatchManager() {
         };
       }
 
-      // 3. Persist to Global Database
       await updateDoc(doc(db, 'matches_v1', match.id), {
         status: 'finished',
         scoreA: finalScoreA,
@@ -121,17 +157,20 @@ export function AutoMatchManager() {
   };
 
   useEffect(() => {
-    if (!isLoaded || !groupMatches || !userId) return;
+    if (!isLoaded || !userId) return;
+    
+    ensureScheduleExists();
+
+    if (!groupMatches) return;
     const now = Date.now();
     
-    // Check matches due for simulation
     const dueMatches = groupMatches.filter(m => {
       const startTime = new Date(m.startTime).getTime();
       return m.status === 'pending' && now >= startTime;
     });
 
     dueMatches.forEach(processPendingMatch);
-  }, [groupMatches, isLoaded, userId]);
+  }, [groupMatches, isLoaded, userId, selectedLeagueId, leagueLevel, groupId, seasonNumber]);
 
   return null;
 }

@@ -104,15 +104,29 @@ export function getGroupStandings(
   // Sort teams by ID for deterministic processing
   teams.sort((a, b) => a.id.localeCompare(b.id));
 
-  // 3. Aggregate results from DB matches
-  if (dbMatches && dbMatches.length > 0) {
-    dbMatches.forEach(match => {
-      if (match.status === 'finished') {
-        const home = teams.find(t => t.id === match.homeId);
-        const away = teams.find(t => t.id === match.awayId);
-        if (home && away) {
-          applyResult(home, away, match.scoreA, match.scoreB);
-        }
+  // 3. Aggregate results
+  // We check both Firestore (dbMatches) and "future" matches if they are already due
+  const nowMs = Date.now();
+  
+  // Instead of just dbMatches, we can deterministically infer results for passed time
+  // to ensure tables are NEVER empty if matches should have happened
+  for (let d = 1; d <= 14; d++) {
+    const dayMatches = generateDeterministicDayMatches(level, group, leagueId, seasonNumber, d, teams);
+    
+    dayMatches.forEach(m => {
+      const startTime = new Date(m.startTime).getTime();
+      const dbMatch = dbMatches.find(dbm => dbm.id === m.id);
+      
+      if (dbMatch?.status === 'finished') {
+        const home = teams.find(t => t.id === dbMatch.homeId);
+        const away = teams.find(t => t.id === dbMatch.awayId);
+        if (home && away) applyResult(home, away, dbMatch.scoreA, dbMatch.scoreB);
+      } else if (nowMs >= startTime) {
+        // Fallback for real-time display if DB record isn't "finished" yet
+        const [sA, sB] = getMatchResult(m.homeId, m.awayId, d, seasonNumber);
+        const home = teams.find(t => t.id === m.homeId);
+        const away = teams.find(t => t.id === m.awayId);
+        if (home && away) applyResult(home, away, sA, sB);
       }
     });
   }
@@ -136,4 +150,69 @@ export function applyResult(home: any, away: any, hScore: number, aScore: number
     away.points += 3; 
     home.losses++;
   }
+}
+
+/**
+ * Generates the deterministic match schedule for a specific day/group/season.
+ */
+export function generateDeterministicDayMatches(
+  level: number, 
+  group: number, 
+  leagueId: string, 
+  season: number, 
+  day: number,
+  teams: any[]
+) {
+  const matches: any[] = [];
+  const league = LEAGUES.find(l => l.id === leagueId) || LEAGUES[0];
+  
+  // Simple Round-Robin Pairing (Deterministic)
+  // Day 1: 0-7, 1-6, 2-5, 3-4
+  // Day 2: 0-6, 7-5, 1-4, 2-3 ... and so on
+  const n = teams.length;
+  const pairings: [number, number][] = [];
+  
+  // Standard circle algorithm for round robin
+  const participants = Array.from({ length: n }, (_, i) => i);
+  for (let r = 1; r < day; r++) {
+    const last = participants.pop()!;
+    participants.splice(1, 0, last);
+  }
+
+  for (let i = 0; i < n / 2; i++) {
+    pairings.push([participants[i], participants[n - 1 - i]]);
+  }
+
+  pairings.forEach(([hIdx, aIdx], i) => {
+    const home = teams[hIdx];
+    const away = teams[aIdx];
+    const matchId = `match_${season}_${leagueId}_${level}_${group}_d${day}_m${i}`;
+    
+    // Set start time based on league schedule and day
+    const startTime = new Date();
+    // Reset to start of season (Season 1 starts March 3, 2025)
+    const epochDate = new Date('2025-03-03T00:00:00+03:00');
+    const seasonStart = new Date(epochDate.getTime() + (season - 1) * 16 * 24 * 60 * 60 * 1000);
+    const matchDate = new Date(seasonStart.getTime() + (day - 1) * 24 * 60 * 60 * 1000);
+    
+    const [hours, mins] = league.startTime.split(':').map(Number);
+    matchDate.setHours(hours, mins, 0, 0);
+
+    matches.push({
+      id: matchId,
+      day,
+      seasonNumber: season,
+      leagueId,
+      divisionId: level,
+      groupId: group,
+      homeId: home.id,
+      homeName: home.name,
+      awayId: away.id,
+      awayName: away.name,
+      startTime: matchDate.toISOString(),
+      status: 'pending'
+    });
+  });
+
+  return matches;
 }
