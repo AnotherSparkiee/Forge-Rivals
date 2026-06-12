@@ -78,8 +78,7 @@ export function getGlobalSeasonInfo() {
   
   const cycleDuration = 16; 
   
-  // Текущий день в цикле. Если diffDays отрицательный (до старта), 
-  // то расчет даст 15 или 16 день предыдущего "нулевого" цикла.
+  // Текущий день в цикле.
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
   let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
   

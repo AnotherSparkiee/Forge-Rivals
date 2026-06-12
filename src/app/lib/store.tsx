@@ -125,7 +125,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const setLanguage = (l: string) => setLang(l);
 
-  // Group Matches Listener - MUST USE ACTIVE SEASON NUMBER
+  // Group Matches Listener
   const groupMatchesQuery = useMemoFirebase(() => {
     const s = stateRef.current;
     if (!s.selectedLeagueId || !s.isLoaded || !user) return null;
@@ -238,7 +238,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!s.isLoaded || !s.selectedLeagueId || !user) return;
 
     const generateScheduleIfMissing = async () => {
-      const { activeSeasonNumber } = getGlobalSeasonInfo();
+      const { activeSeasonNumber, seasonDay, isTransitionPhase } = getGlobalSeasonInfo();
 
       const existingQuery = query(
         collection(db, 'matches_v1'),
@@ -269,7 +269,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const leagueInfo = LEAGUES.find(l => l.id === s.selectedLeagueId) || LEAGUES[0];
       const [h, m] = leagueInfo.startTime.split(':').map(Number);
       
-      const info = getGlobalSeasonInfo();
+      const mskNow = getMoscowTime();
 
       seasonSchedule.forEach((dayMatches, dIdx) => {
         const day = dIdx + 1;
@@ -277,13 +277,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           const matchId = generateDeterministicMatchId(s.selectedLeagueId!, s.leagueLevel, s.groupId, activeSeasonNumber, day, mIdx);
           const matchRef = doc(db, 'matches_v1', matchId);
           
-          const startTime = new Date(getMoscowTime());
+          const startTime = new Date(mskNow);
           
+          // Расчет дней до матча:
+          // Если сейчас день 16 подготовки, то День 1 - это завтра (+1 день).
+          // Если сейчас день 1 нового сезона, то День 1 - это сегодня (+0 дней).
           let daysToMatch = 0;
-          if (info.seasonDay >= 15) {
-            daysToMatch = (17 - info.seasonDay) + (day - 1);
+          if (isTransitionPhase) {
+            daysToMatch = (17 - seasonDay) + (day - 1);
           } else {
-            daysToMatch = (day - info.seasonDay);
+            daysToMatch = (day - seasonDay);
           }
           
           startTime.setDate(startTime.getDate() + daysToMatch);

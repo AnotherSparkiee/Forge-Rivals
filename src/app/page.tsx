@@ -77,10 +77,12 @@ export default function Home() {
     
     const mskNow = getMoscowTime().getTime();
     
-    // В период подготовки (15-16) мы ищем самый первый матч сезона 1
+    // Ищем любой матч, который еще не прошел.
+    // В фазе подготовки (дни 15-16) это будет самый первый матч нового сезона.
     const sortedMatches = [...groupMatches]
       .filter(m => {
         const matchTime = new Date(m.startTime).getTime();
+        // Включаем матчи, которые стартуют сегодня или в будущем
         return matchTime > mskNow && (m.homeId === user?.uid || m.awayId === user?.uid);
       })
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
