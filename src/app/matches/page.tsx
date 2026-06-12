@@ -59,11 +59,11 @@ export default function MatchesPage() {
     
     const mskNow = getMoscowTime();
     
-    // Ищем любой матч, который еще не начался
     const sortedMatches = [...groupMatches]
       .filter(m => {
-        const matchTime = new Date(m.startTime).getTime();
-        return matchTime > mskNow.getTime() && (m.homeId === user?.uid || m.awayId === user?.uid);
+        const isParticipant = m.homeId === user?.uid || m.awayId === user?.uid;
+        const isNotFinished = m.status !== 'finished';
+        return isParticipant && isNotFinished;
       })
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
@@ -149,11 +149,10 @@ export default function MatchesPage() {
         );
       case 'my_future':
         if (!groupMatches || groupMatches.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">Syncing schedule...</div>;
-        const mskNow = getMoscowTime().getTime();
         const future = groupMatches
           .filter(m => {
-            const matchTime = new Date(m.startTime).getTime();
-            return matchTime > mskNow && (m.homeId === user?.uid || m.awayId === user?.uid);
+            const isParticipant = m.homeId === user?.uid || m.awayId === user?.uid;
+            return m.status === 'pending' && isParticipant;
           })
           .sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         return <div className="space-y-3">
@@ -171,6 +170,25 @@ export default function MatchesPage() {
             </div>
           ))}
         </div>;
+      case 'my_played':
+        if (matchHistory.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">No combat history</div>;
+        return <div className="space-y-3">
+          {[...matchHistory].reverse().map(m => (
+            <Link key={m.id} href={`/match?id=${m.id}`} className="block">
+              <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 flex items-center justify-between">
+                <div className="flex flex-col gap-1">
+                  <Badge variant="outline" className="text-[7px] w-fit border-primary/20 text-primary">{m.type.toUpperCase()}</Badge>
+                  <span className="text-xs font-bold uppercase text-white truncate max-w-[150px]">{m.opponentName}</span>
+                  <span className="text-[8px] text-muted-foreground">{new Date(m.playedAt).toLocaleDateString()}</span>
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-headline font-black italic tracking-widest text-primary">{m.scoreA}:{m.scoreB}</p>
+                  <p className={cn("text-[7px] font-black uppercase", m.winner === displayName ? "text-green-400" : "text-red-400")}>{m.winner === displayName ? 'VICTORY' : 'DEFEAT'}</p>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>;
       case 'league_calendar':
         if (!groupMatches || groupMatches.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">Syncing calendar...</div>;
         const days = Array.from({ length: 14 }, (_, i) => i + 1);
@@ -184,9 +202,15 @@ export default function MatchesPage() {
                 </div>
                 <div className="grid gap-2">
                   {groupMatches.filter(m => m.day === d).map((m: any) => (
-                    <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between text-[10px] font-bold uppercase">
+                    <div key={m.id} className={cn("bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between text-[10px] font-bold uppercase", m.status === 'finished' && "opacity-60")}>
                       <span className={cn("flex-1 text-right truncate", m.homeId === user.uid && "text-primary")}>{m.homeName}</span>
-                      <span className="px-4 opacity-30 italic">VS</span>
+                      <div className="px-4 flex flex-col items-center">
+                        {m.status === 'finished' ? (
+                          <span className="text-accent font-mono font-black">{m.scoreA}:{m.scoreB}</span>
+                        ) : (
+                          <span className="opacity-30 italic">VS</span>
+                        )}
+                      </div>
                       <span className={cn("flex-1 text-left truncate", m.awayId === user.uid && "text-primary")}>{m.awayName}</span>
                     </div>
                   ))}
@@ -195,7 +219,29 @@ export default function MatchesPage() {
             ))}
           </div>
         );
-      default: return <p className="text-center opacity-30 uppercase text-xs py-10">Data syncing...</p>;
+      case 'league_played':
+        const played = groupMatches
+          .filter(m => m.status === 'finished')
+          .sort((a, b) => new Date(b.finishedAt || b.startTime).getTime() - new Date(a.finishedAt || a.startTime).getTime());
+        if (played.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">No league results yet</div>;
+        return <div className="space-y-3">
+          {played.map(m => (
+            <Link key={m.id} href={`/match?id=${m.id}`} className="block">
+              <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
+                <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2">
+                  <span className="text-[8px] text-muted-foreground uppercase">{getSeasonDateLabel(m.day)}</span>
+                  <span className="text-[10px] font-mono font-bold text-primary">DAY {m.day}</span>
+                </div>
+                <div className="flex-1 flex items-center justify-between min-w-0">
+                   <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.homeId === user.uid && "text-accent")}>{m.homeName}</span>
+                   <div className="px-3 flex flex-col items-center"><span className="text-lg font-headline font-black italic text-white leading-none">{m.scoreA}:{m.scoreB}</span></div>
+                   <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.awayId === user.uid && "text-accent")}>{m.awayName}</span>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>;
+      default: return null;
     }
   };
 

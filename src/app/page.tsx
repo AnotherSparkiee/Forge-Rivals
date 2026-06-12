@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -71,20 +72,18 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), [isLoaded]);
 
-  // Unified Next Match Logic - Global Search across all group matches
+  // Unified Next Match Logic - Filtering only PENDING matches to avoid showing finished ones
   const nextMatchData = useMemo(() => {
-    if (!isLoaded || !groupMatches) return null;
-    if (groupMatches.length === 0) return null;
+    if (!isLoaded || !groupMatches || groupMatches.length === 0) return null;
     
     const mskNow = getMoscowTime().getTime();
     
-    // Ищем любой матч, который еще не прошел, независимо от дня.
-    // Это гарантирует, что в фазе подготовки мы увидим завтрашний матч (День 1).
+    // Find earliest pending match that is either in the future or currently ongoing but not finished
     const sortedMatches = [...groupMatches]
       .filter(m => {
-        const matchTime = new Date(m.startTime).getTime();
-        // Включаем только матчи, которые стартуют в будущем
-        return matchTime > mskNow && (m.homeId === user?.uid || m.awayId === user?.uid);
+        const isParticipant = m.homeId === user?.uid || m.awayId === user?.uid;
+        const isNotFinished = m.status !== 'finished';
+        return isParticipant && isNotFinished;
       })
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
@@ -120,6 +119,7 @@ export default function Home() {
       const diff = target.getTime() - mskNow.getTime();
       
       if (diff <= 0) {
+        // If countdown reached zero, we show 00:00:00 until simulation completes and switches to next
         setCountdown('00:00:00');
       } else {
         const hh = Math.floor(diff / 3600000);

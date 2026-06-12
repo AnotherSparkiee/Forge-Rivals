@@ -61,7 +61,7 @@ export function AutoMatchManager() {
       
       const isHome = match.homeId === userId;
       const opponentId = isHome ? match.awayId : match.homeId;
-      const opponentIsBot = opponentId.startsWith('bot');
+      const opponentIsBot = String(opponentId).startsWith('bot');
 
       // 1. Prepare Squads
       const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
@@ -115,9 +115,7 @@ export function AutoMatchManager() {
       }
 
       // 2. Deterministic Result Calculation (for points consistency)
-      const homeId = match.homeId;
-      const awayId = match.awayId;
-      const [finalScoreA, finalScoreB] = getMatchResult(homeId, awayId, match.day, false);
+      const [finalScoreA, finalScoreB] = getMatchResult(match.homeId, match.awayId, match.day, false);
 
       // 3. Detailed Simulation
       const teamAData = { name: match.homeName, strategy: isHome ? strategy : opponentStrategy, heroes: isHome ? mySquad : opponentSquad };
@@ -144,7 +142,7 @@ export function AutoMatchManager() {
 
       await updateDoc(matchRef, finishedData);
 
-      // 5. Local Record
+      // 5. Local Record for history tab
       const myResultScoreA = isHome ? finalScoreA : finalScoreB;
       const myResultScoreB = isHome ? finalScoreB : finalScoreA;
       
@@ -174,6 +172,7 @@ export function AutoMatchManager() {
 
     } catch (error) {
       console.error("Simulation failed", error);
+      processingMatches.current.delete(match.id);
     } finally {
       setIsSimulating(false);
     }
@@ -182,10 +181,14 @@ export function AutoMatchManager() {
   useEffect(() => {
     if (!matches || !userId || !isLoaded) return;
     const mskNow = Date.now();
+    
+    // Find earliest match that should have started and is not finished
     const pendingMatch = matches.find(m => {
       const startTime = new Date(m.startTime).getTime();
-      return m.status === 'pending' && mskNow >= startTime && (m.homeId === userId || m.awayId === userId);
+      const isParticipant = m.homeId === userId || m.awayId === userId;
+      return m.status === 'pending' && mskNow >= startTime && isParticipant;
     });
+
     if (pendingMatch && !isSimulating) {
       performSimulation(pendingMatch);
     }
