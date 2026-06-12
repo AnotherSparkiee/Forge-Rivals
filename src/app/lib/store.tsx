@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище данных клуба с системой синхронизированных матчей.
+ * @fileOverview Global Game State Store.
+ * Centralizes all club data and manages real-time Firestore synchronization.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
@@ -9,7 +10,6 @@ import { Hero, StaffMember, StaffRole } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString } from './time-utils';
 import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, getDocs, arrayUnion } from 'firebase/firestore';
-import { LEAGUES } from './leagues-data';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
@@ -123,7 +123,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const setLanguage = (l: string) => setLang(l);
 
-  // Group Matches Listener - Syncs the entire group
+  // Real-time synchronization for all group matches in current season
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!state.selectedLeagueId || !state.id) return null;
     const { activeSeasonNumber } = getGlobalSeasonInfo();
@@ -357,6 +357,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const s = stateRef.current;
     const mId = matchId || `match_${Date.now()}`;
     
+    // Check if this specific match instance already in history
     if (s.matchHistory.some(m => m.id === mId)) return;
 
     const newEntry = {
