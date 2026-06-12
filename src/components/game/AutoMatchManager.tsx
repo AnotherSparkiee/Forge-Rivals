@@ -1,6 +1,6 @@
 
 /**
- * @fileOverview Autonomous Season Engine (Distributed Heartbeat).
+ * @fileOverview Autonomous Season Engine (Catch-up Distributed Heartbeat).
  */
 
 'use client';
@@ -8,7 +8,7 @@
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, setDoc, getDoc, writeBatch, collection, query, where, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs } from 'firebase/firestore';
 import { 
   getStableGroupTeams, generateSeasonCalendar, getMatchResult, 
   calculateStandings, MAX_LEVELS, LEAGUES 
@@ -34,7 +34,7 @@ export function AutoMatchManager() {
   const { data: allGroupPlayers } = useCollection(groupPlayersQuery);
 
   useEffect(() => {
-    if (!isLoaded || !userId || !selectedLeagueId || processingRef.current) return;
+    if (!isLoaded || !userId || !selectedLeagueId || processingRef.current || !allGroupPlayers) return;
 
     const heartbeat = async () => {
       if (processingRef.current) return;
@@ -55,7 +55,7 @@ export function AutoMatchManager() {
         // --- PHASE 1: INITIALIZE GROUP & CALENDAR ---
         if (!groupSnap.exists() || groupSnap.data().seasonId !== activeSeason) {
           console.log("[Engine] Initializing Season:", activeSeason);
-          const teams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, allGroupPlayers || []);
+          const teams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, allGroupPlayers);
           const calendar = generateSeasonCalendar(teams);
           
           const batch = writeBatch(db);
@@ -94,27 +94,31 @@ export function AutoMatchManager() {
           return;
         }
 
-        const groupData = groupSnap.data();
-        const roundNumber = groupData.roundNumber || 1;
+        // --- PHASE 2: CATCH-UP LOGIC (Process all pending matches in past) ---
+        // Find all matches for this group that should be finished by now
+        const matchesQuery = query(
+          collection(db, 'matches_v1'),
+          where('leagueId', '==', selectedLeagueId),
+          where('divisionId', '==', Number(leagueLevel)),
+          where('groupId', '==', Number(groupId)),
+          where('seasonNumber', '==', activeSeason),
+          where('status', '==', 'pending')
+        );
 
-        // --- PHASE 2: DAILY SYNC TICK (AFTER 23:05 MSK) ---
-        // For MU league (19:00 start), we can process shortly after start or end of day.
-        // Let's use 23:05 as global terminal point for daily results.
-        const isMatchTimePassed = mskNow.getHours() >= 23 && mskNow.getMinutes() >= 5;
-        const needsProcessing = groupData.lastProcessedDate !== todayStr && roundNumber <= 14;
+        const pendingSnap = await getDocs(matchesQuery);
+        const matchesToFinalize = pendingSnap.docs.filter(doc => {
+          const startTime = new Date(doc.data().startTime);
+          // Auto-finalize match if it started more than 1 minute ago
+          return mskNow.getTime() > startTime.getTime() + 60000;
+        });
 
-        if (isMatchTimePassed && needsProcessing) {
-          console.log("[Engine] Finalizing Round:", roundNumber);
-          
-          const teams = groupData.teams;
-          const calendar = generateSeasonCalendar(teams);
-          const roundMatches = calendar.filter(m => m.day === roundNumber);
-          
+        if (matchesToFinalize.length > 0) {
+          console.log(`[Engine] Finalizing ${matchesToFinalize.length} overdue matches...`);
           const batch = writeBatch(db);
 
-          for (const m of roundMatches) {
-            const [sA, sB] = getMatchResult(m.homeId, m.awayId, roundNumber, activeSeason);
-            const matchId = `match_${selectedLeagueId}_g${groupId}_s${activeSeason}_d${roundNumber}_h${m.homeId}`;
+          for (const matchDoc of matchesToFinalize) {
+            const m = matchDoc.data();
+            const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, activeSeason);
             
             const finishedData = {
               status: 'finished',
@@ -131,39 +135,47 @@ export function AutoMatchManager() {
               }
             };
 
-            batch.update(doc(db, 'matches_v1', matchId), finishedData);
+            batch.update(matchDoc.ref, finishedData);
 
+            // If it's a match for THIS user, record it in their personal history
             if (m.homeId === userId || m.awayId === userId) {
               const isHome = m.homeId === userId;
               recordMatch(
                 finishedData.simulation.winner,
                 { scoreA: isHome ? sA : sB, scoreB: isHome ? sB : sA, ...finishedData.simulation },
-                30000, isHome ? m.awayName : m.homeName, 'league', mskNow.toISOString(), matchId
+                30000, isHome ? m.awayName : m.homeName, 'league', mskNow.toISOString(), m.id
               );
             }
           }
 
-          batch.update(groupRef, {
-            roundNumber: roundNumber + 1,
-            lastProcessedDate: todayStr
+          // Update group round number to the latest completed day
+          const maxDay = Math.max(...matchesToFinalize.map(d => d.data().day));
+          batch.update(groupRef, { 
+            roundNumber: maxDay + 1,
+            lastProcessedDate: todayStr 
           });
 
           await batch.commit();
-          console.log("[Engine] Round processed.");
+          console.log("[Engine] Catch-up sync completed.");
         }
 
         // --- PHASE 3: SEASON END TRANSITION ---
-        if (roundNumber > 14 && groupData.lastProcessedDate !== todayStr) {
+        const groupData = groupSnap.data();
+        if (groupData.roundNumber > 14 && groupData.lastProcessedDate !== todayStr && !seasonInfo.isTransitionPhase) {
           console.log("[Engine] Season Ended. Performing Migration...");
           
           const teams = groupData.teams;
-          const calendar = generateSeasonCalendar(teams);
-          const matchesWithResults = calendar.map(m => {
-            const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, activeSeason);
-            return { ...m, scoreA: sA, scoreB: sB, status: 'finished' };
-          });
+          const matchesQuery = query(
+            collection(db, 'matches_v1'),
+            where('leagueId', '==', selectedLeagueId),
+            where('divisionId', '==', Number(leagueLevel)),
+            where('groupId', '==', Number(groupId)),
+            where('seasonNumber', '==', activeSeason)
+          );
+          const seasonMatchesSnap = await getDocs(matchesQuery);
+          const seasonMatches = seasonMatchesSnap.docs.map(d => d.data());
 
-          const standings = calculateStandings(teams, matchesWithResults);
+          const standings = calculateStandings(teams, seasonMatches);
           const batch = writeBatch(db);
 
           for (let i = 0; i < standings.length; i++) {
@@ -195,7 +207,7 @@ export function AutoMatchManager() {
         }
 
       } catch (e: any) {
-        console.warn("[Engine] Heartbeat Error (Normal during initialization):", e.message);
+        console.warn("[Engine] Heartbeat Error:", e.message);
       } finally {
         processingRef.current = false;
       }

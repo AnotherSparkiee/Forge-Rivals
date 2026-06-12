@@ -51,7 +51,7 @@ export function getMatchResult(homeId: string, awayId: string, day: number = 0, 
 }
 
 /**
- * Generates a stable list of 8 teams for a group.
+ * Generates a stable list of 8 teams for a group with deterministic bot IDs.
  */
 export function getStableGroupTeams(level: number, group: number, leagueId: string, allLeaguePlayers: any[] = []) {
   const groupPlayers = allLeaguePlayers.filter(p => 
@@ -67,8 +67,10 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
   const teams = [...groupPlayers];
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   for (let i = 0; i < botsNeeded; i++) {
-    const botId = `bot_${leagueId}_l${level}_g${group}_${i}`;
-    teams.push({ id: botId, name: `Elite Bot ${i + 1}`, isBot: true });
+    // FIXED Deterministic ID and Name to prevent mismatch
+    const botId = `bot_${leagueId}_L${level}_G${group}_${i}`;
+    const botDisplayId = (level * 1000) + (group * 10) + i;
+    teams.push({ id: botId, name: `Elite Bot ${botDisplayId}`, isBot: true });
   }
   return teams.sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -118,10 +120,10 @@ export function calculateStandings(teams: any[], matches: any[]) {
     const away = stats.find(t => t.id === m.awayId);
     if (!home || !away) return;
 
-    home.goalsFor += m.scoreA;
-    home.goalsAgainst += m.scoreB;
-    away.goalsFor += m.scoreB;
-    away.goalsAgainst += m.scoreA;
+    home.goalsFor += (m.scoreA || 0);
+    home.goalsAgainst += (m.scoreB || 0);
+    away.goalsFor += (m.scoreB || 0);
+    away.goalsAgainst += (m.scoreA || 0);
 
     if (m.scoreA > m.scoreB) {
       home.wins++; home.points += 3; away.losses++;
