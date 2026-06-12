@@ -78,39 +78,26 @@ export default function Home() {
     if (!isLoaded || !groupMatches || groupMatches.length === 0) return null;
     
     const isTodayPlayed = lastLeagueMatchDate === getMoscowDateString();
+    const mskNow = getMoscowTime();
     
-    // Если сегодня сыграно или сейчас межсезонье (День 15-16), ищем ПЕРВЫЙ матч нового сезона (День 1)
-    const targetDay = (isTodayPlayed || seasonDay > 14 || seasonDay === 0) ? 1 : seasonDay;
-    
-    const myMatch = groupMatches.find((m: any) => 
-      m.day === targetDay && 
-      (m.homeId === user?.uid || m.awayId === user?.uid)
-    );
+    // Ищем любой матч, который еще не начался
+    const sortedMatches = [...groupMatches]
+      .filter(m => {
+        const matchTime = new Date(m.startTime).getTime();
+        return matchTime > mskNow.getTime() && (m.homeId === user?.uid || m.awayId === user?.uid);
+      })
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
-    if (!myMatch) {
-      // Fallback: берем любой ближайший доступный матч
-      const futureMatches = [...groupMatches]
-        .filter(m => (m.homeId === user?.uid || m.awayId === user?.uid))
-        .sort((a,b) => a.day - b.day);
-      if (futureMatches.length > 0) return {
-        match: futureMatches[0],
-        opponentName: futureMatches[0].homeId === user?.uid ? futureMatches[0].awayName : futureMatches[0].homeName,
-        day: futureMatches[0].day,
-        dateLabel: getSeasonDateLabel(futureMatches[0].day),
-        type: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE',
-        time: league.startTime,
-        isHome: futureMatches[0].homeId === user?.uid
-      };
-      return null;
-    }
+    if (sortedMatches.length === 0) return null;
 
+    const myMatch = sortedMatches[0];
     const isHome = myMatch.homeId === user?.uid;
 
     return {
       match: myMatch,
       opponentName: isHome ? myMatch.awayName : myMatch.homeName,
-      day: targetDay,
-      dateLabel: getSeasonDateLabel(targetDay),
+      day: myMatch.day,
+      dateLabel: getSeasonDateLabel(myMatch.day),
       type: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE',
       time: league.startTime,
       isHome: isHome

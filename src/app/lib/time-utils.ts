@@ -41,10 +41,16 @@ export function formatMoscowTime(date: Date): string {
 export function getSeasonDateLabel(dayOfSeason: number): string {
   const mskNow = getMoscowTime();
   const info = getGlobalSeasonInfo();
-  const diffDays = dayOfSeason - info.seasonDay;
+  // Если мы смотрим следующий сезон, считаем от завтрашнего дня (старта S1)
+  const diffDays = dayOfSeason - (info.seasonDay > 14 ? 0 : info.seasonDay);
   
   const targetDate = new Date(mskNow);
-  targetDate.setDate(mskNow.getDate() + diffDays);
+  // Если сегодня межсезонье (15-16), то Day 1 — это завтра
+  if (info.seasonDay > 14) {
+    targetDate.setDate(mskNow.getDate() + (17 - info.seasonDay) + (dayOfSeason - 1));
+  } else {
+    targetDate.setDate(mskNow.getDate() + diffDays);
+  }
   
   const m = String(targetDate.getMonth() + 1).padStart(2, '0');
   const d = String(targetDate.getDate()).padStart(2, '0');
@@ -52,81 +58,42 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
 }
 
 /**
- * Возвращает ISO строку конца текущего дня по МСК (23:59:59)
- */
-export function getEndOfMoscowDay(): string {
-  const msk = getMoscowTime();
-  msk.setHours(23, 59, 59, 999);
-  return msk.toISOString();
-}
-
-/**
- * Рассчитывает возраст игрока с учетом прогрессии времени.
- */
-export function calculateLiveAge(baseAge: number, hiredAt: string) {
-  const hired = new Date(hiredAt).getTime();
-  const now = getMoscowTime().getTime();
-  // 1 реальный день = ~0.1 года прогрессии
-  const diffDays = (now - hired) / (1000 * 60 * 60 * 24);
-  const age = baseAge + (diffDays * 0.1);
-  return {
-    numeric: age,
-    display: age.toFixed(1)
-  };
-}
-
-/**
  * Глобальный расчет сезона. 
  * Цикл: 16 дней.
- * День 1-14: Матчи.
- * День 15: Переход (16:00 MSK).
- * День 16: Межсезонье.
- * 
- * RESET FOR SEASON 1: Epoch adjusted so Day 1 starts TOMORROW.
  */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   
-  // Мы хотим, чтобы завтра был День 1 Сезона 1.
-  // Значит сегодня (mskNow) должен быть День 16 Сезона 0.
-  const today = new Date(mskNow);
-  today.setHours(0,0,0,0);
+  // Устанавливаем Эпоху так, чтобы ЗАВТРА был День 1 Сезона 1.
+  // Сегодня — 19 мая. Завтра — 20 мая (Старт).
+  const startOfS1 = new Date(mskNow);
+  startOfS1.setDate(mskNow.getDate() + 1);
+  startOfS1.setHours(0, 0, 0, 0);
   
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  
-  // Эпоха — это начало Дня 1 Сезона 1.
-  const epoch = tomorrow.getTime(); 
+  const epoch = startOfS1.getTime(); 
 
   const diffMs = mskNow.getTime() - epoch;
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   
   const cycleDuration = 16; 
-  // Модульное смещение для диапазона 1-16
+  // Сегодня diffDays = -1. 
+  // currentSeasonDay = ((-1 % 16) + 16) % 16 + 1 = 16.
+  // currentSeasonNumber = floor(-1 / 16) + 1 = -1 + 1 = 0.
+  
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
   let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
   
-  // Принудительная коррекция для старта
-  if (currentSeasonNumber < 1) currentSeasonNumber = 1;
+  // Мы хотим видеть Сезон 1 уже сегодня (в день подготовки)
+  const isPreSeason = currentSeasonNumber === 0;
+  const displaySeasonNumber = isPreSeason ? 1 : currentSeasonNumber;
+  const displaySeasonDay = isPreSeason ? 16 : currentSeasonDay;
 
-  const isTransitionTime = currentSeasonDay === 15 && mskNow.getHours() >= 16;
+  const isTransitionTime = displaySeasonDay === 15 && mskNow.getHours() >= 16;
   
   return {
-    seasonDay: currentSeasonDay,
-    seasonNumber: currentSeasonNumber,
-    isTransitionPhase: currentSeasonDay === 15,
-    isAfterTransition: isTransitionTime || currentSeasonDay > 15,
-    msUntilTransition: 0
+    seasonDay: displaySeasonDay,
+    seasonNumber: displaySeasonNumber,
+    isTransitionPhase: displaySeasonDay === 15,
+    isAfterTransition: isTransitionTime || displaySeasonDay > 15
   };
-}
-
-export function isMatchDue(startTimeStr: string): boolean {
-  const mskNow = getMoscowTime();
-  const [matchHour, matchMinutes] = startTimeStr.split(':').map(Number);
-  const currentHour = mskNow.getHours();
-  const currentMinute = mskNow.getMinutes();
-
-  if (currentHour > matchHour) return true;
-  if (currentHour === matchHour && currentMinute >= (matchMinutes || 0)) return true;
-  return false;
 }

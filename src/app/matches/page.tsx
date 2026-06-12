@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '../lib/leagues-data';
-import { getMoscowDateString, getMoscowTime, getSeasonDateLabel } from '../lib/time-utils';
+import { getMoscowDateString, getMoscowTime, getSeasonDateLabel, getGlobalSeasonInfo } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { getGlobalCupParticipants, getWinnerOfBranch, getEntryRound } from '../lib/cup-utils';
 
@@ -52,45 +52,37 @@ export default function MatchesPage() {
   }, [user, isUserLoading, router]);
 
   const league = useMemo(() => LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0], [profile?.selectedLeagueId]);
-  const isTodayPlayed = useMemo(() => lastLeagueMatchDate === getMoscowDateString(), [lastLeagueMatchDate]);
-  const isCupPlayedToday = useMemo(() => lastCupMatchDate === getMoscowDateString(), [lastCupMatchDate]);
 
   // NEXT LEAGUE MATCH
   const leagueNextMatch = useMemo(() => {
     if (!isLoaded || !groupMatches || groupMatches.length === 0) return null;
     
-    // Если сегодня сыграно или сейчас межсезонье, ищем ПЕРВЫЙ матч нового сезона
-    const targetDay = (isTodayPlayed || seasonDay > 14 || seasonDay === 0) ? 1 : seasonDay;
-
-    const myMatch = groupMatches.find((m: any) => m.day === targetDay && (m.homeId === user?.uid || m.awayId === user?.uid));
+    const mskNow = getMoscowTime();
     
-    if (!myMatch) {
-       const futureMatches = [...groupMatches]
-        .filter(m => (m.homeId === user?.uid || m.awayId === user?.uid))
-        .sort((a,b) => a.day - b.day);
-       if (futureMatches.length > 0) return {
-         opponent: { name: futureMatches[0].homeId === user?.uid ? futureMatches[0].awayName : futureMatches[0].homeName },
-         match: futureMatches[0],
-         time: league.startTime,
-         type: 'league',
-         label: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE'
-       };
-       return null;
-    }
+    // Ищем любой матч, который еще не начался
+    const sortedMatches = [...groupMatches]
+      .filter(m => {
+        const matchTime = new Date(m.startTime).getTime();
+        return matchTime > mskNow.getTime() && (m.homeId === user?.uid || m.awayId === user?.uid);
+      })
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
+    if (sortedMatches.length === 0) return null;
+
+    const myMatch = sortedMatches[0];
     const isHome = myMatch.homeId === user?.uid;
     const oppName = isHome ? myMatch.awayName : myMatch.homeName;
 
     return { 
       opponent: { name: oppName, isPlayer: !oppName.includes('Bot') }, 
-      day: targetDay, 
+      day: myMatch.day, 
       match: myMatch,
       time: league.startTime, 
       type: 'league', 
       isCup: false,
       label: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE'
     };
-  }, [isLoaded, groupMatches, seasonDay, isTodayPlayed, league, user?.uid, language]);
+  }, [isLoaded, groupMatches, league, user?.uid, language]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -157,8 +149,13 @@ export default function MatchesPage() {
         );
       case 'my_future':
         if (!groupMatches || groupMatches.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">Syncing schedule...</div>;
-        const startIdx = (isTodayPlayed || seasonDay > 14 || seasonDay === 0) ? 1 : seasonDay;
-        const future = groupMatches.filter(m => m.day >= startIdx && (m.homeId === user?.uid || m.awayId === user?.uid)).sort((a,b) => a.day - b.day);
+        const mskNow = getMoscowTime().getTime();
+        const future = groupMatches
+          .filter(m => {
+            const matchTime = new Date(m.startTime).getTime();
+            return matchTime > mskNow && (m.homeId === user?.uid || m.awayId === user?.uid);
+          })
+          .sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         return <div className="space-y-3">
           {future.map(m => (
             <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">

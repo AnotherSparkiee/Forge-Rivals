@@ -51,6 +51,7 @@ interface GameState {
   rank: number;
   seasonDay: number;
   seasonNumber: number;
+  targetSeason: number;
   isSyncing: boolean;
   language: string;
   lastProcessedSeason: number;
@@ -102,7 +103,7 @@ const DEFAULT_STATE: GameState = {
   managerLevel: 1, skillPoints: 0, lastProcessedSeason: 0,
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeLicenseTier: null,
-  rank: 8, seasonDay: 1, seasonNumber: 1, isSyncing: false, language: 'ru',
+  rank: 8, seasonDay: 1, seasonNumber: 1, targetSeason: 1, isSyncing: false, language: 'ru',
   addCrystals: () => {}, addCredits: () => {}, updateHero: () => {}, removeHero: () => {}, assignToRole: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
   syncStats: () => {}, setTrainingFocus: () => {}, startDailyHeroTraining: () => {}, claimDailyHeroTraining: () => {},
@@ -125,17 +126,22 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const setLanguage = (l: string) => setLang(l);
 
   // Group Matches Listener (Source of Truth)
+  // Мы слушаем матчи ТЕКУЩЕГО сезона, а если мы в межсезонье (15-16) - СЛЕДУЮЩЕГО
   const groupMatchesQuery = useMemoFirebase(() => {
     const s = stateRef.current;
     if (!s.selectedLeagueId || !s.isLoaded || !user) return null;
+    
+    const { seasonNumber, seasonDay } = getGlobalSeasonInfo();
+    const targetSeason = seasonDay >= 15 ? seasonNumber + 1 : seasonNumber;
+
     return query(
       collection(db, 'matches_v1'),
       where('leagueId', '==', s.selectedLeagueId),
       where('divisionId', '==', s.leagueLevel),
       where('groupId', '==', s.groupId),
-      where('seasonNumber', '==', s.seasonNumber)
+      where('seasonNumber', '==', targetSeason)
     );
-  }, [db, state.selectedLeagueId, state.leagueLevel, state.groupId, state.seasonNumber, state.isLoaded, user]);
+  }, [db, state.selectedLeagueId, state.leagueLevel, state.groupId, state.isLoaded, user]);
 
   const { data: dbMatches } = useCollection(groupMatchesQuery);
 
@@ -202,6 +208,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             const staffObj: any = {};
             sSnap.docs.forEach(d => { const m = d.data() as StaffMember; staffObj[m.role] = m; });
             const { seasonDay, seasonNumber } = getGlobalSeasonInfo();
+            const targetSeason = seasonDay >= 15 ? seasonNumber + 1 : seasonNumber;
 
             setState(s => ({
               ...s, id: user.uid, displayName: rootData.displayName || teamData.displayName || "Manager",
@@ -219,7 +226,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
               country: rootData.country ?? null, isPremium: teamData.premiumUntil ? new Date(teamData.premiumUntil) > new Date() : false,
               premiumUntil: teamData.premiumUntil ?? null, activeLicenseTier: teamData.activeLicenseTier ?? 4,
               rank: teamData.rank ?? 8, ownedHeroes: allHeroes.filter(h => !h.isYouth), youthAcademyHeroes: allHeroes.filter(h => h.isYouth),
-              staff: staffObj, seasonDay, seasonNumber, isLoaded: true, language: lang,
+              staff: staffObj, seasonDay, seasonNumber, targetSeason, isLoaded: true, language: lang,
               groupMatches: dbMatches || []
             }));
           });
@@ -232,22 +239,24 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   // LAZY CALENDAR GENERATOR
   useEffect(() => {
     const s = stateRef.current;
-    // Разрешаем генерацию даже в межсезонье (Day 15/16), чтобы видеть соперников на завтра
     if (!s.isLoaded || !s.selectedLeagueId || !user) return;
 
     const generateScheduleIfMissing = async () => {
+      const { seasonNumber, seasonDay } = getGlobalSeasonInfo();
+      const targetSeason = seasonDay >= 15 ? seasonNumber + 1 : seasonNumber;
+
       const existingQuery = query(
         collection(db, 'matches_v1'),
         where('leagueId', '==', s.selectedLeagueId),
         where('divisionId', '==', s.leagueLevel),
         where('groupId', '==', s.groupId),
-        where('seasonNumber', '==', s.seasonNumber)
+        where('seasonNumber', '==', targetSeason)
       );
       
       const snap = await getDocs(existingQuery);
       if (snap.size >= 56) return;
 
-      console.log("ARCHITECT: Initializing schedule for Season", s.seasonNumber);
+      console.log("ARCHITECT: Initializing schedule for Season", targetSeason);
       
       const playersQuery = query(
         collection(db, 'players_v10'),
@@ -268,12 +277,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       seasonSchedule.forEach((dayMatches, dIdx) => {
         const day = dIdx + 1;
         dayMatches.forEach((match: any, mIdx: number) => {
-          const matchId = generateDeterministicMatchId(s.selectedLeagueId!, s.leagueLevel, s.groupId, s.seasonNumber, day, mIdx);
+          const matchId = generateDeterministicMatchId(s.selectedLeagueId!, s.leagueLevel, s.groupId, targetSeason, day, mIdx);
           const matchRef = doc(db, 'matches_v1', matchId);
           
           const startTime = new Date(getMoscowTime());
-          // Устанавливаем время на конкретный день сезона
-          startTime.setDate(startTime.getDate() + (day - s.seasonDay));
+          // Если мы в межсезонье (15-16), то до первого матча (Day 1) осталось (17-day) дней
+          const daysUntilStart = seasonDay >= 15 ? (17 - seasonDay) : (day - seasonDay);
+          startTime.setDate(startTime.getDate() + daysUntilStart + (day - 1));
           startTime.setHours(h, m, 0, 0);
 
           const matchData = {
@@ -281,7 +291,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             leagueId: s.selectedLeagueId,
             divisionId: s.leagueLevel,
             groupId: s.groupId,
-            seasonNumber: s.seasonNumber,
+            seasonNumber: targetSeason,
             day: day,
             startTime: startTime.toISOString(),
             type: 'league',
@@ -494,8 +504,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   };
 
   const value = {
-    ...state, addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, 
-    claimReward, setLanguage, purchaseLicense, purchasePremium, syncStats,
+    ...state, setLanguage, addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, 
+    claimReward, purchaseLicense, purchasePremium, syncStats,
     setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue,
     hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly,
     promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch,
