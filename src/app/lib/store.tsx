@@ -3,8 +3,8 @@
 
 /**
  * @fileOverview Глобальное хранилище данных клуба.
- * Реализует иерархическую загрузку: Root Pointer (players_v10) -> League Group -> Team Data.
- * Использует setDoc(..., { merge: true }) для предотвращения ошибок отсутствия документа.
+ * Реализует иерархическую загрузку: Root Pointer (players_v11) -> League Group -> Team Data.
+ * Исправлена логика покупок лицензий и премиум-статуса.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
@@ -123,7 +123,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // 1. Get Root Pointer
+    // 1. Get Root Pointer from players_v10
     const rootRef = doc(db, 'players_v10', user.uid);
     const unsubRoot = onSnapshot(rootRef, (snap) => {
       if (!snap.exists()) {
@@ -229,6 +229,36 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setDoc(refs.team, { credits: Math.max(0, stateRef.current.credits + amount) }, { merge: true });
   };
 
+  const purchaseLicense = (tier: number, cost: number) => {
+    const s = stateRef.current;
+    const refs = getRefs();
+    if (!refs || s.crystals < cost) return false;
+    
+    setDoc(refs.team, {
+      crystals: s.crystals - cost,
+      activeLicenseTier: tier
+    }, { merge: true });
+    
+    return true;
+  };
+
+  const purchasePremium = () => {
+    const s = stateRef.current;
+    const refs = getRefs();
+    const cost = 5000;
+    if (!refs || s.crystals < cost) return false;
+    
+    const mskNow = getMoscowTime();
+    const expiry = new Date(mskNow.getTime() + 30 * 24 * 60 * 60 * 1000);
+    
+    setDoc(refs.team, {
+      crystals: s.crystals - cost,
+      premiumUntil: expiry.toISOString()
+    }, { merge: true });
+    
+    return true;
+  };
+
   const updateHero = (id: string, data: Partial<Hero>, costCredits = 0, costCrystals = 0) => {
     const refs = getRefs(); if (!refs) return;
     const heroRef = doc(collection(refs.team, 'heroes'), id);
@@ -263,7 +293,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const today = getMoscowDateString();
     setDoc(refs.team, {
       credits: stateRef.current.credits + credits,
-      crystals: stateRef.current.crystals + crystals,
+      crystals: stateRef.current.crystals + (isPremium ? crystals + 50 : crystals),
       lastRewardClaimDate: today,
       rewardDay: (stateRef.current.rewardDay % 30) + 1
     }, { merge: true });
@@ -274,7 +304,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const value = {
     ...state,
     addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, 
-    claimReward, setLanguage,
+    claimReward, setLanguage, purchaseLicense, purchasePremium
   } as any;
 
   return (
