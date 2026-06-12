@@ -45,7 +45,6 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
   
   if (info.isTransitionPhase) {
     // В фазе подготовки (15-16) мы смотрим на следующий сезон
-    // Рассчитываем сколько дней осталось до конца текущего 16-дневного цикла
     const daysUntilNewSeason = (17 - info.seasonDay);
     targetDate.setDate(mskNow.getDate() + daysUntilNewSeason + (dayOfSeason - 1));
   } else {
@@ -68,7 +67,6 @@ export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   
   // ФИКСИРОВАННАЯ ТОЧКА ОТСЧЕТА (Понедельник, 3 Марта 2025)
-  // Это гарантирует, что seasonNumber не меняется произвольно.
   const epochDate = new Date('2025-03-03T00:00:00+03:00');
   
   const diffMs = mskNow.getTime() - epochDate.getTime();
@@ -80,8 +78,7 @@ export function getGlobalSeasonInfo() {
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
   let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
   
-  // Если diffDays отрицательный (время до 3 марта), seasonNumber будет <= 0.
-  // Форсируем Сезон 1 для периода подготовки.
+  // Фаза перехода: 15 и 16 дни
   const isTransitionPhase = currentSeasonDay >= 15 || currentSeasonNumber < 1;
   
   const effectiveSeason = Math.max(1, (currentSeasonDay >= 15) ? currentSeasonNumber + 1 : currentSeasonNumber);
@@ -95,7 +92,7 @@ export function getGlobalSeasonInfo() {
 }
 
 /**
- * Возвращает конец московского дня
+ * Возвращает конец московского дня для экспирации маркета
  */
 export function getEndOfMoscowDay(): string {
   const now = getMoscowTime();
@@ -105,7 +102,7 @@ export function getEndOfMoscowDay(): string {
 }
 
 /**
- * Возвращает возраст игрока
+ * Возвращает возраст игрока с учетом прошедшего времени
  */
 export function calculateLiveAge(baseAge: number, hiredAtIso: string) {
   const hiredAt = new Date(hiredAtIso).getTime();

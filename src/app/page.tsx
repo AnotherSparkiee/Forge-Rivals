@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -75,7 +74,7 @@ export default function Home() {
   const nextMatchData = useMemo(() => {
     if (!isLoaded || !groupMatches || groupMatches.length === 0 || !user) return null;
     
-    // Find my next match that is not finished
+    // Ближайший матч с участием игрока
     const myNext = [...groupMatches]
       .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished')
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];

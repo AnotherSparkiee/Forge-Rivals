@@ -1,11 +1,6 @@
-
-export interface LeagueGroup {
-  id: string;
-  name: string;
-  level: number;
-  divisionId: string;
-  groupNumber: number;
-}
+/**
+ * @fileOverview Ядро данных Лиг и детерминированного расписания.
+ */
 
 export interface LeagueOption {
   id: string;
@@ -38,7 +33,7 @@ export const LEAGUES: LeagueOption[] = [
 ];
 
 /**
- * GROUND TRUTH: Returns 8 teams for a specific group in a stable order.
+ * ЕДИНЫЙ ИСТОЧНИК ИСТИНЫ: Возвращает стабильный список из 8 команд для группы.
  */
 export function getStableGroupTeams(
   level: number,
@@ -46,7 +41,7 @@ export function getStableGroupTeams(
   leagueId: string,
   allLeaguePlayers: any[] = []
 ) {
-  // 1. Get real players assigned to this specific group
+  // 1. Находим реальных игроков этой группы
   const groupPlayers = allLeaguePlayers.filter(p => 
     p.selectedLeagueId === leagueId && 
     Number(p.leagueLevel) === Number(level) && 
@@ -57,7 +52,7 @@ export function getStableGroupTeams(
     isBot: false
   }));
 
-  // 2. Fill with deterministic bots
+  // 2. Дополняем детерминированными ботами
   const teams = [...groupPlayers];
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   for (let i = 0; i < botsNeeded; i++) {
@@ -69,12 +64,12 @@ export function getStableGroupTeams(
     });
   }
 
-  // 3. Sort by ID to ensure Team 1 is always the same for everyone
+  // 3. Сортируем по ID для стабильного порядка в календаре
   return teams.sort((a, b) => a.id.localeCompare(b.id));
 }
 
 /**
- * Deterministic Bo2 Match Result [2,0], [1,1], [0,2]
+ * Детерминированный результат Bo2: [2,0], [1,1], [0,2]
  */
 export function getMatchResult(homeId: string, awayId: string, day: number = 0, season: number = 1): [number, number] {
   const combinedId = `${homeId}-${awayId}-${day}-${season}`;
@@ -92,7 +87,7 @@ export function getMatchResult(homeId: string, awayId: string, day: number = 0, 
 }
 
 /**
- * Standings strictly aggregated from real match documents.
+ * Сборка таблицы строго по завершенным матчам в БД.
  */
 export function getGroupStandings(
   level: number,
@@ -134,7 +129,7 @@ export function applyResult(home: any, away: any, hScore: number, aScore: number
 }
 
 /**
- * Standard Circle Algorithm for Round-Robin schedule.
+ * Алгоритм круговой системы для генерации пар.
  */
 export function generateDeterministicDayMatches(
   level: number, 

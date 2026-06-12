@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -38,7 +37,7 @@ export default function MatchesPage() {
   const db = useFirestore();
   
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
-  const [countdown, setCountdown] = useState('');
+  const [now, setNow] = useState(getMoscowTime());
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -47,6 +46,8 @@ export default function MatchesPage() {
     if (!isUserLoading && !user) {
       router.push('/auth/register');
     }
+    const timer = setInterval(() => setNow(getMoscowTime()), 1000);
+    return () => clearInterval(timer);
   }, [user, isUserLoading, router]);
 
   const league = useMemo(() => LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0], [profile?.selectedLeagueId]);
@@ -79,25 +80,15 @@ export default function MatchesPage() {
     };
   }, [myMatches, league, user, language]);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const mskNow = getMoscowTime();
-      const info = leagueNextMatch as any;
-      if (!info || !info.match) return;
-      
-      const target = new Date(info.match.startTime);
-      const diff = target.getTime() - mskNow.getTime();
-      
-      if (diff <= 0) setCountdown('00:00:00');
-      else {
-        const hh = Math.floor(diff / 3600000);
-        const mm = Math.floor((diff % 3600000) / 60000);
-        const ss = Math.floor((diff % 60000) / 1000);
-        setCountdown(`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`);
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [leagueNextMatch]);
+  const getCountdown = (startTimeIso: string) => {
+    const target = new Date(startTimeIso).getTime();
+    const diff = target - now.getTime();
+    if (diff <= 0) return '00:00:00';
+    const hh = Math.floor(diff / 3600000);
+    const mm = Math.floor((diff % 3600000) / 60000);
+    const ss = Math.floor((diff % 60000) / 1000);
+    return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+  };
 
   if (isUserLoading || !isLoaded || !user || isProfileLoading) return <LoadingScreen />;
 
@@ -125,11 +116,11 @@ export default function MatchesPage() {
           <div className="space-y-6 animate-in fade-in duration-500">
             <Card className="glass-card border-primary/20 bg-primary/5">
               <CardHeader className="text-center">
-                <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">{info.label || "Intelligence Report"}</CardTitle>
+                <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">{info.label}</CardTitle>
                 <div className="flex flex-col items-center mt-4">
                   <div className="bg-background/50 px-6 py-2 rounded-xl border border-white/5">
                     <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">{t.startsIn}</p>
-                    <p className="text-3xl font-headline font-bold tabular-nums tracking-tighter text-primary">{countdown || '00:00:00'}</p>
+                    <p className="text-3xl font-headline font-bold tabular-nums tracking-tighter text-primary">{getCountdown(info.match.startTime)}</p>
                   </div>
                 </div>
               </CardHeader>
@@ -138,7 +129,7 @@ export default function MatchesPage() {
                   <User className="w-10 h-10 text-primary" />
                 </div>
                 <h3 className="text-xl font-headline font-bold italic uppercase truncate w-full px-4 text-center">{(info.opponent as any).name}</h3>
-                <Badge variant="secondary" className="mt-2 text-[10px]">{(info.opponent as any).isPlayer ? 'REAL MANAGER' : 'ELITE BOT'} | {info.label || `DIV ${leagueLevel}.${groupId}`}</Badge>
+                <Badge variant="secondary" className="mt-2 text-[10px]">{(info.opponent as any).isPlayer ? 'REAL MANAGER' : 'ELITE BOT'} | DIV {leagueLevel}.{groupId}</Badge>
               </CardContent>
             </Card>
           </div>
@@ -184,7 +175,6 @@ export default function MatchesPage() {
           ))}
         </div>;
       case 'league_calendar':
-        if (!groupMatches || groupMatches.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">Syncing calendar...</div>;
         const days = Array.from({ length: 14 }, (_, i) => i + 1);
         return (
           <div className="space-y-4 animate-in fade-in duration-500">
@@ -214,8 +204,10 @@ export default function MatchesPage() {
           </div>
         );
       case 'league_played':
-        if (!groupMatches || groupMatches.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">No league results yet</div>;
         const playedDays = Array.from({ length: 14 }, (_, i) => i + 1);
+        const playedMatches = groupMatches.filter(m => m.status === 'finished');
+        if (playedMatches.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">No group results yet</div>;
+        
         return (
           <div className="space-y-4 animate-in fade-in duration-500">
             {playedDays.map(d => {
