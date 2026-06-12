@@ -75,6 +75,7 @@ export default function Home() {
     if (!isLoaded || !groupMatches || !user) return null;
     
     const mskNow = getMoscowTime();
+    // Strictly find ONLY matches where THIS user is a participant (home or away)
     const myNext = [...groupMatches]
       .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished')
       .sort((a, b) => new Date(a.startTime || mskNow).getTime() - new Date(b.startTime || mskNow).getTime())[0];

@@ -51,13 +51,16 @@ export function getMatchResult(homeId: string, awayId: string, day: number = 0, 
 }
 
 /**
- * Generates a stable list of 8 teams for a group with deterministic bot IDs.
+ * Generates a stable list of 8 teams for a group with deterministic bot IDs and Names.
  */
-export function getStableGroupTeams(level: number, group: number, leagueId: string, allLeaguePlayers: any[] = []) {
+export function getStableGroupTeams(level: any, group: any, leagueId: string, allLeaguePlayers: any[] = []) {
+  const lvl = Number(level);
+  const grp = Number(group);
+
   const groupPlayers = allLeaguePlayers.filter(p => 
     p.selectedLeagueId === leagueId && 
-    Number(p.leagueLevel) === Number(level) && 
-    Number(p.groupId) === Number(group)
+    Number(p.leagueLevel) === lvl && 
+    Number(p.groupId) === grp
   ).map(p => ({
     id: p.id,
     name: p.displayName || "Unknown Commander",
@@ -66,12 +69,16 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
 
   const teams = [...groupPlayers];
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
+  
   for (let i = 0; i < botsNeeded; i++) {
-    // FIXED Deterministic ID and Name to prevent mismatch
-    const botId = `bot_${leagueId}_L${level}_G${group}_${i}`;
-    const botDisplayId = (level * 1000) + (group * 10) + i;
-    teams.push({ id: botId, name: `Elite Bot ${botDisplayId}`, isBot: true });
+    // Deterministic Bot ID: League_Level_Group_Index
+    const botId = `bot_${leagueId}_L${lvl}_G${grp}_${i + 1}`;
+    // Deterministic Display Name: Elite Bot [Level].[Group].[Index]
+    const botName = `Elite Bot ${lvl}.${grp}.${i + 1}`;
+    teams.push({ id: botId, name: botName, isBot: true });
   }
+
+  // Sort by ID for deterministic ordering in calendar generation
   return teams.sort((a, b) => a.id.localeCompare(b.id));
 }
 
@@ -113,13 +120,24 @@ export function generateSeasonCalendar(teams: any[]) {
  * Calculates standings from a list of matches.
  */
 export function calculateStandings(teams: any[], matches: any[]) {
-  const stats = teams.map(t => ({ ...t, wins: 0, draws: 0, losses: 0, points: 0, goalsFor: 0, goalsAgainst: 0 }));
+  const stats = teams.map(t => ({ 
+    ...t, 
+    wins: 0, 
+    draws: 0, 
+    losses: 0, 
+    points: 0, 
+    goalsFor: 0, 
+    goalsAgainst: 0,
+    played: 0
+  }));
 
   matches.filter(m => m.status === 'finished').forEach(m => {
     const home = stats.find(t => t.id === m.homeId);
     const away = stats.find(t => t.id === m.awayId);
     if (!home || !away) return;
 
+    home.played++;
+    away.played++;
     home.goalsFor += (m.scoreA || 0);
     home.goalsAgainst += (m.scoreB || 0);
     away.goalsFor += (m.scoreB || 0);
@@ -134,7 +152,12 @@ export function calculateStandings(teams: any[], matches: any[]) {
     }
   });
 
-  return stats.sort((a, b) => b.points - a.points || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst) || a.id.localeCompare(b.id));
+  return stats.sort((a, b) => 
+    b.points - a.points || 
+    (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst) || 
+    b.goalsFor - a.goalsFor ||
+    a.id.localeCompare(b.id)
+  );
 }
 
 /**
