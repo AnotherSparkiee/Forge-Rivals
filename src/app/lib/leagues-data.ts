@@ -1,6 +1,5 @@
 /**
  * @fileOverview Core logic for League structure, deterministic scheduling, and Bo2 result generation.
- * Implements the "Source of Truth" for the entire pyramidal league system.
  */
 
 export interface LeagueOption {
@@ -34,9 +33,8 @@ export const LEAGUES: LeagueOption[] = [
 
 /**
  * Deterministic Bo2 Result: [2,0], [1,1], [0,2]
- * Based on team power and deterministic seed.
  */
-export function getMatchResult(homeId: string, awayId: string, day: number, season: number, homeOvr: number = 25, awayOvr: number = 25): [number, number] {
+export function getMatchResult(homeId: string, awayId: string, day: number = 0, season: number = 1): [number, number] {
   const combinedId = `${homeId}-${awayId}-${day}-${season}`;
   let hash = 0;
   for (let i = 0; i < combinedId.length; i++) {
@@ -45,15 +43,9 @@ export function getMatchResult(homeId: string, awayId: string, day: number, seas
   }
   const seed = Math.abs(hash);
   
-  // Power factor (OVR advantage increases win chance)
-  const powerDiff = homeOvr - awayOvr;
-  const homeAdvantage = 35 + (powerDiff * 2); 
-  const drawChance = 30;
-
   const val = seed % 100;
-  
-  if (val < homeAdvantage) return [2, 0];
-  if (val < homeAdvantage + drawChance) return [1, 1];
+  if (val < 35) return [2, 0];
+  if (val < 65) return [1, 1];
   return [0, 2];
 }
 
@@ -68,27 +60,25 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
   ).map(p => ({
     id: p.id,
     name: p.displayName || "Unknown Commander",
-    ovr: 25, // Base OVR for bots/sync
     isBot: false
   }));
 
   const teams = [...groupPlayers];
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   for (let i = 0; i < botsNeeded; i++) {
-    const botId = `bot_${leagueId}_${level}_${group}_${i}`;
-    teams.push({ id: botId, name: `Elite Bot ${i + 1}`, ovr: 20 + level, isBot: true });
+    const botId = `bot_${leagueId}_l${level}_g${group}_${i}`;
+    teams.push({ id: botId, name: `Elite Bot ${i + 1}`, isBot: true });
   }
   return teams.sort((a, b) => a.id.localeCompare(b.id));
 }
 
 /**
- * Circle-robin algorithm for 14-day calendar (Double Round Robin).
+ * Circle-robin algorithm for 14-day calendar.
  */
 export function generateSeasonCalendar(teams: any[]) {
   const n = teams.length;
-  const rounds = (n - 1) * 2; // 14 rounds for 8 teams
+  const rounds = (n - 1) * 2;
   const matches = [];
-  
   const teamIndices = Array.from({ length: n }, (_, i) => i);
 
   for (let r = 0; r < rounds; r++) {
@@ -98,14 +88,9 @@ export function generateSeasonCalendar(teams: any[]) {
     for (let i = 0; i < n / 2; i++) {
       let hIdx = teamIndices[i];
       let aIdx = teamIndices[n - 1 - i];
-
-      // Swap home/away for second half of season
-      if (isSecondHalf) {
-        [hIdx, aIdx] = [aIdx, hIdx];
-      }
+      if (isSecondHalf) [hIdx, aIdx] = [aIdx, hIdx];
 
       matches.push({
-        id: `m_d${day}_p${i}`,
         day,
         homeId: teams[hIdx].id,
         homeName: teams[hIdx].name,
@@ -116,16 +101,13 @@ export function generateSeasonCalendar(teams: any[]) {
         scoreB: 0
       });
     }
-
-    // Rotate indices (keeping first one fixed)
     teamIndices.splice(1, 0, teamIndices.pop()!);
   }
-
   return matches;
 }
 
 /**
- * Calculates standings from matches.
+ * Calculates standings from a list of matches.
  */
 export function calculateStandings(teams: any[], matches: any[]) {
   const stats = teams.map(t => ({ ...t, wins: 0, draws: 0, losses: 0, points: 0, goalsFor: 0, goalsAgainst: 0 }));
@@ -150,4 +132,12 @@ export function calculateStandings(teams: any[], matches: any[]) {
   });
 
   return stats.sort((a, b) => b.points - a.points || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst) || a.id.localeCompare(b.id));
+}
+
+/**
+ * Higher level helper for Rankings page.
+ */
+export function getGroupStandings(level: number, group: number, leagueId: string, season: number, allPlayers: any[], matches: any[]) {
+  const teams = getStableGroupTeams(level, group, leagueId, allPlayers);
+  return calculateStandings(teams, matches);
 }

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -60,7 +61,6 @@ export default function Home() {
         emailToUse = querySnapshot.docs[0].data().email;
       }
       await signInWithEmailAndPassword(auth, emailToUse, password);
-      toast({ title: language === 'ru' ? "Связь установлена" : "Link Established" });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Denied", description: error.message });
     } finally {
@@ -72,12 +72,13 @@ export default function Home() {
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
   const nextMatchData = useMemo(() => {
-    if (!isLoaded || !groupMatches || groupMatches.length === 0 || !user) return null;
+    if (!isLoaded || !groupMatches || !user) return null;
     
-    // Ближайший матч с участием игрока
+    // STRICT FILTER: Match must include user AND be in the future
+    const mskNow = getMoscowTime();
     const myNext = [...groupMatches]
       .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished')
-      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
+      .sort((a, b) => new Date(a.startTime || mskNow).getTime() - new Date(b.startTime || mskNow).getTime())[0];
 
     if (!myNext) return null;
 
@@ -98,13 +99,12 @@ export default function Home() {
 
     const timer = setInterval(() => {
       const mskNow = getMoscowTime();
-      const matchInfo = nextMatchData;
-      if (!matchInfo) {
+      if (!nextMatchData?.match?.startTime) {
         setCountdown('00:00:00');
         return;
       }
 
-      const target = new Date(matchInfo.match.startTime);
+      const target = new Date(nextMatchData.match.startTime);
       const diff = target.getTime() - mskNow.getTime();
       
       if (diff <= 0) {
@@ -176,9 +176,9 @@ export default function Home() {
   if (!isLoaded) return <LoadingScreen />;
 
   const tHub = {
-    en: { nextMatch: seasonInfo.isTransitionPhase ? "Season Transition" : "Next Engagement", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", transition: "Forming new groups...", sync: "CALENDAR SYNC" },
-    ru: { nextMatch: seasonInfo.isTransitionPhase ? "Смена сезона" : "Следующий матч", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", transition: "Формирование новых групп...", sync: "СИНХРОНИЗАЦИЯ" }
-  }[language as 'en' | 'ru'] || { nextMatch: "Match", battleBtn: "Overview", navTitle: "Terminals", transition: "Transition", sync: "SYNCING" };
+    en: { nextMatch: seasonInfo.isTransitionPhase ? "Season Transition" : "Next Engagement", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", sync: "CALENDAR SYNC" },
+    ru: { nextMatch: seasonInfo.isTransitionPhase ? "Смена сезона" : "Следующий матч", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ" }
+  }[language as 'en' | 'ru'];
 
   const menu = [ 
     { label: language === 'ru' ? 'Ростер' : 'Roster', href: '/roster', icon: Users, desc: language === 'ru' ? 'Состав команды' : 'Squad management' }, 
@@ -237,16 +237,6 @@ export default function Home() {
                         <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData.match.awayName}</p>
                       </div>
                     </div>
-
-                    {nextMatchData.isHome ? (
-                      <div className="flex items-center justify-center gap-2 text-[8px] font-black text-primary/60 uppercase tracking-widest">
-                        <HomeIcon className="w-3 h-3" /> {language === 'ru' ? 'ВАША АРЕНА' : 'OWN ARENA'}
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center gap-2 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
-                        <MapPin className="w-3 h-3" /> {language === 'ru' ? 'ВЫЕЗДНОЙ СЕКТОР' : 'AWAY SECTOR'}
-                      </div>
-                    )}
                   </>
                 ) : (
                   <div className="py-4 opacity-30 flex flex-col items-center">
@@ -270,14 +260,25 @@ export default function Home() {
         </Card>
       </section>
 
-      <Link href="/match" className="block relative mb-8">
-        <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1 transition-all active:scale-95">
-          <div className="flex items-center gap-2">
-            <Swords className="w-6 h-6" />
-            <span className="text-xl font-headline font-bold italic uppercase">{tHub.battleBtn}</span>
-          </div>
-        </Button>
-      </Link>
+      {nextMatchData?.match?.status === 'finished' ? (
+        <Link href={`/match?id=${nextMatchData.match.id}`} className="block relative mb-8">
+          <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1 transition-all active:scale-95">
+            <div className="flex items-center gap-2">
+              <Trophy className="w-6 h-6" />
+              <span className="text-xl font-headline font-bold italic uppercase">{language === 'ru' ? 'РЕЗУЛЬТАТ МАТЧА' : 'MATCH OUTCOME'}</span>
+            </div>
+          </Button>
+        </Link>
+      ) : (
+        <Link href="/matches" className="block relative mb-8">
+          <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1 transition-all active:scale-95">
+            <div className="flex items-center gap-2">
+              <Swords className="w-6 h-6" />
+              <span className="text-xl font-headline font-bold italic uppercase">{tHub.battleBtn}</span>
+            </div>
+          </Button>
+        </Link>
+      )}
 
       <div className="space-y-4">
         <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-accent px-1">{tHub.navTitle}</h2>
