@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -7,7 +6,7 @@ import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, CalendarDays, UserSearch, CalendarClock, 
   History, Calendar, CheckSquare, ChevronRight, Shield,
-  Clock, Swords, Trophy, EyeOff, FileText
+  Clock, Swords, Trophy, EyeOff, FileText, User
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -17,7 +16,7 @@ import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
 import { getMockGroupTeams, getSchedule, LEAGUES, getMatchResult } from '../lib/leagues-data';
-import { getMoscowDateString, getMoscowTime, getPyramidCupTime } from '../lib/time-utils';
+import { getMoscowDateString, getMoscowTime } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { getGlobalCupParticipants, getWinnerOfBranch, getEntryRound } from '../lib/cup-utils';
 
@@ -33,8 +32,8 @@ export default function MatchesPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { 
-    isLoaded, language, leagueLevel, divisionSubId, groupId, seasonDay, rank, 
-    lastLeagueMatchDate, lastCupMatchDate, seasonNumber, matchHistory, seasonStartDate,
+    isLoaded, language, leagueLevel, groupId, seasonDay, rank, 
+    lastLeagueMatchDate, lastCupMatchDate, seasonNumber, matchHistory, 
     lastSeenMatchDay
   } = useGameState();
   const db = useFirestore();
@@ -80,8 +79,18 @@ export default function MatchesPage() {
 
   const groupTeams = useMemo(() => {
     if (!isLoaded || !profile || !groupPlayers) return [];
-    return getMockGroupTeams(rank, profile.displayName || "My Team", leagueLevel, divisionSubId, groupId, profile.selectedLeagueId || "ALPHA", groupPlayers, user?.uid, isTodayPlayed ? seasonDay : seasonDay - 1);
-  }, [isLoaded, profile, groupPlayers, leagueLevel, divisionSubId, groupId, seasonDay, rank, isTodayPlayed, user?.uid]);
+    return getMockGroupTeams(
+      rank, 
+      profile.displayName || "My Team", 
+      leagueLevel, 
+      1, 
+      groupId, 
+      profile.selectedLeagueId || "ALPHA", 
+      groupPlayers, 
+      user?.uid, 
+      isTodayPlayed ? seasonDay : seasonDay - 1
+    );
+  }, [isLoaded, profile, groupPlayers, leagueLevel, groupId, seasonDay, rank, isTodayPlayed, user?.uid]);
 
   const schedule = useMemo(() => groupTeams.length === 0 ? [] : getSchedule(groupTeams), [groupTeams]);
 
@@ -191,7 +200,7 @@ export default function MatchesPage() {
                   <User className="w-10 h-10 text-primary" />
                 </div>
                 <h3 className="text-xl font-headline font-bold italic uppercase truncate w-full px-4 text-center">{(info.opponent as any).name}</h3>
-                <Badge variant="secondary" className="mt-2 text-[10px]">{(info.opponent as any).isPlayer ? 'REAL MANAGER' : 'ELITE BOT'} | {info.label || `DIV ${leagueLevel}.${divisionSubId}`}</Badge>
+                <Badge variant="secondary" className="mt-2 text-[10px]">{(info.opponent as any).isPlayer ? 'REAL MANAGER' : 'ELITE BOT'} | {info.label || `DIV ${leagueLevel}.${groupId}`}</Badge>
               </CardContent>
             </Card>
           </div>
