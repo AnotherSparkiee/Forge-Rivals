@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -52,11 +51,11 @@ export default function MatchesPage() {
   const league = useMemo(() => LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0], [profile?.selectedLeagueId]);
 
   const leagueNextMatch = useMemo(() => {
-    if (!isLoaded || !groupMatches || groupMatches.length === 0) return null;
+    if (!isLoaded || !groupMatches || groupMatches.length === 0 || !user) return null;
     
     const sortedMatches = [...groupMatches]
       .filter(m => {
-        const isParticipant = m.homeId === user?.uid || m.awayId === user?.uid;
+        const isParticipant = m.homeId === user.uid || m.awayId === user.uid;
         const isNotFinished = m.status !== 'finished';
         return isParticipant && isNotFinished;
       })
@@ -65,7 +64,7 @@ export default function MatchesPage() {
     if (sortedMatches.length === 0) return null;
 
     const myMatch = sortedMatches[0];
-    const isHome = myMatch.homeId === user?.uid;
+    const isHome = myMatch.homeId === user.uid;
     const oppName = isHome ? myMatch.awayName : myMatch.homeName;
 
     return { 
@@ -76,7 +75,7 @@ export default function MatchesPage() {
       type: 'league', 
       label: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE'
     };
-  }, [isLoaded, groupMatches, league, user?.uid, language]);
+  }, [isLoaded, groupMatches, league, user, language]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -146,7 +145,7 @@ export default function MatchesPage() {
         if (!groupMatches || groupMatches.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">Syncing schedule...</div>;
         const future = groupMatches
           .filter(m => {
-            const isParticipant = m.homeId === user?.uid || m.awayId === user?.uid;
+            const isParticipant = m.homeId === user.uid || m.awayId === user.uid;
             return m.status === 'pending' && isParticipant;
           })
           .sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());

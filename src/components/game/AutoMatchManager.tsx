@@ -1,4 +1,3 @@
-
 'use client';
 
 /**
@@ -132,18 +131,22 @@ export function AutoMatchManager() {
           scoreB: finalScoreA
         });
 
-        // Record for local history
+        // Record for local history (normalize scores from user perspective)
+        const myScoreA = match.homeId === userId ? finalScoreH : finalScoreA;
+        const myScoreB = match.homeId === userId ? finalScoreA : finalScoreH;
+        const opponentName = match.homeId === userId ? match.awayName : match.homeName;
+
         recordMatch(
-          finalScoreH > finalScoreA ? match.homeName : (finalScoreH === finalScoreA ? "Draw" : match.awayName),
+          myScoreA > myScoreB ? (match.homeId === userId ? match.homeName : match.awayName) : (myScoreA === myScoreB ? "Draw" : opponentName),
           { 
             ...simulationResult.games[0], 
-            scoreA: finalScoreH, 
-            scoreB: finalScoreA, 
+            scoreA: myScoreA, 
+            scoreB: myScoreB, 
             games: simulationResult.games, 
-            seriesScore: simulationResult.seriesScore 
+            seriesScore: `${myScoreA}-${myScoreB}`
           },
           50000,
-          match.homeId === userId ? match.awayName : match.homeName,
+          opponentName,
           'league',
           new Date().toISOString(),
           match.id

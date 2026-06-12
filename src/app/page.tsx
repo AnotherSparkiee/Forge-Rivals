@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -70,23 +69,23 @@ export default function Home() {
   };
 
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
-  const seasonInfo = useMemo(() => getGlobalSeasonInfo(), [isLoaded]);
+  const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // Unified Next Match Logic: Finds the earliest available pending game
+  // Unified Next Match Logic: Finds the earliest available pending game FOR THE USER
   const nextMatchData = useMemo(() => {
-    if (!isLoaded || !groupMatches || groupMatches.length === 0) return null;
+    if (!isLoaded || !groupMatches || groupMatches.length === 0 || !user) return null;
     
     const sortedMatches = [...groupMatches]
       .filter(m => {
-        const isParticipant = m.homeId === user?.uid || m.awayId === user?.uid;
-        return m.status === 'pending';
+        const isParticipant = m.homeId === user.uid || m.awayId === user.uid;
+        return m.status === 'pending' && isParticipant;
       })
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
     if (sortedMatches.length === 0) return null;
 
     const myMatch = sortedMatches[0];
-    const isHome = myMatch.homeId === user?.uid;
+    const isHome = myMatch.homeId === user.uid;
 
     return {
       match: myMatch,
@@ -97,7 +96,7 @@ export default function Home() {
       time: league.startTime,
       isHome: isHome
     };
-  }, [isLoaded, groupMatches, language, league.startTime, user?.uid]);
+  }, [isLoaded, groupMatches, language, league.startTime, user]);
 
   useEffect(() => {
     if (!isLoaded || !selectedLeagueId) return;
@@ -278,7 +277,7 @@ export default function Home() {
       </section>
 
       <Link href="/match" className="block relative mb-8">
-        <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1 transition-all active:scale-[0.98]">
+        <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1 transition-all active:scale-95">
           <div className="flex items-center gap-2">
             <Swords className="w-6 h-6" />
             <span className="text-xl font-headline font-bold italic uppercase">{tHub.battleBtn}</span>

@@ -1,4 +1,3 @@
-
 'use client';
 
 /**
@@ -10,7 +9,7 @@ import { Hero, StaffMember, StaffRole } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString } from './time-utils';
 import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, getDocs, arrayUnion } from 'firebase/firestore';
-import { getMockGroupTeams, getSchedule, generateDeterministicMatchId, LEAGUES } from './leagues-data';
+import { LEAGUES } from './leagues-data';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
@@ -131,9 +130,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return query(
       collection(db, 'matches_v1'),
       where('leagueId', '==', state.selectedLeagueId),
-      where('divisionId', '==', state.leagueLevel),
-      where('groupId', '==', state.groupId),
-      where('seasonNumber', '==', activeSeasonNumber)
+      where('divisionId', '==', Number(state.leagueLevel)),
+      where('groupId', '==', Number(state.groupId)),
+      where('seasonNumber', '==', Number(activeSeasonNumber))
     );
   }, [db, state.selectedLeagueId, state.leagueLevel, state.groupId, state.id]);
 
@@ -376,7 +375,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       timeline: result.timeline || [],
       scoreboard: result.scoreboard || [],
       mvp: result.mvp,
-      duration: result.duration
+      duration: result.duration,
+      games: result.games || []
     };
     
     setDoc(refs.team, { 
