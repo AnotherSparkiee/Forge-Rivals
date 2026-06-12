@@ -1,4 +1,3 @@
-
 'use client';
 
 /**
@@ -7,7 +6,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useGameState } from '@/app/lib/store';
+import { useGameState, LineupSlot } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, updateDoc, getDocs, getDoc } from 'firebase/firestore';
 import { 
@@ -15,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
-import { Swords, Trophy, Loader2 } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
@@ -27,7 +26,7 @@ function sanitize(obj: any) {
 export function AutoMatchManager() {
   const { 
     isLoaded, selectedLeagueId, leagueLevel, groupId, id: userId, 
-    strategy, ownedHeroes, lineup, recordMatch, displayName
+    strategy, ownedHeroes, lineup, recordMatch, displayName, language
   } = useGameState();
   const db = useFirestore();
   const router = useRouter();
@@ -63,24 +62,31 @@ export function AutoMatchManager() {
       const opponentId = isHome ? match.awayId : match.homeId;
       const opponentIsBot = opponentId.startsWith('bot');
 
-      // 1. Собираем состав текущего пользователя
-      const mySquad = ownedHeroes
-        .filter(h => Object.values(lineup).includes(h.id))
+      // 1. Собираем активную пятерку игрока
+      const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
+      let mySquad = activeSlots
+        .map(slot => ownedHeroes.find(h => h.id === lineup[slot]))
+        .filter(h => !!h)
         .map(h => ({
-          name: h.name,
-          role: h.role,
-          overallRating: h.overallRating,
-          proStats: h.proStats,
-          isSub: h.id === lineup.sub1 || h.id === lineup.sub2
+          name: h!.name,
+          role: h!.role,
+          overallRating: h!.overallRating,
+          proStats: h!.proStats,
+          isSub: false
         }));
+
+      // Если состав пуст или неполный (что странно для PRO), заполняем ботами для стабильности
+      if (mySquad.length < 5) {
+        const fillers = generateBotSquad(20).slice(0, 5 - mySquad.length);
+        mySquad = [...mySquad, ...fillers];
+      }
 
       let opponentSquad: any[] = [];
       let opponentStrategy = 'Balanced Play';
 
       if (opponentIsBot) {
-        opponentSquad = generateBotSquad(25); // Базовый OVR ботов 25
+        opponentSquad = generateBotSquad(25);
       } else {
-        // Загружаем данные другого игрока
         const oppTeamRef = doc(db, 'leagues_v2', match.leagueId, 'divisions', String(match.divisionId), 'groups', String(match.groupId), 'teams', opponentId);
         const oppSnap = await getDoc(oppTeamRef);
         if (oppSnap.exists()) {
@@ -88,22 +94,23 @@ export function AutoMatchManager() {
           opponentStrategy = oppData.strategy || 'Balanced Play';
           const oppHeroesSnap = await getDocs(collection(oppTeamRef, 'heroes'));
           const oppLineup = oppData.lineup || {};
-          opponentSquad = oppHeroesSnap.docs
-            .filter(d => Object.values(oppLineup).includes(d.id))
-            .map(d => {
-              const h = d.data();
-              return {
-                name: h.name,
-                role: h.role,
-                overallRating: h.overallRating,
-                proStats: h.proStats,
-                isSub: d.id === oppLineup.sub1 || d.id === oppLineup.sub2
-              };
-            });
+          
+          opponentSquad = activeSlots
+            .map(slot => oppHeroesSnap.docs.find(d => d.id === oppLineup[slot])?.data())
+            .filter(h => !!h)
+            .map(h => ({
+              name: h!.name,
+              role: h!.role,
+              overallRating: h!.overallRating,
+              proStats: h!.proStats,
+              isSub: false
+            }));
         }
         
-        // Если не удалось загрузить (пустой ростер), заполняем ботами
-        if (opponentSquad.length < 5) opponentSquad = generateBotSquad(20);
+        if (opponentSquad.length < 5) {
+          const fillers = generateBotSquad(20).slice(0, 5 - opponentSquad.length);
+          opponentSquad = [...opponentSquad, ...fillers];
+        }
       }
 
       // 2. Запускаем симуляцию
@@ -121,7 +128,7 @@ export function AutoMatchManager() {
         isBo2: false
       });
 
-      // 3. Сохраняем в БД для синхронизации
+      // 3. Сохраняем в БД
       const matchRef = doc(db, 'matches_v1', match.id);
       const finishedData = {
         status: 'finished',
@@ -134,7 +141,7 @@ export function AutoMatchManager() {
 
       await updateDoc(matchRef, finishedData);
 
-      // 4. Записываем в локальную историю и выдаем награду
+      // 4. Локальная история
       const myResult = isHome ? simulationResult.games[0] : {
         ...simulationResult.games[0],
         scoreA: simulationResult.games[0].scoreB,
@@ -144,7 +151,7 @@ export function AutoMatchManager() {
       recordMatch(
         simulationResult.winner === displayName ? displayName : (simulationResult.winner === "Draw" ? "Draw" : (isHome ? match.awayName : match.homeName)),
         myResult,
-        50000, // Базовая награда за матч
+        50000,
         isHome ? match.awayName : match.homeName,
         'league',
         new Date().toISOString(),
@@ -153,7 +160,6 @@ export function AutoMatchManager() {
 
       setLastMatch({ ...match, ...finishedData });
       setShowResultDialog(true);
-      
       toast({ title: language === 'ru' ? "Матч завершен!" : "Match Completed!" });
 
     } catch (error) {
@@ -165,15 +171,11 @@ export function AutoMatchManager() {
 
   useEffect(() => {
     if (!matches || !userId) return;
-
     const mskNow = Date.now();
-    
-    // Ищем матчи, время которых пришло, но они еще не завершены
     const pendingMatch = matches.find(m => {
       const startTime = new Date(m.startTime).getTime();
       return m.status === 'pending' && mskNow >= startTime && (m.homeId === userId || m.awayId === userId);
     });
-
     if (pendingMatch && !isSimulating) {
       performSimulation(pendingMatch);
     }
@@ -208,4 +210,3 @@ export function AutoMatchManager() {
     </Dialog>
   );
 }
-

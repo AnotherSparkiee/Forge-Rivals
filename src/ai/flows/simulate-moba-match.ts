@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Архитектурный модуль симуляции матчей Lines of Enmity.
@@ -125,39 +124,45 @@ function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number, forcedS
   const { teamA, teamB } = input;
   const narrative = new NarrativeGenerator();
   
-  const getPower = (team: any) => team.heroes.slice(0, 5).reduce((acc: number, h: any) => acc + h.overallRating, 0);
-  const getAvgStat = (team: any, stat: keyof typeof ProStatsSchema._type) => 
-    team.heroes.slice(0, 5).reduce((acc: number, h: any) => acc + h.proStats[stat], 0) / 5;
+  // Берем только первых 5 героев (основа)
+  const activeA = teamA.heroes.slice(0, 5);
+  const activeB = teamB.heroes.slice(0, 5);
+
+  const getPower = (heroes: any[]) => heroes.reduce((acc: number, h: any) => acc + h.overallRating, 0);
+  const getAvgStat = (heroes: any[], stat: keyof typeof ProStatsSchema._type) => {
+    if (heroes.length === 0) return 0;
+    return heroes.reduce((acc: number, h: any) => acc + h.proStats[stat], 0) / heroes.length;
+  };
 
   const logs: string[] = [];
 
-  const applyTactics = (team: any, enemy: any) => {
+  const applyTactics = (heroes: any[], enemyHeroes: any[], strategy: string) => {
     let a = 1.0, d = 1.0;
-    const strat = team.strategy;
+    const strat = strategy;
     if (strat === 'Агрессивный' || strat === 'Aggressive Play') {
       a = 1.25; d = 1.15;
-      if (getAvgStat(team, 'tiltResistance') < 50) { a *= 0.8; logs.push(`${team.name} тильтанула от собственной агрессии.`); }
+      if (getAvgStat(heroes, 'tiltResistance') < 50) { a *= 0.8; logs.push(`${teamA.name} тильтанула от собственной агрессии.`); }
     } else if (strat === 'Сбалансированный_Атака' || strat === 'Side Pressure') {
       a = 1.15; d = 0.85;
     } else if (strat === 'Сбалансированный_Защита' || strat === 'Balanced Play') {
       d = 1.15; a = 0.85;
     } else if (strat === 'Сдержанный' || strat === 'Defensive Play') {
-      if (getAvgStat(team, 'objectiveControl') > getAvgStat(enemy, 'objectiveControl')) a *= 0.75; else d *= 0.70;
+      if (getAvgStat(heroes, 'objectiveControl') > getAvgStat(enemyHeroes, 'objectiveControl')) a *= 0.75; else d *= 0.70;
     } else if (strat === 'Быстрый_Штурм' || strat === 'Fast Pace') {
-      const power = getAvgStat(team, 'versatility') + getAvgStat(team, 'ganking');
-      const oppPower = getAvgStat(enemy, 'versatility') + getAvgStat(enemy, 'ganking');
+      const power = getAvgStat(heroes, 'versatility') + getAvgStat(heroes, 'ganking');
+      const oppPower = getAvgStat(enemyHeroes, 'versatility') + getAvgStat(enemyHeroes, 'ganking');
       if (power > oppPower) a *= 1.30; else a *= 0.80;
     } else if (strat === 'Быстрый_Пуш') {
-      if (getAvgStat(team, 'objectiveControl') > getAvgStat(enemy, 'objectiveControl')) a *= 1.20; else d *= 0.75;
+      if (getAvgStat(heroes, 'objectiveControl') > getAvgStat(enemyHeroes, 'objectiveControl')) a *= 1.20; else d *= 0.75;
     }
     return { a, d };
   };
 
-  const modsA = applyTactics(teamA, teamB);
-  const modsB = applyTactics(teamB, teamA);
+  const modsA = applyTactics(activeA, activeB, teamA.strategy);
+  const modsB = applyTactics(activeB, activeA, teamB.strategy);
 
-  const basePowerA = getPower(teamA);
-  const basePowerB = getPower(teamB);
+  const basePowerA = getPower(activeA);
+  const basePowerB = getPower(activeB);
 
   const finalPowerA = (basePowerA * modsA.a + basePowerA * modsA.d) * (0.85 + Math.random() * 0.3);
   const finalPowerB = (basePowerB * modsB.a + basePowerB * modsB.d) * (0.85 + Math.random() * 0.3);
@@ -167,8 +172,16 @@ function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number, forcedS
 
   const timeline: any[] = [];
   const playerStats = new Map<string, any>();
-  [...teamA.heroes.slice(0, 5), ...teamB.heroes.slice(0, 5)].forEach(h => {
-    playerStats.set(h.name, { kills: 0, deaths: 0, assists: 0, cs: 0, team: teamA.heroes.some(th => th.name === h.name) ? teamA.name : teamB.name });
+  [...activeA, ...activeB].forEach(h => {
+    if (h && h.name) {
+      playerStats.set(h.name, { 
+        kills: 0, 
+        deaths: 0, 
+        assists: 0, 
+        cs: 0, 
+        team: activeA.some(th => th.name === h.name) ? teamA.name : teamB.name 
+      });
+    }
   });
 
   let currentScoreA = 0;
@@ -177,28 +190,41 @@ function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number, forcedS
   const durationMins = 35 + Math.floor(Math.random() * 10);
   for (let m = 1; m <= durationMins; m++) {
     const time = `${m}:00`;
-    const side = Math.random() > 0.5 ? teamA : teamB;
-    const oppSide = side === teamA ? teamB : teamA;
-    const hero = side.heroes[Math.floor(Math.random() * 5)];
-    const oppHero = oppSide.heroes[Math.floor(Math.random() * 5)];
+    const side = Math.random() > 0.5 ? activeA : activeB;
+    const sideName = side === activeA ? teamA.name : teamB.name;
+    const oppSide = side === activeA ? activeB : activeA;
     
+    if (side.length === 0 || oppSide.length === 0) continue;
+
+    const hero = side[Math.floor(Math.random() * side.length)];
+    const oppHero = oppSide[Math.floor(Math.random() * oppSide.length)];
+    
+    if (!hero || !oppHero) continue;
+
     const rand = Math.random();
     if (rand < 0.4) {
       const ps = playerStats.get(hero.name);
-      ps.cs += 5 + Math.floor(hero.proStats.lastHitting / 10);
-      if (m % 10 === 0) timeline.push({ time, type: 'farm', event: narrative.generate('farm', hero.name, side.name, hero.proStats.lastHitting), score: `${currentScoreA}:${currentScoreB}` });
+      if (ps) {
+        ps.cs += 5 + Math.floor(hero.proStats.lastHitting / 10);
+        if (m % 10 === 0) timeline.push({ time, type: 'farm', event: narrative.generate('farm', hero.name, sideName, hero.proStats.lastHitting), score: `${currentScoreA}:${currentScoreB}` });
+      }
     } else if (rand < 0.7) {
       const ps = playerStats.get(hero.name);
       const ops = playerStats.get(oppHero.name);
-      ps.kills++; ops.deaths++;
-      if (side === teamA) currentScoreA++; else currentScoreB++;
-      const assistHero = side.heroes.find(h => h.name !== hero.name);
-      if (assistHero) playerStats.get(assistHero.name).assists++;
-      timeline.push({ time, type: 'kill', event: narrative.generate('kill', hero.name, side.name, hero.proStats.ganking), score: `${currentScoreA}:${currentScoreB}` });
+      if (ps && ops) {
+        ps.kills++; ops.deaths++;
+        if (side === activeA) currentScoreA++; else currentScoreB++;
+        const assistHero = side.find(h => h.name !== hero.name);
+        if (assistHero) {
+          const aps = playerStats.get(assistHero.name);
+          if (aps) aps.assists++;
+        }
+        timeline.push({ time, type: 'kill', event: narrative.generate('kill', hero.name, sideName, hero.proStats.ganking), score: `${currentScoreA}:${currentScoreB}` });
+      }
     } else if (rand < 0.9) {
-      timeline.push({ time, type: 'objective', event: narrative.generate('objective', hero.name, side.name, hero.proStats.objectiveControl), score: `${currentScoreA}:${currentScoreB}` });
+      timeline.push({ time, type: 'objective', event: narrative.generate('objective', hero.name, sideName, hero.proStats.objectiveControl), score: `${currentScoreA}:${currentScoreB}` });
     } else {
-      timeline.push({ time, type: 'teamfight', event: narrative.generate('teamfight', hero.name, side.name, hero.proStats.communication), score: `${currentScoreA}:${currentScoreB}` });
+      timeline.push({ time, type: 'teamfight', event: narrative.generate('teamfight', hero.name, sideName, hero.proStats.communication), score: `${currentScoreA}:${currentScoreB}` });
     }
   }
 
@@ -212,11 +238,13 @@ function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number, forcedS
     kdaRatio: ((s.kills + s.assists) / Math.max(1, s.deaths)).toFixed(2)
   }));
 
+  const mvp = scoreboard.length > 0 ? scoreboard.sort((a, b) => parseFloat(b.kdaRatio) - parseFloat(a.kdaRatio))[0].name : "System";
+
   return {
     scoreA,
     scoreB,
     duration: `${durationMins}:12`,
-    mvp: scoreboard.sort((a, b) => parseFloat(b.kdaRatio) - parseFloat(a.kdaRatio))[0].name,
+    mvp,
     matchSummary: logs.length > 0 ? logs.join(' ') : "Дисциплинированная игра обеих команд.",
     timeline: timeline.slice(0, 10),
     scoreboard
@@ -230,9 +258,6 @@ export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<
     let winsA = 0, winsB = 0;
 
     for (let i = 0; i < numGames; i++) {
-      // Для Bo2 в Лиге мы можем передать вынужденный счет для каждой игры, если он задан.
-      // Но обычно scoreA/scoreB в input — это суммарный результат.
-      // Если это Bo2, мы распределим forcedScore по играм.
       let forcedA = undefined;
       let forcedB = undefined;
 
