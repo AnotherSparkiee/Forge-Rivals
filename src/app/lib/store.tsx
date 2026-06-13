@@ -81,6 +81,16 @@ interface GameState {
   markMatchAsSeen: (day: number) => void;
   markMatchIdAsSeen: (id: string) => void;
   upgradeManagerSkill: (skillKey: keyof GameState['managerSkills']) => void;
+
+  // Infrastructure Actions
+  startArenaConstruction: (id: string, cost: number) => boolean;
+  startHQConstruction: (id: string, cost: number) => boolean;
+  startBootcampConstruction: (id: string, cost: number) => boolean;
+  startAcademyConstruction: (id: string, cost: number) => boolean;
+  startMedicalConstruction: (id: string, cost: number) => boolean;
+  startCapacityExpansion: (seats: number, cost: number) => boolean;
+  accelerateConstruction: (type: string, id: string, multiplier: number, price: number) => boolean;
+  checkConstructions: () => void;
 }
 
 export function getLevelThreshold(lvl: number) {
@@ -107,7 +117,10 @@ const DEFAULT_STATE: GameState = {
   recoverAllFatigue: () => false, hireStaffMember: () => {}, trainStaffSkill: () => false,
   addHeroDirectly: () => {}, addYouthHeroDirectly: () => {}, promoteYouthPlayer: () => {},
   updateProfileName: () => {}, updateProfileCountry: () => {}, recordMatch: () => {},
-  markMatchAsSeen: () => {}, markMatchIdAsSeen: () => {}, upgradeManagerSkill: () => {}
+  markMatchAsSeen: () => {}, markMatchIdAsSeen: () => {}, upgradeManagerSkill: () => {},
+  startArenaConstruction: () => false, startHQConstruction: () => false, startBootcampConstruction: () => false,
+  startAcademyConstruction: () => false, startMedicalConstruction: () => false, startCapacityExpansion: () => false,
+  accelerateConstruction: () => false, checkConstructions: () => {}
 };
 
 const GameStateContext = createContext<GameState | undefined>(undefined);
@@ -407,13 +420,129 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }, { merge: true });
   };
 
+  // --- Infrastructure Implementation ---
+  
+  const startConstruction = (type: string, id: string, cost: number, baseDurationHours: number) => {
+    const s = stateRef.current;
+    const refs = getRefs();
+    if (!refs || s.credits < cost) return false;
+    
+    const currentData = (s as any)[type];
+    const currentLevel = currentData[id] || 0;
+    const durationMs = baseDurationHours * (currentLevel + 1) * 60 * 60 * 1000;
+    const startTime = new Date().toISOString();
+    const finishTime = new Date(Date.now() + durationMs).toISOString();
+
+    setDoc(refs.team, {
+      credits: s.credits - cost,
+      [type]: {
+        ...currentData,
+        constructionStarts: { ...(currentData.constructionStarts || {}), [id]: startTime },
+        constructionFinishes: { ...(currentData.constructionFinishes || {}), [id]: finishTime },
+        isAccelerated: { ...(currentData.isAccelerated || {}), [id]: false }
+      }
+    }, { merge: true });
+    return true;
+  };
+
+  const startArenaConstruction = (id: string, cost: number) => startConstruction('arena', id, cost, 4);
+  const startHQConstruction = (id: string, cost: number) => startConstruction('hq', id, cost, 4);
+  const startBootcampConstruction = (id: string, cost: number) => startConstruction('bootcamp', id, cost, 4);
+  const startAcademyConstruction = (id: string, cost: number) => startConstruction('academy', id, cost, 4);
+  const startMedicalConstruction = (id: string, cost: number) => startConstruction('medical', id, cost, 4);
+
+  const startCapacityExpansion = (seats: number, cost: number) => {
+    const s = stateRef.current;
+    const refs = getRefs();
+    if (!refs || s.credits < cost) return false;
+    const durationMs = 8 * 60 * 60 * 1000; // Fixed 8 hours for expansion
+    const finishTime = new Date(Date.now() + durationMs).toISOString();
+    
+    setDoc(refs.team, {
+      credits: s.credits - cost,
+      arena: {
+        ...s.arena,
+        pendingSeats: seats,
+        constructionStarts: { ...(s.arena.constructionStarts || {}), capacity: new Date().toISOString() },
+        constructionFinishes: { ...(s.arena.constructionFinishes || {}), capacity: finishTime },
+        isAccelerated: { ...(s.arena.isAccelerated || {}), capacity: false }
+      }
+    }, { merge: true });
+    return true;
+  };
+
+  const accelerateConstruction = (type: string, id: string, multiplier: number, price: number) => {
+    const s = stateRef.current;
+    const refs = getRefs();
+    if (!refs || s.crystals < price) return false;
+    
+    const currentData = (s as any)[type];
+    const finishIso = currentData.constructionFinishes?.[id];
+    if (!finishIso || currentData.isAccelerated?.[id]) return false;
+
+    const finishTime = new Date(finishIso).getTime();
+    const timeLeft = finishTime - Date.now();
+    const newFinishTime = new Date(Date.now() + (timeLeft / multiplier)).toISOString();
+
+    setDoc(refs.team, {
+      crystals: s.crystals - price,
+      [type]: {
+        ...currentData,
+        constructionFinishes: { ...currentData.constructionFinishes, [id]: newFinishTime },
+        isAccelerated: { ...currentData.isAccelerated, [id]: true }
+      }
+    }, { merge: true });
+    return true;
+  };
+
+  const checkConstructions = useCallback(() => {
+    const s = stateRef.current;
+    const refs = getRefs();
+    if (!refs) return;
+
+    const types = ['arena', 'hq', 'bootcamp', 'academy', 'medical'];
+    const now = Date.now();
+    const batch = writeBatch(db);
+    let hasChanges = false;
+
+    types.forEach(type => {
+      const data = (s as any)[type];
+      if (!data?.constructionFinishes) return;
+
+      Object.entries(data.constructionFinishes).forEach(([id, finishIso]) => {
+        if (now >= new Date(finishIso as string).getTime()) {
+          hasChanges = true;
+          const updatedData = { ...data };
+          
+          if (id === 'capacity') {
+            updatedData.capacity = (updatedData.capacity || 5000) + (updatedData.pendingSeats || 0);
+            delete updatedData.pendingSeats;
+          } else {
+            updatedData[id] = (updatedData[id] || 0) + 1;
+          }
+
+          delete updatedData.constructionStarts[id];
+          delete updatedData.constructionFinishes[id];
+          delete updatedData.isAccelerated[id];
+          
+          batch.update(refs.team, { [type]: updatedData });
+        }
+      });
+    });
+
+    if (hasChanges) batch.commit();
+  }, [db, getRefs]);
+
   const value = {
     ...state, setLanguage, addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, 
     claimReward, purchaseLicense, purchasePremium, syncStats,
     setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue,
     hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly,
     promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch,
-    markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill
+    markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill,
+    startArenaConstruction, startHQConstruction, startBootcampConstruction,
+    startAcademyConstruction, startMedicalConstruction, startCapacityExpansion,
+    accelerateConstruction, checkConstructions
   } as any;
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
