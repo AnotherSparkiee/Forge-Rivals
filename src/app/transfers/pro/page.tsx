@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -53,7 +54,7 @@ export default function ProTransfersPage() {
 
       if (!vtuneSnap.exists()) {
         const hero = generateVtuneHero(today);
-        // AUCTION ENDS IN 48 HOURS AT 00:00
+        // АУКЦИОН ЗАВЕРШАЕТСЯ ЧЕРЕЗ 48 ЧАСОВ В 00:00
         const mskNow = getMoscowTime();
         const expiry = new Date(mskNow);
         expiry.setDate(expiry.getDate() + 2);
@@ -91,7 +92,7 @@ export default function ProTransfersPage() {
     const balance = currency === 'crystals' ? crystals : credits;
 
     if (balance < amount) { 
-      toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient resources", variant: "destructive" }); 
+      toast({ title: language === 'ru' ? "Недостаточно ресурсов" : "Insufficient resources", variant: "destructive" }); 
       return; 
     }
 
@@ -130,7 +131,7 @@ export default function ProTransfersPage() {
       
       toast({ title: language === 'ru' ? "Ставка принята!" : "Elite Bid Confirmed!" });
     } catch (e) {
-      toast({ title: "Bidding failed", variant: "destructive" });
+      toast({ title: "Ошибка при ставке", variant: "destructive" });
     }
   }, [user, profile, credits, crystals, language, toast, db, addCredits, addCrystals]);
 
@@ -150,9 +151,11 @@ export default function ProTransfersPage() {
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white flex items-center gap-2">
             <Crown className="w-6 h-6 text-yellow-500" />
-            {language === 'ru' ? 'PRO-ИГРОКИ' : 'PRO MARKET'}
+            {language === 'ru' ? 'ЭЛИТНЫЕ ПРОФИ' : 'PRO MARKET'}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">Elite Strategic Assets</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
+            {language === 'ru' ? 'РЫНОК ЛЕГЕНДАРНЫХ АТЛЕТОВ' : 'Elite Strategic Assets'}
+          </p>
         </div>
       </header>
 
@@ -160,17 +163,20 @@ export default function ProTransfersPage() {
         <Card className="glass-card border-yellow-500/30 bg-gradient-to-br from-yellow-500/10 to-transparent">
           <CardContent className="p-4 space-y-4">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-yellow-500 flex items-center gap-2">
-              <Info className="w-3.5 h-3.5" /> PRO UNIT ADVANTAGES
+              <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ПРЕИМУЩЕСТВА PRO-СТАТУСА' : 'PRO UNIT ADVANTAGES'}
             </h3>
             <div className="grid grid-cols-1 gap-2">
                <div className="flex items-center gap-3 text-[10px] font-bold uppercase text-white/80">
-                 <Zap className="w-3.5 h-3.5 text-yellow-500" /> Extreme Talent (Up to 6★ Training)
+                 <Zap className="w-3.5 h-3.5 text-yellow-500" /> 
+                 {language === 'ru' ? 'Запредельный талант (до 6.5★ звезд)' : 'Extreme Talent (Up to 6.5★ stars)'}
                </div>
                <div className="flex items-center gap-3 text-[10px] font-bold uppercase text-white/80">
-                 <Target className="w-3.5 h-3.5 text-primary" /> Tactical Precision (Clutch moments)
+                 <Target className="w-3.5 h-3.5 text-primary" /> 
+                 {language === 'ru' ? 'Тактическая точность в важных моментах' : 'Tactical Precision (Clutch moments)'}
                </div>
                <div className="flex items-center gap-3 text-[10px] font-bold uppercase text-white/80">
-                 <Users className="w-3.5 h-3.5 text-accent" /> High Media Status (Attendance boost)
+                 <Users className="w-3.5 h-3.5 text-accent" /> 
+                 {language === 'ru' ? 'Высокий статус (Буст посещаемости)' : 'High Media Status (Attendance boost)'}
                </div>
             </div>
           </CardContent>
@@ -194,7 +200,7 @@ export default function ProTransfersPage() {
           ) : (
             <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
               <Trophy className="w-12 h-12" />
-              <p className="text-[10px] uppercase font-black">All elite assets commissioned</p>
+              <p className="text-[10px] uppercase font-black">{language === 'ru' ? 'Все легенды законтрактованы' : 'All elite assets commissioned'}</p>
             </div>
           )}
         </div>

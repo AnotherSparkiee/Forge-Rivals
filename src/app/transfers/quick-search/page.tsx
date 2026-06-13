@@ -9,12 +9,14 @@ import {
   ChevronLeft, Loader2, Gavel, ShieldCheck, 
   Timer, Star, ShoppingCart, X, Check, Search, Info, Users,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
-  ChevronsLeft, ChevronsRight, Zap, Gem
+  ChevronsLeft, ChevronsRight, Zap, Gem, Award, Target, Eye, Map, 
+  Sparkles, Sword, Crosshair, Brain, TrendingUp
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
+import { Progress } from '@/components/ui/progress';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -50,6 +52,7 @@ export const TransferHeroCard = memo(({
   language: string
 }) => {
   const [showBidModal, setShowBidModal] = useState(false);
+  const [showDossier, setShowDossier] = useState(false);
   const [bidPercent, setBidPercent] = useState(5);
   const [isProcessing, setIsProcessing] = useState(false);
   const { isPremium, activeLicenseTier } = useGameState();
@@ -59,7 +62,9 @@ export const TransferHeroCard = memo(({
   const isDiamond = agent.currency === 'crystals';
   const nextBidValue = Math.ceil(agent.currentBid * (1 + bidPercent / 100));
   const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
-  const avgTalent = Object.values(agent.heroData.proTalents || {}).reduce((a: any, b: any) => a + Number(b), 0) as number / 10;
+  
+  // Улучшенный расчет таланта (максимальный из всех навыков)
+  const maxTalentValue = Math.max(...Object.values(agent.heroData.proTalents || {}).map(v => Number(v)));
 
   const rolesRu: Record<string, string> = {
     'Carry': 'Керри',
@@ -67,6 +72,19 @@ export const TransferHeroCard = memo(({
     'Tank': 'Танк',
     'Jungler': 'Лес',
     'Support': 'Саппорт'
+  };
+
+  const proStatsLabels: Record<string, string> = {
+    lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
+    mapAwareness: language === 'ru' ? "Контроль карты" : "Map Awareness",
+    positioning: language === 'ru' ? "Позиционка" : "Positioning",
+    reflexes: language === 'ru' ? "Рефлексы" : "Reflexes",
+    manaManagement: language === 'ru' ? "Менеджмент маны" : "Mana Management",
+    objectiveControl: language === 'ru' ? "Объекты" : "Objective Control",
+    communication: language === 'ru' ? "Коммуникация" : "Communication",
+    tiltResistance: language === 'ru' ? "Стрессоустойчивость" : "Tilt Resistance",
+    versatility: language === 'ru' ? "Универсальность" : "Versatility",
+    ganking: language === 'ru' ? "Ганкинг" : "Ganking",
   };
 
   const getCountdown = (expiryIso: string) => {
@@ -107,12 +125,15 @@ export const TransferHeroCard = memo(({
 
   return (
     <>
-      <Card className={cn(
-        "glass-card border-white/5 overflow-hidden transition-all", 
-        isLeading && "border-green-500/40 bg-green-500/5",
-        isOwner && "border-primary/40 bg-primary/5",
-        agent.isPro && "border-yellow-500/30"
-      )}>
+      <Card 
+        onClick={() => setShowDossier(true)}
+        className={cn(
+          "glass-card border-white/5 overflow-hidden transition-all cursor-pointer active:scale-[0.98]", 
+          isLeading && "border-green-500/40 bg-green-500/5",
+          isOwner && "border-primary/40 bg-primary/5",
+          agent.isPro && "border-yellow-500/30"
+        )}
+      >
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
              <div className="flex items-center gap-1.5 text-accent">
@@ -122,7 +143,7 @@ export const TransferHeroCard = memo(({
              <div className="flex gap-1.5">
                {agent.isPro && <Badge className="bg-yellow-500 text-black text-[7px] font-black uppercase px-2 h-4 border-none">PRO UNIT</Badge>}
                {isOwner && <Badge className="bg-primary text-primary-foreground text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ВАШ ЛОТ' : 'YOUR LOT'}</Badge>}
-               {isLeading && <Badge className="bg-green-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ВЫ ЛИДИРУЕТЕ' : 'LEADING'}</Badge>}
+               {isLeading && <Badge className="bg-green-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</Badge>}
              </div>
           </div>
 
@@ -150,7 +171,7 @@ export const TransferHeroCard = memo(({
               <div className="grid grid-cols-2 gap-3 mt-2">
                  <div className="flex flex-col">
                    <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
-                   {renderStars(avgTalent)}
+                   {renderStars(maxTalentValue)}
                  </div>
                  <div className="flex flex-col border-l border-white/5 pl-3">
                    <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
@@ -194,7 +215,7 @@ export const TransferHeroCard = memo(({
                 isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
                 (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-xl shadow-primary/20 active:scale-95")
               )} 
-              onClick={() => !isLeading && !isOwner && setShowBidModal(true)} 
+              onClick={(e) => { e.stopPropagation(); if (!isLeading && !isOwner) setShowBidModal(true); }} 
               disabled={isLeading || isOwner}
             >
               {isOwner ? (language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT') : (
@@ -207,6 +228,109 @@ export const TransferHeroCard = memo(({
         </CardContent>
       </Card>
 
+      {/* ДОСЬЕ ИГРОКА */}
+      <Dialog open={showDossier} onOpenChange={setShowDossier}>
+        <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden shadow-2xl h-[90vh] flex flex-col">
+          <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 relative shrink-0">
+            <Button variant="ghost" size="icon" className="absolute left-4 top-4 rounded-full" onClick={() => setShowDossier(false)}>
+              <X className="w-5 h-5" />
+            </Button>
+            <div className="relative mx-auto w-24 h-24 mb-4">
+              <div className={cn("w-full h-full rounded-2xl overflow-hidden border-2 shadow-2xl bg-secondary/50", agent.isPro ? "border-yellow-500" : "border-primary/50")}>
+                <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-background border border-white/10 flex items-center justify-center shadow-xl">
+                <span className="text-xl">{agent.heroData.country?.flag}</span>
+              </div>
+            </div>
+            <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white leading-none">
+              {agent.heroData?.name}
+            </DialogTitle>
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{rolesRu[agent.heroData.role] || agent.heroData.role}</Badge>
+              {agent.isPro && <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5">PRO LEGEND</Badge>}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-8 scrollbar-hide">
+            <section>
+              <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ХАРАКТЕРИСТИКИ' : 'BIOMETRICS & STATUS'}
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
+                  <p className="text-[7px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
+                  <p className="text-xs font-bold text-white">{liveAge.display} {language === 'ru' ? 'лет' : 'yrs'}</p>
+                </div>
+                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
+                  <p className="text-[7px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ЗАРПЛАТА' : 'SALARY'}</p>
+                  <p className="text-xs font-bold text-green-400">€ {(agent.heroData.salary || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
+                  <p className="text-[7px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'РЕЙТИНГ' : 'OVERALL'}</p>
+                  <p className="text-xs font-bold text-accent">{agent.heroData.overallRating} OVR</p>
+                </div>
+                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
+                  <p className="text-[7px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'СТАТУС' : 'STATUS'}</p>
+                  <p className="text-[10px] font-bold text-green-400 flex items-center gap-1.5"><ShieldCheck className="w-3 h-3" /> {language === 'ru' ? 'ГОТОВ' : 'READY'}</p>
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                <Award className="w-3.5 h-3.5" /> {language === 'ru' ? 'ПРОФЕССИОНАЛЬНЫЕ НАВЫКИ' : 'PROFESSIONAL SKILLS'}
+              </h3>
+              <div className="space-y-3">
+                {Object.entries(agent.heroData.proStats).map(([key, value]: [string, any]) => { 
+                  const talent = agent.heroData.proTalents ? (agent.heroData.proTalents as any)[key] : 3.0; 
+                  const icons: Record<string, any> = {
+                    lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
+                    manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
+                    tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
+                  };
+                  const Icon = icons[key] || Info;
+                  return (
+                    <div key={key} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10 transition-all">
+                      <div className="flex justify-between items-center px-0.5">
+                        <div className="flex items-center gap-2">
+                          <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                            {proStatsLabels[key]}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <span className="text-[10px] font-mono font-bold text-primary">{value} / {Math.round(talent * 10)}</span>
+                          {renderStars(talent)}
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <Progress value={value as number} max={100} className="h-1 rounded-full bg-secondary/40" />
+                        <div 
+                          className="absolute top-0 h-1 bg-yellow-500/20 border-r border-yellow-500/50" 
+                          style={{ left: 0, width: `${(talent * 10)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ); 
+                })}
+              </div>
+            </section>
+          </div>
+
+          <div className="p-4 bg-secondary/20 border-t border-white/5 shrink-0">
+             <Button 
+               className="w-full h-12 hero-gradient font-black text-xs uppercase tracking-widest"
+               onClick={() => { setShowDossier(false); if (!isLeading && !isOwner) setShowBidModal(true); }}
+               disabled={isLeading || isOwner}
+             >
+               {isLeading ? 'ВЫ ЛИДИРУЕТЕ' : (isOwner ? 'ВАШ ГЕРОЙ' : 'ПЕРЕЙТИ К СТАВКЕ')}
+             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ТЕРМИНАЛ СТАВОК */}
       <Dialog open={showBidModal} onOpenChange={setShowBidModal}>
         <DialogContent className="max-w-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
           <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
