@@ -1,3 +1,4 @@
+
 'use client';
 
 /**
@@ -44,11 +45,11 @@ interface GameState {
   country: string | null;
   isPremium: boolean;
   premiumUntil: string | null;
+  activeSeasonNumber: number;
   activeLicenseTier: number | null;
   rank: number;
   seasonDay: number;
   seasonNumber: number;
-  activeSeasonNumber: number;
   isSyncing: boolean;
   language: string;
   lastProcessedSeason: number;
@@ -190,7 +191,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             setState(s => ({
               ...s, id: user.uid, displayName: rootData.displayName || teamData.displayName || "Manager",
               selectedLeagueId, leagueLevel: leagueLevel || 9, groupId: groupId || 1,
-              credits: teamData.credits ?? 0, crystals: teamData.crystals ?? 0,
+              credits: Number(teamData.credits || 0), crystals: Number(teamData.crystals || 0),
               experiencePoints: teamData.experiencePoints ?? 0, managerLevel: teamData.managerLevel ?? 1,
               skillPoints: teamData.skillPoints ?? 0, lineup: teamData.lineup || s.lineup,
               strategy: teamData.strategy || 'Balanced Play', lineSettings: teamData.lineSettings || s.lineSettings,
@@ -222,12 +223,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const addCrystals = (amount: number) => {
     const refs = getRefs(); if (!refs) return;
-    setDoc(refs.team, { crystals: Math.max(0, stateRef.current.crystals + amount) }, { merge: true });
+    const current = Number(stateRef.current.crystals || 0);
+    setDoc(refs.team, { crystals: Math.max(0, current + amount) }, { merge: true });
   };
 
   const addCredits = (amount: number) => {
     const refs = getRefs(); if (!refs) return;
-    setDoc(refs.team, { credits: Math.max(0, stateRef.current.credits + amount) }, { merge: true });
+    const current = Number(stateRef.current.credits || 0);
+    setDoc(refs.team, { credits: Math.max(0, current + amount) }, { merge: true });
   };
 
   const purchaseLicense = (tier: number, cost: number) => {
@@ -252,14 +255,17 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const heroRef = doc(collection(refs.team, 'heroes'), id);
     setDoc(heroRef, data, { merge: true });
     if (costCredits || costCrystals) {
-      setDoc(refs.team, { credits: stateRef.current.credits - costCredits, crystals: stateRef.current.crystals - costCrystals }, { merge: true });
+      setDoc(refs.team, { 
+        credits: Number(stateRef.current.credits || 0) - costCredits, 
+        crystals: Number(stateRef.current.crystals || 0) - costCrystals 
+      }, { merge: true });
     }
   };
 
   const removeHero = (id: string, refund: number) => {
     const refs = getRefs(); if (!refs) return;
     deleteDoc(doc(collection(refs.team, 'heroes'), id));
-    if (refund > 0) setDoc(refs.team, { credits: stateRef.current.credits + refund }, { merge: true });
+    if (refund > 0) setDoc(refs.team, { credits: Number(stateRef.current.credits || 0) + refund }, { merge: true });
   };
 
   const assignToRole = (role: LineupSlot, heroId: string | null) => {
@@ -276,8 +282,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const refs = getRefs(); if (!refs) return;
     const today = getMoscowDateString();
     setDoc(refs.team, {
-      credits: stateRef.current.credits + credits,
-      crystals: stateRef.current.crystals + (stateRef.current.isPremium ? crystals + 50 : crystals),
+      credits: Number(stateRef.current.credits || 0) + credits,
+      crystals: Number(stateRef.current.crystals || 0) + (stateRef.current.isPremium ? crystals + 50 : crystals),
       lastRewardClaimDate: today,
       rewardDay: (stateRef.current.rewardDay % 30) + 1
     }, { merge: true });
@@ -316,9 +322,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const refs = getRefs();
     if (!refs) return false;
     const cost = type === 'credits' ? 75000 : 150;
-    if ((type === 'credits' ? s.credits : s.crystals) < cost) return false;
+    const balance = type === 'credits' ? Number(s.credits || 0) : Number(s.crystals || 0);
+    if (balance < cost) return false;
     s.ownedHeroes.forEach(h => updateHero(h.id, { fatigue: 0 }));
-    setDoc(refs.team, { [type]: (type === 'credits' ? s.credits : s.crystals) - cost }, { merge: true });
+    setDoc(refs.team, { [type]: balance - cost }, { merge: true });
     return true;
   };
 
@@ -394,7 +401,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     };
     
     setDoc(refs.team, { 
-      credits: s.credits + reward, 
+      credits: Number(s.credits || 0) + reward, 
       matchHistory: arrayUnion(newEntry) 
     }, { merge: true });
   };
@@ -425,7 +432,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const startConstruction = (type: string, id: string, cost: number, baseDurationHours: number) => {
     const s = stateRef.current;
     const refs = getRefs();
-    if (!refs || s.credits < cost) return false;
+    if (!refs || Number(s.credits || 0) < cost) return false;
     
     const currentData = (s as any)[type];
     const currentLevel = currentData[id] || 0;
@@ -434,7 +441,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const finishTime = new Date(Date.now() + durationMs).toISOString();
 
     setDoc(refs.team, {
-      credits: s.credits - cost,
+      credits: Number(s.credits || 0) - cost,
       [type]: {
         ...currentData,
         constructionStarts: { ...(currentData.constructionStarts || {}), [id]: startTime },
@@ -454,12 +461,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const startCapacityExpansion = (seats: number, cost: number) => {
     const s = stateRef.current;
     const refs = getRefs();
-    if (!refs || s.credits < cost) return false;
+    if (!refs || Number(s.credits || 0) < cost) return false;
     const durationMs = 8 * 60 * 60 * 1000; // Fixed 8 hours for expansion
     const finishTime = new Date(Date.now() + durationMs).toISOString();
     
     setDoc(refs.team, {
-      credits: s.credits - cost,
+      credits: Number(s.credits || 0) - cost,
       arena: {
         ...s.arena,
         pendingSeats: seats,
@@ -474,7 +481,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const accelerateConstruction = (type: string, id: string, multiplier: number, price: number) => {
     const s = stateRef.current;
     const refs = getRefs();
-    if (!refs || s.crystals < price) return false;
+    if (!refs || Number(s.crystals || 0) < price) return false;
     
     const currentData = (s as any)[type];
     const finishIso = currentData.constructionFinishes?.[id];
@@ -485,7 +492,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const newFinishTime = new Date(Date.now() + (timeLeft / multiplier)).toISOString();
 
     setDoc(refs.team, {
-      crystals: s.crystals - price,
+      crystals: Number(s.crystals || 0) - price,
       [type]: {
         ...currentData,
         constructionFinishes: { ...currentData.constructionFinishes, [id]: newFinishTime },
