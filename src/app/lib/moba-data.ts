@@ -25,7 +25,8 @@ export interface Hero {
   fatigue: number; 
   country: { code: string; name: string; flag: string };
   isInjured: boolean;
-  isPro?: boolean; // New PRO status
+  isPro?: boolean; 
+  careerEndAge?: number; // Age when player retires (30-36)
   trainingFocus?: string | null;
   dailyTrainingFocus?: string | null;
   dailyTrainingFinishTime?: string | null;
@@ -142,6 +143,63 @@ function getRandomTalent(rng?: SeededRandom, isPro: boolean = false) {
   return (Math.floor(Math.random() * 7) + 4) / 2;
 }
 
+export function generateVtuneHero(seed?: string): Hero {
+  const rng = new SeededRandom(seed || Date.now());
+  const age = (rng.range(183, 189) / 10);
+  const careerEnd = rng.range(30, 36);
+
+  return {
+    id: 'legend_vtune',
+    name: 'V-Tune',
+    role: 'Carry',
+    baseStats: { attack: 45, defense: 15, health: 800, abilityPower: 20, speed: 340 },
+    overallRating: 45,
+    abilitiesFocus: 'Balanced',
+    image: 'https://iili.io/CCLp4OF.png',
+    description: "Elite Ukrainian Carry. A legendary force on the professional circuit.",
+    price: 0,
+    baseAge: age,
+    hiredAt: new Date().toISOString(),
+    age: age,
+    careerEndAge: careerEnd,
+    salary: 45000,
+    form: 95,
+    fatigue: 0,
+    country: { code: 'UA', name: 'Украина', flag: '🇺🇦' },
+    isInjured: false,
+    isPro: true,
+    proStats: {
+      lastHitting: rng.range(6, 7),
+      mapAwareness: rng.range(5, 6),
+      positioning: rng.range(6, 7),
+      reflexes: rng.range(6, 7),
+      manaManagement: rng.range(5, 6),
+      objectiveControl: rng.range(5, 6),
+      communication: rng.range(5, 6),
+      tiltResistance: rng.range(6, 7),
+      versatility: rng.range(6, 7),
+      ganking: rng.range(5, 6),
+    },
+    proTalents: {
+      lastHitting: (rng.range(59, 61) / 10),
+      positioning: (rng.range(53, 56) / 10),
+      reflexes: (rng.range(51, 55) / 10),
+      tiltResistance: (rng.range(51, 54) / 10),
+      versatility: (rng.range(50, 54) / 10),
+      mapAwareness: 4.5,
+      manaManagement: 4.5,
+      objectiveControl: 4.5,
+      communication: 4.5,
+      ganking: 4.5
+    },
+    xpStats: {},
+    matchesPlayedToday: 0,
+    totalMatchesPlayed: 0,
+    moral: 70,
+    titles: { league: 0, cup: 0, friendly: 0 }
+  };
+}
+
 export function generateUniqueHero(role: Role, index: number, isStarter: boolean = false, seed?: string, isPro: boolean = false): Hero {
   const rng = seed ? new SeededRandom(seed) : undefined;
   
@@ -211,6 +269,7 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     baseAge: startAge,
     hiredAt: new Date().toISOString(),
     age: startAge,
+    careerEndAge: isPro ? getRandomStat(30, 36, rng) : 38,
     salary: isPro ? getRandomStat(15000, 35000, rng) : getRandomStat(1500, 5000, rng),
     form: getRandomStat(70, 95, rng),
     fatigue: 0,

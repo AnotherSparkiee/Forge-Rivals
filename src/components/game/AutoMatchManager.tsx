@@ -1,7 +1,8 @@
+
 /**
  * @fileOverview Autonomous Season Engine (Synchronized Heartbeat).
  * Handles synchronized Bo2 match simulation and season transitions.
- * Forces regeneration if data standard changes.
+ * Monitors player career age and retirement.
  */
 
 'use client';
@@ -9,15 +10,15 @@
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, setDoc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs } from 'firebase/firestore';
+import { doc, setDoc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs, deleteDoc } from 'firebase/firestore';
 import { 
   getStableGroupTeams, generateSeasonCalendar, getMatchResult, 
   calculateStandings, MAX_LEVELS, LEAGUES 
 } from '@/app/lib/leagues-data';
-import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString } from '@/app/lib/time-utils';
+import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, calculateLiveAge } from '@/app/lib/time-utils';
 
 export function AutoMatchManager() {
-  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, recordMatch, displayName } = useGameState();
+  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, recordMatch, displayName, ownedHeroes, removeHero } = useGameState();
   const db = useFirestore();
   const processingRef = useRef(false);
 
@@ -52,19 +53,29 @@ export function AutoMatchManager() {
         
         const todayStr = getMoscowDateString();
         const mskNow = getMoscowTime();
+
+        // --- CAREER LIFECYCLE: MONITOR RETIREMENT ---
+        const squad = ownedHeroes || [];
+        for (const hero of squad) {
+          if (hero.isPro && hero.careerEndAge) {
+            const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
+            if (liveAge.numeric >= hero.careerEndAge) {
+               console.log(`[Lifecycle] ${hero.name} has reached retirement age (${hero.careerEndAge}). Unit deactivated.`);
+               removeHero(hero.id, 0); // Automatic retirement (no refund)
+               // The transfer market logic in pro/page.tsx will handle the re-drop tomorrow
+            }
+          }
+        }
         
         // --- PHASE 1: INITIALIZE GROUP & CALENDAR ---
         const teams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, allGroupPlayers);
 
-        // Force regeneration if season mismatch OR if bot naming standard is wrong
         const forceRegen = !groupSnap.exists() || 
                            groupSnap.data().seasonId !== activeSeason ||
                            (groupSnap.data().teams?.[0]?.name?.includes('Bot') && !groupSnap.data().teams?.[0]?.name?.includes('.'));
 
         if (forceRegen) {
-          console.log("[Engine] Initializing Season (Forced):", activeSeason);
           const calendar = generateSeasonCalendar(teams);
-          
           const batch = writeBatch(db);
           batch.set(groupRef, {
             seasonId: activeSeason,
@@ -76,7 +87,6 @@ export function AutoMatchManager() {
 
           calendar.forEach((m) => {
             const matchId = `match_${selectedLeagueId}_g${groupId}_s${activeSeason}_d${m.day}_h${m.homeId}`;
-            // NEW EPOCH: June 13, 2026
             const matchDate = new Date('2026-06-13T00:00:00+03:00');
             matchDate.setDate(matchDate.getDate() + (activeSeason - 1) * 16 + (m.day - 1));
             const [hh, mm] = league.startTime.split(':').map(Number);
@@ -117,7 +127,6 @@ export function AutoMatchManager() {
           const correctHome = teams.find(t => t.id === m.homeId);
           const correctAway = teams.find(t => t.id === m.awayId);
 
-          // 2.1 SYNC NAMES (Fixing ghost names in existing docs)
           if ((correctHome && m.homeName !== correctHome.name) || (correctAway && m.awayName !== correctAway.name)) {
             batch.update(matchDoc.ref, {
               homeName: correctHome?.name || m.homeName,
@@ -126,7 +135,6 @@ export function AutoMatchManager() {
             batchCount++;
           }
 
-          // 2.2 AUTO-SIMULATE OVERDUE MATCHES
           const startTime = new Date(m.startTime);
           if (m.status === 'pending' && mskNow.getTime() > startTime.getTime() + 60000) {
             const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, activeSeason);
@@ -147,7 +155,6 @@ export function AutoMatchManager() {
             batch.update(matchDoc.ref, finishedData);
             batchCount++;
 
-            // Local history record for active user
             if (m.homeId === userId || m.awayId === userId) {
               const isHome = m.homeId === userId;
               recordMatch(
@@ -161,7 +168,6 @@ export function AutoMatchManager() {
 
         if (batchCount > 0) {
           await batch.commit();
-          console.log(`[Engine] Synchronized ${batchCount} updates in group.`);
         }
 
       } catch (e: any) {
@@ -174,7 +180,7 @@ export function AutoMatchManager() {
     heartbeat();
     const interval = setInterval(heartbeat, 60000);
     return () => clearInterval(interval);
-  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, recordMatch, displayName]);
+  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, recordMatch, displayName, ownedHeroes]);
 
   return null;
 }

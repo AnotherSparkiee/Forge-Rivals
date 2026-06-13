@@ -15,13 +15,13 @@ import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@
 import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
-import { generateUniqueHero } from '@/app/lib/moba-data';
+import { generateVtuneHero } from '@/app/lib/moba-data';
 import { getMoscowTime, getMoscowDateString, getEndOfMoscowDay } from '@/app/lib/time-utils';
 import { TransferHeroCard } from '../quick-search/page';
 import Link from 'next/link';
 
 export default function ProTransfersPage() {
-  const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
+  const { language, isLoaded: isStoreLoaded, credits, crystals, addCredits, addCrystals } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
@@ -46,55 +46,56 @@ export default function ProTransfersPage() {
   useEffect(() => {
     if (isMarketLoading || !user?.uid || !isStoreLoaded) return;
 
-    const today = getMoscowDateString();
-    const proAgentsToday = (agents || []).filter(a => a.isSystem && a.dropDate === today && a.isPro);
+    const checkAndDropLegends = async () => {
+      const today = getMoscowDateString();
+      const vtuneId = `sys_legend_vtune_${today}`;
+      const vtuneRef = doc(db, 'market_v7', vtuneId);
+      const vtuneSnap = await getDoc(vtuneRef);
 
-    if (proAgentsToday.length === 0 && !initTriggeredRef.current) {
+      if (!vtuneSnap.exists()) {
+        const hero = generateVtuneHero(today);
+        // AUCTION ENDS IN 48 HOURS AT 00:00
+        const mskNow = getMoscowTime();
+        const expiry = new Date(mskNow);
+        expiry.setDate(expiry.getDate() + 2);
+        expiry.setHours(23, 59, 59, 999);
+
+        await setDoc(vtuneRef, {
+          id: vtuneId,
+          heroData: JSON.parse(JSON.stringify(hero)),
+          currentBid: 2000,
+          startingPrice: 2000,
+          highestBidderId: null,
+          highestBidderName: null,
+          bidders: [],
+          expiresAt: expiry.toISOString(),
+          dropDate: today,
+          createdAt: serverTimestamp(),
+          isSystem: true,
+          isPro: true,
+          currency: 'crystals',
+          sellerId: 'system'
+        });
+      }
+    };
+
+    if (!initTriggeredRef.current) {
       initTriggeredRef.current = true;
-      
-      const refreshProMarket = async () => {
-        const deterministicExpiry = getEndOfMoscowDay();
-        const roles = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'] as const;
-        
-        // Generate 1 PRO player per role daily
-        for (const role of roles) {
-          const agentId = `pro_drop_${today}_${role.toLowerCase()}`;
-          const existingRef = doc(db, 'market_v7', agentId);
-          const existingSnap = await getDoc(existingRef);
-          
-          if (!existingSnap.exists()) {
-            const seed = `pro_${today}_${role}`;
-            const hero = generateUniqueHero(role, 99, false, seed, true); // true = isPro
-            const startPrice = (hero.overallRating * 50000) + 1500000; // PRO players start at 3M+
-            
-            await setDoc(existingRef, { 
-              id: agentId, 
-              heroData: JSON.parse(JSON.stringify(hero)), 
-              currentBid: startPrice, 
-              startingPrice: startPrice, 
-              highestBidderId: null, 
-              highestBidderName: null, 
-              bidders: [], 
-              expiresAt: deterministicExpiry, 
-              dropDate: today, 
-              createdAt: serverTimestamp(), 
-              isSystem: true, 
-              isPro: true,
-              sellerId: 'system' 
-            });
-          }
-        }
-      };
-      refreshProMarket().catch(e => console.error("PRO market refresh failed", e));
+      checkAndDropLegends().catch(e => console.error("Legend drop failed", e));
     }
-  }, [isMarketLoading, agents, user?.uid, isStoreLoaded, db]);
+  }, [isMarketLoading, user?.uid, isStoreLoaded, db]);
 
   const handleGlobalBid = useCallback(async (agent: any, amount: number) => {
     if (!user || !profile) return;
-    if (credits < amount) { 
-      toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" }); 
+    
+    const currency = agent.currency || 'credits';
+    const balance = currency === 'crystals' ? crystals : credits;
+
+    if (balance < amount) { 
+      toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient resources", variant: "destructive" }); 
       return; 
     }
+
     try {
       const prevBidder = agent.highestBidderId;
       const heroName = agent.heroData?.name || "Player";
@@ -114,7 +115,12 @@ export default function ProTransfersPage() {
         expiresAt: finalExpiresAt
       });
 
-      addCredits(-amount);
+      if (currency === 'crystals') {
+        addCrystals(-amount);
+      } else {
+        addCredits(-amount);
+      }
+
       if (prevBidder && prevBidder !== user.uid) {
         addDocumentNonBlocking(collection(db, 'notifications_v7'), {
           userId: prevBidder, title: language === 'ru' ? "Ставка перебита!" : "Outbid!",
@@ -127,7 +133,7 @@ export default function ProTransfersPage() {
     } catch (e) {
       toast({ title: "Bidding failed", variant: "destructive" });
     }
-  }, [user, profile, credits, language, toast, db, addCredits]);
+  }, [user, profile, credits, crystals, language, toast, db, addCredits, addCrystals]);
 
   const proAgents = useMemo(() => {
     return (agents || []).filter(a => a.isPro && new Date(a.expiresAt).getTime() > now)
@@ -159,7 +165,7 @@ export default function ProTransfersPage() {
             </h3>
             <div className="grid grid-cols-1 gap-2">
                <div className="flex items-center gap-3 text-[10px] font-bold uppercase text-white/80">
-                 <Zap className="w-3.5 h-3.5 text-yellow-500" /> Extreme Talent (Faster Training)
+                 <Zap className="w-3.5 h-3.5 text-yellow-500" /> Extreme Talent (Up to 6★ Training)
                </div>
                <div className="flex items-center gap-3 text-[10px] font-bold uppercase text-white/80">
                  <Target className="w-3.5 h-3.5 text-primary" /> Tactical Precision (Clutch moments)

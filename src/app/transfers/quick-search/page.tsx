@@ -9,7 +9,7 @@ import {
   ChevronLeft, Loader2, Gavel, ShieldCheck, 
   Timer, Star, ShoppingCart, X, Check, Search, Info, Users,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
-  ChevronsLeft, ChevronsRight, Zap
+  ChevronsLeft, ChevronsRight, Zap, Gem
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -56,6 +56,7 @@ export const TransferHeroCard = memo(({
 
   const isLeading = agent.highestBidderId === user?.uid;
   const isOwner = agent.sellerId === user?.uid;
+  const isDiamond = agent.currency === 'crystals';
   const nextBidValue = Math.ceil(agent.currentBid * (1 + bidPercent / 100));
   const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
   const avgTalent = Object.values(agent.heroData.proTalents || {}).reduce((a: any, b: any) => a + Number(b), 0) as number / 10;
@@ -80,7 +81,7 @@ export const TransferHeroCard = memo(({
 
   const renderStars = (rating: number) => (
     <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => {
+      {Array.from({ length: Math.ceil(rating) }).map((_, i) => {
         const fill = Math.min(Math.max(rating - i, 0), 1);
         return (
           <div key={i} className="relative w-2.5 h-2.5">
@@ -95,21 +96,22 @@ export const TransferHeroCard = memo(({
   );
 
   const maxBidLimit = useMemo(() => {
-    if (isPremium) return 1000;
+    if (isPremium || isDiamond) return 1000;
     const tier = activeLicenseTier || 4;
     if (tier === 4) return 10;
     if (tier === 3) return 30;
     if (tier === 2) return 100;
     if (tier === 1) return 300;
     return 10;
-  }, [isPremium, activeLicenseTier]);
+  }, [isPremium, activeLicenseTier, isDiamond]);
 
   return (
     <>
       <Card className={cn(
         "glass-card border-white/5 overflow-hidden transition-all", 
         isLeading && "border-green-500/40 bg-green-500/5",
-        isOwner && "border-primary/40 bg-primary/5"
+        isOwner && "border-primary/40 bg-primary/5",
+        agent.isPro && "border-yellow-500/30"
       )}>
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
@@ -118,6 +120,7 @@ export const TransferHeroCard = memo(({
                <span className="text-[10px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
              </div>
              <div className="flex gap-1.5">
+               {agent.isPro && <Badge className="bg-yellow-500 text-black text-[7px] font-black uppercase px-2 h-4 border-none">PRO UNIT</Badge>}
                {isOwner && <Badge className="bg-primary text-primary-foreground text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ВАШ ЛОТ' : 'YOUR LOT'}</Badge>}
                {isLeading && <Badge className="bg-green-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ВЫ ЛИДИРУЕТЕ' : 'LEADING'}</Badge>}
              </div>
@@ -135,8 +138,8 @@ export const TransferHeroCard = memo(({
             
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <div className={cn("relative flex items-center min-w-0", isPremium && "pl-1.5 border-l-2 border-accent")}>
-                  {isPremium && <div className="absolute inset-0 bg-gradient-to-r from-accent/20 to-transparent -z-10" />}
+                <div className={cn("relative flex items-center min-w-0", agent.isPro && "pl-1.5 border-l-2 border-yellow-500")}>
+                  {agent.isPro && <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/20 to-transparent -z-10" />}
                   <h3 className="text-base font-bold uppercase truncate text-white tracking-tight leading-tight">{agent.heroData?.name}</h3>
                 </div>
                 <Badge variant="outline" className="text-[8px] h-4 py-0 border-white/10 uppercase font-black text-primary/80">
@@ -165,7 +168,10 @@ export const TransferHeroCard = memo(({
           <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
             <div className="flex flex-col gap-1.5 min-w-0 flex-1">
               <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
-              <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">€{agent.currentBid?.toLocaleString()}</p>
+              <div className="flex items-center gap-1.5">
+                {isDiamond ? <Gem className="w-4 h-4 text-blue-400" /> : <span className="text-white font-black">€</span>}
+                <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">{agent.currentBid?.toLocaleString()}</p>
+              </div>
               <div className="flex items-center min-w-0 mt-1">
                 {agent.highestBidderName ? (
                   <div className="relative inline-flex items-center min-w-0 max-w-full">
@@ -221,7 +227,10 @@ export const TransferHeroCard = memo(({
                 <span className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-2">
                   <Gavel className="w-4 h-4 text-primary" /> {language === 'ru' ? 'СУММА СДЕЛКИ' : 'NEW BID AMOUNT'}
                 </span>
-                <span className="text-xl font-headline font-black text-primary italic">€ {nextBidValue.toLocaleString()}</span>
+                <div className="flex items-center gap-1.5">
+                  {isDiamond ? <Gem className="w-4 h-4 text-blue-400" /> : <span className="text-primary font-black">€</span>}
+                  <span className="text-xl font-headline font-black text-primary italic">{nextBidValue.toLocaleString()}</span>
+                </div>
               </div>
               
               <div className="relative pt-4 pb-2">
@@ -233,23 +242,11 @@ export const TransferHeroCard = memo(({
                   step={1}
                 />
                 <div className="flex justify-between mt-3 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
-                  <span>MIN € {(agent.currentBid * 1.03).toLocaleString()}</span>
-                  <span>MAX € {(agent.currentBid * (1 + maxBidLimit/100)).toLocaleString()}</span>
+                  <span>MIN +3%</span>
+                  <span>MAX +{maxBidLimit}%</span>
                 </div>
               </div>
             </div>
-
-            {isPremium && (
-              <div className="p-3 bg-accent/10 border border-accent/20 rounded-xl flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-accent/20 flex items-center justify-center">
-                    <Zap className="w-2.5 h-2.5 text-accent" />
-                  </div>
-                  <span className="text-[9px] font-black uppercase text-accent">Premium Bidding Active</span>
-                </div>
-                <Badge className="bg-accent text-accent-foreground text-[8px] font-black">Unlimited</Badge>
-              </div>
-            )}
 
             <div className="bg-primary/5 rounded-xl border border-primary/20 p-4 flex gap-4">
                <Info className="w-5 h-5 text-primary shrink-0" />
@@ -317,7 +314,7 @@ export default function QuickSearchPage() {
     if (isMarketLoading || marketError || !user?.uid || !isStoreLoaded) return;
 
     const today = getMoscowDateString();
-    const systemAgentsToday = (agents || []).filter(a => a.isSystem && a.dropDate === today);
+    const systemAgentsToday = (agents || []).filter(a => a.isSystem && a.dropDate === today && !a.isPro);
 
     if (systemAgentsToday.length === 0 && !initTriggeredRef.current) {
       initTriggeredRef.current = true;
@@ -390,7 +387,7 @@ export default function QuickSearchPage() {
   const roleList = useMemo(() => [ { id: 'Carry', label: "Керри" }, { id: 'Midlaner', label: "Мидер" }, { id: 'Tank', label: "Танк" }, { id: 'Jungler', label: "Лес" }, { id: 'Support', label: "Саппорт" } ], []);
   
   const filteredAgents = useMemo(() => {
-    return (agents?.filter(a => a.heroData?.role === activeTab && a.isYouth !== true) || [])
+    return (agents?.filter(a => a.heroData?.role === activeTab && a.isYouth !== true && !a.isPro) || [])
       .filter(a => { const liveAge = calculateLiveAge(a.heroData.baseAge, a.heroData.hiredAt); return new Date(a.expiresAt).getTime() > now && liveAge.numeric >= 18.0; })
       .sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
   }, [agents, activeTab, now]);
