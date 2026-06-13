@@ -4,8 +4,7 @@
  * @fileOverview Архитектурный модуль симуляции матчей Lines of Enmity.
  * 
  * Алгоритмический расчет на основе тактик, OVR и статов.
- * Поддержка Bo2/Bo3, KDA, CS и текстовой трансляции.
- * Исключает результаты 1:0 для формата Bo2.
+ * Поддержка PRO-игроков с боевыми преимуществами.
  */
 
 import {ai} from '@/ai/genkit';
@@ -28,6 +27,7 @@ const HeroStatsSchema = z.object({
   name: z.string(),
   role: z.string(),
   overallRating: z.number(),
+  isPro: z.boolean().optional(),
   proStats: ProStatsSchema,
   isSub: z.boolean().optional(),
 });
@@ -95,7 +95,8 @@ class NarrativeGenerator {
     kill: [
       "{player} совершает блестящий ганк! Навык Ганкинг ({val}) застает противника врасплох.",
       "Невероятный килл от {player}! Благодаря Рефлексам ({val}) он уворачивается от заклинания и наносит ответный удар.",
-      "Ошибка позиционки от врага! {player} наказывает оппонента, используя Позиционирование ({val})."
+      "Ошибка позиционки от врага! {player} наказывает оппонента, используя Позиционирование ({val}).",
+      "PRO-момент: {player} исполняет сложнейшую комбинацию, не оставляя шансов противнику!"
     ],
     teamfight: [
       "Масштабный замес у реки! {player} координирует действия через Коммуникацию ({val}).",
@@ -109,9 +110,12 @@ class NarrativeGenerator {
     ]
   };
 
-  generate(type: 'farm' | 'kill' | 'teamfight' | 'objective', player: string, team: string, val: number) {
+  generate(type: 'farm' | 'kill' | 'teamfight' | 'objective', player: string, team: string, val: number, isPro: boolean = false) {
     const list = this.templates[type];
-    const tpl = list[Math.floor(Math.random() * list.length)];
+    let tpl = list[Math.floor(Math.random() * list.length)];
+    if (isPro && type === 'kill' && Math.random() > 0.7) {
+      tpl = list[3]; // Exclusive PRO template
+    }
     return tpl.replace('{player}', player).replace('{team}', team).replace('{val}', val.toString());
   }
 }
@@ -133,8 +137,11 @@ function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number, forcedM
   const modsA = applyTactics(teamA.strategy);
   const modsB = applyTactics(teamB.strategy);
 
-  const powerA = activeA.reduce((acc, h) => acc + h.overallRating, 0) * (modsA.a + modsA.d);
-  const powerB = activeB.reduce((acc, h) => acc + h.overallRating, 0) * (modsB.a + modsB.d);
+  const proBonusA = activeA.filter(h => h.isPro).length * 15;
+  const proBonusB = activeB.filter(h => h.isPro).length * 15;
+
+  const powerA = (activeA.reduce((acc, h) => acc + h.overallRating, 0) + proBonusA) * (modsA.a + modsA.d);
+  const powerB = (activeB.reduce((acc, h) => acc + h.overallRating, 0) + proBonusB) * (modsB.a + modsB.d);
 
   let finalScoreA = 0;
   let finalScoreB = 0;
@@ -152,7 +159,7 @@ function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number, forcedM
   const playerStats = new Map<string, any>();
   [...activeA, ...activeB].forEach(h => {
     playerStats.set(h.name, { 
-      kills: 0, deaths: 0, assists: 0, cs: 0, role: h.role,
+      kills: 0, deaths: 0, assists: 0, cs: 0, role: h.role, isPro: !!h.isPro,
       team: activeA.some(th => th.name === h.name) ? teamA.name : teamB.name 
     });
   });
@@ -174,22 +181,32 @@ function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number, forcedM
     
     if (!hero || !oppHero) continue;
 
-    const rand = Math.random();
+    // PRO Advantage Logic
+    const isProMoment = hero.isPro && Math.random() < 0.3;
+    const rand = Math.random() - (isProMoment ? 0.2 : 0);
+
     if (rand < 0.4) {
       const ps = playerStats.get(hero.name);
-      if (ps) { ps.cs += 8; if (m % 5 === 0) timeline.push({ time, type: 'farm', event: narrative.generate('farm', hero.name, sideName, hero.proStats.lastHitting), score: `${curA}:${curB}` }); }
+      if (ps) { ps.cs += (isProMoment ? 12 : 8); if (m % 5 === 0) timeline.push({ time, type: 'farm', event: narrative.generate('farm', hero.name, sideName, hero.proStats.lastHitting, !!hero.isPro), score: `${curA}:${curB}` }); }
     } else if (rand < 0.7) {
       const ps = playerStats.get(hero.name);
       const ops = playerStats.get(oppHero.name);
+      
+      // Counter-play by PRO defenders
+      if (oppHero.isPro && Math.random() > 0.6) {
+        timeline.push({ time, type: 'teamfight', event: `PRO-сейв: ${oppHero.name} читает игру и нейтрализует выпад ${hero.name}!`, score: `${curA}:${curB}` });
+        continue;
+      }
+
       if (ps && ops) {
         ps.kills++; ops.deaths++;
         if (side === activeA) curA++; else curB++;
-        timeline.push({ time, type: 'kill', event: narrative.generate('kill', hero.name, sideName, hero.proStats.ganking), score: `${curA}:${curB}` });
+        timeline.push({ time, type: 'kill', event: narrative.generate('kill', hero.name, sideName, hero.proStats.ganking, !!hero.isPro), score: `${curA}:${curB}` });
       }
     } else if (rand < 0.9) {
-      timeline.push({ time, type: 'objective', event: narrative.generate('objective', hero.name, sideName, hero.proStats.objectiveControl), score: `${curA}:${curB}` });
+      timeline.push({ time, type: 'objective', event: narrative.generate('objective', hero.name, sideName, hero.proStats.objectiveControl, !!hero.isPro), score: `${curA}:${curB}` });
     } else {
-      timeline.push({ time, type: 'teamfight', event: narrative.generate('teamfight', hero.name, sideName, hero.proStats.communication), score: `${curA}:${curB}` });
+      timeline.push({ time, type: 'teamfight', event: narrative.generate('teamfight', hero.name, sideName, hero.proStats.communication, !!hero.isPro), score: `${curA}:${curB}` });
     }
   }
 
@@ -201,7 +218,7 @@ function runSingleGame(input: SimulateMobaMatchInput, gameIndex: number, forcedM
   return {
     scoreA: finalScoreA, scoreB: finalScoreB, duration: `${duration}:00`,
     mvp: scoreboard.sort((a,b) => parseFloat(b.kdaRatio) - parseFloat(a.kdaRatio))[0].name,
-    matchSummary: "Intense competitive match with high strategic value.",
+    matchSummary: "Intense competitive match with elite performance indicators.",
     timeline: timeline.slice(0, 15), scoreboard
   };
 }
@@ -214,7 +231,6 @@ export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<
   for (let i = 0; i < numGames; i++) {
     let forced: 'A' | 'B' | undefined = undefined;
     
-    // Strict Forced Result Logic for Bo2
     if (input.isBo2 && input.scoreA !== undefined && input.scoreB !== undefined) {
       if (input.scoreA === 2) forced = 'A';
       else if (input.scoreB === 2) forced = 'B';

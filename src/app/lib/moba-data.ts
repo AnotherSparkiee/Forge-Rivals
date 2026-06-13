@@ -25,6 +25,7 @@ export interface Hero {
   fatigue: number; 
   country: { code: string; name: string; flag: string };
   isInjured: boolean;
+  isPro?: boolean; // New PRO status
   trainingFocus?: string | null;
   dailyTrainingFocus?: string | null;
   dailyTrainingFinishTime?: string | null;
@@ -132,12 +133,16 @@ function getRandomStat(min: number, max: number, rng?: SeededRandom) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function getRandomTalent(rng?: SeededRandom) {
-  if (rng) return (rng.range(0, 6) + 4) / 2;
+function getRandomTalent(rng?: SeededRandom, isPro: boolean = false) {
+  if (isPro) {
+    if (rng) return (rng.range(0, 4) + 9) / 2; // 4.5 - 6.5
+    return (Math.floor(Math.random() * 5) + 9) / 2;
+  }
+  if (rng) return (rng.range(0, 6) + 4) / 2; // 2.0 - 5.0
   return (Math.floor(Math.random() * 7) + 4) / 2;
 }
 
-export function generateUniqueHero(role: Role, index: number, isStarter: boolean = false, seed?: string): Hero {
+export function generateUniqueHero(role: Role, index: number, isStarter: boolean = false, seed?: string, isPro: boolean = false): Hero {
   const rng = seed ? new SeededRandom(seed) : undefined;
   
   const codes = Object.keys(COUNTRY_PHOTOS);
@@ -165,29 +170,29 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
   };
 
   const proStats = {
-    lastHitting: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : 35, rng),
-    mapAwareness: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : 35, rng),
-    positioning: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : 35, rng),
-    reflexes: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : 35, rng),
-    manaManagement: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : 35, rng),
-    objectiveControl: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : 35, rng),
-    communication: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : 35, rng),
-    tiltResistance: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : 35, rng),
-    versatility: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : 35, rng),
-    ganking: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : 35, rng),
+    lastHitting: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
+    mapAwareness: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
+    positioning: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
+    reflexes: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
+    manaManagement: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
+    objectiveControl: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
+    communication: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
+    tiltResistance: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
+    versatility: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
+    ganking: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
   };
 
   const proTalents = {
-    lastHitting: getRandomTalent(rng),
-    mapAwareness: getRandomTalent(rng),
-    positioning: getRandomTalent(rng),
-    reflexes: getRandomTalent(rng),
-    manaManagement: getRandomTalent(rng),
-    objectiveControl: getRandomTalent(rng),
-    communication: getRandomTalent(rng),
-    tiltResistance: getRandomTalent(rng),
-    versatility: getRandomTalent(rng),
-    ganking: getRandomTalent(rng),
+    lastHitting: getRandomTalent(rng, isPro),
+    mapAwareness: getRandomTalent(rng, isPro),
+    positioning: getRandomTalent(rng, isPro),
+    reflexes: getRandomTalent(rng, isPro),
+    manaManagement: getRandomTalent(rng, isPro),
+    objectiveControl: getRandomTalent(rng, isPro),
+    communication: getRandomTalent(rng, isPro),
+    tiltResistance: getRandomTalent(rng, isPro),
+    versatility: getRandomTalent(rng, isPro),
+    ganking: getRandomTalent(rng, isPro),
   };
 
   const startAge = getRandomStat(isStarter ? 17 : 18, isStarter ? 28 : 32, rng);
@@ -198,19 +203,20 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     name,
     role,
     baseStats,
-    overallRating: 25, 
+    overallRating: isPro ? 45 : 25, 
     abilitiesFocus: 'Balanced',
     image: country.url,
-    description: `A unique talent from ${country.name}.`,
+    description: isPro ? "An elite professional athlete with unmatched strategic potential." : `A unique talent from ${country.name}.`,
     price: 0,
     baseAge: startAge,
     hiredAt: new Date().toISOString(),
     age: startAge,
-    salary: getRandomStat(1500, 5000, rng),
+    salary: isPro ? getRandomStat(15000, 35000, rng) : getRandomStat(1500, 5000, rng),
     form: getRandomStat(70, 95, rng),
     fatigue: 0,
     country: { code: code, name: country.name, flag: country.flag },
     isInjured: false,
+    isPro: isPro,
     trainingFocus: null,
     dailyTrainingFocus: null,
     dailyTrainingFinishTime: null,

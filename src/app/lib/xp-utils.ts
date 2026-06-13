@@ -21,13 +21,13 @@ export const ROLE_CORE_SKILLS: Record<Role, string[]> = {
  */
 export function calculateTalentMultiplier(currentValue: number, talentValue: number): number {
   if (currentValue >= 100) return 0;
-  if (currentValue >= talentValue) return 0.01;
+  if (currentValue >= talentValue * 10) return 0.01;
   
-  const threshold = talentValue * 0.9;
+  const threshold = (talentValue * 10) * 0.9;
   if (currentValue < threshold) return 1.0;
   
   // Зона торможения: линейное затухание от 1.0 до 0.0
-  return (talentValue - currentValue) / (talentValue - threshold);
+  return ((talentValue * 10) - currentValue) / ((talentValue * 10) - threshold);
 }
 
 /**
@@ -40,6 +40,7 @@ export function calculateXpGain(params: {
   infra: { bootcamp: number; research: number; psychologist: number };
   matchResult?: { win: boolean; mvp: boolean; great: boolean; fail: boolean };
   matchesToday: number;
+  isPro?: boolean; // New PRO status
 }): number {
   if (params.currentValue >= 100) return 0;
 
@@ -55,7 +56,10 @@ export function calculateXpGain(params: {
     case 'tournament_ext': baseXP = 90; break;
   }
 
-  // 2. Модификаторы матча
+  // 2. PRO Bonus
+  if (params.isPro) baseXP *= 1.5;
+
+  // 3. Модификаторы матча
   if (params.matchResult && params.activity !== 'daily') {
     if (params.matchResult.win) baseXP += 30;
     if (params.matchResult.mvp) baseXP += 50;
@@ -64,7 +68,7 @@ export function calculateXpGain(params: {
     baseXP = Math.max(10, baseXP);
   }
 
-  // 3. Влияние инфраструктуры
+  // 4. Влияние инфраструктуры
   const bootcampMod = 1 + (params.infra.bootcamp * 0.04);
   
   let researchMod = 0;
@@ -83,17 +87,17 @@ export function calculateXpGain(params: {
     highLevelResearchBonus = 1 + (params.infra.research * 0.02);
   }
 
-  // 4. Коэффициент таланта
+  // 5. Коэффициент таланта
   const talentMod = calculateTalentMultiplier(params.currentValue, params.talentValue);
 
-  // 5. Коэффициент усталости
+  // 6. Коэффициент усталости
   // Каждый последующий матч -25% XP. 1-й = 0% штраф, 2-й = 25% и т.д.
   const fatiguePenaltyBase = Math.max(0, params.matchesToday - 1) * 0.25;
   const psychFatigueReduction = params.infra.psychologist * 0.03;
   const finalFatiguePenalty = Math.max(0, fatiguePenaltyBase - psychFatigueReduction);
   const fatigueMod = Math.min(1.0, 1.0 - finalFatiguePenalty);
 
-  // 6. Финальная сборка
+  // 7. Финальная сборка
   let totalXP = 0;
   
   if (params.activity === 'daily') {
@@ -117,7 +121,8 @@ export function calculateHeroOVR(
   stats: Record<string, number>,
   totalMatches: number = 0,
   moral: number = 50,
-  titles: { league: number; cup: number; friendly: number } = { league: 0, cup: 0, friendly: 0 }
+  titles: { league: number; cup: number; friendly: number } = { league: 0, cup: 0, friendly: 0 },
+  isPro: boolean = false
 ): number {
   const coreKeys = ROLE_CORE_SKILLS[role];
   const allKeys = Object.keys(stats);
@@ -133,7 +138,7 @@ export function calculateHeroOVR(
   const baseOvr = (avgCore * 0.7) + (avgSecondary * 0.3);
   
   // 2. Match Multiplier (Бесконечный рост)
-  const matchMultiplier = 1 + (Math.sqrt(totalMatches) / 20);
+  const matchMultiplier = 1 + (Math.sqrt(totalMatches) / (isPro ? 15 : 20));
   
   // 3. Mood Multiplier (Мораль 50 = 1.0x)
   const moodMultiplier = 0.9 + (moral / 500);
@@ -141,6 +146,9 @@ export function calculateHeroOVR(
   // 4. Legacy Bonus (Титулы)
   const legacyBonus = (titles.league * 5) + (titles.cup * 8) + (titles.friendly * 1);
   
+  // 5. PRO Status flat bonus
+  const proBonus = isPro ? 15 : 0;
+  
   // Финальный расчет
-  return Math.round(baseOvr * matchMultiplier * moodMultiplier) + legacyBonus;
+  return Math.round(baseOvr * matchMultiplier * moodMultiplier) + legacyBonus + proBonus;
 }

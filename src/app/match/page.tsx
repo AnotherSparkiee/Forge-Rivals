@@ -13,7 +13,7 @@ import {
   ShieldCheck, Zap, Target, FileText,
   Users, Trophy, Clock, Medal,
   ShieldAlert, User, MapPin, Info,
-  TrendingUp, Timer, ChevronRight, Loader2
+  TrendingUp, Timer, ChevronRight, Loader2, Crown
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -30,7 +30,7 @@ function MatchContent() {
   const db = useFirestore();
   const { 
     language, isLoaded, markMatchIdAsSeen,
-    matchHistory, id: myId, arena
+    matchHistory, id: myId, arena, ownedHeroes
   } = useGameState();
 
   const matchIdFromUrl = searchParams.get('id');
@@ -47,7 +47,6 @@ function MatchContent() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  // Fetch match data from global repository if needed
   useEffect(() => {
     if (!matchIdFromUrl) {
       setIsGlobalLoading(false);
@@ -74,7 +73,6 @@ function MatchContent() {
   const currentResult = useMemo(() => {
     if (isGlobalLoading) return null;
     
-    // 1. Try global match data first (from autonomous processing)
     if (globalMatchData && globalMatchData.status === 'finished') {
       const isHome = globalMatchData.homeId === user?.uid;
       return {
@@ -94,7 +92,6 @@ function MatchContent() {
       };
     }
 
-    // 2. Fallback to local history
     const fromHistory = matchHistory.find(m => m.id === matchIdFromUrl);
     if (fromHistory) return { ...fromHistory, isHome: fromHistory.opponentName !== fromHistory.homeName };
 
@@ -103,11 +100,16 @@ function MatchContent() {
 
   const attendance = useMemo(() => {
     if (!arena || !currentResult) return 0;
-    if (!currentResult.isHome) return Math.floor((arena.capacity || 5000) * 0.85); 
     const baseCap = arena.capacity || 5000;
-    const fillingFactor = 0.7 + (Math.random() * 0.3);
-    return Math.floor(baseCap * fillingFactor);
-  }, [arena, currentResult]);
+    
+    // PRO Bonus: Each PRO player in home squad increases attendance by 7%
+    const proUnitsCount = ownedHeroes.filter(h => h.isPro).length;
+    const proMultiplier = currentResult.isHome ? (1 + (proUnitsCount * 0.07)) : 1.0;
+
+    if (!currentResult.isHome) return Math.floor(baseCap * 0.85); 
+    const fillingFactor = (0.7 + (Math.random() * 0.3)) * proMultiplier;
+    return Math.min(baseCap, Math.floor(baseCap * fillingFactor));
+  }, [arena, currentResult, ownedHeroes]);
 
   useEffect(() => {
     if (step !== 'live' || !currentResult || !currentResult.games) return;
@@ -117,12 +119,11 @@ function MatchContent() {
 
     const events = game.timeline || [];
     if (events.length === 0) {
-      // If no timeline, skip to stats
       setTimeout(() => setStep('stats'), 1000);
       return;
     }
 
-    const totalRealTime = 120; // 2 minutes per game
+    const totalRealTime = 120; 
     const intervalMs = (totalRealTime * 1000) / Math.max(1, events.length);
 
     let currentEvt = 0;
@@ -142,7 +143,7 @@ function MatchContent() {
               setActiveGameIdx(prev => prev + 1);
               setVisibleEvents([]);
               setIsTransitioning(false);
-            }, 10000); // 10s pause
+            }, 10000); 
           }, 3000);
         } else {
           setTimeout(() => setStep('stats'), 5000);
@@ -200,7 +201,6 @@ function MatchContent() {
 
   const renderStatsTable = (game: any) => {
     const scoreboard = game.scoreboard || [];
-    const isHome = currentResult?.isHome;
     const hName = currentResult?.homeName;
     const aName = currentResult?.awayName;
     
@@ -210,16 +210,23 @@ function MatchContent() {
     const renderHeroRow = (p: any, side: 'left' | 'right') => (
       <div key={p.name} className={cn(
         "flex items-center gap-3 p-2.5 rounded-lg border border-white/5 bg-secondary/10",
+        p.isPro && "border-yellow-500/30 bg-yellow-500/5",
         side === 'right' ? "flex-row-reverse text-right" : "text-left"
       )}>
         <div className="relative shrink-0">
-          <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10 bg-background flex items-center justify-center">
-            {p.name === game.mvp ? <Trophy className="w-5 h-5 text-yellow-500" /> : <User className="w-5 h-5 text-muted-foreground" />}
+          <div className={cn(
+            "w-10 h-10 rounded-lg overflow-hidden border border-white/10 bg-background flex items-center justify-center",
+            p.isPro && "border-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.2)]"
+          )}>
+            {p.name === game.mvp ? <Trophy className="w-5 h-5 text-yellow-500" /> : (p.isPro ? <Crown className="w-5 h-5 text-yellow-500" /> : <User className="w-5 h-5 text-muted-foreground" />)}
           </div>
-          <Badge className="absolute -bottom-1 -right-1 bg-black/80 text-[6px] px-1 h-3 border-white/20">{p.role || 'PRO'}</Badge>
+          <Badge className={cn(
+            "absolute -bottom-1 -right-1 bg-black/80 text-[6px] px-1 h-3 border-white/20",
+            p.isPro && "bg-yellow-500 text-black border-none"
+          )}>{p.isPro ? 'PRO' : (p.role || 'UNIT')}</Badge>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-black uppercase truncate text-white">{p.name}</p>
+          <p className={cn("text-[10px] font-black uppercase truncate", p.isPro ? "text-yellow-500" : "text-white")}>{p.name}</p>
           <div className={cn("flex items-center gap-2 mt-0.5", side === 'right' && "justify-end")}>
             <span className="text-[9px] font-mono font-bold text-primary">{p.kills}/{p.deaths}/{p.assists}</span>
             <span className="text-[8px] text-muted-foreground uppercase font-black">{p.cs} CS</span>

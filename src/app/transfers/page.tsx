@@ -37,7 +37,7 @@ export default function TransfersPage() {
       subtitle: "Market Operations Hub",
       locked: "Restricted",
       menu: [
-        { label: 'PRO Players', desc: 'Elite professional athletes market', icon: Star, active: false },
+        { label: 'PRO Players', desc: 'Elite professional athletes market', icon: Star, active: true, href: '/transfers/pro' },
         { label: 'Quick Search', desc: 'Rapid acquisition protocols', icon: Search, active: true, href: '/transfers/quick-search' },
         { label: 'Advanced Search', desc: 'Detailed scouting filters', icon: SlidersHorizontal, active: true, href: '/transfers/advanced-search' },
         { label: 'My Bids', desc: 'Track and re-bid on active agents', icon: Package, active: true, href: '/transfers/my-bids' },
@@ -49,7 +49,7 @@ export default function TransfersPage() {
       subtitle: "Хаб рыночных операций",
       locked: "Закрыто",
       menu: [
-        { label: 'PRO-Игроки', desc: 'Рынок элитных профессионалов', icon: Star, active: false },
+        { label: 'PRO-Игроки', desc: 'Рынок элитных профессионалов', icon: Star, active: true, href: '/transfers/pro' },
         { label: 'Быстрый поиск', desc: 'Протоколы мгновенного найма', icon: Search, active: true, href: '/transfers/quick-search' },
         { label: 'Расширенный поиск', desc: 'Детальные фильтры скаутинга', icon: SlidersHorizontal, active: true, href: '/transfers/advanced-search' },
         { label: 'Мои покупки', desc: 'Список игроков на которых вы ставили', icon: Package, active: true, href: '/transfers/my-bids' },
