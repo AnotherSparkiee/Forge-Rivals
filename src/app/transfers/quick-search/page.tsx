@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, Loader2, Gavel, ShieldCheck, 
-  Timer, Star, ShoppingCart, X, Check, Search, Info, Users,
+  Timer, ShoppingCart, X, Check, Search, Info, Users,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
   ChevronsLeft, ChevronsRight, Zap, Gem, Award, Target, Eye, Map, 
   Sparkles, Sword, Crosshair, Brain, TrendingUp
@@ -63,7 +63,6 @@ export const TransferHeroCard = memo(({
   const nextBidValue = Math.ceil(agent.currentBid * (1 + bidPercent / 100));
   const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
   
-  // Улучшенный расчет таланта (максимальный из всех навыков)
   const maxTalentValue = Math.max(...Object.values(agent.heroData.proTalents || {}).map(v => Number(v)));
 
   const rolesRu: Record<string, string> = {
@@ -97,21 +96,15 @@ export const TransferHeroCard = memo(({
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  const renderStars = (rating: number) => (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: Math.ceil(rating) }).map((_, i) => {
-        const fill = Math.min(Math.max(rating - i, 0), 1);
-        return (
-          <div key={i} className="relative w-2.5 h-2.5">
-            <Star className="absolute inset-0 w-2.5 h-2.5 text-muted-foreground/20" />
-            <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
-              <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+  const renderStars = (talent: number) => {
+    let src = "https://iili.io/CCZlOeR.png"; // 5 stars (< 60)
+    if (talent >= 60 && talent <= 69) src = "https://iili.io/CCZMLVp.png"; // 6 stars
+    if (talent >= 70) src = "https://iili.io/CCZXucP.png"; // 7 stars
+    
+    return (
+      <img src={src} alt={`${talent} stars`} className="h-3 w-auto object-contain" />
+    );
+  };
 
   const maxBidLimit = useMemo(() => {
     if (isPremium || isDiamond) return 1000;
@@ -228,7 +221,6 @@ export const TransferHeroCard = memo(({
         </CardContent>
       </Card>
 
-      {/* ДОСЬЕ ИГРОКА */}
       <Dialog open={showDossier} onOpenChange={setShowDossier}>
         <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden shadow-2xl h-[90vh] flex flex-col">
           <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 relative shrink-0">
@@ -283,7 +275,7 @@ export const TransferHeroCard = memo(({
               </h3>
               <div className="space-y-3">
                 {Object.entries(agent.heroData.proStats).map(([key, value]: [string, any]) => { 
-                  const talent = agent.heroData.proTalents ? (agent.heroData.proTalents as any)[key] : 3.0; 
+                  const talent = agent.heroData.proTalents ? (agent.heroData.proTalents as any)[key] : 45; 
                   const icons: Record<string, any> = {
                     lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
                     manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
@@ -300,16 +292,12 @@ export const TransferHeroCard = memo(({
                           </span>
                         </div>
                         <div className="flex flex-col items-end">
-                          <span className="text-[10px] font-mono font-bold text-primary">{value} / {Math.round(talent * 10)}</span>
+                          <span className="text-[10px] font-mono font-bold text-primary">{value} / {talent}</span>
                           {renderStars(talent)}
                         </div>
                       </div>
                       <div className="relative">
-                        <Progress value={value as number} max={100} className="h-1 rounded-full bg-secondary/40" />
-                        <div 
-                          className="absolute top-0 h-1 bg-yellow-500/20 border-r border-yellow-500/50" 
-                          style={{ left: 0, width: `${(talent * 10)}%` }}
-                        />
+                        <Progress value={(value / talent) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
                       </div>
                     </div>
                   ); 
@@ -330,7 +318,6 @@ export const TransferHeroCard = memo(({
         </DialogContent>
       </Dialog>
 
-      {/* ТЕРМИНАЛ СТАВОК */}
       <Dialog open={showBidModal} onOpenChange={setShowBidModal}>
         <DialogContent className="max-w-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
           <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">

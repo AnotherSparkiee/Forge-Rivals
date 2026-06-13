@@ -66,6 +66,7 @@ export interface Hero {
     cup: number;
     friendly: number;
   };
+  isYouth?: boolean;
 }
 
 export type StaffRole = 'coach' | 'analyst' | 'scout' | 'doctor' | 'financier';
@@ -136,11 +137,11 @@ function getRandomStat(min: number, max: number, rng?: SeededRandom) {
 
 function getRandomTalent(rng?: SeededRandom, isPro: boolean = false) {
   if (isPro) {
-    if (rng) return (rng.range(0, 4) + 9) / 2; // 4.5 - 6.5
-    return (Math.floor(Math.random() * 5) + 9) / 2;
+    if (rng) return rng.range(50, 75);
+    return Math.floor(Math.random() * 26) + 50;
   }
-  if (rng) return (rng.range(0, 6) + 4) / 2; // 2.0 - 5.0
-  return (Math.floor(Math.random() * 7) + 4) / 2;
+  if (rng) return rng.range(25, 55);
+  return Math.floor(Math.random() * 31) + 25;
 }
 
 export function generateVtuneHero(seed?: string): Hero {
@@ -181,16 +182,17 @@ export function generateVtuneHero(seed?: string): Hero {
       ganking: rng.range(5, 6),
     },
     proTalents: {
-      lastHitting: (rng.range(59, 61) / 10),
-      positioning: (rng.range(53, 56) / 10),
-      reflexes: (rng.range(51, 55) / 10),
-      tiltResistance: (rng.range(51, 54) / 10),
-      versatility: (rng.range(50, 54) / 10),
-      mapAwareness: 4.5,
-      manaManagement: 4.5,
-      objectiveControl: 4.5,
-      communication: 4.5,
-      ganking: 4.5
+      lastHitting: rng.range(59, 61), 
+      positioning: rng.range(53, 56),
+      reflexes: rng.range(51, 55),
+      tiltResistance: rng.range(51, 54),
+      versatility: rng.range(50, 54),
+      // Второстепенные таланты 15-38
+      mapAwareness: rng.range(15, 38),
+      manaManagement: rng.range(15, 38),
+      objectiveControl: rng.range(15, 38),
+      communication: rng.range(15, 38),
+      ganking: rng.range(15, 38)
     },
     xpStats: {},
     matchesPlayedToday: 0,
@@ -331,16 +333,16 @@ export function generateYouthHero(index: number, seed?: string): Hero {
   hero.salary = getRandomStat(300, 1000, rng);
   
   hero.proTalents = {
-    lastHitting: getRandomTalent(rng) + 0.5,
-    mapAwareness: getRandomTalent(rng) + 0.5,
-    positioning: getRandomTalent(rng) + 0.5,
-    reflexes: getRandomTalent(rng) + 0.5,
-    manaManagement: getRandomTalent(rng) + 0.5,
-    objectiveControl: getRandomTalent(rng) + 0.5,
-    communication: getRandomTalent(rng) + 0.5,
-    tiltResistance: getRandomTalent(rng) + 0.5,
-    versatility: getRandomTalent(rng) + 0.5,
-    ganking: getRandomTalent(rng) + 0.5,
+    lastHitting: rng?.range(30, 60) || 45,
+    mapAwareness: rng?.range(20, 45) || 30,
+    positioning: rng?.range(20, 45) || 30,
+    reflexes: rng?.range(20, 45) || 30,
+    manaManagement: rng?.range(20, 45) || 30,
+    objectiveControl: rng?.range(20, 45) || 30,
+    communication: rng?.range(20, 45) || 30,
+    tiltResistance: rng?.range(20, 45) || 30,
+    versatility: rng?.range(20, 45) || 30,
+    ganking: rng?.range(20, 45) || 30,
   };
   
   hero.proStats = {

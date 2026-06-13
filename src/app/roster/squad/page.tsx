@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
@@ -10,7 +11,7 @@ import {
   Sword, Shield, Sparkles, Plus, 
   ChevronLeft, UserPlus, X,
   ShieldCheck, Zap, HeartPulse,
-  Star, Box, Undo2, Info, ShoppingCart, Loader2,
+  Box, Undo2, Info, ShoppingCart, Loader2,
   Award, Clock, Users, Brain, TrendingUp, Crosshair,
   Target, Eye, Map
 } from 'lucide-react';
@@ -223,19 +224,12 @@ export default function SquadPage() {
     );
   };
 
-  const renderStars = (rating: number) => (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => {
-        const fill = Math.min(Math.max(rating - i, 0), 1);
-        return (
-          <div key={i} className="relative w-2.5 h-2.5">
-            <Star className="absolute inset-0 w-2.5 h-2.5 text-muted-foreground/20" />
-            <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}><Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" /></div>
-          </div>
-        );
-      })}
-    </div>
-  );
+  const renderStars = (talent: number) => {
+    let src = "https://iili.io/CCZlOeR.png";
+    if (talent >= 60 && talent <= 69) src = "https://iili.io/CCZMLVp.png";
+    if (talent >= 70) src = "https://iili.io/CCZXucP.png";
+    return <img src={src} alt="stars" className="h-3 w-auto object-contain" />;
+  };
 
   if (!isLoaded) return null;
 
@@ -300,7 +294,7 @@ export default function SquadPage() {
               </h3>
               <div className="space-y-3">
                 {Object.entries(profileHero.proStats).map(([key, value]) => { 
-                  const talent = profileHero.proTalents ? (profileHero.proTalents as any)[key] : 3.0; 
+                  const talent = profileHero.proTalents ? (profileHero.proTalents as any)[key] : 45; 
                   const icons: Record<string, any> = {
                     lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
                     manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
@@ -317,11 +311,11 @@ export default function SquadPage() {
                           </span>
                         </div>
                         <div className="flex flex-col items-end">
-                          <span className="text-[10px] font-mono font-bold text-primary">{value} / 50</span>
+                          <span className="text-[10px] font-mono font-bold text-primary">{value} / {talent}</span>
                           {renderStars(talent)}
                         </div>
                       </div>
-                      <Progress value={value} max={50} className="h-1 rounded-full bg-secondary/40" />
+                      <Progress value={(value / talent) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
                     </div>
                   ); 
                 })}
