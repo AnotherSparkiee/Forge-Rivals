@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -20,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { calculateLiveAge, getMoscowTime } from '@/app/lib/time-utils';
+import { renderStars } from '@/app/transfers/quick-search/page';
 import {
   Dialog,
   DialogContent,
@@ -74,22 +76,6 @@ const YouthTransferCard = memo(({
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  const renderStars = (rating: number) => (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => {
-        const fill = Math.min(Math.max(rating - i, 0), 1);
-        return (
-          <div key={i} className="relative w-2.5 h-2.5">
-            <Star className="absolute inset-0 w-2.5 h-2.5 text-muted-foreground/20" />
-            <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
-              <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-
   return (
     <>
       <Card className={cn(
@@ -129,8 +115,8 @@ const YouthTransferCard = memo(({
               
               <div className="grid grid-cols-2 gap-3 mt-2">
                  <div className="flex flex-col">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'ТАЛАНТ'}</p>
-                   {renderStars(avgTalent)}
+                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
+                   {renderStars(avgTalent * 10)}
                  </div>
                  <div className="flex flex-col border-l border-white/5 pl-3">
                    <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'ВОЗРАСТ'}</p>
@@ -321,7 +307,7 @@ export default function YouthTransfersPage() {
 
       addCredits(-amount);
       if (prevBidder && prevBidder !== user.uid) {
-        addDocumentNonBlocking(collection(db, 'notifications_v6'), {
+        addDocumentNonBlocking(collection(db, 'notifications_v7'), {
           userId: prevBidder, title: language === 'ru' ? "Ставка перебита!" : "Outbid!",
           description: language === 'ru' ? `Ставка на "${heroName}" перебита ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : `Bid on "${heroName}" outbid ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`,
           type: 'market', read: false, createdAt: new Date().toISOString()
