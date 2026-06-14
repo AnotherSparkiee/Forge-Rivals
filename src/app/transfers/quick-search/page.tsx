@@ -189,7 +189,7 @@ export const TransferHeroCard = memo(({
 
           <div className="flex items-center gap-5">
             <div className="relative shrink-0">
-              <div className="w-20 h-20 rounded-2xl overflow-hidden bg-secondary/30 border border-white/10 relative shadow-lg">
+              <div className="w-24 h-24 rounded-2xl overflow-hidden bg-secondary/30 border border-white/10 relative shadow-lg">
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
                 <div className="absolute -bottom-1 -right-1 bg-background rounded-md p-1 border border-white/10 shadow-xl z-10 flex items-center justify-center">
                   <span className="text-xs leading-none">{agent.heroData.country?.flag}</span>
@@ -206,7 +206,10 @@ export const TransferHeroCard = memo(({
               </div>
               
               <div className="flex flex-col min-h-[110px] justify-center">
-                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
+                <div className="flex items-center justify-between mb-1.5 px-0.5">
+                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest leading-none">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
+                  <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{t.age}: {liveAge.display}</p>
+                </div>
                 <div className="flex items-center">
                   {renderStars(maxTalentValue)}
                 </div>
@@ -305,7 +308,7 @@ export const TransferHeroCard = memo(({
                      </div>
                   </div>
                   <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.salary}</span>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">Salary</span>
                      <span className="text-[10px] font-bold text-primary">€{(agent.heroData.salary || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
@@ -327,7 +330,7 @@ export const TransferHeroCard = memo(({
 
               <section>
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Activity className="w-3.5 h-3.5" /> {language === 'ru' ? 'Навыки' : 'Skills'}
+                  <Activity className="w-3.5 h-3.5" /> {language === 'ru' ? 'НАВЫКИ' : 'SKILLS'}
                 </h3>
                 <div className="space-y-3">
                   {STAT_KEYS.map((key) => { 
@@ -357,7 +360,7 @@ export const TransferHeroCard = memo(({
 
               <section>
                 <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Zap className="w-3.5 h-3.5" /> {language === 'ru' ? 'Таланты' : 'Talents'}
+                  <Zap className="w-3.5 h-3.5" /> {language === 'ru' ? 'ТАЛАНТЫ' : 'TALENTS'}
                 </h3>
                 <div className="space-y-3">
                   {STAT_KEYS.map((key) => {
@@ -386,7 +389,7 @@ export const TransferHeroCard = memo(({
                 <div className="bg-secondary/30 p-6 rounded-xl border border-white/5 space-y-4">
                    <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-[9px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ТЕКУЩАЯ ЦЕНА' : 'CURRENT BID'}</p>
+                        <p className="text-[9px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ТЕКУЩАЯ ЦЕНА' : 'CURRENT PRICE'}</p>
                         <p className="text-2xl font-headline font-bold text-white italic">€ {agent.currentBid?.toLocaleString()}</p>
                       </div>
                       <div className="text-right flex flex-col justify-center">
@@ -502,8 +505,6 @@ export default function QuickSearchPage() {
       toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!" });
     } catch (e) { toast({ title: "Error", variant: "destructive" }); }
   }, [user, profile, credits, language, toast, db, addCredits]);
-
-  if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">

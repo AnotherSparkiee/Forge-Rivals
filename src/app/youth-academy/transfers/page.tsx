@@ -134,7 +134,7 @@ const YouthTransferCard = memo(({
 
           <div className="flex items-center gap-5">
             <div className="relative shrink-0">
-              <div className="w-20 h-20 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 relative shadow-lg">
+              <div className="w-24 h-24 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 relative shadow-lg">
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
                 <div className="absolute -bottom-1 -right-1 bg-background rounded-md p-1 border border-white/10 shadow-xl z-10 flex items-center justify-center">
                   <span className="text-base leading-none">{agent.heroData.country?.flag}</span>
@@ -151,7 +151,10 @@ const YouthTransferCard = memo(({
               </div>
               
               <div className="flex flex-col min-h-[110px] justify-center">
-                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
+                <div className="flex items-center justify-between mb-1.5 px-0.5">
+                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest leading-none">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
+                  <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{t.age}: {liveAge.display}</p>
+                </div>
                 <div className="flex items-center">
                   {renderStars(maxTalentValue)}
                 </div>
@@ -324,19 +327,19 @@ const YouthTransferCard = memo(({
                 <Gem className="w-3.5 h-3.5" /> {t.priceTitle}
               </h3>
               <div className="bg-secondary/30 p-6 rounded-xl border border-white/5 space-y-4">
-                 <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-[9px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ТЕКУЩАЯ ЦЕНА' : 'CURRENT PRICE'}</p>
-                      <p className="text-2xl font-headline font-bold text-white italic">€ {agent.currentBid?.toLocaleString()}</p>
-                    </div>
-                    <div className="text-right flex flex-col justify-center">
-                       <p className="text-2xl font-headline font-bold text-primary uppercase truncate max-w-[240px]">
-                         {agent.highestBidderName || (language === 'ru' ? 'Нет ставок' : 'No bids')}
-                       </p>
-                    </div>
-                 </div>
-              </div>
-            </section>
+                   <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[9px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ТЕКУЩАЯ ЦЕНА' : 'CURRENT PRICE'}</p>
+                        <p className="text-2xl font-headline font-bold text-white italic">€ {agent.currentBid?.toLocaleString()}</p>
+                      </div>
+                      <div className="text-right flex flex-col justify-center">
+                         <p className="text-2xl font-headline font-bold text-primary uppercase truncate max-w-[240px]">
+                           {agent.highestBidderName || (language === 'ru' ? 'Нет ставок' : 'No bids')}
+                         </p>
+                      </div>
+                   </div>
+                </div>
+              </section>
           </div>
 
           <div className="p-4 bg-secondary/20 border-t border-white/5 shrink-0">
