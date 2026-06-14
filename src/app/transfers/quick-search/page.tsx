@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { 
   ChevronLeft, Loader2, Gavel, ShieldCheck, 
   Timer, Star, ShoppingCart, X, Check, Search, Info, Users,
@@ -40,29 +41,27 @@ import {
 const normTalent = (val: any) => {
   const n = Number(val);
   if (isNaN(n)) return 0;
-  // Если значение < 10 (например 6.1), умножаем на 10 для перехода к шкале 1-100.
-  // Если значение >= 10, считаем его уже корректным (например 61).
   return n < 10 ? Math.round(n * 10) : Math.round(n);
 };
 
 /**
  * Рендерит индикатор таланта.
  * До 50 - стандартные звезды.
- * 51+ - элитная графика.
+ * 51+ - элитная графика (УВЕЛИЧЕННЫЙ РАЗМЕР h-6).
  */
 export const renderStars = (talent: number) => {
   const numericTalent = normTalent(talent);
 
-  // Элитная графика для талантов выше 50
+  // Элитная графика для талантов выше 50 (h-6 = 24px)
   if (numericTalent > 50) {
     let src = "https://iili.io/CCZlOeR.png"; // 5 stars elite (51-59)
     if (numericTalent >= 60 && numericTalent <= 69) {
-      src = "https://iili.io/CnTWT0X.md.png"; // Новая иконка 6 звезд (60-69)
+      src = "https://iili.io/CnTWT0X.md.png"; // 6 stars (60-69)
     }
     if (numericTalent >= 70) {
       src = "https://iili.io/CCZXucP.png"; // 7 звезд (70+)
     }
-    return <img src={src} alt={`${numericTalent} stars`} className="h-3 w-auto object-contain" />;
+    return <img src={src} alt={`${numericTalent} stars`} className="h-6 w-auto object-contain" />;
   }
 
   // Обычные звезды для таланта <= 50
@@ -72,10 +71,10 @@ export const renderStars = (talent: number) => {
       {Array.from({ length: 5 }).map((_, i) => {
         const fill = Math.min(Math.max(starRating - i, 0), 1);
         return (
-          <div key={i} className="relative w-2 h-2">
-            <Star className="absolute inset-0 w-2 h-2 text-muted-foreground/20" />
+          <div key={i} className="relative w-2.5 h-2.5">
+            <Star className="absolute inset-0 w-2.5 h-2.5 text-muted-foreground/20" />
             <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
-              <Star className="w-2 h-2 text-yellow-500 fill-yellow-500" />
+              <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />
             </div>
           </div>
         );
@@ -111,7 +110,6 @@ export const TransferHeroCard = memo(({
   const nextBidValue = Math.ceil(agent.currentBid * (1 + bidPercent / 100));
   const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
   
-  // Определяем пиковый талант для главной иконки в блоке
   const talentsValues = Object.values(agent.heroData.proTalents || {}).map(v => normTalent(v));
   const maxTalentValue = Math.max(...talentsValues);
 
@@ -250,7 +248,6 @@ export const TransferHeroCard = memo(({
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-8 scrollbar-hide">
-            {/* БЛОК 1: ТЕКУЩИЕ НАВЫКИ */}
             <section>
               <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                 <Activity className="w-3.5 h-3.5" /> {language === 'ru' ? 'ТЕКУЩИЕ НАВЫКИ' : 'CURRENT SKILLS'}
@@ -281,7 +278,6 @@ export const TransferHeroCard = memo(({
               </div>
             </section>
 
-            {/* БЛОК 2: ПРЕДЕЛЫ ТАЛАНТА */}
             <section>
               <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                 <Zap className="w-3.5 h-3.5" /> {language === 'ru' ? 'ПРЕДЕЛЫ ТАЛАНТА' : 'TALENT LIMITS'}

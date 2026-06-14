@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -21,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { renderStars } from '@/app/transfers/quick-search/page';
 
 export default function DailyTrainingPage() {
   const { ownedHeroes, language, isLoaded, startDailyHeroTraining, claimDailyHeroTraining } = useGameState();
@@ -58,24 +60,6 @@ export default function DailyTrainingPage() {
   };
 
   const [selectedSkills, setSelectedSkills] = useState<Record<string, string>>({});
-
-  const renderStars = (rating: number) => {
-    return (
-      <div className="flex items-center gap-0.5">
-        {Array.from({ length: 5 }).map((_, i) => {
-          const fill = Math.min(Math.max(rating - i, 0), 1);
-          return (
-            <div key={i} className="relative w-2 h-2">
-              <Star className="absolute inset-0 w-2 h-2 text-muted-foreground/20" />
-              <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
-                <Star className="w-2 h-2 text-yellow-500 fill-yellow-500" />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
 
   const formatCountdown = (finishTime: string) => {
     const diff = new Date(finishTime).getTime() - now;
@@ -189,7 +173,7 @@ export default function DailyTrainingPage() {
                           {Math.floor(progress)}%
                         </span>
                       </div>
-                      <Progress value={progress} className={cn("h-1", isFinished ? "bg-green-500/20" : "bg-orange-500/20")} />
+                      <Progress value={progress} className="h-1" />
                     </div>
                   )}
 

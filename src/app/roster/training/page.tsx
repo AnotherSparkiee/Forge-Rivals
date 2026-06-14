@@ -82,8 +82,8 @@ export default function TrainingPage() {
         <div className="space-y-3">
           {ownedHeroes.map((hero) => {
             const currentFocus = hero.trainingFocus;
-            const focusSkillValue = currentFocus ? (hero.proStats as any)[currentFocus] : 0;
-            const focusSkillTalent = (currentFocus && hero.proTalents) ? (hero.proTalents as any)[currentFocus] : (currentFocus ? 30 : 0);
+            const focusSkillValue = currentFocus ? Math.round((hero.proStats as any)[currentFocus]) : 0;
+            const focusSkillTalent = (currentFocus && hero.proTalents) ? Math.round((hero.proTalents as any)[currentFocus]) : (currentFocus ? 30 : 0);
             const isAtLimit = currentFocus && focusSkillValue >= focusSkillTalent;
 
             return (
@@ -130,9 +130,15 @@ export default function TrainingPage() {
                           </span>
                         </div>
                         <div className="flex flex-col items-end">
-                          <span className={cn("text-[9px] font-mono font-bold", isAtLimit ? "text-yellow-500" : "text-primary")}>
-                            {focusSkillValue} / {focusSkillTalent}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn("text-[10px] font-mono font-bold", isAtLimit ? "text-yellow-500" : "text-white")}>
+                              {focusSkillValue}
+                            </span>
+                            <span className="text-[8px] text-muted-foreground">/</span>
+                            <span className="text-[10px] font-mono font-bold text-primary">
+                              {focusSkillTalent}
+                            </span>
+                          </div>
                           {renderStars(focusSkillTalent)}
                         </div>
                       </div>
