@@ -63,6 +63,7 @@ export const TransferHeroCard = memo(({
   const nextBidValue = Math.ceil(agent.currentBid * (1 + bidPercent / 100));
   const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
   
+  // ВЫЧИСЛЯЕМ МАКСИМАЛЬНЫЙ ТАЛАНТ ДЛЯ ОТОБРАЖЕНИЯ ЗВЕЗД
   const maxTalentValue = Math.max(...Object.values(agent.heroData.proTalents || {}).map(v => Number(v)));
 
   const rolesRu: Record<string, string> = {
@@ -97,9 +98,9 @@ export const TransferHeroCard = memo(({
   };
 
   const renderStars = (talent: number) => {
-    let src = "https://iili.io/CCZlOeR.png"; // 5 stars (< 60)
-    if (talent >= 60 && talent <= 69) src = "https://iili.io/CCZMLVp.png"; // 6 stars
-    if (talent >= 70) src = "https://iili.io/CCZXucP.png"; // 7 stars
+    let src = "https://iili.io/CCZlOeR.png"; // 5 звезд (< 60)
+    if (talent >= 60 && talent <= 69) src = "https://iili.io/CnTWT0X.md.png"; // Новая иконка 6 звезд
+    if (talent >= 70) src = "https://iili.io/CCZXucP.png"; // 7 звезд
     
     return (
       <img src={src} alt={`${talent} stars`} className="h-3 w-auto object-contain" />

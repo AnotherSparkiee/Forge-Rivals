@@ -16,7 +16,7 @@ import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, getDoc, up
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { generateVtuneHero } from '@/app/lib/moba-data';
-import { getMoscowTime, getMoscowDateString, getEndOfMoscowDay } from '@/app/lib/time-utils';
+import { getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
 import { TransferHeroCard } from '../quick-search/page';
 import Link from 'next/link';
 
@@ -48,6 +48,7 @@ export default function ProTransfersPage() {
 
     const checkAndDropLegends = async () => {
       const today = getMoscowDateString();
+      // Статичный ID для предотвращения дублей
       const vtuneId = `sys_legend_vtune_${today}`;
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       const vtuneSnap = await getDoc(vtuneRef);
@@ -136,8 +137,16 @@ export default function ProTransfersPage() {
   }, [user, profile, credits, crystals, language, toast, db, addCredits, addCrystals]);
 
   const proAgents = useMemo(() => {
-    return (agents || []).filter(a => a.isPro && new Date(a.expiresAt).getTime() > now)
-      .sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
+    if (!agents) return [];
+    
+    // Фильтрация дублей по имени героя
+    const uniqueNames = new Set();
+    return agents.filter(a => {
+      if (!a.isPro || new Date(a.expiresAt).getTime() <= now) return false;
+      if (uniqueNames.has(a.heroData?.name)) return false;
+      uniqueNames.add(a.heroData?.name);
+      return true;
+    }).sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
   }, [agents, now]);
 
   if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;

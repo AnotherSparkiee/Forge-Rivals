@@ -226,7 +226,7 @@ export default function SquadPage() {
 
   const renderStars = (talent: number) => {
     let src = "https://iili.io/CCZlOeR.png";
-    if (talent >= 60 && talent <= 69) src = "https://iili.io/CCZMLVp.png";
+    if (talent >= 60 && talent <= 69) src = "https://iili.io/CnTWT0X.md.png";
     if (talent >= 70) src = "https://iili.io/CCZXucP.png";
     return <img src={src} alt="stars" className="h-3 w-auto object-contain" />;
   };
@@ -234,6 +234,7 @@ export default function SquadPage() {
   if (!isLoaded) return null;
 
   if (profileHero) {
+    const maxTalentValue = Math.max(...Object.values(profileHero.proTalents || {}).map(v => Number(v)));
     return (
       <div className="min-h-screen bg-background text-foreground animate-in fade-in slide-in-from-right-4 duration-300 overflow-y-auto scrollbar-hide pb-6">
         <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative">
@@ -254,6 +255,7 @@ export default function SquadPage() {
             <h1 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h1>
             <div className="flex items-center justify-center gap-2">
               <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
+              <div className="flex items-center ml-2">{renderStars(maxTalentValue)}</div>
             </div>
           </div>
 
