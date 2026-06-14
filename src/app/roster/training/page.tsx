@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -20,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { renderStars } from '@/app/transfers/quick-search/page';
 
 export default function TrainingPage() {
   const { ownedHeroes, language, isLoaded, setTrainingFocus } = useGameState();
@@ -49,24 +51,6 @@ export default function TrainingPage() {
   };
 
   if (!isLoaded) return <LoadingScreen />;
-
-  const renderStars = (rating: number) => {
-    return (
-      <div className="flex items-center gap-0.5">
-        {Array.from({ length: 5 }).map((_, i) => {
-          const fill = Math.min(Math.max(rating - i, 0), 1);
-          return (
-            <div key={i} className="relative w-2 h-2">
-              <Star className="absolute inset-0 w-2 h-2 text-muted-foreground/20" />
-              <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
-                <Star className="w-2 h-2 text-yellow-500 fill-yellow-500" />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
@@ -99,9 +83,8 @@ export default function TrainingPage() {
           {ownedHeroes.map((hero) => {
             const currentFocus = hero.trainingFocus;
             const focusSkillValue = currentFocus ? (hero.proStats as any)[currentFocus] : 0;
-            // NEW LIMIT: Talent * 10
-            const focusSkillTalent = (currentFocus && hero.proTalents) ? (hero.proTalents as any)[currentFocus] : (currentFocus ? 3.0 : 0);
-            const isAtLimit = currentFocus && focusSkillValue >= focusSkillTalent * 10;
+            const focusSkillTalent = (currentFocus && hero.proTalents) ? (hero.proTalents as any)[currentFocus] : (currentFocus ? 30 : 0);
+            const isAtLimit = currentFocus && focusSkillValue >= focusSkillTalent;
 
             return (
               <Card key={hero.id} className="glass-card border-white/5 overflow-hidden">
@@ -148,18 +131,13 @@ export default function TrainingPage() {
                         </div>
                         <div className="flex flex-col items-end">
                           <span className={cn("text-[9px] font-mono font-bold", isAtLimit ? "text-yellow-500" : "text-primary")}>
-                            {focusSkillValue} / {Math.round(focusSkillTalent * 10)}
+                            {focusSkillValue} / {focusSkillTalent}
                           </span>
                           {renderStars(focusSkillTalent)}
                         </div>
                       </div>
                       <div className="relative">
-                        {/* Progress bar maxed at 50 for regular heroes */}
-                        <Progress value={focusSkillValue} max={50} className="h-1 rounded-full bg-secondary/40" />
-                        <div 
-                          className="absolute top-0 h-1 bg-yellow-500/20 border-r border-yellow-500/50" 
-                          style={{ left: 0, width: `${(focusSkillTalent * 10 / 50) * 100}%` }}
-                        />
+                        <Progress value={(focusSkillValue / focusSkillTalent) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
                       </div>
                       {isAtLimit && (
                         <div className="flex items-center justify-center gap-1.5 pt-1 text-yellow-500">

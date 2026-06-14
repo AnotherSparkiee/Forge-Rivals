@@ -13,7 +13,7 @@ import {
   ShieldCheck, Zap, HeartPulse,
   Box, Undo2, Info, ShoppingCart, Loader2,
   Award, Clock, Users, Brain, TrendingUp, Crosshair,
-  Target, Eye, Map
+  Target, Eye, Map, Star
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -22,6 +22,7 @@ import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { renderStars } from '@/app/transfers/quick-search/page';
 
 export default function SquadPage() {
   const { ownedHeroes, lineup, assignToRole, isLoaded, language, updateHero, isPremium, activeLicenseTier } = useGameState();
@@ -224,13 +225,6 @@ export default function SquadPage() {
     );
   };
 
-  const renderStars = (talent: number) => {
-    let src = "https://iili.io/CCZlOeR.png";
-    if (talent >= 60 && talent <= 69) src = "https://iili.io/CnTWT0X.md.png";
-    if (talent >= 70) src = "https://iili.io/CCZXucP.png";
-    return <img src={src} alt="stars" className="h-3 w-auto object-contain" />;
-  };
-
   if (!isLoaded) return null;
 
   if (profileHero) {
@@ -243,7 +237,7 @@ export default function SquadPage() {
           </Button>
           
           <div className="relative">
-            <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50">
+            <div className={cn("w-24 h-24 rounded-2xl overflow-hidden border-2 shadow-2xl bg-secondary/50", profileHero.isPro ? "border-yellow-500" : "border-primary/50")}>
               <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
             </div>
             <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl">

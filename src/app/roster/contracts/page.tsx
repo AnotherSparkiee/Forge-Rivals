@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -20,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { getMoscowDateString, getMoscowTime, calculateLiveAge } from '@/app/lib/time-utils';
+import { renderStars } from '@/app/transfers/quick-search/page';
 
 export default function ContractsPage() {
   const { ownedHeroes, language, isLoaded, credits, crystals, updateHero, removeHero, managerSkills } = useGameState();
@@ -130,24 +132,9 @@ export default function ContractsPage() {
     }
   };
 
-  const renderStars = (rating: number) => (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => {
-        const fill = Math.min(Math.max(rating - i, 0), 1);
-        return (
-          <div key={i} className="relative w-2.5 h-2.5">
-            <Star className="absolute inset-0 w-2.5 h-2.5 text-muted-foreground/20" />
-            <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
-              <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-
   if (profileHero) {
     const liveAge = calculateLiveAge(profileHero.baseAge, profileHero.hiredAt);
+    const maxTalentValue = Math.max(...Object.values(profileHero.proTalents || {}).map(v => Number(v)));
     return (
       <div className="min-h-screen bg-background text-foreground animate-in fade-in slide-in-from-right-4 duration-300 overflow-y-auto scrollbar-hide pb-6">
         <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative">
@@ -155,7 +142,7 @@ export default function ContractsPage() {
             <ChevronLeft className="w-6 h-6" />
           </Button>
           <div className="relative">
-            <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50">
+            <div className={cn("w-24 h-24 rounded-2xl overflow-hidden border-2 shadow-2xl bg-secondary/50", profileHero.isPro ? "border-yellow-500" : "border-primary/50")}>
               <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
             </div>
             <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl">
@@ -166,6 +153,7 @@ export default function ContractsPage() {
             <h1 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h1>
             <div className="flex items-center justify-center gap-2">
               <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
+              <div className="flex items-center ml-2">{renderStars(maxTalentValue)}</div>
             </div>
           </div>
           <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto">
@@ -231,7 +219,7 @@ export default function ContractsPage() {
               </h3>
               <div className="space-y-3">
                 {Object.entries(profileHero.proStats).map(([key, value]) => {
-                  const talent = profileHero.proTalents ? (profileHero.proTalents as any)[key] : 3.0;
+                  const talent = profileHero.proTalents ? (profileHero.proTalents as any)[key] : 45;
                   const icons: Record<string, any> = {
                     lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
                     manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
@@ -245,9 +233,9 @@ export default function ContractsPage() {
                           <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
                           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                         </div>
-                        <div className="flex flex-col items-end"><span className="text-[10px] font-mono font-bold text-primary">{value} / 50</span>{renderStars(talent)}</div>
+                        <div className="flex flex-col items-end"><span className="text-[10px] font-mono font-bold text-primary">{value} / {talent}</span>{renderStars(talent)}</div>
                       </div>
-                      <Progress value={value} max={50} className="h-1 rounded-full bg-secondary/40" />
+                      <Progress value={(value / talent) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
                     </div>
                   );
                 })}
@@ -268,11 +256,22 @@ export default function ContractsPage() {
       <div className="space-y-2">
         {ownedHeroes.map((hero) => {
           const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil) > new Date();
+          const maxTalent = Math.max(...Object.values(hero.proTalents || {}).map(v => Number(v)));
           return (
             <Card key={hero.id} className={cn("glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all", onAuction && "border-yellow-500/30 bg-yellow-500/5")} onClick={() => setProfileHero(hero)}>
               <CardContent className="p-3 flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0"><img src={hero.image} alt={hero.name} className="w-full h-full object-cover" /></div>
-                <div className="flex-1 min-w-0"><div className="flex items-center gap-2"><h3 className="text-sm font-bold truncate uppercase">{hero.name}</h3><Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>{onAuction && <Badge className="bg-yellow-500 text-black text-[6px] h-3 px-1 font-black animate-pulse uppercase">Auction</Badge>}</div><div className="flex items-center gap-2 mt-0.5"><p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Age: {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.years}</p><p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Salary: €{hero.salary.toLocaleString()}</p></div></div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold truncate uppercase">{hero.name}</h3>
+                    <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
+                    {onAuction && <Badge className="bg-yellow-500 text-black text-[6px] h-3 px-1 font-black animate-pulse uppercase">Auction</Badge>}
+                  </div>
+                  <div className="flex items-center gap-3 mt-1">
+                    {renderStars(maxTalent)}
+                    <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Age: {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.years}</p>
+                  </div>
+                </div>
                 <div className="flex flex-col items-center justify-center min-w-[40px] border-l border-white/5 pl-3"><span className="text-lg font-headline font-bold text-accent italic">{hero.overallRating}</span></div>
               </CardContent>
             </Card>

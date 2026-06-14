@@ -10,7 +10,7 @@ import {
   Timer, ShoppingCart, X, Check, Search, Info, Users,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
   ChevronsLeft, ChevronsRight, Zap, Gem, Award, Target, Eye, Map, 
-  Sparkles, Sword, Crosshair, Brain, TrendingUp
+  Sparkles, Sword, Crosshair, Brain, TrendingUp, Star
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -35,6 +35,36 @@ import {
 } from "@/components/ui/dialog";
 
 const ITEMS_PER_PAGE = 10;
+
+/**
+ * Рендерит звезды таланта в зависимости от его значения.
+ */
+export const renderStars = (talent: number) => {
+  if (talent > 50) {
+    let src = "https://iili.io/CCZlOeR.png"; // 5 stars elite (51-59)
+    if (talent >= 60 && talent <= 69) src = "https://iili.io/CnTWT0X.md.png"; // 6 stars (60-69)
+    if (talent >= 70) src = "https://iili.io/CCZXucP.png"; // 7 stars (70-100)
+    return <img src={src} alt={`${talent} stars`} className="h-3 w-auto object-contain" />;
+  }
+
+  // Обычные звезды (Векторные) для таланта <= 50
+  return (
+    <div className="flex items-center gap-0.5">
+      {Array.from({ length: 5 }).map((_, i) => {
+        const starValue = talent / 10; 
+        const fill = Math.min(Math.max(starValue - i, 0), 1);
+        return (
+          <div key={i} className="relative w-2 h-2">
+            <Star className="absolute inset-0 w-2 h-2 text-muted-foreground/20" />
+            <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
+              <Star className="w-2 h-2 text-yellow-500 fill-yellow-500" />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 export const TransferHeroCard = memo(({ 
   agent, 
@@ -63,7 +93,6 @@ export const TransferHeroCard = memo(({
   const nextBidValue = Math.ceil(agent.currentBid * (1 + bidPercent / 100));
   const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
   
-  // ВЫЧИСЛЯЕМ МАКСИМАЛЬНЫЙ ТАЛАНТ ДЛЯ ОТОБРАЖЕНИЯ ЗВЕЗД
   const maxTalentValue = Math.max(...Object.values(agent.heroData.proTalents || {}).map(v => Number(v)));
 
   const rolesRu: Record<string, string> = {
@@ -95,16 +124,6 @@ export const TransferHeroCard = memo(({
     const m = Math.floor((diff % 3600000) / 60000);
     const s = Math.floor((diff % 60000) / 1000);
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  };
-
-  const renderStars = (talent: number) => {
-    let src = "https://iili.io/CCZlOeR.png"; // 5 звезд (< 60)
-    if (talent >= 60 && talent <= 69) src = "https://iili.io/CnTWT0X.md.png"; // Новая иконка 6 звезд
-    if (talent >= 70) src = "https://iili.io/CCZXucP.png"; // 7 звезд
-    
-    return (
-      <img src={src} alt={`${talent} stars`} className="h-3 w-auto object-contain" />
-    );
   };
 
   const maxBidLimit = useMemo(() => {
@@ -169,7 +188,7 @@ export const TransferHeroCard = memo(({
                  </div>
                  <div className="flex flex-col border-l border-white/5 pl-3">
                    <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
-                   <p className="text-[11px] font-bold text-white leading-none mt-0.5">{liveAge.display}</p>
+                   <p className="text-11px] font-bold text-white leading-none mt-0.5">{liveAge.display}</p>
                  </div>
               </div>
             </div>
