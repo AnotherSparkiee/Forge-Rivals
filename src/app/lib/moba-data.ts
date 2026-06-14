@@ -140,8 +140,8 @@ export function generateVtuneHero(seed?: string): Hero {
   const age = (rng.range(183, 189) / 10);
   const careerEnd = rng.range(30, 36);
 
-  // Initial OVR 60 for 6-star player
-  // Stats are low (max 8 primary, max 4 secondary)
+  // Initial OVR ~60 for 6-star player (via pro bonus in xp-utils)
+  // Current stats are reset to low values: primary 6-8, secondary 1-4
   return {
     id: 'legend_vtune',
     name: 'V-Tune',
@@ -224,7 +224,8 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
   const startAge = getRandomStat(isStarter ? 17 : 18, isStarter ? 28 : 32, rng);
   const heroId = seed ? `h_det_${seed}` : `hero_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
 
-  // If PRO, skills are 1-8. If common, skills are higher if it's a starter.
+  // If PRO, skills are low (6-8 primary, 1-4 secondary)
+  // If common, skills are higher if it's a starter.
   const proStats = {
     lastHitting: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
     mapAwareness: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
