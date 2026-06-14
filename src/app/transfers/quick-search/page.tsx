@@ -80,10 +80,10 @@ export const renderStars = (talent: number) => {
       {Array.from({ length: 5 }).map((_, i) => {
         const fill = Math.min(Math.max(starRating - i, 0), 1);
         return (
-          <div key={i} className="relative w-3 h-3">
-            <Star className="absolute inset-0 w-3 h-3 text-muted-foreground/10" />
+          <div key={i} className="relative w-3.5 h-3.5">
+            <Star className="absolute inset-0 w-3.5 h-3.5 text-muted-foreground/10" />
             <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
-              <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+              <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
             </div>
           </div>
         );
@@ -185,9 +185,7 @@ export const TransferHeroCard = memo(({
                <span className="text-[10px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
              </div>
              <div className="flex gap-1.5">
-               {agent.isPro && <Badge className="bg-yellow-500 text-black text-[7px] font-black uppercase px-2 h-4 border-none">PRO UNIT</Badge>}
                {isOwner && <Badge className="bg-primary text-primary-foreground text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ВАШ ЛОТ' : 'YOUR LOT'}</Badge>}
-               {isLeading && <Badge className="bg-green-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</Badge>}
              </div>
           </div>
 
@@ -211,7 +209,9 @@ export const TransferHeroCard = memo(({
               <div className="grid grid-cols-2 gap-3 mt-2">
                  <div className="flex flex-col">
                    <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
-                   {renderStars(maxTalentValue)}
+                   <div className="flex items-center">
+                     {renderStars(maxTalentValue)}
+                   </div>
                  </div>
                  <div className="flex flex-col border-l border-white/5 pl-3">
                    <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
@@ -229,9 +229,16 @@ export const TransferHeroCard = memo(({
           <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
             <div className="flex flex-col gap-1.5 min-w-0 flex-1">
               <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
-              <div className="flex items-center gap-1.5">
-                {isDiamond ? <Gem className="w-4 h-4 text-blue-400" /> : <span className="text-white font-black">€</span>}
-                <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">{agent.currentBid?.toLocaleString()}</p>
+              <div className="flex items-center justify-between pr-2">
+                <div className="flex items-center gap-1.5">
+                  {isDiamond ? <Gem className="w-4 h-4 text-blue-400" /> : <span className="text-white font-black">€</span>}
+                  <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">{agent.currentBid?.toLocaleString()}</p>
+                </div>
+                <div className="text-right flex flex-col justify-center">
+                  <p className="text-sm font-headline font-bold text-primary uppercase truncate max-w-[120px]">
+                    {agent.highestBidderName || (language === 'ru' ? 'НЕТ СТАВОК' : 'NO BIDS')}
+                  </p>
+                </div>
               </div>
             </div>
             <Button 
@@ -241,9 +248,9 @@ export const TransferHeroCard = memo(({
                 (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-xl active:scale-95")
               )} 
               onClick={(e) => { e.stopPropagation(); if (!isLeading && !isOwner) setShowBidModal(true); }} 
-              disabled={isLeading || isOwner}
+              disabled={isOwner}
             >
-              {isOwner ? (language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT') : (isLeading ? (language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING') : (language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'))}
+              {isOwner ? (language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT') : (language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID')}
             </Button>
           </div>
         </CardContent>
@@ -253,7 +260,6 @@ export const TransferHeroCard = memo(({
       {showDossier && (
         <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-300">
           <div className="max-w-md mx-auto min-h-screen flex flex-col pb-10">
-            {/* STICKY TOP SHAPE WITH BUTTONS */}
             <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
               <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setShowDossier(false)}><X className="w-5 h-5" /></Button>
               <div className="relative">
@@ -274,7 +280,6 @@ export const TransferHeroCard = memo(({
             </div>
 
             <div className="p-4 space-y-8">
-              {/* БЛОК: ВЛАДЕЛЕЦ И ПРОДАЖА */}
               <section className="grid grid-cols-2 gap-3">
                 <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
                   <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.owner}</p>
@@ -292,18 +297,17 @@ export const TransferHeroCard = memo(({
                 </div>
               </section>
 
-              {/* БЛОК: ОБЩИЕ ДАННЫЕ */}
               <section className="space-y-3">
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</span>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.yrs}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Талант' : 'Talent'}</span>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.talent}</span>
                      {renderStars(maxTalentValue)}
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
@@ -327,10 +331,9 @@ export const TransferHeroCard = memo(({
                 </div>
               </section>
 
-              {/* БЛОК: ТЕКУЩИЕ НАВЫКИ */}
               <section>
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Activity className="w-3.5 h-3.5" /> {t.skills}
+                  <Activity className="w-3.5 h-3.5" /> {language === 'ru' ? 'Навыки' : 'Skills'}
                 </h3>
                 <div className="space-y-3">
                   {STAT_KEYS.map((key) => { 
@@ -358,20 +361,19 @@ export const TransferHeroCard = memo(({
                 </div>
               </section>
 
-              {/* БЛОК: ПРЕДЕЛЫ ТАЛАНТА */}
               <section>
                 <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Zap className="w-3.5 h-3.5" /> {t.talents}
+                  <Zap className="w-3.5 h-3.5" /> {language === 'ru' ? 'Таланты' : 'Talents'}
                 </h3>
                 <div className="space-y-2">
                   {STAT_KEYS.map((key) => {
                     const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[80px]">
+                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[64px]">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <Icon className="w-3.5 h-3.5 text-accent/50 shrink-0" />
-                          <span className="text-[10px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
+                          <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
                         </div>
                         <div className="flex items-center gap-3 shrink-0 h-16">
                           {renderStars(talentVal)}
@@ -383,7 +385,6 @@ export const TransferHeroCard = memo(({
                 </div>
               </section>
 
-              {/* БЛОК: ЦЕНА */}
               <section className="pt-4 border-t border-white/5">
                 <h3 className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Gem className="w-3.5 h-3.5" /> {t.priceTitle}
@@ -404,8 +405,8 @@ export const TransferHeroCard = memo(({
               </section>
 
               <div className="pt-4 pb-12 flex flex-col gap-2">
-                 <Button className="w-full h-14 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all" onClick={() => { if (!isLeading && !isOwner) setShowBidModal(true); }} disabled={isLeading || isOwner}>
-                   {isOwner ? (language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT') : (isLeading ? (language === 'ru' ? 'ВЫ ЛИДИРУЕТЕ' : 'LEADING') : (language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'))}
+                 <Button className="w-full h-14 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all" onClick={() => { if (!isLeading && !isOwner) setShowBidModal(true); }} disabled={isOwner}>
+                   {isOwner ? (language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT') : (language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID')}
                  </Button>
                  <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setShowDossier(false)}>
                    {language === 'ru' ? 'ВЕРНУТЬСЯ НА РЫНОК' : 'BACK TO MARKET'}
@@ -536,4 +537,3 @@ export default function QuickSearchPage() {
     </div>
   );
 }
-

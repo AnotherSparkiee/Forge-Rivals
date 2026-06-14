@@ -130,7 +130,6 @@ const YouthTransferCard = memo(({
              </div>
              <div className="flex gap-1.5">
                {isOwner && <Badge className="bg-blue-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR LOT'}</Badge>}
-               {isLeading && <Badge className="bg-green-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</Badge>}
              </div>
           </div>
 
@@ -154,7 +153,9 @@ const YouthTransferCard = memo(({
               <div className="grid grid-cols-2 gap-3 mt-2">
                  <div className="flex flex-col">
                    <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
-                   {renderStars(maxTalentValue)}
+                   <div className="flex items-center">
+                    {renderStars(maxTalentValue)}
+                   </div>
                  </div>
                  <div className="flex flex-col border-l border-white/5 pl-3">
                    <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
@@ -172,7 +173,16 @@ const YouthTransferCard = memo(({
           <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
             <div className="flex flex-col flex-1 min-w-0">
               <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
-              <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">€{agent.currentBid?.toLocaleString()}</p>
+              <div className="flex items-center justify-between pr-2">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">€{agent.currentBid?.toLocaleString()}</p>
+                </div>
+                <div className="text-right flex flex-col justify-center">
+                   <p className="text-sm font-headline font-bold text-primary uppercase truncate max-w-[120px]">
+                     {agent.highestBidderName || (language === 'ru' ? 'НЕТ СТАВОК' : 'NO BIDS')}
+                   </p>
+                </div>
+              </div>
             </div>
             <Button 
               className={cn(
@@ -181,9 +191,9 @@ const YouthTransferCard = memo(({
                 (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-xl active:scale-95")
               )} 
               onClick={(e) => { e.stopPropagation(); if (!isLeading && !isOwner) setShowBidModal(true); }} 
-              disabled={isLeading || isOwner}
+              disabled={isOwner}
             >
-              {isOwner ? (language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR LOT') : (isLeading ? (language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING') : (language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'))}
+              {isOwner ? (language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR UNIT') : (language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID')}
             </Button>
           </div>
         </CardContent>
@@ -208,7 +218,6 @@ const YouthTransferCard = memo(({
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-8 scrollbar-hide">
-            {/* БЛОК: ВЛАДЕЛЕЦ И ПРОДАЖА */}
             <section className="grid grid-cols-2 gap-3">
               <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
                 <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.owner}</p>
@@ -226,18 +235,17 @@ const YouthTransferCard = memo(({
               </div>
             </section>
 
-            {/* БЛОК: ОБЩИЕ ДАННЫЕ */}
             <section className="space-y-3">
               <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                 <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
               </h3>
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</span>
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
                    <span className="text-[10px] font-bold">{liveAge.display} {t.yrs}</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Талант' : 'Talent'}</span>
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.talent}</span>
                    {renderStars(maxTalentValue)}
                 </div>
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
@@ -261,10 +269,9 @@ const YouthTransferCard = memo(({
               </div>
             </section>
 
-            {/* БЛОК: НАВЫКИ */}
             <section>
               <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Activity className="w-3.5 h-3.5" /> {t.skills}
+                <Activity className="w-3.5 h-3.5" /> {language === 'ru' ? 'Навыки' : 'Skills'}
               </h3>
               <div className="space-y-3">
                 {STAT_KEYS.map((key) => { 
@@ -292,20 +299,19 @@ const YouthTransferCard = memo(({
               </div>
             </section>
 
-            {/* БЛОК: ТАЛАНТЫ */}
             <section>
               <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Zap className="w-3.5 h-3.5" /> {t.talents}
+                <Zap className="w-3.5 h-3.5" /> {language === 'ru' ? 'Таланты' : 'Talents'}
               </h3>
               <div className="space-y-2">
                 {STAT_KEYS.map((key) => {
-                  const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
+                  const talentVal = normTalent((selectedHero.proTalents as any)[key]);
                   const Icon = icons[key] || Info;
                   return (
-                    <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[80px]">
+                    <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[64px]">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <Icon className="w-3.5 h-3.5 text-accent/50 shrink-0" />
-                        <span className="text-[10px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
+                        <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
                       </div>
                       <div className="flex items-center gap-3 shrink-0 h-16">
                         {renderStars(talentVal)}
@@ -317,7 +323,6 @@ const YouthTransferCard = memo(({
               </div>
             </section>
 
-            {/* БЛОК: ЦЕНА */}
             <section className="pt-4 border-t border-white/5">
               <h3 className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                 <Gem className="w-3.5 h-3.5" /> {t.priceTitle}
@@ -339,8 +344,8 @@ const YouthTransferCard = memo(({
           </div>
 
           <div className="p-4 bg-secondary/20 border-t border-white/5 shrink-0">
-             <Button className="w-full h-14 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all" onClick={() => { setShowDossier(false); if (!isLeading && !isOwner) setShowBidModal(true); }} disabled={isLeading || isOwner}>
-               {isLeading ? (language === 'ru' ? 'ВЫ ЛИДИРУЕТЕ' : 'LEADING') : (isOwner ? (language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR UNIT') : (language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'))}
+             <Button className="w-full h-14 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all" onClick={() => { setShowDossier(false); if (!isLeading && !isOwner) setShowBidModal(true); }} disabled={isOwner}>
+               {language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'}
              </Button>
           </div>
         </DialogContent>
@@ -549,4 +554,3 @@ export default function YouthTransfersPage() {
     </div>
   );
 }
-
