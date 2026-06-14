@@ -35,28 +35,37 @@ import {
 } from "@/components/ui/dialog";
 
 /**
- * Нормализатор талантов (превращает 6.1 в 61 и округляет).
- * Используется ТОЛЬКО для талантов, чтобы корректно отображать звезды.
+ * Нормализатор талантов. Строго приводит к шкале 1-100.
  */
 const normTalent = (val: any) => {
   const n = Number(val);
   if (isNaN(n)) return 0;
+  // Если значение < 10 (например 6.1), умножаем на 10 для перехода к шкале 1-100.
+  // Если значение >= 10, считаем его уже корректным (например 61).
   return n < 10 ? Math.round(n * 10) : Math.round(n);
 };
 
 /**
- * Рендерит звезды таланта в зависимости от его значения (шкала 1-100).
+ * Рендерит индикатор таланта.
+ * До 50 - стандартные звезды.
+ * 51+ - элитная графика.
  */
 export const renderStars = (talent: number) => {
   const numericTalent = normTalent(talent);
 
+  // Элитная графика для талантов выше 50
   if (numericTalent > 50) {
     let src = "https://iili.io/CCZlOeR.png"; // 5 stars elite (51-59)
-    if (numericTalent >= 60 && numericTalent <= 69) src = "https://iili.io/CnTWT0X.md.png"; // 6 stars (60-69)
-    if (numericTalent >= 70) src = "https://iili.io/CCZXucP.png"; // 7 stars (70-100)
+    if (numericTalent >= 60 && numericTalent <= 69) {
+      src = "https://iili.io/CnTWT0X.md.png"; // Новая иконка 6 звезд (60-69)
+    }
+    if (numericTalent >= 70) {
+      src = "https://iili.io/CCZXucP.png"; // 7 звезд (70+)
+    }
     return <img src={src} alt={`${numericTalent} stars`} className="h-3 w-auto object-contain" />;
   }
 
+  // Обычные звезды для таланта <= 50
   const starRating = Math.max(0, numericTalent / 10);
   return (
     <div className="flex items-center gap-0.5">
@@ -102,8 +111,9 @@ export const TransferHeroCard = memo(({
   const nextBidValue = Math.ceil(agent.currentBid * (1 + bidPercent / 100));
   const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
   
-  const talents = Object.values(agent.heroData.proTalents || {}).map(v => normTalent(v));
-  const maxTalentValue = Math.max(...talents);
+  // Определяем пиковый талант для главной иконки в блоке
+  const talentsValues = Object.values(agent.heroData.proTalents || {}).map(v => normTalent(v));
+  const maxTalentValue = Math.max(...talentsValues);
 
   const rolesRu: Record<string, string> = {
     'Carry': 'Керри', 'Midlaner': 'Мидер', 'Tank': 'Танк', 'Jungler': 'Лес', 'Support': 'Саппорт'
@@ -248,7 +258,6 @@ export const TransferHeroCard = memo(({
               <div className="space-y-3">
                 {Object.entries(agent.heroData.proStats).map(([key, value]: [string, any]) => { 
                   const Icon = icons[key] || Info;
-                  // Используем чистое значение Math.round(value) БЕЗ умножения на 10.
                   const displayValue = Math.round(Number(value));
                   const talentLimit = normTalent((agent.heroData.proTalents as any)[key] || 10);
                   

@@ -48,8 +48,8 @@ export default function ProTransfersPage() {
 
     const checkAndDropLegends = async () => {
       const today = getMoscowDateString();
-      // BUMP TO v610 to enforce strict secondary talent range 18-37
-      const vtuneId = `sys_vtune_v610_strict_secondary_limit_${today}`;
+      // V700 - FINAL VALIDATION LOCK (STRICT 18-37 RANGE)
+      const vtuneId = `sys_vtune_v700_final_validation_lock_${today}`;
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       const vtuneSnap = await getDoc(vtuneRef);
 
@@ -57,7 +57,6 @@ export default function ProTransfersPage() {
         const hero = generateVtuneHero(today);
         const mskNow = getMoscowTime();
         
-        // 48 hours for new legend drop
         const expiry = new Date(mskNow);
         expiry.setDate(expiry.getDate() + 2);
         expiry.setHours(23, 59, 59, 999);
@@ -142,6 +141,8 @@ export default function ProTransfersPage() {
     
     const uniqueNames = new Set();
     return agents.filter(a => {
+      // Show only high version V-Tune (v700) or non-system pros
+      if (a.isSystem && !a.id.includes('v700')) return false;
       if (!a.isPro || new Date(a.expiresAt).getTime() <= now) return false;
       if (uniqueNames.has(a.heroData?.name)) return false;
       uniqueNames.add(a.heroData?.name);
