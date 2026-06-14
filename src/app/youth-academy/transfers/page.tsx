@@ -151,7 +151,7 @@ const YouthTransferCard = memo(({
                 </Badge>
               </div>
               <div className="grid grid-cols-2 gap-3 mt-2">
-                 <div className="flex flex-col">
+                 <div className="flex flex-col min-h-[96px] justify-start">
                    <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
                    <div className="flex items-center">
                     {renderStars(maxTalentValue)}
@@ -178,7 +178,7 @@ const YouthTransferCard = memo(({
                   <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">€{agent.currentBid?.toLocaleString()}</p>
                 </div>
                 <div className="text-right flex flex-col justify-center">
-                   <p className="text-sm font-headline font-bold text-primary uppercase truncate max-w-[120px]">
+                   <p className="text-lg font-headline font-bold text-primary uppercase truncate max-w-[150px]">
                      {agent.highestBidderName || (language === 'ru' ? 'НЕТ СТАВОК' : 'NO BIDS')}
                    </p>
                 </div>
@@ -244,7 +244,7 @@ const YouthTransferCard = memo(({
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
                    <span className="text-[10px] font-bold">{liveAge.display} {t.yrs}</span>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[96px]">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.talent}</span>
                    {renderStars(maxTalentValue)}
                 </div>
@@ -308,12 +308,12 @@ const YouthTransferCard = memo(({
                   const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
                   const Icon = icons[key] || Info;
                   return (
-                    <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[64px]">
+                    <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[96px]">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <Icon className="w-3.5 h-3.5 text-accent/50 shrink-0" />
                         <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0 h-16">
+                      <div className="flex items-center gap-3 shrink-0 h-24">
                         {renderStars(talentVal)}
                         <span className="text-[11px] font-mono font-bold text-accent min-w-[20px] text-right">{talentVal}</span>
                       </div>
@@ -334,7 +334,7 @@ const YouthTransferCard = memo(({
                       <p className="text-xl font-headline font-bold text-white italic">€ {agent.currentBid?.toLocaleString()}</p>
                     </div>
                     <div className="text-right flex flex-col justify-center">
-                       <p className="text-base font-headline font-bold text-primary uppercase truncate max-w-[150px]">
+                       <p className="text-xl font-headline font-bold text-primary uppercase truncate max-w-[200px]">
                          {agent.highestBidderName || (language === 'ru' ? 'Нет ставок' : 'No bids')}
                        </p>
                     </div>
