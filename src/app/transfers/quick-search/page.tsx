@@ -53,16 +53,16 @@ export const renderStars = (talent: number) => {
   const numericTalent = normTalent(talent);
 
   if (numericTalent > 50) {
-    let src = "https://iili.io/CCZlOeR.png"; // 5 stars elite (51-59)
-    let heightClass = "h-8"; // Слегка уменьшено (32px)
+    let src = "https://iili.io/CnYPc79.md.png"; // 5 stars elite (51-59)
+    let heightClass = "h-8"; // 32px
     
     if (numericTalent >= 60 && numericTalent <= 69) {
       src = "https://iili.io/CnTWT0X.md.png"; // 6 stars (60-69)
-      heightClass = "h-11"; // Чуть меньше максимума (44px)
+      heightClass = "h-11"; // 44px
     }
     if (numericTalent >= 70) {
       src = "https://iili.io/CCZXucP.png"; // 7 звезд (70+)
-      heightClass = "h-12"; // Максимум (48px)
+      heightClass = "h-12"; // 48px
     }
     return <img src={src} alt={`${numericTalent} stars`} className={cn(heightClass, "w-auto object-contain")} />;
   }
