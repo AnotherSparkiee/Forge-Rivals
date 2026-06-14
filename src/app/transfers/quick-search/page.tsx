@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -61,15 +60,15 @@ export const renderStars = (talent: number) => {
 
   if (numericTalent > 50) {
     let src = "https://iili.io/CnYPc79.md.png"; // 5 stars elite
-    let heightClass = "h-16"; // 64px
+    let heightClass = "h-12"; // 48px
     
     if (numericTalent >= 60 && numericTalent <= 69) {
       src = "https://iili.io/CnTWT0X.md.png"; // 6 stars
-      heightClass = "h-20"; // 80px
+      heightClass = "h-14"; // 56px
     }
     if (numericTalent >= 70) {
       src = "https://iili.io/CCZXucP.png"; // 7 stars
-      heightClass = "h-24"; // 96px
+      heightClass = "h-16"; // 64px
     }
     return <img src={src} alt={`${numericTalent} stars`} className={cn(heightClass, "w-auto object-contain")} />;
   }
@@ -300,7 +299,7 @@ export const TransferHeroCard = memo(({
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.yrs}</span>
                   </div>
-                  <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5 min-h-[96px]">
+                  <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5 min-h-[80px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
                      <div className="flex items-center">
                        {renderStars(maxTalentValue)}
@@ -366,7 +365,7 @@ export const TransferHeroCard = memo(({
                     const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-background/40 min-h-[110px]">
+                      <div key={`talent-${key}`} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-background/40 min-h-[90px]">
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           <Icon className="w-4 h-4 text-accent/50 shrink-0" />
                           <span className="text-[10px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>

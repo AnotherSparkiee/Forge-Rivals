@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -240,7 +239,7 @@ const YouthTransferCard = memo(({
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
                    <span className="text-[10px] font-bold">{liveAge.display} {t.yrs}</span>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5 min-h-[96px]">
+                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5 min-h-[80px]">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
                    <div className="flex items-center">
                     {renderStars(maxTalentValue)}
@@ -306,7 +305,7 @@ const YouthTransferCard = memo(({
                   const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
                   const Icon = icons[key] || Info;
                   return (
-                    <div key={`talent-${key}`} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-background/40 min-h-[110px]">
+                    <div key={`talent-${key}`} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-background/40 min-h-[90px]">
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <Icon className="w-4 h-4 text-accent/50 shrink-0" />
                         <span className="text-[10px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
