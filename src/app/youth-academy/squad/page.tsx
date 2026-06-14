@@ -25,7 +25,7 @@ import { renderStars } from '@/app/transfers/quick-search/page';
 
 const norm = (val: any) => {
   const n = Number(val);
-  return n < 10 ? Math.round(n * 10) : Math.round(n);
+  return Math.round(n);
 };
 
 export default function YouthSquadPage() {
@@ -107,14 +107,14 @@ export default function YouthSquadPage() {
 
   if (selectedHero) {
     const liveAge = calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt);
-    const talentsValues = Object.values(selectedHero.proTalents || {}).map(v => norm(v));
+    const talentsValues = Object.values(selectedHero.proTalents || {}).map(v => Math.round(Number(v)));
     const maxTalentValue = Math.max(...talentsValues);
     return (
       <div className="min-h-screen bg-background text-foreground animate-in fade-in slide-in-from-right-4 duration-300 overflow-y-auto scrollbar-hide pb-6">
         <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
           <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full" onClick={() => setSelectedHero(null)}><ChevronLeft className="w-6 h-6" /></Button>
           <div className="relative">
-            <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50">
+            <div className={cn("w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50")}>
               <img src={selectedHero.image} alt={selectedHero.name} className="w-full h-full object-cover" />
             </div>
             <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{selectedHero.country?.flag}</span></div>
@@ -149,7 +149,9 @@ export default function YouthSquadPage() {
             <div className="space-y-3">
               {Object.entries(selectedHero.proStats).map(([key, value]: [string, any]) => {
                 const Icon = icons[key] || Info;
-                const displayValue = norm(value);
+                const displayValue = Math.round(Number(value));
+                const talentLimit = Math.round(Number((selectedHero.proTalents as any)[key] || 10));
+
                 return (
                   <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
                     <div className="flex justify-between items-center px-0.5">
@@ -157,9 +159,13 @@ export default function YouthSquadPage() {
                         <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
                         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                       </div>
-                      <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
+                        <span className="text-[8px] text-muted-foreground/50">/</span>
+                        <span className="text-[9px] font-mono font-bold text-primary/70">{talentLimit}</span>
+                      </div>
                     </div>
-                    <Progress value={displayValue} max={100} className="h-1 rounded-full bg-secondary/40" />
+                    <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
                   </div>
                 );
               })}
@@ -171,18 +177,18 @@ export default function YouthSquadPage() {
             <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
               <Zap className="w-3.5 h-3.5" /> {t.talents}
             </h3>
-            <div className="space-y-2">
+            <div className="space-y-4">
               {Object.entries(selectedHero.proTalents || {}).map(([key, value]: [string, any]) => {
-                const talentVal = norm(value);
+                const talentVal = Math.round(Number(value));
                 const Icon = icons[key] || Info;
                 return (
-                  <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40">
+                  <div key={`talent-${key}`} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-background/40">
                     <div className="flex items-center gap-2">
-                      <Icon className="w-3 h-3 text-accent/50" />
-                      <span className="text-[9px] font-bold uppercase text-muted-foreground/80">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                      <Icon className="w-4 h-4 text-accent/50" />
+                      <span className="text-[11px] font-bold uppercase text-muted-foreground/80">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[10px] font-mono font-bold text-accent">{talentVal}</span>
+                    <div className="flex items-center gap-4">
+                      <span className="text-xs font-mono font-bold text-accent">{talentVal}</span>
                       {renderStars(talentVal)}
                     </div>
                   </div>
@@ -229,3 +235,4 @@ export default function YouthSquadPage() {
     </div>
   );
 }
+

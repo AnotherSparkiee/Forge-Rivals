@@ -82,8 +82,8 @@ export default function TrainingPage() {
         <div className="space-y-3">
           {ownedHeroes.map((hero) => {
             const currentFocus = hero.trainingFocus;
-            const focusSkillValue = currentFocus ? Math.round((hero.proStats as any)[currentFocus]) : 0;
-            const focusSkillTalent = (currentFocus && hero.proTalents) ? Math.round((hero.proTalents as any)[currentFocus]) : (currentFocus ? 30 : 0);
+            const focusSkillValue = currentFocus ? Math.round(Number((hero.proStats as any)[currentFocus])) : 0;
+            const focusSkillTalent = (currentFocus && hero.proTalents) ? Math.round(Number((hero.proTalents as any)[currentFocus])) : (currentFocus ? 30 : 0);
             const isAtLimit = currentFocus && focusSkillValue >= focusSkillTalent;
 
             return (
@@ -121,21 +121,21 @@ export default function TrainingPage() {
                   </div>
 
                   {currentFocus ? (
-                    <div className="space-y-2 bg-background/40 p-3 rounded-xl border border-white/5">
+                    <div className="space-y-4 bg-background/40 p-4 rounded-xl border border-white/5">
                       <div className="flex justify-between items-center px-0.5">
                         <div className="flex items-center gap-2">
-                          <Target className={cn("w-3 h-3", isAtLimit ? "text-yellow-500" : "text-primary")} />
-                          <span className="text-[9px] font-black uppercase tracking-widest">
+                          <Target className={cn("w-4 h-4", isAtLimit ? "text-yellow-500" : "text-primary")} />
+                          <span className="text-xs font-black uppercase tracking-widest">
                             {t.skills[currentFocus as keyof typeof t.skills]}
                           </span>
                         </div>
                         <div className="flex flex-col items-end">
-                          <div className="flex items-center gap-1.5">
-                            <span className={cn("text-[10px] font-mono font-bold", isAtLimit ? "text-yellow-500" : "text-white")}>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className={cn("text-xs font-mono font-bold", isAtLimit ? "text-yellow-500" : "text-white")}>
                               {focusSkillValue}
                             </span>
-                            <span className="text-[8px] text-muted-foreground">/</span>
-                            <span className="text-[10px] font-mono font-bold text-primary">
+                            <span className="text-[10px] text-muted-foreground">/</span>
+                            <span className="text-xs font-mono font-bold text-primary">
                               {focusSkillTalent}
                             </span>
                           </div>
@@ -147,8 +147,8 @@ export default function TrainingPage() {
                       </div>
                       {isAtLimit && (
                         <div className="flex items-center justify-center gap-1.5 pt-1 text-yellow-500">
-                          <CheckCircle2 className="w-2.5 h-2.5" />
-                          <span className="text-[7px] font-black uppercase tracking-widest">Max Potential Reached</span>
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span className="text-[8px] font-black uppercase tracking-widest">Max Potential Reached</span>
                         </div>
                       )}
                     </div>
@@ -166,3 +166,4 @@ export default function TrainingPage() {
     </div>
   );
 }
+

@@ -25,7 +25,7 @@ import { renderStars } from '@/app/transfers/quick-search/page';
 
 const norm = (val: any) => {
   const n = Number(val);
-  return n < 10 ? Math.round(n * 10) : Math.round(n);
+  return Math.round(n);
 };
 
 export default function ContractsPage() {
@@ -66,6 +66,7 @@ export default function ContractsPage() {
     transferDesc: language === 'ru' ? "Игрок будет выставлен на аукцион на 12 часов." : "The player will be listed for 12 hours.",
     close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
     healthy: language === 'ru' ? "Здоров" : "Healthy",
+    salary: language === 'ru' ? "Зарплата" : "Salary",
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
       mapAwareness: language === 'ru' ? "Контроль карты" : "Map Awareness",
@@ -134,7 +135,7 @@ export default function ContractsPage() {
 
   if (profileHero) {
     const liveAge = calculateLiveAge(profileHero.baseAge, profileHero.hiredAt);
-    const talentsValues = Object.values(profileHero.proTalents || {}).map(v => norm(v));
+    const talentsValues = Object.values(profileHero.proTalents || {}).map(v => Math.round(Number(v)));
     const maxTalentValue = Math.max(...talentsValues);
     return (
       <div className="min-h-screen bg-background text-foreground animate-in fade-in slide-in-from-right-4 duration-300 overflow-y-auto scrollbar-hide pb-6">
@@ -155,7 +156,7 @@ export default function ContractsPage() {
           </div>
           <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto">
             <div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p><p className="text-xl font-headline font-bold text-accent italic leading-none">{profileHero.overallRating}</p></div>
-            <div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.salary}</p><p className="text-sm font-headline font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</p></div>
+            <div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.salary}</p><p className="text-sm font-headline font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</p></div>
           </div>
         </div>
 
@@ -177,7 +178,9 @@ export default function ContractsPage() {
               <div className="space-y-3">
                 {Object.entries(profileHero.proStats).map(([key, value]: [string, any]) => { 
                   const Icon = icons[key] || Info;
-                  const displayValue = norm(value);
+                  const displayValue = Math.round(Number(value));
+                  const talentLimit = Math.round(Number((profileHero.proTalents as any)[key] || 10));
+
                   return (
                     <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
                       <div className="flex justify-between items-center px-0.5">
@@ -185,9 +188,13 @@ export default function ContractsPage() {
                           <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
                           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                         </div>
-                        <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
+                          <span className="text-[8px] text-muted-foreground/50">/</span>
+                          <span className="text-[9px] font-mono font-bold text-primary/70">{talentLimit}</span>
+                        </div>
                       </div>
-                      <Progress value={displayValue} max={100} className="h-1 rounded-full bg-secondary/40" />
+                      <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
                     </div>
                   ); 
                 })}
@@ -201,7 +208,7 @@ export default function ContractsPage() {
               </h3>
               <div className="space-y-2">
                 {Object.entries(profileHero.proTalents || {}).map(([key, value]: [string, any]) => {
-                  const talentVal = norm(value);
+                  const talentVal = Math.round(Number(value));
                   const Icon = icons[key] || Info;
                   return (
                     <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40">
@@ -234,7 +241,7 @@ export default function ContractsPage() {
       <div className="space-y-2">
         {ownedHeroes.map((hero) => {
           const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil) > new Date();
-          const talentsValues = Object.values(hero.proTalents || {}).map(v => norm(v));
+          const talentsValues = Object.values(hero.proTalents || {}).map(v => Math.round(Number(v)));
           const maxTalent = Math.max(...talentsValues);
           return (
             <Card key={hero.id} className={cn("glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all", onAuction && "border-yellow-500/30 bg-yellow-500/5")} onClick={() => setProfileHero(hero)}>
@@ -260,3 +267,4 @@ export default function ContractsPage() {
     </div>
   );
 }
+

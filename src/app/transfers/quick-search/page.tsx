@@ -47,12 +47,12 @@ const normTalent = (val: any) => {
 /**
  * Рендерит индикатор таланта.
  * До 50 - стандартные звезды.
- * 51+ - элитная графика (УВЕЛИЧЕННЫЙ РАЗМЕР h-6).
+ * 51+ - элитная графика (МАКСИМАЛЬНЫЙ РАЗМЕР h-12 = 48px).
  */
 export const renderStars = (talent: number) => {
   const numericTalent = normTalent(talent);
 
-  // Элитная графика для талантов выше 50 (h-6 = 24px)
+  // Элитная графика для талантов выше 50 (h-12 = 48px)
   if (numericTalent > 50) {
     let src = "https://iili.io/CCZlOeR.png"; // 5 stars elite (51-59)
     if (numericTalent >= 60 && numericTalent <= 69) {
@@ -61,20 +61,20 @@ export const renderStars = (talent: number) => {
     if (numericTalent >= 70) {
       src = "https://iili.io/CCZXucP.png"; // 7 звезд (70+)
     }
-    return <img src={src} alt={`${numericTalent} stars`} className="h-6 w-auto object-contain" />;
+    return <img src={src} alt={`${numericTalent} stars`} className="h-12 w-auto object-contain" />;
   }
 
-  // Обычные звезды для таланта <= 50
+  // Обычные звезды для таланта <= 50 (w-5 h-5)
   const starRating = Math.max(0, numericTalent / 10);
   return (
     <div className="flex items-center gap-0.5">
       {Array.from({ length: 5 }).map((_, i) => {
         const fill = Math.min(Math.max(starRating - i, 0), 1);
         return (
-          <div key={i} className="relative w-2.5 h-2.5">
-            <Star className="absolute inset-0 w-2.5 h-2.5 text-muted-foreground/20" />
+          <div key={i} className="relative w-5 h-5">
+            <Star className="absolute inset-0 w-5 h-5 text-muted-foreground/20" />
             <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
-              <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />
+              <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
             </div>
           </div>
         );
@@ -431,3 +431,4 @@ export default function QuickSearchPage() {
     </div>
   );
 }
+

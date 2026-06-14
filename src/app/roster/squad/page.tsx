@@ -26,7 +26,7 @@ import { renderStars } from '@/app/transfers/quick-search/page';
 
 const norm = (val: any) => {
   const n = Number(val);
-  return n < 10 ? Math.round(n * 10) : Math.round(n);
+  return Math.round(n);
 };
 
 export default function SquadPage() {
@@ -84,7 +84,6 @@ export default function SquadPage() {
       healthy: language === 'ru' ? "Здоров" : "Healthy",
       injured: language === 'ru' ? "Травмирован" : "Injured",
       skills: language === 'ru' ? "Текущие навыки" : "Current Skills",
-      talents: language === 'ru' ? "Пределы таланта" : "Talent Limits",
       years: language === 'ru' ? "лет" : "yrs",
       close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
     },
@@ -283,7 +282,9 @@ export default function SquadPage() {
               <div className="space-y-3">
                 {Object.entries(profileHero.proStats).map(([key, value]: [string, any]) => { 
                   const Icon = icons[key] || Info;
-                  const displayValue = norm(value);
+                  const displayValue = Math.round(Number(value));
+                  const talentLimit = Math.round(Number((profileHero.proTalents as any)[key] || 10));
+
                   return (
                     <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
                       <div className="flex justify-between items-center px-0.5">
@@ -291,9 +292,13 @@ export default function SquadPage() {
                           <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
                           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                         </div>
-                        <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
+                          <span className="text-[8px] text-muted-foreground/50">/</span>
+                          <span className="text-[9px] font-mono font-bold text-primary/70">{talentLimit}</span>
+                        </div>
                       </div>
-                      <Progress value={displayValue} max={100} className="h-1 rounded-full bg-secondary/40" />
+                      <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
                     </div>
                   ); 
                 })}
@@ -303,11 +308,11 @@ export default function SquadPage() {
             {/* БЛОК 2: ПРЕДЕЛЫ ТАЛАНТА */}
             <section>
               <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Zap className="w-3.5 h-3.5" /> {t.profile.talents}
+                <Zap className="w-3.5 h-3.5" /> {t.profile.talent}
               </h3>
               <div className="space-y-2">
                 {Object.entries(profileHero.proTalents || {}).map(([key, value]: [string, any]) => {
-                  const talentVal = norm(value);
+                  const talentVal = Math.round(Number(value));
                   const Icon = icons[key] || Info;
                   return (
                     <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40">
@@ -393,3 +398,4 @@ export default function SquadPage() {
     </div>
   );
 }
+
