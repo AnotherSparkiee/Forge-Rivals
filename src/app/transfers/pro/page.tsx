@@ -12,7 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, find, doc, arrayUnion, serverTimestamp, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { generateVtuneHero } from '@/app/lib/moba-data';
@@ -48,14 +48,16 @@ export default function ProTransfersPage() {
 
     const checkAndDropLegends = async () => {
       const today = getMoscowDateString();
-      // FORCE REFRESH WITH NEW ID sys_vtune_v200_integrity_fix
-      const vtuneId = `sys_vtune_v200_integrity_fix_${today}`;
+      // SYNC ID sys_vtune_v300_stats_reset for low initial stats
+      const vtuneId = `sys_vtune_v300_stats_reset_${today}`;
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       const vtuneSnap = await getDoc(vtuneRef);
 
       if (!vtuneSnap.exists()) {
         const hero = generateVtuneHero(today);
         const mskNow = getMoscowTime();
+        
+        // 48 hours for new legend drop
         const expiry = new Date(mskNow);
         expiry.setDate(expiry.getDate() + 2);
         expiry.setHours(23, 59, 59, 999);

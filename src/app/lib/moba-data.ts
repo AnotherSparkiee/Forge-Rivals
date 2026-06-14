@@ -140,15 +140,14 @@ export function generateVtuneHero(seed?: string): Hero {
   const age = (rng.range(183, 189) / 10);
   const careerEnd = rng.range(30, 36);
 
-  // Stats around 30 + Pro Bonus (15) = 45 OVR
-  const baseSkill = 30;
-
+  // Initial OVR 60 for 6-star player
+  // Stats are low (max 8 primary, max 4 secondary)
   return {
     id: 'legend_vtune',
     name: 'V-Tune',
     role: 'Carry',
-    baseStats: { attack: 45, defense: 15, health: 800, abilityPower: 20, speed: 340 },
-    overallRating: 45,
+    baseStats: { attack: 15, defense: 5, health: 600, abilityPower: 10, speed: 320 },
+    overallRating: 60,
     abilitiesFocus: 'Balanced',
     image: 'https://iili.io/CCLp4OF.png',
     description: "Элитный украинский Керри. Легендарная сила на профессиональной арене.",
@@ -164,16 +163,16 @@ export function generateVtuneHero(seed?: string): Hero {
     isInjured: false,
     isPro: true,
     proStats: {
-      lastHitting: baseSkill,
-      mapAwareness: baseSkill - 5,
-      positioning: baseSkill - 2,
-      reflexes: baseSkill,
-      manaManagement: baseSkill - 8,
-      objectiveControl: baseSkill - 3,
-      communication: baseSkill - 5,
-      tiltResistance: baseSkill - 4,
-      versatility: baseSkill - 6,
-      ganking: baseSkill - 2,
+      lastHitting: 8,
+      positioning: 7,
+      reflexes: 8,
+      tiltResistance: 7,
+      versatility: 6,
+      mapAwareness: 3,
+      manaManagement: 2,
+      objectiveControl: 4,
+      communication: 3,
+      ganking: 4,
     },
     proTalents: {
       lastHitting: 61, 
@@ -222,41 +221,42 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     speed: getRandomStat(250, 360, rng)
   };
 
+  const startAge = getRandomStat(isStarter ? 17 : 18, isStarter ? 28 : 32, rng);
+  const heroId = seed ? `h_det_${seed}` : `hero_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
+
+  // If PRO, skills are 1-8. If common, skills are higher if it's a starter.
   const proStats = {
-    lastHitting: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
-    mapAwareness: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
-    positioning: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
-    reflexes: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
-    manaManagement: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
-    objectiveControl: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
-    communication: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
-    tiltResistance: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
-    versatility: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
-    ganking: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
+    lastHitting: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
+    mapAwareness: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
+    positioning: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
+    reflexes: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
+    manaManagement: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
+    objectiveControl: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
+    communication: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
+    tiltResistance: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
+    versatility: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
+    ganking: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
   };
 
   const proTalents = {
-    lastHitting: rng ? rng.range(25, 45) : 30,
-    mapAwareness: rng ? rng.range(25, 45) : 30,
-    positioning: rng ? rng.range(25, 45) : 30,
-    reflexes: rng ? rng.range(25, 45) : 30,
-    manaManagement: rng ? rng.range(25, 45) : 30,
-    objectiveControl: rng ? rng.range(25, 45) : 30,
-    communication: rng ? rng.range(25, 45) : 30,
-    tiltResistance: rng ? rng.range(25, 45) : 30,
-    versatility: rng ? rng.range(25, 45) : 30,
-    ganking: rng ? rng.range(25, 45) : 30,
+    lastHitting: isPro ? getRandomStat(60, 65, rng) : getRandomStat(25, 45, rng),
+    mapAwareness: isPro ? getRandomStat(15, 38, rng) : getRandomStat(25, 45, rng),
+    positioning: isPro ? getRandomStat(50, 55, rng) : getRandomStat(25, 45, rng),
+    reflexes: isPro ? getRandomStat(50, 55, rng) : getRandomStat(25, 45, rng),
+    manaManagement: isPro ? getRandomStat(15, 38, rng) : getRandomStat(25, 45, rng),
+    objectiveControl: isPro ? getRandomStat(15, 38, rng) : getRandomStat(25, 45, rng),
+    communication: isPro ? getRandomStat(15, 38, rng) : getRandomStat(25, 45, rng),
+    tiltResistance: isPro ? getRandomStat(50, 55, rng) : getRandomStat(25, 45, rng),
+    versatility: isPro ? getRandomStat(15, 38, rng) : getRandomStat(25, 45, rng),
+    ganking: isPro ? getRandomStat(15, 38, rng) : getRandomStat(25, 45, rng),
   };
-
-  const startAge = getRandomStat(isStarter ? 17 : 18, isStarter ? 28 : 32, rng);
-  const heroId = seed ? `h_det_${seed}` : `hero_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
 
   return {
     id: heroId,
     name,
     role,
     baseStats,
-    overallRating: isPro ? 45 : 25, 
+    overallRating: isPro ? 60 : (isStarter ? 35 : 15), 
     abilitiesFocus: 'Balanced',
     image: country.url,
     description: isPro ? "Элитный профессиональный атлет с непревзойденным стратегическим потенциалом." : `Уникальный талант из страны: ${country.name}.`,
@@ -339,16 +339,16 @@ export function generateYouthHero(index: number, seed?: string): Hero {
   };
   
   hero.proStats = {
-    lastHitting: getRandomStat(5, 12, rng),
-    mapAwareness: getRandomStat(5, 12, rng),
-    positioning: getRandomStat(5, 12, rng),
-    reflexes: getRandomStat(5, 12, rng),
-    manaManagement: getRandomStat(5, 12, rng),
-    objectiveControl: getRandomStat(5, 12, rng),
-    communication: getRandomStat(5, 12, rng),
-    tiltResistance: getRandomStat(5, 12, rng),
-    versatility: getRandomStat(5, 12, rng),
-    ganking: getRandomStat(5, 12, rng),
+    lastHitting: getRandomStat(1, 4, rng),
+    mapAwareness: getRandomStat(1, 4, rng),
+    positioning: getRandomStat(1, 4, rng),
+    reflexes: getRandomStat(1, 4, rng),
+    manaManagement: getRandomStat(1, 4, rng),
+    objectiveControl: getRandomStat(1, 4, rng),
+    communication: getRandomStat(1, 4, rng),
+    tiltResistance: getRandomStat(1, 4, rng),
+    versatility: getRandomStat(1, 4, rng),
+    ganking: getRandomStat(1, 4, rng),
   };
 
   return hero;

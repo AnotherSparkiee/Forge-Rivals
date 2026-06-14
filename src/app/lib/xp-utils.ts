@@ -18,6 +18,7 @@ export const ROLE_CORE_SKILLS: Record<Role, string[]> = {
 
 /**
  * Рассчитывает коэффициент таланта (Мягкий кап).
+ * Шкала талантов теперь 1-100.
  */
 export function calculateTalentMultiplier(currentValue: number, talentValue: number): number {
   if (currentValue >= 100) return 0;
@@ -56,7 +57,7 @@ export function calculateXpGain(params: {
     case 'tournament_ext': baseXP = 90; break;
   }
 
-  // 2. PRO Bonus
+  // 2. PRO Bonus (1.5x)
   if (params.isPro) baseXP *= 1.5;
 
   // 3. Модификаторы матча
@@ -81,7 +82,7 @@ export function calculateXpGain(params: {
     psychologistMod = params.infra.psychologist * 0.02;
   }
 
-  // Бонус высокого уровня (только PRO > 70)
+  // Бонус высокого уровня
   let highLevelResearchBonus = 1.0;
   if (params.currentValue > 70) {
     highLevelResearchBonus = 1 + (params.infra.research * 0.02);
@@ -120,7 +121,8 @@ export function calculateHeroOVR(
   totalMatches: number = 0,
   moral: number = 50,
   titles: { league: number; cup: number; friendly: number } = { league: 0, cup: 0, friendly: 0 },
-  isPro: boolean = false
+  isPro: boolean = false,
+  talents?: Record<string, number>
 ): number {
   const coreKeys = ROLE_CORE_SKILLS[role];
   const allKeys = Object.keys(stats);
@@ -132,7 +134,7 @@ export function calculateHeroOVR(
   const avgCore = coreSum / 5;
   const avgSecondary = secondarySum / 5;
   
-  // 1. Базовый OVR (Макс 100)
+  // 1. Базовый OVR (Складывается из средних навыков)
   const baseOvr = (avgCore * 0.7) + (avgSecondary * 0.3);
   
   // 2. Match Multiplier (Бесконечный рост)
@@ -144,8 +146,19 @@ export function calculateHeroOVR(
   // 4. Legacy Bonus (Титулы)
   const legacyBonus = (titles.league * 5) + (titles.cup * 8) + (titles.friendly * 1);
   
-  // 5. PRO Status flat bonus
-  const proBonus = isPro ? 15 : 0;
+  // 5. PRO Status dynamic bonus (55-70 initial range)
+  let proBonus = 0;
+  if (isPro) {
+    const maxTalent = talents ? Math.max(...Object.values(talents)) : 50;
+    
+    // 7 stars (70+) -> Initial ~70 OVR (Bonus ~65)
+    if (maxTalent >= 70) proBonus = 65;
+    // 6 stars (60-69) -> Initial ~60 OVR (Bonus ~55)
+    else if (maxTalent >= 60) proBonus = 55;
+    // 5 stars (51-59) -> Initial ~50 OVR (Bonus ~45)
+    else if (maxTalent > 50) proBonus = 45;
+    else proBonus = 15;
+  }
   
   // Финальный расчет
   return Math.round(baseOvr * matchMultiplier * moodMultiplier) + legacyBonus + proBonus;
