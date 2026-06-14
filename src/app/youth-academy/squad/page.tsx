@@ -54,8 +54,8 @@ export default function YouthSquadPage() {
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     onTransfer: language === 'ru' ? "НА РЫНОК" : "TRANSFER",
     years: language === 'ru' ? "лет" : "yrs",
-    skills: language === 'ru' ? "НАВЫКИ" : "SKILLS",
-    talents: language === 'ru' ? "ТАЛАНТЫ" : "TALENTS",
+    skills: language === 'ru' ? "Навыки" : "SKILLS",
+    talents: language === 'ru' ? "Таланты" : "TALENTS",
     salary: language === 'ru' ? "Зарплата" : "Salary",
     status: language === 'ru' ? "Статус" : "Status",
     close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
@@ -136,7 +136,6 @@ export default function YouthSquadPage() {
           </div>
 
           <div className="p-4 space-y-8">
-              {/* БЛОК: ВЛАДЕЛЕЦ И ПРОДАЖА */}
               <section className="grid grid-cols-2 gap-3">
                 <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
                   <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.owner}</p>
@@ -154,7 +153,6 @@ export default function YouthSquadPage() {
                 </div>
               </section>
 
-              {/* БЛОК: ОБЩИЕ ДАННЫЕ */}
               <section className="space-y-3">
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
@@ -164,9 +162,11 @@ export default function YouthSquadPage() {
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.years}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Талант' : 'Talent'}</span>
-                     {renderStars(maxTalentValue)}
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 h-12">
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.talent}</span>
+                     <div className="flex items-center">
+                       {renderStars(maxTalentValue)}
+                     </div>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.salary}</span>
@@ -189,7 +189,6 @@ export default function YouthSquadPage() {
                 </div>
               </section>
 
-              {/* БЛОК: НАВЫКИ */}
               <section>
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Activity className="w-3.5 h-3.5" /> {t.skills}
@@ -220,7 +219,6 @@ export default function YouthSquadPage() {
                 </div>
               </section>
 
-              {/* БЛОК: ТАЛАНТЫ */}
               <section>
                 <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Zap className="w-3.5 h-3.5" /> {t.talents}
@@ -230,13 +228,15 @@ export default function YouthSquadPage() {
                     const talentVal = normTalent((selectedHero.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[80px]">
+                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 h-16">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <Icon className="w-3.5 h-3.5 text-accent/50 shrink-0" />
                           <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0 h-16">
-                          {renderStars(talentVal)}
+                        <div className="flex items-center gap-2 shrink-0 h-full">
+                          <div className="flex items-center">
+                            {renderStars(talentVal)}
+                          </div>
                           <span className="text-[11px] font-mono font-bold text-accent min-w-[20px] text-right">{talentVal}</span>
                         </div>
                       </div>
@@ -300,15 +300,19 @@ export default function YouthSquadPage() {
                 <div className="w-12 h-12 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0"><img src={hero.image} alt={hero.name} className="w-full h-full object-cover" /></div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold uppercase truncate">{hero.name}</h3>
+                    <h3 className="text-sm font-bold truncate uppercase">{hero.name}</h3>
                     <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
+                    {onAuction && <Badge className="bg-yellow-500 text-black text-[6px] h-3 px-1 font-black animate-pulse uppercase">Auction</Badge>}
                   </div>
                   <div className="flex items-center gap-3 mt-1">
                     {renderStars(maxTalent)}
                     <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest">Age: {liveAge.display} {t.years}</p>
                   </div>
                 </div>
-                <div className="text-right border-l border-white/5 pl-3"><p className="text-[7px] font-black text-accent uppercase tracking-tighter leading-none mb-0.5">{t.overall}</p><span className="text-lg font-headline font-bold text-accent italic">{hero.overallRating}</span></div>
+                <div className="text-right border-l border-white/5 pl-3">
+                  <p className="text-[7px] font-black text-accent uppercase tracking-tighter leading-none mb-0.5">{language === 'ru' ? 'ОБЩ' : 'OVR'}</p>
+                  <span className="text-lg font-headline font-bold text-accent italic">{hero.overallRating}</span>
+                </div>
               </CardContent>
             </Card>
           );
@@ -319,4 +323,3 @@ export default function YouthSquadPage() {
     </div>
   );
 }
-

@@ -62,8 +62,8 @@ export default function ContractsPage() {
     tooYoung: language === 'ru' ? "Игрок слишком молод! Мин. возраст — 18.0" : "Player is too young! Min age — 18.0",
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     years: language === 'ru' ? "лет" : "yrs",
-    skills: language === 'ru' ? "НАВЫКИ" : "SKILLS",
-    talents: language === 'ru' ? "ТАЛАНТЫ" : "TALENTS",
+    skills: language === 'ru' ? "Навыки" : "SKILLS",
+    talents: language === 'ru' ? "Таланты" : "TALENTS",
     transferDesc: language === 'ru' ? "Игрок будет выставлен на аукцион на 12 часов." : "The player will be listed for 12 hours.",
     close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
     healthy: language === 'ru' ? "Здоров" : "Healthy",
@@ -129,15 +129,13 @@ export default function ContractsPage() {
             </div>
             <div className="space-y-1">
               <h1 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h1>
-              <div className="flex items-center justify-center gap-2">
+              <div className="flex items-center justify-center gap-2 mt-2">
                 <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
-                {profileHero.isPro && <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5">PRO UNIT</Badge>}
               </div>
             </div>
           </div>
 
           <div className="p-4 space-y-8">
-              {/* БЛОК: ВЛАДЕЛЕЦ И ПРОДАЖА */}
               <section className="grid grid-cols-2 gap-3">
                 <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
                   <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.owner}</p>
@@ -166,19 +164,20 @@ export default function ContractsPage() {
                 </div>
               </section>
 
-              {/* БЛОК: ОБЩИЕ ДАННЫЕ */}
               <section className="space-y-3">
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</span>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.years}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Талант' : 'Talent'}</span>
-                     {renderStars(maxTalentValue)}
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 h-12">
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.talent}</span>
+                     <div className="flex items-center">
+                       {renderStars(maxTalentValue)}
+                     </div>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.salary}</span>
@@ -209,7 +208,6 @@ export default function ContractsPage() {
                 </div>
               </section>
 
-              {/* БЛОК: НАВЫКИ */}
               <section>
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Activity className="w-3.5 h-3.5" /> {t.skills}
@@ -240,7 +238,6 @@ export default function ContractsPage() {
                 </div>
               </section>
 
-              {/* БЛОК: ТАЛАНТЫ */}
               <section>
                 <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Zap className="w-3.5 h-3.5" /> {t.talents}
@@ -250,13 +247,15 @@ export default function ContractsPage() {
                     const talentVal = normTalent((profileHero.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[80px]">
+                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 h-16">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <Icon className="w-3.5 h-3.5 text-accent/50 shrink-0" />
                           <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0 h-16">
-                          {renderStars(talentVal)}
+                        <div className="flex items-center gap-2 shrink-0 h-full">
+                          <div className="flex items-center">
+                            {renderStars(talentVal)}
+                          </div>
                           <span className="text-[11px] font-mono font-bold text-accent min-w-[20px] text-right">{talentVal}</span>
                         </div>
                       </div>
@@ -265,7 +264,6 @@ export default function ContractsPage() {
                 </div>
               </section>
 
-              {/* БЛОК: ЦЕНА */}
               <section className="pt-4 border-t border-white/5">
                 <h3 className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Gem className="w-3.5 h-3.5" /> {t.priceTitle}
@@ -281,17 +279,6 @@ export default function ContractsPage() {
         </div>
       </div>
     );
-  }
-
-  function getCountdown(expiryIso: string) {
-    if (!expiryIso) return "00:00:00";
-    const expiry = new Date(expiryIso).getTime();
-    const diff = expiry - now;
-    if (diff <= 0) return "00:00:00";
-    const h = Math.floor(diff / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    const s = Math.floor((diff % 60000) / 1000);
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
 
   return (
@@ -320,7 +307,10 @@ export default function ContractsPage() {
                     <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Age: {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.years}</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-center justify-center min-w-[40px] border-l border-white/5 pl-3"><span className="text-lg font-headline font-bold text-accent italic">{hero.overallRating}</span></div>
+                <div className="flex flex-col items-center justify-center min-w-[40px] border-l border-white/5 pl-3">
+                  <p className="text-[7px] font-black text-accent uppercase tracking-tighter leading-none mb-0.5">{language === 'ru' ? 'ОБЩ' : 'OVR'}</p>
+                  <span className="text-xl font-headline font-bold text-accent italic leading-none">{hero.overallRating}</span>
+                </div>
               </CardContent>
             </Card>
           );
@@ -329,4 +319,3 @@ export default function ContractsPage() {
     </div>
   );
 }
-

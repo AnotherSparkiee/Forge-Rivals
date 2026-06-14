@@ -92,8 +92,8 @@ export default function SquadPage() {
       status: language === 'ru' ? "Статус" : "Status",
       healthy: language === 'ru' ? "Здоров" : "Healthy",
       injured: language === 'ru' ? "Травмирован" : "Injured",
-      skills: language === 'ru' ? "НАВЫКИ" : "SKILLS",
-      talents: language === 'ru' ? "ТАЛАНТЫ" : "TALENTS",
+      skills: language === 'ru' ? "Навыки" : "SKILLS",
+      talents: language === 'ru' ? "Таланты" : "TALENTS",
       years: language === 'ru' ? "лет" : "yrs",
       close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
       owner: language === 'ru' ? "ВЛАДЕЛЕЦ" : "OWNER",
@@ -242,7 +242,10 @@ export default function SquadPage() {
             <h3 className="text-xs font-bold leading-tight truncate">{hero ? hero.name : (isSelected ? t.selectHero : t.emptySlot)}</h3>
           </div>
           <div className="flex items-center gap-3">
-            {hero ? <div className="flex flex-col items-center justify-center min-w-[45px] border-l border-white/5 pl-3"><p className="text-[7px] font-black text-accent uppercase tracking-tighter mb-0.5">{t.overall}</p><span className="text-xl font-headline font-bold text-accent italic leading-none">{hero.overallRating}</span></div> : <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-4 h-4" /></div>}
+            {hero ? <div className="flex flex-col items-center justify-center min-w-[45px] border-l border-white/5 pl-3">
+              <p className="text-[7px] font-black text-accent uppercase tracking-tighter mb-0.5">{language === 'ru' ? 'ОБЩ' : 'OVR'}</p>
+              <span className="text-xl font-headline font-bold text-accent italic leading-none">{hero.overallRating}</span>
+            </div> : <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-4 h-4" /></div>}
           </div>
         </CardContent>
       </Card>
@@ -261,7 +264,7 @@ export default function SquadPage() {
       <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-300">
         <div className="max-w-md mx-auto min-h-screen flex flex-col pb-10">
           <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
-            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setProfileHero(null)}><X className="w-6 h-6" /></Button>
+            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setProfileHero(null)}><X className="w-5 h-5" /></Button>
             <div className="relative">
               <div className={cn("w-24 h-24 rounded-2xl overflow-hidden border-2 shadow-2xl bg-secondary/50", profileHero.isPro ? "border-yellow-500" : "border-primary/50")}>
                 <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
@@ -272,13 +275,11 @@ export default function SquadPage() {
               <h1 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h1>
               <div className="flex items-center justify-center gap-2 mt-2">
                 <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
-                {profileHero.isPro && <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5">PRO UNIT</Badge>}
               </div>
             </div>
           </div>
           
           <div className="p-4 space-y-8">
-              {/* БЛОК: ВЛАДЕЛЕЦ И ПРОДАЖА */}
               <section className="grid grid-cols-2 gap-3">
                 <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
                   <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.owner}</p>
@@ -296,19 +297,20 @@ export default function SquadPage() {
                 </div>
               </section>
 
-              {/* БЛОК: ОБЩИЕ ДАННЫЕ */}
               <section className="space-y-3">
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</span>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.profile.age}</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.profile.years}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Талант' : 'Talent'}</span>
-                     {renderStars(maxTalentValue)}
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 h-12">
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.profile.talent}</span>
+                     <div className="flex items-center">
+                       {renderStars(maxTalentValue)}
+                     </div>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.profile.salary}</span>
@@ -331,7 +333,6 @@ export default function SquadPage() {
                 </div>
               </section>
 
-              {/* БЛОК: НАВЫКИ */}
               <section>
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Activity className="w-3.5 h-3.5" /> {t.profile.skills}
@@ -362,7 +363,6 @@ export default function SquadPage() {
                 </div>
               </section>
 
-              {/* БЛОК: ТАЛАНТЫ */}
               <section>
                 <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Zap className="w-3.5 h-3.5" /> {t.profile.talents}
@@ -372,13 +372,15 @@ export default function SquadPage() {
                     const talentVal = normTalent((profileHero.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[80px]">
+                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 h-16">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <Icon className="w-3.5 h-3.5 text-accent/50 shrink-0" />
-                          <span className="text-[10px] font-bold uppercase text-muted-foreground/80 truncate">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                          <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0 h-16">
-                          {renderStars(talentVal)}
+                        <div className="flex items-center gap-2 shrink-0 h-full">
+                          <div className="flex items-center">
+                            {renderStars(talentVal)}
+                          </div>
                           <span className="text-[11px] font-mono font-bold text-accent min-w-[20px] text-right">{talentVal}</span>
                         </div>
                       </div>
@@ -439,7 +441,7 @@ export default function SquadPage() {
           </div>
         </div>
         <div className="flex flex-col items-center justify-center min-w-[60px] shrink-0">
-          <p className="text-[9px] font-black text-primary tracking-widest uppercase mb-1">{t.teamOverall}</p>
+          <p className="text-[9px] font-black text-primary tracking-widest uppercase mb-1">{language === 'ru' ? 'ОБЩ' : 'OVR'}</p>
           <div className="relative flex items-center justify-center"><Shield className="w-10 h-10 text-primary fill-primary/10" strokeWidth={2} /><span className="absolute inset-0 flex items-center justify-center text-lg font-headline font-bold text-accent italic pt-0.5">{teamOvr}</span></div>
         </div>
       </header>

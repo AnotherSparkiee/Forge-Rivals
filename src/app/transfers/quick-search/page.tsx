@@ -80,10 +80,10 @@ export const renderStars = (talent: number) => {
       {Array.from({ length: 5 }).map((_, i) => {
         const fill = Math.min(Math.max(starRating - i, 0), 1);
         return (
-          <div key={i} className="relative w-3.5 h-3.5">
-            <Star className="absolute inset-0 w-3.5 h-3.5 text-muted-foreground/10" />
+          <div key={i} className="relative w-2.5 h-2.5">
+            <Star className="absolute inset-0 w-2.5 h-2.5 text-muted-foreground/10" />
             <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
-              <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+              <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />
             </div>
           </div>
         );
@@ -161,8 +161,8 @@ export const TransferHeroCard = memo(({
     priceTitle: language === 'ru' ? "ЦЕНА ИГРОКА" : "UNIT PRICE",
     age: language === 'ru' ? "Возраст" : "Age",
     yrs: language === 'ru' ? "лет" : "yrs",
-    skills: language === 'ru' ? "НАВЫКИ" : "SKILLS",
-    talents: language === 'ru' ? "ТАЛАНТЫ" : "TALENTS",
+    skills: language === 'ru' ? "Навыки" : "SKILLS",
+    talents: language === 'ru' ? "Таланты" : "TALENTS",
     talent: language === 'ru' ? "Талант" : "Talent",
     salary: language === 'ru' ? "Зарплата" : "Salary"
   };
@@ -221,8 +221,8 @@ export const TransferHeroCard = memo(({
             </div>
             
             <div className="text-right flex flex-col items-end shrink-0 justify-center">
+              <p className="text-[7px] font-black text-accent uppercase tracking-tighter leading-none mb-0.5">{language === 'ru' ? 'ОБЩ' : 'OVR'}</p>
               <p className="text-3xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
-              <p className="text-[8px] font-black text-muted-foreground uppercase mt-1 tracking-widest">OVR</p>
             </div>
           </div>
 
@@ -274,7 +274,6 @@ export const TransferHeroCard = memo(({
                 <h1 className="text-2xl font-headline font-bold uppercase tracking-tight text-white leading-none">{agent.heroData?.name}</h1>
                 <div className="flex items-center justify-center gap-2 mt-2">
                   <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{rolesRu[agent.heroData.role] || agent.heroData.role}</Badge>
-                  {agent.isPro && <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5">PRO LEGEND</Badge>}
                 </div>
               </div>
             </div>
@@ -306,9 +305,11 @@ export const TransferHeroCard = memo(({
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.yrs}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 h-12">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.talent}</span>
-                     {renderStars(maxTalentValue)}
+                     <div className="flex items-center">
+                       {renderStars(maxTalentValue)}
+                     </div>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.salary}</span>
@@ -333,7 +334,7 @@ export const TransferHeroCard = memo(({
 
               <section>
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Activity className="w-3.5 h-3.5" /> {language === 'ru' ? 'Навыки' : 'Skills'}
+                  <Activity className="w-3.5 h-3.5" /> {t.skills}
                 </h3>
                 <div className="space-y-3">
                   {STAT_KEYS.map((key) => { 
@@ -363,20 +364,22 @@ export const TransferHeroCard = memo(({
 
               <section>
                 <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Zap className="w-3.5 h-3.5" /> {language === 'ru' ? 'Таланты' : 'Talents'}
+                  <Zap className="w-3.5 h-3.5" /> {t.talents}
                 </h3>
                 <div className="space-y-2">
                   {STAT_KEYS.map((key) => {
                     const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[64px]">
+                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 h-16">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <Icon className="w-3.5 h-3.5 text-accent/50 shrink-0" />
                           <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0 h-16">
-                          {renderStars(talentVal)}
+                        <div className="flex items-center gap-2 shrink-0 h-full">
+                          <div className="flex items-center">
+                            {renderStars(talentVal)}
+                          </div>
                           <span className="text-[11px] font-mono font-bold text-accent min-w-[20px] text-right">{talentVal}</span>
                         </div>
                       </div>
