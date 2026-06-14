@@ -147,7 +147,7 @@ export function generateVtuneHero(seed?: string): Hero {
     baseStats: { attack: 15, defense: 5, health: 600, abilityPower: 10, speed: 320 },
     overallRating: 60,
     abilitiesFocus: 'Balanced',
-    image: 'https://iili.io/CCLp4OF.png',
+    image: 'https://iili.io/CnasKk7.md.jpg',
     description: "Элитный украинский Керри. Легендарная сила на профессиональной арене.",
     price: 0,
     baseAge: age,

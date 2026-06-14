@@ -48,8 +48,8 @@ export default function ProTransfersPage() {
 
     const checkAndDropLegends = async () => {
       const today = getMoscowDateString();
-      // V700 - FINAL VALIDATION LOCK (STRICT 18-37 RANGE)
-      const vtuneId = `sys_vtune_v700_final_validation_lock_${today}`;
+      // V800 - NEW PHOTO AND ICON SIZES
+      const vtuneId = `sys_vtune_v800_new_image_and_size_${today}`;
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       const vtuneSnap = await getDoc(vtuneRef);
 
@@ -141,8 +141,8 @@ export default function ProTransfersPage() {
     
     const uniqueNames = new Set();
     return agents.filter(a => {
-      // Show only high version V-Tune (v700) or non-system pros
-      if (a.isSystem && !a.id.includes('v700')) return false;
+      // Show only high version V-Tune (v800) or non-system pros
+      if (a.isSystem && !a.id.includes('v800')) return false;
       if (!a.isPro || new Date(a.expiresAt).getTime() <= now) return false;
       if (uniqueNames.has(a.heroData?.name)) return false;
       uniqueNames.add(a.heroData?.name);

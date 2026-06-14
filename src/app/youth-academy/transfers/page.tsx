@@ -135,7 +135,7 @@ const YouthTransferCard = memo(({
 
           <div className="flex items-center gap-4 mb-4">
             <div className="relative shrink-0">
-              <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 relative">
+              <div className="w-20 h-20 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 relative">
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="absolute -bottom-1 -right-1 bg-background rounded-md p-1 border border-white/10 shadow-xl z-10 flex items-center justify-center">
@@ -165,8 +165,8 @@ const YouthTransferCard = memo(({
             </div>
             
             <div className="text-right flex flex-col items-end shrink-0 justify-center">
+              <p className="text-[7px] font-black text-accent uppercase tracking-tighter leading-none mb-0.5">{language === 'ru' ? 'ОБЩ' : 'ОБЩ'}</p>
               <p className="text-3xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
-              <p className="text-[8px] font-black text-muted-foreground uppercase mt-1">OVR</p>
             </div>
           </div>
           
@@ -305,7 +305,7 @@ const YouthTransferCard = memo(({
               </h3>
               <div className="space-y-2">
                 {STAT_KEYS.map((key) => {
-                  const talentVal = normTalent((selectedHero.proTalents as any)[key]);
+                  const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
                   const Icon = icons[key] || Info;
                   return (
                     <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[64px]">
@@ -437,7 +437,7 @@ export default function YouthTransfersPage() {
 
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
-    return query(collection(db, 'market_v7'));
+    return query(collection(db, 'market_v7'), where('isYouth', '==', true));
   }, [db, user?.uid]);
 
   const { data: allAgents, isLoading: isMarketLoading } = useCollection(marketQuery);
@@ -445,7 +445,7 @@ export default function YouthTransfersPage() {
   const { data: profile } = useDoc(userDocRef);
 
   const youthAgents = useMemo(() => {
-    return (allAgents?.filter(a => (a.heroData?.baseAge && Number(a.heroData.baseAge) < 18) || a.isYouth === true) || [])
+    return (allAgents || [])
       .filter(a => new Date(a.expiresAt).getTime() > now)
       .sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
   }, [allAgents, now]);

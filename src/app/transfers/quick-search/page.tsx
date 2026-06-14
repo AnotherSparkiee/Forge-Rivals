@@ -61,15 +61,15 @@ export const renderStars = (talent: number) => {
 
   if (numericTalent > 50) {
     let src = "https://iili.io/CnYPc79.md.png"; // 5 stars elite
-    let heightClass = "h-10"; // 40px
+    let heightClass = "h-12"; // 48px
     
     if (numericTalent >= 60 && numericTalent <= 69) {
       src = "https://iili.io/CnTWT0X.md.png"; // 6 stars
-      heightClass = "h-14"; // 56px
+      heightClass = "h-16"; // 64px
     }
     if (numericTalent >= 70) {
       src = "https://iili.io/CCZXucP.png"; // 7 stars
-      heightClass = "h-16"; // 64px
+      heightClass = "h-20"; // 80px
     }
     return <img src={src} alt={`${numericTalent} stars`} className={cn(heightClass, "w-auto object-contain")} />;
   }
@@ -191,7 +191,7 @@ export const TransferHeroCard = memo(({
 
           <div className="flex items-center gap-4 mb-4">
             <div className="relative shrink-0">
-              <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 relative">
+              <div className="w-20 h-20 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 relative">
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
                 <div className="absolute -bottom-1 -right-1 bg-background rounded-md p-0.5 border border-white/10 shadow-xl z-10 flex items-center justify-center">
                   <span className="text-xs leading-none">{agent.heroData.country?.flag}</span>
@@ -221,7 +221,7 @@ export const TransferHeroCard = memo(({
             </div>
             
             <div className="text-right flex flex-col items-end shrink-0 justify-center">
-              <p className="text-[7px] font-black text-accent uppercase tracking-tighter leading-none mb-0.5">{language === 'ru' ? 'ОБЩ' : 'OVR'}</p>
+              <p className="text-[7px] font-black text-accent uppercase tracking-tighter leading-none mb-0.5">{language === 'ru' ? 'ОБЩ' : 'ОБЩ'}</p>
               <p className="text-3xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
             </div>
           </div>
@@ -306,7 +306,7 @@ export const TransferHeroCard = memo(({
                      <span className="text-[10px] font-bold">{liveAge.display} {t.yrs}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 h-12">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.talent}</span>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
                      <div className="flex items-center">
                        {renderStars(maxTalentValue)}
                      </div>
@@ -334,7 +334,7 @@ export const TransferHeroCard = memo(({
 
               <section>
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Activity className="w-3.5 h-3.5" /> {t.skills}
+                  <Activity className="w-3.5 h-3.5" /> {language === 'ru' ? 'Навыки' : 'Skills'}
                 </h3>
                 <div className="space-y-3">
                   {STAT_KEYS.map((key) => { 
@@ -364,22 +364,20 @@ export const TransferHeroCard = memo(({
 
               <section>
                 <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Zap className="w-3.5 h-3.5" /> {t.talents}
+                  <Zap className="w-3.5 h-3.5" /> {language === 'ru' ? 'Таланты' : 'Talents'}
                 </h3>
                 <div className="space-y-2">
                   {STAT_KEYS.map((key) => {
                     const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 h-16">
+                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[64px]">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <Icon className="w-3.5 h-3.5 text-accent/50 shrink-0" />
                           <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0 h-full">
-                          <div className="flex items-center">
-                            {renderStars(talentVal)}
-                          </div>
+                        <div className="flex items-center gap-3 shrink-0 h-16">
+                          {renderStars(talentVal)}
                           <span className="text-[11px] font-mono font-bold text-accent min-w-[20px] text-right">{talentVal}</span>
                         </div>
                       </div>
@@ -408,7 +406,7 @@ export const TransferHeroCard = memo(({
               </section>
 
               <div className="pt-4 pb-12 flex flex-col gap-2">
-                 <Button className="w-full h-14 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all" onClick={() => { if (!isLeading && !isOwner) setShowBidModal(true); }} disabled={isOwner}>
+                 <Button className="w-full h-14 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all" onClick={() => { setShowDossier(false); if (!isLeading && !isOwner) setShowBidModal(true); }} disabled={isOwner}>
                    {isOwner ? (language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT') : (language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID')}
                  </Button>
                  <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setShowDossier(false)}>
