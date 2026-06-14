@@ -37,22 +37,24 @@ import {
 const ITEMS_PER_PAGE = 10;
 
 /**
- * Рендерит звезды таланта в зависимости от его значения.
+ * Рендерит звезды таланта в зависимости от его значения (шкала 1-100).
  */
 export const renderStars = (talent: number) => {
-  if (talent > 50) {
+  const numericTalent = Number(talent || 0);
+
+  if (numericTalent > 50) {
     let src = "https://iili.io/CCZlOeR.png"; // 5 stars elite (51-59)
-    if (talent >= 60 && talent <= 69) src = "https://iili.io/CnTWT0X.md.png"; // 6 stars (60-69)
-    if (talent >= 70) src = "https://iili.io/CCZXucP.png"; // 7 stars (70-100)
-    return <img src={src} alt={`${talent} stars`} className="h-3 w-auto object-contain" />;
+    if (numericTalent >= 60 && numericTalent <= 69) src = "https://iili.io/CnTWT0X.md.png"; // 6 stars (60-69)
+    if (numericTalent >= 70) src = "https://iili.io/CCZXucP.png"; // 7 stars (70-100)
+    return <img src={src} alt={`${numericTalent} stars`} className="h-3 w-auto object-contain" />;
   }
 
-  // Обычные звезды (Векторные) для таланта <= 50
+  // Обычные векторные звезды для таланта <= 50 (делим на 10 для 1-5 звезд)
+  const starRating = numericTalent / 10;
   return (
     <div className="flex items-center gap-0.5">
       {Array.from({ length: 5 }).map((_, i) => {
-        const starValue = talent / 10; 
-        const fill = Math.min(Math.max(starValue - i, 0), 1);
+        const fill = Math.min(Math.max(starRating - i, 0), 1);
         return (
           <div key={i} className="relative w-2 h-2">
             <Star className="absolute inset-0 w-2 h-2 text-muted-foreground/20" />
@@ -93,6 +95,7 @@ export const TransferHeroCard = memo(({
   const nextBidValue = Math.ceil(agent.currentBid * (1 + bidPercent / 100));
   const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
   
+  // Определяем максимальный талант игрока для главной иконки в карточке
   const maxTalentValue = Math.max(...Object.values(agent.heroData.proTalents || {}).map(v => Number(v)));
 
   const rolesRu: Record<string, string> = {
@@ -144,7 +147,7 @@ export const TransferHeroCard = memo(({
           "glass-card border-white/5 overflow-hidden transition-all cursor-pointer active:scale-[0.98]", 
           isLeading && "border-green-500/40 bg-green-500/5",
           isOwner && "border-primary/40 bg-primary/5",
-          agent.isPro && "border-yellow-500/30"
+          agent.isPro && "border-yellow-500/30 shadow-[0_0_20px_rgba(234,179,8,0.1)]"
         )}
       >
         <CardContent className="p-4">
@@ -154,7 +157,7 @@ export const TransferHeroCard = memo(({
                <span className="text-[10px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
              </div>
              <div className="flex gap-1.5">
-               {agent.isPro && <Badge className="bg-yellow-500 text-black text-[7px] font-black uppercase px-2 h-4 border-none">PRO UNIT</Badge>}
+               {agent.isPro && <Badge className="bg-yellow-500 text-black text-[7px] font-black uppercase px-2 h-4 border-none shadow-[0_0_10px_rgba(234,179,8,0.3)]">PRO UNIT</Badge>}
                {isOwner && <Badge className="bg-primary text-primary-foreground text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ВАШ ЛОТ' : 'YOUR LOT'}</Badge>}
                {isLeading && <Badge className="bg-green-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</Badge>}
              </div>
@@ -295,7 +298,7 @@ export const TransferHeroCard = memo(({
               </h3>
               <div className="space-y-3">
                 {Object.entries(agent.heroData.proStats).map(([key, value]: [string, any]) => { 
-                  const talent = agent.heroData.proTalents ? (agent.heroData.proTalents as any)[key] : 45; 
+                  const talent = Number(agent.heroData.proTalents ? (agent.heroData.proTalents as any)[key] : 45); 
                   const icons: Record<string, any> = {
                     lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
                     manaManagement: Sparkles, objectiveControl: Sword, communication: Users,

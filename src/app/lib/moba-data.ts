@@ -137,8 +137,8 @@ function getRandomStat(min: number, max: number, rng?: SeededRandom) {
 
 function getRandomTalent(rng?: SeededRandom, isPro: boolean = false) {
   if (isPro) {
-    if (rng) return rng.range(50, 75);
-    return Math.floor(Math.random() * 26) + 50;
+    if (rng) return rng.range(51, 65);
+    return Math.floor(Math.random() * 15) + 51;
   }
   if (rng) return rng.range(25, 50);
   return Math.floor(Math.random() * 26) + 25;
@@ -171,14 +171,14 @@ export function generateVtuneHero(seed?: string): Hero {
     isPro: true,
     proStats: {
       lastHitting: rng.range(6, 7),
-      mapAwareness: rng.range(5, 6),
-      positioning: rng.range(6, 7),
+      mapAwareness: rng.range(4, 6),
+      positioning: rng.range(5, 7),
       reflexes: rng.range(6, 7),
-      manaManagement: rng.range(5, 6),
+      manaManagement: rng.range(3, 5),
       objectiveControl: rng.range(5, 6),
-      communication: rng.range(5, 6),
-      tiltResistance: rng.range(6, 7),
-      versatility: rng.range(6, 7),
+      communication: rng.range(4, 6),
+      tiltResistance: rng.range(5, 7),
+      versatility: rng.range(4, 6),
       ganking: rng.range(5, 6),
     },
     proTalents: {
@@ -230,16 +230,16 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
   };
 
   const proStats = {
-    lastHitting: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
-    mapAwareness: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
-    positioning: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
-    reflexes: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
-    manaManagement: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
-    objectiveControl: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
-    communication: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
-    tiltResistance: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
-    versatility: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
-    ganking: getRandomStat(isStarter ? 10 : 15, isStarter ? 25 : (isPro ? 45 : 35), rng),
+    lastHitting: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
+    mapAwareness: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
+    positioning: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
+    reflexes: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
+    manaManagement: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
+    objectiveControl: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
+    communication: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
+    tiltResistance: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
+    versatility: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
+    ganking: getRandomStat(isStarter ? 5 : 8, isStarter ? 12 : 15, rng),
   };
 
   const proTalents = {
