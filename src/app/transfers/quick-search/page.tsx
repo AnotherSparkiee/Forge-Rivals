@@ -10,7 +10,7 @@ import {
   Timer, Star, ShoppingCart, X, Check, Search, Info, Users,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
   ChevronsLeft, ChevronsRight, Zap, Gem, Award, Target, Eye, Map, 
-  Sparkles, Sword, Crosshair, Brain, TrendingUp
+  Sparkles, Sword, Crosshair, Brain, TrendingUp, Activity
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -34,15 +34,20 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-const ITEMS_PER_PAGE = 10;
+/**
+ * Нормализатор значений (превращает 6.1 в 61 и округляет)
+ */
+const norm = (val: any) => {
+  const n = Number(val);
+  if (isNaN(n)) return 0;
+  return n < 10 ? Math.round(n * 10) : Math.round(n);
+};
 
 /**
  * Рендерит звезды таланта в зависимости от его значения (шкала 1-100).
  */
 export const renderStars = (talent: number) => {
-  // НОРМАЛИЗАТОР: Если талант пришел в старом формате (например 6.1), умножаем на 10
-  const normalizedTalent = Number(talent) < 10 ? Number(talent) * 10 : Number(talent);
-  const numericTalent = Math.round(normalizedTalent);
+  const numericTalent = norm(talent);
 
   if (numericTalent > 50) {
     let src = "https://iili.io/CCZlOeR.png"; // 5 stars elite (51-59)
@@ -51,7 +56,6 @@ export const renderStars = (talent: number) => {
     return <img src={src} alt={`${numericTalent} stars`} className="h-3 w-auto object-contain" />;
   }
 
-  // Обычные векторные звезды для таланта <= 50 (делим на 10 для 1-5 звезд)
   const starRating = numericTalent / 10;
   return (
     <div className="flex items-center gap-0.5">
@@ -89,7 +93,7 @@ export const TransferHeroCard = memo(({
   const [showDossier, setShowDossier] = useState(false);
   const [bidPercent, setBidPercent] = useState(5);
   const [isProcessing, setIsProcessing] = useState(false);
-  const { isPremium, activeLicenseTier } = useGameState();
+  const { isPremium, managerSkills } = useGameState();
 
   const isLeading = agent.highestBidderId === user?.uid;
   const isOwner = agent.sellerId === user?.uid;
@@ -97,19 +101,11 @@ export const TransferHeroCard = memo(({
   const nextBidValue = Math.ceil(agent.currentBid * (1 + bidPercent / 100));
   const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
   
-  // НОРМАЛИЗОВАННЫЙ ТАЛАНТ ДЛЯ ГЛАВНОГО БЛОКА
-  const talents = Object.values(agent.heroData.proTalents || {}).map(v => {
-    const n = Number(v);
-    return n < 10 ? n * 10 : n;
-  });
+  const talents = Object.values(agent.heroData.proTalents || {}).map(v => norm(v));
   const maxTalentValue = Math.max(...talents);
 
   const rolesRu: Record<string, string> = {
-    'Carry': 'Керри',
-    'Midlaner': 'Мидер',
-    'Tank': 'Танк',
-    'Jungler': 'Лес',
-    'Support': 'Саппорт'
+    'Carry': 'Керри', 'Midlaner': 'Мидер', 'Tank': 'Танк', 'Jungler': 'Лес', 'Support': 'Саппорт'
   };
 
   const proStatsLabels: Record<string, string> = {
@@ -135,6 +131,12 @@ export const TransferHeroCard = memo(({
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
+  const icons: Record<string, any> = {
+    lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
+    manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
+    tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
+  };
+
   return (
     <>
       <Card 
@@ -153,7 +155,7 @@ export const TransferHeroCard = memo(({
                <span className="text-[10px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
              </div>
              <div className="flex gap-1.5">
-               {agent.isPro && <Badge className="bg-yellow-500 text-black text-[7px] font-black uppercase px-2 h-4 border-none shadow-[0_0_10px_rgba(234,179,8,0.3)]">PRO UNIT</Badge>}
+               {agent.isPro && <Badge className="bg-yellow-500 text-black text-[7px] font-black uppercase px-2 h-4 border-none">PRO UNIT</Badge>}
                {isOwner && <Badge className="bg-primary text-primary-foreground text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ВАШ ЛОТ' : 'YOUR LOT'}</Badge>}
                {isLeading && <Badge className="bg-green-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</Badge>}
              </div>
@@ -171,15 +173,11 @@ export const TransferHeroCard = memo(({
             
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <div className={cn("relative flex items-center min-w-0", agent.isPro && "pl-1.5 border-l-2 border-yellow-500")}>
-                  {agent.isPro && <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/20 to-transparent -z-10" />}
-                  <h3 className="text-base font-bold uppercase truncate text-white tracking-tight leading-tight">{agent.heroData?.name}</h3>
-                </div>
+                <h3 className="text-base font-bold uppercase truncate text-white tracking-tight leading-tight">{agent.heroData?.name}</h3>
                 <Badge variant="outline" className="text-[8px] h-4 py-0 border-white/10 uppercase font-black text-primary/80">
                   {rolesRu[agent.heroData.role] || agent.heroData.role}
                 </Badge>
               </div>
-              
               <div className="grid grid-cols-2 gap-3 mt-2">
                  <div className="flex flex-col">
                    <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
@@ -205,36 +203,17 @@ export const TransferHeroCard = memo(({
                 {isDiamond ? <Gem className="w-4 h-4 text-blue-400" /> : <span className="text-white font-black">€</span>}
                 <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">{agent.currentBid?.toLocaleString()}</p>
               </div>
-              <div className="flex items-center min-w-0 mt-1">
-                {agent.highestBidderName ? (
-                  <div className="relative inline-flex items-center min-w-0 max-w-full">
-                    <div className="absolute inset-0 bg-gradient-to-r from-accent/30 via-accent/5 to-transparent border-l-2 border-accent -z-10" />
-                    <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight truncate text-white">
-                      {agent.highestBidderName}
-                    </span>
-                  </div>
-                ) : (
-                  <span className="text-[9px] font-black uppercase text-muted-foreground/50">
-                    {language === 'ru' ? 'Нет ставок' : 'No bids'}
-                  </span>
-                )}
-              </div>
             </div>
-            
             <Button 
               className={cn(
                 "h-11 font-black text-[10px] px-6 rounded-xl uppercase tracking-[0.1em] transition-all shrink-0", 
                 isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
-                (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-xl shadow-primary/20 active:scale-95")
+                (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-xl active:scale-95")
               )} 
               onClick={(e) => { e.stopPropagation(); if (!isLeading && !isOwner) setShowBidModal(true); }} 
               disabled={isLeading || isOwner}
             >
-              {isOwner ? (language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT') : (
-                isLeading ? <><ShieldCheck className="w-4 h-4 mr-2" /> {language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</> : (
-                  <>{language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'}</>
-                )
-              )}
+              {isOwner ? (language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT') : (isLeading ? 'ЛИДИРУЕТЕ' : 'ПОСТАВИТЬ')}
             </Button>
           </div>
         </CardContent>
@@ -243,9 +222,7 @@ export const TransferHeroCard = memo(({
       <Dialog open={showDossier} onOpenChange={setShowDossier}>
         <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden shadow-2xl h-[90vh] flex flex-col">
           <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 relative shrink-0">
-            <Button variant="ghost" size="icon" className="absolute left-4 top-4 rounded-full" onClick={() => setShowDossier(false)}>
-              <X className="w-5 h-5" />
-            </Button>
+            <Button variant="ghost" size="icon" className="absolute left-4 top-4 rounded-full" onClick={() => setShowDossier(false)}><X className="w-5 h-5" /></Button>
             <div className="relative mx-auto w-24 h-24 mb-4">
               <div className={cn("w-full h-full rounded-2xl overflow-hidden border-2 shadow-2xl bg-secondary/50", agent.isPro ? "border-yellow-500" : "border-primary/50")}>
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
@@ -254,9 +231,7 @@ export const TransferHeroCard = memo(({
                 <span className="text-xl">{agent.heroData.country?.flag}</span>
               </div>
             </div>
-            <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white leading-none">
-              {agent.heroData?.name}
-            </DialogTitle>
+            <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white leading-none">{agent.heroData?.name}</DialogTitle>
             <div className="flex items-center justify-center gap-2 mt-2">
               <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{rolesRu[agent.heroData.role] || agent.heroData.role}</Badge>
               {agent.isPro && <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5">PRO LEGEND</Badge>}
@@ -264,155 +239,84 @@ export const TransferHeroCard = memo(({
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-8 scrollbar-hide">
+            {/* БЛОК 1: ТЕКУЩИЕ НАВЫКИ */}
             <section>
               <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ХАРАКТЕРИСТИКИ' : 'BIOMETRICS & STATUS'}
-              </h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
-                  <p className="text-[7px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
-                  <p className="text-xs font-bold text-white">{liveAge.display} {language === 'ru' ? 'лет' : 'yrs'}</p>
-                </div>
-                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
-                  <p className="text-[7px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ЗАРПЛАТА' : 'SALARY'}</p>
-                  <p className="text-xs font-bold text-green-400">€ {(agent.heroData.salary || 0).toLocaleString()}</p>
-                </div>
-                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
-                  <p className="text-[7px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'РЕЙТИНГ' : 'OVERALL'}</p>
-                  <p className="text-xs font-bold text-accent">{agent.heroData.overallRating} OVR</p>
-                </div>
-                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
-                  <p className="text-[7px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'СТАТУС' : 'STATUS'}</p>
-                  <p className="text-[10px] font-bold text-green-400 flex items-center gap-1.5"><ShieldCheck className="w-3 h-3" /> {language === 'ru' ? 'ГОТОВ' : 'READY'}</p>
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Award className="w-3.5 h-3.5" /> {language === 'ru' ? 'ПРОФЕССИОНАЛЬНЫЕ НАВЫКИ' : 'PROFESSIONAL SKILLS'}
+                <Activity className="w-3.5 h-3.5" /> {language === 'ru' ? 'ТЕКУЩИЕ НАВЫКИ' : 'CURRENT SKILLS'}
               </h3>
               <div className="space-y-3">
                 {Object.entries(agent.heroData.proStats).map(([key, value]: [string, any]) => { 
-                  // ПРИНУДИТЕЛЬНО ПРИВОДИМ К ШКАЛЕ 1-100 ДЛЯ ВИЗУАЛИЗАЦИИ
-                  const rawTalent = Number(agent.heroData.proTalents ? (agent.heroData.proTalents as any)[key] : 45);
-                  const normalizedTalent = rawTalent < 10 ? rawTalent * 10 : rawTalent;
-                  const talent = Math.round(normalizedTalent);
-
-                  const rawValue = Number(value);
-                  const normalizedValue = rawValue < 10 && rawTalent < 10 ? rawValue * 10 : rawValue;
-                  const displayValue = Math.round(normalizedValue);
-
-                  const icons: Record<string, any> = {
-                    lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
-                    manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
-                    tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
-                  };
                   const Icon = icons[key] || Info;
+                  const displayValue = norm(value);
                   return (
-                    <div key={key} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10 transition-all">
+                    <div key={key} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
                       <div className="flex justify-between items-center px-0.5">
                         <div className="flex items-center gap-2">
                           <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                            {proStatsLabels[key]}
-                          </span>
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{proStatsLabels[key]}</span>
                         </div>
-                        <div className="flex flex-col items-end">
-                          <span className="text-[10px] font-mono font-bold text-primary">{displayValue} / {talent}</span>
-                          {renderStars(talent)}
-                        </div>
+                        <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
                       </div>
-                      <div className="relative">
-                        <Progress value={(displayValue / talent) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
-                      </div>
+                      <Progress value={displayValue} max={100} className="h-1 rounded-full bg-secondary/40" />
                     </div>
                   ); 
+                })}
+              </div>
+            </section>
+
+            {/* БЛОК 2: ПРЕДЕЛЫ ТАЛАНТА */}
+            <section>
+              <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                <Zap className="w-3.5 h-3.5" /> {language === 'ru' ? 'ПРЕДЕЛЫ ТАЛАНТА' : 'TALENT LIMITS'}
+              </h3>
+              <div className="space-y-2">
+                {Object.entries(agent.heroData.proTalents || {}).map(([key, value]: [string, any]) => {
+                  const talentVal = norm(value);
+                  const Icon = icons[key] || Info;
+                  return (
+                    <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40">
+                      <div className="flex items-center gap-2">
+                        <Icon className="w-3 h-3 text-accent/50" />
+                        <span className="text-[9px] font-bold uppercase text-muted-foreground/80">{proStatsLabels[key]}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-mono font-bold text-accent">{talentVal}</span>
+                        {renderStars(talentVal)}
+                      </div>
+                    </div>
+                  );
                 })}
               </div>
             </section>
           </div>
 
           <div className="p-4 bg-secondary/20 border-t border-white/5 shrink-0">
-             <Button 
-               className="w-full h-12 hero-gradient font-black text-xs uppercase tracking-widest"
-               onClick={() => { setShowDossier(false); if (!isLeading && !isOwner) setShowBidModal(true); }}
-               disabled={isLeading || isOwner}
-             >
+             <Button className="w-full h-12 hero-gradient font-black text-xs uppercase" onClick={() => { setShowDossier(false); if (!isLeading && !isOwner) setShowBidModal(true); }} disabled={isLeading || isOwner}>
                {isLeading ? 'ВЫ ЛИДИРУЕТЕ' : (isOwner ? 'ВАШ ГЕРОЙ' : 'ПЕРЕЙТИ К СТАВКЕ')}
              </Button>
           </div>
         </DialogContent>
       </Dialog>
       
-      {/* Bid Modal remains same */}
       <Dialog open={showBidModal} onOpenChange={setShowBidModal}>
         <DialogContent className="max-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
           <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
-            <div className="mx-auto w-16 h-16 rounded-2xl overflow-hidden border border-primary/50 shadow-xl bg-secondary/50 mb-4">
-              <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
-            </div>
-            <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white leading-none">
-              {agent.heroData?.name}
-            </DialogTitle>
-            <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-[0.2em] font-black">
-              {language === 'ru' ? 'ТЕРМИНАЛ СТАВОК' : 'BIDDING TERMINAL'}
-            </DialogDescription>
+            <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white">{agent.heroData?.name}</DialogTitle>
+            <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-[0.2em] font-black">{language === 'ru' ? 'ТЕРМИНАЛ СТАВОК' : 'BIDDING TERMINAL'}</DialogDescription>
           </div>
-
           <div className="p-6 space-y-8">
             <div className="space-y-4">
               <div className="flex justify-between items-center px-1">
-                <span className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-2">
-                  <Gavel className="w-4 h-4 text-primary" /> {language === 'ru' ? 'СУММА СДЕЛКИ' : 'NEW BID AMOUNT'}
-                </span>
-                <span className="text-xl font-headline font-black text-primary italic">
-                  {isDiamond ? <Gem className="inline w-5 h-5 mr-1" /> : '€ '} 
-                  {nextBidValue.toLocaleString()}
-                </span>
+                <span className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-2"><Gavel className="w-4 h-4 text-primary" /> {language === 'ru' ? 'СУММА СДЕЛКИ' : 'NEW BID'}</span>
+                <span className="text-xl font-headline font-black text-primary italic">{isDiamond ? <Gem className="inline w-5 h-5 mr-1" /> : '€ '} {nextBidValue.toLocaleString()}</span>
               </div>
-              
-              <div className="relative pt-4 pb-2">
-                <Slider
-                  value={[bidPercent]}
-                  onValueChange={(val) => setBidPercent(val[0])}
-                  min={3}
-                  max={300}
-                  step={1}
-                />
-                <div className="flex justify-between mt-3 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
-                  <span>MIN +3%</span>
-                  <span>MAX +300%</span>
-                </div>
-              </div>
+              <Slider value={[bidPercent]} onValueChange={(val) => setBidPercent(val[0])} min={3} max={300} step={1} />
             </div>
-
-            <div className="bg-primary/5 rounded-xl border border-primary/20 p-4 flex gap-4">
-               <Info className="w-5 h-5 text-primary shrink-0" />
-               <p className="text-[10px] text-muted-foreground leading-relaxed italic">
-                 {language === 'ru' 
-                  ? "Средства будут списаны немедленно. Если вашу ставку перебьют, сумма вернется на баланс клуба." 
-                  : "Funds will be deducted immediately. If outbid, the amount will be returned to your club balance."}
-               </p>
-            </div>
+            <div className="bg-primary/5 rounded-xl border border-primary/20 p-4 flex gap-4"><Info className="w-5 h-5 text-primary shrink-0" /><p className="text-[10px] text-muted-foreground italic">{language === 'ru' ? "Сумма будет списана немедленно. При перебитии ставки - возвращена." : "Funds deducted immediately. Returned if outbid."}</p></div>
           </div>
-
           <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5 gap-2">
-            <Button variant="outline" className="flex-1 h-12 uppercase font-black text-[10px] border-white/10" onClick={() => setShowBidModal(false)}>
-              {language === 'ru' ? 'ОТМЕНА' : 'CANCEL'}
-            </Button>
-            <Button 
-              className="flex-[2] h-12 hero-gradient font-black text-[11px] uppercase tracking-widest shadow-xl shadow-primary/20"
-              onClick={async () => {
-                setIsProcessing(true);
-                await onBid(agent, nextBidValue);
-                setIsProcessing(false);
-                setShowBidModal(false);
-              }}
-              disabled={isProcessing}
-            >
-              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : (language === 'ru' ? 'ПОДТВЕРДИТЬ' : 'CONFIRM')}
-            </Button>
+            <Button variant="outline" className="flex-1 h-12 uppercase font-black text-[10px]" onClick={() => setShowBidModal(false)}>{language === 'ru' ? 'ОТМЕНА' : 'CANCEL'}</Button>
+            <Button className="flex-[2] h-12 hero-gradient font-black text-[11px] uppercase shadow-xl" onClick={async () => { setIsProcessing(true); await onBid(agent, nextBidValue); setIsProcessing(false); setShowBidModal(false); }} disabled={isProcessing}>{isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'ПОДТВЕРДИТЬ'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -447,68 +351,42 @@ export default function QuickSearchPage() {
 
   const filteredAgents = useMemo(() => {
     if (!agents) return [];
-    
     return agents.filter(a => {
-      // Исключаем истекшие аукционы
       const expiry = new Date(a.expiresAt).getTime();
       if (expiry <= now) return false;
-
-      // Исключаем молодежь и PRO (для быстрого поиска только обычные юниоры)
       const liveAge = calculateLiveAge(a.heroData.baseAge, a.heroData.hiredAt);
       if (a.isYouth || a.isPro || liveAge.numeric < 18.0) return false;
-
       return true;
     }).sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
   }, [agents, now]);
 
-  const paginatedAgents = useMemo(() => {
-    const start = page * ITEMS_PER_PAGE;
-    return filteredAgents.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredAgents, page]);
-
+  const paginatedAgents = useMemo(() => filteredAgents.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE), [filteredAgents, page]);
   const totalPages = Math.ceil(filteredAgents.length / ITEMS_PER_PAGE);
 
   const handleGlobalBid = useCallback(async (agent: any, amount: number) => {
     if (!user || !profile) return;
-    if (credits < amount) { 
-      toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" }); 
-      return; 
-    }
+    if (credits < amount) { toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" }); return; }
     try {
       const prevBidder = agent.highestBidderId;
       const heroName = agent.heroData?.name || "Player";
-      
       const mskNow = getMoscowTime().getTime();
       const expiryTime = new Date(agent.expiresAt).getTime();
-      const timeLeft = expiryTime - mskNow;
       let finalExpiresAt = agent.expiresAt;
-      
-      if (timeLeft < 600000) { 
-        finalExpiresAt = new Date(mskNow + 600000).toISOString(); 
-      }
+      if (expiryTime - mskNow < 600000) finalExpiresAt = new Date(mskNow + 600000).toISOString();
 
       await updateDoc(doc(db, 'market_v7', agent.id), { 
         currentBid: amount, highestBidderId: user.uid, highestBidderName: profile.displayName || "Unknown Manager", 
-        bidders: arrayUnion(user.uid), updatedAt: serverTimestamp(),
-        expiresAt: finalExpiresAt
+        bidders: arrayUnion(user.uid), updatedAt: serverTimestamp(), expiresAt: finalExpiresAt
       });
 
       addCredits(-amount);
       if (prevBidder && prevBidder !== user.uid) {
         addDocumentNonBlocking(collection(db, 'notifications_v7'), {
-          userId: prevBidder, title: language === 'ru' ? "Ставка перебита!" : "Outbid!",
-          description: language === 'ru' ? `Ставка на "${heroName}" перебита ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : `Bid on "${heroName}" outbid ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`,
-          type: 'market', read: false, createdAt: new Date().toISOString()
+          userId: prevBidder, title: "Ставка перебита!", description: `Ваша ставка на "${heroName}" перебита.`, type: 'market', read: false, createdAt: new Date().toISOString()
         });
       }
-      
-      toast({ 
-        title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!",
-        description: timeLeft < 600000 ? (language === 'ru' ? "Аукцион продлен на 10 минут!" : "Auction extended by 10 minutes!") : undefined
-      });
-    } catch (e) {
-      toast({ title: "Error placing bid", variant: "destructive" });
-    }
+      toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!" });
+    } catch (e) { toast({ title: "Error", variant: "destructive" }); }
   }, [user, profile, credits, language, toast, db, addCredits]);
 
   if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;
@@ -516,50 +394,26 @@ export default function QuickSearchPage() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center gap-4">
-        <Link href="/transfers">
-          <Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
-            {language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}
-          </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">Real-time Auction Stream</p>
-        </div>
+        <Link href="/transfers"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+        <div><h1 className="text-2xl font-headline font-bold uppercase text-white">{language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}</h1><p className="text-muted-foreground text-[10px] uppercase font-bold opacity-60">Real-time Auction Stream</p></div>
       </header>
-
-      <div className="space-y-3 animate-in fade-in duration-500">
+      <div className="space-y-3">
         {paginatedAgents.length > 0 ? (
           <>
-            {paginatedAgents.map((agent) => (
-              <TransferHeroCard 
-                key={agent.id} 
-                agent={agent} 
-                user={user} 
-                profile={profile} 
-                onBid={handleGlobalBid}
-                now={now}
-                language={language}
-              />
-            ))}
-
+            {paginatedAgents.map((agent) => (<TransferHeroCard key={agent.id} agent={agent} user={user} profile={profile} onBid={handleGlobalBid} now={now} language={language} />))}
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-2 pt-6">
                 <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(0)} className="h-8 w-8"><ChevronsLeft className="w-4 h-4" /></Button>
                 <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 w-8"><ChevronLeftIcon className="h-4 w-4" /></Button>
                 <span className="text-[10px] font-black text-muted-foreground uppercase px-4">{language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}</span>
                 <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 w-8"><ChevronRightIcon className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(totalPages - 1)} className="h-8 w-8"><ChevronsRight className="w-4 h-4" /></Button>
               </div>
             )}
           </>
         ) : (
-          <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
-            <ShoppingCart className="w-12 h-12" />
-            <p className="text-[10px] uppercase font-black">{language === 'ru' ? 'Аукционы не найдены' : 'No active auctions'}</p>
-          </div>
+          <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10"><ShoppingCart className="w-12 h-12" /><p className="text-[10px] uppercase font-black">{language === 'ru' ? 'Аукционы не найдены' : 'No active auctions'}</p></div>
         )}
       </div>
     </div>
   );
 }
-

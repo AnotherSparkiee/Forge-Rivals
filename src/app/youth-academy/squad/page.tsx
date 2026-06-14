@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,7 +11,7 @@ import {
   ChevronLeft, Star, ShoppingCart, Loader2, 
   ArrowUpCircle, Info, Award, Target, Eye, Map, 
   Zap, Sparkles, Brain, TrendingUp, Crosshair, Sword,
-  ShieldCheck, Clock, Users
+  ShieldCheck, Clock, Users, Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -20,9 +21,15 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { renderStars } from '@/app/transfers/quick-search/page';
+
+const norm = (val: any) => {
+  const n = Number(val);
+  return n < 10 ? Math.round(n * 10) : Math.round(n);
+};
 
 export default function YouthSquadPage() {
-  const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, updateHero, managerSkills } = useGameState();
+  const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, updateHero } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
@@ -46,11 +53,10 @@ export default function YouthSquadPage() {
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     onTransfer: language === 'ru' ? "НА РЫНОК" : "TRANSFER",
     years: language === 'ru' ? "лет" : "yrs",
-    stats: language === 'ru' ? "Навыки и таланты" : "Skills & Talents",
+    skills: language === 'ru' ? "Текущие навыки" : "Current Skills",
+    talents: language === 'ru' ? "Пределы таланта" : "Talent Limits",
     salary: language === 'ru' ? "Зарплата" : "Salary",
     status: language === 'ru' ? "Статус" : "Status",
-    healthy: language === 'ru' ? "Здоров" : "Healthy",
-    injured: language === 'ru' ? "Травмирован" : "Injured",
     close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
@@ -64,6 +70,12 @@ export default function YouthSquadPage() {
       versatility: language === 'ru' ? "Универсальность" : "Versatility",
       ganking: language === 'ru' ? "Ганкинг" : "Ganking",
     }
+  };
+
+  const icons: Record<string, any> = {
+    lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
+    manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
+    tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
   };
 
   const handlePromote = (heroId: string) => {
@@ -91,99 +103,88 @@ export default function YouthSquadPage() {
     } finally { setIsTransferring(false); }
   };
 
-  const renderStars = (rating: number) => (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => {
-        const fill = Math.min(Math.max(rating - i, 0), 1);
-        return (
-          <div key={i} className="relative w-2.5 h-2.5">
-            <Star className="absolute inset-0 w-2.5 h-2.5 text-muted-foreground/20" />
-            <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
-              <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-
   if (!isLoaded || isUserLoading) return <LoadingScreen />;
 
   if (selectedHero) {
     const liveAge = calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt);
+    const talentsValues = Object.values(selectedHero.proTalents || {}).map(v => norm(v));
+    const maxTalentValue = Math.max(...talentsValues);
     return (
       <div className="min-h-screen bg-background text-foreground animate-in fade-in slide-in-from-right-4 duration-300 overflow-y-auto scrollbar-hide pb-6">
-        <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative">
-          <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full" onClick={() => setSelectedHero(null)}>
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
+        <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
+          <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full" onClick={() => setSelectedHero(null)}><ChevronLeft className="w-6 h-6" /></Button>
           <div className="relative">
             <div className="w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50">
               <img src={selectedHero.image} alt={selectedHero.name} className="w-full h-full object-cover" />
             </div>
-            <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl">
-              <span className="text-base">{selectedHero.country?.flag || '🏳️'}</span>
-            </div>
+            <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{selectedHero.country?.flag}</span></div>
           </div>
           <div className="space-y-1">
             <h1 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{selectedHero.name}</h1>
             <div className="flex items-center justify-center gap-2">
               <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{selectedHero.role}</Badge>
-              <Badge variant="outline" className="border-accent text-accent text-[10px] font-black uppercase px-2 h-5">ACADEMY PUPIL</Badge>
+              <div className="flex items-center ml-2">{renderStars(maxTalentValue)}</div>
             </div>
           </div>
           <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto">
-            <div className="bg-background/40 p-3 rounded-xl border border-white/10">
-              <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p>
-              <p className="text-xl font-headline font-bold text-accent italic leading-none">{selectedHero.overallRating}</p>
-            </div>
-            <div className="bg-background/40 p-3 rounded-xl border border-white/10">
-              <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.salary}</p>
-              <p className="text-sm font-headline font-bold text-primary">€{(selectedHero.salary || 0).toLocaleString()}</p>
-            </div>
+            <div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p><p className="text-xl font-headline font-bold text-accent italic leading-none">{selectedHero.overallRating}</p></div>
+            <div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.salary}</p><p className="text-sm font-headline font-bold text-primary">€{(selectedHero.salary || 0).toLocaleString()}</p></div>
           </div>
         </div>
 
         <div className="p-4 space-y-8">
           <section>
-            <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-              <Info className="w-3.5 h-3.5" /> BIOMETRICS
-            </h3>
+            <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Info className="w-3.5 h-3.5" /> BIOMETRICS</h3>
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
-                <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.age}</p>
-                <p className="text-xs font-bold">{calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt).display} {t.years}</p>
-              </div>
-              <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
-                <p className="text-[7px] font-black text-muted-foreground uppercase">{t.status}</p>
-                <p className="text-[10px] font-bold text-green-400 flex items-center gap-1.5"><ShieldCheck className="w-3 h-3" /> ACADEMY LEVEL 1</p>
-              </div>
+              <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5"><p className="text-[7px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</p><p className="text-xs font-bold">{liveAge.display} {t.years}</p></div>
+              <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5"><p className="text-[7px] font-black text-muted-foreground uppercase">{t.status}</p><p className="text-[10px] font-bold text-green-400 flex items-center gap-1.5"><ShieldCheck className="w-3 h-3" /> ACADEMY PUPIL</p></div>
             </div>
           </section>
 
-          <section className="space-y-3">
-            <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-              <Award className="w-3.5 h-3.5" /> {t.stats}
+          {/* БЛОК 1: ТЕКУЩИЕ НАВЫКИ */}
+          <section>
+            <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+              <Activity className="w-3.5 h-3.5" /> {t.skills}
             </h3>
             <div className="space-y-3">
-              {Object.entries(selectedHero.proStats).map(([key, value]) => {
-                const talent = selectedHero.proTalents ? (selectedHero.proTalents as any)[key] : 3.0;
-                const icons: Record<string, any> = {
-                  lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
-                  manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
-                  tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
-                };
+              {Object.entries(selectedHero.proStats).map(([key, value]: [string, any]) => {
                 const Icon = icons[key] || Info;
+                const displayValue = norm(value);
                 return (
-                  <div key={key} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10 transition-all">
+                  <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
                     <div className="flex justify-between items-center px-0.5">
                       <div className="flex items-center gap-2">
                         <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
                         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                       </div>
-                      <div className="flex flex-col items-end"><span className="text-[10px] font-mono font-bold text-primary">{value} / 50</span>{renderStars(talent)}</div>
+                      <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
                     </div>
-                    <Progress value={value} max={50} className="h-1 rounded-full bg-secondary/40" />
+                    <Progress value={displayValue} max={100} className="h-1 rounded-full bg-secondary/40" />
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* БЛОК 2: ПРЕДЕЛЫ ТАЛАНТА */}
+          <section>
+            <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+              <Zap className="w-3.5 h-3.5" /> {t.talents}
+            </h3>
+            <div className="space-y-2">
+              {Object.entries(selectedHero.proTalents || {}).map(([key, value]: [string, any]) => {
+                const talentVal = norm(value);
+                const Icon = icons[key] || Info;
+                return (
+                  <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40">
+                    <div className="flex items-center gap-2">
+                      <Icon className="w-3 h-3 text-accent/50" />
+                      <span className="text-[9px] font-bold uppercase text-muted-foreground/80">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] font-mono font-bold text-accent">{talentVal}</span>
+                      {renderStars(talentVal)}
+                    </div>
                   </div>
                 );
               })}
@@ -192,7 +193,7 @@ export default function YouthSquadPage() {
 
           <div className="pt-4 flex flex-col gap-2">
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" className="h-14 border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary font-bold uppercase text-[10px]" onClick={handleTransfer} disabled={isTransferring}>{isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {t.onTransfer}</Button>
+              <Button variant="outline" className="h-14 border-primary/20 bg-primary/10 text-primary font-bold uppercase text-[10px]" onClick={handleTransfer} disabled={isTransferring}>{isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {t.onTransfer}</Button>
               <Button className="h-14 hero-gradient font-black uppercase text-[10px] shadow-xl" onClick={() => handlePromote(selectedHero.id)} disabled={liveAge.numeric < 18}><ArrowUpCircle className="w-4 h-4 mr-2" /> {liveAge.numeric < 18 ? t.notReady : t.promote}</Button>
             </div>
             <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setSelectedHero(null)}>{t.close}</Button>

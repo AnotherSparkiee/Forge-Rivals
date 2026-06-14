@@ -13,7 +13,7 @@ import {
   ShieldCheck, Zap, HeartPulse,
   Box, Undo2, Info, ShoppingCart, Loader2,
   Award, Clock, Users, Brain, TrendingUp, Crosshair,
-  Target, Eye, Map, Star
+  Target, Eye, Map, Star, Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -23,6 +23,11 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { renderStars } from '@/app/transfers/quick-search/page';
+
+const norm = (val: any) => {
+  const n = Number(val);
+  return n < 10 ? Math.round(n * 10) : Math.round(n);
+};
 
 export default function SquadPage() {
   const { ownedHeroes, lineup, assignToRole, isLoaded, language, updateHero, isPremium, activeLicenseTier } = useGameState();
@@ -78,7 +83,8 @@ export default function SquadPage() {
       status: language === 'ru' ? "Статус" : "Status",
       healthy: language === 'ru' ? "Здоров" : "Healthy",
       injured: language === 'ru' ? "Травмирован" : "Injured",
-      stats: language === 'ru' ? "Навыки и таланты" : "Skills & Talents",
+      skills: language === 'ru' ? "Текущие навыки" : "Current Skills",
+      talents: language === 'ru' ? "Пределы таланта" : "Talent Limits",
       years: language === 'ru' ? "лет" : "yrs",
       close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
     },
@@ -121,6 +127,12 @@ export default function SquadPage() {
     res7: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], res8: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'],
   };
 
+  const icons: Record<string, any> = {
+    lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
+    manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
+    tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
+  };
+
   const getHeroById = (id: string | null) => ownedHeroes.find(h => h.id === id);
 
   const teamOvr = useMemo(() => {
@@ -134,8 +146,12 @@ export default function SquadPage() {
   const handleStartPress = (hero: Hero | undefined) => {
     if (!hero) return;
     longPressTimer.current = setTimeout(() => {
-      setProfileHero(hero);
+      setSelectedHeroInView(hero);
     }, 600);
+  };
+
+  const setSelectedHeroInView = (hero: Hero | null) => {
+    setProfileHero(hero);
   };
 
   const handleCancelPress = () => {
@@ -212,14 +228,10 @@ export default function SquadPage() {
           <div className="flex-1 min-w-0">
             <p className={cn("text-[8px] uppercase font-black tracking-widest", isSelected ? "text-primary" : "text-muted-foreground")}>{roleInfo.label}</p>
             <h3 className="text-xs font-bold leading-tight truncate">{hero ? hero.name : (isSelected ? t.selectHero : t.emptySlot)}</h3>
-            {hero && <p className="text-[8px] text-muted-foreground uppercase font-black tracking-tighter">{calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.profile.years}</p>}
           </div>
           <div className="flex items-center gap-3">
             {hero ? <div className="flex flex-col items-center justify-center min-w-[45px] border-l border-white/5 pl-3"><p className="text-[7px] font-black text-accent uppercase tracking-tighter mb-0.5">{t.overall}</p><span className="text-xl font-headline font-bold text-accent italic leading-none">{hero.overallRating}</span></div> : <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-4 h-4" /></div>}
           </div>
-          {hero && isSelected && (
-            <button onClick={(e) => { e.stopPropagation(); assignToRole(slotKey, null); setSelectingSlot(null); }} className="absolute top-1 right-1 p-1 text-red-400"><X className="w-3.5 h-3.5" /></button>
-          )}
         </CardContent>
       </Card>
     );
@@ -228,23 +240,18 @@ export default function SquadPage() {
   if (!isLoaded) return null;
 
   if (profileHero) {
-    const maxTalentValue = Math.max(...Object.values(profileHero.proTalents || {}).map(v => Number(v)));
+    const talentsValues = Object.values(profileHero.proTalents || {}).map(v => norm(v));
+    const maxTalentValue = Math.max(...talentsValues);
     return (
       <div className="min-h-screen bg-background text-foreground animate-in fade-in slide-in-from-right-4 duration-300 overflow-y-auto scrollbar-hide pb-6">
-        <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative">
-          <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full" onClick={() => setProfileHero(null)}>
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
-          
+        <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
+          <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full" onClick={() => setProfileHero(null)}><ChevronLeft className="w-6 h-6" /></Button>
           <div className="relative">
             <div className={cn("w-24 h-24 rounded-2xl overflow-hidden border-2 shadow-2xl bg-secondary/50", profileHero.isPro ? "border-yellow-500" : "border-primary/50")}>
               <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
             </div>
-            <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl">
-              <span className="text-base">{profileHero.country?.flag || '🏳️'}</span>
-            </div>
+            <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{profileHero.country?.flag}</span></div>
           </div>
-          
           <div className="space-y-1">
             <h1 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h1>
             <div className="flex items-center justify-center gap-2">
@@ -252,84 +259,78 @@ export default function SquadPage() {
               <div className="flex items-center ml-2">{renderStars(maxTalentValue)}</div>
             </div>
           </div>
-
           <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto">
-            <div className="bg-background/40 p-3 rounded-xl border border-white/10">
-              <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p>
-              <p className="text-xl font-headline font-bold text-accent italic leading-none">{profileHero.overallRating}</p>
-            </div>
-            <div className="bg-background/40 p-3 rounded-xl border border-white/10">
-              <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.salary}</p>
-              <p className="text-sm font-headline font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</p>
-            </div>
+            <div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p><p className="text-xl font-headline font-bold text-accent italic leading-none">{profileHero.overallRating}</p></div>
+            <div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.salary}</p><p className="text-sm font-headline font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</p></div>
           </div>
         </div>
         
         <div className="p-4 space-y-8">
+            {/* БЛОК: СТАТУС */}
             <section>
-              <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Info className="w-3.5 h-3.5" /> BIOMETRICS & STATUS
-              </h3>
+              <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Info className="w-3.5 h-3.5" /> BIOMETRICS & STATUS</h3>
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
-                  <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.age}</p>
-                  <p className="text-xs font-bold">{calculateLiveAge(profileHero.baseAge, profileHero.hiredAt).display} {t.profile.years}</p>
-                </div>
-                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5">
-                  <p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.status}</p>
-                  <p className={cn("text-[10px] font-bold flex items-center gap-1.5", profileHero.isInjured ? "text-red-400" : "text-green-400")}>
-                    {profileHero.isInjured ? t.profile.injured : t.profile.healthy}
-                  </p>
-                </div>
+                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5"><p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.age}</p><p className="text-xs font-bold">{calculateLiveAge(profileHero.baseAge, profileHero.hiredAt).display} {t.profile.years}</p></div>
+                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5"><p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.status}</p><p className={cn("text-[10px] font-bold flex items-center gap-1.5", profileHero.isInjured ? "text-red-400" : "text-green-400")}>{profileHero.isInjured ? t.profile.injured : t.profile.healthy}</p></div>
               </div>
             </section>
 
+            {/* БЛОК 1: ТЕКУЩИЕ НАВЫКИ */}
             <section>
-              <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Award className="w-3.5 h-3.5" /> {t.profile.stats}
+              <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                <Activity className="w-3.5 h-3.5" /> {t.profile.skills}
               </h3>
               <div className="space-y-3">
-                {Object.entries(profileHero.proStats).map(([key, value]) => { 
-                  const talent = profileHero.proTalents ? (profileHero.proTalents as any)[key] : 45; 
-                  const icons: Record<string, any> = {
-                    lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
-                    manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
-                    tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
-                  };
+                {Object.entries(profileHero.proStats).map(([key, value]: [string, any]) => { 
                   const Icon = icons[key] || Info;
+                  const displayValue = norm(value);
                   return (
-                    <div key={key} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10 transition-all">
+                    <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
                       <div className="flex justify-between items-center px-0.5">
                         <div className="flex items-center gap-2">
                           <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                            {t.proStatsLabels[key as keyof typeof t.proStatsLabels]}
-                          </span>
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                         </div>
-                        <div className="flex flex-col items-end">
-                          <span className="text-[10px] font-mono font-bold text-primary">{value} / {talent}</span>
-                          {renderStars(talent)}
-                        </div>
+                        <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
                       </div>
-                      <Progress value={(value / talent) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
+                      <Progress value={displayValue} max={100} className="h-1 rounded-full bg-secondary/40" />
                     </div>
                   ); 
                 })}
               </div>
             </section>
 
+            {/* БЛОК 2: ПРЕДЕЛЫ ТАЛАНТА */}
+            <section>
+              <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                <Zap className="w-3.5 h-3.5" /> {t.profile.talents}
+              </h3>
+              <div className="space-y-2">
+                {Object.entries(profileHero.proTalents || {}).map(([key, value]: [string, any]) => {
+                  const talentVal = norm(value);
+                  const Icon = icons[key] || Info;
+                  return (
+                    <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40">
+                      <div className="flex items-center gap-2">
+                        <Icon className="w-3 h-3 text-accent/50" />
+                        <span className="text-[9px] font-bold uppercase text-muted-foreground/80">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-mono font-bold text-accent">{talentVal}</span>
+                        {renderStars(talentVal)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
             <div className="pt-4 flex flex-col gap-2">
-              <Button 
-                className="w-full h-14 bg-orange-600 hover:bg-orange-700 text-white font-black text-[11px] tracking-widest uppercase shadow-xl" 
-                onClick={handlePutOnTransfer}
-                disabled={isTransferring || (profileHero.onTransferUntil !== null && new Date(profileHero.onTransferUntil).getTime() > now)}
-              >
+              <Button className="w-full h-14 bg-orange-600 hover:bg-orange-700 text-white font-black text-[11px] tracking-widest uppercase shadow-xl" onClick={handlePutOnTransfer} disabled={isTransferring || (profileHero.onTransferUntil !== null && new Date(profileHero.onTransferUntil).getTime() > now)}>
                 {isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
                 {profileHero.onTransferUntil && new Date(profileHero.onTransferUntil).getTime() > now ? t.onAuction : t.putOnTransfer}
               </Button>
-              <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfileHero(null)}>
-                {t.profile.close}
-              </Button>
+              <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfileHero(null)}>{t.profile.close}</Button>
             </div>
         </div>
       </div>
@@ -348,18 +349,7 @@ export default function SquadPage() {
         <div className="flex items-center gap-4 flex-1 min-w-0">
           <Link href="/roster"><Button variant="ghost" size="icon" className="rounded-full shrink-0"><ChevronLeft className="w-6 h-6" /></Button></Link>
           <div className="min-w-0 flex-1">
-            {isPremium ? (
-              <div className="relative inline-flex items-center min-w-0 max-w-full">
-                <div className="absolute inset-0 bg-gradient-to-r from-accent/25 via-accent/5 to-transparent border-l-2 border-accent -z-10" />
-                <h1 className="px-3 py-1 text-2xl font-headline font-black uppercase tracking-tighter truncate text-white">
-                  {profile?.displayName || t.title}
-                </h1>
-              </div>
-            ) : (
-              <h1 className="text-2xl font-headline font-black uppercase tracking-tighter truncate text-white">
-                {profile?.displayName || t.title}
-              </h1>
-            )}
+            <h1 className="text-2xl font-headline font-black uppercase tracking-tighter truncate text-white">{profile?.displayName || t.title}</h1>
             <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
           </div>
         </div>
@@ -379,17 +369,8 @@ export default function SquadPage() {
           <div className="space-y-2">{(['sub1', 'sub2'] as LineupSlot[]).map(renderSlot)}</div>
         </section>
         <section className="space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 flex items-center gap-2">
-              <Users className="w-3.5 h-3.5" /> {t.reservesLabel}
-            </h2>
-          </div>
+          <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 px-1 flex items-center gap-2"><Users className="w-3.5 h-3.5" /> {t.reservesLabel}</h2>
           <div className="space-y-2">{reserveSlots.map(renderSlot)}</div>
-          {activeLicenseTier === 4 && !isPremium && (
-            <Link href="/shop" className="block p-4 mt-2 bg-primary/5 border border-dashed border-primary/20 rounded-xl text-center group hover:bg-primary/10 transition-all">
-              <p className="text-[8px] font-black text-primary uppercase tracking-widest">Upgrade License for more Reserve Slots</p>
-            </Link>
-          )}
         </section>
 
         {selectingSlot && (
@@ -401,7 +382,7 @@ export default function SquadPage() {
                 const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil).getTime() > now;
                 return (
                   <Card key={hero.id} className={cn("glass-card border-white/10 overflow-hidden cursor-pointer", (liveAge.numeric < 18 || onAuction) && "opacity-60 grayscale cursor-not-allowed")} onClick={() => hero.onTransferUntil && new Date(hero.onTransferUntil).getTime() > now ? null : handleHeroAssign(hero)}>
-                    <CardContent className="p-2 flex items-center gap-3"><div className="w-10 h-10 rounded-xl overflow-hidden bg-muted"><img src={hero.image} alt="" className="w-full h-full object-cover" /></div><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><h4 className="font-bold text-[11px] truncate">{hero.name}</h4><span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span></div><div className="flex items-center gap-3 mt-0.5"><span className="text-[9px] font-bold text-accent flex items-center gap-1"><Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}</span><span className={cn("text-[8px] font-black uppercase tracking-tighter", liveAge.numeric < 18 ? "text-red-400" : "text-muted-foreground")}>{liveAge.display} {t.profile.years}</span>{onAuction && <Badge className="bg-yellow-500/20 text-yellow-500 text-[6px] h-3 px-1 border-none font-black uppercase">AUCTION</Badge>}</div></div><div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-3 h-3" /></div></CardContent>
+                    <CardContent className="p-2 flex items-center gap-3"><div className="w-10 h-10 rounded-xl overflow-hidden bg-muted"><img src={hero.image} alt="" className="w-full h-full object-cover" /></div><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><h4 className="font-bold text-[11px] truncate">{hero.name}</h4><span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span></div><div className="flex items-center gap-3 mt-0.5"><span className="text-[9px] font-bold text-accent flex items-center gap-1"><Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}</span><span className={cn("text-[8px] font-black uppercase tracking-tighter", liveAge.numeric < 18 ? "text-red-400" : "text-muted-foreground")}>{liveAge.display} {t.profile.years}</span></div></div><div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-3 h-3" /></div></CardContent>
                   </Card>
                 );
               })}
