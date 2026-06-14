@@ -60,6 +60,7 @@ const YouthTransferCard = memo(({
   const [showDossier, setShowDossier] = useState(false);
   const [bidPercent, setBidPercent] = useState(5);
   const [isProcessing, setIsProcessing] = useState(false);
+  const { displayName } = useGameState();
 
   const isLeading = agent.highestBidderId === user?.uid;
   const isOwner = agent.sellerId === user?.uid;
@@ -123,62 +124,55 @@ const YouthTransferCard = memo(({
         isOwner && "border-blue-500/40 bg-blue-500/5"
       )}>
         <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-4">
              <div className="flex items-center gap-1.5 text-accent">
                <Timer className="w-3.5 h-3.5 animate-pulse" />
                <span className="text-[10px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
              </div>
-             <div className="flex gap-1.5">
-               {isOwner && <Badge className="bg-blue-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR LOT'}</Badge>}
-             </div>
+             {isOwner && <Badge className="bg-blue-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR LOT'}</Badge>}
           </div>
 
-          <div className="flex items-center gap-4 mb-4">
+          <div className="flex items-center gap-5">
             <div className="relative shrink-0">
-              <div className="w-20 h-20 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 relative">
+              <div className="w-20 h-20 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 relative shadow-lg">
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
-              </div>
-              <div className="absolute -bottom-1 -right-1 bg-background rounded-md p-1 border border-white/10 shadow-xl z-10 flex items-center justify-center">
-                <span className="text-base leading-none">{agent.heroData.country?.flag}</span>
+                <div className="absolute -bottom-1 -right-1 bg-background rounded-md p-1 border border-white/10 shadow-xl z-10 flex items-center justify-center">
+                  <span className="text-base leading-none">{agent.heroData.country?.flag}</span>
+                </div>
               </div>
             </div>
             
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-base font-bold uppercase truncate text-white tracking-tight leading-tight">{agent.heroData?.name}</h3>
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-base font-bold uppercase truncate text-white tracking-tight leading-none">{agent.heroData?.name}</h3>
                 <Badge variant="outline" className="text-[8px] h-4 py-0 border-white/10 uppercase font-black text-accent/80">
                   {rolesRu[agent.heroData.role] || agent.heroData.role}
                 </Badge>
               </div>
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                 <div className="flex flex-col min-h-[96px] justify-start">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
-                   <div className="flex items-center">
-                    {renderStars(maxTalentValue)}
-                   </div>
-                 </div>
-                 <div className="flex flex-col border-l border-white/5 pl-3">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
-                   <p className="text-[11px] font-bold text-white leading-none mt-0.5">{liveAge.display}</p>
-                 </div>
+              
+              <div className="flex flex-col min-h-[110px] justify-center">
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
+                <div className="flex items-center">
+                  {renderStars(maxTalentValue)}
+                </div>
               </div>
             </div>
             
             <div className="text-right flex flex-col items-end shrink-0 justify-center">
-              <p className="text-[7px] font-black text-accent uppercase tracking-tighter leading-none mb-0.5">{language === 'ru' ? 'ОБЩ' : 'ОБЩ'}</p>
-              <p className="text-3xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
+              <p className="text-[8px] font-black text-accent uppercase tracking-widest leading-none mb-1">ОБЩ</p>
+              <p className="text-4xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
             </div>
           </div>
           
-          <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
+          <div className="flex items-center justify-between gap-4 pt-5 mt-2 border-t border-white/5">
             <div className="flex flex-col flex-1 min-w-0">
               <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
               <div className="flex items-center justify-between pr-2">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">€{agent.currentBid?.toLocaleString()}</p>
                 </div>
                 <div className="text-right flex flex-col justify-center">
-                   <p className="text-lg font-headline font-bold text-primary uppercase truncate max-w-[150px]">
+                   <p className="text-lg font-headline font-bold text-primary uppercase truncate max-w-[160px]">
                      {agent.highestBidderName || (language === 'ru' ? 'НЕТ СТАВОК' : 'NO BIDS')}
                    </p>
                 </div>
@@ -186,7 +180,7 @@ const YouthTransferCard = memo(({
             </div>
             <Button 
               className={cn(
-                "h-11 font-black text-[10px] px-6 rounded-xl uppercase tracking-widest transition-all shrink-0", 
+                "h-12 font-black text-[10px] px-6 rounded-xl uppercase tracking-widest transition-all shrink-0", 
                 isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
                 (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-xl active:scale-95")
               )} 
@@ -200,9 +194,9 @@ const YouthTransferCard = memo(({
       </Card>
 
       <Dialog open={showDossier} onOpenChange={setShowDossier}>
-        <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden shadow-2xl h-[90vh] flex flex-col">
-          <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 relative shrink-0">
-            <Button variant="ghost" size="icon" className="absolute left-4 top-4 rounded-full" onClick={() => setShowDossier(false)}><X className="w-5 h-5" /></Button>
+        <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden shadow-2xl h-full flex flex-col">
+          <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 relative shrink-0 text-center">
+            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setShowDossier(false)}><X className="w-5 h-5" /></Button>
             <div className="relative mx-auto w-24 h-24 mb-4">
               <div className="w-full h-full rounded-2xl overflow-hidden border-2 border-primary/50 shadow-2xl bg-secondary/50">
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
@@ -240,27 +234,29 @@ const YouthTransferCard = memo(({
                 <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
               </h3>
               <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
                    <span className="text-[10px] font-bold">{liveAge.display} {t.yrs}</span>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[96px]">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.talent}</span>
-                   {renderStars(maxTalentValue)}
+                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5 min-h-[96px]">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
+                   <div className="flex items-center">
+                    {renderStars(maxTalentValue)}
+                   </div>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Salary</span>
                    <span className="text-[10px] font-bold text-primary">€{(agent.heroData.salary || 0).toLocaleString()}</span>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
                    <span className="text-[10px] font-bold uppercase">{rolesRu[agent.heroData.role] || agent.heroData.role}</span>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Страна' : 'Country'}</span>
                    <span className="text-[10px] font-bold">{agent.heroData.country?.flag} {agent.heroData.country?.code}</span>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Травма' : 'Injury'}</span>
                    <span className={cn("text-[9px] font-bold uppercase", agent.heroData.isInjured ? "text-red-400" : "text-green-400")}>
                      {agent.heroData.isInjured ? (language === 'ru' ? 'Есть' : 'Yes') : (language === 'ru' ? 'Нет' : 'No')}
@@ -271,7 +267,7 @@ const YouthTransferCard = memo(({
 
             <section>
               <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Activity className="w-3.5 h-3.5" /> {language === 'ru' ? 'Навыки' : 'Skills'}
+                <Activity className="w-3.5 h-3.5" /> {language === 'ru' ? 'НАВЫКИ' : 'SKILLS'}
               </h3>
               <div className="space-y-3">
                 {STAT_KEYS.map((key) => { 
@@ -280,16 +276,16 @@ const YouthTransferCard = memo(({
                   const talentLimit = normTalent((agent.heroData.proTalents as any)[key] || 10);
 
                   return (
-                    <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
+                    <div key={`skill-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
                       <div className="flex justify-between items-center px-0.5">
                         <div className="flex items-center gap-2">
-                          <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
+                          <Icon className="w-4 h-4 text-muted-foreground/60" />
                           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{proStatsLabels[key]}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
-                          <span className="text-[8px] text-muted-foreground/50">/</span>
-                          <span className="text-[9px] font-mono font-bold text-primary/70">{talentLimit}</span>
+                          <span className="text-xs font-mono font-bold text-white">{displayValue}</span>
+                          <span className="text-[10px] text-muted-foreground/50">/</span>
+                          <span className="text-xs font-mono font-bold text-primary/70">{talentLimit}</span>
                         </div>
                       </div>
                       <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
@@ -301,21 +297,21 @@ const YouthTransferCard = memo(({
 
             <section>
               <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Zap className="w-3.5 h-3.5" /> {language === 'ru' ? 'Таланты' : 'Talents'}
+                <Zap className="w-3.5 h-3.5" /> {language === 'ru' ? 'ТАЛАНТЫ' : 'TALENTS'}
               </h3>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {STAT_KEYS.map((key) => {
                   const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
                   const Icon = icons[key] || Info;
                   return (
-                    <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[96px]">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <Icon className="w-3.5 h-3.5 text-accent/50 shrink-0" />
-                        <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
+                    <div key={`talent-${key}`} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-background/40 min-h-[110px]">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <Icon className="w-4 h-4 text-accent/50 shrink-0" />
+                        <span className="text-[10px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0 h-24">
+                      <div className="flex items-center gap-4 shrink-0 h-24">
                         {renderStars(talentVal)}
-                        <span className="text-[11px] font-mono font-bold text-accent min-w-[20px] text-right">{talentVal}</span>
+                        <span className="text-[12px] font-mono font-bold text-accent min-w-[25px] text-right">{talentVal}</span>
                       </div>
                     </div>
                   );
@@ -327,14 +323,14 @@ const YouthTransferCard = memo(({
               <h3 className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                 <Gem className="w-3.5 h-3.5" /> {t.priceTitle}
               </h3>
-              <div className="bg-secondary/30 p-4 rounded-xl border border-white/5 space-y-4">
+              <div className="bg-secondary/30 p-6 rounded-xl border border-white/5 space-y-4">
                  <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ТЕКУЩАЯ ЦЕНА' : 'CURRENT PRICE'}</p>
-                      <p className="text-xl font-headline font-bold text-white italic">€ {agent.currentBid?.toLocaleString()}</p>
+                      <p className="text-[9px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ТЕКУЩАЯ ЦЕНА' : 'CURRENT PRICE'}</p>
+                      <p className="text-2xl font-headline font-bold text-white italic">€ {agent.currentBid?.toLocaleString()}</p>
                     </div>
                     <div className="text-right flex flex-col justify-center">
-                       <p className="text-xl font-headline font-bold text-primary uppercase truncate max-w-[200px]">
+                       <p className="text-2xl font-headline font-bold text-primary uppercase truncate max-w-[240px]">
                          {agent.highestBidderName || (language === 'ru' ? 'Нет ставок' : 'No bids')}
                        </p>
                     </div>

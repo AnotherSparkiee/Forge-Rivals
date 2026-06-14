@@ -55,7 +55,6 @@ const normTalent = (val: any) => {
 
 /**
  * Рендерит индикатор таланта.
- * МАКСИМАЛЬНО УВЕЛИЧЕННЫЕ РАЗМЕРЫ ДЛЯ ВСЕХ БЛОКОВ
  */
 export const renderStars = (talent: number) => {
   const numericTalent = normTalent(talent);
@@ -162,8 +161,8 @@ export const TransferHeroCard = memo(({
     priceTitle: language === 'ru' ? "ЦЕНА ИГРОКА" : "UNIT PRICE",
     age: language === 'ru' ? "Возраст" : "Age",
     yrs: language === 'ru' ? "лет" : "yrs",
-    skills: language === 'ru' ? "Навыки" : "SKILLS",
-    talents: language === 'ru' ? "Таланты" : "TALENTS",
+    skills: language === 'ru' ? "НАВЫКИ" : "SKILLS",
+    talents: language === 'ru' ? "ТАЛАНТЫ" : "TALENTS",
     talent: language === 'ru' ? "Талант" : "Talent",
     salary: language === 'ru' ? "Зарплата" : "Salary"
   };
@@ -180,63 +179,56 @@ export const TransferHeroCard = memo(({
         )}
       >
         <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-4">
              <div className="flex items-center gap-1.5 text-accent">
                <Timer className="w-3.5 h-3.5 animate-pulse" />
                <span className="text-[10px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
              </div>
-             <div className="flex gap-1.5">
-               {isOwner && <Badge className="bg-primary text-primary-foreground text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ВАШ ЛОТ' : 'YOUR LOT'}</Badge>}
-             </div>
+             {isOwner && <Badge className="bg-primary text-primary-foreground text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ВАШ ЛОТ' : 'YOUR LOT'}</Badge>}
           </div>
 
-          <div className="flex items-center gap-4 mb-4">
+          <div className="flex items-center gap-5">
             <div className="relative shrink-0">
-              <div className="w-20 h-20 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 relative">
+              <div className="w-20 h-20 rounded-2xl overflow-hidden bg-secondary/30 border border-white/10 relative shadow-lg">
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
-                <div className="absolute -bottom-1 -right-1 bg-background rounded-md p-0.5 border border-white/10 shadow-xl z-10 flex items-center justify-center">
+                <div className="absolute -bottom-1 -right-1 bg-background rounded-md p-1 border border-white/10 shadow-xl z-10 flex items-center justify-center">
                   <span className="text-xs leading-none">{agent.heroData.country?.flag}</span>
                 </div>
               </div>
             </div>
             
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-base font-bold uppercase truncate text-white tracking-tight leading-tight">{agent.heroData?.name}</h3>
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-base font-bold uppercase truncate text-white tracking-tight leading-none">{agent.heroData?.name}</h3>
                 <Badge variant="outline" className="text-[8px] h-4 py-0 border-white/10 uppercase font-black text-primary/80">
                   {rolesRu[agent.heroData.role] || agent.heroData.role}
                 </Badge>
               </div>
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                 <div className="flex flex-col min-h-[96px] justify-start">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
-                   <div className="flex items-center">
-                     {renderStars(maxTalentValue)}
-                   </div>
-                 </div>
-                 <div className="flex flex-col border-l border-white/5 pl-3">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
-                   <p className="text-sm font-bold text-white leading-none mt-0.5">{liveAge.display}</p>
-                 </div>
+              
+              <div className="flex flex-col min-h-[110px] justify-center">
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
+                <div className="flex items-center">
+                  {renderStars(maxTalentValue)}
+                </div>
               </div>
             </div>
             
             <div className="text-right flex flex-col items-end shrink-0 justify-center">
-              <p className="text-[7px] font-black text-primary uppercase tracking-tighter leading-none mb-0.5">{language === 'ru' ? 'ОБЩ' : 'ОБЩ'}</p>
-              <p className="text-3xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
+              <p className="text-[8px] font-black text-primary uppercase tracking-widest leading-none mb-1">ОБЩ</p>
+              <p className="text-4xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
+          <div className="flex items-center justify-between gap-4 pt-5 mt-2 border-t border-white/5">
             <div className="flex flex-col gap-1.5 min-w-0 flex-1">
               <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
               <div className="flex items-center justify-between pr-2">
-                <div className="flex items-center gap-1.5">
-                  {isDiamond ? <Gem className="w-4 h-4 text-blue-400" /> : <span className="text-white font-black">€</span>}
+                <div className="flex items-center gap-2">
+                  {isDiamond ? <Gem className="w-4 h-4 text-blue-400" /> : <span className="text-white font-black text-lg">€</span>}
                   <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">{agent.currentBid?.toLocaleString()}</p>
                 </div>
                 <div className="text-right flex flex-col justify-center">
-                  <p className="text-lg font-headline font-bold text-primary uppercase truncate max-w-[150px]">
+                  <p className="text-lg font-headline font-bold text-primary uppercase truncate max-w-[160px]">
                     {agent.highestBidderName || (language === 'ru' ? 'НЕТ СТАВОК' : 'NO BIDS')}
                   </p>
                 </div>
@@ -244,7 +236,7 @@ export const TransferHeroCard = memo(({
             </div>
             <Button 
               className={cn(
-                "h-11 font-black text-[10px] px-6 rounded-xl uppercase tracking-[0.1em] transition-all shrink-0", 
+                "h-12 font-black text-[10px] px-7 rounded-xl uppercase tracking-widest transition-all shrink-0", 
                 isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
                 (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-xl active:scale-95")
               )} 
@@ -264,7 +256,7 @@ export const TransferHeroCard = memo(({
             <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
               <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setShowDossier(false)}><X className="w-5 h-5" /></Button>
               <div className="relative">
-                <div className={cn("w-24 h-24 rounded-2xl overflow-hidden border-2 shadow-2xl bg-secondary/50", agent.isPro ? "border-yellow-500" : "border-primary/50")}>
+                <div className={cn("w-28 h-28 rounded-2xl overflow-hidden border-2 shadow-2xl bg-secondary/50", agent.isPro ? "border-yellow-500" : "border-primary/50")}>
                   <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
                 </div>
                 <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-background border border-white/10 flex items-center justify-center shadow-xl">
@@ -302,29 +294,29 @@ export const TransferHeroCard = memo(({
                   <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.yrs}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[96px]">
+                  <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5 min-h-[96px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
                      <div className="flex items-center">
                        {renderStars(maxTalentValue)}
                      </div>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.salary}</span>
                      <span className="text-[10px] font-bold text-primary">€{(agent.heroData.salary || 0).toLocaleString()}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
                      <span className="text-[10px] font-bold uppercase">{rolesRu[agent.heroData.role] || agent.heroData.role}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Страна' : 'Country'}</span>
                      <span className="text-[10px] font-bold">{agent.heroData.country?.flag} {agent.heroData.country?.code}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Травма' : 'Injury'}</span>
                      <span className={cn("text-[9px] font-bold uppercase", agent.heroData.isInjured ? "text-red-400" : "text-green-400")}>
                        {agent.heroData.isInjured ? (language === 'ru' ? 'Есть' : 'Yes') : (language === 'ru' ? 'Нет' : 'No')}
@@ -344,16 +336,16 @@ export const TransferHeroCard = memo(({
                     const talentLimit = normTalent((agent.heroData.proTalents as any)[key] || 10);
 
                     return (
-                      <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
+                      <div key={`skill-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
                         <div className="flex justify-between items-center px-0.5">
                           <div className="flex items-center gap-2">
-                            <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
+                            <Icon className="w-4 h-4 text-muted-foreground/60" />
                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{proStatsLabels[key]}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                             <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
-                             <span className="text-[8px] text-muted-foreground/50">/</span>
-                             <span className="text-[9px] font-mono font-bold text-primary/70">{talentLimit}</span>
+                             <span className="text-xs font-mono font-bold text-white">{displayValue}</span>
+                             <span className="text-[10px] text-muted-foreground/50">/</span>
+                             <span className="text-xs font-mono font-bold text-primary/70">{talentLimit}</span>
                           </div>
                         </div>
                         <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
@@ -367,19 +359,19 @@ export const TransferHeroCard = memo(({
                 <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Zap className="w-3.5 h-3.5" /> {language === 'ru' ? 'Таланты' : 'Talents'}
                 </h3>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {STAT_KEYS.map((key) => {
                     const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[96px]">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <Icon className="w-3.5 h-3.5 text-accent/50 shrink-0" />
-                          <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
+                      <div key={`talent-${key}`} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-background/40 min-h-[110px]">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <Icon className="w-4 h-4 text-accent/50 shrink-0" />
+                          <span className="text-[10px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0 h-24">
+                        <div className="flex items-center gap-4 shrink-0 h-24">
                           {renderStars(talentVal)}
-                          <span className="text-[11px] font-mono font-bold text-accent min-w-[20px] text-right">{talentVal}</span>
+                          <span className="text-[12px] font-mono font-bold text-accent min-w-[25px] text-right">{talentVal}</span>
                         </div>
                       </div>
                     );
@@ -391,14 +383,14 @@ export const TransferHeroCard = memo(({
                 <h3 className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Gem className="w-3.5 h-3.5" /> {t.priceTitle}
                 </h3>
-                <div className="bg-secondary/30 p-4 rounded-xl border border-white/5 space-y-4">
+                <div className="bg-secondary/30 p-6 rounded-xl border border-white/5 space-y-4">
                    <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ТЕКУЩАЯ ЦЕНА' : 'CURRENT BID'}</p>
-                        <p className="text-xl font-headline font-bold text-white italic">€ {agent.currentBid?.toLocaleString()}</p>
+                        <p className="text-[9px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ТЕКУЩАЯ ЦЕНА' : 'CURRENT BID'}</p>
+                        <p className="text-2xl font-headline font-bold text-white italic">€ {agent.currentBid?.toLocaleString()}</p>
                       </div>
                       <div className="text-right flex flex-col justify-center">
-                         <p className="text-xl font-headline font-bold text-primary uppercase truncate max-w-[200px]">
+                         <p className="text-2xl font-headline font-bold text-primary uppercase truncate max-w-[240px]">
                            {agent.highestBidderName || (language === 'ru' ? 'Нет ставок' : 'No bids')}
                          </p>
                       </div>
@@ -406,11 +398,11 @@ export const TransferHeroCard = memo(({
                 </div>
               </section>
 
-              <div className="pt-4 pb-12 flex flex-col gap-2">
-                 <Button className="w-full h-14 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all" onClick={() => { setShowDossier(false); if (!isLeading && !isOwner) setShowBidModal(true); }} disabled={isOwner}>
+              <div className="pt-6 pb-16 flex flex-col gap-3">
+                 <Button className="w-full h-16 hero-gradient font-black text-sm uppercase tracking-widest shadow-2xl active:scale-95 transition-all" onClick={() => { setShowDossier(false); if (!isLeading && !isOwner) setShowBidModal(true); }} disabled={isOwner}>
                    {isOwner ? (language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT') : (language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID')}
                  </Button>
-                 <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setShowDossier(false)}>
+                 <Button variant="ghost" className="w-full h-12 text-[10px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setShowDossier(false)}>
                    {language === 'ru' ? 'ВЕРНУТЬСЯ НА РЫНОК' : 'BACK TO MARKET'}
                  </Button>
               </div>
