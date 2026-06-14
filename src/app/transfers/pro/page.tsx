@@ -48,14 +48,13 @@ export default function ProTransfersPage() {
 
     const checkAndDropLegends = async () => {
       const today = getMoscowDateString();
-      // ИСПОЛЬЗУЕМ НОВЫЙ ID ДЛЯ ПРИНУДИТЕЛЬНОГО ПЕРЕСОЗДАНИЯ С ЦЕЛЫМИ ЧИСЛАМИ (v61_fixed)
-      const vtuneId = `sys_legend_vtune_v61_fixed_${today}`;
+      // FORCE REFRESH WITH NEW ID sys_vtune_v100_final_release
+      const vtuneId = `sys_vtune_v100_final_release_${today}`;
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       const vtuneSnap = await getDoc(vtuneRef);
 
       if (!vtuneSnap.exists()) {
         const hero = generateVtuneHero(today);
-        // АУКЦИОН ЗАВЕРШАЕТСЯ ЧЕРЕЗ 48 ЧАСОВ В 00:00
         const mskNow = getMoscowTime();
         const expiry = new Date(mskNow);
         expiry.setDate(expiry.getDate() + 2);

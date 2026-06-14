@@ -135,15 +135,6 @@ function getRandomStat(min: number, max: number, rng?: SeededRandom) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function getRandomTalent(rng?: SeededRandom, isPro: boolean = false) {
-  if (isPro) {
-    if (rng) return rng.range(51, 65);
-    return Math.floor(Math.random() * 15) + 51;
-  }
-  if (rng) return rng.range(25, 50);
-  return Math.floor(Math.random() * 26) + 25;
-}
-
 export function generateVtuneHero(seed?: string): Hero {
   const rng = new SeededRandom(seed || Date.now());
   const age = (rng.range(183, 189) / 10);
@@ -170,16 +161,16 @@ export function generateVtuneHero(seed?: string): Hero {
     isInjured: false,
     isPro: true,
     proStats: {
-      lastHitting: rng.range(6, 7),
-      mapAwareness: rng.range(4, 6),
-      positioning: rng.range(5, 7),
-      reflexes: rng.range(6, 7),
-      manaManagement: rng.range(3, 5),
-      objectiveControl: rng.range(5, 6),
-      communication: rng.range(4, 6),
-      tiltResistance: rng.range(5, 7),
-      versatility: rng.range(4, 6),
-      ganking: rng.range(5, 6),
+      lastHitting: 7,
+      mapAwareness: 5,
+      positioning: 6,
+      reflexes: 7,
+      manaManagement: 4,
+      objectiveControl: 6,
+      communication: 5,
+      tiltResistance: 6,
+      versatility: 5,
+      ganking: 6,
     },
     proTalents: {
       lastHitting: 61, 
@@ -242,16 +233,16 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
   };
 
   const proTalents = {
-    lastHitting: getRandomTalent(rng, isPro),
-    mapAwareness: getRandomTalent(rng, isPro),
-    positioning: getRandomTalent(rng, isPro),
-    reflexes: getRandomTalent(rng, isPro),
-    manaManagement: getRandomTalent(rng, isPro),
-    objectiveControl: getRandomTalent(rng, isPro),
-    communication: getRandomTalent(rng, isPro),
-    tiltResistance: getRandomTalent(rng, isPro),
-    versatility: getRandomTalent(rng, isPro),
-    ganking: getRandomTalent(rng, isPro),
+    lastHitting: rng ? rng.range(25, 45) : 30,
+    mapAwareness: rng ? rng.range(25, 45) : 30,
+    positioning: rng ? rng.range(25, 45) : 30,
+    reflexes: rng ? rng.range(25, 45) : 30,
+    manaManagement: rng ? rng.range(25, 45) : 30,
+    objectiveControl: rng ? rng.range(25, 45) : 30,
+    communication: rng ? rng.range(25, 45) : 30,
+    tiltResistance: rng ? rng.range(25, 45) : 30,
+    versatility: rng ? rng.range(25, 45) : 30,
+    ganking: rng ? rng.range(25, 45) : 30,
   };
 
   const startAge = getRandomStat(isStarter ? 17 : 18, isStarter ? 28 : 32, rng);
