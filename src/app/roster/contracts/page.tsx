@@ -11,7 +11,7 @@ import {
   ChevronLeft, Scroll, User, Star, Trash2, 
   Coins, Gem, HeartPulse, ShieldAlert, Award,
   Info, TrendingUp, Eye, Target, Brain, Map, Users,
-  Zap, Sword, Crosshair, Activity, ShoppingCart, Loader2, Clock, UserCog, Sparkles
+  Zap, Sword, Crosshair, Activity, ShoppingCart, Loader2, Clock, UserCog, Sparkles, X, ShieldCheck, Timer
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
@@ -56,7 +56,7 @@ export default function ContractsPage() {
   const t = {
     title: language === 'ru' ? "КОНТРАКТЫ" : "CONTRACTS",
     subtitle: language === 'ru' ? "Администрирование состава" : "Squad administration",
-    sell: language === 'ru' ? "ПРОДАТЬ" : "SELL",
+    sell: language === 'ru' ? "ПРОДАЖА" : "SELL",
     dismiss: language === 'ru' ? "УВОЛИТЬ" : "DISMISS",
     onTransfer: language === 'ru' ? "ВЫСТАВИТЬ НА РЫНОК" : "PUT ON TRANSFER",
     recoverEuro: language === 'ru' ? "СНЯТЬ УСТАЛОСТЬ (ЕВРО)" : "REMOVE FATIGUE (EURO)",
@@ -67,8 +67,8 @@ export default function ContractsPage() {
     tooYoung: language === 'ru' ? "Игрок слишком молод! Мин. возраст — 18.0" : "Player is too young! Min age — 18.0",
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     years: language === 'ru' ? "лет" : "yrs",
-    skills: language === 'ru' ? "Текущие навыки" : "Current Skills",
-    talents: language === 'ru' ? "Пределы таланта" : "Talent Limits",
+    skills: language === 'ru' ? "ТЕКУЩИЕ НАВЫКИ" : "CURRENT SKILLS",
+    talents: language === 'ru' ? "ПРЕДЕЛЫ ТАЛАНТА" : "TALENT LIMITS",
     transferDesc: language === 'ru' ? "Игрок будет выставлен на аукцион на 12 часов." : "The player will be listed for 12 hours.",
     close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
     healthy: language === 'ru' ? "Здоров" : "Healthy",
@@ -76,6 +76,7 @@ export default function ContractsPage() {
     owner: language === 'ru' ? "ВЛАДЕЛЕЦ" : "OWNER",
     sale: language === 'ru' ? "ПРОДАЖА" : "SALE",
     priceTitle: language === 'ru' ? "ЦЕНА ИГРОКА" : "UNIT PRICE",
+    talent: language === 'ru' ? "Талант" : "Talent",
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
       mapAwareness: language === 'ru' ? "Контроль карты" : "Map Awareness",
@@ -99,34 +100,6 @@ export default function ContractsPage() {
   const handleAction = async (action: string) => {
     if (!profileHero) return;
     switch (action) {
-      case 'onTransfer':
-        const liveAge = calculateLiveAge(profileHero.baseAge, profileHero.hiredAt);
-        if (liveAge.numeric < 18) { toast({ variant: "destructive", title: t.tooYoung }); return; }
-        if (!user || !profile) return;
-        setIsTransferring(true);
-        try {
-          const today = getMoscowDateString();
-          const mskNow = getMoscowTime();
-          const expiryTime = new Date(mskNow.getTime() + 12 * 60 * 60 * 1000);
-          const startPrice = (profileHero.overallRating * 15000) + 100000;
-          const agentId = `user_${user.uid}_${Date.now()}`;
-          const agentData = { id: agentId, heroData: JSON.parse(JSON.stringify(profileHero)), currentBid: startPrice, startingPrice: startPrice, highestBidderId: null, highestBidderName: null, bidders: [], sellerId: user.uid, sellerName: profile.displayName || "Manager", expiresAt: expiryTime.toISOString(), dropDate: today, dropTime: mskNow.toISOString() };
-          await setDoc(doc(db, 'market_v7', agentId), agentData);
-          updateHero(profileHero.id, { onTransferUntil: expiryTime.toISOString(), transferMarketId: agentId });
-          toast({ title: language === 'ru' ? "Игрок выставлен на трансфер" : "Player Listed for Transfer" });
-          setProfileHero(null);
-        } finally { setIsTransferring(false); }
-        break;
-      case 'sell':
-        removeHero(profileHero.id, 50000);
-        toast({ title: language === 'ru' ? "Игрок продан" : "Hero Sold" });
-        setProfileHero(null);
-        break;
-      case 'dismiss':
-        removeHero(profileHero.id, 0);
-        toast({ title: language === 'ru' ? "Контракт расторгнут" : "Contract Terminated" });
-        setProfileHero(null);
-        break;
       case 'recoverEuro':
         if (credits >= 5000) {
           updateHero(profileHero.id, { fatigue: Math.max(0, profileHero.fatigue - 25) }, 5000, 0);
@@ -149,166 +122,167 @@ export default function ContractsPage() {
     const onAuction = profileHero.onTransferUntil && new Date(profileHero.onTransferUntil).getTime() > now;
 
     return (
-      <div className="min-h-screen bg-background text-foreground animate-in fade-in slide-in-from-right-4 duration-300 overflow-y-auto scrollbar-hide pb-6">
-        <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
-          <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full" onClick={() => setProfileHero(null)}><ChevronLeft className="w-6 h-6" /></Button>
-          <div className="relative">
-            <div className={cn("w-24 h-24 rounded-2xl overflow-hidden border-2 shadow-2xl bg-secondary/50", profileHero.isPro ? "border-yellow-500" : "border-primary/50")}>
-              <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
+      <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-300">
+        <div className="max-w-md mx-auto min-h-screen flex flex-col pb-10">
+          <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
+            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setProfileHero(null)}><X className="w-5 h-5" /></Button>
+            <div className="relative">
+              <div className={cn("w-24 h-24 rounded-2xl overflow-hidden border-2 shadow-2xl bg-secondary/50", profileHero.isPro ? "border-yellow-500" : "border-primary/50")}>
+                <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{profileHero.country?.flag}</span></div>
             </div>
-            <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{profileHero.country?.flag}</span></div>
-          </div>
-          <div className="space-y-1">
-            <h1 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h1>
-            <div className="flex items-center justify-center gap-2">
-              <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
-              <div className="flex items-center ml-2">{renderStars(maxTalentValue)}</div>
+            <div className="space-y-1">
+              <h1 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h1>
+              <div className="flex items-center justify-center gap-2">
+                <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
+                {profileHero.isPro && <Badge className="bg-yellow-500 text-black text-[10px] font-black uppercase px-2 h-5">PRO UNIT</Badge>}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="p-4 space-y-8">
-            {/* БЛОК: ВЛАДЕЛЕЦ И ПРОДАЖА */}
-            <section className="grid grid-cols-2 gap-3">
-              <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
-                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.owner}</p>
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-3 h-3 text-primary" />
-                  <p className="text-[10px] font-bold uppercase truncate">{displayName || "Manager"}</p>
+          <div className="p-4 space-y-8">
+              {/* БЛОК: ВЛАДЕЛЕЦ И ПРОДАЖА */}
+              <section className="grid grid-cols-2 gap-3">
+                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
+                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.owner}</p>
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-3 h-3 text-primary" />
+                    <p className="text-[10px] font-bold uppercase truncate">{displayName || "Manager"}</p>
+                  </div>
                 </div>
-              </div>
-              <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
-                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.sale}</p>
-                <div className="flex items-center gap-2">
-                  {onAuction ? (
-                    <>
-                      <Timer className="w-3 h-3 text-accent animate-pulse" />
-                      <p className="text-[10px] font-mono font-bold text-accent">
-                        {new Date(profileHero.onTransferUntil!).toLocaleTimeString()}
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <ShieldAlert className="w-3 h-3 text-muted-foreground opacity-30" />
-                      <p className="text-[10px] font-bold text-muted-foreground opacity-50 uppercase tracking-tighter">OFF MARKET</p>
-                    </>
-                  )}
+                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
+                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.sale}</p>
+                  <div className="flex items-center gap-2">
+                    {onAuction ? (
+                      <>
+                        <Timer className="w-3 h-3 text-accent animate-pulse" />
+                        <p className="text-[10px] font-mono font-bold text-accent">
+                          {new Date(profileHero.onTransferUntil!).toLocaleTimeString()}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldAlert className="w-3 h-3 text-muted-foreground opacity-30" />
+                        <p className="text-[10px] font-bold text-muted-foreground opacity-50 uppercase tracking-tighter">OFF MARKET</p>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
 
-            {/* БЛОК: ОБЩИЕ ДАННЫЕ */}
-            <section className="space-y-3">
-              <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.profile.age}</span>
-                   <span className="text-[10px] font-bold">{liveAge.display} {t.profile.years}</span>
+              {/* БЛОК: ОБЩИЕ ДАННЫЕ */}
+              <section className="space-y-3">
+                <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                  <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</span>
+                     <span className="text-[10px] font-bold">{liveAge.display} {t.years}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.talent}</span>
+                     {renderStars(maxTalentValue)}
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.salary}</span>
+                     <span className="text-[10px] font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">Role</span>
+                     <span className="text-[10px] font-bold uppercase">{profileHero.role}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">Country</span>
+                     <span className="text-[10px] font-bold">{profileHero.country?.flag} {profileHero.country?.code}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">Injury</span>
+                     <span className={cn("text-[9px] font-bold uppercase", profileHero.isInjured ? "text-red-400" : "text-green-400")}>
+                       {profileHero.isInjured ? (language === 'ru' ? 'Есть' : 'Yes') : (language === 'ru' ? 'Нет' : 'No')}
+                     </span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">OVR</span>
-                   <span className="text-[10px] font-bold text-accent">{profileHero.overallRating}</span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.profile.salary}</span>
-                   <span className="text-[10px] font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
-                   <span className="text-[10px] font-bold uppercase">{profileHero.role}</span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Страна' : 'Country'}</span>
-                   <span className="text-[10px] font-bold">{profileHero.country?.flag} {profileHero.country?.code}</span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Травма' : 'Injury'}</span>
-                   <span className={cn("text-[9px] font-bold uppercase", profileHero.isInjured ? "text-red-400" : "text-green-400")}>
-                     {profileHero.isInjured ? (language === 'ru' ? 'Есть' : 'Yes') : (language === 'ru' ? 'Нет' : 'No')}
-                   </span>
-                </div>
-              </div>
-            </section>
+              </section>
 
-            <section className="space-y-3">
-              <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Scroll className="w-3.5 h-3.5" /> CONTRACT ACTIONS</h3>
-              <div className="grid grid-cols-1 gap-2">
-                <Button variant="outline" className="justify-start h-12 border-white/5 bg-secondary/20" onClick={() => handleAction('recoverEuro')}><Coins className="w-4 h-4 mr-3 text-yellow-500" /><div className="text-left"><p className="text-[9px] font-bold uppercase">{t.recoverEuro}</p><p className="text-[8px] text-muted-foreground">-25% Fatigue | 5,000 €</p></div></Button>
-                <Button variant="outline" className="justify-start h-12 border-white/5 bg-secondary/20" onClick={() => handleAction('boostForm')}><Activity className="w-4 h-4 mr-3 text-primary" /><div className="text-left"><p className="text-[9px] font-bold uppercase">{t.boostForm}</p><p className="text-[8px] text-muted-foreground">+15% Form | 10,000 €</p></div></Button>
-                <Button variant="outline" className="w-full h-12 border-primary/20 bg-primary/10 text-primary" onClick={() => handleAction('onTransfer')} disabled={isTransferring || onAuction}><ShoppingCart className="w-4 h-4 mr-3" /><span className="text-[9px] font-black uppercase">{onAuction ? 'AUCTION ACTIVE' : t.onTransfer}</span></Button>
-              </div>
-            </section>
+              <section className="space-y-3">
+                <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Scroll className="w-3.5 h-3.5" /> CONTRACT ACTIONS</h3>
+                <div className="grid grid-cols-1 gap-2">
+                  <Button variant="outline" className="justify-start h-12 border-white/5 bg-secondary/20" onClick={() => handleAction('recoverEuro')}><Coins className="w-4 h-4 mr-3 text-yellow-500" /><div className="text-left"><p className="text-[9px] font-bold uppercase">{t.recoverEuro}</p><p className="text-[8px] text-muted-foreground">-25% Fatigue | 5,000 €</p></div></Button>
+                  <Button variant="outline" className="justify-start h-12 border-white/5 bg-secondary/20" onClick={() => handleAction('boostForm')}><Activity className="w-4 h-4 mr-3 text-primary" /><div className="text-left"><p className="text-[9px] font-bold uppercase">{t.boostForm}</p><p className="text-[8px] text-muted-foreground">+15% Form | 10,000 €</p></div></Button>
+                </div>
+              </section>
 
-            {/* БЛОК: ТЕКУЩИЕ НАВЫКИ */}
-            <section>
-              <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Activity className="w-3.5 h-3.5" /> {t.skills}
-              </h3>
-              <div className="space-y-3">
-                {STAT_KEYS.map((key) => { 
-                  const Icon = icons[key] || Info;
-                  const displayValue = Math.round(Number((profileHero.proStats as any)[key]));
-                  const talentLimit = normTalent((profileHero.proTalents as any)[key] || 10);
+              {/* БЛОК: ТЕКУЩИЕ НАВЫКИ */}
+              <section>
+                <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                  <Activity className="w-3.5 h-3.5" /> {t.skills}
+                </h3>
+                <div className="space-y-3">
+                  {STAT_KEYS.map((key) => { 
+                    const Icon = icons[key] || Info;
+                    const displayValue = Math.round(Number((profileHero.proStats as any)[key]));
+                    const talentLimit = normTalent((profileHero.proTalents as any)[key] || 10);
 
-                  return (
-                    <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
-                      <div className="flex justify-between items-center px-0.5">
-                        <div className="flex items-center gap-2">
-                          <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                    return (
+                      <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
+                        <div className="flex justify-between items-center px-0.5">
+                          <div className="flex items-center gap-2">
+                            <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
+                            <span className="text-[8px] text-muted-foreground/50">/</span>
+                            <span className="text-[9px] font-mono font-bold text-primary/70">{talentLimit}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
-                          <span className="text-[8px] text-muted-foreground/50">/</span>
-                          <span className="text-[9px] font-mono font-bold text-primary/70">{talentLimit}</span>
+                        <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
+                      </div>
+                    ); 
+                  })}
+                </div>
+              </section>
+
+              {/* БЛОК: ПРЕДЕЛЫ ТАЛАНТА */}
+              <section>
+                <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                  <Zap className="w-3.5 h-3.5" /> {t.talents}
+                </h3>
+                <div className="space-y-2">
+                  {STAT_KEYS.map((key) => {
+                    const talentVal = normTalent((profileHero.proTalents as any)[key]);
+                    const Icon = icons[key] || Info;
+                    return (
+                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <Icon className="w-3 h-3 text-accent/50 shrink-0" />
+                          <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          {renderStars(talentVal)}
+                          <span className="text-[10px] font-mono font-bold text-accent min-w-[15px] text-right">{talentVal}</span>
                         </div>
                       </div>
-                      <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
-                    </div>
-                  ); 
-                })}
-              </div>
-            </section>
+                    );
+                  })}
+                </div>
+              </section>
 
-            {/* БЛОК: ПРЕДЕЛЫ ТАЛАНТА */}
-            <section>
-              <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Zap className="w-3.5 h-3.5" /> {t.talents}
-              </h3>
-              <div className="space-y-2">
-                {STAT_KEYS.map((key) => {
-                  const talentVal = normTalent((profileHero.proTalents as any)[key]);
-                  const Icon = icons[key] || Info;
-                  return (
-                    <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <Icon className="w-3 h-3 text-accent/50 shrink-0" />
-                        <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        {renderStars(talentVal)}
-                        <span className="text-[10px] font-mono font-bold text-accent min-w-[15px] text-right">{talentVal}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* БЛОК: ЦЕНА */}
-            <section className="pt-4 border-t border-white/5">
-              <h3 className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Gem className="w-3.5 h-3.5" /> {t.priceTitle}
-              </h3>
-              <div className="bg-secondary/30 p-4 rounded-xl border border-white/5">
-                 <p className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'РЫНОЧНАЯ СТОИМОСТЬ' : 'ESTIMATED VALUE'}</p>
-                 <p className="text-xl font-headline font-bold text-white italic">€ {(profileHero.overallRating * 15000 + 100000).toLocaleString()}</p>
-              </div>
-            </section>
-            
-            <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfileHero(null)}>{t.close}</Button>
+              {/* БЛОК: ЦЕНА */}
+              <section className="pt-4 border-t border-white/5">
+                <h3 className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                  <Gem className="w-3.5 h-3.5" /> {t.priceTitle}
+                </h3>
+                <div className="bg-secondary/30 p-4 rounded-xl border border-white/5">
+                   <p className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'РЫНОЧНАЯ СТОИМОСТЬ' : 'ESTIMATED VALUE'}</p>
+                   <p className="text-xl font-headline font-bold text-white italic">€ {(profileHero.overallRating * 15000 + 100000).toLocaleString()}</p>
+                </div>
+              </section>
+              
+              <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfileHero(null)}>{t.close}</Button>
+          </div>
         </div>
       </div>
     );
