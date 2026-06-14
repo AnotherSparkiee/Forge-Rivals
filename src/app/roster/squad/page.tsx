@@ -13,7 +13,7 @@ import {
   ShieldCheck, Zap, HeartPulse,
   Box, Undo2, Info, ShoppingCart, Loader2,
   Award, Clock, Users, Brain, TrendingUp, Crosshair,
-  Target, Eye, Map, Star, Activity
+  Target, Eye, Map, Star, Activity, User
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -22,15 +22,29 @@ import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { renderStars } from '@/app/transfers/quick-search/page';
+import { renderStars, STAT_KEYS } from '@/app/transfers/quick-search/page';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 const norm = (val: any) => {
   const n = Number(val);
   return Math.round(n);
 };
 
+const normTalent = (val: any) => {
+  const n = Number(val);
+  if (isNaN(n)) return 0;
+  return n < 10 ? Math.round(n * 10) : Math.round(n);
+};
+
 export default function SquadPage() {
-  const { ownedHeroes, lineup, assignToRole, isLoaded, language, updateHero, isPremium, activeLicenseTier } = useGameState();
+  const { ownedHeroes, lineup, assignToRole, isLoaded, language, updateHero, isPremium, activeLicenseTier, displayName } = useGameState();
   const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
@@ -86,6 +100,9 @@ export default function SquadPage() {
       skills: language === 'ru' ? "Текущие навыки" : "Current Skills",
       years: language === 'ru' ? "лет" : "yrs",
       close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
+      owner: language === 'ru' ? "ВЛАДЕЛЕЦ" : "OWNER",
+      sale: language === 'ru' ? "ПРОДАЖА" : "SALE",
+      priceTitle: language === 'ru' ? "ЦЕНА ИГРОКА" : "UNIT PRICE"
     },
     roles: {
       carry: { label: language === 'ru' ? "Керри" : "Carry", icon: Sword, color: "text-red-400" },
@@ -239,8 +256,11 @@ export default function SquadPage() {
   if (!isLoaded) return null;
 
   if (profileHero) {
-    const talentsValues = Object.values(profileHero.proTalents || {}).map(v => norm(v));
+    const liveAge = calculateLiveAge(profileHero.baseAge, profileHero.hiredAt);
+    const talentsValues = Object.values(profileHero.proTalents || {}).map(v => normTalent(v));
     const maxTalentValue = Math.max(...talentsValues);
+    const onAuction = profileHero.onTransferUntil && new Date(profileHero.onTransferUntil).getTime() > now;
+
     return (
       <div className="min-h-screen bg-background text-foreground animate-in fade-in slide-in-from-right-4 duration-300 overflow-y-auto scrollbar-hide pb-6">
         <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
@@ -258,32 +278,83 @@ export default function SquadPage() {
               <div className="flex items-center ml-2">{renderStars(maxTalentValue)}</div>
             </div>
           </div>
-          <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto">
-            <div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p><p className="text-xl font-headline font-bold text-accent italic leading-none">{profileHero.overallRating}</p></div>
-            <div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.salary}</p><p className="text-sm font-headline font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</p></div>
-          </div>
         </div>
         
         <div className="p-4 space-y-8">
-            {/* БЛОК: СТАТУС */}
-            <section>
-              <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Info className="w-3.5 h-3.5" /> BIOMETRICS & STATUS</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5"><p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.age}</p><p className="text-xs font-bold">{calculateLiveAge(profileHero.baseAge, profileHero.hiredAt).display} {t.profile.years}</p></div>
-                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5"><p className="text-[7px] font-black text-muted-foreground uppercase">{t.profile.status}</p><p className={cn("text-[10px] font-bold flex items-center gap-1.5", profileHero.isInjured ? "text-red-400" : "text-green-400")}>{profileHero.isInjured ? t.profile.injured : t.profile.healthy}</p></div>
+            {/* БЛОК: ВЛАДЕЛЕЦ И ПРОДАЖА */}
+            <section className="grid grid-cols-2 gap-3">
+              <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.owner}</p>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-3 h-3 text-primary" />
+                  <p className="text-[10px] font-bold uppercase truncate">{displayName || "Manager"}</p>
+                </div>
+              </div>
+              <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.sale}</p>
+                <div className="flex items-center gap-2">
+                  {onAuction ? (
+                    <>
+                      <Timer className="w-3 h-3 text-accent animate-pulse" />
+                      <p className="text-[10px] font-mono font-bold text-accent">
+                        {new Date(profileHero.onTransferUntil!).toLocaleTimeString()}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert className="w-3 h-3 text-muted-foreground opacity-30" />
+                      <p className="text-[10px] font-bold text-muted-foreground opacity-50 uppercase tracking-tighter">OFF MARKET</p>
+                    </>
+                  )}
+                </div>
               </div>
             </section>
 
-            {/* БЛОК 1: ТЕКУЩИЕ НАВЫКИ */}
+            {/* БЛОК: ОБЩИЕ ДАННЫЕ */}
+            <section className="space-y-3">
+              <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.profile.age}</span>
+                   <span className="text-[10px] font-bold">{liveAge.display} {t.profile.years}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">OVR</span>
+                   <span className="text-[10px] font-bold text-accent">{profileHero.overallRating}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.profile.salary}</span>
+                   <span className="text-[10px] font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
+                   <span className="text-[10px] font-bold uppercase">{profileHero.role}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Страна' : 'Country'}</span>
+                   <span className="text-[10px] font-bold">{profileHero.country?.flag} {profileHero.country?.code}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Травма' : 'Injury'}</span>
+                   <span className={cn("text-[9px] font-bold uppercase", profileHero.isInjured ? "text-red-400" : "text-green-400")}>
+                     {profileHero.isInjured ? (language === 'ru' ? 'Есть' : 'Yes') : (language === 'ru' ? 'Здоров' : 'No')}
+                   </span>
+                </div>
+              </div>
+            </section>
+
+            {/* БЛОК: ТЕКУЩИЕ НАВЫКИ */}
             <section>
               <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                 <Activity className="w-3.5 h-3.5" /> {t.profile.skills}
               </h3>
               <div className="space-y-3">
-                {Object.entries(profileHero.proStats).map(([key, value]: [string, any]) => { 
+                {STAT_KEYS.map((key) => { 
                   const Icon = icons[key] || Info;
-                  const displayValue = Math.round(Number(value));
-                  const talentLimit = Math.round(Number((profileHero.proTalents as any)[key] || 10));
+                  const displayValue = Math.round(Number((profileHero.proStats as any)[key]));
+                  const talentLimit = normTalent((profileHero.proTalents as any)[key] || 10);
 
                   return (
                     <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
@@ -305,24 +376,24 @@ export default function SquadPage() {
               </div>
             </section>
 
-            {/* БЛОК 2: ПРЕДЕЛЫ ТАЛАНТА */}
+            {/* БЛОК: ПРЕДЕЛЫ ТАЛАНТА */}
             <section>
               <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                 <Zap className="w-3.5 h-3.5" /> {t.profile.talent}
               </h3>
               <div className="space-y-2">
-                {Object.entries(profileHero.proTalents || {}).map(([key, value]: [string, any]) => {
-                  const talentVal = Math.round(Number(value));
+                {STAT_KEYS.map((key) => {
+                  const talentVal = normTalent((profileHero.proTalents as any)[key]);
                   const Icon = icons[key] || Info;
                   return (
                     <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40">
-                      <div className="flex items-center gap-2">
-                        <Icon className="w-3 h-3 text-accent/50" />
-                        <span className="text-[9px] font-bold uppercase text-muted-foreground/80">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <Icon className="w-3 h-3 text-accent/50 shrink-0" />
+                        <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-[10px] font-mono font-bold text-accent">{talentVal}</span>
+                      <div className="flex items-center gap-3 shrink-0">
                         {renderStars(talentVal)}
+                        <span className="text-[10px] font-mono font-bold text-accent min-w-[15px] text-right">{talentVal}</span>
                       </div>
                     </div>
                   );
@@ -330,10 +401,21 @@ export default function SquadPage() {
               </div>
             </section>
 
+            {/* БЛОК: ЦЕНА (для своего игрока просто инфо о продаже) */}
+            <section className="pt-4 border-t border-white/5">
+              <h3 className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                <Gem className="w-3.5 h-3.5" /> {t.profile.priceTitle}
+              </h3>
+              <div className="bg-secondary/30 p-4 rounded-xl border border-white/5">
+                 <p className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'РЫНОЧНАЯ СТОИМОСТЬ' : 'ESTIMATED VALUE'}</p>
+                 <p className="text-xl font-headline font-bold text-white italic">€ {(profileHero.overallRating * 15000 + 100000).toLocaleString()}</p>
+              </div>
+            </section>
+
             <div className="pt-4 flex flex-col gap-2">
-              <Button className="w-full h-14 bg-orange-600 hover:bg-orange-700 text-white font-black text-[11px] tracking-widest uppercase shadow-xl" onClick={handlePutOnTransfer} disabled={isTransferring || (profileHero.onTransferUntil !== null && new Date(profileHero.onTransferUntil).getTime() > now)}>
+              <Button className="w-full h-14 bg-orange-600 hover:bg-orange-700 text-white font-black text-[11px] tracking-widest uppercase shadow-xl" onClick={handlePutOnTransfer} disabled={isTransferring || onAuction}>
                 {isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
-                {profileHero.onTransferUntil && new Date(profileHero.onTransferUntil).getTime() > now ? t.onAuction : t.putOnTransfer}
+                {onAuction ? t.onAuction : t.putOnTransfer}
               </Button>
               <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfileHero(null)}>{t.profile.close}</Button>
             </div>
@@ -398,4 +480,3 @@ export default function SquadPage() {
     </div>
   );
 }
-

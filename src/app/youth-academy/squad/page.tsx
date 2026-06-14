@@ -11,7 +11,7 @@ import {
   ChevronLeft, Star, ShoppingCart, Loader2, 
   ArrowUpCircle, Info, Award, Target, Eye, Map, 
   Zap, Sparkles, Brain, TrendingUp, Crosshair, Sword,
-  ShieldCheck, Clock, Users, Activity
+  ShieldCheck, Clock, Users, Activity, User, ShieldAlert
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -21,15 +21,29 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { renderStars } from '@/app/transfers/quick-search/page';
+import { renderStars, STAT_KEYS } from '@/app/transfers/quick-search/page';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 const norm = (val: any) => {
   const n = Number(val);
   return Math.round(n);
 };
 
+const normTalent = (val: any) => {
+  const n = Number(val);
+  if (isNaN(n)) return 0;
+  return n < 10 ? Math.round(n * 10) : Math.round(n);
+};
+
 export default function YouthSquadPage() {
-  const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, updateHero } = useGameState();
+  const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, updateHero, displayName } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
@@ -58,6 +72,9 @@ export default function YouthSquadPage() {
     salary: language === 'ru' ? "Зарплата" : "Salary",
     status: language === 'ru' ? "Статус" : "Status",
     close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
+    owner: language === 'ru' ? "ВЛАДЕЛЕЦ" : "OWNER",
+    sale: language === 'ru' ? "ПРОДАЖА" : "SALE",
+    priceTitle: language === 'ru' ? "ЦЕНА ЮНИОРА" : "UNIT PRICE",
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
       mapAwareness: language === 'ru' ? "Контроль карты" : "Map Awareness",
@@ -107,8 +124,10 @@ export default function YouthSquadPage() {
 
   if (selectedHero) {
     const liveAge = calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt);
-    const talentsValues = Object.values(selectedHero.proTalents || {}).map(v => Math.round(Number(v)));
+    const talentsValues = Object.values(selectedHero.proTalents || {}).map(v => normTalent(v));
     const maxTalentValue = Math.max(...talentsValues);
+    const onAuction = selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil).getTime() > now;
+
     return (
       <div className="min-h-screen bg-background text-foreground animate-in fade-in slide-in-from-right-4 duration-300 overflow-y-auto scrollbar-hide pb-6">
         <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
@@ -121,89 +140,152 @@ export default function YouthSquadPage() {
           </div>
           <div className="space-y-1">
             <h1 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{selectedHero.name}</h1>
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-2 mt-2">
               <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{selectedHero.role}</Badge>
               <div className="flex items-center ml-2">{renderStars(maxTalentValue)}</div>
             </div>
           </div>
-          <div className="w-full grid grid-cols-2 gap-3 max-w-[300px] mx-auto">
-            <div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.overall}</p><p className="text-xl font-headline font-bold text-accent italic leading-none">{selectedHero.overallRating}</p></div>
-            <div className="bg-background/40 p-3 rounded-xl border border-white/10"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.salary}</p><p className="text-sm font-headline font-bold text-primary">€{(selectedHero.salary || 0).toLocaleString()}</p></div>
-          </div>
         </div>
 
         <div className="p-4 space-y-8">
-          <section>
-            <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Info className="w-3.5 h-3.5" /> BIOMETRICS</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5"><p className="text-[7px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</p><p className="text-xs font-bold">{liveAge.display} {t.years}</p></div>
-              <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-0.5"><p className="text-[7px] font-black text-muted-foreground uppercase">{t.status}</p><p className="text-[10px] font-bold text-green-400 flex items-center gap-1.5"><ShieldCheck className="w-3 h-3" /> ACADEMY PUPIL</p></div>
-            </div>
-          </section>
+            {/* БЛОК: ВЛАДЕЛЕЦ И ПРОДАЖА */}
+            <section className="grid grid-cols-2 gap-3">
+              <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.owner}</p>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-3 h-3 text-primary" />
+                  <p className="text-[10px] font-bold uppercase truncate">{displayName || "Manager"}</p>
+                </div>
+              </div>
+              <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.sale}</p>
+                <div className="flex items-center gap-2">
+                  {onAuction ? (
+                    <>
+                      <Timer className="w-3 h-3 text-accent animate-pulse" />
+                      <p className="text-[10px] font-mono font-bold text-accent">
+                        {new Date(selectedHero.onTransferUntil!).toLocaleTimeString()}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert className="w-3 h-3 text-muted-foreground opacity-30" />
+                      <p className="text-[10px] font-bold text-muted-foreground opacity-50 uppercase tracking-tighter">OFF MARKET</p>
+                    </>
+                  )}
+                </div>
+              </div>
+            </section>
 
-          {/* БЛОК 1: ТЕКУЩИЕ НАВЫКИ */}
-          <section>
-            <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-              <Activity className="w-3.5 h-3.5" /> {t.skills}
-            </h3>
-            <div className="space-y-3">
-              {Object.entries(selectedHero.proStats).map(([key, value]: [string, any]) => {
-                const Icon = icons[key] || Info;
-                const displayValue = Math.round(Number(value));
-                const talentLimit = Math.round(Number((selectedHero.proTalents as any)[key] || 10));
+            {/* БЛОК: ОБЩИЕ ДАННЫЕ */}
+            <section className="space-y-3">
+              <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.years}</span>
+                   <span className="text-[10px] font-bold">{liveAge.display} {t.years}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">OVR</span>
+                   <span className="text-[10px] font-bold text-accent">{selectedHero.overallRating}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.salary}</span>
+                   <span className="text-[10px] font-bold text-primary">€{(selectedHero.salary || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">Role</span>
+                   <span className="text-[10px] font-bold uppercase">{selectedHero.role}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">Country</span>
+                   <span className="text-[10px] font-bold">{selectedHero.country?.flag} {selectedHero.country?.code}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">Injury</span>
+                   <span className={cn("text-[9px] font-bold uppercase", selectedHero.isInjured ? "text-red-400" : "text-green-400")}>
+                     {selectedHero.isInjured ? (language === 'ru' ? 'Да' : 'Yes') : (language === 'ru' ? 'Нет' : 'No')}
+                   </span>
+                </div>
+              </div>
+            </section>
 
-                return (
-                  <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
-                    <div className="flex justify-between items-center px-0.5">
-                      <div className="flex items-center gap-2">
-                        <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+            {/* БЛОК: ТЕКУЩИЕ НАВЫКИ */}
+            <section>
+              <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                <Activity className="w-3.5 h-3.5" /> {t.skills}
+              </h3>
+              <div className="space-y-3">
+                {STAT_KEYS.map((key) => {
+                  const Icon = icons[key] || Info;
+                  const displayValue = Math.round(Number((selectedHero.proStats as any)[key]));
+                  const talentLimit = normTalent((selectedHero.proTalents as any)[key] || 10);
+
+                  return (
+                    <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
+                      <div className="flex justify-between items-center px-0.5">
+                        <div className="flex items-center gap-2">
+                          <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
+                          <span className="text-[8px] text-muted-foreground/50">/</span>
+                          <span className="text-[9px] font-mono font-bold text-primary/70">{talentLimit}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
-                        <span className="text-[8px] text-muted-foreground/50">/</span>
-                        <span className="text-[9px] font-mono font-bold text-primary/70">{talentLimit}</span>
+                      <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* БЛОК: ПРЕДЕЛЫ ТАЛАНТА */}
+            <section>
+              <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                <Zap className="w-3.5 h-3.5" /> {t.talents}
+              </h3>
+              <div className="space-y-2">
+                {STAT_KEYS.map((key) => {
+                  const talentVal = normTalent((selectedHero.proTalents as any)[key]);
+                  const Icon = icons[key] || Info;
+                  return (
+                    <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <Icon className="w-3 h-3 text-accent/50 shrink-0" />
+                        <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        {renderStars(talentVal)}
+                        <span className="text-[10px] font-mono font-bold text-accent min-w-[15px] text-right">{talentVal}</span>
                       </div>
                     </div>
-                    <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+                  );
+                })}
+              </div>
+            </section>
 
-          {/* БЛОК 2: ПРЕДЕЛЫ ТАЛАНТА */}
-          <section>
-            <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-              <Zap className="w-3.5 h-3.5" /> {t.talents}
-            </h3>
-            <div className="space-y-4">
-              {Object.entries(selectedHero.proTalents || {}).map(([key, value]: [string, any]) => {
-                const talentVal = Math.round(Number(value));
-                const Icon = icons[key] || Info;
-                return (
-                  <div key={`talent-${key}`} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-background/40">
-                    <div className="flex items-center gap-2">
-                      <Icon className="w-4 h-4 text-accent/50" />
-                      <span className="text-[11px] font-bold uppercase text-muted-foreground/80">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-xs font-mono font-bold text-accent">{talentVal}</span>
-                      {renderStars(talentVal)}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+            {/* БЛОК: ЦЕНА */}
+            <section className="pt-4 border-t border-white/5">
+              <h3 className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                <Gem className="w-3.5 h-3.5" /> {t.priceTitle}
+              </h3>
+              <div className="bg-secondary/30 p-4 rounded-xl border border-white/5">
+                 <p className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'РЫНОЧНАЯ СТОИМОСТЬ' : 'ESTIMATED VALUE'}</p>
+                 <p className="text-xl font-headline font-bold text-white italic">€ {(selectedHero.overallRating * 5000 + 25000).toLocaleString()}</p>
+              </div>
+            </section>
 
-          <div className="pt-4 flex flex-col gap-2">
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" className="h-14 border-primary/20 bg-primary/10 text-primary font-bold uppercase text-[10px]" onClick={handleTransfer} disabled={isTransferring}>{isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {t.onTransfer}</Button>
-              <Button className="h-14 hero-gradient font-black uppercase text-[10px] shadow-xl" onClick={() => handlePromote(selectedHero.id)} disabled={liveAge.numeric < 18}><ArrowUpCircle className="w-4 h-4 mr-2" /> {liveAge.numeric < 18 ? t.notReady : t.promote}</Button>
+            <div className="pt-4 flex flex-col gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" className="h-14 border-primary/20 bg-primary/10 text-primary font-bold uppercase text-[10px]" onClick={handleTransfer} disabled={isTransferring || onAuction}>{isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {t.onTransfer}</Button>
+                <Button className="h-14 hero-gradient font-black uppercase text-[10px] shadow-xl" onClick={() => handlePromote(selectedHero.id)} disabled={liveAge.numeric < 18}><ArrowUpCircle className="w-4 h-4 mr-2" /> {liveAge.numeric < 18 ? t.notReady : t.promote}</Button>
+              </div>
+              <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setSelectedHero(null)}>{t.close}</Button>
             </div>
-            <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setSelectedHero(null)}>{t.close}</Button>
-          </div>
         </div>
       </div>
     );
@@ -235,4 +317,3 @@ export default function YouthSquadPage() {
     </div>
   );
 }
-

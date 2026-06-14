@@ -9,7 +9,8 @@ import {
   ChevronLeft, Loader2, Gavel, ShieldCheck, 
   Timer, Star, ShoppingCart, X, Check, Search, Info, Users,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
-  ChevronsLeft, ChevronsRight
+  ChevronsLeft, ChevronsRight, Target, Eye, Map, Zap, Sparkles, Sword,
+  Brain, TrendingUp, Crosshair, User, ShieldAlert, HeartPulse, Activity, Gem
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -21,7 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { calculateLiveAge, getMoscowTime } from '@/app/lib/time-utils';
-import { renderStars } from '@/app/transfers/quick-search/page';
+import { renderStars, STAT_KEYS } from '@/app/transfers/quick-search/page';
 import {
   Dialog,
   DialogContent,
@@ -49,6 +50,7 @@ const YouthTransferCard = memo(({
   language: string
 }) => {
   const [showBidModal, setShowBidModal] = useState(false);
+  const [showDossier, setShowDossier] = useState(false);
   const [bidPercent, setBidPercent] = useState(5);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -56,14 +58,30 @@ const YouthTransferCard = memo(({
   const isOwner = agent.sellerId === user?.uid;
   const nextBidValue = Math.ceil(agent.currentBid * (1 + bidPercent / 100));
   const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
-  const avgTalent = Object.values(agent.heroData.proTalents || {}).reduce((a: any, b: any) => a + Number(b), 0) as number / 10;
+  const talentsValues = Object.values(agent.heroData.proTalents || {}).map(v => normTalent(v));
+  const maxTalentValue = Math.max(...talentsValues);
 
   const rolesRu: Record<string, string> = {
-    'Carry': 'Керри',
-    'Midlaner': 'Мидер',
-    'Tank': 'Танк',
-    'Jungler': 'Лес',
-    'Support': 'Саппорт'
+    'Carry': 'Керри', 'Midlaner': 'Мидер', 'Tank': 'Танк', 'Jungler': 'Лес', 'Support': 'Саппорт'
+  };
+
+  const proStatsLabels: Record<string, string> = {
+    lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
+    mapAwareness: language === 'ru' ? "Контроль карты" : "Map Awareness",
+    positioning: language === 'ru' ? "Позиционка" : "Positioning",
+    reflexes: language === 'ru' ? "Рефлексы" : "Reflexes",
+    manaManagement: language === 'ru' ? "Менеджмент маны" : "Mana Management",
+    objectiveControl: language === 'ru' ? "Объекты" : "Objective Control",
+    communication: language === 'ru' ? "Коммуникация" : "Communication",
+    tiltResistance: language === 'ru' ? "Стрессоустойчивость" : "Tilt Resistance",
+    versatility: language === 'ru' ? "Универсальность" : "Versatility",
+    ganking: language === 'ru' ? "Ганкинг" : "Ganking",
+  };
+
+  const icons: Record<string, any> = {
+    lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
+    manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
+    tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
   };
 
   const getCountdown = (expiryIso: string) => {
@@ -76,10 +94,22 @@ const YouthTransferCard = memo(({
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
+  const t = {
+    owner: language === 'ru' ? "ВЛАДЕЛЕЦ" : "OWNER",
+    sale: language === 'ru' ? "ПРОДАЖА" : "SALE",
+    priceTitle: language === 'ru' ? "ЦЕНА ЮНИОРА" : "UNIT PRICE",
+    age: language === 'ru' ? "Возраст" : "Age",
+    yrs: language === 'ru' ? "лет" : "yrs",
+    skills: language === 'ru' ? "ТЕКУЩИЕ НАВЫКИ" : "CURRENT SKILLS",
+    talents: language === 'ru' ? "ПРЕДЕЛЫ ТАЛАНТА" : "TALENT POTENTIAL"
+  };
+
   return (
     <>
-      <Card className={cn(
-        "glass-card border-white/5 overflow-hidden transition-all", 
+      <Card 
+        onClick={() => setShowDossier(true)}
+        className={cn(
+        "glass-card border-white/5 overflow-hidden transition-all cursor-pointer active:scale-[0.98]", 
         isLeading && "border-green-500/40 bg-green-500/5",
         isOwner && "border-blue-500/40 bg-blue-500/5"
       )}>
@@ -91,7 +121,7 @@ const YouthTransferCard = memo(({
              </div>
              <div className="flex gap-1.5">
                {isOwner && <Badge className="bg-blue-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR LOT'}</Badge>}
-               {isLeading && <Badge className="bg-green-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ВЫ ЛИДИРУЕТЕ' : 'LEADING'}</Badge>}
+               {isLeading && <Badge className="bg-green-600 text-white text-[7px] font-black uppercase px-2 h-4 border-none">{language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</Badge>}
              </div>
           </div>
 
@@ -112,14 +142,13 @@ const YouthTransferCard = memo(({
                   {rolesRu[agent.heroData.role] || agent.heroData.role}
                 </Badge>
               </div>
-              
               <div className="grid grid-cols-2 gap-3 mt-2">
                  <div className="flex flex-col">
                    <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ТАЛАНТ' : 'TALENT'}</p>
-                   {renderStars(avgTalent * 10)}
+                   {renderStars(maxTalentValue)}
                  </div>
                  <div className="flex flex-col border-l border-white/5 pl-3">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'ВОЗРАСТ'}</p>
+                   <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
                    <p className="text-[11px] font-bold text-white leading-none mt-0.5">{liveAge.display}</p>
                  </div>
               </div>
@@ -132,43 +161,182 @@ const YouthTransferCard = memo(({
           </div>
           
           <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/5">
-            <div className="flex flex-col">
-              <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'ЦЕНА'}</p>
+            <div className="flex flex-col flex-1 min-w-0">
+              <p className="text-[8px] uppercase text-muted-foreground font-black tracking-widest leading-none mb-1">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
               <p className="text-xl font-headline font-bold text-white tracking-tight leading-none">€{agent.currentBid?.toLocaleString()}</p>
-              <div className="flex items-center min-w-0 mt-1">
-                {agent.highestBidderName ? (
-                  <div className="relative inline-flex items-center min-w-0 max-w-full">
-                    <div className="absolute inset-0 bg-gradient-to-r from-accent/30 via-accent/5 to-transparent border-l-2 border-accent -z-10" />
-                    <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight truncate text-white">
-                      {agent.highestBidderName}
-                    </span>
-                  </div>
-                ) : (
-                  <span className="text-[9px] font-black uppercase text-muted-foreground/50">
-                    {language === 'ru' ? 'Нет ставок' : 'No bids'}
-                  </span>
-                )}
-              </div>
             </div>
-            
             <Button 
               className={cn(
-                "h-11 font-black text-[10px] px-6 rounded-xl uppercase tracking-widest transition-all", 
+                "h-11 font-black text-[10px] px-6 rounded-xl uppercase tracking-widest transition-all shrink-0", 
                 isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
-                (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-xl shadow-primary/20")
+                (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-xl active:scale-95")
               )} 
-              onClick={() => !isLeading && !isOwner && setShowBidModal(true)} 
+              onClick={(e) => { e.stopPropagation(); if (!isLeading && !isOwner) setShowBidModal(true); }} 
               disabled={isLeading || isOwner}
             >
-              {isOwner ? (language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR UNIT') : (
-                isLeading ? <><ShieldCheck className="w-4 h-4 mr-2" /> {language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING'}</> : (
-                  <>{language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'}</>
-                )
-              )}
+              {isOwner ? (language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR LOT') : (isLeading ? (language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING') : (language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'))}
             </Button>
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={showDossier} onOpenChange={setShowDossier}>
+        <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden shadow-2xl h-[90vh] flex flex-col">
+          <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 relative shrink-0">
+            <Button variant="ghost" size="icon" className="absolute left-4 top-4 rounded-full" onClick={() => setShowDossier(false)}><X className="w-5 h-5" /></Button>
+            <div className="relative mx-auto w-24 h-24 mb-4">
+              <div className="w-full h-full rounded-2xl overflow-hidden border-2 border-primary/50 shadow-2xl bg-secondary/50">
+                <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-background border border-white/10 flex items-center justify-center shadow-xl">
+                <span className="text-xl">{agent.heroData.country?.flag}</span>
+              </div>
+            </div>
+            <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white leading-none">{agent.heroData?.name}</DialogTitle>
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{rolesRu[agent.heroData.role] || agent.heroData.role}</Badge>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-8 scrollbar-hide">
+            {/* БЛОК: ВЛАДЕЛЕЦ И ПРОДАЖА */}
+            <section className="grid grid-cols-2 gap-3">
+              <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.owner}</p>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-3 h-3 text-primary" />
+                  <p className="text-[10px] font-bold uppercase truncate">{agent.sellerName || "System"}</p>
+                </div>
+              </div>
+              <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.sale}</p>
+                <div className="flex items-center gap-2">
+                  <Timer className="w-3 h-3 text-accent animate-pulse" />
+                  <p className="text-[10px] font-mono font-bold text-accent">{getCountdown(agent.expiresAt)}</p>
+                </div>
+              </div>
+            </section>
+
+            {/* БЛОК: ОБЩИЕ ДАННЫЕ */}
+            <section className="space-y-3">
+              <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
+                   <span className="text-[10px] font-bold">{liveAge.display} {t.yrs}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">OVR</span>
+                   <span className="text-[10px] font-bold text-accent">{agent.heroData.overallRating}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">Salary</span>
+                   <span className="text-[10px] font-bold text-primary">€{(agent.heroData.salary || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">Role</span>
+                   <span className="text-[10px] font-bold uppercase">{rolesRu[agent.heroData.role] || agent.heroData.role}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">Country</span>
+                   <span className="text-[10px] font-bold">{agent.heroData.country?.flag} {agent.heroData.country?.code}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">Injury</span>
+                   <span className={cn("text-[9px] font-bold uppercase", agent.heroData.isInjured ? "text-red-400" : "text-green-400")}>
+                     {agent.heroData.isInjured ? 'Yes' : 'No'}
+                   </span>
+                </div>
+              </div>
+            </section>
+
+            {/* БЛОК: ТЕКУЩИЕ НАВЫКИ */}
+            <section>
+              <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                <Activity className="w-3.5 h-3.5" /> {t.skills}
+              </h3>
+              <div className="space-y-3">
+                {STAT_KEYS.map((key) => { 
+                  const Icon = icons[key] || Info;
+                  const displayValue = Math.round(Number((agent.heroData.proStats as any)[key]));
+                  const talentLimit = normTalent((agent.heroData.proTalents as any)[key] || 10);
+
+                  return (
+                    <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
+                      <div className="flex justify-between items-center px-0.5">
+                        <div className="flex items-center gap-2">
+                          <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{proStatsLabels[key]}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
+                          <span className="text-[8px] text-muted-foreground/50">/</span>
+                          <span className="text-[9px] font-mono font-bold text-primary/70">{talentLimit}</span>
+                        </div>
+                      </div>
+                      <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
+                    </div>
+                  ); 
+                })}
+              </div>
+            </section>
+
+            {/* БЛОК: ПРЕДЕЛЫ ТАЛАНТА */}
+            <section>
+              <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                <Zap className="w-3.5 h-3.5" /> {t.talents}
+              </h3>
+              <div className="space-y-2">
+                {STAT_KEYS.map((key) => {
+                  const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
+                  const Icon = icons[key] || Info;
+                  return (
+                    <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <Icon className="w-3 h-3 text-accent/50 shrink-0" />
+                        <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        {renderStars(talentVal)}
+                        <span className="text-[10px] font-mono font-bold text-accent min-w-[15px] text-right">{talentVal}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* БЛОК: ЦЕНА */}
+            <section className="pt-4 border-t border-white/5">
+              <h3 className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                <Gem className="w-3.5 h-3.5" /> {t.priceTitle}
+              </h3>
+              <div className="bg-secondary/30 p-4 rounded-xl border border-white/5 space-y-4">
+                 <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ТЕКУЩАЯ ЦЕНА' : 'CURRENT PRICE'}</p>
+                      <p className="text-xl font-headline font-bold text-white italic">€ {agent.currentBid?.toLocaleString()}</p>
+                    </div>
+                    <div className="text-right">
+                       <p className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ЛИДЕР' : 'LEADING'}</p>
+                       <p className="text-[10px] font-bold text-primary uppercase truncate max-w-[120px]">
+                         {agent.highestBidderName || (language === 'ru' ? 'Нет ставок' : 'No bids')}
+                       </p>
+                    </div>
+                 </div>
+              </div>
+            </section>
+          </div>
+
+          <div className="p-4 bg-secondary/20 border-t border-white/5 shrink-0">
+             <Button className="w-full h-14 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all" onClick={() => { setShowDossier(false); if (!isLeading && !isOwner) setShowBidModal(true); }} disabled={isLeading || isOwner}>
+               {isLeading ? (language === 'ru' ? 'ВЫ ЛИДИРУЕТЕ' : 'LEADING') : (isOwner ? (language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR UNIT') : (language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'))}
+             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showBidModal} onOpenChange={setShowBidModal}>
         <DialogContent className="max-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
@@ -201,10 +369,6 @@ const YouthTransferCard = memo(({
                   max={300}
                   step={1}
                 />
-                <div className="flex justify-between mt-3 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
-                  <span>MIN € {(agent.currentBid * 1.03).toLocaleString()}</span>
-                  <span>MAX € {(agent.currentBid * 4).toLocaleString()}</span>
-                </div>
               </div>
             </div>
 
@@ -242,6 +406,12 @@ const YouthTransferCard = memo(({
 });
 
 YouthTransferCard.displayName = 'YouthTransferCard';
+
+const normTalent = (val: any) => {
+  const n = Number(val);
+  if (isNaN(n)) return 0;
+  return n < 10 ? Math.round(n * 10) : Math.round(n);
+};
 
 export default function YouthTransfersPage() {
   const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
@@ -341,7 +511,7 @@ export default function YouthTransfersPage() {
       </header>
 
       <div className="space-y-3 animate-in fade-in duration-500">
-        {paginatedAgents.length > 0 ? (
+        {youthAgents.length > 0 ? (
           <>
             {paginatedAgents.map((agent) => (
               <YouthTransferCard 
