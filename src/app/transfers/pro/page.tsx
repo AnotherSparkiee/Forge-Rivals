@@ -48,8 +48,8 @@ export default function ProTransfersPage() {
 
     const checkAndDropLegends = async () => {
       const today = getMoscowDateString();
-      // SYNC ID sys_vtune_v400_stats_reset for final corrected stats (no norm on skills)
-      const vtuneId = `sys_vtune_v400_stats_reset_${today}`;
+      // SYNC ID sys_vtune_v500_talent_range_fix for new secondary range 18-37
+      const vtuneId = `sys_vtune_v500_talent_range_fix_${today}`;
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       const vtuneSnap = await getDoc(vtuneRef);
 

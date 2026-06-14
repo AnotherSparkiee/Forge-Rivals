@@ -140,8 +140,6 @@ export function generateVtuneHero(seed?: string): Hero {
   const age = (rng.range(183, 189) / 10);
   const careerEnd = rng.range(30, 36);
 
-  // Initial OVR ~60 for 6-star player (via pro bonus in xp-utils)
-  // Current stats are reset to low values: primary 6-8, secondary 1-4
   return {
     id: 'legend_vtune',
     name: 'V-Tune',
@@ -180,11 +178,11 @@ export function generateVtuneHero(seed?: string): Hero {
       reflexes: 55,
       tiltResistance: 54,
       versatility: 52,
-      mapAwareness: rng.range(15, 38),
-      manaManagement: rng.range(15, 38),
-      objectiveControl: rng.range(15, 38),
-      communication: rng.range(15, 38),
-      ganking: rng.range(15, 38)
+      mapAwareness: rng.range(18, 37),
+      manaManagement: rng.range(18, 37),
+      objectiveControl: rng.range(18, 37),
+      communication: rng.range(18, 37),
+      ganking: rng.range(18, 37)
     },
     xpStats: {},
     matchesPlayedToday: 0,
@@ -224,8 +222,6 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
   const startAge = getRandomStat(isStarter ? 17 : 18, isStarter ? 28 : 32, rng);
   const heroId = seed ? `h_det_${seed}` : `hero_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
 
-  // If PRO, skills are low (6-8 primary, 1-4 secondary)
-  // If common, skills are higher if it's a starter.
   const proStats = {
     lastHitting: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
     mapAwareness: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
@@ -241,15 +237,15 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
 
   const proTalents = {
     lastHitting: isPro ? getRandomStat(60, 65, rng) : getRandomStat(25, 45, rng),
-    mapAwareness: isPro ? getRandomStat(15, 38, rng) : getRandomStat(25, 45, rng),
+    mapAwareness: isPro ? getRandomStat(18, 37, rng) : getRandomStat(25, 45, rng),
     positioning: isPro ? getRandomStat(50, 55, rng) : getRandomStat(25, 45, rng),
     reflexes: isPro ? getRandomStat(50, 55, rng) : getRandomStat(25, 45, rng),
-    manaManagement: isPro ? getRandomStat(15, 38, rng) : getRandomStat(25, 45, rng),
-    objectiveControl: isPro ? getRandomStat(15, 38, rng) : getRandomStat(25, 45, rng),
-    communication: isPro ? getRandomStat(15, 38, rng) : getRandomStat(25, 45, rng),
+    manaManagement: isPro ? getRandomStat(18, 37, rng) : getRandomStat(25, 45, rng),
+    objectiveControl: isPro ? getRandomStat(18, 37, rng) : getRandomStat(25, 45, rng),
+    communication: isPro ? getRandomStat(18, 37, rng) : getRandomStat(25, 45, rng),
     tiltResistance: isPro ? getRandomStat(50, 55, rng) : getRandomStat(25, 45, rng),
-    versatility: isPro ? getRandomStat(15, 38, rng) : getRandomStat(25, 45, rng),
-    ganking: isPro ? getRandomStat(15, 38, rng) : getRandomStat(25, 45, rng),
+    versatility: isPro ? getRandomStat(18, 37, rng) : getRandomStat(25, 45, rng),
+    ganking: isPro ? getRandomStat(18, 37, rng) : getRandomStat(25, 45, rng),
   };
 
   return {
@@ -328,15 +324,15 @@ export function generateYouthHero(index: number, seed?: string): Hero {
   
   hero.proTalents = {
     lastHitting: rng?.range(30, 60) || 45,
-    mapAwareness: rng?.range(20, 45) || 30,
-    positioning: rng?.range(20, 45) || 30,
-    reflexes: rng?.range(20, 45) || 30,
-    manaManagement: rng?.range(20, 45) || 30,
-    objectiveControl: rng?.range(20, 45) || 30,
-    communication: rng?.range(20, 45) || 30,
-    tiltResistance: rng?.range(20, 45) || 30,
-    versatility: rng?.range(20, 45) || 30,
-    ganking: rng?.range(20, 45) || 30,
+    mapAwareness: rng?.range(18, 37) || 30,
+    positioning: rng?.range(18, 37) || 30,
+    reflexes: rng?.range(18, 37) || 30,
+    manaManagement: rng?.range(18, 37) || 30,
+    objectiveControl: rng?.range(18, 37) || 30,
+    communication: rng?.range(18, 37) || 30,
+    tiltResistance: rng?.range(18, 37) || 30,
+    versatility: rng?.range(18, 37) || 30,
+    ganking: rng?.range(18, 37) || 30,
   };
   
   hero.proStats = {
