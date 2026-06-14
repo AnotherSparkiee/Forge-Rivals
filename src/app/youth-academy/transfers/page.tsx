@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { 
   ChevronLeft, Loader2, Gavel, ShieldCheck, 
   Timer, Star, ShoppingCart, X, Check, Search, Info, Users,
@@ -33,6 +34,12 @@ import {
 } from "@/components/ui/dialog";
 
 const ITEMS_PER_PAGE = 10;
+
+const normTalent = (val: any) => {
+  const n = Number(val);
+  if (isNaN(n)) return 0;
+  return n < 10 ? Math.round(n * 10) : Math.round(n);
+};
 
 const YouthTransferCard = memo(({ 
   agent, 
@@ -100,8 +107,10 @@ const YouthTransferCard = memo(({
     priceTitle: language === 'ru' ? "ЦЕНА ЮНИОРА" : "UNIT PRICE",
     age: language === 'ru' ? "Возраст" : "Age",
     yrs: language === 'ru' ? "лет" : "yrs",
-    skills: language === 'ru' ? "ТЕКУЩИЕ НАВЫКИ" : "CURRENT SKILLS",
-    talents: language === 'ru' ? "ПРЕДЕЛЫ ТАЛАНТА" : "TALENT POTENTIAL"
+    skills: language === 'ru' ? "НАВЫКИ" : "SKILLS",
+    talents: language === 'ru' ? "ТАЛАНТЫ" : "TALENTS",
+    talent: language === 'ru' ? "Талант" : "Talent",
+    salary: language === 'ru' ? "Зарплата" : "Salary"
   };
 
   return (
@@ -224,35 +233,35 @@ const YouthTransferCard = memo(({
               </h3>
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</span>
                    <span className="text-[10px] font-bold">{liveAge.display} {t.yrs}</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">OVR</span>
-                   <span className="text-[10px] font-bold text-accent">{agent.heroData.overallRating}</span>
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Талант' : 'Talent'}</span>
+                   {renderStars(maxTalentValue)}
                 </div>
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Salary</span>
                    <span className="text-[10px] font-bold text-primary">€{(agent.heroData.salary || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">Role</span>
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
                    <span className="text-[10px] font-bold uppercase">{rolesRu[agent.heroData.role] || agent.heroData.role}</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">Country</span>
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Страна' : 'Country'}</span>
                    <span className="text-[10px] font-bold">{agent.heroData.country?.flag} {agent.heroData.country?.code}</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">Injury</span>
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Травма' : 'Injury'}</span>
                    <span className={cn("text-[9px] font-bold uppercase", agent.heroData.isInjured ? "text-red-400" : "text-green-400")}>
-                     {agent.heroData.isInjured ? 'Yes' : 'No'}
+                     {agent.heroData.isInjured ? (language === 'ru' ? 'Есть' : 'Yes') : (language === 'ru' ? 'Нет' : 'No')}
                    </span>
                 </div>
               </div>
             </section>
 
-            {/* БЛОК: ТЕКУЩИЕ НАВЫКИ */}
+            {/* БЛОК: НАВЫКИ */}
             <section>
               <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                 <Activity className="w-3.5 h-3.5" /> {t.skills}
@@ -283,7 +292,7 @@ const YouthTransferCard = memo(({
               </div>
             </section>
 
-            {/* БЛОК: ПРЕДЕЛЫ ТАЛАНТА */}
+            {/* БЛОК: ТАЛАНТЫ */}
             <section>
               <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                 <Zap className="w-3.5 h-3.5" /> {t.talents}
@@ -293,14 +302,14 @@ const YouthTransferCard = memo(({
                   const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
                   const Icon = icons[key] || Info;
                   return (
-                    <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40">
+                    <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[80px]">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <Icon className="w-3 h-3 text-accent/50 shrink-0" />
-                        <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
+                        <Icon className="w-3.5 h-3.5 text-accent/50 shrink-0" />
+                        <span className="text-[10px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0">
+                      <div className="flex items-center gap-3 shrink-0 h-16">
                         {renderStars(talentVal)}
-                        <span className="text-[10px] font-mono font-bold text-accent min-w-[15px] text-right">{talentVal}</span>
+                        <span className="text-[11px] font-mono font-bold text-accent min-w-[20px] text-right">{talentVal}</span>
                       </div>
                     </div>
                   );
@@ -319,9 +328,8 @@ const YouthTransferCard = memo(({
                       <p className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ТЕКУЩАЯ ЦЕНА' : 'CURRENT PRICE'}</p>
                       <p className="text-xl font-headline font-bold text-white italic">€ {agent.currentBid?.toLocaleString()}</p>
                     </div>
-                    <div className="text-right">
-                       <p className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ЛИДЕР' : 'LEADING'}</p>
-                       <p className="text-[10px] font-bold text-primary uppercase truncate max-w-[120px]">
+                    <div className="text-right flex flex-col justify-center">
+                       <p className="text-base font-headline font-bold text-primary uppercase truncate max-w-[150px]">
                          {agent.highestBidderName || (language === 'ru' ? 'Нет ставок' : 'No bids')}
                        </p>
                     </div>
@@ -406,12 +414,6 @@ const YouthTransferCard = memo(({
 });
 
 YouthTransferCard.displayName = 'YouthTransferCard';
-
-const normTalent = (val: any) => {
-  const n = Number(val);
-  if (isNaN(n)) return 0;
-  return n < 10 ? Math.round(n * 10) : Math.round(n);
-};
 
 export default function YouthTransfersPage() {
   const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
@@ -547,3 +549,4 @@ export default function YouthTransfersPage() {
     </div>
   );
 }
+

@@ -23,11 +23,6 @@ import { doc, setDoc } from 'firebase/firestore';
 import { getMoscowDateString, getMoscowTime, calculateLiveAge } from '@/app/lib/time-utils';
 import { renderStars, STAT_KEYS } from '@/app/transfers/quick-search/page';
 
-const norm = (val: any) => {
-  const n = Number(val);
-  return Math.round(n);
-};
-
 const normTalent = (val: any) => {
   const n = Number(val);
   if (isNaN(n)) return 0;
@@ -67,8 +62,8 @@ export default function ContractsPage() {
     tooYoung: language === 'ru' ? "Игрок слишком молод! Мин. возраст — 18.0" : "Player is too young! Min age — 18.0",
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     years: language === 'ru' ? "лет" : "yrs",
-    skills: language === 'ru' ? "ТЕКУЩИЕ НАВЫКИ" : "CURRENT SKILLS",
-    talents: language === 'ru' ? "ПРЕДЕЛЫ ТАЛАНТА" : "TALENT LIMITS",
+    skills: language === 'ru' ? "НАВЫКИ" : "SKILLS",
+    talents: language === 'ru' ? "ТАЛАНТЫ" : "TALENTS",
     transferDesc: language === 'ru' ? "Игрок будет выставлен на аукцион на 12 часов." : "The player will be listed for 12 hours.",
     close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
     healthy: language === 'ru' ? "Здоров" : "Healthy",
@@ -182,7 +177,7 @@ export default function ContractsPage() {
                      <span className="text-[10px] font-bold">{liveAge.display} {t.years}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.talent}</span>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Талант' : 'Talent'}</span>
                      {renderStars(maxTalentValue)}
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
@@ -190,15 +185,15 @@ export default function ContractsPage() {
                      <span className="text-[10px] font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">Role</span>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
                      <span className="text-[10px] font-bold uppercase">{profileHero.role}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">Country</span>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Страна' : 'Country'}</span>
                      <span className="text-[10px] font-bold">{profileHero.country?.flag} {profileHero.country?.code}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">Injury</span>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Травма' : 'Injury'}</span>
                      <span className={cn("text-[9px] font-bold uppercase", profileHero.isInjured ? "text-red-400" : "text-green-400")}>
                        {profileHero.isInjured ? (language === 'ru' ? 'Есть' : 'Yes') : (language === 'ru' ? 'Нет' : 'No')}
                      </span>
@@ -214,7 +209,7 @@ export default function ContractsPage() {
                 </div>
               </section>
 
-              {/* БЛОК: ТЕКУЩИЕ НАВЫКИ */}
+              {/* БЛОК: НАВЫКИ */}
               <section>
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Activity className="w-3.5 h-3.5" /> {t.skills}
@@ -245,7 +240,7 @@ export default function ContractsPage() {
                 </div>
               </section>
 
-              {/* БЛОК: ПРЕДЕЛЫ ТАЛАНТА */}
+              {/* БЛОК: ТАЛАНТЫ */}
               <section>
                 <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Zap className="w-3.5 h-3.5" /> {t.talents}
@@ -255,14 +250,14 @@ export default function ContractsPage() {
                     const talentVal = normTalent((profileHero.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40">
+                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[80px]">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <Icon className="w-3 h-3 text-accent/50 shrink-0" />
+                          <Icon className="w-3.5 h-3.5 text-accent/50 shrink-0" />
                           <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
+                        <div className="flex items-center gap-3 shrink-0 h-16">
                           {renderStars(talentVal)}
-                          <span className="text-[10px] font-mono font-bold text-accent min-w-[15px] text-right">{talentVal}</span>
+                          <span className="text-[11px] font-mono font-bold text-accent min-w-[20px] text-right">{talentVal}</span>
                         </div>
                       </div>
                     );
@@ -286,6 +281,17 @@ export default function ContractsPage() {
         </div>
       </div>
     );
+  }
+
+  function getCountdown(expiryIso: string) {
+    if (!expiryIso) return "00:00:00";
+    const expiry = new Date(expiryIso).getTime();
+    const diff = expiry - now;
+    if (diff <= 0) return "00:00:00";
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
 
   return (
@@ -323,3 +329,4 @@ export default function ContractsPage() {
     </div>
   );
 }
+
