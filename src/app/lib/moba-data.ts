@@ -223,16 +223,16 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
   const heroId = seed ? `h_det_${seed}` : `hero_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
 
   const proStats = {
-    lastHitting: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
-    mapAwareness: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
-    positioning: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
-    reflexes: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
-    manaManagement: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
-    objectiveControl: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
-    communication: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
-    tiltResistance: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
-    versatility: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
-    ganking: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 20 : 5, isStarter ? 35 : 15, rng),
+    lastHitting: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 6 : 5, isStarter ? 8 : 15, rng),
+    mapAwareness: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 1 : 5, isStarter ? 4 : 15, rng),
+    positioning: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 6 : 5, isStarter ? 8 : 15, rng),
+    reflexes: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 6 : 5, isStarter ? 8 : 15, rng),
+    manaManagement: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 1 : 5, isStarter ? 4 : 15, rng),
+    objectiveControl: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 1 : 5, isStarter ? 4 : 15, rng),
+    communication: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 1 : 5, isStarter ? 4 : 15, rng),
+    tiltResistance: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 6 : 5, isStarter ? 8 : 15, rng),
+    versatility: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 1 : 5, isStarter ? 4 : 15, rng),
+    ganking: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 1 : 5, isStarter ? 4 : 15, rng),
   };
 
   const proTalents = {

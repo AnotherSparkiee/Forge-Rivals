@@ -48,8 +48,8 @@ export default function ProTransfersPage() {
 
     const checkAndDropLegends = async () => {
       const today = getMoscowDateString();
-      // SYNC ID sys_vtune_v500_talent_range_fix for new secondary range 18-37
-      const vtuneId = `sys_vtune_v500_talent_range_fix_${today}`;
+      // BUMP TO v610 to enforce strict secondary talent range 18-37
+      const vtuneId = `sys_vtune_v610_strict_secondary_limit_${today}`;
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       const vtuneSnap = await getDoc(vtuneRef);
 
@@ -149,6 +149,16 @@ export default function ProTransfersPage() {
     }).sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
   }, [agents, now]);
 
+  const t = {
+    title: language === 'ru' ? 'ЭЛИТНЫЕ ПРОФИ' : 'PRO MARKET',
+    subtitle: language === 'ru' ? 'РЫНОК ЛЕГЕНДАРНЫХ АТЛЕТОВ' : 'Elite Strategic Assets',
+    benefits: language === 'ru' ? 'ПРЕИМУЩЕСТВА PRO-СТАТУСА' : 'PRO UNIT ADVANTAGES',
+    talent: language === 'ru' ? 'Запредельный талант (до 100 единиц)' : 'Extreme Talent (Up to 100 units)',
+    tactics: language === 'ru' ? 'Тактическая точность в важных моментах' : 'Tactical Precision (Clutch moments)',
+    status: language === 'ru' ? 'Высокий статус (Буст посещаемости)' : 'High Media Status (Attendance boost)',
+    noUnits: language === 'ru' ? 'Все легенды законтрактованы' : 'All elite assets commissioned'
+  };
+
   if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;
 
   return (
@@ -160,10 +170,10 @@ export default function ProTransfersPage() {
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white flex items-center gap-2">
             <Crown className="w-6 h-6 text-yellow-500" />
-            {language === 'ru' ? 'ЭЛИТНЫЕ ПРОФИ' : 'PRO MARKET'}
+            {t.title}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
-            {language === 'ru' ? 'РЫНОК ЛЕГЕНДАРНЫХ АТЛЕТОВ' : 'Elite Strategic Assets'}
+            {t.subtitle}
           </p>
         </div>
       </header>
@@ -172,20 +182,20 @@ export default function ProTransfersPage() {
         <Card className="glass-card border-yellow-500/30 bg-gradient-to-br from-yellow-500/10 to-transparent">
           <CardContent className="p-4 space-y-4">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-yellow-500 flex items-center gap-2">
-              <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ПРЕИМУЩЕСТВА PRO-СТАТУСА' : 'PRO UNIT ADVANTAGES'}
+              <Info className="w-3.5 h-3.5" /> {t.benefits}
             </h3>
             <div className="grid grid-cols-1 gap-2">
                <div className="flex items-center gap-3 text-[10px] font-bold uppercase text-white/80">
                  <Zap className="w-3.5 h-3.5 text-yellow-500" /> 
-                 {language === 'ru' ? 'Запредельный талант (до 100 единиц)' : 'Extreme Talent (Up to 100 units)'}
+                 {t.talent}
                </div>
                <div className="flex items-center gap-3 text-[10px] font-bold uppercase text-white/80">
                  <Target className="w-3.5 h-3.5 text-primary" /> 
-                 {language === 'ru' ? 'Тактическая точность в важных моментах' : 'Tactical Precision (Clutch moments)'}
+                 {t.tactics}
                </div>
                <div className="flex items-center gap-3 text-[10px] font-bold uppercase text-white/80">
                  <Users className="w-3.5 h-3.5 text-accent" /> 
-                 {language === 'ru' ? 'Высокий статус (Буст посещаемости)' : 'High Media Status (Attendance boost)'}
+                 {t.status}
                </div>
             </div>
           </CardContent>
@@ -209,7 +219,7 @@ export default function ProTransfersPage() {
           ) : (
             <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
               <Trophy className="w-12 h-12" />
-              <p className="text-[10px] uppercase font-black">{language === 'ru' ? 'Все легенды законтрактованы' : 'All elite assets commissioned'}</p>
+              <p className="text-[10px] uppercase font-black">{t.noUnits}</p>
             </div>
           )}
         </div>
