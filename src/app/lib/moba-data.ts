@@ -140,6 +140,9 @@ export function generateVtuneHero(seed?: string): Hero {
   const age = (rng.range(183, 189) / 10);
   const careerEnd = rng.range(30, 36);
 
+  // Stats around 30 + Pro Bonus (15) = 45 OVR
+  const baseSkill = 30;
+
   return {
     id: 'legend_vtune',
     name: 'V-Tune',
@@ -161,16 +164,16 @@ export function generateVtuneHero(seed?: string): Hero {
     isInjured: false,
     isPro: true,
     proStats: {
-      lastHitting: 7,
-      mapAwareness: 5,
-      positioning: 6,
-      reflexes: 7,
-      manaManagement: 4,
-      objectiveControl: 6,
-      communication: 5,
-      tiltResistance: 6,
-      versatility: 5,
-      ganking: 6,
+      lastHitting: baseSkill,
+      mapAwareness: baseSkill - 5,
+      positioning: baseSkill - 2,
+      reflexes: baseSkill,
+      manaManagement: baseSkill - 8,
+      objectiveControl: baseSkill - 3,
+      communication: baseSkill - 5,
+      tiltResistance: baseSkill - 4,
+      versatility: baseSkill - 6,
+      ganking: baseSkill - 2,
     },
     proTalents: {
       lastHitting: 61, 

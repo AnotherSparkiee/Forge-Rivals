@@ -40,7 +40,9 @@ const ITEMS_PER_PAGE = 10;
  * Рендерит звезды таланта в зависимости от его значения (шкала 1-100).
  */
 export const renderStars = (talent: number) => {
-  const numericTalent = Math.round(Number(talent || 0));
+  // НОРМАЛИЗАТОР: Если талант пришел в старом формате (например 6.1), умножаем на 10
+  const normalizedTalent = Number(talent) < 10 ? Number(talent) * 10 : Number(talent);
+  const numericTalent = Math.round(normalizedTalent);
 
   if (numericTalent > 50) {
     let src = "https://iili.io/CCZlOeR.png"; // 5 stars elite (51-59)
@@ -95,8 +97,12 @@ export const TransferHeroCard = memo(({
   const nextBidValue = Math.ceil(agent.currentBid * (1 + bidPercent / 100));
   const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
   
-  // Ключевой параметр: используем MAX таланта для главного блока
-  const maxTalentValue = Math.max(...Object.values(agent.heroData.proTalents || {}).map(v => Number(v)));
+  // НОРМАЛИЗОВАННЫЙ ТАЛАНТ ДЛЯ ГЛАВНОГО БЛОКА
+  const talents = Object.values(agent.heroData.proTalents || {}).map(v => {
+    const n = Number(v);
+    return n < 10 ? n * 10 : n;
+  });
+  const maxTalentValue = Math.max(...talents);
 
   const rolesRu: Record<string, string> = {
     'Carry': 'Керри',
@@ -128,16 +134,6 @@ export const TransferHeroCard = memo(({
     const s = Math.floor((diff % 60000) / 1000);
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
-
-  const maxBidLimit = useMemo(() => {
-    if (isPremium || isDiamond) return 1000;
-    const tier = activeLicenseTier || 4;
-    if (tier === 4) return 10;
-    if (tier === 3) return 30;
-    if (tier === 2) return 100;
-    if (tier === 1) return 300;
-    return 10;
-  }, [isPremium, activeLicenseTier, isDiamond]);
 
   return (
     <>
@@ -298,8 +294,15 @@ export const TransferHeroCard = memo(({
               </h3>
               <div className="space-y-3">
                 {Object.entries(agent.heroData.proStats).map(([key, value]: [string, any]) => { 
-                  // ПРИНУДИТЕЛЬНО ОКРУГЛЯЕМ ТАЛАНТ ДЛЯ ОТОБРАЖЕНИЯ (6.1 -> 61)
-                  const talent = Math.round(Number(agent.heroData.proTalents ? (agent.heroData.proTalents as any)[key] : 45)); 
+                  // ПРИНУДИТЕЛЬНО ПРИВОДИМ К ШКАЛЕ 1-100 ДЛЯ ВИЗУАЛИЗАЦИИ
+                  const rawTalent = Number(agent.heroData.proTalents ? (agent.heroData.proTalents as any)[key] : 45);
+                  const normalizedTalent = rawTalent < 10 ? rawTalent * 10 : rawTalent;
+                  const talent = Math.round(normalizedTalent);
+
+                  const rawValue = Number(value);
+                  const normalizedValue = rawValue < 10 && rawTalent < 10 ? rawValue * 10 : rawValue;
+                  const displayValue = Math.round(normalizedValue);
+
                   const icons: Record<string, any> = {
                     lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
                     manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
@@ -316,12 +319,12 @@ export const TransferHeroCard = memo(({
                           </span>
                         </div>
                         <div className="flex flex-col items-end">
-                          <span className="text-[10px] font-mono font-bold text-primary">{value} / {talent}</span>
+                          <span className="text-[10px] font-mono font-bold text-primary">{displayValue} / {talent}</span>
                           {renderStars(talent)}
                         </div>
                       </div>
                       <div className="relative">
-                        <Progress value={(value / talent) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
+                        <Progress value={(displayValue / talent) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
                       </div>
                     </div>
                   ); 
@@ -343,6 +346,220 @@ export const TransferHeroCard = memo(({
       </Dialog>
       
       {/* Bid Modal remains same */}
+      <Dialog open={showBidModal} onOpenChange={setShowBidModal}>
+        <DialogContent className="max-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
+          <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
+            <div className="mx-auto w-16 h-16 rounded-2xl overflow-hidden border border-primary/50 shadow-xl bg-secondary/50 mb-4">
+              <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
+            </div>
+            <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white leading-none">
+              {agent.heroData?.name}
+            </DialogTitle>
+            <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-[0.2em] font-black">
+              {language === 'ru' ? 'ТЕРМИНАЛ СТАВОК' : 'BIDDING TERMINAL'}
+            </DialogDescription>
+          </div>
+
+          <div className="p-6 space-y-8">
+            <div className="space-y-4">
+              <div className="flex justify-between items-center px-1">
+                <span className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-2">
+                  <Gavel className="w-4 h-4 text-primary" /> {language === 'ru' ? 'СУММА СДЕЛКИ' : 'NEW BID AMOUNT'}
+                </span>
+                <span className="text-xl font-headline font-black text-primary italic">
+                  {isDiamond ? <Gem className="inline w-5 h-5 mr-1" /> : '€ '} 
+                  {nextBidValue.toLocaleString()}
+                </span>
+              </div>
+              
+              <div className="relative pt-4 pb-2">
+                <Slider
+                  value={[bidPercent]}
+                  onValueChange={(val) => setBidPercent(val[0])}
+                  min={3}
+                  max={300}
+                  step={1}
+                />
+                <div className="flex justify-between mt-3 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">
+                  <span>MIN +3%</span>
+                  <span>MAX +300%</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-primary/5 rounded-xl border border-primary/20 p-4 flex gap-4">
+               <Info className="w-5 h-5 text-primary shrink-0" />
+               <p className="text-[10px] text-muted-foreground leading-relaxed italic">
+                 {language === 'ru' 
+                  ? "Средства будут списаны немедленно. Если вашу ставку перебьют, сумма вернется на баланс клуба." 
+                  : "Funds will be deducted immediately. If outbid, the amount will be returned to your club balance."}
+               </p>
+            </div>
+          </div>
+
+          <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5 gap-2">
+            <Button variant="outline" className="flex-1 h-12 uppercase font-black text-[10px] border-white/10" onClick={() => setShowBidModal(false)}>
+              {language === 'ru' ? 'ОТМЕНА' : 'CANCEL'}
+            </Button>
+            <Button 
+              className="flex-[2] h-12 hero-gradient font-black text-[11px] uppercase tracking-widest shadow-xl shadow-primary/20"
+              onClick={async () => {
+                setIsProcessing(true);
+                await onBid(agent, nextBidValue);
+                setIsProcessing(false);
+                setShowBidModal(false);
+              }}
+              disabled={isProcessing}
+            >
+              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : (language === 'ru' ? 'ПОДТВЕРДИТЬ' : 'CONFIRM')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 });
+
+TransferHeroCard.displayName = 'TransferHeroCard';
+
+export default function QuickSearchPage() {
+  const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
+  const { user, isUserLoading } = useUser();
+  const db = useFirestore();
+  const { toast } = useToast();
+  
+  const [now, setNow] = useState(Date.now());
+  const [page, setPage] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(getMoscowTime().getTime()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const marketQuery = useMemoFirebase(() => {
+    if (!user?.uid) return null;
+    return query(collection(db, 'market_v7'));
+  }, [db, user?.uid]);
+
+  const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
+  const userDocRef = useMemoFirebase(() => user?.uid ? doc(db, 'players_v10', user.uid) : null, [db, user?.uid]);
+  const { data: profile } = useDoc(userDocRef);
+
+  const filteredAgents = useMemo(() => {
+    if (!agents) return [];
+    
+    return agents.filter(a => {
+      // Исключаем истекшие аукционы
+      const expiry = new Date(a.expiresAt).getTime();
+      if (expiry <= now) return false;
+
+      // Исключаем молодежь и PRO (для быстрого поиска только обычные юниоры)
+      const liveAge = calculateLiveAge(a.heroData.baseAge, a.heroData.hiredAt);
+      if (a.isYouth || a.isPro || liveAge.numeric < 18.0) return false;
+
+      return true;
+    }).sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
+  }, [agents, now]);
+
+  const paginatedAgents = useMemo(() => {
+    const start = page * ITEMS_PER_PAGE;
+    return filteredAgents.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredAgents, page]);
+
+  const totalPages = Math.ceil(filteredAgents.length / ITEMS_PER_PAGE);
+
+  const handleGlobalBid = useCallback(async (agent: any, amount: number) => {
+    if (!user || !profile) return;
+    if (credits < amount) { 
+      toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" }); 
+      return; 
+    }
+    try {
+      const prevBidder = agent.highestBidderId;
+      const heroName = agent.heroData?.name || "Player";
+      
+      const mskNow = getMoscowTime().getTime();
+      const expiryTime = new Date(agent.expiresAt).getTime();
+      const timeLeft = expiryTime - mskNow;
+      let finalExpiresAt = agent.expiresAt;
+      
+      if (timeLeft < 600000) { 
+        finalExpiresAt = new Date(mskNow + 600000).toISOString(); 
+      }
+
+      await updateDoc(doc(db, 'market_v7', agent.id), { 
+        currentBid: amount, highestBidderId: user.uid, highestBidderName: profile.displayName || "Unknown Manager", 
+        bidders: arrayUnion(user.uid), updatedAt: serverTimestamp(),
+        expiresAt: finalExpiresAt
+      });
+
+      addCredits(-amount);
+      if (prevBidder && prevBidder !== user.uid) {
+        addDocumentNonBlocking(collection(db, 'notifications_v7'), {
+          userId: prevBidder, title: language === 'ru' ? "Ставка перебита!" : "Outbid!",
+          description: language === 'ru' ? `Ставка на "${heroName}" перебита ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : `Bid on "${heroName}" outbid ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`,
+          type: 'market', read: false, createdAt: new Date().toISOString()
+        });
+      }
+      
+      toast({ 
+        title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!",
+        description: timeLeft < 600000 ? (language === 'ru' ? "Аукцион продлен на 10 минут!" : "Auction extended by 10 minutes!") : undefined
+      });
+    } catch (e) {
+      toast({ title: "Error placing bid", variant: "destructive" });
+    }
+  }, [user, profile, credits, language, toast, db, addCredits]);
+
+  if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;
+
+  return (
+    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
+      <header className="mb-6 flex items-center gap-4">
+        <Link href="/transfers">
+          <Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button>
+        </Link>
+        <div>
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
+            {language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}
+          </h1>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">Real-time Auction Stream</p>
+        </div>
+      </header>
+
+      <div className="space-y-3 animate-in fade-in duration-500">
+        {paginatedAgents.length > 0 ? (
+          <>
+            {paginatedAgents.map((agent) => (
+              <TransferHeroCard 
+                key={agent.id} 
+                agent={agent} 
+                user={user} 
+                profile={profile} 
+                onBid={handleGlobalBid}
+                now={now}
+                language={language}
+              />
+            ))}
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 pt-6">
+                <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(0)} className="h-8 w-8"><ChevronsLeft className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 w-8"><ChevronLeftIcon className="h-4 w-4" /></Button>
+                <span className="text-[10px] font-black text-muted-foreground uppercase px-4">{language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}</span>
+                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 w-8"><ChevronRightIcon className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(totalPages - 1)} className="h-8 w-8"><ChevronsRight className="w-4 h-4" /></Button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 p-10">
+            <ShoppingCart className="w-12 h-12" />
+            <p className="text-[10px] uppercase font-black">{language === 'ru' ? 'Аукционы не найдены' : 'No active auctions'}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+

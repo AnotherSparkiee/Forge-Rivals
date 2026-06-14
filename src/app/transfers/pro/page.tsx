@@ -48,8 +48,8 @@ export default function ProTransfersPage() {
 
     const checkAndDropLegends = async () => {
       const today = getMoscowDateString();
-      // FORCE REFRESH WITH NEW ID sys_vtune_v100_final_release
-      const vtuneId = `sys_vtune_v100_final_release_${today}`;
+      // FORCE REFRESH WITH NEW ID sys_vtune_v200_integrity_fix
+      const vtuneId = `sys_vtune_v200_integrity_fix_${today}`;
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       const vtuneSnap = await getDoc(vtuneRef);
 
