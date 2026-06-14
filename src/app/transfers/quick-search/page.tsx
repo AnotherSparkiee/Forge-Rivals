@@ -60,15 +60,15 @@ export const renderStars = (talent: number) => {
 
   if (numericTalent > 50) {
     let src = "https://iili.io/CnYPc79.md.png"; // 5 stars elite
-    let heightClass = "h-12"; // 48px
+    let heightClass = "h-16"; // 64px
     
     if (numericTalent >= 60 && numericTalent <= 69) {
       src = "https://iili.io/CnTWT0X.md.png"; // 6 stars
-      heightClass = "h-14"; // 56px
+      heightClass = "h-20"; // 80px
     }
     if (numericTalent >= 70) {
       src = "https://iili.io/CCZXucP.png"; // 7 stars
-      heightClass = "h-16"; // 64px
+      heightClass = "h-24"; // 96px
     }
     return <img src={src} alt={`${numericTalent} stars`} className={cn(heightClass, "w-auto object-contain")} />;
   }
@@ -178,8 +178,8 @@ export const TransferHeroCard = memo(({
         )}
       >
         <CardContent className="p-3">
-          <div className="flex items-center justify-between mb-3">
-             <div className="flex items-center gap-1.5 text-accent">
+          <div className="flex items-center justify-between mb-2">
+             <div className="flex items-center gap-1 text-accent">
                <Timer className="w-3 h-3 animate-pulse" />
                <span className="text-[9px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
              </div>
@@ -197,7 +197,7 @@ export const TransferHeroCard = memo(({
             </div>
             
             <div className="flex-1 min-w-0">
-              <div className="flex flex-col gap-0.5 mb-1.5">
+              <div className="flex flex-col gap-0.5 mb-1">
                 <h3 className="text-sm font-bold uppercase truncate text-white tracking-tight leading-none">{agent.heroData?.name}</h3>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-[7px] h-3.5 py-0 border-white/10 uppercase font-black text-primary/80">
@@ -299,14 +299,14 @@ export const TransferHeroCard = memo(({
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.yrs}</span>
                   </div>
-                  <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5 min-h-[80px]">
+                  <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5 min-h-[96px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
                      <div className="flex items-center">
                        {renderStars(maxTalentValue)}
                      </div>
                   </div>
                   <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">Salary</span>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Зарплата' : 'Salary'}</span>
                      <span className="text-[10px] font-bold text-primary">€{(agent.heroData.salary || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
@@ -365,7 +365,7 @@ export const TransferHeroCard = memo(({
                     const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-background/40 min-h-[90px]">
+                      <div key={`talent-${key}`} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-background/40 min-h-[96px]">
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           <Icon className="w-4 h-4 text-accent/50 shrink-0" />
                           <span className="text-[10px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>

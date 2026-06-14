@@ -123,8 +123,8 @@ const YouthTransferCard = memo(({
         isOwner && "border-blue-500/40 bg-blue-500/5"
       )}>
         <CardContent className="p-3">
-          <div className="flex items-center justify-between mb-3">
-             <div className="flex items-center gap-1.5 text-accent">
+          <div className="flex items-center justify-between mb-2">
+             <div className="flex items-center gap-1 text-accent">
                <Timer className="w-3 h-3 animate-pulse" />
                <span className="text-[9px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
              </div>
@@ -142,7 +142,7 @@ const YouthTransferCard = memo(({
             </div>
             
             <div className="flex-1 min-w-0">
-              <div className="flex flex-col gap-0.5 mb-1.5">
+              <div className="flex flex-col gap-0.5 mb-1">
                 <h3 className="text-sm font-bold uppercase truncate text-white tracking-tight leading-none">{agent.heroData?.name}</h3>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-[7px] h-3.5 py-0 border-white/10 uppercase font-black text-accent/80">
@@ -239,7 +239,7 @@ const YouthTransferCard = memo(({
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
                    <span className="text-[10px] font-bold">{liveAge.display} {t.yrs}</span>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5 min-h-[80px]">
+                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5 min-h-[96px]">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
                    <div className="flex items-center">
                     {renderStars(maxTalentValue)}
@@ -305,7 +305,7 @@ const YouthTransferCard = memo(({
                   const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
                   const Icon = icons[key] || Info;
                   return (
-                    <div key={`talent-${key}`} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-background/40 min-h-[90px]">
+                    <div key={`talent-${key}`} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-background/40 min-h-[96px]">
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <Icon className="w-4 h-4 text-accent/50 shrink-0" />
                         <span className="text-[10px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>

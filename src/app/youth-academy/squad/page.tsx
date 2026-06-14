@@ -99,7 +99,7 @@ export default function YouthSquadPage() {
       const agentId = `youth_${user.uid}_${Date.now()}`;
       const agentData = { id: agentId, heroData: JSON.parse(JSON.stringify(selectedHero)), currentBid: startPrice, startingPrice: startPrice, highestBidderId: null, highestBidderName: null, bidders: [], sellerId: user.uid, sellerName: profile.displayName || "Manager", expiresAt: expiryTime.toISOString(), dropDate: today, dropTime: mskNow.toISOString(), isYouth: true };
       await setDoc(doc(db, 'market_v7', agentId), agentData);
-      updateHero(selectedHero.id, { onTransferUntil: expiryTime.toISOString(), transferMarketId: agentId });
+      updateDoc(doc(db, 'leagues_v2', profile.selectedLeagueId, 'divisions', profile.leagueLevel.toString(), 'groups', profile.groupId.toString(), 'teams', user.uid, 'heroes', selectedHero.id), { onTransferUntil: expiryTime.toISOString(), transferMarketId: agentId });
       toast({ title: language === 'ru' ? "Выставлен на рынок" : "Listed on Market" });
       setSelectedHero(null);
     } catch (e: any) {
@@ -161,8 +161,8 @@ export default function YouthSquadPage() {
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.years}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[80px]">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.talent}</span>
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[96px]">
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
                      <div className="flex items-center">
                        {renderStars(maxTalentValue)}
                      </div>
@@ -227,12 +227,12 @@ export default function YouthSquadPage() {
                     const talentVal = normTalent((selectedHero.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[90px]">
+                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[96px]">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <Icon className="w-3.5 h-3.5 text-accent/50 shrink-0" />
                           <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0 h-20">
+                        <div className="flex items-center gap-3 shrink-0 h-24">
                           {renderStars(talentVal)}
                           <span className="text-[11px] font-mono font-bold text-accent min-w-[20px] text-right">{talentVal}</span>
                         </div>
@@ -303,7 +303,7 @@ export default function YouthSquadPage() {
                   </div>
                   <div className="flex items-center gap-3 mt-1">
                     {renderStars(maxTalent)}
-                    <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest">Age: {liveAge.display} {t.years}</p>
+                    <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Age: {liveAge.display} {t.years}</p>
                   </div>
                 </div>
                 <div className="text-right border-l border-white/5 pl-3">
