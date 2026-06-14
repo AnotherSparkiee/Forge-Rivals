@@ -187,7 +187,6 @@ export function generateVtuneHero(seed?: string): Hero {
       reflexes: 55,
       tiltResistance: 54,
       versatility: 52,
-      // Второстепенные таланты строго 15-38
       mapAwareness: rng.range(15, 38),
       manaManagement: rng.range(15, 38),
       objectiveControl: rng.range(15, 38),

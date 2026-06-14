@@ -48,7 +48,8 @@ export default function ProTransfersPage() {
 
     const checkAndDropLegends = async () => {
       const today = getMoscowDateString();
-      const vtuneId = `sys_legend_vtune_${today}`;
+      // ИСПОЛЬЗУЕМ НОВЫЙ ID ДЛЯ ПРИНУДИТЕЛЬНОГО ПЕРЕСОЗДАНИЯ С ЦЕЛЫМИ ЧИСЛАМИ (v61_fixed)
+      const vtuneId = `sys_legend_vtune_v61_fixed_${today}`;
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       const vtuneSnap = await getDoc(vtuneRef);
 

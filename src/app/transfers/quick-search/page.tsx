@@ -342,7 +342,7 @@ export const TransferHeroCard = memo(({
       </Dialog>
 
       <Dialog open={showBidModal} onOpenChange={setShowBidModal}>
-        <DialogContent className="max-w-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
+        <DialogContent className="max-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
           <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
             <div className="mx-auto w-16 h-16 rounded-2xl overflow-hidden border border-primary/50 shadow-xl bg-secondary/50 mb-4">
               <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
