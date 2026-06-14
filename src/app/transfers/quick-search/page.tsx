@@ -46,7 +46,7 @@ const normTalent = (val: any) => {
 
 /**
  * Рендерит индикатор таланта.
- * До 50 - стандартные звезды (14px).
+ * До 50 - стандартные звезды.
  * 51+ - элитная графика.
  */
 export const renderStars = (talent: number) => {
@@ -54,15 +54,15 @@ export const renderStars = (talent: number) => {
 
   if (numericTalent > 50) {
     let src = "https://iili.io/CnYPc79.md.png"; // 5 stars elite (51-59)
-    let heightClass = "h-8"; // 32px
+    let heightClass = "h-10"; // 40px
     
     if (numericTalent >= 60 && numericTalent <= 69) {
       src = "https://iili.io/CnTWT0X.md.png"; // 6 stars (60-69)
-      heightClass = "h-11"; // 44px
+      heightClass = "h-14"; // 56px
     }
     if (numericTalent >= 70) {
       src = "https://iili.io/CCZXucP.png"; // 7 звезд (70+)
-      heightClass = "h-12"; // 48px
+      heightClass = "h-16"; // 64px
     }
     return <img src={src} alt={`${numericTalent} stars`} className={cn(heightClass, "w-auto object-contain")} />;
   }
