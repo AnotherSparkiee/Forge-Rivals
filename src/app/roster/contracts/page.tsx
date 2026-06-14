@@ -173,7 +173,7 @@ export default function ContractsPage() {
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.years}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 h-12">
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[80px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.talent}</span>
                      <div className="flex items-center">
                        {renderStars(maxTalentValue)}
@@ -247,15 +247,13 @@ export default function ContractsPage() {
                     const talentVal = normTalent((profileHero.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 h-16">
+                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[80px]">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <Icon className="w-3.5 h-3.5 text-accent/50 shrink-0" />
                           <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0 h-full">
-                          <div className="flex items-center">
-                            {renderStars(talentVal)}
-                          </div>
+                        <div className="flex items-center gap-3 shrink-0 h-20">
+                          {renderStars(talentVal)}
                           <span className="text-[11px] font-mono font-bold text-accent min-w-[20px] text-right">{talentVal}</span>
                         </div>
                       </div>
@@ -308,7 +306,7 @@ export default function ContractsPage() {
                   </div>
                 </div>
                 <div className="flex flex-col items-center justify-center min-w-[40px] border-l border-white/5 pl-3">
-                  <p className="text-[7px] font-black text-accent uppercase tracking-tighter leading-none mb-0.5">{language === 'ru' ? 'ОБЩ' : 'OVR'}</p>
+                  <p className="text-[7px] font-black text-primary uppercase tracking-tighter leading-none mb-0.5">ОБЩ</p>
                   <span className="text-xl font-headline font-bold text-accent italic leading-none">{hero.overallRating}</span>
                 </div>
               </CardContent>
