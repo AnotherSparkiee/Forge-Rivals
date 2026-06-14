@@ -35,9 +35,10 @@ import {
 } from "@/components/ui/dialog";
 
 /**
- * Нормализатор значений (превращает 6.1 в 61 и округляет)
+ * Нормализатор талантов (превращает 6.1 в 61 и округляет).
+ * Используется ТОЛЬКО для талантов, чтобы корректно отображать звезды.
  */
-const norm = (val: any) => {
+const normTalent = (val: any) => {
   const n = Number(val);
   if (isNaN(n)) return 0;
   return n < 10 ? Math.round(n * 10) : Math.round(n);
@@ -47,7 +48,7 @@ const norm = (val: any) => {
  * Рендерит звезды таланта в зависимости от его значения (шкала 1-100).
  */
 export const renderStars = (talent: number) => {
-  const numericTalent = norm(talent);
+  const numericTalent = normTalent(talent);
 
   if (numericTalent > 50) {
     let src = "https://iili.io/CCZlOeR.png"; // 5 stars elite (51-59)
@@ -56,7 +57,7 @@ export const renderStars = (talent: number) => {
     return <img src={src} alt={`${numericTalent} stars`} className="h-3 w-auto object-contain" />;
   }
 
-  const starRating = numericTalent / 10;
+  const starRating = Math.max(0, numericTalent / 10);
   return (
     <div className="flex items-center gap-0.5">
       {Array.from({ length: 5 }).map((_, i) => {
@@ -101,7 +102,7 @@ export const TransferHeroCard = memo(({
   const nextBidValue = Math.ceil(agent.currentBid * (1 + bidPercent / 100));
   const liveAge = calculateLiveAge(agent.heroData.baseAge, agent.heroData.hiredAt);
   
-  const talents = Object.values(agent.heroData.proTalents || {}).map(v => norm(v));
+  const talents = Object.values(agent.heroData.proTalents || {}).map(v => normTalent(v));
   const maxTalentValue = Math.max(...talents);
 
   const rolesRu: Record<string, string> = {
@@ -213,7 +214,7 @@ export const TransferHeroCard = memo(({
               onClick={(e) => { e.stopPropagation(); if (!isLeading && !isOwner) setShowBidModal(true); }} 
               disabled={isLeading || isOwner}
             >
-              {isOwner ? (language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT') : (isLeading ? 'ЛИДИРУЕТЕ' : 'ПОСТАВИТЬ')}
+              {isOwner ? (language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT') : (isLeading ? (language === 'ru' ? 'ЛИДИРУЕТЕ' : 'LEADING') : (language === 'ru' ? 'ПОСТАВИТЬ' : 'PLACE BID'))}
             </Button>
           </div>
         </CardContent>
@@ -247,7 +248,10 @@ export const TransferHeroCard = memo(({
               <div className="space-y-3">
                 {Object.entries(agent.heroData.proStats).map(([key, value]: [string, any]) => { 
                   const Icon = icons[key] || Info;
-                  const displayValue = norm(value);
+                  // Используем чистое значение Math.round(value) БЕЗ умножения на 10.
+                  const displayValue = Math.round(Number(value));
+                  const talentLimit = normTalent((agent.heroData.proTalents as any)[key] || 10);
+                  
                   return (
                     <div key={key} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
                       <div className="flex justify-between items-center px-0.5">
@@ -255,9 +259,13 @@ export const TransferHeroCard = memo(({
                           <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
                           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{proStatsLabels[key]}</span>
                         </div>
-                        <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
+                        <div className="flex items-center gap-1.5">
+                           <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
+                           <span className="text-[8px] text-muted-foreground/50">/</span>
+                           <span className="text-[9px] font-mono font-bold text-primary/70">{talentLimit}</span>
+                        </div>
                       </div>
-                      <Progress value={displayValue} max={100} className="h-1 rounded-full bg-secondary/40" />
+                      <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
                     </div>
                   ); 
                 })}
@@ -271,7 +279,7 @@ export const TransferHeroCard = memo(({
               </h3>
               <div className="space-y-2">
                 {Object.entries(agent.heroData.proTalents || {}).map(([key, value]: [string, any]) => {
-                  const talentVal = norm(value);
+                  const talentVal = normTalent(value);
                   const Icon = icons[key] || Info;
                   return (
                     <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40">
@@ -292,7 +300,7 @@ export const TransferHeroCard = memo(({
 
           <div className="p-4 bg-secondary/20 border-t border-white/5 shrink-0">
              <Button className="w-full h-12 hero-gradient font-black text-xs uppercase" onClick={() => { setShowDossier(false); if (!isLeading && !isOwner) setShowBidModal(true); }} disabled={isLeading || isOwner}>
-               {isLeading ? 'ВЫ ЛИДИРУЕТЕ' : (isOwner ? 'ВАШ ГЕРОЙ' : 'ПЕРЕЙТИ К СТАВКЕ')}
+               {isLeading ? (language === 'ru' ? 'ВЫ ЛИДИРУЕТЕ' : 'LEADING') : (isOwner ? (language === 'ru' ? 'ВАШ ГЕРОЙ' : 'YOUR UNIT') : (language === 'ru' ? 'ПЕРЕЙТИ К СТАВКЕ' : 'BID TERMINAL'))}
              </Button>
           </div>
         </DialogContent>
@@ -315,8 +323,8 @@ export const TransferHeroCard = memo(({
             <div className="bg-primary/5 rounded-xl border border-primary/20 p-4 flex gap-4"><Info className="w-5 h-5 text-primary shrink-0" /><p className="text-[10px] text-muted-foreground italic">{language === 'ru' ? "Сумма будет списана немедленно. При перебитии ставки - возвращена." : "Funds deducted immediately. Returned if outbid."}</p></div>
           </div>
           <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5 gap-2">
-            <Button variant="outline" className="flex-1 h-12 uppercase font-black text-[10px]" onClick={() => setShowBidModal(false)}>{language === 'ru' ? 'ОТМЕНА' : 'CANCEL'}</Button>
-            <Button className="flex-[2] h-12 hero-gradient font-black text-[11px] uppercase shadow-xl" onClick={async () => { setIsProcessing(true); await onBid(agent, nextBidValue); setIsProcessing(false); setShowBidModal(false); }} disabled={isProcessing}>{isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'ПОДТВЕРДИТЬ'}</Button>
+            <Button variant="outline" className="flex-1 h-12 uppercase font-black text-[10px] border-white/10" onClick={() => setShowBidModal(false)}>{language === 'ru' ? 'ОТМЕНА' : 'CANCEL'}</Button>
+            <Button className="flex-[2] h-12 hero-gradient font-black text-[11px] uppercase shadow-xl" onClick={async () => { setIsProcessing(true); await onBid(agent, nextBidValue); setIsProcessing(false); setShowBidModal(false); }} disabled={isProcessing}>{isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : (language === 'ru' ? 'ПОДТВЕРДИТЬ' : 'CONFIRM')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -334,6 +342,7 @@ export default function QuickSearchPage() {
   
   const [now, setNow] = useState(Date.now());
   const [page, setPage] = useState(0);
+  const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
     const timer = setInterval(() => setNow(getMoscowTime().getTime()), 1000);
@@ -394,7 +403,7 @@ export default function QuickSearchPage() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center gap-4">
-        <Link href="/transfers"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+        <Link href="/transfers"><Button variant="ghost" size="icon" className="rounded-full border border-white/5"><ChevronLeft className="w-6 h-6" /></Button></Link>
         <div><h1 className="text-2xl font-headline font-bold uppercase text-white">{language === 'ru' ? 'БЫСТРЫЙ ПОИСК' : 'QUICK SEARCH'}</h1><p className="text-muted-foreground text-[10px] uppercase font-bold opacity-60">Real-time Auction Stream</p></div>
       </header>
       <div className="space-y-3">

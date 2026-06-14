@@ -12,7 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, query, find, doc, arrayUnion, serverTimestamp, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { generateVtuneHero } from '@/app/lib/moba-data';
@@ -48,8 +48,8 @@ export default function ProTransfersPage() {
 
     const checkAndDropLegends = async () => {
       const today = getMoscowDateString();
-      // SYNC ID sys_vtune_v300_stats_reset for low initial stats
-      const vtuneId = `sys_vtune_v300_stats_reset_${today}`;
+      // SYNC ID sys_vtune_v400_stats_reset for final corrected stats (no norm on skills)
+      const vtuneId = `sys_vtune_v400_stats_reset_${today}`;
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       const vtuneSnap = await getDoc(vtuneRef);
 
