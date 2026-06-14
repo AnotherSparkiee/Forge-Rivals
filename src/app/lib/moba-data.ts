@@ -140,8 +140,8 @@ function getRandomTalent(rng?: SeededRandom, isPro: boolean = false) {
     if (rng) return rng.range(50, 75);
     return Math.floor(Math.random() * 26) + 50;
   }
-  if (rng) return rng.range(25, 55);
-  return Math.floor(Math.random() * 31) + 25;
+  if (rng) return rng.range(25, 50);
+  return Math.floor(Math.random() * 26) + 25;
 }
 
 export function generateVtuneHero(seed?: string): Hero {
@@ -157,7 +157,7 @@ export function generateVtuneHero(seed?: string): Hero {
     overallRating: 45,
     abilitiesFocus: 'Balanced',
     image: 'https://iili.io/CCLp4OF.png',
-    description: "Elite Ukrainian Carry. A legendary force on the professional circuit.",
+    description: "Элитный украинский Керри. Легендарная сила на профессиональной арене.",
     price: 0,
     baseAge: age,
     hiredAt: new Date().toISOString(),
@@ -182,12 +182,12 @@ export function generateVtuneHero(seed?: string): Hero {
       ganking: rng.range(5, 6),
     },
     proTalents: {
-      lastHitting: rng.range(59, 61), 
-      positioning: rng.range(53, 56),
-      reflexes: rng.range(51, 55),
-      tiltResistance: rng.range(51, 54),
-      versatility: rng.range(50, 54),
-      // Второстепенные таланты 15-38
+      lastHitting: 61, 
+      positioning: 56,
+      reflexes: 55,
+      tiltResistance: 54,
+      versatility: 52,
+      // Второстепенные таланты строго 15-38
       mapAwareness: rng.range(15, 38),
       manaManagement: rng.range(15, 38),
       objectiveControl: rng.range(15, 38),
@@ -266,7 +266,7 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     overallRating: isPro ? 45 : 25, 
     abilitiesFocus: 'Balanced',
     image: country.url,
-    description: isPro ? "An elite professional athlete with unmatched strategic potential." : `A unique talent from ${country.name}.`,
+    description: isPro ? "Элитный профессиональный атлет с непревзойденным стратегическим потенциалом." : `Уникальный талант из страны: ${country.name}.`,
     price: 0,
     baseAge: startAge,
     hiredAt: new Date().toISOString(),

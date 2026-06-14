@@ -21,13 +21,13 @@ export const ROLE_CORE_SKILLS: Record<Role, string[]> = {
  */
 export function calculateTalentMultiplier(currentValue: number, talentValue: number): number {
   if (currentValue >= 100) return 0;
-  if (currentValue >= talentValue * 10) return 0.01;
+  if (currentValue >= talentValue) return 0.01;
   
-  const threshold = (talentValue * 10) * 0.9;
+  const threshold = talentValue * 0.9;
   if (currentValue < threshold) return 1.0;
   
   // Зона торможения: линейное затухание от 1.0 до 0.0
-  return ((talentValue * 10) - currentValue) / ((talentValue * 10) - threshold);
+  return (talentValue - currentValue) / (talentValue - threshold);
 }
 
 /**
@@ -40,7 +40,7 @@ export function calculateXpGain(params: {
   infra: { bootcamp: number; research: number; psychologist: number };
   matchResult?: { win: boolean; mvp: boolean; great: boolean; fail: boolean };
   matchesToday: number;
-  isPro?: boolean; // New PRO status
+  isPro?: boolean;
 }): number {
   if (params.currentValue >= 100) return 0;
 
@@ -91,7 +91,6 @@ export function calculateXpGain(params: {
   const talentMod = calculateTalentMultiplier(params.currentValue, params.talentValue);
 
   // 6. Коэффициент усталости
-  // Каждый последующий матч -25% XP. 1-й = 0% штраф, 2-й = 25% и т.д.
   const fatiguePenaltyBase = Math.max(0, params.matchesToday - 1) * 0.25;
   const psychFatigueReduction = params.infra.psychologist * 0.03;
   const finalFatiguePenalty = Math.max(0, fatiguePenaltyBase - psychFatigueReduction);
@@ -106,7 +105,6 @@ export function calculateXpGain(params: {
   } else if (isUnofficial) {
     totalXP = baseXP * (bootcampMod + researchMod + psychologistMod) * talentMod * fatigueMod;
   } else {
-    // Официальные матчи
     totalXP = baseXP * bootcampMod * talentMod * fatigueMod;
   }
 

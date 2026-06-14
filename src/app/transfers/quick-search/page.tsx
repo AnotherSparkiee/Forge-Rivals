@@ -7,10 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, Loader2, Gavel, ShieldCheck, 
-  Timer, ShoppingCart, X, Check, Search, Info, Users,
+  Timer, Star, ShoppingCart, X, Check, Search, Info, Users,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
   ChevronsLeft, ChevronsRight, Zap, Gem, Award, Target, Eye, Map, 
-  Sparkles, Sword, Crosshair, Brain, TrendingUp, Star
+  Sparkles, Sword, Crosshair, Brain, TrendingUp
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -188,7 +188,7 @@ export const TransferHeroCard = memo(({
                  </div>
                  <div className="flex flex-col border-l border-white/5 pl-3">
                    <p className="text-[8px] font-black text-muted-foreground uppercase leading-none mb-1">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}</p>
-                   <p className="text-11px] font-bold text-white leading-none mt-0.5">{liveAge.display}</p>
+                   <p className="text-[11px] font-bold text-white leading-none mt-0.5">{liveAge.display}</p>
                  </div>
               </div>
             </div>

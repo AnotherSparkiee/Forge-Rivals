@@ -48,7 +48,6 @@ export default function ProTransfersPage() {
 
     const checkAndDropLegends = async () => {
       const today = getMoscowDateString();
-      // Статичный ID для предотвращения дублей
       const vtuneId = `sys_legend_vtune_${today}`;
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       const vtuneSnap = await getDoc(vtuneRef);
@@ -139,7 +138,6 @@ export default function ProTransfersPage() {
   const proAgents = useMemo(() => {
     if (!agents) return [];
     
-    // Фильтрация дублей по имени героя
     const uniqueNames = new Set();
     return agents.filter(a => {
       if (!a.isPro || new Date(a.expiresAt).getTime() <= now) return false;
@@ -177,7 +175,7 @@ export default function ProTransfersPage() {
             <div className="grid grid-cols-1 gap-2">
                <div className="flex items-center gap-3 text-[10px] font-bold uppercase text-white/80">
                  <Zap className="w-3.5 h-3.5 text-yellow-500" /> 
-                 {language === 'ru' ? 'Запредельный талант (до 6.5★ звезд)' : 'Extreme Talent (Up to 6.5★ stars)'}
+                 {language === 'ru' ? 'Запредельный талант (до 100 единиц)' : 'Extreme Talent (Up to 100 units)'}
                </div>
                <div className="flex items-center gap-3 text-[10px] font-bold uppercase text-white/80">
                  <Target className="w-3.5 h-3.5 text-primary" /> 
