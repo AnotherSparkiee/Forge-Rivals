@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -47,8 +46,7 @@ const normTalent = (val: any) => {
 
 export const renderStars = (talent: number) => {
   const numericTalent = normTalent(talent);
-  // UNIFIED SIZE: 28px everywhere as requested
-  const heightClass = "h-7";
+  const heightClass = "h-7"; // 28px unified
 
   if (numericTalent > 50) {
     let src = "https://iili.io/Cnrlw6F.md.png"; // 5 stars
@@ -173,7 +171,7 @@ export const TransferHeroCard = memo(({
 
           <div className="flex items-center gap-3">
             <div className="relative shrink-0">
-              <div className="w-16 h-16 rounded-lg overflow-hidden bg-secondary/30 border border-white/10 relative shadow-lg">
+              <div className="w-[72px] h-[72px] rounded-lg overflow-hidden bg-secondary/30 border border-white/10 relative shadow-lg">
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
                 <div className="absolute -bottom-1 -right-1 bg-background rounded-sm p-0.5 border border-white/10 shadow-xl z-10 flex items-center justify-center">
                   <span className="text-[8px] leading-none">{agent.heroData.country?.flag}</span>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -36,7 +35,6 @@ export default function ProTransfersPage() {
 
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
-    // Fetch only PRO players for this page
     return query(collection(db, 'market_v7'), where('isPro', '==', true));
   }, [db, user?.uid]);
 
@@ -45,15 +43,14 @@ export default function ProTransfersPage() {
   const { data: profile } = useDoc(userDocRef);
 
   useEffect(() => {
-    if (isMarketLoading || !user?.uid || !isStoreLoaded) return;
+    if (!user?.uid || !isStoreLoaded) return;
 
     const checkAndDropLegends = async () => {
       const today = getMoscowDateString();
       const vtuneId = `sys_vtune_v900_final_standard_${today}`;
       const vtuneRef = doc(db, 'market_v7', vtuneId);
-      const vtuneSnap = await getDoc(vtuneRef);
-
-      // CLEANUP ALL PREVIOUS OR BROKEN SYSTEM VERSIONS
+      
+      // 1. CLEANUP ALL PREVIOUS OR BROKEN SYSTEM VERSIONS
       try {
         const q = query(collection(db, 'market_v7'), where('sellerId', '==', 'system'));
         const allSystemSnap = await getDocs(q);
@@ -66,6 +63,8 @@ export default function ProTransfersPage() {
         console.error("System cleanup failed", e);
       }
 
+      // 2. CHECK IF CURRENT EXISTS, IF NOT - DROP
+      const vtuneSnap = await getDoc(vtuneRef);
       if (!vtuneSnap.exists()) {
         const hero = generateVtuneHero(today);
         const mskNow = getMoscowTime();
@@ -98,7 +97,7 @@ export default function ProTransfersPage() {
       initTriggeredRef.current = true;
       checkAndDropLegends().catch(e => console.error("Legend drop failed", e));
     }
-  }, [isMarketLoading, user?.uid, isStoreLoaded, db]);
+  }, [user?.uid, isStoreLoaded, db]);
 
   const handleGlobalBid = useCallback(async (agent: any, amount: number) => {
     if (!user || !profile) return;
@@ -154,7 +153,6 @@ export default function ProTransfersPage() {
     if (!agents) return [];
     
     return agents.filter(a => {
-      // Strictly only current V900 system agents or real user auctions
       if (a.isSystem && !a.id.includes('v900')) return false;
       const expiry = new Date(a.expiresAt).getTime();
       if (expiry <= now) return false;
@@ -172,7 +170,7 @@ export default function ProTransfersPage() {
     noUnits: language === 'ru' ? 'Все легенды законтрактованы' : 'All elite assets commissioned'
   };
 
-  if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;
+  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
