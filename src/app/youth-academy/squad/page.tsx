@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,7 +11,7 @@ import {
   ChevronLeft, Star, ShoppingCart, Loader2, 
   ArrowUpCircle, Info, Award, Target, Eye, Map, 
   Zap, Sparkles, Brain, TrendingUp, Crosshair, Sword,
-  ShieldCheck, Clock, Users, Activity, User, ShieldAlert, X, Gem, Timer
+  ShieldCheck, Clock, Users, Activity, User, ShieldAlert, X, Gem, Timer, Activity as ActivityIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -176,7 +177,7 @@ export default function YouthSquadPage() {
 
               <section>
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Activity className="w-3.5 h-3.5" /> {t.skills}
+                  <ActivityIcon className="w-3.5 h-3.5" /> {t.skills}
                 </h3>
                 <div className="space-y-3">
                   {STAT_KEYS.map((key) => {

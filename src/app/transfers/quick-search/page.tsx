@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -58,11 +59,11 @@ export const renderStars = (talent: number) => {
 
   const starRating = Math.max(0, numericTalent / 10);
   return (
-    <div className="flex items-center gap-0.5">
+    <div className={cn("flex items-center gap-0.5", heightClass)}>
       {Array.from({ length: 5 }).map((_, i) => {
         const fill = Math.min(Math.max(starRating - i, 0), 1);
         return (
-          <div key={i} className={cn("relative", heightClass, "w-3 flex items-center justify-center")}>
+          <div key={i} className="relative w-3 h-3 flex items-center justify-center">
             <Star className="absolute inset-0 text-muted-foreground/10 w-3 h-3" />
             <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
               <Star className="text-yellow-500 fill-yellow-500 w-3 h-3" />
@@ -190,10 +191,8 @@ export const TransferHeroCard = memo(({
                 </div>
               </div>
               
-              <div className="flex flex-col min-h-[32px] justify-center">
-                <div className="flex items-center">
-                  {renderStars(maxTalentValue)}
-                </div>
+              <div className="flex items-center min-h-[32px]">
+                {renderStars(maxTalentValue)}
               </div>
             </div>
             
@@ -237,7 +236,7 @@ export const TransferHeroCard = memo(({
           <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 relative shrink-0 text-center">
             <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setShowDossier(false)}><X className="w-5 h-5" /></Button>
             <div className="relative mx-auto w-24 h-24 mb-4">
-              <div className={cn("w-full h-full rounded-2xl overflow-hidden border-2 shadow-2xl bg-secondary/50", agent.isPro ? "border-yellow-500" : "border-primary/50")}>
+              <div className={cn("w-full h-full rounded-2xl overflow-hidden border-2 border-primary/50 shadow-2xl bg-secondary/50", agent.isPro ? "border-yellow-500" : "border-primary/50")}>
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-background border border-white/10 flex items-center justify-center shadow-xl">

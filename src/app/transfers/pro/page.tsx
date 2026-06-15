@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -53,7 +54,7 @@ export default function ProTransfersPage() {
       const vtuneId = `sys_vtune_v900_final_standard_${today}`;
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       
-      // 1. CLEANUP ALL PREVIOUS OR BROKEN SYSTEM VERSIONS
+      // 1. CLEANUP ALL PREVIOUS SYSTEM VERSIONS
       try {
         const q = query(collection(db, 'market_v7'), where('isSystem', '==', true));
         const allSystemSnap = await getDocs(q);
@@ -156,6 +157,7 @@ export default function ProTransfersPage() {
     if (!agents) return [];
     
     return agents.filter(a => {
+      // ONLY V900 SYSTEM VERSION
       if (a.isSystem && !a.id.includes('v900')) return false;
       const expiry = new Date(a.expiresAt).getTime();
       if (expiry <= now) return false;

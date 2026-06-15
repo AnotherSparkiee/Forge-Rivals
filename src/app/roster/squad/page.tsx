@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
@@ -12,7 +13,7 @@ import {
   ShieldCheck, Zap, HeartPulse,
   Box, Undo2, Info, ShoppingCart, Loader2,
   Award, Clock, Users, Brain, TrendingUp, Crosshair,
-  Target, Eye, Map, Star, Activity, User, ShieldAlert, Gem, Timer
+  Target, Eye, Map, Star, Activity, User, ShieldAlert, Gem, Timer, Activity as ActivityIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Hero } from '../../lib/moba-data';
@@ -157,7 +158,7 @@ export default function SquadPage() {
   const handleStartPress = (hero: Hero | undefined) => {
     if (!hero) return;
     longPressTimer.current = setTimeout(() => {
-      setSelectedHero(hero);
+      setProfileHero(hero);
     }, 600);
   };
 
@@ -198,7 +199,7 @@ export default function SquadPage() {
       await setDoc(doc(db, 'market_v7', agentId), agentData);
       updateHero(profileHero.id, { onTransferUntil: expiryTime.toISOString(), transferMarketId: agentId });
       toast({ title: language === 'ru' ? "Выставлен на аукцион!" : "Listed for Auction!" });
-      setSelectedHero(null);
+      setProfileHero(null);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Transfer Failed", description: e.message });
     } finally {
@@ -247,7 +248,7 @@ export default function SquadPage() {
     );
   };
 
-  if (!isLoaded) return null;
+  if (!isLoaded) return <LoadingScreen />;
 
   if (profileHero) {
     const liveAge = calculateLiveAge(profileHero.baseAge, profileHero.hiredAt);
@@ -258,9 +259,9 @@ export default function SquadPage() {
       <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-300">
         <div className="max-w-md mx-auto min-h-screen flex flex-col pb-10">
           <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 relative shrink-0 text-center">
-            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setSelectedHero(null)}><X className="w-5 h-5" /></Button>
+            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setProfileHero(null)}><X className="w-5 h-5" /></Button>
             <div className="relative mx-auto w-24 h-24 mb-4">
-              <div className={cn("w-full h-full rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50")}>
+              <div className={cn("w-full h-full rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50", profileHero.isPro && "border-yellow-500")}>
                 <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
               </div>
               <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{profileHero.country?.flag}</span></div>
@@ -378,7 +379,7 @@ export default function SquadPage() {
                   {isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
                   {(profileHero.onTransferUntil && new Date(profileHero.onTransferUntil) > now) ? (language === 'ru' ? "НА АУКЦИОНЕ" : "ON AUCTION") : t.putOnTransfer}
                 </Button>
-                <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setSelectedHero(null)}>{t.profile.close}</Button>
+                <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfileHero(null)}>{t.profile.close}</Button>
               </div>
           </div>
         </div>
@@ -441,8 +442,4 @@ export default function SquadPage() {
       </div>
     </div>
   );
-}
-
-function setSelectedHero(hero: Hero) {
-  throw new Error('Function not implemented.');
 }

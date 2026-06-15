@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,7 +11,7 @@ import {
   ChevronLeft, Scroll, User, Star, Trash2, 
   Coins, Gem, HeartPulse, ShieldAlert, Award,
   Info, TrendingUp, Eye, Target, Brain, Map, Users,
-  Zap, Sword, Crosshair, Activity, ShoppingCart, Loader2, Clock, UserCog, Sparkles, X, ShieldCheck, Timer
+  Zap, Sword, Crosshair, Activity, ShoppingCart, Loader2, Clock, UserCog, Sparkles, X, ShieldCheck, Timer, Activity as ActivityIcon
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
@@ -68,7 +69,7 @@ export default function ContractsPage() {
       reflexes: language === 'ru' ? "Рефлексы" : "Reflexes",
       manaManagement: language === 'ru' ? "Менеджмент маны" : "Mana Management",
       objectiveControl: language === 'ru' ? "Объекты" : "Objective Control",
-      communication: language === 'ru' ? "Коммуникация" : "Communication",
+      communication: language === 'ru' ? "Конмуникация" : "Communication",
       tiltResistance: language === 'ru' ? "Стрессоустойчивость" : "Tilt Resistance",
       versatility: language === 'ru' ? "Универсальность" : "Versatility",
       ganking: language === 'ru' ? "Ганкинг" : "Ganking",
@@ -173,13 +174,13 @@ export default function ContractsPage() {
                 <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Scroll className="w-3.5 h-3.5" /> CONTRACT ACTIONS</h3>
                 <div className="grid grid-cols-1 gap-2">
                   <Button variant="outline" className="justify-start h-12 border-white/5 bg-secondary/20" onClick={() => handleAction('recoverEuro')}><Coins className="w-4 h-4 mr-3 text-yellow-500" /><div className="text-left"><p className="text-[9px] font-bold uppercase">{t.recoverEuro}</p><p className="text-[8px] text-muted-foreground">-25% Fatigue | 5,000 €</p></div></Button>
-                  <Button variant="outline" className="justify-start h-12 border-white/5 bg-secondary/20" onClick={() => handleAction('boostForm')}><Activity className="w-4 h-4 mr-3 text-primary" /><div className="text-left"><p className="text-[9px] font-bold uppercase">{t.boostForm}</p><p className="text-[8px] text-muted-foreground">+15% Form | 10,000 €</p></div></Button>
+                  <Button variant="outline" className="justify-start h-12 border-white/5 bg-secondary/20" onClick={() => handleAction('boostForm')}><ActivityIcon className="w-4 h-4 mr-3 text-primary" /><div className="text-left"><p className="text-[9px] font-bold uppercase">{t.boostForm}</p><p className="text-[8px] text-muted-foreground">+15% Form | 10,000 €</p></div></Button>
                 </div>
               </section>
 
               <section>
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Activity className="w-3.5 h-3.5" /> {t.skills}
+                  <ActivityIcon className="w-3.5 h-3.5" /> {t.skills}
                 </h3>
                 <div className="space-y-3">
                   {STAT_KEYS.map((key) => { 

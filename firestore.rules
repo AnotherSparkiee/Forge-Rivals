@@ -50,9 +50,11 @@ service cloud.firestore {
     }
 
     // Market & Auctions
-    // CRITICAL: Full access for authenticated users to handle system drops and cleanup
     match /market_v7/{agentId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
     }
 
     // Notifications
