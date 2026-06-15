@@ -264,7 +264,7 @@ export default function SquadPage() {
           <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 relative shrink-0 text-center">
             <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setSelectedHero(null)}><X className="w-5 h-5" /></Button>
             <div className="relative mx-auto w-24 h-24 mb-4">
-              <div className={cn("w-full h-full rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50", profileHero.isPro && "border-yellow-500")}>
+              <div className={cn("w-full h-full rounded-2xl overflow-hidden border 2 border-primary/50 shadow-2xl bg-secondary/50", profileHero.isPro && "border-yellow-500")}>
                 <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
               </div>
               <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{profileHero.country?.flag}</span></div>
