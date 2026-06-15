@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -154,7 +155,7 @@ const YouthTransferCard = memo(({
               
               <div className="flex flex-col min-h-[80px] justify-center">
                 <div className="flex items-center">
-                  {renderStars(maxTalentValue)}
+                  {renderStars(maxTalentValue, 'card')}
                 </div>
               </div>
             </div>
@@ -242,7 +243,7 @@ const YouthTransferCard = memo(({
                 <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5 min-h-[96px]">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
                    <div className="flex items-center">
-                    {renderStars(maxTalentValue)}
+                    {renderStars(maxTalentValue, 'intel')}
                    </div>
                 </div>
                 <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
@@ -302,7 +303,7 @@ const YouthTransferCard = memo(({
               </h3>
               <div className="space-y-3">
                 {STAT_KEYS.map((key) => {
-                  const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
+                  const talentLimit = normTalent((agent.heroData.proTalents as any)[key]);
                   const Icon = icons[key] || Info;
                   return (
                     <div key={`talent-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
@@ -312,11 +313,11 @@ const YouthTransferCard = memo(({
                           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{proStatsLabels[key]}</span>
                         </div>
                         <div className="flex items-center gap-3">
-                           {renderStars(talentVal)}
-                           <span className="text-xs font-mono font-bold text-accent">{talentVal}</span>
+                           {renderStars(talentLimit, 'list')}
+                           <span className="text-xs font-mono font-bold text-accent">{talentLimit}</span>
                         </div>
                       </div>
-                      <Progress value={talentVal} max={100} className="h-1 rounded-full bg-secondary/40" />
+                      <Progress value={talentLimit} max={100} className="h-1 rounded-full bg-secondary/40" />
                     </div>
                   );
                 })}

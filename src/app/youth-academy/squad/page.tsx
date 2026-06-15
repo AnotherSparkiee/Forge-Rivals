@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -164,7 +165,7 @@ export default function YouthSquadPage() {
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[96px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
                      <div className="flex items-center">
-                       {renderStars(maxTalentValue)}
+                       {renderStars(maxTalentValue, 'intel')}
                      </div>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
@@ -224,7 +225,7 @@ export default function YouthSquadPage() {
                 </h3>
                 <div className="space-y-3">
                   {STAT_KEYS.map((key) => {
-                    const talentVal = normTalent((selectedHero.proTalents as any)[key]);
+                    const talentLimit = normTalent((selectedHero.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
                       <div key={`talent-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
@@ -234,11 +235,11 @@ export default function YouthSquadPage() {
                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                           </div>
                           <div className="flex items-center gap-3">
-                             {renderStars(talentVal)}
-                             <span className="text-xs font-mono font-bold text-accent">{talentVal}</span>
+                             {renderStars(talentLimit, 'list')}
+                             <span className="text-xs font-mono font-bold text-accent">{talentLimit}</span>
                           </div>
                         </div>
-                        <Progress value={talentVal} max={100} className="h-1 rounded-full bg-secondary/40" />
+                        <Progress value={talentLimit} max={100} className="h-1 rounded-full bg-secondary/40" />
                       </div>
                     );
                   })}
@@ -305,7 +306,7 @@ export default function YouthSquadPage() {
                     {onAuction && <Badge className="bg-yellow-500 text-black text-[6px] h-3 px-1 font-black animate-pulse uppercase">Auction</Badge>}
                   </div>
                   <div className="flex items-center gap-3 mt-1">
-                    {renderStars(maxTalent)}
+                    {renderStars(maxTalent, 'card')}
                     <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Age: {liveAge.display} {t.years}</p>
                   </div>
                 </div>

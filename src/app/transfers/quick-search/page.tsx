@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -14,18 +15,15 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
-import { generateUniqueHero } from '@/app/lib/moba-data';
 import { cn } from '@/lib/utils';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getMoscowTime, calculateLiveAge, getMoscowDateString, getEndOfMoscowDay } from '@/app/lib/time-utils';
+import { getMoscowTime, calculateLiveAge, getMoscowDateString } from '@/app/lib/time-utils';
 import {
   Dialog,
   DialogContent,
@@ -54,36 +52,37 @@ const normTalent = (val: any) => {
 };
 
 /**
- * Рендерит индикатор таланта.
+ * Рендерит индикатор таланта с учетом контекста (карточка, общие данные, список).
  */
-export const renderStars = (talent: number) => {
+export const renderStars = (talent: number, size: 'card' | 'intel' | 'list' = 'card') => {
   const numericTalent = normTalent(talent);
 
   if (numericTalent > 50) {
-    let src = "https://iili.io/Cnrlw6F.md.png"; // 5 stars elite
-    let heightClass = "h-16"; // 64px
+    let src = "https://iili.io/Cnrlw6F.md.png"; // 5 stars
+    let heightClass = size === 'intel' ? "h-20" : (size === 'list' ? "h-8" : "h-14");
     
     if (numericTalent >= 60 && numericTalent <= 69) {
       src = "https://iili.io/CnrSxcJ.md.png"; // 6 stars
-      heightClass = "h-20"; // 80px
+      heightClass = size === 'intel' ? "h-24" : (size === 'list' ? "h-10" : "h-16");
     }
     if (numericTalent >= 70) {
       src = "https://iili.io/CnrUKJf.md.png"; // 7 stars
-      heightClass = "h-24"; // 96px
+      heightClass = size === 'intel' ? "h-28" : (size === 'list' ? "h-12" : "h-20");
     }
     return <img src={src} alt={`${numericTalent} stars`} className={cn(heightClass, "w-auto object-contain")} />;
   }
 
   const starRating = Math.max(0, numericTalent / 10);
+  const iconSize = size === 'intel' ? "w-4 h-4" : "w-2.5 h-2.5";
   return (
     <div className="flex items-center gap-0.5">
       {Array.from({ length: 5 }).map((_, i) => {
         const fill = Math.min(Math.max(starRating - i, 0), 1);
         return (
-          <div key={i} className="relative w-2.5 h-2.5">
-            <Star className="absolute inset-0 w-2.5 h-2.5 text-muted-foreground/10" />
+          <div key={i} className={cn("relative", iconSize)}>
+            <Star className={cn("absolute inset-0 text-muted-foreground/10", iconSize)} />
             <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
-              <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />
+              <Star className={cn("text-yellow-500 fill-yellow-500", iconSize)} />
             </div>
           </div>
         );
@@ -139,6 +138,12 @@ export const TransferHeroCard = memo(({
     ganking: language === 'ru' ? "Ганкинг" : "Ganking",
   };
 
+  const icons: Record<string, any> = {
+    lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
+    manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
+    tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
+  };
+
   const getCountdown = (expiryIso: string) => {
     const expiry = new Date(expiryIso).getTime();
     const diff = expiry - now;
@@ -147,12 +152,6 @@ export const TransferHeroCard = memo(({
     const m = Math.floor((diff % 3600000) / 60000);
     const s = Math.floor((diff % 60000) / 1000);
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  };
-
-  const icons: Record<string, any> = {
-    lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
-    manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
-    tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
   };
 
   const t = {
@@ -210,7 +209,7 @@ export const TransferHeroCard = memo(({
               
               <div className="flex flex-col min-h-[80px] justify-center">
                 <div className="flex items-center">
-                  {renderStars(maxTalentValue)}
+                  {renderStars(maxTalentValue, 'card')}
                 </div>
               </div>
             </div>
@@ -303,7 +302,7 @@ export const TransferHeroCard = memo(({
                   <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5 min-h-[96px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
                      <div className="flex items-center">
-                       {renderStars(maxTalentValue)}
+                       {renderStars(maxTalentValue, 'intel')}
                      </div>
                   </div>
                   <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
@@ -363,7 +362,7 @@ export const TransferHeroCard = memo(({
                 </h3>
                 <div className="space-y-3">
                   {STAT_KEYS.map((key) => {
-                    const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
+                    const talentLimit = normTalent((agent.heroData.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
                       <div key={`talent-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
@@ -373,11 +372,11 @@ export const TransferHeroCard = memo(({
                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{proStatsLabels[key]}</span>
                           </div>
                           <div className="flex items-center gap-3">
-                             {renderStars(talentVal)}
-                             <span className="text-xs font-mono font-bold text-accent">{talentVal}</span>
+                             {renderStars(talentLimit, 'list')}
+                             <span className="text-xs font-mono font-bold text-accent">{talentLimit}</span>
                           </div>
                         </div>
-                        <Progress value={talentVal} max={100} className="h-1 rounded-full bg-secondary/40" />
+                        <Progress value={talentLimit} max={100} className="h-1 rounded-full bg-secondary/40" />
                       </div>
                     );
                   })}
@@ -525,7 +524,7 @@ export default function QuickSearchPage() {
                 <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(0)} className="h-8 w-8"><ChevronsLeft className="w-4 h-4" /></Button>
                 <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 w-8"><ChevronLeftIcon className="h-4 w-4" /></Button>
                 <span className="text-[10px] font-black text-muted-foreground uppercase px-4">{language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}</span>
-                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 w-8"><ChevronRightIcon className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-4 w-4"><ChevronRightIcon className="h-4 w-4" /></Button>
               </div>
             )}
           </>
