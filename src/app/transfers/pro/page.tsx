@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -11,7 +12,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, getDoc, updateDoc, getDocs, deleteDoc, where } from 'firebase/firestore';
+import { 
+  collection, query, doc, arrayUnion, serverTimestamp, 
+  setDoc, getDoc, updateDoc, getDocs, deleteDoc, where 
+} from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { generateVtuneHero } from '@/app/lib/moba-data';

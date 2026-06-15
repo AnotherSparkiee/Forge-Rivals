@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -41,7 +42,7 @@ service cloud.firestore {
       }
     }
 
-    // Global Matches (READ ONLY for clients, WRITE for authenticated users during generation)
+    // Global Matches
     match /matches_v1/{matchId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn(); 
@@ -49,11 +50,9 @@ service cloud.firestore {
     }
 
     // Market & Auctions
+    // CRITICAL: Full access for authenticated users to handle system drops and cleanup
     match /market_v7/{agentId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow read, write: if isSignedIn();
     }
 
     // Notifications

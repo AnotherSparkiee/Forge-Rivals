@@ -79,9 +79,11 @@ export default function AdvancedSearchPage() {
       if (minAge && liveAge.numeric < parseFloat(minAge)) return false;
       if (maxAge && liveAge.numeric > parseFloat(maxAge)) return false;
 
-      // Talent filter based on avgTalent
-      const talent = Object.values(a.heroData.proTalents || {}).reduce((sum: any, val: any) => sum + Number(val), 0) as number / 10;
-      if (parseFloat(minTalent) > 0 && talent < parseFloat(minTalent)) return false;
+      const talentValues = Object.values(a.heroData.proTalents || {}).map(v => Number(v));
+      const maxTalent = talentValues.length > 0 ? Math.max(...talentValues) : 0;
+      const normalizedMaxTalent = maxTalent < 10 ? maxTalent * 10 : maxTalent;
+      
+      if (parseFloat(minTalent) > 0 && normalizedMaxTalent < parseFloat(minTalent) * 10) return false;
 
       if (minOvr && a.heroData.overallRating < parseInt(minOvr)) return false;
       if (countryFilter !== 'all' && a.heroData.country?.name !== countryFilter) return false;
@@ -126,7 +128,7 @@ export default function AdvancedSearchPage() {
       if (prevBidder && prevBidder !== user.uid) {
         addDocumentNonBlocking(collection(db, 'notifications_v7'), {
           userId: prevBidder, title: language === 'ru' ? "Ставка перебита!" : "Outbid!",
-          description: language === 'ru' ? `Ставка на "${heroName}" перебита ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : `Bid on "${heroName}" outbid ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`,
+          description: language === 'ru' ? `Ставка на "${heroName}" перебита` : `Bid on "${heroName}" outbid`,
           type: 'market', read: false, createdAt: new Date().toISOString()
         });
       }
@@ -247,7 +249,6 @@ export default function AdvancedSearchPage() {
                 <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 w-8"><ChevronLeftIcon className="h-4 w-4" /></Button>
                 <span className="text-[10px] font-black text-muted-foreground uppercase px-4">{language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}</span>
                 <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 w-8"><ChevronRightIcon className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(totalPages - 1)} className="h-8 w-8"><ChevronsRight className="w-4 h-4" /></Button>
               </div>
             )}
           </>

@@ -64,7 +64,7 @@ export default function MyBidsPage() {
       if (prevBidder && prevBidder !== user.uid) {
         addDocumentNonBlocking(collection(db, 'notifications_v7'), {
           userId: prevBidder, title: language === 'ru' ? "Ставка перебита!" : "Outbid!",
-          description: language === 'ru' ? `Ставка на "${heroName}" перебита ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : `Bid on "${heroName}" outbid ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`,
+          description: language === 'ru' ? `Ставка на "${heroName}" перебита` : `Bid on "${heroName}" outbid`,
           type: 'market', read: false, createdAt: new Date().toISOString()
         });
       }
@@ -80,7 +80,6 @@ export default function MyBidsPage() {
 
   const activeBids = useMemo(() => {
     return (agents || []).filter(a => {
-      // ONLY V900 SYSTEM VERSION
       if (a.isSystem && !a.id.includes('v900')) return false;
       return new Date(a.expiresAt).getTime() > now;
     }).sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());

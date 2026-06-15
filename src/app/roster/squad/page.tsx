@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
@@ -157,12 +158,8 @@ export default function SquadPage() {
   const handleStartPress = (hero: Hero | undefined) => {
     if (!hero) return;
     longPressTimer.current = setTimeout(() => {
-      setSelectedHeroInView(hero);
+      setProfileHero(hero);
     }, 600);
-  };
-
-  const setSelectedHeroInView = (hero: Hero | null) => {
-    setProfileHero(hero);
   };
 
   const handleCancelPress = () => {
@@ -323,7 +320,7 @@ export default function SquadPage() {
 
               <section>
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Activity className="w-3.5 h-3.5" /> {t.profile.skills}
+                  <ActivityIcon className="w-3.5 h-3.5" /> {t.profile.skills}
                 </h3>
                 <div className="space-y-3">
                   {STAT_KEYS.map((key) => { 
@@ -377,16 +374,6 @@ export default function SquadPage() {
                 </div>
               </section>
 
-              <section className="pt-4 border-t border-white/5">
-                <h3 className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Gem className="w-3.5 h-3.5" /> {t.profile.priceTitle}
-                </h3>
-                <div className="bg-secondary/30 p-4 rounded-xl border border-white/5">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'РЫНОЧНАЯ СТОИМОСТЬ' : 'ESTIMATED VALUE'}</p>
-                   <p className="text-xl font-headline font-bold text-white italic">€ {(profileHero.overallRating * 15000 + 100000).toLocaleString()}</p>
-                </div>
-              </section>
-
               <div className="pt-4 pb-12 flex flex-col gap-2">
                 <Button className="w-full h-14 bg-orange-600 hover:bg-orange-700 text-white font-black text-[11px] tracking-widest uppercase shadow-xl" onClick={handlePutOnTransfer} disabled={isTransferring || (profileHero.onTransferUntil && new Date(profileHero.onTransferUntil) > now)}>
                   {isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
@@ -425,15 +412,15 @@ export default function SquadPage() {
       <div className="space-y-8">
         <section className="space-y-2">
           <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent px-1 flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5" /> {t.activeLabel}</h2>
-          <div className="space-y-1.5">{(['carry', 'mid', 'offlane', 'support', 'full_support'] as LineupSlot[]).map(renderSlot)}</div>
+          <div className="space-y-1.5">{ (['carry', 'mid', 'offlane', 'support', 'full_support'] as LineupSlot[]).map(renderSlot) }</div>
         </section>
         <section className="space-y-2">
           <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2"><UserPlus className="w-3.5 h-3.5" /> {t.subsLabel}</h2>
-          <div className="space-y-1.5">{(['sub1', 'sub2'] as LineupSlot[]).map(renderSlot)}</div>
+          <div className="space-y-1.5">{ (['sub1', 'sub2'] as LineupSlot[]).map(renderSlot) }</div>
         </section>
         <section className="space-y-2">
           <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 px-1 flex items-center gap-2"><Users className="w-3.5 h-3.5" /> {t.reservesLabel}</h2>
-          <div className="space-y-1.5">{reserveSlots.map(renderSlot)}</div>
+          <div className="space-y-1.5">{ reserveSlots.map(renderSlot) }</div>
         </section>
 
         {selectingSlot && (

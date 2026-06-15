@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -190,8 +191,10 @@ export const TransferHeroCard = memo(({
                 </div>
               </div>
               
-              <div className="flex items-center h-[32px]">
-                {renderStars(maxTalentValue)}
+              <div className="flex flex-col min-h-[32px] justify-center">
+                <div className="flex items-center">
+                  {renderStars(maxTalentValue)}
+                </div>
               </div>
             </div>
             
@@ -470,7 +473,6 @@ export default function QuickSearchPage() {
   const filteredAgents = useMemo(() => {
     if (!agents) return [];
     return agents.filter(a => {
-      // ONLY V900 SYSTEM VERSION
       if (a.isSystem && !a.id.includes('v900')) return false;
       const expiry = new Date(a.expiresAt).getTime();
       if (expiry <= now) return false;

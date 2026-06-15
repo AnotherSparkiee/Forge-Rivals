@@ -16,6 +16,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Slider } from '@/components/ui/slider';
+import { Progress } from '@/components/ui/progress';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, doc, arrayUnion, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -155,7 +156,7 @@ const YouthTransferCard = memo(({
               
               <div className="flex flex-col min-h-[32px] justify-center">
                 <div className="flex items-center">
-                  {renderStars(maxTalentValue, 'card')}
+                  {renderStars(maxTalentValue)}
                 </div>
               </div>
             </div>
@@ -200,15 +201,15 @@ const YouthTransferCard = memo(({
             <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setShowDossier(false)}><X className="w-5 h-5" /></Button>
             <div className="relative mx-auto w-24 h-24 mb-4">
               <div className={cn("w-full h-full rounded-2xl overflow-hidden border-2 border-primary/50 shadow-2xl bg-secondary/50")}>
-                <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
+                <img src={selectedHero.image} alt={selectedHero.name} className="w-full h-full object-cover" />
               </div>
               <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-background border border-white/10 flex items-center justify-center shadow-xl">
-                <span className="text-xl">{agent.heroData.country?.flag}</span>
+                <span className="text-xl">{selectedHero.country?.flag}</span>
               </div>
             </div>
-            <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white leading-none">{agent.heroData?.name}</DialogTitle>
+            <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white leading-none">{selectedHero.name}</DialogTitle>
             <div className="flex items-center justify-center gap-2 mt-2">
-              <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{rolesRu[agent.heroData.role] || agent.heroData.role}</Badge>
+              <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{rolesRu[selectedHero.role] || selectedHero.role}</Badge>
             </div>
           </div>
 
@@ -242,16 +243,16 @@ const YouthTransferCard = memo(({
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
                    <div className="flex items-center">
-                    {renderStars(maxTalentValue, 'intel')}
+                    {renderStars(maxTalentValue)}
                    </div>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Salary</span>
-                   <span className="text-[10px] font-bold text-primary">€{(agent.heroData.salary || 0).toLocaleString()}</span>
+                   <span className="text-[10px] font-bold text-primary">€{(selectedHero.salary || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
-                   <span className="text-[10px] font-bold uppercase">{rolesRu[agent.heroData.role] || agent.heroData.role}</span>
+                   <span className="text-[10px] font-bold uppercase">{rolesRu[selectedHero.role] || selectedHero.role}</span>
                 </div>
               </div>
             </section>
@@ -263,8 +264,8 @@ const YouthTransferCard = memo(({
               <div className="space-y-3">
                 {STAT_KEYS.map((key) => { 
                   const Icon = icons[key] || Info;
-                  const displayValue = Math.round(Number((agent.heroData.proStats as any)[key]));
-                  const talentLimit = normTalent((agent.heroData.proTalents as any)[key] || 10);
+                  const displayValue = Math.round(Number((selectedHero.proStats as any)[key]));
+                  const talentLimit = normTalent((selectedHero.proTalents as any)[key] || 10);
 
                   return (
                     <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
@@ -292,7 +293,7 @@ const YouthTransferCard = memo(({
               </h3>
               <div className="space-y-2">
                 {STAT_KEYS.map((key) => {
-                  const talentLimit = normTalent((agent.heroData.proTalents as any)[key]);
+                  const talentLimit = normTalent((selectedHero.proTalents as any)[key]);
                   const Icon = icons[key] || Info;
                   return (
                     <div key={`talent-${key}`} className="p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[48px] flex flex-col justify-center">
@@ -302,7 +303,7 @@ const YouthTransferCard = memo(({
                           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{proStatsLabels[key]}</span>
                         </div>
                         <div className="flex items-center gap-3">
-                           {renderStars(talentLimit, 'list')}
+                           {renderStars(talentLimit)}
                            <span className="text-xs font-mono font-bold text-accent">{talentLimit}</span>
                         </div>
                       </div>
