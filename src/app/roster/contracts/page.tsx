@@ -62,8 +62,8 @@ export default function ContractsPage() {
     tooYoung: language === 'ru' ? "Игрок слишком молод! Мин. возраст — 18.0" : "Player is too young! Min age — 18.0",
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     years: language === 'ru' ? "лет" : "yrs",
-    skills: language === 'ru' ? "Навыки" : "SKILLS",
-    talents: language === 'ru' ? "Таланты" : "TALENTS",
+    skills: language === 'ru' ? "НАВЫКИ" : "SKILLS",
+    talents: language === 'ru' ? "ТАЛАНТЫ" : "TALENTS",
     transferDesc: language === 'ru' ? "Игрок будет выставлен на аукцион на 12 часов." : "The player will be listed for 12 hours.",
     close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
     healthy: language === 'ru' ? "Здоров" : "Healthy",
@@ -219,7 +219,7 @@ export default function ContractsPage() {
                     const talentLimit = normTalent((profileHero.proTalents as any)[key] || 10);
 
                     return (
-                      <div key={`skill-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
+                      <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
                         <div className="flex justify-between items-center px-0.5">
                           <div className="flex items-center gap-2">
                             <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
@@ -247,8 +247,8 @@ export default function ContractsPage() {
                     const talentLimit = normTalent((profileHero.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
-                        <div className="flex justify-between items-center px-0.5">
+                      <div key={`talent-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10 min-h-[72px] flex flex-col justify-center">
+                        <div className="flex justify-between items-center px-0.5 mb-2">
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-accent/50" />
                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>

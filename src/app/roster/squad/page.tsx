@@ -372,8 +372,8 @@ export default function SquadPage() {
                     const talentLimit = normTalent((profileHero.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
-                        <div className="flex justify-between items-center px-0.5">
+                      <div key={`talent-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10 min-h-[72px] flex flex-col justify-center">
+                        <div className="flex justify-between items-center px-0.5 mb-2">
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-accent/50" />
                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
@@ -390,7 +390,6 @@ export default function SquadPage() {
                 </div>
               </section>
 
-              {/* БЛОК: ЦЕНА */}
               <section className="pt-4 border-t border-white/5">
                 <h3 className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Gem className="w-3.5 h-3.5" /> {t.profile.priceTitle}

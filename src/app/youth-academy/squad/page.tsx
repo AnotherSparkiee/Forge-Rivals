@@ -54,8 +54,8 @@ export default function YouthSquadPage() {
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     onTransfer: language === 'ru' ? "НА РЫНОК" : "TRANSFER",
     years: language === 'ru' ? "лет" : "yrs",
-    skills: language === 'ru' ? "Навыки" : "SKILLS",
-    talents: language === 'ru' ? "Таланты" : "TALENTS",
+    skills: language === 'ru' ? "НАВЫКИ" : "SKILLS",
+    talents: language === 'ru' ? "ТАЛАНТЫ" : "TALENTS",
     salary: language === 'ru' ? "Зарплата" : "Salary",
     status: language === 'ru' ? "Статус" : "Status",
     close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
@@ -228,8 +228,8 @@ export default function YouthSquadPage() {
                     const talentLimit = normTalent((selectedHero.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
-                        <div className="flex justify-between items-center px-0.5">
+                      <div key={`talent-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10 min-h-[72px] flex flex-col justify-center">
+                        <div className="flex justify-between items-center px-0.5 mb-2">
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-accent/50" />
                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>

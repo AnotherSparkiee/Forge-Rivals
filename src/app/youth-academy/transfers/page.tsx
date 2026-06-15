@@ -153,7 +153,7 @@ const YouthTransferCard = memo(({
                 </div>
               </div>
               
-              <div className="flex flex-col min-h-[80px] justify-center">
+              <div className="flex flex-col min-h-[60px] justify-center">
                 <div className="flex items-center">
                   {renderStars(maxTalentValue, 'card')}
                 </div>
@@ -278,7 +278,7 @@ const YouthTransferCard = memo(({
                   const talentLimit = normTalent((agent.heroData.proTalents as any)[key] || 10);
 
                   return (
-                    <div key={`skill-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
+                    <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
                       <div className="flex justify-between items-center px-0.5">
                         <div className="flex items-center gap-2">
                           <Icon className="w-4 h-4 text-muted-foreground/60" />
@@ -306,8 +306,8 @@ const YouthTransferCard = memo(({
                   const talentLimit = normTalent((agent.heroData.proTalents as any)[key]);
                   const Icon = icons[key] || Info;
                   return (
-                    <div key={`talent-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
-                      <div className="flex justify-between items-center px-0.5">
+                    <div key={`talent-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10 min-h-[72px] flex flex-col justify-center">
+                      <div className="flex justify-between items-center px-0.5 mb-2">
                         <div className="flex items-center gap-2">
                           <Icon className="w-4 h-4 text-accent/50" />
                           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{proStatsLabels[key]}</span>

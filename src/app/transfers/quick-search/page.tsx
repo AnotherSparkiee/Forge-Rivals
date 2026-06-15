@@ -33,42 +33,36 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-/**
- * Стандартизированный порядок характеристик
- */
 export const STAT_KEYS = [
   'lastHitting', 'mapAwareness', 'positioning', 'reflexes',
   'manaManagement', 'objectiveControl', 'communication',
   'tiltResistance', 'versatility', 'ganking'
 ];
 
-/**
- * Нормализатор талантов. Строго приводит к шкале 1-100.
- */
 const normTalent = (val: any) => {
   const n = Number(val);
   if (isNaN(n)) return 0;
   return n < 10 ? Math.round(n * 10) : Math.round(n);
 };
 
-/**
- * Рендерит индикатор таланта с учетом контекста (карточка, общие данные, список).
- */
 export const renderStars = (talent: number, size: 'card' | 'intel' | 'list' = 'card') => {
   const numericTalent = normTalent(talent);
 
   if (numericTalent > 50) {
     let src = "https://iili.io/Cnrlw6F.md.png"; // 5 stars
-    let heightClass = size === 'intel' ? "h-20" : (size === 'list' ? "h-8" : "h-14");
+    let heightClass = "h-10";
     
-    if (numericTalent >= 60 && numericTalent <= 69) {
-      src = "https://iili.io/CnrSxcJ.md.png"; // 6 stars
-      heightClass = size === 'intel' ? "h-24" : (size === 'list' ? "h-10" : "h-16");
+    if (size === 'intel') {
+      heightClass = numericTalent >= 70 ? "h-28" : (numericTalent >= 60 ? "h-24" : "h-20");
+    } else if (size === 'list') {
+      heightClass = numericTalent >= 70 ? "h-8" : (numericTalent >= 60 ? "h-7" : "h-6");
+    } else if (size === 'card') {
+      heightClass = numericTalent >= 70 ? "h-14" : (numericTalent >= 60 ? "h-12" : "h-10");
     }
-    if (numericTalent >= 70) {
-      src = "https://iili.io/CnrUKJf.md.png"; // 7 stars
-      heightClass = size === 'intel' ? "h-28" : (size === 'list' ? "h-12" : "h-20");
-    }
+
+    if (numericTalent >= 60 && numericTalent <= 69) src = "https://iili.io/CnrSxcJ.md.png";
+    if (numericTalent >= 70) src = "https://iili.io/CnrUKJf.md.png";
+    
     return <img src={src} alt={`${numericTalent} stars`} className={cn(heightClass, "w-auto object-contain")} />;
   }
 
@@ -207,7 +201,7 @@ export const TransferHeroCard = memo(({
                 </div>
               </div>
               
-              <div className="flex flex-col min-h-[80px] justify-center">
+              <div className="flex flex-col min-h-[60px] justify-center">
                 <div className="flex items-center">
                   {renderStars(maxTalentValue, 'card')}
                 </div>
@@ -337,7 +331,7 @@ export const TransferHeroCard = memo(({
                     const talentLimit = normTalent((agent.heroData.proTalents as any)[key] || 10);
 
                     return (
-                      <div key={`skill-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
+                      <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
                         <div className="flex justify-between items-center px-0.5">
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-muted-foreground/60" />
@@ -365,8 +359,8 @@ export const TransferHeroCard = memo(({
                     const talentLimit = normTalent((agent.heroData.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
-                        <div className="flex justify-between items-center px-0.5">
+                      <div key={`talent-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10 min-h-[72px] flex flex-col justify-center">
+                        <div className="flex justify-between items-center px-0.5 mb-2">
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-accent/50" />
                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{proStatsLabels[key]}</span>
