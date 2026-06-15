@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -33,7 +34,6 @@ export default function ContractsPage() {
   const { user } = useUser();
   const db = useFirestore();
   const [profileHero, setProfileHero] = useState<Hero | null>(null);
-  const [isTransferring, setIsTransferring] = useState(false);
   const [now, setNow] = useState(Date.now());
   const { toast } = useToast();
 
@@ -50,27 +50,18 @@ export default function ContractsPage() {
   const t = {
     title: language === 'ru' ? "КОНТРАКТЫ" : "CONTRACTS",
     subtitle: language === 'ru' ? "Администрирование состава" : "Squad administration",
-    sell: language === 'ru' ? "ПРОДАЖА" : "SELL",
-    dismiss: language === 'ru' ? "УВОЛИТЬ" : "DISMISS",
-    onTransfer: language === 'ru' ? "ВЫСТАВИТЬ НА РЫНОК" : "PUT ON TRANSFER",
     recoverEuro: language === 'ru' ? "СНЯТЬ УСТАЛОСТЬ (ЕВРО)" : "REMOVE FATIGUE (EURO)",
-    recoverGems: language === 'ru' ? "СНЯТЬ УСТАЛОСТЬ (ГЕМЫ)" : "REMOVE FATIGUE (GEMS)",
     boostForm: language === 'ru' ? "ПОДНЯТЬ ФОРМУ" : "BOOST FORM",
-    heal: language === 'ru' ? "ВЫЛЕЧИТЬ ТРАВМУ" : "HEAL INJURY",
     insufficient: language === 'ru' ? "Недостаточно средств" : "Insufficient funds",
-    tooYoung: language === 'ru' ? "Игрок слишком молод! Мин. возраст — 18.0" : "Player is too young! Min age — 18.0",
-    overall: language === 'ru' ? "ОБЩ" : "OVR",
     years: language === 'ru' ? "лет" : "yrs",
-    skills: language === 'ru' ? "Навыки" : "SKILLS",
-    talents: language === 'ru' ? "Таланты" : "TALENTS",
-    transferDesc: language === 'ru' ? "Игрок будет выставлен на аукцион на 12 часов." : "The player will be listed for 12 hours.",
+    skills: language === 'ru' ? "НАВЫКИ" : "SKILLS",
+    talents: language === 'ru' ? "ТАЛАНТЫ" : "TALENTS",
     close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
-    healthy: language === 'ru' ? "Здоров" : "Healthy",
-    salary: language === 'ru' ? "Зарплата" : "Salary",
     owner: language === 'ru' ? "ВЛАДЕЛЕЦ" : "OWNER",
     sale: language === 'ru' ? "ПРОДАЖА" : "SALE",
     priceTitle: language === 'ru' ? "ЦЕНА ИГРОКА" : "UNIT PRICE",
     talent: language === 'ru' ? "Талант" : "Talent",
+    salary: language === 'ru' ? "Зарплата" : "Salary",
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
       mapAwareness: language === 'ru' ? "Контроль карты" : "Map Awareness",
@@ -113,7 +104,6 @@ export default function ContractsPage() {
     const liveAge = calculateLiveAge(profileHero.baseAge, profileHero.hiredAt);
     const talentsValues = Object.values(profileHero.proTalents || {}).map(v => normTalent(v));
     const maxTalentValue = Math.max(...talentsValues);
-    const onAuction = profileHero.onTransferUntil && new Date(profileHero.onTransferUntil).getTime() > now;
 
     return (
       <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-300">
@@ -146,19 +136,10 @@ export default function ContractsPage() {
                 <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
                   <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.sale}</p>
                   <div className="flex items-center gap-2">
-                    {onAuction ? (
-                      <>
-                        <Timer className="w-3 h-3 text-accent animate-pulse" />
-                        <p className="text-[10px] font-mono font-bold text-accent">
-                          {new Date(profileHero.onTransferUntil!).toLocaleTimeString()}
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <ShieldAlert className="w-3 h-3 text-muted-foreground opacity-30" />
-                        <p className="text-[10px] font-bold text-muted-foreground opacity-50 uppercase tracking-tighter">OFF MARKET</p>
-                      </>
-                    )}
+                    <Timer className="w-3 h-3 text-accent animate-pulse" />
+                    <p className="text-[10px] font-mono font-bold text-accent">
+                      {profileHero.onTransferUntil ? new Date(profileHero.onTransferUntil).toLocaleTimeString() : 'OFF MARKET'}
+                    </p>
                   </div>
                 </div>
               </section>
@@ -169,7 +150,7 @@ export default function ContractsPage() {
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">Age</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.years}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
@@ -185,16 +166,6 @@ export default function ContractsPage() {
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
                      <span className="text-[10px] font-bold uppercase">{profileHero.role}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Страна' : 'Country'}</span>
-                     <span className="text-[10px] font-bold">{profileHero.country?.flag} {profileHero.country?.code}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Травма' : 'Injury'}</span>
-                     <span className={cn("text-[9px] font-bold uppercase", profileHero.isInjured ? "text-red-400" : "text-green-400")}>
-                       {profileHero.isInjured ? (language === 'ru' ? 'Есть' : 'Yes') : (language === 'ru' ? 'Нет' : 'No')}
-                     </span>
                   </div>
                 </div>
               </section>
@@ -268,7 +239,7 @@ export default function ContractsPage() {
                   <Gem className="w-3.5 h-3.5" /> {t.priceTitle}
                 </h3>
                 <div className="bg-secondary/30 p-4 rounded-xl border border-white/5">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'РЫНОЧНАЯ СТОИМОСТЬ' : 'ESTIMATED VALUE'}</p>
+                   <p className="text-[8px] font-black text-muted-foreground uppercase">ESTIMATED VALUE</p>
                    <p className="text-xl font-headline font-bold text-white italic">€ {(profileHero.overallRating * 15000 + 100000).toLocaleString()}</p>
                 </div>
               </section>
@@ -303,7 +274,7 @@ export default function ContractsPage() {
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     {renderStars(maxTalent, 'card')}
-                    <p className="text-[7px] text-muted-foreground font-black uppercase tracking-widest">Age: {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.years}</p>
+                    <p className="text-[7px] text-muted-foreground font-black uppercase tracking-widest">Age: {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.yrs}</p>
                   </div>
                 </div>
                 <div className="flex flex-col items-center justify-center min-w-[35px] border-l border-white/5 pl-2">

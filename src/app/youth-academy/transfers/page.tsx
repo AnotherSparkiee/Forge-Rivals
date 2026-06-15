@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -16,7 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Slider } from '@/components/ui/slider';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, query, doc, arrayUnion, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, query, doc, arrayUnion, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -234,33 +235,23 @@ const YouthTransferCard = memo(({
                 <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
               </h3>
               <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
                    <span className="text-[10px] font-bold">{liveAge.display} {t.yrs}</span>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
                    <div className="flex items-center">
                     {renderStars(maxTalentValue, 'intel')}
                    </div>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Salary</span>
                    <span className="text-[10px] font-bold text-primary">€{(agent.heroData.salary || 0).toLocaleString()}</span>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
                    <span className="text-[10px] font-bold uppercase">{rolesRu[agent.heroData.role] || agent.heroData.role}</span>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Страна' : 'Country'}</span>
-                   <span className="text-[10px] font-bold">{agent.heroData.country?.flag} {agent.heroData.country?.code}</span>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Травма' : 'Injury'}</span>
-                   <span className={cn("text-[9px] font-bold uppercase", agent.heroData.isInjured ? "text-red-400" : "text-green-400")}>
-                     {agent.heroData.isInjured ? (language === 'ru' ? 'Есть' : 'Yes') : (language === 'ru' ? 'Нет' : 'No')}
-                   </span>
                 </div>
               </div>
             </section>
@@ -442,7 +433,10 @@ export default function YouthTransfersPage() {
 
   const youthAgents = useMemo(() => {
     return (allAgents || [])
-      .filter(a => new Date(a.expiresAt).getTime() > now)
+      .filter(a => {
+        if (a.isSystem && !a.id.includes('v900')) return false;
+        return new Date(a.expiresAt).getTime() > now;
+      })
       .sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
   }, [allAgents, now]);
 
@@ -535,7 +529,7 @@ export default function YouthTransfersPage() {
                 <span className="text-[10px] font-black text-muted-foreground uppercase px-4">
                   {language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}
                 </span>
-                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 w-8"><ChevronRightIcon className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p + 1)} className="h-8 w-8"><ChevronRightIcon className="h-4 w-4" /></Button>
               </div>
             )}
           </>

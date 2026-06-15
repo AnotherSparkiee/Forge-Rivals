@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
@@ -257,7 +258,6 @@ export default function SquadPage() {
     const liveAge = calculateLiveAge(profileHero.baseAge, profileHero.hiredAt);
     const talentsValues = Object.values(profileHero.proTalents || {}).map(v => normTalent(v));
     const maxTalentValue = Math.max(...talentsValues);
-    const onAuction = profileHero.onTransferUntil && new Date(profileHero.onTransferUntil).getTime() > now;
 
     return (
       <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-300">
@@ -399,9 +399,9 @@ export default function SquadPage() {
               </section>
 
               <div className="pt-4 pb-12 flex flex-col gap-2">
-                <Button className="w-full h-14 bg-orange-600 hover:bg-orange-700 text-white font-black text-[11px] tracking-widest uppercase shadow-xl" onClick={handlePutOnTransfer} disabled={isTransferring || onAuction}>
+                <Button className="w-full h-14 bg-orange-600 hover:bg-orange-700 text-white font-black text-[11px] tracking-widest uppercase shadow-xl" onClick={handlePutOnTransfer} disabled={isTransferring || (profileHero.onTransferUntil && new Date(profileHero.onTransferUntil) > now)}>
                   {isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
-                  {onAuction ? t.onAuction : t.putOnTransfer}
+                  {(profileHero.onTransferUntil && new Date(profileHero.onTransferUntil) > now) ? (language === 'ru' ? "НА АУКЦИОНЕ" : "ON AUCTION") : t.putOnTransfer}
                 </Button>
                 <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfileHero(null)}>{t.profile.close}</Button>
               </div>
@@ -455,7 +455,7 @@ export default function SquadPage() {
                 const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
                 const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil).getTime() > now;
                 return (
-                  <Card key={hero.id} className={cn("glass-card border-white/10 overflow-hidden cursor-pointer", (liveAge.numeric < 18 || onAuction) && "opacity-60 grayscale cursor-not-allowed")} onClick={() => hero.onTransferUntil && new Date(hero.onTransferUntil).getTime() > now ? null : handleHeroAssign(hero)}>
+                  <Card key={hero.id} className={cn("glass-card border-white/10 overflow-hidden cursor-pointer", (liveAge.numeric < 18 || onAuction) && "opacity-60 grayscale cursor-not-allowed")} onClick={() => onAuction ? null : handleHeroAssign(hero)}>
                     <CardContent className="p-2 flex items-center gap-3"><div className="w-10 h-10 rounded-lg overflow-hidden bg-muted"><img src={hero.image} alt="" className="w-full h-full object-cover" /></div><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><h4 className="font-bold text-[11px] truncate">{hero.name}</h4><span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span></div><div className="flex items-center gap-3 mt-0.5"><span className="text-[9px] font-bold text-accent flex items-center gap-1"><Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}</span><span className={cn("text-[8px] font-black uppercase tracking-tighter", liveAge.numeric < 18 ? "text-red-400" : "text-muted-foreground")}>{liveAge.display} {t.profile.years}</span></div></div><div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-3 h-3" /></div></CardContent>
                   </Card>
                 );

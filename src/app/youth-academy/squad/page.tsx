@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -50,13 +51,10 @@ export default function YouthSquadPage() {
     title: language === 'ru' ? "СОСТАВ АКАДЕМИИ" : "ACADEMY SQUAD",
     promote: language === 'ru' ? "В ОСНОВУ" : "PROMOTE",
     notReady: language === 'ru' ? "МОЛОД (НУЖНО 18)" : "TOO YOUNG (NEED 18)",
-    overall: language === 'ru' ? "ОБЩ" : "OVR",
-    onTransfer: language === 'ru' ? "НА РЫНОК" : "TRANSFER",
     years: language === 'ru' ? "лет" : "yrs",
-    skills: language === 'ru' ? "Навыки" : "SKILLS",
-    talents: language === 'ru' ? "Таланты" : "TALENTS",
+    skills: language === 'ru' ? "НАВЫКИ" : "SKILLS",
+    talents: language === 'ru' ? "ТАЛАНТЫ" : "TALENTS",
     salary: language === 'ru' ? "Зарплата" : "Salary",
-    status: language === 'ru' ? "Статус" : "Status",
     close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
     owner: language === 'ru' ? "ВЛАДЕЛЕЦ" : "OWNER",
     sale: language === 'ru' ? "ПРОДАЖА" : "SALE",
@@ -99,7 +97,7 @@ export default function YouthSquadPage() {
       const agentId = `youth_${user.uid}_${Date.now()}`;
       const agentData = { id: agentId, heroData: JSON.parse(JSON.stringify(selectedHero)), currentBid: startPrice, startingPrice: startPrice, highestBidderId: null, highestBidderName: null, bidders: [], sellerId: user.uid, sellerName: profile.displayName || "Manager", expiresAt: expiryTime.toISOString(), dropDate: today, dropTime: mskNow.toISOString(), isYouth: true };
       await setDoc(doc(db, 'market_v7', agentId), agentData);
-      updateDoc(doc(db, 'leagues_v2', profile.selectedLeagueId, 'divisions', profile.leagueLevel.toString(), 'groups', profile.groupId.toString(), 'teams', user.uid, 'heroes', selectedHero.id), { onTransferUntil: expiryTime.toISOString(), transferMarketId: agentId });
+      updateHero(selectedHero.id, { onTransferUntil: expiryTime.toISOString(), transferMarketId: agentId });
       toast({ title: language === 'ru' ? "Выставлен на рынок" : "Listed on Market" });
       setSelectedHero(null);
     } catch (e: any) {
@@ -113,7 +111,6 @@ export default function YouthSquadPage() {
     const liveAge = calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt);
     const talentsValues = Object.values(selectedHero.proTalents || {}).map(v => normTalent(v));
     const maxTalentValue = Math.max(...talentsValues);
-    const onAuction = selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil).getTime() > now;
 
     return (
       <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-300">
@@ -158,7 +155,7 @@ export default function YouthSquadPage() {
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</span>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">Age</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.years}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
@@ -174,16 +171,6 @@ export default function YouthSquadPage() {
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
                      <span className="text-[10px] font-bold uppercase">{selectedHero.role}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Страна' : 'Country'}</span>
-                     <span className="text-[10px] font-bold">{selectedHero.country?.flag} {selectedHero.country?.code}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Травма' : 'Injury'}</span>
-                     <span className={cn("text-[9px] font-bold uppercase", selectedHero.isInjured ? "text-red-400" : "text-green-400")}>
-                       {selectedHero.isInjured ? (language === 'ru' ? 'Есть' : 'Yes') : (language === 'ru' ? 'Нет' : 'No')}
-                     </span>
                   </div>
                 </div>
               </section>
@@ -249,14 +236,14 @@ export default function YouthSquadPage() {
                   <Gem className="w-3.5 h-3.5" /> {t.priceTitle}
                 </h3>
                 <div className="bg-secondary/30 p-4 rounded-xl border border-white/5">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'РЫНОЧНАЯ СТОИМОСТЬ' : 'ESTIMATED VALUE'}</p>
+                   <p className="text-[8px] font-black text-muted-foreground uppercase">ESTIMATED VALUE</p>
                    <p className="text-xl font-headline font-bold text-white italic">€ {(selectedHero.overallRating * 5000 + 25000).toLocaleString()}</p>
                 </div>
               </section>
 
               <div className="pt-4 pb-12 flex flex-col gap-2">
                 <div className="grid grid-cols-2 gap-2">
-                  <Button variant="outline" className="h-14 border-primary/20 bg-primary/10 text-primary font-bold uppercase text-[10px]" onClick={handleTransfer} disabled={isTransferring || onAuction}>{isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {t.onTransfer}</Button>
+                  <Button variant="outline" className="h-14 border-primary/20 bg-primary/10 text-primary font-bold uppercase text-[10px]" onClick={handleTransfer} disabled={isTransferring || (selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil) > now)}>{isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {t.onTransfer}</Button>
                   <Button className="h-14 hero-gradient font-black uppercase text-[10px] shadow-xl" onClick={() => handlePromote(selectedHero.id)} disabled={liveAge.numeric < 18}>
                     <ArrowUpCircle className="w-4 h-4 mr-2" /> {liveAge.numeric < 18 ? t.notReady : (language === 'ru' ? 'В ОСНОВУ' : 'PROMOTE')}
                   </Button>
@@ -293,7 +280,7 @@ export default function YouthSquadPage() {
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     {renderStars(maxTalent, 'card')}
-                    <p className="text-[7px] text-muted-foreground font-black uppercase tracking-widest">Age: {liveAge.display} {t.years}</p>
+                    <p className="text-[7px] text-muted-foreground font-black uppercase tracking-widest">Age: {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.years}</p>
                   </div>
                 </div>
                 <div className="text-right border-l border-white/5 pl-2 min-w-[35px]">

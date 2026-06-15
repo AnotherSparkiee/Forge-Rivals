@@ -49,8 +49,8 @@ export const renderStars = (talent: number, size: 'card' | 'intel' | 'list' = 'c
   const numericTalent = normTalent(talent);
 
   if (numericTalent > 50) {
-    let src = "https://iili.io/Cnrlw6F.md.png"; // 5 stars
-    const heightClass = "h-7"; // 28px standardized
+    let src = "https://iili.io/Cnrlw6F.md.png"; // 5 stars (base 28px)
+    let heightClass = "h-7"; // 28px standardized height
 
     if (numericTalent >= 60 && numericTalent <= 69) src = "https://iili.io/CnrSxcJ.md.png";
     if (numericTalent >= 70) src = "https://iili.io/CnrUKJf.md.png";
@@ -96,7 +96,7 @@ export const TransferHeroCard = memo(({
   const [showDossier, setShowDossier] = useState(false);
   const [bidPercent, setBidPercent] = useState(5);
   const [isProcessing, setIsProcessing] = useState(false);
-  const { managerSkills, displayName } = useGameState();
+  const { displayName } = useGameState();
 
   const isLeading = agent.highestBidderId === user?.uid;
   const isOwner = agent.sellerId === user?.uid;
@@ -183,7 +183,7 @@ export const TransferHeroCard = memo(({
             </div>
             
             <div className="flex-1 min-w-0">
-              <div className="flex flex-col gap-0.5 mb-1.5">
+              <div className="flex flex-col gap-0.5 mb-1">
                 <h3 className="text-[11px] font-bold uppercase truncate text-white tracking-tight leading-none">{agent.heroData?.name}</h3>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-[6px] h-3 py-0 border-white/10 uppercase font-black text-primary/80">
@@ -328,9 +328,9 @@ export const TransferHeroCard = memo(({
                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{proStatsLabels[key]}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                             <span className="text-xs font-mono font-bold text-white">{displayValue}</span>
-                             <span className="text-[10px] text-muted-foreground/50">/</span>
-                             <span className="text-xs font-mono font-bold text-primary/70">{talentLimit}</span>
+                            <span className="text-xs font-mono font-bold text-white">{displayValue}</span>
+                            <span className="text-[10px] text-muted-foreground/50">/</span>
+                            <span className="text-xs font-mono font-bold text-primary/70">{talentLimit}</span>
                           </div>
                         </div>
                         <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
@@ -453,7 +453,6 @@ export default function QuickSearchPage() {
   const filteredAgents = useMemo(() => {
     if (!agents) return [];
     return agents.filter(a => {
-      // ONLY V900 SYSTEM VERSION
       if (a.isSystem && !a.id.includes('v900')) return false;
       const expiry = new Date(a.expiresAt).getTime();
       if (expiry <= now) return false;
@@ -509,7 +508,7 @@ export default function QuickSearchPage() {
                 <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(0)} className="h-8 w-8"><ChevronsLeft className="w-4 h-4" /></Button>
                 <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 w-8"><ChevronLeftIcon className="h-4 w-4" /></Button>
                 <span className="text-[10px] font-black text-muted-foreground uppercase px-4">{language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}</span>
-                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-4 w-4"><ChevronRightIcon className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p + 1)} className="h-4 w-4"><ChevronRightIcon className="h-4 w-4" /></Button>
               </div>
             )}
           </>
