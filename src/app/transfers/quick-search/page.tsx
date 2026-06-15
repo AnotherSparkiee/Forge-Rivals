@@ -55,8 +55,9 @@ export const renderStars = (talent: number, size: 'card' | 'intel' | 'list' = 'c
     if (size === 'intel') {
       heightClass = numericTalent >= 70 ? "h-28" : (numericTalent >= 60 ? "h-24" : "h-20");
     } else if (size === 'list') {
-      heightClass = numericTalent >= 70 ? "h-8" : (numericTalent >= 60 ? "h-7" : "h-6");
+      heightClass = "h-8";
     } else if (size === 'card') {
+      // КАРТОЧКА: Уменьшенные размеры
       heightClass = numericTalent >= 70 ? "h-14" : (numericTalent >= 60 ? "h-12" : "h-10");
     }
 
@@ -171,59 +172,59 @@ export const TransferHeroCard = memo(({
           agent.isPro && "border-yellow-500/30 shadow-[0_0_20px_rgba(234,179,8,0.1)]"
         )}
       >
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between mb-2">
+        <CardContent className="p-2.5">
+          <div className="flex items-center justify-between mb-1.5">
              <div className="flex items-center gap-1 text-accent">
-               <Timer className="w-3 h-3 animate-pulse" />
-               <span className="text-[9px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
+               <Timer className="w-2.5 h-2.5 animate-pulse" />
+               <span className="text-[8px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
              </div>
-             {isOwner && <Badge className="bg-primary text-primary-foreground text-[7px] font-black uppercase px-1.5 h-3.5 border-none">{language === 'ru' ? 'ВАШ ЛОТ' : 'YOUR LOT'}</Badge>}
+             {isOwner && <Badge className="bg-primary text-primary-foreground text-[6px] font-black uppercase px-1.5 h-3 border-none">{language === 'ru' ? 'ВАШ ЛОТ' : 'YOUR LOT'}</Badge>}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <div className="relative shrink-0">
-              <div className="w-20 h-20 rounded-xl overflow-hidden bg-secondary/30 border border-white/10 relative shadow-lg">
+              <div className="w-16 h-16 rounded-lg overflow-hidden bg-secondary/30 border border-white/10 relative shadow-lg">
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
-                <div className="absolute -bottom-1 -right-1 bg-background rounded p-0.5 border border-white/10 shadow-xl z-10 flex items-center justify-center">
-                  <span className="text-[10px] leading-none">{agent.heroData.country?.flag}</span>
+                <div className="absolute -bottom-1 -right-1 bg-background rounded-sm p-0.5 border border-white/10 shadow-xl z-10 flex items-center justify-center">
+                  <span className="text-[8px] leading-none">{agent.heroData.country?.flag}</span>
                 </div>
               </div>
             </div>
             
             <div className="flex-1 min-w-0">
               <div className="flex flex-col gap-0.5 mb-1">
-                <h3 className="text-sm font-bold uppercase truncate text-white tracking-tight leading-none">{agent.heroData?.name}</h3>
+                <h3 className="text-xs font-bold uppercase truncate text-white tracking-tight leading-none">{agent.heroData?.name}</h3>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-[7px] h-3.5 py-0 border-white/10 uppercase font-black text-primary/80">
+                  <Badge variant="outline" className="text-[6px] h-3 py-0 border-white/10 uppercase font-black text-primary/80">
                     {rolesRu[agent.heroData.role] || agent.heroData.role}
                   </Badge>
-                  <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.age}: {liveAge.display}</span>
+                  <span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">{t.age}: {liveAge.display}</span>
                 </div>
               </div>
               
-              <div className="flex flex-col min-h-[60px] justify-center">
+              <div className="flex flex-col min-h-[56px] justify-center">
                 <div className="flex items-center">
                   {renderStars(maxTalentValue, 'card')}
                 </div>
               </div>
             </div>
             
-            <div className="text-right flex flex-col items-end shrink-0 justify-center">
-              <p className="text-[7px] font-black text-primary uppercase tracking-widest leading-none mb-0.5">ОБЩ</p>
-              <p className="text-3xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
+            <div className="text-right flex flex-col items-end shrink-0 justify-center pr-1">
+              <p className="text-[6px] font-black text-primary uppercase tracking-widest leading-none mb-0.5">ОБЩ</p>
+              <p className="text-2xl font-headline font-bold text-accent italic leading-none">{agent.heroData?.overallRating}</p>
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-3 pt-3 mt-2 border-t border-white/5">
-            <div className="flex flex-col gap-1 min-w-0 flex-1">
-              <p className="text-[7px] uppercase text-muted-foreground font-black tracking-widest leading-none">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
+          <div className="flex items-center justify-between gap-2 pt-2 mt-1.5 border-t border-white/5">
+            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+              <p className="text-[6px] uppercase text-muted-foreground font-black tracking-widest leading-none">{language === 'ru' ? 'ЦЕНА' : 'PRICE'}</p>
               <div className="flex items-center justify-between pr-2">
-                <div className="flex items-center gap-1.5">
-                  {isDiamond ? <Gem className="w-3.5 h-3.5 text-blue-400" /> : <span className="text-white font-black text-base leading-none">€</span>}
-                  <p className="text-lg font-headline font-bold text-white tracking-tight leading-none">{agent.currentBid?.toLocaleString()}</p>
+                <div className="flex items-center gap-1">
+                  {isDiamond ? <Gem className="w-3 h-3 text-blue-400" /> : <span className="text-white font-black text-sm leading-none">€</span>}
+                  <p className="text-base font-headline font-bold text-white tracking-tight leading-none">{agent.currentBid?.toLocaleString()}</p>
                 </div>
                 <div className="text-right flex flex-col justify-center">
-                  <p className="text-base font-headline font-bold text-primary uppercase truncate max-w-[140px] leading-none">
+                  <p className="text-sm font-headline font-bold text-primary uppercase truncate max-w-[120px] leading-none">
                     {agent.highestBidderName || (language === 'ru' ? 'НЕТ СТАВОК' : 'NO BIDS')}
                   </p>
                 </div>
@@ -231,7 +232,7 @@ export const TransferHeroCard = memo(({
             </div>
             <Button 
               className={cn(
-                "h-10 font-black text-[9px] px-5 rounded-lg uppercase tracking-widest transition-all shrink-0", 
+                "h-9 font-black text-[8px] px-4 rounded-lg uppercase tracking-widest transition-all shrink-0", 
                 isLeading ? "bg-green-600/20 text-green-400 border border-green-500/30" : 
                 (isOwner ? "bg-secondary/50 text-muted-foreground border border-white/5" : "hero-gradient shadow-xl active:scale-95")
               )} 
@@ -359,7 +360,7 @@ export const TransferHeroCard = memo(({
                     const talentLimit = normTalent((agent.heroData.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10 min-h-[72px] flex flex-col justify-center">
+                      <div key={`talent-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10 min-h-[96px] flex flex-col justify-center">
                         <div className="flex justify-between items-center px-0.5 mb-2">
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-accent/50" />
