@@ -54,8 +54,8 @@ export default function YouthSquadPage() {
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     onTransfer: language === 'ru' ? "НА РЫНОК" : "TRANSFER",
     years: language === 'ru' ? "лет" : "yrs",
-    skills: language === 'ru' ? "НАВЫКИ" : "SKILLS",
-    talents: language === 'ru' ? "ТАЛАНТЫ" : "TALENTS",
+    skills: language === 'ru' ? "Навыки" : "SKILLS",
+    talents: language === 'ru' ? "Таланты" : "TALENTS",
     salary: language === 'ru' ? "Зарплата" : "Salary",
     status: language === 'ru' ? "Статус" : "Status",
     close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
@@ -203,7 +203,7 @@ export default function YouthSquadPage() {
                       <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
                         <div className="flex justify-between items-center px-0.5">
                           <div className="flex items-center gap-2">
-                            <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
+                            <Icon className="w-4 h-4 text-muted-foreground/60" />
                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
@@ -228,7 +228,7 @@ export default function YouthSquadPage() {
                     const talentLimit = normTalent((selectedHero.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10 min-h-[72px] flex flex-col justify-center">
+                      <div key={`talent-${key}`} className="space-y-2 p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[72px] flex flex-col justify-center">
                         <div className="flex justify-between items-center px-0.5 mb-2">
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-accent/50" />
@@ -246,7 +246,6 @@ export default function YouthSquadPage() {
                 </div>
               </section>
 
-              {/* БЛОК: ЦЕНА */}
               <section className="pt-4 border-t border-white/5">
                 <h3 className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Gem className="w-3.5 h-3.5" /> {t.priceTitle}
@@ -272,24 +271,13 @@ export default function YouthSquadPage() {
     );
   }
 
-  function getCountdown(expiryIso: string) {
-    if (!expiryIso) return "00:00:00";
-    const expiry = new Date(expiryIso).getTime();
-    const diff = expiry - now;
-    if (diff <= 0) return "00:00:00";
-    const h = Math.floor(diff / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    const s = Math.floor((diff % 60000) / 1000);
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  }
-
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-6">
       <header className="mb-6 flex items-center gap-4">
         <Link href="/youth-academy"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
         <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-primary">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">Future tactical assets</p></div>
       </header>
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {youthAcademyHeroes.length > 0 ? youthAcademyHeroes.map((hero) => {
           const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
           const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil).getTime() > now;
@@ -297,21 +285,21 @@ export default function YouthSquadPage() {
           const maxTalent = Math.max(...talentsValues);
           return (
             <Card key={hero.id} className={cn("glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all", onAuction && "border-yellow-500/30 bg-yellow-500/5")} onClick={() => setSelectedHero(hero)}>
-              <CardContent className="p-3 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0"><img src={hero.image} alt={hero.name} className="w-full h-full object-cover" /></div>
+              <CardContent className="p-2 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg overflow-hidden bg-secondary/50 border border-white/10 shrink-0"><img src={hero.image} alt={hero.name} className="w-full h-full object-cover" /></div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold truncate uppercase">{hero.name}</h3>
-                    <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
+                    <h3 className="text-[11px] font-bold truncate uppercase">{hero.name}</h3>
+                    <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
                     {onAuction && <Badge className="bg-yellow-500 text-black text-[6px] h-3 px-1 font-black animate-pulse uppercase">Auction</Badge>}
                   </div>
-                  <div className="flex items-center gap-3 mt-1">
+                  <div className="flex items-center gap-2 mt-0.5">
                     {renderStars(maxTalent, 'card')}
-                    <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Age: {liveAge.display} {t.years}</p>
+                    <p className="text-[7px] text-muted-foreground font-black uppercase tracking-widest">Age: {liveAge.display} {t.years}</p>
                   </div>
                 </div>
-                <div className="text-right border-l border-white/5 pl-3">
-                  <p className="text-[7px] font-black text-primary uppercase tracking-tighter leading-none mb-0.5">ОБЩ</p>
+                <div className="text-right border-l border-white/5 pl-2 min-w-[35px]">
+                  <p className="text-[6px] font-black text-primary uppercase tracking-tighter leading-none mb-0.5">ОБЩ</p>
                   <span className="text-lg font-headline font-bold text-accent italic">{hero.overallRating}</span>
                 </div>
               </CardContent>

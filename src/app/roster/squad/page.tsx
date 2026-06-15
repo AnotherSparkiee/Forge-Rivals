@@ -230,22 +230,22 @@ export default function SquadPage() {
           isSelected && "ring-2 ring-primary border-primary bg-primary/20 scale-[1.02] z-10"
         )}
       >
-        <CardContent className="p-3 flex items-center gap-4 relative">
-          <div className="relative">
-            <div className={cn("w-12 h-12 rounded-xl border flex items-center justify-center bg-secondary/50 overflow-hidden", hero ? "border-primary/50" : "border-dashed border-muted")}>
-              {hero ? <img src={hero.image} alt="" className="w-full h-full object-cover" /> : <roleInfo.icon className={cn("w-5 h-5", roleInfo.color)} />}
+        <CardContent className="p-2 flex items-center gap-3 relative">
+          <div className="relative shrink-0">
+            <div className={cn("w-10 h-10 rounded-lg border flex items-center justify-center bg-secondary/50 overflow-hidden", hero ? "border-primary/50" : "border-dashed border-muted")}>
+              {hero ? <img src={hero.image} alt="" className="w-full h-full object-cover" /> : <roleInfo.icon className={cn("w-4 h-4", roleInfo.color)} />}
             </div>
-            {hero && <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1 border border-white/10 shadow-lg"><roleInfo.icon className={cn("w-2.5 h-2.5", roleInfo.color)} /></div>}
+            {hero && <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-0.5 border border-white/10 shadow-lg"><roleInfo.icon className={cn("w-2 h-2", roleInfo.color)} /></div>}
           </div>
           <div className="flex-1 min-w-0">
-            <p className={cn("text-[8px] uppercase font-black tracking-widest", isSelected ? "text-primary" : "text-muted-foreground")}>{roleInfo.label}</p>
-            <h3 className="text-xs font-bold leading-tight truncate">{hero ? hero.name : (isSelected ? t.selectHero : t.emptySlot)}</h3>
+            <p className={cn("text-[7px] uppercase font-black tracking-widest", isSelected ? "text-primary" : "text-muted-foreground")}>{roleInfo.label}</p>
+            <h3 className="text-[11px] font-bold leading-tight truncate">{hero ? hero.name : (isSelected ? t.selectHero : t.emptySlot)}</h3>
           </div>
-          <div className="flex items-center gap-3">
-            {hero ? <div className="flex flex-col items-center justify-center min-w-[45px] border-l border-white/5 pl-3">
-              <p className="text-[7px] font-black text-primary uppercase tracking-tighter mb-0.5">ОБЩ</p>
-              <span className="text-xl font-headline font-bold text-accent italic leading-none">{hero.overallRating}</span>
-            </div> : <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-4 h-4" /></div>}
+          <div className="flex items-center gap-2">
+            {hero ? <div className="flex flex-col items-center justify-center min-w-[35px] border-l border-white/5 pl-2">
+              <p className="text-[6px] font-black text-primary uppercase tracking-tighter mb-0.5">ОБЩ</p>
+              <span className="text-lg font-headline font-bold text-accent italic leading-none">{hero.overallRating}</span>
+            </div> : <div className="w-6 h-6 rounded-lg flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-3 h-3" /></div>}
           </div>
         </CardContent>
       </Card>
@@ -347,7 +347,7 @@ export default function SquadPage() {
                       <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
                         <div className="flex justify-between items-center px-0.5">
                           <div className="flex items-center gap-2">
-                            <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
+                            <Icon className="w-4 h-4 text-muted-foreground/60" />
                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
@@ -372,7 +372,7 @@ export default function SquadPage() {
                     const talentLimit = normTalent((profileHero.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10 min-h-[72px] flex flex-col justify-center">
+                      <div key={`talent-${key}`} className="space-y-2 p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[72px] flex flex-col justify-center">
                         <div className="flex justify-between items-center px-0.5 mb-2">
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-accent/50" />
@@ -438,27 +438,27 @@ export default function SquadPage() {
       <div className="space-y-8">
         <section className="space-y-2">
           <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent px-1 flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5" /> {t.activeLabel}</h2>
-          <div className="space-y-2">{(['carry', 'mid', 'offlane', 'support', 'full_support'] as LineupSlot[]).map(renderSlot)}</div>
+          <div className="space-y-1.5">{(['carry', 'mid', 'offlane', 'support', 'full_support'] as LineupSlot[]).map(renderSlot)}</div>
         </section>
         <section className="space-y-2">
           <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2"><UserPlus className="w-3.5 h-3.5" /> {t.subsLabel}</h2>
-          <div className="space-y-2">{(['sub1', 'sub2'] as LineupSlot[]).map(renderSlot)}</div>
+          <div className="space-y-1.5">{(['sub1', 'sub2'] as LineupSlot[]).map(renderSlot)}</div>
         </section>
         <section className="space-y-2">
           <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 px-1 flex items-center gap-2"><Users className="w-3.5 h-3.5" /> {t.reservesLabel}</h2>
-          <div className="space-y-2">{reserveSlots.map(renderSlot)}</div>
+          <div className="space-y-1.5">{reserveSlots.map(renderSlot)}</div>
         </section>
 
         {selectingSlot && (
           <section className="space-y-3 pt-6 border-t border-primary/20 animate-in slide-in-from-bottom-4">
             <div className="flex items-center justify-between px-1"><div className="flex items-center gap-2"><Box className="w-4 h-4 text-primary" /><h2 className="text-sm font-bold uppercase tracking-tight text-primary">{t.availableHeroes}</h2></div><Button variant="ghost" size="sm" onClick={() => setSelectingSlot(null)} className="h-7 text-[10px] font-bold text-muted-foreground"><Undo2 className="w-3 h-3 mr-1" /> {t.cancel}</Button></div>
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 gap-1.5">
               {ownedHeroes.filter(h => roleMapping[selectingSlot].includes(h.role)).map((hero) => {
                 const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
                 const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil).getTime() > now;
                 return (
                   <Card key={hero.id} className={cn("glass-card border-white/10 overflow-hidden cursor-pointer", (liveAge.numeric < 18 || onAuction) && "opacity-60 grayscale cursor-not-allowed")} onClick={() => hero.onTransferUntil && new Date(hero.onTransferUntil).getTime() > now ? null : handleHeroAssign(hero)}>
-                    <CardContent className="p-2 flex items-center gap-3"><div className="w-10 h-10 rounded-xl overflow-hidden bg-muted"><img src={hero.image} alt="" className="w-full h-full object-cover" /></div><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><h4 className="font-bold text-[11px] truncate">{hero.name}</h4><span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span></div><div className="flex items-center gap-3 mt-0.5"><span className="text-[9px] font-bold text-accent flex items-center gap-1"><Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}</span><span className={cn("text-[8px] font-black uppercase tracking-tighter", liveAge.numeric < 18 ? "text-red-400" : "text-muted-foreground")}>{liveAge.display} {t.profile.years}</span></div></div><div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-3 h-3" /></div></CardContent>
+                    <CardContent className="p-2 flex items-center gap-3"><div className="w-10 h-10 rounded-lg overflow-hidden bg-muted"><img src={hero.image} alt="" className="w-full h-full object-cover" /></div><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><h4 className="font-bold text-[11px] truncate">{hero.name}</h4><span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span></div><div className="flex items-center gap-3 mt-0.5"><span className="text-[9px] font-bold text-accent flex items-center gap-1"><Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}</span><span className={cn("text-[8px] font-black uppercase tracking-tighter", liveAge.numeric < 18 ? "text-red-400" : "text-muted-foreground")}>{liveAge.display} {t.profile.years}</span></div></div><div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-3 h-3" /></div></CardContent>
                   </Card>
                 );
               })}

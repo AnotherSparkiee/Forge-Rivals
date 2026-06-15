@@ -62,8 +62,8 @@ export default function ContractsPage() {
     tooYoung: language === 'ru' ? "Игрок слишком молод! Мин. возраст — 18.0" : "Player is too young! Min age — 18.0",
     overall: language === 'ru' ? "ОБЩ" : "OVR",
     years: language === 'ru' ? "лет" : "yrs",
-    skills: language === 'ru' ? "НАВЫКИ" : "SKILLS",
-    talents: language === 'ru' ? "ТАЛАНТЫ" : "TALENTS",
+    skills: language === 'ru' ? "Навыки" : "SKILLS",
+    talents: language === 'ru' ? "Таланты" : "TALENTS",
     transferDesc: language === 'ru' ? "Игрок будет выставлен на аукцион на 12 часов." : "The player will be listed for 12 hours.",
     close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
     healthy: language === 'ru' ? "Здоров" : "Healthy",
@@ -222,7 +222,7 @@ export default function ContractsPage() {
                       <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
                         <div className="flex justify-between items-center px-0.5">
                           <div className="flex items-center gap-2">
-                            <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
+                            <Icon className="w-4 h-4 text-muted-foreground/60" />
                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
@@ -247,7 +247,7 @@ export default function ContractsPage() {
                     const talentLimit = normTalent((profileHero.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10 min-h-[72px] flex flex-col justify-center">
+                      <div key={`talent-${key}`} className="space-y-2 p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[72px] flex flex-col justify-center">
                         <div className="flex justify-between items-center px-0.5 mb-2">
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-accent/50" />
@@ -288,29 +288,29 @@ export default function ContractsPage() {
         <Link href="/roster"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
         <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2 text-primary"><Scroll className="w-6 h-6 text-primary" /> {t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p></div>
       </header>
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {ownedHeroes.map((hero) => {
           const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil) > new Date();
           const talentsValues = Object.values(hero.proTalents || {}).map(v => normTalent(v));
           const maxTalent = Math.max(...talentsValues);
           return (
             <Card key={hero.id} className={cn("glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all", onAuction && "border-yellow-500/30 bg-yellow-500/5")} onClick={() => setProfileHero(hero)}>
-              <CardContent className="p-3 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl overflow-hidden bg-secondary/50 border border-white/10 shrink-0"><img src={hero.image} alt={hero.name} className="w-full h-full object-cover" /></div>
+              <CardContent className="p-2 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg overflow-hidden bg-secondary/50 border border-white/10 shrink-0"><img src={hero.image} alt={hero.name} className="w-full h-full object-cover" /></div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold truncate uppercase">{hero.name}</h3>
-                    <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
+                    <h3 className="text-[11px] font-bold truncate uppercase">{hero.name}</h3>
+                    <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
                     {onAuction && <Badge className="bg-yellow-500 text-black text-[6px] h-3 px-1 font-black animate-pulse uppercase">Auction</Badge>}
                   </div>
-                  <div className="flex items-center gap-3 mt-1">
+                  <div className="flex items-center gap-2 mt-0.5">
                     {renderStars(maxTalent, 'card')}
-                    <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Age: {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.years}</p>
+                    <p className="text-[7px] text-muted-foreground font-black uppercase tracking-widest">Age: {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.years}</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-center justify-center min-w-[40px] border-l border-white/5 pl-3">
-                  <p className="text-[7px] font-black text-primary uppercase tracking-tighter leading-none mb-0.5">ОБЩ</p>
-                  <span className="text-xl font-headline font-bold text-accent italic leading-none">{hero.overallRating}</span>
+                <div className="flex flex-col items-center justify-center min-w-[35px] border-l border-white/5 pl-2">
+                  <p className="text-[6px] font-black text-primary uppercase tracking-tighter leading-none mb-0.5">ОБЩ</p>
+                  <span className="text-lg font-headline font-bold text-accent italic leading-none">{hero.overallRating}</span>
                 </div>
               </CardContent>
             </Card>
