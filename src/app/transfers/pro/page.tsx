@@ -52,14 +52,13 @@ export default function ProTransfersPage() {
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       const vtuneSnap = await getDoc(vtuneRef);
 
-      // CRITICAL: CLEANUP ALL PREVIOUS SYSTEM VERSIONS
+      // CRITICAL: CLEANUP ALL PREVIOUS SYSTEM VERSIONS TO AVOID DUPLICATES
       try {
         const q = query(collection(db, 'market_v7'), where('isSystem', '==', true));
         const allSystemSnap = await getDocs(q);
         for (const d of allSystemSnap.docs) {
           if (d.id !== vtuneId) {
             await deleteDoc(d.ref);
-            console.log(`[Cleanup] Deleted legacy system agent: ${d.id}`);
           }
         }
       } catch (e) {
@@ -90,7 +89,6 @@ export default function ProTransfersPage() {
           currency: 'crystals',
           sellerId: 'system'
         });
-        console.log(`[Market] New V-Tune v900 listed for ${today}`);
       }
     };
 
@@ -146,7 +144,7 @@ export default function ProTransfersPage() {
       
       toast({ title: language === 'ru' ? "Ставка принята!" : "Elite Bid Confirmed!" });
     } catch (e) {
-      toast({ title: "Ошибка при ставке", variant: "destructive" });
+      toast({ title: "Error placing bid", variant: "destructive" });
     }
   }, [user, profile, credits, crystals, language, toast, db, addCredits, addCrystals]);
 
@@ -154,6 +152,7 @@ export default function ProTransfersPage() {
     if (!agents) return [];
     
     return agents.filter(a => {
+      // ONLY V900 SYSTEM VERSION
       if (a.isSystem && !a.id.includes('v900')) return false;
       if (!a.isPro || new Date(a.expiresAt).getTime() <= now) return false;
       return true;

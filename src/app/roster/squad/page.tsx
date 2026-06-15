@@ -262,7 +262,7 @@ export default function SquadPage() {
     return (
       <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-300">
         <div className="max-w-md mx-auto min-h-screen flex flex-col pb-10">
-          <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
+          <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 relative shrink-0 text-center">
             <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setProfileHero(null)}><X className="w-5 h-5" /></Button>
             <div className="relative mx-auto w-24 h-24 mb-4">
               <div className={cn("w-full h-full rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50")}>
@@ -340,9 +340,9 @@ export default function SquadPage() {
                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
-                            <span className="text-[8px] text-muted-foreground/50">/</span>
-                            <span className="text-[9px] font-mono font-bold text-primary/70">{talentLimit}</span>
+                            <span className="text-xs font-mono font-bold text-white">{displayValue}</span>
+                            <span className="text-[10px] text-muted-foreground/50">/</span>
+                            <span className="text-xs font-mono font-bold text-primary/70">{talentLimit}</span>
                           </div>
                         </div>
                         <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />

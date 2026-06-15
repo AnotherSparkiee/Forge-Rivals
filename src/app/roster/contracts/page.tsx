@@ -196,9 +196,9 @@ export default function ContractsPage() {
                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
-                            <span className="text-[8px] text-muted-foreground/50">/</span>
-                            <span className="text-[9px] font-mono font-bold text-primary/70">{talentLimit}</span>
+                            <span className="text-xs font-mono font-bold text-white">{displayValue}</span>
+                            <span className="text-[10px] text-muted-foreground/50">/</span>
+                            <span className="text-xs font-mono font-bold text-primary/70">{talentLimit}</span>
                           </div>
                         </div>
                         <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
