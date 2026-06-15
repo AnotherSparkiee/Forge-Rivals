@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -135,7 +134,7 @@ const YouthTransferCard = memo(({
 
           <div className="flex items-center gap-3">
             <div className="relative shrink-0">
-              <div className="w-16 h-16 rounded-lg overflow-hidden bg-secondary/30 border border-white/10 relative shadow-lg">
+              <div className="w-[72px] h-[72px] rounded-lg overflow-hidden bg-secondary/30 border border-white/10 relative shadow-lg">
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
                 <div className="absolute -bottom-1 -right-1 bg-background rounded-sm p-0.5 border border-white/10 shadow-xl z-10 flex items-center justify-center">
                   <span className="text-[8px] leading-none">{agent.heroData.country?.flag}</span>
@@ -201,15 +200,15 @@ const YouthTransferCard = memo(({
             <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setShowDossier(false)}><X className="w-5 h-5" /></Button>
             <div className="relative mx-auto w-24 h-24 mb-4">
               <div className={cn("w-full h-full rounded-2xl overflow-hidden border-2 border-primary/50 shadow-2xl bg-secondary/50")}>
-                <img src={selectedHero.image} alt={selectedHero.name} className="w-full h-full object-cover" />
+                <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-background border border-white/10 flex items-center justify-center shadow-xl">
-                <span className="text-xl">{selectedHero.country?.flag}</span>
+                <span className="text-xl">{agent.heroData.country?.flag}</span>
               </div>
             </div>
-            <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white leading-none">{selectedHero.name}</DialogTitle>
+            <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white leading-none">{agent.heroData?.name}</DialogTitle>
             <div className="flex items-center justify-center gap-2 mt-2">
-              <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{rolesRu[selectedHero.role] || selectedHero.role}</Badge>
+              <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{rolesRu[agent.heroData.role] || agent.heroData.role}</Badge>
             </div>
           </div>
 
@@ -248,11 +247,11 @@ const YouthTransferCard = memo(({
                 </div>
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Salary</span>
-                   <span className="text-[10px] font-bold text-primary">€{(selectedHero.salary || 0).toLocaleString()}</span>
+                   <span className="text-[10px] font-bold text-primary">€{(agent.heroData.salary || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
-                   <span className="text-[10px] font-bold uppercase">{rolesRu[selectedHero.role] || selectedHero.role}</span>
+                   <span className="text-[10px] font-bold uppercase">{rolesRu[agent.heroData.role] || agent.heroData.role}</span>
                 </div>
               </div>
             </section>
@@ -264,8 +263,8 @@ const YouthTransferCard = memo(({
               <div className="space-y-3">
                 {STAT_KEYS.map((key) => { 
                   const Icon = icons[key] || Info;
-                  const displayValue = Math.round(Number((selectedHero.proStats as any)[key]));
-                  const talentLimit = normTalent((selectedHero.proTalents as any)[key] || 10);
+                  const displayValue = Math.round(Number((agent.heroData.proStats as any)[key]));
+                  const talentLimit = normTalent((agent.heroData.proTalents as any)[key] || 10);
 
                   return (
                     <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
@@ -293,7 +292,7 @@ const YouthTransferCard = memo(({
               </h3>
               <div className="space-y-2">
                 {STAT_KEYS.map((key) => {
-                  const talentLimit = normTalent((selectedHero.proTalents as any)[key]);
+                  const talentLimit = normTalent((agent.heroData.proTalents as any)[key]);
                   const Icon = icons[key] || Info;
                   return (
                     <div key={`talent-${key}`} className="p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[48px] flex flex-col justify-center">

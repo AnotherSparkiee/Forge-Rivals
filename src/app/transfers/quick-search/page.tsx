@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -63,7 +62,7 @@ export const renderStars = (talent: number) => {
       {Array.from({ length: 5 }).map((_, i) => {
         const fill = Math.min(Math.max(starRating - i, 0), 1);
         return (
-          <div key={i} className="relative w-3 h-3">
+          <div key={i} className={cn("relative", heightClass, "w-3 flex items-center justify-center")}>
             <Star className="absolute inset-0 text-muted-foreground/10 w-3 h-3" />
             <div className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
               <Star className="text-yellow-500 fill-yellow-500 w-3 h-3" />
