@@ -15,10 +15,8 @@ service cloud.firestore {
 
     // Root profile (Pointers & Callsigns)
     match /players_v10/{userId} {
-      allow read: if isSignedIn();
+      allow read, update: if isSignedIn();
       allow create: if isOwner(userId);
-      // Migration logic requires updating other players (promotions/relegations)
-      allow update: if isSignedIn(); 
     }
 
     // Pyramidal League Structure
