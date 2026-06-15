@@ -154,7 +154,6 @@ export default function ProTransfersPage() {
     if (!agents) return [];
     
     return agents.filter(a => {
-      // ONLY SHOW V900 AND HIDE OTHERS
       if (a.isSystem && !a.id.includes('v900')) return false;
       if (!a.isPro || new Date(a.expiresAt).getTime() <= now) return false;
       return true;

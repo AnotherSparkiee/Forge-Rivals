@@ -45,9 +45,9 @@ const normTalent = (val: any) => {
   return n < 10 ? Math.round(n * 10) : Math.round(n);
 };
 
-export const renderStars = (talent: number, size: 'card' | 'intel' | 'list' = 'card') => {
+export const renderStars = (talent: number, context: 'card' | 'intel' | 'list' = 'card') => {
   const numericTalent = normTalent(talent);
-  // UNIFIED SIZE: 28px everywhere
+  // UNIFIED SIZE: 28px everywhere as requested
   const heightClass = "h-7";
 
   if (numericTalent > 50) {
@@ -474,7 +474,6 @@ export default function QuickSearchPage() {
   const filteredAgents = useMemo(() => {
     if (!agents) return [];
     return agents.filter(a => {
-      // ONLY SHOW V900 AND HIDE OTHERS
       if (a.isSystem && !a.id.includes('v900')) return false;
       const expiry = new Date(a.expiresAt).getTime();
       if (expiry <= now) return false;
@@ -530,7 +529,7 @@ export default function QuickSearchPage() {
                 <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(0)} className="h-8 w-8"><ChevronsLeft className="w-4 h-4" /></Button>
                 <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 w-8"><ChevronLeftIcon className="h-4 w-4" /></Button>
                 <span className="text-[10px] font-black text-muted-foreground uppercase px-4">{language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}</span>
-                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)} className="h-4 w-4"><ChevronRightIcon className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)} className="h-8 w-8"><ChevronRightIcon className="h-4 w-4" /></Button>
               </div>
             )}
           </>

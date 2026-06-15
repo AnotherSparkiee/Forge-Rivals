@@ -243,7 +243,7 @@ export default function SquadPage() {
           </div>
           <div className="flex items-center gap-2">
             {hero ? <div className="flex flex-col items-center justify-center min-w-[35px] border-l border-white/5 pl-2">
-              <p className="text-[6px] font-black text-primary uppercase tracking-tighter mb-0.5">ОБЩ</p>
+              <p className="text-[6px] font-black text-primary uppercase tracking-widest mb-0.5">ОБЩ</p>
               <span className="text-lg font-headline font-bold text-accent italic leading-none">{hero.overallRating}</span>
             </div> : <div className="w-6 h-6 rounded-lg flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-3 h-3" /></div>}
           </div>
@@ -264,8 +264,8 @@ export default function SquadPage() {
         <div className="max-w-md mx-auto min-h-screen flex flex-col pb-10">
           <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
             <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setProfileHero(null)}><X className="w-5 h-5" /></Button>
-            <div className="relative">
-              <div className={cn("w-24 h-24 rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50")}>
+            <div className="relative mx-auto w-24 h-24 mb-4">
+              <div className={cn("w-full h-full rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50")}>
                 <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
               </div>
               <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{profileHero.country?.flag}</span></div>
@@ -318,16 +318,6 @@ export default function SquadPage() {
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
                      <span className="text-[10px] font-bold uppercase">{profileHero.role}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Страна' : 'Country'}</span>
-                     <span className="text-[10px] font-bold">{profileHero.country?.flag} {profileHero.country?.code}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Травма' : 'Injury'}</span>
-                     <span className={cn("text-[9px] font-bold uppercase", profileHero.isInjured ? "text-red-400" : "text-green-400")}>
-                       {profileHero.isInjured ? (language === 'ru' ? 'Есть' : 'Yes') : (language === 'ru' ? 'Нет' : 'No')}
-                     </span>
                   </div>
                 </div>
               </section>
