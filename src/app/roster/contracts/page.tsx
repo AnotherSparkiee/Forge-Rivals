@@ -218,7 +218,7 @@ export default function ContractsPage() {
                     const talentLimit = normTalent((profileHero.proTalents as any)[key] || 10);
 
                     return (
-                      <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
+                      <div key={`skill-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
                         <div className="flex justify-between items-center px-0.5">
                           <div className="flex items-center gap-2">
                             <Icon className="w-3.5 h-3.5 text-muted-foreground/60" />
@@ -241,20 +241,23 @@ export default function ContractsPage() {
                 <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Zap className="w-3.5 h-3.5" /> {t.talents}
                 </h3>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {STAT_KEYS.map((key) => {
                     const talentVal = normTalent((profileHero.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[96px]">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <Icon className="w-3.5 h-3.5 text-accent/50 shrink-0" />
-                          <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                      <div key={`talent-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
+                        <div className="flex justify-between items-center px-0.5">
+                          <div className="flex items-center gap-2">
+                            <Icon className="w-4 h-4 text-accent/50" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                             {renderStars(talentVal)}
+                             <span className="text-xs font-mono font-bold text-accent">{talentVal}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0 h-24">
-                          {renderStars(talentVal)}
-                          <span className="text-[11px] font-mono font-bold text-accent min-w-[20px] text-right">{talentVal}</span>
-                        </div>
+                        <Progress value={talentVal} max={100} className="h-1 rounded-full bg-secondary/40" />
                       </div>
                     );
                   })}

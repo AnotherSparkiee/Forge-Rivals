@@ -305,15 +305,18 @@ const YouthTransferCard = memo(({
                   const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
                   const Icon = icons[key] || Info;
                   return (
-                    <div key={`talent-${key}`} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-background/40 min-h-[96px]">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <Icon className="w-4 h-4 text-accent/50 shrink-0" />
-                        <span className="text-[10px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
+                    <div key={`talent-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
+                      <div className="flex justify-between items-center px-0.5">
+                        <div className="flex items-center gap-2">
+                          <Icon className="w-4 h-4 text-accent/50" />
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{proStatsLabels[key]}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                           {renderStars(talentVal)}
+                           <span className="text-xs font-mono font-bold text-accent">{talentVal}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-4 shrink-0 h-24">
-                        {renderStars(talentVal)}
-                        <span className="text-[12px] font-mono font-bold text-accent min-w-[25px] text-right">{talentVal}</span>
-                      </div>
+                      <Progress value={talentVal} max={100} className="h-1 rounded-full bg-secondary/40" />
                     </div>
                   );
                 })}
@@ -357,9 +360,7 @@ const YouthTransferCard = memo(({
             <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white leading-none">
               {agent.heroData?.name}
             </DialogTitle>
-            <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-[0.2em] font-black">
-              {language === 'ru' ? 'ТЕРМИНАЛ СТАВОК' : 'BIDDING TERMINAL'}
-            </DialogDescription>
+            <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-[0.2em] font-black">{language === 'ru' ? 'ТЕРМИНАЛ СТАВОК' : 'BIDDING TERMINAL'}</DialogDescription>
           </div>
 
           <div className="p-6 space-y-8">

@@ -291,7 +291,7 @@ export default function SquadPage() {
                   <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.sale}</p>
                   <div className="flex items-center gap-2">
                     <Timer className="w-3 h-3 text-accent animate-pulse" />
-                    <p className="text-[10px] font-mono font-bold text-accent">{getCountdown(profileHero.onTransferUntil || '')}</p>
+                    <p className="text-[10px] font-mono font-bold text-accent">{profileHero.onTransferUntil ? new Date(profileHero.onTransferUntil).toLocaleTimeString() : 'OFF MARKET'}</p>
                   </div>
                 </div>
               </section>
@@ -366,20 +366,23 @@ export default function SquadPage() {
                 <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Zap className="w-3.5 h-3.5" /> {t.profile.talents}
                 </h3>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {STAT_KEYS.map((key) => {
                     const talentVal = normTalent((profileHero.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-background/40 min-h-[96px]">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <Icon className="w-3.5 h-3.5 text-accent/50 shrink-0" />
-                          <span className="text-[9px] font-bold uppercase text-muted-foreground/80 truncate">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                      <div key={`talent-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
+                        <div className="flex justify-between items-center px-0.5">
+                          <div className="flex items-center gap-2">
+                            <Icon className="w-4 h-4 text-accent/50" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                             {renderStars(talentVal)}
+                             <span className="text-xs font-mono font-bold text-accent">{talentVal}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0 h-24">
-                          {renderStars(talentVal)}
-                          <span className="text-[11px] font-mono font-bold text-accent min-w-[20px] text-right">{talentVal}</span>
-                        </div>
+                        <Progress value={talentVal} max={100} className="h-1 rounded-full bg-secondary/40" />
                       </div>
                     );
                   })}
@@ -414,17 +417,6 @@ export default function SquadPage() {
   const maxReserves = squadLimit - 7;
   for (let i = 1; i <= maxReserves; i++) {
     reserveSlots.push(`res${i}` as LineupSlot);
-  }
-
-  function getCountdown(expiryIso: string) {
-    if (!expiryIso) return "00:00:00";
-    const expiry = new Date(expiryIso).getTime();
-    const diff = expiry - now;
-    if (diff <= 0) return "00:00:00";
-    const h = Math.floor(diff / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    const s = Math.floor((diff % 60000) / 1000);
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
 
   return (

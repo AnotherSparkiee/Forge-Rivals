@@ -60,15 +60,15 @@ export const renderStars = (talent: number) => {
   const numericTalent = normTalent(talent);
 
   if (numericTalent > 50) {
-    let src = "https://iili.io/CnYPc79.md.png"; // 5 stars elite
+    let src = "https://iili.io/Cnrlw6F.md.png"; // 5 stars elite
     let heightClass = "h-16"; // 64px
     
     if (numericTalent >= 60 && numericTalent <= 69) {
-      src = "https://iili.io/CnTWT0X.md.png"; // 6 stars
+      src = "https://iili.io/CnrSxcJ.md.png"; // 6 stars
       heightClass = "h-20"; // 80px
     }
     if (numericTalent >= 70) {
-      src = "https://iili.io/CCZXucP.png"; // 7 stars
+      src = "https://iili.io/CnrUKJf.md.png"; // 7 stars
       heightClass = "h-24"; // 96px
     }
     return <img src={src} alt={`${numericTalent} stars`} className={cn(heightClass, "w-auto object-contain")} />;
@@ -366,15 +366,18 @@ export const TransferHeroCard = memo(({
                     const talentVal = normTalent((agent.heroData.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-background/40 min-h-[96px]">
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <Icon className="w-4 h-4 text-accent/50 shrink-0" />
-                          <span className="text-[10px] font-bold uppercase text-muted-foreground/80 truncate">{proStatsLabels[key]}</span>
+                      <div key={`talent-${key}`} className="space-y-2 p-4 rounded-xl border border-white/5 bg-secondary/10">
+                        <div className="flex justify-between items-center px-0.5">
+                          <div className="flex items-center gap-2">
+                            <Icon className="w-4 h-4 text-accent/50" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{proStatsLabels[key]}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                             {renderStars(talentVal)}
+                             <span className="text-xs font-mono font-bold text-accent">{talentVal}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-4 shrink-0 h-24">
-                          {renderStars(talentVal)}
-                          <span className="text-[12px] font-mono font-bold text-accent min-w-[25px] text-right">{talentVal}</span>
-                        </div>
+                        <Progress value={talentVal} max={100} className="h-1 rounded-full bg-secondary/40" />
                       </div>
                     );
                   })}
@@ -504,6 +507,8 @@ export default function QuickSearchPage() {
       toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!" });
     } catch (e) { toast({ title: "Error", variant: "destructive" }); }
   }, [user, profile, credits, language, toast, db, addCredits]);
+
+  if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
