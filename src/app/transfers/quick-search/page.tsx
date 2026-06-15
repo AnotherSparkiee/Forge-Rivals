@@ -49,13 +49,8 @@ export const renderStars = (talent: number, size: 'card' | 'intel' | 'list' = 'c
 
   if (numericTalent > 50) {
     let src = "https://iili.io/Cnrlw6F.md.png"; // 5 stars
-    let heightClass = "h-7";
-    
-    if (size === 'intel' || size === 'list') {
-      heightClass = "h-7";
-    } else if (size === 'card') {
-      heightClass = numericTalent >= 70 ? "h-11" : (numericTalent >= 60 ? "h-9" : "h-7");
-    }
+    // Uniform compact size for all contexts as requested (h-7 = 28px)
+    const heightClass = "h-7";
 
     if (numericTalent >= 60 && numericTalent <= 69) src = "https://iili.io/CnrSxcJ.md.png";
     if (numericTalent >= 70) src = "https://iili.io/CnrUKJf.md.png";
@@ -177,9 +172,9 @@ export const TransferHeroCard = memo(({
              {isOwner && <Badge className="bg-primary text-primary-foreground text-[6px] font-black uppercase px-1.5 h-3 border-none">{language === 'ru' ? 'ВАШ ЛОТ' : 'YOUR LOT'}</Badge>}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <div className="relative shrink-0">
-              <div className="w-14 h-14 rounded-lg overflow-hidden bg-secondary/30 border border-white/10 relative shadow-lg">
+              <div className="w-16 h-16 rounded-lg overflow-hidden bg-secondary/30 border border-white/10 relative shadow-lg">
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
                 <div className="absolute -bottom-1 -right-1 bg-background rounded-sm p-0.5 border border-white/10 shadow-xl z-10 flex items-center justify-center">
                   <span className="text-[8px] leading-none">{agent.heroData.country?.flag}</span>
@@ -188,7 +183,7 @@ export const TransferHeroCard = memo(({
             </div>
             
             <div className="flex-1 min-w-0">
-              <div className="flex flex-col gap-0.5 mb-1">
+              <div className="flex flex-col gap-0.5 mb-1.5">
                 <h3 className="text-[11px] font-bold uppercase truncate text-white tracking-tight leading-none">{agent.heroData?.name}</h3>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-[6px] h-3 py-0 border-white/10 uppercase font-black text-primary/80">
@@ -198,7 +193,7 @@ export const TransferHeroCard = memo(({
                 </div>
               </div>
               
-              <div className="flex flex-col min-h-[44px] justify-center">
+              <div className="flex flex-col min-h-[32px] justify-center">
                 <div className="flex items-center">
                   {renderStars(maxTalentValue, 'card')}
                 </div>
@@ -211,7 +206,7 @@ export const TransferHeroCard = memo(({
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2 pt-1.5 mt-1 border-t border-white/5">
+          <div className="flex items-center justify-between gap-2 pt-2 mt-1.5 border-t border-white/5">
             <div className="flex flex-col gap-0.5 min-w-0 flex-1">
               <div className="flex items-center justify-between pr-2">
                 <div className="flex items-center gap-1">
