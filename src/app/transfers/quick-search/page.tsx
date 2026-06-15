@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -46,12 +47,12 @@ const normTalent = (val: any) => {
 
 export const renderStars = (talent: number) => {
   const numericTalent = normTalent(talent);
-  const heightClass = "h-7"; // 28px unified
+  const heightClass = "h-7"; // 28px unified everywhere
 
   if (numericTalent > 50) {
     let src = "https://iili.io/Cnrlw6F.md.png"; // 5 stars
-    if (numericTalent >= 60 && numericTalent <= 69) src = "https://iili.io/CnrSxcJ.md.png";
-    if (numericTalent >= 70) src = "https://iili.io/CnrUKJf.md.png";
+    if (numericTalent >= 60 && numericTalent <= 69) src = "https://iili.io/CnrSxcJ.md.png"; // 6 stars
+    if (numericTalent >= 70) src = "https://iili.io/CnrUKJf.md.png"; // 7 stars
     
     return <img src={src} alt={`${numericTalent} stars`} className={cn(heightClass, "w-auto object-contain")} />;
   }
@@ -169,7 +170,7 @@ export const TransferHeroCard = memo(({
              {isOwner && <Badge className="bg-primary text-primary-foreground text-[6px] font-black uppercase px-1.5 h-3 border-none">{language === 'ru' ? 'ВАШ ЛОТ' : 'YOUR LOT'}</Badge>}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <div className="relative shrink-0">
               <div className="w-[72px] h-[72px] rounded-lg overflow-hidden bg-secondary/30 border border-white/10 relative shadow-lg">
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />

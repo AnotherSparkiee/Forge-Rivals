@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -52,7 +53,7 @@ export default function ProTransfersPage() {
       
       // 1. CLEANUP ALL PREVIOUS OR BROKEN SYSTEM VERSIONS
       try {
-        const q = query(collection(db, 'market_v7'), where('sellerId', '==', 'system'));
+        const q = query(collection(db, 'market_v7'), where('isSystem', '==', true));
         const allSystemSnap = await getDocs(q);
         for (const d of allSystemSnap.docs) {
           if (d.id !== vtuneId) {
