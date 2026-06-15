@@ -308,7 +308,7 @@ export default function SquadPage() {
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.profile.talent}</span>
                      <div className="flex items-center">
-                       {renderStars(maxTalentValue, 'intel')}
+                       {renderStars(maxTalentValue)}
                      </div>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
@@ -368,7 +368,7 @@ export default function SquadPage() {
                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
                           </div>
                           <div className="flex items-center gap-3">
-                             {renderStars(talentLimit, 'list')}
+                             {renderStars(talentLimit)}
                              <span className="text-xs font-mono font-bold text-accent">{talentLimit}</span>
                           </div>
                         </div>

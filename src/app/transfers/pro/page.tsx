@@ -36,7 +36,8 @@ export default function ProTransfersPage() {
 
   const marketQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
-    return query(collection(db, 'market_v7'));
+    // Fetch only PRO players for this page
+    return query(collection(db, 'market_v7'), where('isPro', '==', true));
   }, [db, user?.uid]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
@@ -52,9 +53,9 @@ export default function ProTransfersPage() {
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       const vtuneSnap = await getDoc(vtuneRef);
 
-      // CRITICAL: CLEANUP ALL PREVIOUS SYSTEM VERSIONS TO AVOID DUPLICATES
+      // CLEANUP ALL PREVIOUS OR BROKEN SYSTEM VERSIONS
       try {
-        const q = query(collection(db, 'market_v7'), where('isSystem', '==', true));
+        const q = query(collection(db, 'market_v7'), where('sellerId', '==', 'system'));
         const allSystemSnap = await getDocs(q);
         for (const d of allSystemSnap.docs) {
           if (d.id !== vtuneId) {
@@ -62,7 +63,7 @@ export default function ProTransfersPage() {
           }
         }
       } catch (e) {
-        console.error("Cleanup failed", e);
+        console.error("System cleanup failed", e);
       }
 
       if (!vtuneSnap.exists()) {
@@ -87,7 +88,8 @@ export default function ProTransfersPage() {
           isSystem: true,
           isPro: true,
           currency: 'crystals',
-          sellerId: 'system'
+          sellerId: 'system',
+          sellerName: 'System'
         });
       }
     };
@@ -152,9 +154,10 @@ export default function ProTransfersPage() {
     if (!agents) return [];
     
     return agents.filter(a => {
-      // ONLY V900 SYSTEM VERSION
+      // Strictly only current V900 system agents or real user auctions
       if (a.isSystem && !a.id.includes('v900')) return false;
-      if (!a.isPro || new Date(a.expiresAt).getTime() <= now) return false;
+      const expiry = new Date(a.expiresAt).getTime();
+      if (expiry <= now) return false;
       return true;
     }).sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
   }, [agents, now]);

@@ -45,7 +45,7 @@ const normTalent = (val: any) => {
   return n < 10 ? Math.round(n * 10) : Math.round(n);
 };
 
-export const renderStars = (talent: number, context: 'card' | 'intel' | 'list' = 'card') => {
+export const renderStars = (talent: number) => {
   const numericTalent = normTalent(talent);
   // UNIFIED SIZE: 28px everywhere as requested
   const heightClass = "h-7";
@@ -194,7 +194,7 @@ export const TransferHeroCard = memo(({
               
               <div className="flex flex-col min-h-[32px] justify-center">
                 <div className="flex items-center">
-                  {renderStars(maxTalentValue, 'card')}
+                  {renderStars(maxTalentValue)}
                 </div>
               </div>
             </div>
@@ -282,7 +282,7 @@ export const TransferHeroCard = memo(({
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
                    <div className="flex items-center">
-                    {renderStars(maxTalentValue, 'intel')}
+                    {renderStars(maxTalentValue)}
                    </div>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
@@ -342,7 +342,7 @@ export const TransferHeroCard = memo(({
                           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{proStatsLabels[key]}</span>
                         </div>
                         <div className="flex items-center gap-3">
-                           {renderStars(talentLimit, 'list')}
+                           {renderStars(talentLimit)}
                            <span className="text-xs font-mono font-bold text-accent">{talentLimit}</span>
                         </div>
                       </div>
@@ -474,6 +474,7 @@ export default function QuickSearchPage() {
   const filteredAgents = useMemo(() => {
     if (!agents) return [];
     return agents.filter(a => {
+      // ONLY V900 SYSTEM VERSION
       if (a.isSystem && !a.id.includes('v900')) return false;
       const expiry = new Date(a.expiresAt).getTime();
       if (expiry <= now) return false;
@@ -505,7 +506,7 @@ export default function QuickSearchPage() {
       addCredits(-amount);
       if (prevBidder && prevBidder !== user.uid) {
         addDocumentNonBlocking(collection(db, 'notifications_v7'), {
-          userId: prevBidder, title: "Ставка перебита!", description: `Ваша ставка на "${heroName}" перебита.`, type: 'market', read: false, createdAt: new Date().toISOString()
+          userId: prevBidder, title: language === 'ru' ? "Ставка перебита!" : "Outbid!", description: language === 'ru' ? `Ваша ставка на "${heroName}" перебита.` : `Your bid on "${heroName}" was outbid.`, type: 'market', read: false, createdAt: new Date().toISOString()
         });
       }
       toast({ title: language === 'ru' ? "Ставка принята!" : "Bid Confirmed!" });
