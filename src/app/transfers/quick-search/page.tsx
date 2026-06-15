@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -50,11 +49,9 @@ export const renderStars = (talent: number, size: 'card' | 'intel' | 'list' = 'c
 
   if (numericTalent > 50) {
     let src = "https://iili.io/Cnrlw6F.md.png"; // 5 stars
-    let heightClass = "h-10";
+    let heightClass = "h-7";
     
-    if (size === 'intel') {
-      heightClass = numericTalent >= 70 ? "h-28" : (numericTalent >= 60 ? "h-24" : "h-20");
-    } else if (size === 'list') {
+    if (size === 'intel' || size === 'list') {
       heightClass = "h-7";
     } else if (size === 'card') {
       heightClass = numericTalent >= 70 ? "h-11" : (numericTalent >= 60 ? "h-9" : "h-7");
@@ -67,7 +64,7 @@ export const renderStars = (talent: number, size: 'card' | 'intel' | 'list' = 'c
   }
 
   const starRating = Math.max(0, numericTalent / 10);
-  const iconSize = size === 'intel' ? "w-4 h-4" : "w-2.5 h-2.5";
+  const iconSize = size === 'intel' || size === 'list' ? "w-4 h-4" : "w-2.5 h-2.5";
   return (
     <div className="flex items-center gap-0.5">
       {Array.from({ length: 5 }).map((_, i) => {
@@ -171,8 +168,8 @@ export const TransferHeroCard = memo(({
           agent.isPro && "border-yellow-500/30 shadow-[0_0_20px_rgba(234,179,8,0.1)]"
         )}
       >
-        <CardContent className="p-2">
-          <div className="flex items-center justify-between mb-1">
+        <CardContent className="p-2.5">
+          <div className="flex items-center justify-between mb-1.5">
              <div className="flex items-center gap-1 text-accent">
                <Timer className="w-2.5 h-2.5 animate-pulse" />
                <span className="text-[8px] font-mono font-bold tracking-tighter">{getCountdown(agent.expiresAt)}</span>
@@ -201,7 +198,7 @@ export const TransferHeroCard = memo(({
                 </div>
               </div>
               
-              <div className="flex flex-col min-h-[40px] justify-center">
+              <div className="flex flex-col min-h-[44px] justify-center">
                 <div className="flex items-center">
                   {renderStars(maxTalentValue, 'card')}
                 </div>
@@ -292,7 +289,7 @@ export const TransferHeroCard = memo(({
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.yrs}</span>
                   </div>
-                  <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5 min-h-[96px]">
+                  <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
                      <div className="flex items-center">
                        {renderStars(maxTalentValue, 'intel')}
@@ -353,13 +350,13 @@ export const TransferHeroCard = memo(({
                 <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Zap className="w-3.5 h-3.5" /> {language === 'ru' ? 'ТАЛАНТЫ' : 'TALENTS'}
                 </h3>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {STAT_KEYS.map((key) => {
                     const talentLimit = normTalent((agent.heroData.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="space-y-2 p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[72px] flex flex-col justify-center">
-                        <div className="flex justify-between items-center px-0.5 mb-2">
+                      <div key={`talent-${key}`} className="p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[48px] flex flex-col justify-center">
+                        <div className="flex justify-between items-center px-0.5">
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-accent/50" />
                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{proStatsLabels[key]}</span>
@@ -369,7 +366,6 @@ export const TransferHeroCard = memo(({
                              <span className="text-xs font-mono font-bold text-accent">{talentLimit}</span>
                           </div>
                         </div>
-                        <Progress value={talentLimit} max={100} className="h-1 rounded-full bg-secondary/40" />
                       </div>
                     );
                   })}

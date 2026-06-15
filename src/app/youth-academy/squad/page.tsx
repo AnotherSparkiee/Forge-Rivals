@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -162,7 +161,7 @@ export default function YouthSquadPage() {
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.years}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[96px]">
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
                      <div className="flex items-center">
                        {renderStars(maxTalentValue, 'intel')}
@@ -223,13 +222,13 @@ export default function YouthSquadPage() {
                 <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
                   <Zap className="w-3.5 h-3.5" /> {t.talents}
                 </h3>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {STAT_KEYS.map((key) => {
                     const talentLimit = normTalent((selectedHero.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
-                      <div key={`talent-${key}`} className="space-y-2 p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[72px] flex flex-col justify-center">
-                        <div className="flex justify-between items-center px-0.5 mb-2">
+                      <div key={`talent-${key}`} className="p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[48px] flex flex-col justify-center">
+                        <div className="flex justify-between items-center px-0.5">
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-accent/50" />
                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
@@ -239,7 +238,6 @@ export default function YouthSquadPage() {
                              <span className="text-xs font-mono font-bold text-accent">{talentLimit}</span>
                           </div>
                         </div>
-                        <Progress value={talentLimit} max={100} className="h-1 rounded-full bg-secondary/40" />
                       </div>
                     );
                   })}
