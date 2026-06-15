@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -11,7 +10,7 @@ import {
   Timer, Star, ShoppingCart, X, Check, Search, Info, Users,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
   ChevronsLeft, ChevronsRight, Zap, Gem, Award, Target, Eye, Map, 
-  Sparkles, Sword, Crosshair, Brain, TrendingUp, Activity, User, HeartPulse, ShieldAlert
+  Sparkles, Sword, Crosshair, Brain, TrendingUp, Activity, User, ShieldAlert, HeartPulse, Activity as ActivityIcon
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -47,7 +46,7 @@ const normTalent = (val: any) => {
 
 export const renderStars = (talent: number) => {
   const numericTalent = normTalent(talent);
-  const heightClass = "h-7"; // 28px unified everywhere
+  const heightClass = "h-7"; // Unified 28px height
 
   if (numericTalent > 50) {
     let src = "https://iili.io/Cnrlw6F.md.png"; // 5 stars
@@ -181,7 +180,7 @@ export const TransferHeroCard = memo(({
             </div>
             
             <div className="flex-1 min-w-0">
-              <div className="flex flex-col gap-0.5 mb-1.5">
+              <div className="flex flex-col gap-0.5 mb-1">
                 <h3 className="text-[11px] font-bold uppercase truncate text-white tracking-tight leading-none">{agent.heroData?.name}</h3>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-[6px] h-3 py-0 border-white/10 uppercase font-black text-primary/80">
@@ -191,10 +190,8 @@ export const TransferHeroCard = memo(({
                 </div>
               </div>
               
-              <div className="flex flex-col min-h-[32px] justify-center">
-                <div className="flex items-center">
-                  {renderStars(maxTalentValue)}
-                </div>
+              <div className="flex items-center h-[32px]">
+                {renderStars(maxTalentValue)}
               </div>
             </div>
             
@@ -297,7 +294,7 @@ export const TransferHeroCard = memo(({
 
             <section>
               <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Activity className="w-3.5 h-3.5" /> {language === 'ru' ? 'НАВЫКИ' : 'SKILLS'}
+                <ActivityIcon className="w-3.5 h-3.5" /> {language === 'ru' ? 'НАВЫКИ' : 'SKILLS'}
               </h3>
               <div className="space-y-3">
                 {STAT_KEYS.map((key) => { 
