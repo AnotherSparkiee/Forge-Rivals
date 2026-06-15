@@ -92,8 +92,8 @@ export default function SquadPage() {
       status: language === 'ru' ? "Статус" : "Status",
       healthy: language === 'ru' ? "Здоров" : "Healthy",
       injured: language === 'ru' ? "Травмирован" : "Injured",
-      skills: language === 'ru' ? "Навыки" : "SKILLS",
-      talents: language === 'ru' ? "Таланты" : "TALENTS",
+      skills: language === 'ru' ? "НАВЫКИ" : "SKILLS",
+      talents: language === 'ru' ? "ТАЛАНТЫ" : "TALENTS",
       years: language === 'ru' ? "лет" : "yrs",
       close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
       owner: language === 'ru' ? "ВЛАДЕЛЕЦ" : "OWNER",
@@ -226,7 +226,7 @@ export default function SquadPage() {
         onClick={() => !profileHero && setSelectingSlot(prev => prev === slotKey ? null : slotKey)}
         className={cn(
           "glass-card border-white/5 overflow-hidden transition-all cursor-pointer select-none",
-          hero ? "bg-primary/5 border-primary/10" : "hover:border-white/20",
+          hero ? "bg-primary/5 border-primary/10" : "hover:bg-white/5",
           isSelected && "ring-2 ring-primary border-primary bg-primary/20 scale-[1.02] z-10"
         )}
       >
@@ -301,7 +301,7 @@ export default function SquadPage() {
                   <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.profile.age}</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.profile.years}</span>
                   </div>
@@ -311,19 +311,19 @@ export default function SquadPage() {
                        {renderStars(maxTalentValue, 'intel')}
                      </div>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.profile.salary}</span>
                      <span className="text-[10px] font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
                      <span className="text-[10px] font-bold uppercase">{profileHero.role}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Страна' : 'Country'}</span>
                      <span className="text-[10px] font-bold">{profileHero.country?.flag} {profileHero.country?.code}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Травма' : 'Injury'}</span>
                      <span className={cn("text-[9px] font-bold uppercase", profileHero.isInjured ? "text-red-400" : "text-green-400")}>
                        {profileHero.isInjured ? (language === 'ru' ? 'Есть' : 'Yes') : (language === 'ru' ? 'Нет' : 'No')}

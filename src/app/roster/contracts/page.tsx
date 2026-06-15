@@ -149,7 +149,7 @@ export default function ContractsPage() {
                   <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">Age</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.years}</span>
                   </div>
@@ -159,11 +159,11 @@ export default function ContractsPage() {
                        {renderStars(maxTalentValue, 'intel')}
                      </div>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.salary}</span>
                      <span className="text-[10px] font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
                      <span className="text-[10px] font-bold uppercase">{profileHero.role}</span>
                   </div>

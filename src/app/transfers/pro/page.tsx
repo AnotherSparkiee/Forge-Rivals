@@ -52,13 +52,18 @@ export default function ProTransfersPage() {
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       const vtuneSnap = await getDoc(vtuneRef);
 
-      // CLEANUP PREVIOUS SYSTEM VERSIONS
-      const q = query(collection(db, 'market_v7'), where('isSystem', '==', true));
-      const allSystemSnap = await getDocs(q);
-      for (const d of allSystemSnap.docs) {
-        if (d.id !== vtuneId) {
-          await deleteDoc(d.ref);
+      // CRITICAL: CLEANUP ALL PREVIOUS SYSTEM VERSIONS
+      try {
+        const q = query(collection(db, 'market_v7'), where('isSystem', '==', true));
+        const allSystemSnap = await getDocs(q);
+        for (const d of allSystemSnap.docs) {
+          if (d.id !== vtuneId) {
+            await deleteDoc(d.ref);
+            console.log(`[Cleanup] Deleted legacy system agent: ${d.id}`);
+          }
         }
+      } catch (e) {
+        console.error("Cleanup failed", e);
       }
 
       if (!vtuneSnap.exists()) {
@@ -85,6 +90,7 @@ export default function ProTransfersPage() {
           currency: 'crystals',
           sellerId: 'system'
         });
+        console.log(`[Market] New V-Tune v900 listed for ${today}`);
       }
     };
 
@@ -147,12 +153,10 @@ export default function ProTransfersPage() {
   const proAgents = useMemo(() => {
     if (!agents) return [];
     
-    const uniqueNames = new Set();
     return agents.filter(a => {
+      // ONLY SHOW V900 AND HIDE OTHERS
       if (a.isSystem && !a.id.includes('v900')) return false;
       if (!a.isPro || new Date(a.expiresAt).getTime() <= now) return false;
-      if (uniqueNames.has(a.heroData?.name)) return false;
-      uniqueNames.add(a.heroData?.name);
       return true;
     }).sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
   }, [agents, now]);

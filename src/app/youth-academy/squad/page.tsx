@@ -154,7 +154,7 @@ export default function YouthSquadPage() {
                   <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">Age</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.years}</span>
                   </div>
@@ -164,11 +164,11 @@ export default function YouthSquadPage() {
                        {renderStars(maxTalentValue, 'intel')}
                      </div>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.salary}</span>
                      <span className="text-[10px] font-bold text-primary">€{(selectedHero.salary || 0).toLocaleString()}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
                      <span className="text-[10px] font-bold uppercase">{selectedHero.role}</span>
                   </div>
@@ -243,7 +243,7 @@ export default function YouthSquadPage() {
 
               <div className="pt-4 pb-12 flex flex-col gap-2">
                 <div className="grid grid-cols-2 gap-2">
-                  <Button variant="outline" className="h-14 border-primary/20 bg-primary/10 text-primary font-bold uppercase text-[10px]" onClick={handleTransfer} disabled={isTransferring || (selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil) > now)}>{isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {t.onTransfer}</Button>
+                  <Button variant="outline" className="h-14 border-primary/20 bg-primary/10 text-primary font-bold uppercase text-[10px]" onClick={handleTransfer} disabled={isTransferring || (selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil) > now)}>{isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {language === 'ru' ? 'РЫНОК' : 'MARKET'}</Button>
                   <Button className="h-14 hero-gradient font-black uppercase text-[10px] shadow-xl" onClick={() => handlePromote(selectedHero.id)} disabled={liveAge.numeric < 18}>
                     <ArrowUpCircle className="w-4 h-4 mr-2" /> {liveAge.numeric < 18 ? t.notReady : (language === 'ru' ? 'В ОСНОВУ' : 'PROMOTE')}
                   </Button>

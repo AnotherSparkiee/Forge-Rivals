@@ -199,7 +199,7 @@ const YouthTransferCard = memo(({
           <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 relative shrink-0 text-center">
             <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setShowDossier(false)}><X className="w-5 h-5" /></Button>
             <div className="relative mx-auto w-24 h-24 mb-4">
-              <div className="w-full h-full rounded-2xl overflow-hidden border-2 border-primary/50 shadow-2xl bg-secondary/50">
+              <div className={cn("w-full h-full rounded-2xl overflow-hidden border-2 border-primary/50 shadow-2xl bg-secondary/50")}>
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-background border border-white/10 flex items-center justify-center shadow-xl">
@@ -235,7 +235,7 @@ const YouthTransferCard = memo(({
                 <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
               </h3>
               <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
                    <span className="text-[10px] font-bold">{liveAge.display} {t.yrs}</span>
                 </div>
@@ -245,11 +245,11 @@ const YouthTransferCard = memo(({
                     {renderStars(maxTalentValue, 'intel')}
                    </div>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Salary</span>
                    <span className="text-[10px] font-bold text-primary">€{(agent.heroData.salary || 0).toLocaleString()}</span>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
                    <span className="text-[10px] font-bold uppercase">{rolesRu[agent.heroData.role] || agent.heroData.role}</span>
                 </div>
@@ -529,7 +529,7 @@ export default function YouthTransfersPage() {
                 <span className="text-[10px] font-black text-muted-foreground uppercase px-4">
                   {language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}
                 </span>
-                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p + 1)} className="h-8 w-8"><ChevronRightIcon className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)} className="h-8 w-8"><ChevronRightIcon className="h-4 w-4" /></Button>
               </div>
             )}
           </>
