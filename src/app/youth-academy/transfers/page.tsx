@@ -80,7 +80,7 @@ const YouthTransferCard = memo(({
     reflexes: language === 'ru' ? "Рефлексы" : "Reflexes",
     manaManagement: language === 'ru' ? "Менеджмент маны" : "Mana Management",
     objectiveControl: language === 'ru' ? "Объекты" : "Objective Control",
-    communication: language === 'ru' ? "Коммуникация" : "Communication",
+    communication: language === 'ru' ? "Конмуникация" : "Communication",
     tiltResistance: language === 'ru' ? "Стрессоустойчивость" : "Tilt Resistance",
     versatility: language === 'ru' ? "Универсальность" : "Versatility",
     ganking: language === 'ru' ? "Ганкинг" : "Ganking",
@@ -132,7 +132,7 @@ const YouthTransferCard = memo(({
              {isOwner && <Badge className="bg-blue-600 text-white text-[6px] font-black uppercase px-1.5 h-3 border-none">{language === 'ru' ? 'ВАШ ЮНИОР' : 'YOUR LOT'}</Badge>}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <div className="relative shrink-0">
               <div className="w-[72px] h-[72px] rounded-lg overflow-hidden bg-secondary/30 border border-white/10 relative shadow-lg">
                 <img src={agent.heroData?.image} alt="" className="w-full h-full object-cover" />
@@ -143,7 +143,7 @@ const YouthTransferCard = memo(({
             </div>
             
             <div className="flex-1 min-w-0">
-              <div className="flex flex-col gap-0.5 mb-1.5">
+              <div className="flex flex-col gap-0.5 mb-1">
                 <h3 className="text-[11px] font-bold uppercase truncate text-white tracking-tight leading-none">{agent.heroData?.name}</h3>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-[6px] h-3 py-0 border-white/10 uppercase font-black text-accent/80">
@@ -153,10 +153,8 @@ const YouthTransferCard = memo(({
                 </div>
               </div>
               
-              <div className="flex flex-col min-h-[32px] justify-center">
-                <div className="flex items-center">
-                  {renderStars(maxTalentValue)}
-                </div>
+              <div className="flex items-center min-h-[32px]">
+                {renderStars(maxTalentValue)}
               </div>
             </div>
             
@@ -258,7 +256,7 @@ const YouthTransferCard = memo(({
 
             <section>
               <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Activity className="w-3.5 h-3.5" /> {language === 'ru' ? 'НАВЫКИ' : 'SKILLS'}
+                <ActivityIcon className="w-3.5 h-3.5" /> {language === 'ru' ? 'НАВЫКИ' : 'SKILLS'}
               </h3>
               <div className="space-y-3">
                 {STAT_KEYS.map((key) => { 

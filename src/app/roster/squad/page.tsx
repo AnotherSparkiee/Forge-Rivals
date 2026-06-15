@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
@@ -124,7 +123,7 @@ export default function SquadPage() {
       reflexes: language === 'ru' ? "Рефлексы" : "Reflexes",
       manaManagement: language === 'ru' ? "Менеджмент маны" : "Mana Management",
       objectiveControl: language === 'ru' ? "Объекты" : "Objective Control",
-      communication: language === 'ru' ? "Коммуникация" : "Communication",
+      communication: language === 'ru' ? "Конмуникация" : "Communication",
       tiltResistance: language === 'ru' ? "Стрессоустойчивость" : "Tilt Resistance",
       versatility: language === 'ru' ? "Универсальность" : "Versatility",
       ganking: language === 'ru' ? "Ганкинг" : "Ganking",
@@ -158,7 +157,7 @@ export default function SquadPage() {
   const handleStartPress = (hero: Hero | undefined) => {
     if (!hero) return;
     longPressTimer.current = setTimeout(() => {
-      setProfileHero(hero);
+      setSelectedHero(hero);
     }, 600);
   };
 
@@ -205,6 +204,10 @@ export default function SquadPage() {
     } finally {
       setIsTransferring(false);
     }
+  };
+
+  const setSelectedHero = (hero: Hero | null) => {
+    setProfileHero(hero);
   };
 
   const renderSlot = (slotKey: LineupSlot) => {
@@ -259,7 +262,7 @@ export default function SquadPage() {
       <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-300">
         <div className="max-w-md mx-auto min-h-screen flex flex-col pb-10">
           <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 relative shrink-0 text-center">
-            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setProfileHero(null)}><X className="w-5 h-5" /></Button>
+            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setSelectedHero(null)}><X className="w-5 h-5" /></Button>
             <div className="relative mx-auto w-24 h-24 mb-4">
               <div className={cn("w-full h-full rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50", profileHero.isPro && "border-yellow-500")}>
                 <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
@@ -379,7 +382,7 @@ export default function SquadPage() {
                   {isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
                   {(profileHero.onTransferUntil && new Date(profileHero.onTransferUntil) > now) ? (language === 'ru' ? "НА АУКЦИОНЕ" : "ON AUCTION") : t.putOnTransfer}
                 </Button>
-                <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfileHero(null)}>{t.profile.close}</Button>
+                <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setSelectedHero(null)}>{t.profile.close}</Button>
               </div>
           </div>
         </div>

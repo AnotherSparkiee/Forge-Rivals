@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -116,7 +115,7 @@ export const TransferHeroCard = memo(({
     reflexes: language === 'ru' ? "Рефлексы" : "Reflexes",
     manaManagement: language === 'ru' ? "Менеджмент маны" : "Mana Management",
     objectiveControl: language === 'ru' ? "Объекты" : "Objective Control",
-    communication: language === 'ru' ? "Коммуникация" : "Communication",
+    communication: language === 'ru' ? "Конмуникация" : "Communication",
     tiltResistance: language === 'ru' ? "Стрессоустойчивость" : "Tilt Resistance",
     versatility: language === 'ru' ? "Универсальность" : "Versatility",
     ganking: language === 'ru' ? "Ганкинг" : "Ganking",

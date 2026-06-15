@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -100,6 +99,10 @@ export default function ContractsPage() {
     }
   };
 
+  const setSelectedHero = (hero: Hero | null) => {
+    setProfileHero(hero);
+  };
+
   if (profileHero) {
     const liveAge = calculateLiveAge(profileHero.baseAge, profileHero.hiredAt);
     const talentsValues = Object.values(profileHero.proTalents || {}).map(v => normTalent(v));
@@ -109,7 +112,7 @@ export default function ContractsPage() {
       <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-300">
         <div className="max-w-md mx-auto min-h-screen flex flex-col pb-10">
           <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
-            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setProfileHero(null)}><X className="w-5 h-5" /></Button>
+            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setSelectedHero(null)}><X className="w-5 h-5" /></Button>
             <div className="relative mx-auto w-24 h-24 mb-4">
               <div className={cn("w-full h-full rounded-2xl overflow-hidden border-2 shadow-2xl bg-secondary/50", profileHero.isPro ? "border-yellow-500" : "border-primary/50")}>
                 <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
@@ -244,7 +247,7 @@ export default function ContractsPage() {
                 </div>
               </section>
               
-              <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfileHero(null)}>{t.close}</Button>
+              <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setSelectedHero(null)}>{t.close}</Button>
           </div>
         </div>
       </div>
@@ -263,7 +266,7 @@ export default function ContractsPage() {
           const talentsValues = Object.values(hero.proTalents || {}).map(v => normTalent(v));
           const maxTalent = Math.max(...talentsValues);
           return (
-            <Card key={hero.id} className={cn("glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all", onAuction && "border-yellow-500/30 bg-yellow-500/5")} onClick={() => setProfileHero(hero)}>
+            <Card key={hero.id} className={cn("glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all", onAuction && "border-yellow-500/30 bg-yellow-500/5")} onClick={() => setSelectedHero(hero)}>
               <CardContent className="p-2 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg overflow-hidden bg-secondary/50 border border-white/10 shrink-0"><img src={hero.image} alt={hero.name} className="w-full h-full object-cover" /></div>
                 <div className="flex-1 min-w-0">
