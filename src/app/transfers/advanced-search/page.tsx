@@ -66,6 +66,9 @@ export default function AdvancedSearchPage() {
     if (!agents) return [];
     
     return agents.filter(a => {
+      // ONLY V900 SYSTEM VERSION
+      if (a.isSystem && !a.id.includes('v900')) return false;
+
       const expiry = new Date(a.expiresAt).getTime();
       if (expiry <= now) return false;
 

@@ -79,8 +79,11 @@ export default function MyBidsPage() {
   }, [user, profile, credits, language, toast, db, addCredits]);
 
   const activeBids = useMemo(() => {
-    return (agents || []).filter(a => new Date(a.expiresAt).getTime() > now)
-      .sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
+    return (agents || []).filter(a => {
+      // ONLY V900 SYSTEM VERSION
+      if (a.isSystem && !a.id.includes('v900')) return false;
+      return new Date(a.expiresAt).getTime() > now;
+    }).sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
   }, [agents, now]);
 
   if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;

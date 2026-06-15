@@ -12,7 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, doc, arrayUnion, serverTimestamp, setDoc, getDoc, updateDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { generateVtuneHero } from '@/app/lib/moba-data';
@@ -48,10 +48,19 @@ export default function ProTransfersPage() {
 
     const checkAndDropLegends = async () => {
       const today = getMoscowDateString();
-      // V800 - NEW PHOTO AND ICON SIZES
-      const vtuneId = `sys_vtune_v800_new_image_and_size_${today}`;
+      // V900 - FINAL STANDARDIZED VERSION
+      const vtuneId = `sys_vtune_v900_final_standard_${today}`;
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       const vtuneSnap = await getDoc(vtuneRef);
+
+      // CLEANUP PREVIOUS SYSTEM VERSIONS
+      const q = query(collection(db, 'market_v7'), where('isSystem', '==', true));
+      const allSystemSnap = await getDocs(q);
+      for (const d of allSystemSnap.docs) {
+        if (d.id !== vtuneId) {
+          await deleteDoc(d.ref);
+        }
+      }
 
       if (!vtuneSnap.exists()) {
         const hero = generateVtuneHero(today);
@@ -141,8 +150,8 @@ export default function ProTransfersPage() {
     
     const uniqueNames = new Set();
     return agents.filter(a => {
-      // Show only high version V-Tune (v800) or non-system pros
-      if (a.isSystem && !a.id.includes('v800')) return false;
+      // ONLY V900 SYSTEM VERSION
+      if (a.isSystem && !a.id.includes('v900')) return false;
       if (!a.isPro || new Date(a.expiresAt).getTime() <= now) return false;
       if (uniqueNames.has(a.heroData?.name)) return false;
       uniqueNames.add(a.heroData?.name);

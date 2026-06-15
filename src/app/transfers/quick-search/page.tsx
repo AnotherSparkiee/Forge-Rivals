@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
@@ -49,8 +50,7 @@ export const renderStars = (talent: number, size: 'card' | 'intel' | 'list' = 'c
 
   if (numericTalent > 50) {
     let src = "https://iili.io/Cnrlw6F.md.png"; // 5 stars
-    // Uniform compact size for all contexts as requested (h-7 = 28px)
-    const heightClass = "h-7";
+    const heightClass = "h-7"; // 28px standardized
 
     if (numericTalent >= 60 && numericTalent <= 69) src = "https://iili.io/CnrSxcJ.md.png";
     if (numericTalent >= 70) src = "https://iili.io/CnrUKJf.md.png";
@@ -59,7 +59,7 @@ export const renderStars = (talent: number, size: 'card' | 'intel' | 'list' = 'c
   }
 
   const starRating = Math.max(0, numericTalent / 10);
-  const iconSize = size === 'intel' || size === 'list' ? "w-4 h-4" : "w-2.5 h-2.5";
+  const iconSize = "w-4 h-4";
   return (
     <div className="flex items-center gap-0.5">
       {Array.from({ length: 5 }).map((_, i) => {
@@ -235,7 +235,6 @@ export const TransferHeroCard = memo(({
         </CardContent>
       </Card>
 
-      {/* FULLSCREEN DOSSIER */}
       {showDossier && (
         <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-300">
           <div className="max-w-md mx-auto min-h-screen flex flex-col pb-10">
@@ -287,7 +286,7 @@ export const TransferHeroCard = memo(({
                   <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.talent}</span>
                      <div className="flex items-center">
-                       {renderStars(maxTalentValue, 'intel')}
+                        {renderStars(maxTalentValue, 'intel')}
                      </div>
                   </div>
                   <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-xl border border-white/5">
@@ -454,6 +453,8 @@ export default function QuickSearchPage() {
   const filteredAgents = useMemo(() => {
     if (!agents) return [];
     return agents.filter(a => {
+      // ONLY V900 SYSTEM VERSION
+      if (a.isSystem && !a.id.includes('v900')) return false;
       const expiry = new Date(a.expiresAt).getTime();
       if (expiry <= now) return false;
       const liveAge = calculateLiveAge(a.heroData.baseAge, a.heroData.hiredAt);
