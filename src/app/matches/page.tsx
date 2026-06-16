@@ -6,7 +6,7 @@ import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, UserSearch, CalendarClock, 
   History, Calendar, CheckSquare, ChevronRight,
-  Clock, Swords, Loader2, ShieldAlert
+  Clock, Swords, Loader2, ShieldAlert, User
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';

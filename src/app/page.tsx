@@ -10,7 +10,7 @@ import {
   MessageSquare, UserCog, Heart, Store, Shield, 
   ArrowRight, Loader2, Check, UserPlus,
   ShoppingCart, GraduationCap, CalendarDays, Medal,
-  ArrowRightLeft, Timer, RefreshCw, Home as HomeIcon, MapPin, Calendar
+  ArrowRightLeft, Timer, RefreshCw, Home as HomeIcon, MapPin, Calendar, User
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

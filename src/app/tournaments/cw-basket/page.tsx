@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -7,7 +6,7 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { 
   ChevronLeft, ShoppingBasket, Search, Swords, 
-  Loader2, Radar, ShieldAlert, Timer, Users
+  Loader2, Radar, ShieldAlert, Timer, Users, User
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';

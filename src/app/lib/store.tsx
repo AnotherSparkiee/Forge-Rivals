@@ -276,14 +276,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         return; 
       }
 
-      if (sorted.length === 0 && snapshot.metadata.fromCache && !memoryCache.current.hasDataEverLoaded) {
-        return; 
-      }
+      // If we got server data, or cache data that's not empty, or we explicitly got server confirmed empty
+      const isSyncComplete = !snapshot.metadata.fromCache || sorted.length > 0;
 
-      memoryCache.current.lastValidMatches = sorted;
-      memoryCache.current.hasDataEverLoaded = true;
-      setAllMatches(sorted);
-      setIsMatchesReady(true);
+      if (isSyncComplete) {
+        memoryCache.current.lastValidMatches = sorted;
+        memoryCache.current.hasDataEverLoaded = true;
+        setAllMatches(sorted);
+        setIsMatchesReady(true);
+      }
     }, (error) => {
       setIsMatchesReady(true); 
     });
