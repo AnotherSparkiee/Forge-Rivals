@@ -1,7 +1,7 @@
 /**
  * @fileOverview Автономный движок сезонов с архитектурой "Изолированных Сезонов".
  * Гарантирует уникальные ID групп и матчей с привязкой к номеру сезона.
- * Внедрена версия календаря v2 для поддержки чередования Дома/В гостях.
+ * Внедрена версия календаря v3 для поддержки СТРОГОГО чередования Дома/В гостях.
  */
 
 'use client';
@@ -42,7 +42,7 @@ export function AutoMatchManager() {
 
       try {
         const seasonId = "season_1";
-        const calendarVersion = 2; // ВЕРСИЯ 2: Чередование Home/Away
+        const calendarVersion = 3; // ВЕРСИЯ 3: Детерминированные ID и ритм 1-1-1-1
         const seasonInfo = getGlobalSeasonInfo();
         const activeSeason = Math.max(1, seasonInfo.activeSeasonNumber);
         const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
@@ -50,16 +50,14 @@ export function AutoMatchManager() {
         const prefixedGroupId = `season_1_league_${selectedLeagueId}_group_${groupId}`;
         const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId);
         
-        const [groupSnap, matchesSnap] = await Promise.all([
-          getDoc(groupRef),
-          getDocs(query(collection(db, 'matches_v1'), where('groupId', '==', prefixedGroupId), limit(1)))
-        ]);
+        const groupSnap = await getDoc(groupRef);
+        const currentData = groupSnap.data();
 
-        // Пересоздаем если группы нет, если нет матчей ИЛИ если версия календаря устарела
-        const needsInitialization = !groupSnap.exists() || matchesSnap.empty || groupSnap.data()?.calendarVersion !== calendarVersion;
+        // Если версия календаря устарела — проводим полную очистку старых матчей перед записью новых
+        const needsUpgrade = !groupSnap.exists() || (currentData?.calendarVersion || 0) < calendarVersion;
 
-        if (needsInitialization) {
-          console.log(`[Engine] INITIALIZING CALENDAR V${calendarVersion} FOR GROUP ${prefixedGroupId}...`);
+        if (needsUpgrade) {
+          console.log(`[Engine] UPGRADING CALENDAR TO V${calendarVersion} FOR GROUP ${prefixedGroupId}...`);
           
           const batch = writeBatch(db);
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
@@ -68,7 +66,13 @@ export function AutoMatchManager() {
           const epochMs = new Date('2026-06-17T00:00:00+03:00').getTime();
           const dayMs = 24 * 60 * 60 * 1000;
 
-          // Prefixed Group Document with Version
+          // Очистка старых матчей (v1/v2), которые могли иметь другой формат ID
+          if (currentData) {
+            const oldMatchesSnap = await getDocs(query(collection(db, 'matches_v1'), where('groupId', '==', prefixedGroupId)));
+            oldMatchesSnap.docs.forEach(d => batch.delete(d.ref));
+          }
+
+          // Обновляем заголовок группы
           batch.set(groupRef, {
             id: prefixedGroupId,
             seasonId,
@@ -79,15 +83,15 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           }, { merge: true });
 
-          // Prefixed Matches
+          // Записываем новые детерминированные матчи
           calendar.forEach((m) => {
-            const matchId = `m_${prefixedGroupId}_d${m.day}_h${m.homeId}`;
+            // Детерминированный ID на основе дня и пары команд (не зависит от того, кто дома)
+            const matchId = `m_${prefixedGroupId}_d${m.day}_${m.pairKey}`;
+            
             const [hh, mm] = league.startTime.split(':').map(Number);
             const matchTimeOffset = (m.day - 1) * dayMs + (hh * 60 * 60 * 1000) + (mm * 60 * 1000);
             const finalDate = new Date(epochMs + matchTimeOffset);
 
-            // Используем set с merge: true, чтобы не затереть уже сыгранные матчи,
-            // но исправить структуру Home/Away для будущих игр
             batch.set(doc(db, 'matches_v1', matchId), {
               ...m,
               id: matchId,
@@ -99,7 +103,7 @@ export function AutoMatchManager() {
               status: 'pending',
               startTime: finalDate.toISOString(),
               scheduledAt: Timestamp.fromDate(finalDate)
-            }, { merge: true });
+            });
           });
 
           await batch.commit();

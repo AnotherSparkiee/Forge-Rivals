@@ -64,8 +64,8 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
 }
 
 /**
- * Алгоритм круговой системы (Round-robin) с чередованием Дома/В гостях.
- * Исправлено: теперь матчи строго чередуются (один дома, один гость).
+ * Алгоритм круговой системы (Round-robin) с ПРИНУДИТЕЛЬНЫМ чередованием 1-1-1-1.
+ * Использует детерминированную инверсию пар для обеспечения ритма Home/Away.
  */
 export function generateSeasonCalendar(teams: any[]) {
   const n = teams.length;
@@ -75,36 +75,42 @@ export function generateSeasonCalendar(teams: any[]) {
 
   for (let round = 0; round < roundsPerHalf; round++) {
     for (let i = 0; i < n / 2; i++) {
-      let homeIdx = indices[i];
-      let awayIdx = indices[n - 1 - i];
+      let hIdx = indices[i];
+      let aIdx = indices[n - 1 - i];
 
-      // ЧЕРЕДОВАНИЕ: на каждом нечетном раунде меняем хозяев и гостей местами
-      // Это предотвращает ситуацию "3 матча дома подряд"
-      if (round % 2 === 1) {
-        [homeIdx, awayIdx] = [awayIdx, homeIdx];
+      // ПРИНУДИТЕЛЬНОЕ ЧЕРЕДОВАНИЕ (V3)
+      // Для каждой пары (i) мы инвертируем Home/Away в зависимости от раунда.
+      // Это гарантирует, что даже "неподвижная" команда 0 будет играть H-A-H-A...
+      if ((i + round) % 2 === 1) {
+        [hIdx, aIdx] = [aIdx, hIdx];
       }
+
+      const pairData = {
+        homeId: teams[hIdx].id,
+        homeName: teams[hIdx].name,
+        awayId: teams[aIdx].id,
+        awayName: teams[aIdx].name,
+        pairKey: [teams[hIdx].id, teams[aIdx].id].sort().join('_vs_') // Ключ для ID документа
+      };
 
       // Первый круг (Дни 1-7)
       matches.push({
         day: round + 1,
-        homeId: teams[homeIdx].id,
-        homeName: teams[homeIdx].name,
-        awayId: teams[awayIdx].id,
-        awayName: teams[awayIdx].name
+        ...pairData
       });
 
-      // Второй круг (реверс) (Дни 8-14)
+      // Второй круг (Зеркальный своп) (Дни 8-14)
       matches.push({
         day: round + 1 + roundsPerHalf,
-        homeId: teams[awayIdx].id,
-        homeName: teams[awayIdx].name,
-        awayId: teams[homeIdx].id,
-        awayName: teams[homeIdx].name
+        homeId: pairData.awayId,
+        homeName: pairData.awayName,
+        awayId: pairData.homeId,
+        awayName: pairData.homeName,
+        pairKey: pairData.pairKey
       });
     }
     
     // Вращение по кругу (Berger rotation)
-    const fixed = indices[0];
     const last = indices.pop()!;
     indices.splice(1, 0, last);
   }
