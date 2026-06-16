@@ -47,26 +47,7 @@ export default function Home() {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [countdown, setCountdown] = useState('');
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsAuthLoading(true);
-    let emailToUse = identifier;
-    try {
-      if (!identifier.includes('@')) {
-        const usersRef = collection(db, 'players_v10');
-        const q = query(usersRef, where('displayName', '==', identifier), limit(1));
-        const querySnapshot = await getDocs(q);
-        if (querySnapshot.empty) throw new Error(language === 'ru' ? "Клуб не найден" : "Team not found");
-        emailToUse = querySnapshot.docs[0].data().email;
-      }
-      await signInWithEmailAndPassword(auth, emailToUse, password);
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Denied", description: error.message });
-    } finally {
-      setIsAuthLoading(false);
-    }
-  };
-
+  // ПЕРЕНОС ХУКОВ ВВЕРХ (ДО EARLY RETURNS)
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
@@ -97,6 +78,27 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [isLoaded, isDataReady, selectedLeagueId, nextMatch, language]);
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsAuthLoading(true);
+    let emailToUse = identifier;
+    try {
+      if (!identifier.includes('@')) {
+        const usersRef = collection(db, 'players_v10');
+        const q = query(usersRef, where('displayName', '==', identifier), limit(1));
+        const querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) throw new Error(language === 'ru' ? "Клуб не найден" : "Team not found");
+        emailToUse = querySnapshot.docs[0].data().email;
+      }
+      await signInWithEmailAndPassword(auth, emailToUse, password);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Denied", description: error.message });
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  // ТЕПЕРЬ МОЖНО ДЕЛАТЬ УСЛОВНЫЕ ВОЗВРАТЫ
   if (isUserLoading) return <LoadingScreen />;
 
   if (!user) {

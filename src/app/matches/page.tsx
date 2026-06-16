@@ -36,6 +36,7 @@ export default function MatchesPage() {
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
   const [now, setNow] = useState(getMoscowTime());
 
+  // ПЕРЕНОС ХУКОВ ВВЕРХ (ДО EARLY RETURNS)
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push('/auth/register');
@@ -43,11 +44,6 @@ export default function MatchesPage() {
     const timer = setInterval(() => setNow(getMoscowTime()), 1000);
     return () => clearInterval(timer);
   }, [user, isUserLoading, router]);
-
-  // SYNC CORE GUARD: Block everything until server data is 100% ready
-  if (isUserLoading || !isLoaded || !isDataReady) {
-    return <LoadingScreen />;
-  }
 
   const calendarDays = useMemo(() => {
     // Filter only Season 1 and real matches
@@ -89,6 +85,11 @@ export default function MatchesPage() {
     const ss = Math.floor((diff % 60000) / 1000);
     return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
   };
+
+  // SYNC CORE GUARD: Block everything until server data is 100% ready
+  if (isUserLoading || !isLoaded || !isDataReady) {
+    return <LoadingScreen />;
+  }
 
   const t = {
     title: language === 'ru' ? "СПИСОК МАТЧЕЙ" : "OPERATIONAL MATCHES",
