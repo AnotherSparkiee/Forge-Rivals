@@ -2,18 +2,17 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { 
   ChevronLeft, Trophy, Shield, Swords, 
-  Loader2, Calendar, User,
-  AlertTriangle, RefreshCw, Info
+  Loader2, Info, RefreshCw, AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { collection, query, where, doc, limit } from 'firebase/firestore';
+import { collection, query, where, limit } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
 import { generatePyramidCup } from '@/app/actions/cup-engine';
@@ -31,23 +30,28 @@ export default function PyramidCupPage() {
   const [activeRound, setActiveRound] = useState(1);
   const [isInitializing, setIsInitializing] = useState(false);
 
-  // Ослабленный запрос для обхода багов типов
+  // ГИБКИЙ ЗАПРОС: Ищем матчи текущей лиги и раунда
   const cupQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
-    const sNum = activeSeasonNumber || 1;
     return query(
       collection(db, 'cup_matches'),
       where('leagueId', '==', selectedLeagueId),
-      where('round', '==', Number(activeRound))
+      where('round', '==', Number(activeRound)),
+      limit(200)
     );
-  }, [db, selectedLeagueId, activeSeasonNumber, activeRound]);
+  }, [db, selectedLeagueId, activeRound]);
 
   const { data: rawMatches, isLoading: isMatchesLoading } = useCollection(cupQuery);
 
-  // Дополнительная фильтрация на клиенте для надежности
+  // Фильтрация по сезону на клиенте (защита от разных типов данных)
   const matches = useMemo(() => {
     if (!rawMatches) return [];
-    return rawMatches.filter(m => Number(m.seasonNumber || m.seasonId_num) === (activeSeasonNumber || 1));
+    const targetSeason = Number(activeSeasonNumber || 1);
+    return rawMatches.filter(m => 
+      Number(m.seasonNumber) === targetSeason || 
+      Number(m.seasonId_num) === targetSeason || 
+      m.seasonId === `season_${targetSeason}`
+    );
   }, [rawMatches, activeSeasonNumber]);
 
   useEffect(() => {
@@ -60,9 +64,10 @@ export default function PyramidCupPage() {
     setIsInitializing(true);
     try {
       await generatePyramidCup();
-      toast({ title: language === 'ru' ? "Тотальная генерация завершена!" : "Total Generation Complete!" });
+      toast({ title: language === 'ru' ? "Сетка сгенерирована!" : "Bracket Generated!" });
     } catch (e) {
-      toast({ variant: "destructive", title: "Generation failed" });
+      console.error(e);
+      toast({ variant: "destructive", title: "Error" });
     } finally {
       setIsInitializing(false);
     }
@@ -77,27 +82,25 @@ export default function PyramidCupPage() {
       title: "PYRAMID CUP",
       subtitle: "Dynamic National Knockout Stage",
       round: "Round",
-      final: "Grand Final",
+      final: "Final",
       waiting: "WAITING...",
       yourMatch: "YOUR ENGAGEMENT",
-      initialize: "FORCE GENERATE SEASON 1 BRACKET",
-      loading: "Synchronizing Bracket...",
-      home: "HOME",
-      away: "AWAY",
-      formatInfo: "Emergency multi-format sync enabled. All divisions (1-9) seeded for immediate visibility."
+      initialize: "INITIALIZE SEASON 1 BRACKET",
+      loading: "Scanning Frequencies...",
+      empty: "Tournament bracket not detected.",
+      formatInfo: "Multi-format data sync active. Round 1 seeded for all 9 divisions simultaneously."
     },
     ru: {
       title: "КУБОК ПИРАМИДЫ",
       subtitle: "Динамический национальный турнир",
       round: "Раунд",
-      final: "Гранд-Финал",
+      final: "Финал",
       waiting: "ОЖИДАНИЕ...",
       yourMatch: "ВАШ МАТЧ",
-      initialize: "ПРИНУДИТЕЛЬНО СОЗДАТЬ СЕТКУ СЕЗОНА 1",
-      loading: "Синхронизация сетки...",
-      home: "ДОМА",
-      away: "В ГОСТЯХ",
-      formatInfo: "Включена экстренная мультиформатная синхронизация. Все дивизионы (1-9) посеяны для моментального отображения."
+      initialize: "ПРИНУДИТЕЛЬНО СОЗДАТЬ СЕТКУ",
+      loading: "Сканирование эфира...",
+      empty: "Сетка турнира не обнаружена.",
+      formatInfo: "Активна мультиформатная синхронизация. Раунд 1 сформирован для всех 9 дивизионов сразу."
     }
   }[language as 'en' | 'ru'] || { title: "CUP" };
 
@@ -137,95 +140,66 @@ export default function PyramidCupPage() {
         </div>
       </div>
 
-      <Card className="glass-card mb-6 border-accent/20 bg-accent/5">
-        <CardContent className="p-4 flex gap-4">
-          <Info className="w-5 h-5 text-accent shrink-0" />
-          <p className="text-[9px] text-muted-foreground leading-relaxed italic uppercase font-bold tracking-tight">
-            {t.formatInfo}
-          </p>
-        </CardContent>
-      </Card>
-
       <div className="space-y-3">
         {isMatchesLoading ? (
           <div className="py-20 text-center opacity-50 flex flex-col items-center gap-4">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <p className="text-[10px] font-black uppercase tracking-widest">{t.loading}</p>
           </div>
-        ) : matches && matches.length > 0 ? (
-          matches.map((m) => {
-            const isMyMatch = m.homeTeamId === user?.uid || m.awayTeamId === user?.uid;
-            const isFinished = m.isFinished || m.status === 'finished';
+        ) : matches.length > 0 ? (
+          <>
+            <Card className="glass-card mb-4 border-accent/20 bg-accent/5">
+              <CardContent className="p-3 flex gap-3">
+                <Info className="w-4 h-4 text-accent shrink-0" />
+                <p className="text-[8px] text-muted-foreground font-black uppercase leading-tight">{t.formatInfo}</p>
+              </CardContent>
+            </Card>
             
-            return (
-              <Card 
-                key={m.cupMatchId} 
-                className={cn(
-                  "glass-card border-white/5 overflow-hidden transition-all",
-                  isMyMatch && "border-primary/40 bg-primary/10 ring-1 ring-primary/20",
-                  isFinished && "opacity-80"
-                )}
-              >
-                <CardContent className="p-0">
-                  {isMyMatch && (
-                    <div className="bg-primary/20 px-3 py-1 text-center">
-                      <p className="text-[7px] font-black text-primary uppercase tracking-[0.3em]">{t.yourMatch}</p>
-                    </div>
+            {matches.map((m) => {
+              const isMyMatch = m.homeTeamId === user?.uid || m.awayTeamId === user?.uid;
+              const isFinished = m.status === 'finished' || m.isFinished;
+              
+              return (
+                <Card 
+                  key={m.cupMatchId} 
+                  className={cn(
+                    "glass-card border-white/5 overflow-hidden transition-all",
+                    isMyMatch && "border-primary/40 bg-primary/10 ring-1 ring-primary/20",
+                    isFinished && "opacity-80"
                   )}
-                  
-                  <div className="grid grid-cols-[1fr_50px_1fr] items-center p-4">
-                    <div className="text-right space-y-2">
-                      <div className="flex justify-end">
-                        <div className="w-10 h-10 rounded-xl bg-secondary/50 border border-white/10 flex items-center justify-center">
-                          <Shield className="w-6 h-6 text-muted-foreground opacity-30" />
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-[7px] font-black text-muted-foreground uppercase mb-0.5">{t.home}</p>
-                        <p className={cn(
-                          "text-[11px] font-headline font-bold uppercase truncate italic",
-                          m.homeTeamId === user?.uid ? "text-primary" : "text-white"
-                        )}>
-                          {m.homeTeamId ? 'TEAM ' + m.homeTeamId.slice(0, 5) : t.waiting}
+                >
+                  <CardContent className="p-4">
+                    {isMyMatch && <p className="text-[7px] font-black text-primary uppercase text-center mb-3 tracking-[0.2em]">{t.yourMatch}</p>}
+                    <div className="grid grid-cols-[1fr_50px_1fr] items-center">
+                      <div className="text-right">
+                        <p className={cn("text-[10px] font-bold uppercase truncate", m.homeTeamId === user?.uid ? "text-primary" : "text-white")}>
+                          {m.homeTeamId ? m.homeTeamId.slice(0, 10) : t.waiting}
                         </p>
+                        <span className="text-[7px] text-muted-foreground uppercase font-black">HOME</span>
                       </div>
-                    </div>
-
-                    <div className="flex flex-col items-center justify-center gap-1">
-                      {isFinished ? (
-                        <p className="text-xl font-headline font-black italic text-primary">{m.scoreA || 0}:{m.scoreB || 0}</p>
-                      ) : (
-                        <div className="bg-background/60 p-1.5 rounded-lg border border-white/5">
+                      <div className="flex flex-col items-center">
+                        {isFinished ? (
+                          <span className="text-sm font-headline font-black text-primary">{m.scoreA || 0}:{m.scoreB || 0}</span>
+                        ) : (
                           <Swords className="w-4 h-4 text-accent" />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="text-left space-y-2">
-                      <div className="flex justify-start">
-                        <div className="w-10 h-10 rounded-xl bg-secondary/50 border border-white/10 flex items-center justify-center">
-                          <Shield className="w-6 h-6 text-muted-foreground opacity-30" />
-                        </div>
+                        )}
                       </div>
-                      <div>
-                        <p className="text-[7px] font-black text-muted-foreground uppercase mb-0.5">{t.away}</p>
-                        <p className={cn(
-                          "text-[11px] font-headline font-bold uppercase truncate italic",
-                          m.awayTeamId === user?.uid ? "text-primary" : "text-white"
-                        )}>
-                          {m.awayTeamId ? 'TEAM ' + m.awayTeamId.slice(0, 5) : t.waiting}
+                      <div className="text-left">
+                        <p className={cn("text-[10px] font-bold uppercase truncate", m.awayTeamId === user?.uid ? "text-primary" : "text-white")}>
+                          {m.awayTeamId ? m.awayTeamId.slice(0, 10) : t.waiting}
                         </p>
+                        <span className="text-[7px] text-muted-foreground uppercase font-black">AWAY</span>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </>
         ) : (
-          <div className="py-12 text-center animate-in fade-in duration-700 flex flex-col items-center">
+          <div className="py-20 text-center animate-in fade-in duration-700 flex flex-col items-center">
             <AlertTriangle className="w-12 h-12 text-orange-500 mb-4 opacity-50" />
-            <h2 className="text-lg font-headline font-bold uppercase text-white mb-2">{language === 'ru' ? 'СЕТКА НЕ СФОРМИРОВАНА' : 'BRACKET NOT SEEDED'}</h2>
+            <h2 className="text-lg font-headline font-bold uppercase text-white mb-2">{t.empty}</h2>
             <Button 
               className="h-14 px-8 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl mt-6" 
               onClick={handleInitialize}
