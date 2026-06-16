@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -15,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, UserPlus, ArrowRight } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 function cleanData(obj: any) {
   return JSON.parse(JSON.stringify(obj, (key, value) => 
@@ -33,7 +33,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { language } = useGameState();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
 
   const t = {
     en: {
@@ -74,7 +74,6 @@ export default function RegisterPage() {
         lastProcessedSeason: Number(seasonNumber || 1)
       };
       
-      // REVERT TO V10
       await setDoc(doc(db, 'players_v10', userCredential.user.uid), cleanData(profileData));
       toast({ title: t.successTitle });
       router.push('/setup');
@@ -82,6 +81,8 @@ export default function RegisterPage() {
       toast({ variant: "destructive", title: "Error", description: error.message });
     } finally { setIsLoading(false); }
   };
+
+  if (isUserLoading) return <LoadingScreen />;
 
   if (user) {
     return (
@@ -93,21 +94,19 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-      <Card className="glass-card w-full max-w-sm">
-        <CardHeader><CardTitle className="font-headline text-center uppercase tracking-widest text-accent text-lg">{t.title}</CardTitle><p className="text-[10px] text-center text-muted-foreground uppercase font-bold px-4 leading-relaxed">{t.subtitle}</p></CardHeader>
-        <form onSubmit={handleRegister}>
-          <CardContent className="space-y-4">
-            <div className="space-y-2"><Label>{t.callsign}</Label><Input value={username} onChange={e => setUsername(e.target.value)} required className="bg-secondary/50" /></div>
-            <div className="space-y-2"><Label>{t.emailLabel}</Label><Input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="bg-secondary/50" /></div>
-            <div className="space-y-2"><Label>{t.passLabel}</Label><Input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50" /></div>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full hero-gradient font-bold h-12" disabled={isLoading}>{isLoading ? <Loader2 className="animate-spin" /> : <><UserPlus className="w-4 h-4 mr-2" /> {t.submitBtn}</>}</Button>
-            <p className="text-xs text-center text-muted-foreground mt-2">{t.alreadyRegistered} <Link href="/" className="text-primary hover:underline">{t.loginLink}</Link></p>
-          </CardFooter>
-        </form>
-      </Card>
-    </div>
+    <Card className="glass-card w-full max-w-sm">
+      <CardHeader><CardTitle className="font-headline text-center uppercase tracking-widest text-accent text-lg">{t.title}</CardTitle><p className="text-[10px] text-center text-muted-foreground uppercase font-bold px-4 leading-relaxed">{t.subtitle}</p></CardHeader>
+      <form onSubmit={handleRegister}>
+        <CardContent className="space-y-4">
+          <div className="space-y-2"><Label>{t.callsign}</Label><Input value={username} onChange={e => setUsername(e.target.value)} required className="bg-secondary/50" /></div>
+          <div className="space-y-2"><Label>{t.emailLabel}</Label><Input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="bg-secondary/50" /></div>
+          <div className="space-y-2"><Label>{t.passLabel}</Label><Input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50" /></div>
+        </CardContent>
+        <CardFooter className="flex flex-col gap-4">
+          <Button type="submit" className="w-full hero-gradient font-bold h-12" disabled={isLoading}>{isLoading ? <Loader2 className="animate-spin" /> : <><UserPlus className="w-4 h-4 mr-2" /> {t.submitBtn}</>}</Button>
+          <p className="text-xs text-center text-muted-foreground mt-2">{t.alreadyRegistered} <Link href="/" className="text-primary hover:underline">{t.loginLink}</Link></p>
+        </CardFooter>
+      </form>
+    </Card>
   );
 }

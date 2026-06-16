@@ -1,41 +1,26 @@
-
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useFirestore, useUser } from '@/firebase';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
-import { collection, query, where, getDocs, limit, doc, getDoc, setDoc } from 'firebase/firestore';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { collection, query, where, getDocs, limit, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Chrome, HelpCircle, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Loader2, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
-import { getRandomStartingSquad } from '@/app/lib/moba-data';
-import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   
-  const [isForgotOpen, setIsForgotOpen] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [isForgotLoading, setIsForgotLoading] = useState(false);
-
   const auth = useAuth();
   const db = useFirestore();
   const router = useRouter();
@@ -51,10 +36,6 @@ export default function LoginPage() {
       emailLabel: "Email or Team Name",
       passLabel: "Access Key (Password)",
       submitBtn: "ESTABLISH LINK",
-      googleBtn: "LOG IN WITH GOOGLE",
-      orLabel: "OR",
-      newManager: "New manager?",
-      registerLink: "Initialize new profile",
       welcomeBack: "Authorized Session Detected",
       enterHub: "ENTER COMMAND CENTER"
     },
@@ -65,10 +46,6 @@ export default function LoginPage() {
       emailLabel: "Почта или Название команды",
       passLabel: "Ключ доступа (Пароль)",
       submitBtn: "УСТАНОВИТЬ СВЯЗЬ",
-      googleBtn: "ВОЙТИ ЧЕРЕЗ GOOGLE",
-      orLabel: "ИЛИ",
-      newManager: "Новый менеджер?",
-      registerLink: "Создать новый профиль",
       welcomeBack: "Сессия авторизована",
       enterHub: "ВОЙТИ В КОМАНДНЫЙ ЦЕНТР"
     }
@@ -77,9 +54,6 @@ export default function LoginPage() {
   const t = translations[language as keyof typeof translations] || translations.ru;
 
   const handleEnter = () => {
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('lote_hub_entered', 'true');
-    }
     router.push('/');
   };
 
@@ -104,7 +78,7 @@ export default function LoginPage() {
     }
   };
 
-  if (isUserLoading || !storeIsLoaded) return null;
+  if (isUserLoading || !storeIsLoaded) return <LoadingScreen />;
 
   if (user) {
     return (
@@ -163,7 +137,7 @@ export default function LoginPage() {
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : t.submitBtn}
             </Button>
             <p className="text-xs text-center text-muted-foreground mt-2">
-              {t.newManager} <Link href="/auth/register" className="text-primary hover:underline">{t.registerLink}</Link>
+              New manager? <Link href="/auth/register" className="text-primary hover:underline">Initialize new profile</Link>
             </p>
           </CardFooter>
         </form>

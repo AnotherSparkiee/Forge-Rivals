@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser } from '@/firebase';
@@ -42,6 +41,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     
     if (!isProfileComplete) {
       // Если профиль не настроен, пускаем ТОЛЬКО на /setup или / (где сработает логика рендера)
+      // Добавляем исключение для страниц /auth/* чтобы не мешать процессу входа/выхода
       if (!isSetupPage && !isRoot && !isAuthPage) {
         router.replace('/setup');
       } else {
@@ -49,8 +49,13 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       }
     } else {
       // Профиль настроен, если зашли на страницы авторизации или настройки -> на хаб (корень)
+      // Опять же, если мы на /auth, возможно мы выходим или меняем аккаунт, позволяем остаться
       if (isAuthPage || isSetupPage) {
-        router.replace('/');
+        if (isSetupPage) {
+           router.replace('/');
+        } else {
+           setIsInitialCheckDone(true);
+        }
       } else {
         setIsInitialCheckDone(true);
       }

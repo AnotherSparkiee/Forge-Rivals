@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState, getLevelThreshold } from '../lib/store';
@@ -23,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { doc } from 'firebase/firestore';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { Badge } from '@/components/ui/badge';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 type ProfileTab = 'menu' | 'team' | 'daily';
 
@@ -84,7 +84,7 @@ export default function ProfilePage() {
   const xpProgress = Math.min(100, (currentXp / xpThreshold) * 100);
 
   if (!isStoreLoaded || isUserLoading || isProfileLoading) {
-    return <div className="min-h-screen flex flex-col items-center justify-center p-6"><Loader2 className="w-8 h-8 animate-spin text-primary" /><p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest mt-4">Accessing Dossier...</p></div>;
+    return <LoadingScreen />;
   }
 
   const translations = {
