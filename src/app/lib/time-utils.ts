@@ -24,20 +24,21 @@ export function formatMoscowTime(date: Date): string {
   return `${day}.${month} ${hours}:${minutes}:${seconds}`;
 }
 
+/**
+ * Calculates display date for a specific day of the season.
+ * Ensures Day 1 is June 17, 2026.
+ */
 export function getSeasonDateLabel(dayOfSeason: number): string {
   const mskNow = getMoscowTime();
   const info = getGlobalSeasonInfo();
-  const targetDate = new Date(mskNow);
   
-  if (info.isTransitionPhase) {
-    // Correctly calculate offset to Day 1 of the new season
-    // If today is 16.06 and it's Day 16, Day 1 is tomorrow (17 - 16 = 1)
-    const daysUntilNewSeason = (17 - info.seasonDay);
-    targetDate.setDate(mskNow.getDate() + daysUntilNewSeason + (dayOfSeason - 1));
-  } else {
-    const diffDays = dayOfSeason - info.seasonDay;
-    targetDate.setDate(mskNow.getDate() + diffDays);
-  }
+  // FIXED EPOCH DATE: June 17, 2026
+  const epochDate = new Date('2026-06-17T00:00:00+03:00');
+  const targetDate = new Date(epochDate);
+  
+  // Date = Epoch + (Season - 1) * 16 days + (DayOfSeason - 1) days
+  const offsetDays = (info.seasonNumber - 1) * 16 + (dayOfSeason - 1);
+  targetDate.setDate(epochDate.getDate() + offsetDays);
   
   return `${String(targetDate.getMonth() + 1).padStart(2, '0')}.${String(targetDate.getDate()).padStart(2, '0')}`;
 }
@@ -48,16 +49,15 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
  */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
-  // ФИКСИРОВАННАЯ ЭПОХА: 17 июня 2026
   const epochDate = new Date('2026-06-17T00:00:00+03:00');
   
   const diffMs = mskNow.getTime() - epochDate.getTime();
   
-  // КОРРЕКЦИЯ: Если мы до старта эпохи
+  // КОРРЕКЦИЯ: Если мы до старта эпохи (например 16 июня)
   if (diffMs < 0) {
     const diffDaysFloor = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     return {
-      seasonDay: 17 + diffDaysFloor, // If 1 day before (diffDays -1), seasonDay 16. Correct.
+      seasonDay: 17 + diffDaysFloor, // 16 June results in seasonDay 16
       seasonNumber: 1,
       isTransitionPhase: true,
       activeSeasonNumber: 1

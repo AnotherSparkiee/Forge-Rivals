@@ -6,7 +6,7 @@ import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, CalendarDays, UserSearch, CalendarClock, 
   History, Calendar, CheckSquare, ChevronRight, Shield,
-  Clock, Swords, Trophy, EyeOff, FileText, User
+  Clock, Swords, Trophy, EyeOff, FileText, User, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -31,7 +31,7 @@ export default function MatchesPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { 
-    isLoaded, language, leagueLevel, groupId, 
+    isLoaded, isMatchesLoading, language, leagueLevel, groupId, 
     matchHistory, groupMatches, activeSeasonNumber
   } = useGameState();
   const db = useFirestore();
@@ -52,36 +52,56 @@ export default function MatchesPage() {
 
   const league = useMemo(() => LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0], [profile?.selectedLeagueId]);
 
-  // UI GUARD: Strictly show only the active season's matches
-  const filteredMatches = useMemo(() => {
+  // UI GUARD: Strictly filter and group matches by season_1
+  const calendarDays = useMemo(() => {
     if (!groupMatches) return [];
-    return groupMatches.filter(m => m.seasonId === `season_${activeSeasonNumber}`);
-  }, [groupMatches, activeSeasonNumber]);
+    
+    // 1. Strict Season 1 isolation
+    const activeMatches = groupMatches.filter(m => m.seasonId === "season_1");
+    
+    // 2. Group by day only if matches exist
+    const dayGroups: Record<number, any[]> = {};
+    activeMatches.forEach(m => {
+      if (!dayGroups[m.day]) dayGroups[m.day] = [];
+      dayGroups[m.day].push(m);
+    });
+    
+    return Object.entries(dayGroups)
+      .map(([day, matches]) => ({ day: Number(day), matches }))
+      .sort((a, b) => a.day - b.day);
+  }, [groupMatches]);
+
+  const playedDays = useMemo(() => {
+    const finished = groupMatches?.filter(m => m.status === 'finished' && m.seasonId === "season_1") || [];
+    const dayGroups: Record<number, any[]> = {};
+    finished.forEach(m => {
+      if (!dayGroups[m.day]) dayGroups[m.day] = [];
+      dayGroups[m.day].push(m);
+    });
+    return Object.entries(dayGroups)
+      .map(([day, matches]) => ({ day: Number(day), matches }))
+      .sort((a, b) => a.day - b.day);
+  }, [groupMatches]);
 
   const myMatches = useMemo(() => {
-    if (!filteredMatches || !user) return [];
-    return filteredMatches.filter(m => m.homeId === user.uid || m.awayId === user.uid);
-  }, [filteredMatches, user]);
+    if (!groupMatches || !user) return [];
+    return groupMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.seasonId === "season_1");
+  }, [groupMatches, user]);
 
   const leagueNextMatch = useMemo(() => {
     if (!myMatches.length) return null;
-    
     const sorted = [...myMatches]
       .filter(m => m.status !== 'finished')
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-
     if (!sorted.length) return null;
-
     const myMatch = sorted[0];
     const isHome = myMatch.homeId === user?.uid;
     const oppName = isHome ? myMatch.awayName : myMatch.homeName;
-
     return { 
       opponent: { name: oppName, isPlayer: !oppName.includes('bot') }, 
       day: myMatch.day, 
       match: myMatch,
       time: league.startTime, 
-      type: 'league', 
       label: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE'
     };
   }, [myMatches, league, user, language]);
@@ -96,29 +116,7 @@ export default function MatchesPage() {
     return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
   };
 
-  const calendarDays = useMemo(() => {
-    const dayGroups: Record<number, any[]> = {};
-    filteredMatches.forEach(m => {
-      if (!dayGroups[m.day]) dayGroups[m.day] = [];
-      dayGroups[m.day].push(m);
-    });
-    return Object.entries(dayGroups)
-      .map(([day, matches]) => ({ day: Number(day), matches }))
-      .sort((a, b) => a.day - b.day);
-  }, [filteredMatches]);
-
-  const playedDays = useMemo(() => {
-    const dayGroups: Record<number, any[]> = {};
-    filteredMatches.filter(m => m.status === 'finished').forEach(m => {
-      if (!dayGroups[m.day]) dayGroups[m.day] = [];
-      dayGroups[m.day].push(m);
-    });
-    return Object.entries(dayGroups)
-      .map(([day, matches]) => ({ day: Number(day), matches }))
-      .sort((a, b) => a.day - b.day);
-  }, [filteredMatches]);
-
-  if (isUserLoading || !isLoaded || !user || isProfileLoading) return <LoadingScreen />;
+  if (isUserLoading || !isLoaded || isProfileLoading) return <LoadingScreen />;
 
   const t = {
     title: language === 'ru' ? "СПИСОК МАТЧЕЙ" : "OPERATIONAL MATCHES",
@@ -127,6 +125,7 @@ export default function MatchesPage() {
     startsIn: language === 'ru' ? "ДО МАТЧА ОСТАЛОСЬ:" : "TIME UNTIL MATCH:",
     back: language === 'ru' ? "Назад" : "Back",
     noMatches: language === 'ru' ? "Нет запланированных игр" : "No matches scheduled",
+    connecting: language === 'ru' ? "Синхронизация..." : "Syncing sequence...",
     tabs: {
       next_opponent: { label: language === 'ru' ? "Следующий соперник" : "Next Opponent", desc: language === 'ru' ? "Досье на ближайшего врага" : "Detailed brief on your next rival", icon: UserSearch },
       my_future: { label: language === 'ru' ? "Свои будущие" : "My Future", desc: language === 'ru' ? "Предстоящие игры команды" : "Upcoming matches for your team", icon: CalendarClock },
@@ -137,6 +136,15 @@ export default function MatchesPage() {
   };
 
   const renderContent = () => {
+    if (isMatchesLoading && activeTab !== 'menu') {
+      return (
+        <div className="py-20 flex flex-col items-center justify-center space-y-4 opacity-50">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-[10px] uppercase font-black tracking-widest">{t.connecting}</p>
+        </div>
+      );
+    }
+
     switch (activeTab) {
       case 'next_opponent':
         if (!leagueNextMatch) return <p className="text-center py-20 text-muted-foreground uppercase text-xs">Season Finished</p>;
@@ -164,42 +172,21 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_future':
-        const future = myMatches
-          .filter(m => m.status === 'pending')
-          .sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-        return <div className="space-y-3">
-          {future.map(m => (
-            <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
-              <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2">
-                <span className="text-[8px] text-muted-foreground uppercase">{getSeasonDateLabel(m.day)}</span>
-                <span className="text-[10px] font-mono font-bold text-accent">DAY {m.day}</span>
-              </div>
-              <div className="flex-1 flex items-center justify-between min-w-0">
-                 <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.homeId === user.uid && "text-primary")}>{m.homeName}</span>
-                 <div className="px-3 flex flex-col items-center"><Badge variant="outline" className="text-[7px] px-1 py-0 border-accent/20 text-accent">VS</Badge><span className="text-[8px] text-primary font-mono font-bold">{league.startTime}</span></div>
-                 <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.awayId === user.uid && "text-primary")}>{m.awayName}</span>
-              </div>
+        const future = myMatches.filter(m => m.status === 'pending').sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+        if (future.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">{t.noMatches}</div>;
+        return <div className="space-y-3">{future.map(m => (
+          <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
+            <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2">
+              <span className="text-[8px] text-muted-foreground uppercase">{getSeasonDateLabel(m.day)}</span>
+              <span className="text-[10px] font-mono font-bold text-accent">DAY {m.day}</span>
             </div>
-          ))}
-        </div>;
-      case 'my_played':
-        if (matchHistory.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">No combat history</div>;
-        return <div className="space-y-3">
-          {[...matchHistory].reverse().map(m => (
-            <Link key={m.id} href={`/match?id=${m.id}`} className="block">
-              <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 flex items-center justify-between">
-                <div className="flex flex-col gap-1">
-                  <Badge variant="outline" className="text-[7px] w-fit border-primary/20 text-primary">{m.type.toUpperCase()}</Badge>
-                  <span className="text-xs font-bold uppercase text-white truncate max-w-[150px]">{m.opponentName}</span>
-                  <span className="text-[8px] text-muted-foreground">{new Date(m.playedAt).toLocaleDateString()}</span>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-headline font-black italic tracking-widest text-primary">{m.scoreA}:{m.scoreB}</p>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>;
+            <div className="flex-1 flex items-center justify-between min-w-0">
+               <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.homeId === user!.uid && "text-primary")}>{m.homeName}</span>
+               <div className="px-3 flex flex-col items-center"><Badge variant="outline" className="text-[7px] px-1 py-0 border-accent/20 text-accent">VS</Badge><span className="text-[8px] text-primary font-mono font-bold">{league.startTime}</span></div>
+               <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.awayId === user!.uid && "text-primary")}>{m.awayName}</span>
+            </div>
+          </div>
+        ))}</div>;
       case 'league_calendar':
         if (calendarDays.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">{t.noMatches}</div>;
         return (
@@ -213,7 +200,7 @@ export default function MatchesPage() {
                 <div className="grid gap-2">
                   {matches.map((m: any) => (
                     <div key={m.id} className={cn("bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between text-[10px] font-bold uppercase", m.status === 'finished' && "opacity-60")}>
-                      <span className={cn("flex-1 text-right truncate", m.homeId === user.uid && "text-primary")}>{m.homeName}</span>
+                      <span className={cn("flex-1 text-right truncate", m.homeId === user!.uid && "text-primary")}>{m.homeName}</span>
                       <div className="px-4 flex flex-col items-center">
                         {m.status === 'finished' ? (
                           <span className="text-accent font-mono font-black">{m.scoreA}:{m.scoreB}</span>
@@ -221,7 +208,7 @@ export default function MatchesPage() {
                           <span className="opacity-30 italic">VS</span>
                         )}
                       </div>
-                      <span className={cn("flex-1 text-left truncate", m.awayId === user.uid && "text-primary")}>{m.awayName}</span>
+                      <span className={cn("flex-1 text-left truncate", m.awayId === user!.uid && "text-primary")}>{m.awayName}</span>
                     </div>
                   ))}
                 </div>
@@ -243,11 +230,11 @@ export default function MatchesPage() {
                   {matches.map((m: any) => (
                     <Link key={m.id} href={`/match?id=${m.id}`} className="block">
                       <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3 group hover:bg-white/5 transition-all">
-                        <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.homeId === user.uid && "text-accent")}>{m.homeName}</span>
+                        <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.homeId === user!.uid && "text-accent")}>{m.homeName}</span>
                         <div className="px-3 flex flex-col items-center">
                           <span className="text-lg font-headline font-black italic text-white leading-none">{m.scoreA}:{m.scoreB}</span>
                         </div>
-                        <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.awayId === user.uid && "text-accent")}>{m.awayName}</span>
+                        <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.awayId === user!.uid && "text-accent")}>{m.awayName}</span>
                       </div>
                     </Link>
                   ))}
@@ -256,6 +243,22 @@ export default function MatchesPage() {
             ))}
           </div>
         );
+      case 'my_played':
+        if (matchHistory.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">No combat history</div>;
+        return <div className="space-y-3">{[...matchHistory].reverse().map(m => (
+          <Link key={m.id} href={`/match?id=${m.id}`} className="block">
+            <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 flex items-center justify-between">
+              <div className="flex flex-col gap-1">
+                <Badge variant="outline" className="text-[7px] w-fit border-primary/20 text-primary">{m.type.toUpperCase()}</Badge>
+                <span className="text-xs font-bold uppercase text-white truncate max-w-[150px]">{m.opponentName}</span>
+                <span className="text-[8px] text-muted-foreground">{new Date(m.playedAt).toLocaleDateString()}</span>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-headline font-black italic tracking-widest text-primary">{m.scoreA}:{m.scoreB}</p>
+              </div>
+            </div>
+          </Link>
+        ))}</div>;
       default: return null;
     }
   };

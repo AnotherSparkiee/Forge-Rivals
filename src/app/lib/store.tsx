@@ -3,7 +3,6 @@
 /**
  * @fileOverview Global Game State Store.
  * Centralizes all club data and manages real-time Firestore synchronization.
- * Fixed: Strict season filtering using prefixed IDs.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
@@ -25,6 +24,7 @@ interface GameState {
   displayName: string; 
   id: string; 
   isLoaded: boolean;
+  isMatchesLoading: boolean;
   lineup: Record<LineupSlot, string | null>;
   ownedHeroes: Hero[];
   youthAcademyHeroes: Hero[];
@@ -101,14 +101,14 @@ export function getLevelThreshold(lvl: number) {
 const DEFAULT_STATE: GameState = {
   credits: 0, crystals: 0, experiencePoints: 0, managerLevel: 1,
   leagueLevel: 9, groupId: 1, selectedLeagueId: null,
-  displayName: 'Manager', id: '', isLoaded: false,
+  displayName: 'Manager', id: '', isLoaded: false, isMatchesLoading: true,
   lineup: { carry: null, mid: null, offlane: null, support: null, full_support: null, sub1: null, sub2: null, res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null },
   ownedHeroes: [], youthAcademyHeroes: [],
   staff: { coach: null, analyst: null, scout: null, doctor: null, financier: null },
   strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' },
   rewardDay: 1, lastRewardClaimDate: null, matchHistory: [], groupMatches: [], lastSeenMatchDay: 0,
   managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
-  managerLevel: 1, skillPoints: 0, lastProcessedSeason: 0,
+  skillPoints: 0, lastProcessedSeason: 0,
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, activeLicenseTier: null,
   rank: 8, seasonDay: 1, seasonNumber: 1, isSyncing: false, language: 'ru',
@@ -138,24 +138,19 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const setLanguage = (l: string) => setLang(l);
 
-  // ГЛОБАЛЬНЫЙ УКАЗАТЕЛЬ СЕЗОНА
   useEffect(() => {
     const statusRef = doc(db, 'system_v1', 'status');
     const unsub = onSnapshot(statusRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data.currentSeasonNumber) {
-          setCurrentSystemSeason(Number(data.currentSeasonNumber));
-        }
+        if (data.currentSeasonNumber) setCurrentSystemSeason(Number(data.currentSeasonNumber));
       }
     });
     return () => unsub();
   }, [db]);
 
-  // ИЗОЛИРОВАННЫЙ ЗАПРОС МАТЧЕЙ (Season-Prefixed)
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!state.selectedLeagueId || !state.id) return null;
-    
     const { activeSeasonNumber } = getGlobalSeasonInfo();
     const seasonToFetch = currentSystemSeason || activeSeasonNumber;
     const seasonId = `season_${seasonToFetch}`;
@@ -166,15 +161,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       where('seasonId', '==', seasonId),
       where('groupId', '==', prefixedGroupId)
     );
-  }, [db, state.selectedLeagueId, state.leagueLevel, state.groupId, state.id, currentSystemSeason]);
+  }, [db, state.selectedLeagueId, state.groupId, state.id, currentSystemSeason]);
 
-  const { data: dbMatches } = useCollection(groupMatchesQuery);
+  const { data: dbMatches, isLoading: isMatchesLoading } = useCollection(groupMatchesQuery);
 
   useEffect(() => {
     if (isUserLoading || !user) {
-      if (!isUserLoading) {
-        setState(s => ({ ...DEFAULT_STATE, isLoaded: true, language: s.language }));
-      }
+      if (!isUserLoading) setState(s => ({ ...DEFAULT_STATE, isLoaded: true, language: s.language }));
       return;
     }
 
@@ -226,7 +219,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
               country: rootData.country ?? null, isPremium: teamData.premiumUntil ? new Date(teamData.premiumUntil) > new Date() : false,
               premiumUntil: teamData.premiumUntil ?? null, activeLicenseTier: teamData.activeLicenseTier ?? 4,
               rank: teamData.rank ?? 8, ownedHeroes: allHeroes.filter(h => !h.isYouth), youthAcademyHeroes: allHeroes.filter(h => h.isYouth),
-              staff: staffObj, seasonDay: info.seasonDay, seasonNumber: info.seasonNumber, activeSeasonNumber: seasonToDisplay, isLoaded: true, language: lang,
+              staff: staffObj, seasonDay: info.seasonDay, seasonNumber: info.seasonNumber, activeSeasonNumber: seasonToDisplay, 
+              isLoaded: true, isMatchesLoading: isMatchesLoading, language: lang,
               groupMatches: matchesToShow
             }));
           });
@@ -234,7 +228,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       });
     });
     return () => unsubRoot();
-  }, [user, isUserLoading, db, lang, dbMatches, currentSystemSeason]);
+  }, [user, isUserLoading, db, lang, dbMatches, currentSystemSeason, isMatchesLoading]);
 
   const getRefs = useCallback(() => {
     const s = stateRef.current;
@@ -278,10 +272,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const heroRef = doc(collection(refs.team, 'heroes'), id);
     setDoc(heroRef, data, { merge: true });
     if (costCredits || costCrystals) {
-      setDoc(refs.team, { 
-        credits: Number(stateRef.current.credits || 0) - costCredits, 
-        crystals: Number(stateRef.current.crystals || 0) - costCrystals 
-      }, { merge: true });
+      setDoc(refs.team, { credits: Number(stateRef.current.credits || 0) - costCredits, crystals: Number(stateRef.current.crystals || 0) - costCrystals }, { merge: true });
     }
   };
 
@@ -323,15 +314,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }, [getRefs]);
 
-  const setTrainingFocus = (heroId: string, focus: string | null) => {
-    updateHero(heroId, { trainingFocus: focus });
-  };
-
+  const setTrainingFocus = (heroId: string, focus: string | null) => { updateHero(heroId, { trainingFocus: focus }); };
   const startDailyHeroTraining = (heroId: string, focus: string) => {
     const finish = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     updateHero(heroId, { dailyTrainingFocus: focus, dailyTrainingFinishTime: finish });
   };
-
   const claimDailyHeroTraining = (heroId: string) => {
     const hero = stateRef.current.ownedHeroes.find(h => h.id === heroId) || stateRef.current.youthAcademyHeroes.find(h => h.id === heroId);
     if (!hero || !hero.dailyTrainingFocus) return;
@@ -370,19 +357,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
-  const addHeroDirectly = (hero: Hero) => {
-    const refs = getRefs(); if (!refs) return;
-    setDoc(doc(collection(refs.team, 'heroes'), hero.id), hero);
-  };
-
-  const addYouthHeroDirectly = (hero: Hero) => {
-    const refs = getRefs(); if (!refs) return;
-    setDoc(doc(collection(refs.team, 'heroes'), hero.id), { ...hero, isYouth: true });
-  };
-
-  const promoteYouthPlayer = (heroId: string) => {
-    updateHero(heroId, { isYouth: false });
-  };
+  const addHeroDirectly = (hero: Hero) => { const refs = getRefs(); if (!refs) return; setDoc(doc(collection(refs.team, 'heroes'), hero.id), hero); };
+  const addYouthHeroDirectly = (hero: Hero) => { const refs = getRefs(); if (!refs) return; setDoc(doc(collection(refs.team, 'heroes'), hero.id), { ...hero, isYouth: true }); };
+  const promoteYouthPlayer = (heroId: string) => { updateHero(heroId, { isYouth: false }); };
 
   const updateProfileName = (name: string) => {
     if (!user) return;
@@ -390,85 +367,37 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const refs = getRefs(); if (refs) setDoc(refs.team, { displayName: name }, { merge: true });
   };
 
-  const updateProfileCountry = (country: string) => {
-    if (!user) return;
-    setDoc(doc(db, 'players_v10', user.uid), { country }, { merge: true });
-  };
+  const updateProfileCountry = (country: string) => { if (!user) return; setDoc(doc(db, 'players_v10', user.uid), { country }, { merge: true }); };
 
   const recordMatch = (winner: string, result: any, reward: number, opponentName: string, type: string, playedAt: string, matchId?: string) => {
     const refs = getRefs(); if (!refs) return;
     const s = stateRef.current;
     const mId = matchId || `match_${Date.now()}`;
-    
     if (s.matchHistory.some(m => m.id === mId)) return;
-
-    const newEntry = {
-      id: mId, 
-      winner, 
-      scoreA: result.scoreA, 
-      scoreB: result.scoreB,
-      matchSummary: result.matchSummary || "Combat protocol finalized.", 
-      opponentName, 
-      type, 
-      playedAt, 
-      reward,
-      seen: false, 
-      day: s.seasonDay, 
-      seasonNumber: s.seasonNumber,
-      timeline: result.timeline || [],
-      scoreboard: result.scoreboard || [],
-      mvp: result.mvp,
-      duration: result.duration,
-      games: result.games || []
-    };
-    
-    setDoc(refs.team, { 
-      credits: Number(s.credits || 0) + reward, 
-      matchHistory: arrayUnion(newEntry) 
-    }, { merge: true });
+    const newEntry = { id: mId, winner, scoreA: result.scoreA, scoreB: result.scoreB, matchSummary: result.matchSummary || "Combat protocol finalized.", opponentName, type, playedAt, reward, seen: false, day: s.seasonDay, seasonNumber: s.seasonNumber, timeline: result.timeline || [], scoreboard: result.scoreboard || [], mvp: result.mvp, duration: result.duration, games: result.games || [] };
+    setDoc(refs.team, { credits: Number(s.credits || 0) + reward, matchHistory: arrayUnion(newEntry) }, { merge: true });
   };
 
-  const markMatchAsSeen = (day: number) => {
-    const refs = getRefs(); if (!refs) return;
-    setDoc(refs.team, { lastSeenMatchDay: day }, { merge: true });
-  };
-
-  const markMatchIdAsSeen = (id: string) => {
-    const refs = getRefs(); if (!refs) return;
-    const hist = stateRef.current.matchHistory.map(m => m.id === id ? { ...m, seen: true } : m);
-    setDoc(refs.team, { matchHistory: hist }, { merge: true });
-  };
+  const markMatchAsSeen = (day: number) => { const refs = getRefs(); if (!refs) return; setDoc(refs.team, { lastSeenMatchDay: day }, { merge: true }); };
+  const markMatchIdAsSeen = (id: string) => { const refs = getRefs(); if (!refs) return; const hist = stateRef.current.matchHistory.map(m => m.id === id ? { ...m, seen: true } : m); setDoc(refs.team, { matchHistory: hist }, { merge: true }); };
 
   const upgradeManagerSkill = (key: keyof GameState['managerSkills']) => {
     const s = stateRef.current;
     if (s.skillPoints <= 0) return;
     const refs = getRefs(); if (!refs) return;
-    setDoc(refs.team, {
-      skillPoints: s.skillPoints - 1,
-      managerSkills: { ...s.managerSkills, [key]: s.managerSkills[key] + 1 }
-    }, { merge: true });
+    setDoc(refs.team, { skillPoints: s.skillPoints - 1, managerSkills: { ...s.managerSkills, [key]: s.managerSkills[key] + 1 } }, { merge: true });
   };
 
   const startConstruction = (type: string, id: string, cost: number, baseDurationHours: number) => {
     const s = stateRef.current;
     const refs = getRefs();
     if (!refs || Number(s.credits || 0) < cost) return false;
-    
     const currentData = (s as any)[type];
     const currentLevel = currentData[id] || 0;
     const durationMs = baseDurationHours * (currentLevel + 1) * 60 * 60 * 1000;
     const startTime = new Date().toISOString();
     const finishTime = new Date(Date.now() + durationMs).toISOString();
-
-    setDoc(refs.team, {
-      credits: Number(s.credits || 0) - cost,
-      [type]: {
-        ...currentData,
-        constructionStarts: { ...(currentData.constructionStarts || {}), [id]: startTime },
-        constructionFinishes: { ...(currentData.constructionFinishes || {}), [id]: finishTime },
-        isAccelerated: { ...(currentData.isAccelerated || {}), [id]: false }
-      }
-    }, { merge: true });
+    setDoc(refs.team, { credits: Number(s.credits || 0) - cost, [type]: { ...currentData, constructionStarts: { ...(currentData.constructionStarts || {}), [id]: startTime }, constructionFinishes: { ...(currentData.constructionFinishes || {}), [id]: finishTime }, isAccelerated: { ...(currentData.isAccelerated || {}), [id]: false } } }, { merge: true });
     return true;
   };
 
@@ -484,17 +413,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!refs || Number(s.credits || 0) < cost) return false;
     const durationMs = 8 * 60 * 60 * 1000;
     const finishTime = new Date(Date.now() + durationMs).toISOString();
-    
-    setDoc(refs.team, {
-      credits: Number(s.credits || 0) - cost,
-      arena: {
-        ...s.arena,
-        pendingSeats: seats,
-        constructionStarts: { ...(s.arena.constructionStarts || {}), capacity: new Date().toISOString() },
-        constructionFinishes: { ...(s.arena.constructionFinishes || {}), capacity: finishTime },
-        isAccelerated: { ...(s.arena.isAccelerated || {}), capacity: false }
-      }
-    }, { merge: true });
+    setDoc(refs.team, { credits: Number(s.credits || 0) - cost, arena: { ...s.arena, pendingSeats: seats, constructionStarts: { ...(s.arena.constructionStarts || {}), capacity: new Date().toISOString() }, constructionFinishes: { ...(s.arena.constructionFinishes || {}), capacity: finishTime }, isAccelerated: { ...(s.arena.isAccelerated || {}), capacity: false } } }, { merge: true });
     return true;
   };
 
@@ -502,23 +421,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const s = stateRef.current;
     const refs = getRefs();
     if (!refs || Number(s.crystals || 0) < price) return false;
-    
     const currentData = (s as any)[type];
     const finishIso = currentData.constructionFinishes?.[id];
     if (!finishIso || currentData.isAccelerated?.[id]) return false;
-
     const finishTime = new Date(finishIso).getTime();
     const timeLeft = finishTime - Date.now();
     const newFinishTime = new Date(Date.now() + (timeLeft / multiplier)).toISOString();
-
-    setDoc(refs.team, {
-      crystals: Number(s.crystals || 0) - price,
-      [type]: {
-        ...currentData,
-        constructionFinishes: { ...currentData.constructionFinishes, [id]: newFinishTime },
-        isAccelerated: { ...currentData.isAccelerated, [id]: true }
-      }
-    }, { merge: true });
+    setDoc(refs.team, { crystals: Number(s.crystals || 0) - price, [type]: { ...currentData, constructionFinishes: { ...currentData.constructionFinishes, [id]: newFinishTime }, isAccelerated: { ...currentData.isAccelerated, [id]: true } } }, { merge: true });
     return true;
   };
 
@@ -526,50 +435,28 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const s = stateRef.current;
     const refs = getRefs();
     if (!refs) return;
-
     const types = ['arena', 'hq', 'bootcamp', 'academy', 'medical'];
     const now = Date.now();
     const batch = writeBatch(db);
     let hasChanges = false;
-
     types.forEach(type => {
       const data = (s as any)[type];
       if (!data?.constructionFinishes) return;
-
       Object.entries(data.constructionFinishes).forEach(([id, finishIso]) => {
         if (now >= new Date(finishIso as string).getTime()) {
           hasChanges = true;
           const updatedData = { ...data };
-          
-          if (id === 'capacity') {
-            updatedData.capacity = (updatedData.capacity || 5000) + (updatedData.pendingSeats || 0);
-            delete updatedData.pendingSeats;
-          } else {
-            updatedData[id] = (updatedData[id] || 0) + 1;
-          }
-
-          delete updatedData.constructionStarts[id];
-          delete updatedData.constructionFinishes[id];
-          delete updatedData.isAccelerated[id];
-          
+          if (id === 'capacity') { updatedData.capacity = (updatedData.capacity || 5000) + (updatedData.pendingSeats || 0); delete updatedData.pendingSeats; } else { updatedData[id] = (updatedData[id] || 0) + 1; }
+          delete updatedData.constructionStarts[id]; delete updatedData.constructionFinishes[id]; delete updatedData.isAccelerated[id];
           batch.update(refs.team, { [type]: updatedData });
         }
       });
     });
-
     if (hasChanges) batch.commit();
   }, [db, getRefs]);
 
   const value = {
-    ...state, setLanguage, addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, 
-    claimReward, purchaseLicense, purchasePremium, syncStats,
-    setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue,
-    hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly,
-    promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch,
-    markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill,
-    startArenaConstruction, startHQConstruction, startBootcampConstruction,
-    startAcademyConstruction, startMedicalConstruction, startCapacityExpansion,
-    accelerateConstruction, checkConstructions
+    ...state, setLanguage, addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, syncStats, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions
   } as any;
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;

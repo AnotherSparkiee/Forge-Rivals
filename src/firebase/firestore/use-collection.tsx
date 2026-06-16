@@ -16,23 +16,26 @@ export interface UseCollectionResult<T> {
   data: WithId<T>[] | null;
   isLoading: boolean;
   error: FirestoreError | Error | null;
+  fromCache: boolean;
 }
 
 /**
  * Hook for subscribing to Firestore collections.
- * Optimized to prevent "sharp disappearance" of data during re-syncs.
+ * Optimized with metadata awareness to prevent flickering during season transitions.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
 ): UseCollectionResult<T> {
   const [data, setData] = useState<WithId<T>[] | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [fromCache, setFromCache] = useState<boolean>(true);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
     if (!memoizedTargetRefOrQuery) {
       setData(null);
       setIsLoading(false);
+      setFromCache(false);
       setError(null);
       return;
     }
@@ -41,57 +44,43 @@ export function useCollection<T = any>(
     setError(null);
 
     let active = true;
-    let unsubscribe: (() => void) | null = null;
 
-    // Small delay to ensure any previous unsubscriptions are processed
-    const timer = setTimeout(() => {
-      try {
+    const unsubscribe = onSnapshot(
+      memoizedTargetRefOrQuery,
+      { includeMetadataChanges: true },
+      (snapshot: QuerySnapshot<DocumentData>) => {
         if (!active) return;
         
-        unsubscribe = onSnapshot(
-          memoizedTargetRefOrQuery,
-          (snapshot: QuerySnapshot<DocumentData>) => {
-            if (!active) return;
-            
-            const results: WithId<T>[] = [];
-            snapshot.forEach((doc) => {
-              results.push({ ...(doc.data() as T), id: doc.id });
-            });
-            
-            // Decouple state update from snapshot callback
-            setTimeout(() => {
-              if (active) {
-                setData(results);
-                setError(null);
-                setIsLoading(false);
-              }
-            }, 0);
-          },
-          (fError: FirestoreError) => {
-            if (!active) return;
-            console.warn("Firestore Collection Stream Error:", fError.code, fError.message);
-            setError(fError);
-            // Keep existing data on error to prevent flickering
-            setIsLoading(false);
+        const results: WithId<T>[] = [];
+        snapshot.forEach((doc) => {
+          results.push({ ...(doc.data() as T), id: doc.id });
+        });
+        
+        // Decouple state update
+        setTimeout(() => {
+          if (active) {
+            setData(results);
+            setFromCache(snapshot.metadata.fromCache);
+            // If we have data and it's not from cache anymore, or it's empty but confirmed by server
+            if (!snapshot.metadata.fromCache || (results.length === 0 && !snapshot.metadata.hasPendingWrites)) {
+              setIsLoading(false);
+            }
           }
-        );
-      } catch (e: any) {
-        if (active) {
-          console.error("Critical hook setup error:", e.message);
-          setError(e);
-          setIsLoading(false);
-        }
+        }, 0);
+      },
+      (fError: FirestoreError) => {
+        if (!active) return;
+        console.warn("Firestore Collection Stream Error:", fError.code, fError.message);
+        setError(fError);
+        setIsLoading(false);
       }
-    }, 50);
+    );
 
     return () => {
       active = false;
-      clearTimeout(timer);
-      if (unsubscribe) {
-        unsubscribe();
-      }
+      unsubscribe();
     };
   }, [memoizedTargetRefOrQuery]);
 
-  return { data, isLoading, error };
+  return { data, isLoading, error, fromCache };
 }
