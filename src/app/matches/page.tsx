@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, CalendarDays, UserSearch, CalendarClock, 
-  History, Calendar, CheckSquare, ChevronRight, Shield,
-  Clock, Swords, Trophy, EyeOff, FileText, User, Loader2
+  History, Calendar, CheckSquare, ChevronRight,
+  Clock, Swords, Loader2, User
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -32,15 +32,12 @@ export default function MatchesPage() {
   const router = useRouter();
   const { 
     isLoaded, isMatchesLoading, language, leagueLevel, groupId, 
-    matchHistory, groupMatches, activeSeasonNumber
+    matchHistory, groupMatches
   } = useGameState();
   const db = useFirestore();
   
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
   const [now, setNow] = useState(getMoscowTime());
-
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
-  const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -50,18 +47,20 @@ export default function MatchesPage() {
     return () => clearInterval(timer);
   }, [user, isUserLoading, router]);
 
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const { data: profile } = useDoc(userRef);
+
   const league = useMemo(() => LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0], [profile?.selectedLeagueId]);
 
-  // UI GUARD: Strictly filter and group matches by season_1
-  const calendarDays = useMemo(() => {
+  // STABILITY GUARD: Filtering only Season 1 matches
+  const activeSeasonMatches = useMemo(() => {
     if (!groupMatches) return [];
-    
-    // 1. Strict Season 1 isolation
-    const activeMatches = groupMatches.filter(m => m.seasonId === "season_1");
-    
-    // 2. Group by day only if matches exist
+    return groupMatches.filter(m => m.seasonId === "season_1");
+  }, [groupMatches]);
+
+  const calendarDays = useMemo(() => {
     const dayGroups: Record<number, any[]> = {};
-    activeMatches.forEach(m => {
+    activeSeasonMatches.forEach(m => {
       if (!dayGroups[m.day]) dayGroups[m.day] = [];
       dayGroups[m.day].push(m);
     });
@@ -69,10 +68,10 @@ export default function MatchesPage() {
     return Object.entries(dayGroups)
       .map(([day, matches]) => ({ day: Number(day), matches }))
       .sort((a, b) => a.day - b.day);
-  }, [groupMatches]);
+  }, [activeSeasonMatches]);
 
   const playedDays = useMemo(() => {
-    const finished = groupMatches?.filter(m => m.status === 'finished' && m.seasonId === "season_1") || [];
+    const finished = activeSeasonMatches.filter(m => m.status === 'finished');
     const dayGroups: Record<number, any[]> = {};
     finished.forEach(m => {
       if (!dayGroups[m.day]) dayGroups[m.day] = [];
@@ -81,12 +80,12 @@ export default function MatchesPage() {
     return Object.entries(dayGroups)
       .map(([day, matches]) => ({ day: Number(day), matches }))
       .sort((a, b) => a.day - b.day);
-  }, [groupMatches]);
+  }, [activeSeasonMatches]);
 
   const myMatches = useMemo(() => {
-    if (!groupMatches || !user) return [];
-    return groupMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.seasonId === "season_1");
-  }, [groupMatches, user]);
+    if (!user) return [];
+    return activeSeasonMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid));
+  }, [activeSeasonMatches, user]);
 
   const leagueNextMatch = useMemo(() => {
     if (!myMatches.length) return null;
@@ -98,7 +97,7 @@ export default function MatchesPage() {
     const isHome = myMatch.homeId === user?.uid;
     const oppName = isHome ? myMatch.awayName : myMatch.homeName;
     return { 
-      opponent: { name: oppName, isPlayer: !oppName.includes('bot') }, 
+      opponent: { name: oppName, isPlayer: !oppName.toLowerCase().includes('bot') }, 
       day: myMatch.day, 
       match: myMatch,
       time: league.startTime, 
@@ -116,7 +115,7 @@ export default function MatchesPage() {
     return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
   };
 
-  if (isUserLoading || !isLoaded || isProfileLoading) return <LoadingScreen />;
+  if (isUserLoading || !isLoaded) return <LoadingScreen />;
 
   const t = {
     title: language === 'ru' ? "СПИСОК МАТЧЕЙ" : "OPERATIONAL MATCHES",
@@ -136,21 +135,39 @@ export default function MatchesPage() {
   };
 
   const renderContent = () => {
+    // 1. ПРИНУДИТЕЛЬНЫЙ ЛОАДЕР (Устраняет мерцание)
     if (isMatchesLoading && activeTab !== 'menu') {
       return (
-        <div className="py-20 flex flex-col items-center justify-center space-y-4 opacity-50">
+        <div className="py-20 flex flex-col items-center justify-center space-y-4 animate-in fade-in duration-300">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="text-[10px] uppercase font-black tracking-widest">{t.connecting}</p>
+          <p className="text-[10px] uppercase font-black tracking-widest opacity-50">{t.connecting}</p>
         </div>
       );
     }
 
+    // 2. ОПРЕДЕЛЕНИЕ ТЕКУЩЕГО МАССИВА ДЛЯ ТАБА
+    let dataList: any[] = [];
+    if (activeTab === 'league_calendar') dataList = calendarDays;
+    else if (activeTab === 'league_played') dataList = playedDays;
+    else if (activeTab === 'my_future') dataList = myMatches.filter(m => m.status === 'pending');
+    else if (activeTab === 'my_played') dataList = matchHistory;
+
+    // 3. ПРОВЕРКА НА ПУСТОТУ (После загрузки)
+    if (activeTab !== 'menu' && activeTab !== 'next_opponent' && dataList.length === 0) {
+      return (
+        <div className="py-20 text-center opacity-30 animate-in fade-in duration-500">
+          <p className="text-[10px] uppercase font-black tracking-widest">{t.noMatches}</p>
+        </div>
+      );
+    }
+
+    // 4. РЕНДЕРИНГ КОНТЕНТА
     switch (activeTab) {
       case 'next_opponent':
-        if (!leagueNextMatch) return <p className="text-center py-20 text-muted-foreground uppercase text-xs">Season Finished</p>;
+        if (!leagueNextMatch) return <div className="py-20 text-center opacity-30 text-xs font-bold uppercase">Season Ended</div>;
         const info = leagueNextMatch as any;
         return (
-          <div className="space-y-6 animate-in fade-in duration-500">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
             <Card className="glass-card border-primary/20 bg-primary/5">
               <CardHeader className="text-center">
                 <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">{info.label}</CardTitle>
@@ -172,9 +189,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_future':
-        const future = myMatches.filter(m => m.status === 'pending').sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-        if (future.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">{t.noMatches}</div>;
-        return <div className="space-y-3">{future.map(m => (
+        return <div className="space-y-3 animate-in fade-in duration-500">{dataList.sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map(m => (
           <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
             <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2">
               <span className="text-[8px] text-muted-foreground uppercase">{getSeasonDateLabel(m.day)}</span>
@@ -188,7 +203,6 @@ export default function MatchesPage() {
           </div>
         ))}</div>;
       case 'league_calendar':
-        if (calendarDays.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">{t.noMatches}</div>;
         return (
           <div className="space-y-4 animate-in fade-in duration-500">
             {calendarDays.map(({ day, matches }) => (
@@ -217,7 +231,6 @@ export default function MatchesPage() {
           </div>
         );
       case 'league_played':
-        if (playedDays.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">No group results yet</div>;
         return (
           <div className="space-y-4 animate-in fade-in duration-500">
             {playedDays.map(({ day, matches }) => (
@@ -244,8 +257,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_played':
-        if (matchHistory.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">No combat history</div>;
-        return <div className="space-y-3">{[...matchHistory].reverse().map(m => (
+        return <div className="space-y-3 animate-in fade-in duration-500">{[...matchHistory].reverse().map(m => (
           <Link key={m.id} href={`/match?id=${m.id}`} className="block">
             <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 flex items-center justify-between">
               <div className="flex flex-col gap-1">

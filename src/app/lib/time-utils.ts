@@ -29,7 +29,6 @@ export function formatMoscowTime(date: Date): string {
  * Ensures Day 1 is June 17, 2026.
  */
 export function getSeasonDateLabel(dayOfSeason: number): string {
-  const mskNow = getMoscowTime();
   const info = getGlobalSeasonInfo();
   
   // FIXED EPOCH DATE: June 17, 2026
@@ -37,7 +36,7 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
   const targetDate = new Date(epochDate);
   
   // Date = Epoch + (Season - 1) * 16 days + (DayOfSeason - 1) days
-  const offsetDays = (info.seasonNumber - 1) * 16 + (dayOfSeason - 1);
+  const offsetDays = (info.activeSeasonNumber - 1) * 16 + (dayOfSeason - 1);
   targetDate.setDate(epochDate.getDate() + offsetDays);
   
   return `${String(targetDate.getMonth() + 1).padStart(2, '0')}.${String(targetDate.getDate()).padStart(2, '0')}`;
@@ -55,9 +54,8 @@ export function getGlobalSeasonInfo() {
   
   // КОРРЕКЦИЯ: Если мы до старта эпохи (например 16 июня)
   if (diffMs < 0) {
-    const diffDaysFloor = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     return {
-      seasonDay: 17 + diffDaysFloor, // 16 June results in seasonDay 16
+      seasonDay: 1, 
       seasonNumber: 1,
       isTransitionPhase: true,
       activeSeasonNumber: 1
