@@ -8,7 +8,7 @@
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs, Timestamp, deleteDoc } from 'firebase/firestore';
 import { 
   getStableGroupTeams, generateSeasonCalendar, getMatchResult, 
   LEAGUES 
@@ -40,32 +40,43 @@ export function AutoMatchManager() {
       processingRef.current = true;
 
       try {
-        const seasonInfo = getGlobalSeasonInfo();
-        const activeSeason = seasonInfo.activeSeasonNumber;
-        const seasonId = `season_${activeSeason}`;
+        const seasonId = `season_1`; // Strictly Season 1
+        const activeSeason = 1;
         const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
         
         // UNIQUE SEASON-PREFIXED GROUP ID
-        const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
+        const prefixedGroupId = `season_1_league_${selectedLeagueId}_group_${groupId}`;
         const groupRef = doc(db, `leagues_v2/${selectedLeagueId}/divisions/${leagueLevel}/groups/${prefixedGroupId}`);
         
         const groupSnap = await getDoc(groupRef);
         const groupData = groupSnap.data();
 
-        // Check if this specific season group exists
-        const needsInitialization = !groupSnap.exists() || Number(groupData?.seasonId) !== Number(activeSeason);
+        // SANITARY CLEANUP: If group exists but has old bots or wrong count, wipe it
+        const matchesQ = query(collection(db, 'matches_v1'), where('groupId', '==', prefixedGroupId));
+        const currentMatchesSnap = await getDocs(matchesQ);
+        
+        const hasGarbage = currentMatchesSnap.docs.some(d => {
+          const data = d.data();
+          const names = (data.homeName + data.awayName).toLowerCase();
+          return names.includes('9.1.1') || names.includes('elite bot') || names.includes('bot 10');
+        });
+
+        const needsInitialization = !groupSnap.exists() || hasGarbage || currentMatchesSnap.size < 56;
 
         if (needsInitialization) {
-          console.log(`[Engine] INITIALIZING ${seasonId.toUpperCase()}...`);
+          console.log(`[Engine] ATOMIC CLEANUP & INITIALIZING ${seasonId.toUpperCase()}...`);
           
           const batch = writeBatch(db);
           
+          // Delete old matches first if garbage found
+          currentMatchesSnap.docs.forEach(d => batch.delete(d.ref));
+
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const calendar = generateSeasonCalendar(teams);
           
           const epochMs = new Date('2026-06-17T00:00:00+03:00').getTime();
           const dayMs = 24 * 60 * 60 * 1000;
-          const seasonStartMs = epochMs + (activeSeason - 1) * 16 * dayMs;
+          const seasonStartMs = epochMs;
 
           // Global Singleton Status
           batch.set(doc(db, 'system_v1', 'status'), {
@@ -107,20 +118,18 @@ export function AutoMatchManager() {
           });
 
           await batch.commit();
-          console.log(`[Engine] ${seasonId} Initialized.`);
+          console.log(`[Engine] ${seasonId} Atomic Sync Done.`);
           processingRef.current = false;
           return;
         }
 
         // Auto-simulation for current season matches
         const mskNow = getMoscowTime();
-        const matchesQ = query(
+        const pendingSnap = await getDocs(query(
           collection(db, 'matches_v1'),
-          where('seasonId', '==', seasonId),
           where('groupId', '==', prefixedGroupId),
           where('status', '==', 'pending')
-        );
-        const pendingSnap = await getDocs(matchesQ);
+        ));
         
         const simBatch = writeBatch(db);
         let simCount = 0;
@@ -133,12 +142,13 @@ export function AutoMatchManager() {
             
             const finishedData = {
               status: 'finished',
-              scoreA: sA, scoreB: sB,
+              scoreA: sA,
+              scoreB: sB,
               finishedAt: serverTimestamp(),
               simulation: {
                 winner,
                 seriesScore: `${sA}-${sB}`,
-                games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 0 ? (sB > 1 ? 1 : 0) : 0, duration: "38:00", matchSummary: "Battle sequence completed." }]
+                games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 0 ? (sB > 1 ? 1 : 0) : 0, duration: "38:00", matchSummary: "Standard engagement protocol complete." }]
               }
             };
 
@@ -155,7 +165,7 @@ export function AutoMatchManager() {
         if (simCount > 0) await simBatch.commit();
 
       } catch (e: any) {
-        console.warn("[Engine] Sync Error:", e.message);
+        console.warn("[Engine] Atomic Sync Error:", e.message);
       } finally {
         processingRef.current = false;
       }

@@ -5,9 +5,9 @@
  * Centralizes all club data and manages real-time Firestore synchronization.
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
 import { Hero, StaffMember, StaffRole } from './moba-data';
-import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString } from './time-utils';
+import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getSeasonDateLabel } from './time-utils';
 import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, getDocs, arrayUnion } from 'firebase/firestore';
 
@@ -24,7 +24,14 @@ interface GameState {
   displayName: string; 
   id: string; 
   isLoaded: boolean;
+  
+  // MATCH GATEWAY DATA
+  isDataReady: boolean;
+  allSeasonMatches: any[];
+  nextMatch: any | null;
+  groupMatches: any[]; 
   isMatchesLoading: boolean;
+
   fromCache: boolean;
   lineup: Record<LineupSlot, string | null>;
   ownedHeroes: Hero[];
@@ -35,7 +42,6 @@ interface GameState {
   rewardDay: number;
   lastRewardClaimDate: string | null;
   matchHistory: any[];
-  groupMatches: any[]; 
   lastSeenMatchDay: number;
   managerSkills: { sponsors: number; agents: number; training: number; medical: number };
   arena: any;
@@ -103,11 +109,12 @@ const DEFAULT_STATE: GameState = {
   credits: 0, crystals: 0, experiencePoints: 0, managerLevel: 1,
   leagueLevel: 9, groupId: 1, selectedLeagueId: null,
   displayName: 'Manager', id: '', isLoaded: false, isMatchesLoading: true, fromCache: false,
+  isDataReady: false, allSeasonMatches: [], nextMatch: null, groupMatches: [],
   lineup: { carry: null, mid: null, offlane: null, support: null, full_support: null, sub1: null, sub2: null, res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null },
   ownedHeroes: [], youthAcademyHeroes: [],
   staff: { coach: null, analyst: null, scout: null, doctor: null, financier: null },
   strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' },
-  rewardDay: 1, lastRewardClaimDate: null, matchHistory: [], groupMatches: [], lastSeenMatchDay: 0,
+  rewardDay: 1, lastRewardClaimDate: null, matchHistory: [], lastSeenMatchDay: 0,
   managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
   skillPoints: 0, lastProcessedSeason: 0,
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
@@ -150,22 +157,54 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => unsub();
   }, [db]);
 
+  // STABLE MATCH GATEWAY QUERY
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!state.selectedLeagueId || !state.id) return null;
-    const { activeSeasonNumber } = getGlobalSeasonInfo();
-    const seasonToFetch = currentSystemSeason || activeSeasonNumber;
-    const seasonId = `season_${seasonToFetch}`;
-    const prefixedGroupId = `${seasonId}_league_${state.selectedLeagueId}_group_${state.groupId}`;
+    const seasonId = `season_1`; // Strictly Season 1
+    const prefixedGroupId = `season_1_league_${state.selectedLeagueId}_group_${state.groupId}`;
     
-    // STRICT SEASON ISOLATION
     return query(
       collection(db, 'matches_v1'),
       where('seasonId', '==', seasonId),
       where('groupId', '==', prefixedGroupId)
     );
-  }, [db, state.selectedLeagueId, state.groupId, state.id, currentSystemSeason]);
+  }, [db, state.selectedLeagueId, state.groupId, state.id]);
 
   const { data: dbMatches, isLoading: isMatchesLoading, fromCache } = useCollection(groupMatchesQuery);
+
+  // Derive "Data Ready" state to prevent flicker
+  const matchesData = useMemo(() => {
+    const matches = dbMatches || [];
+    const seasonId = `season_1`;
+    const filtered = matches.filter(m => m.seasonId === seasonId);
+    
+    // Data is ready if we are not loading OR if we have data from cache that isn't empty
+    // But to be super safe against flickers, we follow the "Status Gateway" rule:
+    // READY = !isMatchesLoading (which we patched to wait for server if cache empty)
+    const isReady = !isMatchesLoading;
+
+    let next = null;
+    if (isReady && user) {
+       const mskNow = getMoscowTime();
+       const myFuture = filtered
+         .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished')
+         .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+       
+       if (myFuture.length > 0) {
+         const m = myFuture[0];
+         const isHome = m.homeId === user.uid;
+         next = {
+           match: m,
+           opponentName: isHome ? m.awayName : m.homeName,
+           day: m.day,
+           dateLabel: getSeasonDateLabel(m.day),
+           isHome
+         };
+       }
+    }
+
+    return { filtered, isReady, next };
+  }, [dbMatches, isMatchesLoading, user]);
 
   useEffect(() => {
     if (isUserLoading || !user) {
@@ -203,9 +242,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             sSnap.docs.forEach(d => { const m = d.data() as StaffMember; staffObj[m.role] = m; });
             const info = getGlobalSeasonInfo();
 
-            const seasonToDisplay = currentSystemSeason || info.activeSeasonNumber;
-            const matchesToShow = (dbMatches || []).filter(m => m.seasonId === `season_${seasonToDisplay}`);
-
             setState(s => ({
               ...s, id: user.uid, displayName: rootData.displayName || teamData.displayName || "Manager",
               selectedLeagueId, leagueLevel: leagueLevel || 9, groupId: groupId || 1,
@@ -221,16 +257,22 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
               country: rootData.country ?? null, isPremium: teamData.premiumUntil ? new Date(teamData.premiumUntil) > new Date() : false,
               premiumUntil: teamData.premiumUntil ?? null, activeLicenseTier: teamData.activeLicenseTier ?? 4,
               rank: teamData.rank ?? 8, ownedHeroes: allHeroes.filter(h => !h.isYouth), youthAcademyHeroes: allHeroes.filter(h => h.isYouth),
-              staff: staffObj, seasonDay: info.seasonDay, seasonNumber: info.seasonNumber, activeSeasonNumber: seasonToDisplay, 
-              isLoaded: true, isMatchesLoading: isMatchesLoading, fromCache: fromCache, language: lang,
-              groupMatches: matchesToShow
+              staff: staffObj, seasonDay: info.seasonDay, seasonNumber: info.seasonNumber, activeSeasonNumber: 1, 
+              isLoaded: true, language: lang,
+              
+              // MATCH GATEWAY EXPOSURE
+              isDataReady: matchesData.isReady,
+              allSeasonMatches: matchesData.filtered,
+              nextMatch: matchesData.next,
+              groupMatches: matchesData.filtered,
+              isMatchesLoading: isMatchesLoading
             }));
           });
         });
       });
     });
     return () => unsubRoot();
-  }, [user, isUserLoading, db, lang, dbMatches, currentSystemSeason, isMatchesLoading, fromCache]);
+  }, [user, isUserLoading, db, lang, matchesData, isMatchesLoading]);
 
   const getRefs = useCallback(() => {
     const s = stateRef.current;

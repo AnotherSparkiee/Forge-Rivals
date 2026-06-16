@@ -13,8 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser } from '@/firebase';
 import { LEAGUES } from '../lib/leagues-data';
 import { getMoscowTime, getSeasonDateLabel } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -27,16 +26,13 @@ type MatchTab =
   | 'league_calendar' 
   | 'league_played';
 
-type PageStatus = 'INITIAL_LOADING' | 'SYNCING_WITH_SERVER' | 'READY';
-
 export default function MatchesPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { 
-    isLoaded, isMatchesLoading, fromCache, language, leagueLevel, groupId, 
-    matchHistory, groupMatches, activeSeasonNumber
+    isLoaded, isDataReady, language, leagueLevel, groupId, 
+    matchHistory, allSeasonMatches, nextMatch: centralNextMatch
   } = useGameState();
-  const db = useFirestore();
   
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
   const [now, setNow] = useState(getMoscowTime());
@@ -49,32 +45,11 @@ export default function MatchesPage() {
     return () => clearInterval(timer);
   }, [user, isUserLoading, router]);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
-  const { data: profile } = useDoc(userRef);
-
-  const league = useMemo(() => LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0], [profile?.selectedLeagueId]);
-
-  // STATUS GATEWAY: Определяем состояние страницы
-  const pageStatus = useMemo<PageStatus>(() => {
-    if (isUserLoading || !isLoaded || isMatchesLoading) return 'INITIAL_LOADING';
-    
-    // Если данные пришли из кэша и они пустые, но мы ожидаем Сезон 1 - мы все еще синхронизируемся
-    // Но так как useCollection уже держит isLoading, здесь мы просто страхуемся
-    if (groupMatches.length === 0 && fromCache) return 'SYNCING_WITH_SERVER';
-    
-    return 'READY';
-  }, [isUserLoading, isLoaded, isMatchesLoading, groupMatches, fromCache]);
-
-  // STABILITY GUARD: Фильтрация строго по Сезону 1
-  const activeSeasonMatches = useMemo(() => {
-    if (pageStatus !== 'READY') return [];
-    const seasonId = `season_${activeSeasonNumber}`;
-    return groupMatches.filter(m => m.seasonId === seasonId);
-  }, [groupMatches, activeSeasonNumber, pageStatus]);
+  const league = useMemo(() => LEAGUES[0], []); // Fallback
 
   const calendarDays = useMemo(() => {
     const dayGroups: Record<number, any[]> = {};
-    activeSeasonMatches.forEach(m => {
+    allSeasonMatches.forEach(m => {
       if (!dayGroups[m.day]) dayGroups[m.day] = [];
       dayGroups[m.day].push(m);
     });
@@ -82,10 +57,10 @@ export default function MatchesPage() {
     return Object.entries(dayGroups)
       .map(([day, matches]) => ({ day: Number(day), matches }))
       .sort((a, b) => a.day - b.day);
-  }, [activeSeasonMatches]);
+  }, [allSeasonMatches]);
 
   const playedDays = useMemo(() => {
-    const finished = activeSeasonMatches.filter(m => m.status === 'finished');
+    const finished = allSeasonMatches.filter(m => m.status === 'finished');
     const dayGroups: Record<number, any[]> = {};
     finished.forEach(m => {
       if (!dayGroups[m.day]) dayGroups[m.day] = [];
@@ -94,30 +69,12 @@ export default function MatchesPage() {
     return Object.entries(dayGroups)
       .map(([day, matches]) => ({ day: Number(day), matches }))
       .sort((a, b) => a.day - b.day);
-  }, [activeSeasonMatches]);
+  }, [allSeasonMatches]);
 
   const myMatches = useMemo(() => {
     if (!user) return [];
-    return activeSeasonMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid));
-  }, [activeSeasonMatches, user]);
-
-  const leagueNextMatch = useMemo(() => {
-    if (!myMatches.length) return null;
-    const sorted = [...myMatches]
-      .filter(m => m.status !== 'finished')
-      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-    if (!sorted.length) return null;
-    const myMatch = sorted[0];
-    const isHome = myMatch.homeId === user?.uid;
-    const oppName = isHome ? myMatch.awayName : myMatch.homeName;
-    return { 
-      opponent: { name: oppName, isPlayer: !oppName.toLowerCase().includes('bot') }, 
-      day: myMatch.day, 
-      match: myMatch,
-      time: league.startTime, 
-      label: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE'
-    };
-  }, [myMatches, league, user, language]);
+    return allSeasonMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid));
+  }, [allSeasonMatches, user]);
 
   const getCountdown = (startTimeIso: string) => {
     const target = new Date(startTimeIso).getTime();
@@ -136,7 +93,6 @@ export default function MatchesPage() {
     startsIn: language === 'ru' ? "ДО МАТЧА ОСТАЛОСЬ:" : "TIME UNTIL MATCH:",
     back: language === 'ru' ? "Назад" : "Back",
     noMatches: language === 'ru' ? "НЕТ ЗАПЛАНИРОВАННЫХ ИГР" : "NO MATCHES SCHEDULED",
-    connecting: language === 'ru' ? "СИНХРОНИЗАЦИЯ С СЕРВЕРОМ..." : "SYNCING WITH SERVER...",
     tabs: {
       next_opponent: { label: language === 'ru' ? "Следующий соперник" : "Next Opponent", desc: language === 'ru' ? "Досье на ближайшего врага" : "Detailed brief on your next rival", icon: UserSearch },
       my_future: { label: language === 'ru' ? "Свои будущие" : "My Future", desc: language === 'ru' ? "Предстоящие игры команды" : "Upcoming matches for your team", icon: CalendarClock },
@@ -146,12 +102,11 @@ export default function MatchesPage() {
     }
   };
 
-  // ЭТАП 1: Глобальная загрузка
-  if (pageStatus === 'INITIAL_LOADING' || (pageStatus === 'SYNCING_WITH_SERVER' && activeTab !== 'menu')) {
+  // GATEWAY RENDERER
+  if (isUserLoading || !isLoaded || !isDataReady) {
     return <LoadingScreen />;
   }
 
-  // ЭТАП 2: Рендер меню
   if (activeTab === 'menu') {
     return (
       <div className="max-w-md mx-auto px-4 pt-8 pb-24">
@@ -189,10 +144,8 @@ export default function MatchesPage() {
     );
   }
 
-  // ЭТАП 3: Проверка пустоты только в статусе READY
-  const isDataEmpty = activeSeasonMatches.length === 0;
-
-  if (isDataEmpty && pageStatus === 'READY') {
+  // If READY and no matches exist in database for this season
+  if (allSeasonMatches.length === 0) {
     return (
       <div className="max-w-md mx-auto px-4 pt-8">
         <header className="mb-6 flex items-center gap-4">
@@ -215,17 +168,16 @@ export default function MatchesPage() {
   const renderContent = () => {
     switch (activeTab) {
       case 'next_opponent':
-        if (!leagueNextMatch) return <div className="py-20 text-center opacity-30 text-xs font-bold uppercase">Season Transition</div>;
-        const info = leagueNextMatch as any;
+        if (!centralNextMatch) return <div className="py-20 text-center opacity-30 text-xs font-bold uppercase">No upcoming rivals detected</div>;
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
             <Card className="glass-card border-primary/20 bg-primary/5">
               <CardHeader className="text-center">
-                <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">{info.label}</CardTitle>
+                <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">{language === 'ru' ? 'СЛЕДУЮЩИЙ БОЙ' : 'NEXT ENGAGEMENT'}</CardTitle>
                 <div className="flex flex-col items-center mt-4">
                   <div className="bg-background/50 px-6 py-2 rounded-xl border border-white/5">
                     <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">{t.startsIn}</p>
-                    <p className="text-3xl font-headline font-bold tabular-nums tracking-tighter text-primary">{getCountdown(info.match.startTime)}</p>
+                    <p className="text-3xl font-headline font-bold tabular-nums tracking-tighter text-primary">{getCountdown(centralNextMatch.match.startTime)}</p>
                   </div>
                 </div>
               </CardHeader>
@@ -233,8 +185,8 @@ export default function MatchesPage() {
                 <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 border-primary shadow-[0_0_15px_rgba(var(--primary),0.2)]">
                   <User className="w-10 h-10 text-primary" />
                 </div>
-                <h3 className="text-xl font-headline font-bold italic uppercase truncate w-full px-4 text-center">{(info.opponent as any).name}</h3>
-                <Badge variant="secondary" className="mt-2 text-[10px]">{(info.opponent as any).isPlayer ? 'REAL MANAGER' : 'ELITE BOT'} | DIV {leagueLevel}.{groupId}</Badge>
+                <h3 className="text-xl font-headline font-bold italic uppercase truncate w-full px-4 text-center">{centralNextMatch.opponentName}</h3>
+                <Badge variant="secondary" className="mt-2 text-[10px]">OPERATIONAL RIVAL | DIV {leagueLevel}.{groupId}</Badge>
               </CardContent>
             </Card>
           </div>
@@ -248,7 +200,7 @@ export default function MatchesPage() {
             </div>
             <div className="flex-1 flex items-center justify-between min-w-0">
                <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.homeId === user!.uid && "text-primary")}>{m.homeName}</span>
-               <div className="px-3 flex flex-col items-center"><Badge variant="outline" className="text-[7px] px-1 py-0 border-accent/20 text-accent">VS</Badge><span className="text-[8px] text-primary font-mono font-bold">{league.startTime}</span></div>
+               <div className="px-3 flex flex-col items-center"><Badge variant="outline" className="text-[7px] px-1 py-0 border-accent/20 text-accent">VS</Badge></div>
                <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.awayId === user!.uid && "text-primary")}>{m.awayName}</span>
             </div>
           </div>

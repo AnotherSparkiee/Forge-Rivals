@@ -38,7 +38,7 @@ export default function Home() {
   const { toast } = useToast();
   const { 
     language, setLanguage, isLoaded, selectedLeagueId,
-    groupMatches
+    allSeasonMatches, nextMatch, isDataReady
   } = useGameState();
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -70,37 +70,12 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  const nextMatchData = useMemo(() => {
-    if (!isLoaded || !groupMatches || !user) return null;
-    
-    const mskNow = getMoscowTime();
-    // Strictly find ONLY matches where THIS user is a participant (home or away)
-    const myNext = [...groupMatches]
-      .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished')
-      .sort((a, b) => new Date(a.startTime || mskNow).getTime() - new Date(b.startTime || mskNow).getTime())[0];
-
-    if (!myNext) return null;
-
-    const isHome = myNext.homeId === user.uid;
-    return {
-      match: myNext,
-      opponentName: isHome ? myNext.awayName : myNext.homeName,
-      day: myNext.day,
-      dateLabel: getSeasonDateLabel(myNext.day),
-      type: language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE',
-      time: league.startTime,
-      isHome: isHome
-    };
-  }, [isLoaded, groupMatches, language, league.startTime, user]);
-
   useEffect(() => {
-    if (!isLoaded || !selectedLeagueId) return;
+    if (!isLoaded || !isDataReady || !selectedLeagueId) return;
 
     const timer = setInterval(() => {
       const mskNow = getMoscowTime();
-      
-      // Calculate countdown to the specific next match start time
-      const targetTime = nextMatchData?.match?.startTime ? new Date(nextMatchData.match.startTime) : null;
+      const targetTime = nextMatch?.match?.startTime ? new Date(nextMatch.match.startTime) : null;
       
       if (!targetTime) {
         setCountdown(language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...');
@@ -120,7 +95,7 @@ export default function Home() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isLoaded, selectedLeagueId, nextMatchData, language]);
+  }, [isLoaded, isDataReady, selectedLeagueId, nextMatch, language]);
 
   if (isUserLoading) return <LoadingScreen />;
 
@@ -175,7 +150,7 @@ export default function Home() {
     );
   }
 
-  if (!isLoaded) return <LoadingScreen />;
+  if (!isLoaded || !isDataReady) return <LoadingScreen />;
 
   const tHub = {
     en: { nextMatch: seasonInfo.isTransitionPhase ? "Season Transition" : "Next Engagement", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", sync: "CALENDAR SYNC" },
@@ -215,28 +190,28 @@ export default function Home() {
               <div className="space-y-4">
                 <div className="flex flex-col items-center gap-1">
                   <Badge variant="outline" className="bg-primary/10 border-primary/20 text-primary text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5">
-                    {nextMatchData?.type || tHub.sync}
+                    {nextMatch ? (language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE') : tHub.sync}
                   </Badge>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Calendar className="w-3 h-3" />
-                    <span className="text-[10px] font-mono font-bold">{nextMatchData?.dateLabel || '--.--'} {nextMatchData?.time || '--:--'}</span>
+                    <span className="text-[10px] font-mono font-bold">{nextMatch?.dateLabel || '--.--'} {league.startTime || '--:--'}</span>
                   </div>
                 </div>
 
-                {nextMatchData ? (
+                {nextMatch ? (
                   <>
                     <div className="flex items-center justify-between gap-4 py-2">
-                      <div className={cn("flex-1 text-right", nextMatchData.isHome && "text-primary")}>
-                        <p className="text-[7px] font-black uppercase opacity-40 mb-1">{nextMatchData.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
-                        <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData.match.homeName}</p>
+                      <div className={cn("flex-1 text-right", nextMatch.isHome && "text-primary")}>
+                        <p className="text-[7px] font-black uppercase opacity-40 mb-1">{nextMatch.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
+                        <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatch.match.homeName}</p>
                       </div>
                       <div className="px-3 py-1 rounded-lg bg-background/60 border border-white/5 flex flex-col items-center">
                         <Swords className="w-4 h-4 text-accent" />
                         <span className="text-[8px] font-black text-accent mt-1">VS</span>
                       </div>
-                      <div className={cn("flex-1 text-left", !nextMatchData.isHome && "text-primary")}>
-                        <p className="text-[7px] font-black uppercase opacity-40 mb-1">{!nextMatchData.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
-                        <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatchData.match.awayName}</p>
+                      <div className={cn("flex-1 text-left", !nextMatch.isHome && "text-primary")}>
+                        <p className="text-[7px] font-black uppercase opacity-40 mb-1">{!nextMatch.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
+                        <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatch.match.awayName}</p>
                       </div>
                     </div>
                   </>
@@ -262,8 +237,8 @@ export default function Home() {
         </Card>
       </section>
 
-      {nextMatchData?.match?.status === 'finished' ? (
-        <Link href={`/match?id=${nextMatchData.match.id}`} className="block relative mb-8">
+      {nextMatch?.match?.status === 'finished' ? (
+        <Link href={`/match?id=${nextMatch.match.id}`} className="block relative mb-8">
           <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1 transition-all active:scale-95">
             <div className="flex items-center gap-2">
               <Trophy className="w-6 h-6" />
