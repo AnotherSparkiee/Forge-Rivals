@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -52,7 +51,6 @@ export default function Home() {
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
   useEffect(() => {
-    // Only run timer if system is ready and matches are calculated
     if (!isDataReady || !selectedLeagueId) return;
 
     const timer = setInterval(() => {
@@ -77,7 +75,7 @@ export default function Home() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isDataReady, selectedLeagueId, nextMatch, language]);
+  }, [isDataReady, selectedLeagueId, nextMatch]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,9 +171,7 @@ export default function Home() {
     { label: language === 'ru' ? 'Профиль' : 'Profile', href: '/profile', icon: UserCog, desc: language === 'ru' ? 'Настройки' : 'Operational dossier' } 
   ];
 
-  // CRITICAL UI GUARD: If we have a league but nextMatch is missing and we aren't "DataReady", 
-  // keep the sync loader visible to prevent flickering "NO MATCHES".
-  const isWaitingForSync = selectedLeagueId && !nextMatch && (!isDataReady || allSeasonMatches.length === 0);
+  const isWaitingForSync = selectedLeagueId && (!isDataReady || (allSeasonMatches.length === 0 && !nextMatch));
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">

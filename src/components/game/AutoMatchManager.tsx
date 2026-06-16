@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Автономный движок сезонов с архитектурой "Изолированных Сезонов".
  * Гарантирует уникальные ID групп и матчей с привязкой к номеру сезона.
@@ -9,7 +8,7 @@
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs, Timestamp, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs, Timestamp, limit } from 'firebase/firestore';
 import { 
   getStableGroupTeams, generateSeasonCalendar, getMatchResult, 
   LEAGUES 
@@ -46,34 +45,25 @@ export function AutoMatchManager() {
         const activeSeason = Math.max(1, seasonInfo.activeSeasonNumber);
         const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
         
-        // UNIQUE SEASON-PREFIXED GROUP ID
         const prefixedGroupId = `season_1_league_${selectedLeagueId}_group_${groupId}`;
         const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId);
         
-        const groupSnap = await getDoc(groupRef);
+        const [groupSnap, matchesSnap] = await Promise.all([
+          getDoc(groupRef),
+          getDocs(query(collection(db, 'matches_v1'), where('groupId', '==', prefixedGroupId), limit(1)))
+        ]);
 
-        // Check if group initialization is truly needed. 
-        const needsInitialization = !groupSnap.exists();
+        const needsInitialization = !groupSnap.exists() || matchesSnap.empty;
 
         if (needsInitialization) {
           console.log(`[Engine] INITIALIZING ${seasonId.toUpperCase()} FOR GROUP ${prefixedGroupId}...`);
           
           const batch = writeBatch(db);
-          
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const calendar = generateSeasonCalendar(teams);
           
           const epochMs = new Date('2026-06-17T00:00:00+03:00').getTime();
           const dayMs = 24 * 60 * 60 * 1000;
-          const seasonStartMs = epochMs;
-
-          // Global Singleton Status
-          batch.set(doc(db, 'system_v1', 'status'), {
-            currentSeasonNumber: activeSeason,
-            currentSeasonId: seasonId,
-            status: "active",
-            updatedAt: serverTimestamp()
-          }, { merge: true });
 
           // Prefixed Group Document
           batch.set(groupRef, {
@@ -85,12 +75,12 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           }, { merge: true });
 
-          // Prefixed Matches - Using set with merge to avoid flickering during overwrite
+          // Prefixed Matches
           calendar.forEach((m) => {
             const matchId = `m_${prefixedGroupId}_d${m.day}_h${m.homeId}`;
             const [hh, mm] = league.startTime.split(':').map(Number);
             const matchTimeOffset = (m.day - 1) * dayMs + (hh * 60 * 60 * 1000) + (mm * 60 * 1000);
-            const finalDate = new Date(seasonStartMs + matchTimeOffset);
+            const finalDate = new Date(epochMs + matchTimeOffset);
 
             batch.set(doc(db, 'matches_v1', matchId), {
               ...m,
@@ -103,11 +93,10 @@ export function AutoMatchManager() {
               status: 'pending',
               startTime: finalDate.toISOString(),
               scheduledAt: Timestamp.fromDate(finalDate)
-            });
+            }, { merge: true });
           });
 
           await batch.commit();
-          console.log(`[Engine] ${seasonId} Atomic Sync Done.`);
         }
 
         // Auto-simulation check
@@ -166,7 +155,7 @@ export function AutoMatchManager() {
         if (simCount > 0) await simBatch.commit();
 
       } catch (e: any) {
-        console.warn("[Engine] Atomic Sync Error:", e.message);
+        console.warn("[Engine] Sync Error:", e.message);
       } finally {
         processingRef.current = false;
       }

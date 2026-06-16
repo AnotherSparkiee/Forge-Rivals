@@ -1,4 +1,3 @@
-
 'use client';
 
 /**
@@ -176,7 +175,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         isLoaded: true
       }));
     }, (err) => {
-      console.error("Profile sync error", err);
       setState(s => ({ ...s, isLoaded: true }));
     });
 
@@ -247,7 +245,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const s = state;
     if (!s.isLoaded || !s.id) return;
 
-    // Reset memory cache if user or league changes
     if (memoryCache.current.lastUserId !== s.id || memoryCache.current.lastLeagueId !== s.selectedLeagueId) {
       memoryCache.current.hasDataEverLoaded = false;
       memoryCache.current.lastValidMatches = [];
@@ -259,40 +256,26 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
     if (!s.selectedLeagueId) {
       setIsMatchesReady(true);
-      setAllMatches([]);
       return;
     }
 
-    const seasonId = "season_1";
     const prefixedGroupId = `season_1_league_${s.selectedLeagueId}_group_${s.groupId}`;
-    
     const q = query(
       collection(db, 'matches_v1'),
-      where('seasonId', '==', seasonId),
+      where('seasonId', '==', 'season_1'),
       where('groupId', '==', prefixedGroupId)
     );
-
-    // If we have valid data in memory, UI is already "ready"
-    if (memoryCache.current.hasDataEverLoaded) {
-      setIsMatchesReady(true);
-    }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const loaded = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
       const sorted = loaded.sort((a, b) => (a.day || 0) - (b.day || 0));
 
-      // CRITICAL FIX: If operations are pending (writes) or snapshot is from empty cache, 
-      // we do NOT set ready if we expect data.
       const isSpuriousCacheEmpty = snapshot.metadata.fromCache && sorted.length === 0;
-      const isSyncingInProcess = snapshot.metadata.hasPendingWrites;
-      
-      if ((isSpuriousCacheEmpty || isSyncingInProcess) && memoryCache.current.hasDataEverLoaded) {
-        // Keep previous data valid while engine is working
+
+      if (isSpuriousCacheEmpty && memoryCache.current.hasDataEverLoaded) {
         return; 
       }
 
-      // If it's a server response with 0 data, and we haven't ever loaded, 
-      // we only set ready if metadata confirms it's not a partial cache response.
       if (sorted.length === 0 && snapshot.metadata.fromCache && !memoryCache.current.hasDataEverLoaded) {
         return; 
       }
@@ -302,20 +285,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       setAllMatches(sorted);
       setIsMatchesReady(true);
     }, (error) => {
-      console.warn("[SyncCore] Matches error:", error);
       setIsMatchesReady(true); 
     });
 
     return () => unsubscribe();
   }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded]);
 
-  // DERIVED DATA - STABILIZED
   const nextMatchInfo = useMemo(() => {
     if (!isMatchesReady || !user) return null;
-    
-    // Always use the latest matches from memory or state
     const matchesToUse = allMatches.length > 0 ? allMatches : memoryCache.current.lastValidMatches;
-    
     if (matchesToUse.length === 0) return null;
 
     const myFuture = matchesToUse
