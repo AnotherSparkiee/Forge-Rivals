@@ -7,7 +7,8 @@ import { useGameState } from '@/app/lib/store';
 import { 
   ChevronLeft, Trophy, Shield, Swords, 
   Loader2, Target, Calendar, User,
-  ChevronRight, Medal, Star, Timer, Info
+  ChevronRight, Medal, Star, Timer, Info,
+  AlertTriangle, RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,6 +17,8 @@ import Link from 'next/link';
 import { collection, query, where, doc, orderBy, limit } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
+import { generatePyramidCup } from '@/app/actions/cup-engine';
+import { useToast } from '@/hooks/use-toast';
 
 const TOTAL_ROUNDS = 12;
 
@@ -23,11 +26,12 @@ export default function PyramidCupPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const db = useFirestore();
+  const { toast } = useToast();
   const { language, isLoaded, selectedLeagueId, activeSeasonNumber } = useGameState();
   
   const [activeRound, setActiveRound] = useState(1);
+  const [isInitializing, setIsInitializing] = useState(false);
 
-  // 1. Подгружаем все матчи текущей лиги для выбранного раунда
   const cupQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     const sNum = activeSeasonNumber || 1;
@@ -36,13 +40,12 @@ export default function PyramidCupPage() {
       where('leagueId', '==', selectedLeagueId),
       where('seasonNumber', '==', Number(sNum)),
       where('round', '==', Number(activeRound)),
-      limit(100) 
+      limit(50) 
     );
   }, [db, selectedLeagueId, activeSeasonNumber, activeRound]);
 
   const { data: matches, isLoading: isMatchesLoading } = useCollection(cupQuery);
 
-  // 2. Подгружаем профиль игрока для подсветки его матчей
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
@@ -51,6 +54,18 @@ export default function PyramidCupPage() {
       router.push('/auth/login');
     }
   }, [user, isUserLoading, router]);
+
+  const handleInitialize = async () => {
+    setIsInitializing(true);
+    try {
+      await generatePyramidCup();
+      toast({ title: language === 'ru' ? "Кубок сгенерирован!" : "Cup Generated!" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Generation failed" });
+    } finally {
+      setIsInitializing(false);
+    }
+  };
 
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
@@ -65,11 +80,12 @@ export default function PyramidCupPage() {
       waiting: "WAITING...",
       bye: "BYE (DIV 1)",
       yourMatch: "YOUR ENGAGEMENT",
-      noMatches: "No matches found for this round.",
+      noMatches: "No matches found for this season.",
+      initialize: "GENERATE SEASON 1 BRACKET",
       loading: "Synchronizing Bracket...",
       home: "HOME",
       away: "AWAY",
-      formatInfo: "Stronger teams play away. Division 1 enters at Round 2."
+      formatInfo: "Favored teams play away. Division 1 enters at Round 2."
     },
     ru: {
       title: "КУБОК ПИРАМИДЫ",
@@ -79,7 +95,8 @@ export default function PyramidCupPage() {
       waiting: "ОЖИДАНИЕ...",
       bye: "ПРОПУСК (ДИВ 1)",
       yourMatch: "ВАШ МАТЧ",
-      noMatches: "Матчи для этого раунда не найдены.",
+      noMatches: "Матчи для этого сезона не найдены.",
+      initialize: "СОЗДАТЬ СЕТКУ СЕЗОНА 1",
       loading: "Синхронизация сетки...",
       home: "ДОМА",
       away: "В ГОСТЯХ",
@@ -124,15 +141,16 @@ export default function PyramidCupPage() {
         </div>
       </div>
 
-      {/* INFO CARD */}
-      <Card className="glass-card mb-6 border-primary/20 bg-primary/5">
-        <CardContent className="p-4 flex gap-4">
-          <Info className="w-5 h-5 text-primary shrink-0" />
-          <p className="text-[9px] text-muted-foreground leading-relaxed italic uppercase font-bold tracking-tight">
-            {t.formatInfo}
-          </p>
-        </CardContent>
-      </Card>
+      {matches && matches.length > 0 && (
+        <Card className="glass-card mb-6 border-primary/20 bg-primary/5">
+          <CardContent className="p-4 flex gap-4">
+            <Info className="w-5 h-5 text-primary shrink-0" />
+            <p className="text-[9px] text-muted-foreground leading-relaxed italic uppercase font-bold tracking-tight">
+              {t.formatInfo}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* MATCH LIST */}
       <div className="space-y-3">
@@ -162,7 +180,6 @@ export default function PyramidCupPage() {
                   )}
                   
                   <div className="grid grid-cols-[1fr_50px_1fr] items-center p-4">
-                    {/* HOME TEAM */}
                     <div className="text-right space-y-2">
                       <div className="flex justify-end">
                         <div className="w-10 h-10 rounded-xl bg-secondary/50 border border-white/10 flex items-center justify-center">
@@ -180,7 +197,6 @@ export default function PyramidCupPage() {
                       </div>
                     </div>
 
-                    {/* VS / SCORE */}
                     <div className="flex flex-col items-center justify-center gap-1">
                       {m.status === 'finished' ? (
                         <p className="text-xl font-headline font-black italic text-primary">{m.scoreA}:{m.scoreB}</p>
@@ -191,7 +207,6 @@ export default function PyramidCupPage() {
                       )}
                     </div>
 
-                    {/* AWAY TEAM */}
                     <div className="text-left space-y-2">
                       <div className="flex justify-start">
                         <div className="w-10 h-10 rounded-xl bg-secondary/50 border border-white/10 flex items-center justify-center">
@@ -217,20 +232,24 @@ export default function PyramidCupPage() {
                         {new Date(m.date).toLocaleDateString()}
                       </span>
                     </div>
-                    {m.winnerId && (
-                      <Badge className="bg-green-600/20 text-green-400 text-[8px] font-black h-4 px-2 border-none">
-                        WINNER SECURED
-                      </Badge>
-                    )}
                   </div>
                 </CardContent>
               </Card>
             );
           })
         ) : (
-          <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4 border-2 border-dashed border-white/5 rounded-3xl p-10">
-            <Medal className="w-16 h-16" />
-            <p className="text-xs font-black uppercase tracking-widest">Нет матчей в Раунде {activeRound}</p>
+          <div className="py-12 text-center animate-in fade-in duration-700 flex flex-col items-center">
+            <AlertTriangle className="w-12 h-12 text-orange-500 mb-4 opacity-50" />
+            <h2 className="text-lg font-headline font-bold uppercase text-white mb-2">{t.noMatches}</h2>
+            <p className="text-xs text-muted-foreground italic mb-8 px-10">"The pyramid core is offline. Operational initialization required."</p>
+            <Button 
+              className="h-14 px-8 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl" 
+              onClick={handleInitialize}
+              disabled={isInitializing}
+            >
+              {isInitializing ? <RefreshCw className="w-5 h-5 animate-spin mr-2" /> : <RefreshCw className="w-5 h-5 mr-2" />}
+              {t.initialize}
+            </Button>
           </div>
         )}
       </div>
