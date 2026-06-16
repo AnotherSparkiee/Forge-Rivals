@@ -40,7 +40,6 @@ export default function RankingsPage() {
   const contextLevel = navLevel || leagueLevel;
   const contextGroup = navGroup || groupId;
 
-  // LEAGUE STANDINGS
   const playersQuery = useMemoFirebase(() => {
     return query(
       collection(db, 'players_v10'), 
@@ -64,7 +63,6 @@ export default function RankingsPage() {
 
   const { data: groupMatches } = useCollection(matchesQuery);
 
-  // CHAMPIONS LEAGUE
   const clQuery = useMemoFirebase(() => {
     return query(
       collection(db, 'cl_matches_v1'),
@@ -74,7 +72,6 @@ export default function RankingsPage() {
 
   const { data: clMatches, isLoading: isClLoading } = useCollection(clQuery);
 
-  // PYRAMID CUP
   const cupQuery = useMemoFirebase(() => {
     if (activeTab !== 'pyramid_cup') return null;
     return query(
@@ -82,7 +79,7 @@ export default function RankingsPage() {
       where('leagueId', '==', selectedLeagueId),
       where('seasonNumber', '==', Number(activeSeasonNumber)),
       where('round', '==', Number(cupRound)),
-      limit(50)
+      limit(100)
     );
   }, [db, activeTab, selectedLeagueId, activeSeasonNumber, cupRound]);
 
@@ -140,14 +137,14 @@ export default function RankingsPage() {
       <div className="space-y-6 animate-in fade-in duration-500">
         <div className="overflow-x-auto scrollbar-hide -mx-4 px-4">
           <div className="flex gap-2 min-w-max pb-2">
-            {Array.from({ length: 11 }, (_, i) => i + 1).map(r => (
+            {Array.from({ length: 12 }, (_, i) => i + 1).map(r => (
               <Button 
                 key={r} 
                 variant={cupRound === r ? "default" : "outline"}
-                className={cn("h-10 px-6 font-black text-[10px] uppercase", cupRound === r ? "hero-gradient border-none" : "bg-secondary/20 border-white/5")}
+                className={cn("h-10 px-6 font-black text-[10px] uppercase", cupRound === r ? "hero-gradient border-none shadow-lg shadow-primary/20" : "bg-secondary/20 border-white/5")}
                 onClick={() => setCupRound(r)}
               >
-                Раунд {r}
+                {r === 12 ? (language === 'ru' ? 'ФИНАЛ' : 'FINAL') : `${language === 'ru' ? 'Раунд' : 'Round'} ${r}`}
               </Button>
             ))}
           </div>
@@ -157,12 +154,12 @@ export default function RankingsPage() {
           {cupMatches && cupMatches.length > 0 ? cupMatches.map(m => {
             const isMyMatch = m.homeTeamId === user?.uid || m.awayTeamId === user?.uid;
             return (
-              <Card key={m.id} className={cn("glass-card border-white/5", isMyMatch && "border-primary/40 bg-primary/10")}>
+              <Card key={m.cupMatchId} className={cn("glass-card border-white/5", isMyMatch && "border-primary/40 bg-primary/10")}>
                 <CardContent className="p-3">
                   <div className="grid grid-cols-[1fr_40px_1fr] items-center gap-4">
                     <div className="text-right">
                       <p className="text-[10px] font-bold uppercase truncate">{m.homeTeamId ? (m.homeTeamId.startsWith('sys_bot') ? 'SYSTEM BOT' : 'TEAM ' + m.homeTeamId.slice(0, 5)) : t.waiting}</p>
-                      <span className="text-[7px] text-muted-foreground uppercase">HOME</span>
+                      <span className="text-[7px] text-muted-foreground uppercase tracking-widest">HOME</span>
                     </div>
                     <div className="text-center">
                       <Swords className="w-4 h-4 text-accent mx-auto" />
@@ -170,8 +167,11 @@ export default function RankingsPage() {
                     </div>
                     <div className="text-left">
                       <p className="text-[10px] font-bold uppercase truncate">{m.awayTeamId ? (m.awayTeamId.startsWith('sys_bot') ? 'SYSTEM BOT' : 'TEAM ' + m.awayTeamId.slice(0, 5)) : (cupRound === 1 ? t.bye : t.waiting)}</p>
-                      <span className="text-[7px] text-muted-foreground uppercase">AWAY</span>
+                      <span className="text-[7px] text-muted-foreground uppercase tracking-widest">AWAY</span>
                     </div>
+                  </div>
+                  <div className="mt-2 flex justify-center">
+                    <span className="text-[7px] font-mono text-muted-foreground/60">{new Date(m.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} UTC</span>
                   </div>
                 </CardContent>
               </Card>
