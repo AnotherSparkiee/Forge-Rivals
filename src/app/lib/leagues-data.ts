@@ -51,7 +51,7 @@ export function getMatchResult(homeId: string, awayId: string, day: number = 0, 
 
 /**
  * Generates a stable list of 8 teams for a group with deterministic bot IDs and Names.
- * Bot format: 🤖bot[NumericID]
+ * Bot format: bot[NumericID]
  */
 export function getStableGroupTeams(level: any, group: any, leagueId: string, allLeaguePlayers: any[] = []) {
   const lvl = Number(level);
@@ -76,8 +76,8 @@ export function getStableGroupTeams(level: any, group: any, leagueId: string, al
     const botIdNum = (lvl * 1000) + (grp * 10) + (i + 1);
     const botId = `bot_${leagueId}_L${lvl}_G${grp}_${botIdNum}`;
     
-    // Deterministic Display Name (🤖bot[ID])
-    const botName = `🤖bot${botIdNum}`;
+    // Deterministic Display Name (bot[ID])
+    const botName = `bot${botIdNum}`;
     
     teams.push({ id: botId, name: botName, isBot: true });
   }

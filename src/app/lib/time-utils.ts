@@ -44,11 +44,9 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
   const targetDate = new Date(mskNow);
   
   if (info.isTransitionPhase) {
-    // В фазе подготовки (15-16) мы смотрим на следующий сезон
     const daysUntilNewSeason = (17 - info.seasonDay);
     targetDate.setDate(mskNow.getDate() + daysUntilNewSeason + (dayOfSeason - 1));
   } else {
-    // Внутри активного сезона
     const diffDays = dayOfSeason - info.seasonDay;
     targetDate.setDate(mskNow.getDate() + diffDays);
   }
@@ -78,10 +76,13 @@ export function getGlobalSeasonInfo() {
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
   let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
   
-  // Фаза перехода: 15 и 16 дни (или время до начала эпохи)
+  // Фаза перехода: 15 и 16 дни
   const isTransitionPhase = currentSeasonDay >= 15 || currentSeasonNumber < 1;
   
-  const effectiveSeason = Math.max(1, (currentSeasonDay >= 15 || currentSeasonNumber < 1) ? Math.max(0, currentSeasonNumber) + 1 : currentSeasonNumber);
+  // Если мы до старта эпохи (Season 0), активным следующим будет Season 1
+  const effectiveSeason = (currentSeasonDay >= 15 || currentSeasonNumber < 1) 
+    ? Math.max(1, currentSeasonNumber + 1) 
+    : Math.max(1, currentSeasonNumber);
   
   return {
     seasonDay: currentSeasonDay,

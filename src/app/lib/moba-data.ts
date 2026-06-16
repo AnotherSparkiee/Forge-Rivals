@@ -283,12 +283,12 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
 }
 
 /**
- * Generates a bot squad with OVR in 20-25 range.
+ * Generates a bot squad with OVR strictly in 20-25 range.
  */
 export function generateBotSquad(targetOvr: number = 22): any[] {
   const roles: Role[] = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'];
   return roles.map((role, i) => {
-    // Ensuring stats around the 20-25 range
+    // Ensuring stats strictly around the 20-25 range
     const val = Math.floor(20 + Math.random() * 6);
     const stats = {
       lastHitting: val,
@@ -303,7 +303,7 @@ export function generateBotSquad(targetOvr: number = 22): any[] {
       ganking: val
     };
     return {
-      name: `${role} AI ${i + 1}`,
+      name: `${role} Unit`,
       role: role,
       overallRating: val,
       proStats: stats,

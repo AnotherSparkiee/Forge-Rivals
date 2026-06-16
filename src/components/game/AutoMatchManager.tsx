@@ -73,8 +73,7 @@ export function AutoMatchManager() {
 
         // Force regeneration if season mismatch OR group integrity lost OR bot format old
         const groupData = groupSnap.data();
-        const firstBot = teams.find(t => t.isBot);
-        const hasOldBots = groupData?.teams?.some((t: any) => t.isBot && !t.name.includes('🤖'));
+        const hasOldBots = groupData?.teams?.some((t: any) => t.isBot && !t.name.startsWith('bot'));
         
         const forceRegen = !groupSnap.exists() || 
                            groupData?.seasonId !== activeSeason ||

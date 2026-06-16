@@ -54,7 +54,6 @@ export default function ProTransfersPage() {
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       
       try {
-        // 1. CLEANUP ALL PREVIOUS SYSTEM VERSIONS
         const q = query(collection(db, 'market_v7'), where('isSystem', '==', true));
         const allSystemSnap = await getDocs(q);
         for (const d of allSystemSnap.docs) {
@@ -63,7 +62,6 @@ export default function ProTransfersPage() {
           }
         }
 
-        // 2. CHECK IF CURRENT EXISTS, IF NOT - DROP
         const vtuneSnap = await getDoc(vtuneRef);
         if (!vtuneSnap.exists()) {
           const hero = generateVtuneHero(today);
