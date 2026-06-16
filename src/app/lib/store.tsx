@@ -3,6 +3,7 @@
 /**
  * @fileOverview Global Game State Store.
  * Centralizes all club data and manages real-time Firestore synchronization.
+ * Fixed: Strict season filtering and atomic transition logic.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
@@ -130,26 +131,44 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const db = useFirestore();
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const [lang, setLang] = useState('ru');
+  const [currentSystemSeason, setCurrentSystemSeason] = useState<number>(1);
   
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
   const setLanguage = (l: string) => setLang(l);
 
-  // СТРОГАЯ ФИЛЬТРАЦИЯ СЕЗОНА: Теперь интерфейс видит ТОЛЬКО текущий активный сезон.
-  // Это мгновенно убирает наслоение нескольких календарей и мерцание "9.1.1".
+  // ПОДПИСКА НА ГЛОБАЛЬНЫЙ УКАЗАТЕЛЬ СЕЗОНА
+  // Это архитектурный хак для мгновенной синхронизации всех клиентов.
+  useEffect(() => {
+    const statusRef = doc(db, 'system_v1', 'status');
+    const unsub = onSnapshot(statusRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.currentSeasonNumber) {
+          setCurrentSystemSeason(Number(data.currentSeasonNumber));
+        }
+      }
+    });
+    return () => unsub();
+  }, [db]);
+
+  // СТРОГАЯ ФИЛЬТРАЦИЯ СЕЗОНА
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!state.selectedLeagueId || !state.id) return null;
+    
+    // Используем либо системный указатель, либо детерминированный расчет
     const { activeSeasonNumber } = getGlobalSeasonInfo();
+    const seasonToFetch = currentSystemSeason || activeSeasonNumber;
     
     return query(
       collection(db, 'matches_v1'),
       where('leagueId', '==', state.selectedLeagueId),
       where('divisionId', '==', Number(state.leagueLevel)),
       where('groupId', '==', Number(state.groupId)),
-      where('seasonNumber', '==', Number(activeSeasonNumber))
+      where('seasonNumber', '==', Number(seasonToFetch))
     );
-  }, [db, state.selectedLeagueId, state.leagueLevel, state.groupId, state.id]);
+  }, [db, state.selectedLeagueId, state.leagueLevel, state.groupId, state.id, currentSystemSeason]);
 
   const { data: dbMatches } = useCollection(groupMatchesQuery);
 
@@ -191,6 +210,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             sSnap.docs.forEach(d => { const m = d.data() as StaffMember; staffObj[m.role] = m; });
             const info = getGlobalSeasonInfo();
 
+            // ЗАЩИТА ОТ ЧАСТИЧНЫХ ДАННЫХ:
+            // Если мы видим новый сезон, но матчей еще 0 - ждем их загрузки, чтобы не пугать игрока.
+            const matchesToShow = (dbMatches && dbMatches.length > 0) ? dbMatches : [];
+
             setState(s => ({
               ...s, id: user.uid, displayName: rootData.displayName || teamData.displayName || "Manager",
               selectedLeagueId, leagueLevel: leagueLevel || 9, groupId: groupId || 1,
@@ -206,15 +229,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
               country: rootData.country ?? null, isPremium: teamData.premiumUntil ? new Date(teamData.premiumUntil) > new Date() : false,
               premiumUntil: teamData.premiumUntil ?? null, activeLicenseTier: teamData.activeLicenseTier ?? 4,
               rank: teamData.rank ?? 8, ownedHeroes: allHeroes.filter(h => !h.isYouth), youthAcademyHeroes: allHeroes.filter(h => h.isYouth),
-              staff: staffObj, seasonDay: info.seasonDay, seasonNumber: info.seasonNumber, activeSeasonNumber: info.activeSeasonNumber, isLoaded: true, language: lang,
-              groupMatches: dbMatches || []
+              staff: staffObj, seasonDay: info.seasonDay, seasonNumber: info.seasonNumber, activeSeasonNumber: currentSystemSeason || info.activeSeasonNumber, isLoaded: true, language: lang,
+              groupMatches: matchesToShow
             }));
           });
         });
       });
     });
     return () => unsubRoot();
-  }, [user, isUserLoading, db, lang, dbMatches]);
+  }, [user, isUserLoading, db, lang, dbMatches, currentSystemSeason]);
 
   const getRefs = useCallback(() => {
     const s = stateRef.current;
@@ -380,7 +403,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const s = stateRef.current;
     const mId = matchId || `match_${Date.now()}`;
     
-    // Check if this specific match instance already in history
     if (s.matchHistory.some(m => m.id === mId)) return;
 
     const newEntry = {
@@ -430,8 +452,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }, { merge: true });
   };
 
-  // --- Infrastructure Implementation ---
-  
   const startConstruction = (type: string, id: string, cost: number, baseDurationHours: number) => {
     const s = stateRef.current;
     const refs = getRefs();
@@ -465,7 +485,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const s = stateRef.current;
     const refs = getRefs();
     if (!refs || Number(s.credits || 0) < cost) return false;
-    const durationMs = 8 * 60 * 60 * 1000; // Fixed 8 hours for expansion
+    const durationMs = 8 * 60 * 60 * 1000;
     const finishTime = new Date(Date.now() + durationMs).toISOString();
     
     setDoc(refs.team, {

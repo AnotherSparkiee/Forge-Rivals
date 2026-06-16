@@ -1,7 +1,7 @@
 /**
  * @fileOverview Автономный движок сезонов. 
- * Использует детерминированные ID для предотвращения дубликатов и конфликтов.
- * Внедрен протокол агрессивной зачистки старых ботов (9.1.1).
+ * Использует детерминированные ID и атомарные батчи.
+ * Внедрена система глобального указателя активного сезона.
  */
 
 'use client';
@@ -21,6 +21,7 @@ export function AutoMatchManager() {
   const db = useFirestore();
   const processingRef = useRef(false);
 
+  // Исправлено название переменной: groupPlayersQuery
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
@@ -49,7 +50,7 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const groupData = groupSnap.data();
 
-        // 1. ПОИСК И УДАЛЕНИЕ СТАРЫХ МАТЧЕЙ (9.1.1, Elite Bot и т.д.)
+        // ПОЛНЫЙ ПОИСК МУСОРА
         const matchesQ = query(
           collection(db, 'matches_v1'),
           where('leagueId', '==', selectedLeagueId),
@@ -58,7 +59,6 @@ export function AutoMatchManager() {
         );
         const existingSnap = await getDocs(matchesQ);
         
-        // Проверяем наличие "грязных" данных
         const dirtyMatches = existingSnap.docs.filter(d => {
           const m = d.data();
           const name = (m.homeName || "") + (m.awayName || "");
@@ -71,20 +71,21 @@ export function AutoMatchManager() {
         const needsInitialization = !groupSnap.exists() || groupData?.seasonId !== activeSeason || dirtyMatches.length > 0;
 
         if (needsInitialization) {
-          console.log("[Engine] Total Purge & Initialization for Season " + activeSeason);
+          console.log("[Engine] ATOMIC SEASON INITIALIZATION: Season " + activeSeason);
           
           const batch = writeBatch(db);
-          // Удаляем ВСЕ матчи группы, если найден хоть один старый, чтобы избежать наслоения
+          
+          // 1. Атомарное удаление всего мусора
           existingSnap.docs.forEach(d => batch.delete(d.ref));
           
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const calendar = generateSeasonCalendar(teams);
           
-          // Эпоха Сезона 1: 17 Июня 2026
           const epochBase = new Date('2026-06-17T00:00:00+03:00');
           const seasonStart = new Date(epochBase);
           seasonStart.setDate(seasonStart.getDate() + (activeSeason - 1) * 16);
 
+          // 2. Обновление указателя сезона группы
           batch.set(groupRef, {
             seasonId: activeSeason,
             teams,
@@ -92,8 +93,16 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           }, { merge: true });
 
+          // 3. Обновление ГЛОБАЛЬНОГО системного указателя
+          // Это заставляет всех клиентов мгновенно переключиться
+          const systemStatusRef = doc(db, 'system_v1', 'status');
+          batch.set(systemStatusRef, {
+            currentSeasonNumber: activeSeason,
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+
+          // 4. Генерация календаря с детерминированными ID
           calendar.forEach((m) => {
-            // ДЕТЕРМИНИРОВАННЫЙ ID: Гарантирует уникальный слот для каждого матча
             const matchId = `m_${selectedLeagueId}_${leagueLevel}_${groupId}_s${activeSeason}_d${m.day}_h${m.homeId}`;
             
             const matchDate = new Date(seasonStart);
@@ -118,7 +127,7 @@ export function AutoMatchManager() {
           return;
         }
 
-        // 2. СИМУЛЯЦИЯ (только для матчей текущего сезона)
+        // СИМУЛЯЦИЯ
         const mskNow = getMoscowTime();
         const simBatch = writeBatch(db);
         let simCount = 0;

@@ -46,6 +46,7 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
  */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
+  // ФИКСИРОВАННАЯ ЭПОХА: 17 июня 2026
   const epochDate = new Date('2026-06-17T00:00:00+03:00');
   
   const diffMs = mskNow.getTime() - epochDate.getTime();
@@ -55,6 +56,12 @@ export function getGlobalSeasonInfo() {
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
   let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
   
+  // Если мы до эпохи (например 16 июня), ставим сезон 1, день подготовки
+  if (diffMs < 0) {
+    currentSeasonNumber = 1;
+    currentSeasonDay = 16 + Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  }
+
   const isTransitionPhase = currentSeasonDay >= 15 || currentSeasonNumber < 1;
   const effectiveSeason = isTransitionPhase ? Math.max(1, currentSeasonNumber + 1) : Math.max(1, currentSeasonNumber);
   
