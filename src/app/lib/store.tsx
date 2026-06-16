@@ -3,7 +3,7 @@
 /**
  * @fileOverview Global Game State Store.
  * Centralizes all club data and manages real-time Firestore synchronization.
- * Fixed: Strict season filtering and atomic transition logic.
+ * Fixed: Strict season filtering and isolation logic.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
@@ -139,7 +139,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const setLanguage = (l: string) => setLang(l);
 
   // ПОДПИСКА НА ГЛОБАЛЬНЫЙ УКАЗАТЕЛЬ СЕЗОНА
-  // Это архитектурный хак для мгновенной синхронизации всех клиентов.
   useEffect(() => {
     const statusRef = doc(db, 'system_v1', 'status');
     const unsub = onSnapshot(statusRef, (snap) => {
@@ -211,8 +210,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             const info = getGlobalSeasonInfo();
 
             // ЗАЩИТА ОТ ЧАСТИЧНЫХ ДАННЫХ:
-            // Если мы видим новый сезон, но матчей еще 0 - ждем их загрузки, чтобы не пугать игрока.
-            const matchesToShow = (dbMatches && dbMatches.length > 0) ? dbMatches : [];
+            const seasonToDisplay = currentSystemSeason || info.activeSeasonNumber;
+            const matchesToShow = (dbMatches || []).filter(m => m.seasonNumber === seasonToDisplay);
 
             setState(s => ({
               ...s, id: user.uid, displayName: rootData.displayName || teamData.displayName || "Manager",
@@ -229,7 +228,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
               country: rootData.country ?? null, isPremium: teamData.premiumUntil ? new Date(teamData.premiumUntil) > new Date() : false,
               premiumUntil: teamData.premiumUntil ?? null, activeLicenseTier: teamData.activeLicenseTier ?? 4,
               rank: teamData.rank ?? 8, ownedHeroes: allHeroes.filter(h => !h.isYouth), youthAcademyHeroes: allHeroes.filter(h => h.isYouth),
-              staff: staffObj, seasonDay: info.seasonDay, seasonNumber: info.seasonNumber, activeSeasonNumber: currentSystemSeason || info.activeSeasonNumber, isLoaded: true, language: lang,
+              staff: staffObj, seasonDay: info.seasonDay, seasonNumber: info.seasonNumber, activeSeasonNumber: seasonToDisplay, isLoaded: true, language: lang,
               groupMatches: matchesToShow
             }));
           });

@@ -32,7 +32,7 @@ export default function MatchesPage() {
   const router = useRouter();
   const { 
     isLoaded, language, leagueLevel, groupId, 
-    matchHistory, groupMatches, displayName
+    matchHistory, groupMatches, activeSeasonNumber
   } = useGameState();
   const db = useFirestore();
   
@@ -52,10 +52,16 @@ export default function MatchesPage() {
 
   const league = useMemo(() => LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0], [profile?.selectedLeagueId]);
 
+  // UI GUARD: Strict filtering by current active season
+  const filteredMatches = useMemo(() => {
+    if (!groupMatches) return [];
+    return groupMatches.filter(m => Number(m.seasonNumber) === Number(activeSeasonNumber));
+  }, [groupMatches, activeSeasonNumber]);
+
   const myMatches = useMemo(() => {
-    if (!groupMatches || !user) return [];
-    return groupMatches.filter(m => m.homeId === user.uid || m.awayId === user.uid);
-  }, [groupMatches, user]);
+    if (!filteredMatches || !user) return [];
+    return filteredMatches.filter(m => m.homeId === user.uid || m.awayId === user.uid);
+  }, [filteredMatches, user]);
 
   const leagueNextMatch = useMemo(() => {
     if (!myMatches.length) return null;
@@ -71,7 +77,7 @@ export default function MatchesPage() {
     const oppName = isHome ? myMatch.awayName : myMatch.homeName;
 
     return { 
-      opponent: { name: oppName, isPlayer: !oppName.includes('Bot') }, 
+      opponent: { name: oppName, isPlayer: !oppName.includes('bot') }, 
       day: myMatch.day, 
       match: myMatch,
       time: league.startTime, 
@@ -166,9 +172,6 @@ export default function MatchesPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-lg font-headline font-black italic tracking-widest text-primary">{m.scoreA}:{m.scoreB}</p>
-                  <p className={cn("text-[7px] font-black uppercase", m.winner === displayName ? "text-green-400" : (m.winner === "Draw" ? "text-accent" : "text-red-400"))}>
-                    {m.winner === displayName ? 'VICTORY' : (m.winner === "Draw" ? 'DRAW' : 'DEFEAT')}
-                  </p>
                 </div>
               </div>
             </Link>
@@ -185,7 +188,7 @@ export default function MatchesPage() {
                   <span className="text-[8px] font-bold text-muted-foreground uppercase">{getSeasonDateLabel(d)}</span>
                 </div>
                 <div className="grid gap-2">
-                  {groupMatches.filter(m => m.day === d).map((m: any) => (
+                  {filteredMatches.filter(m => m.day === d).map((m: any) => (
                     <div key={m.id} className={cn("bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between text-[10px] font-bold uppercase", m.status === 'finished' && "opacity-60")}>
                       <span className={cn("flex-1 text-right truncate", m.homeId === user.uid && "text-primary")}>{m.homeName}</span>
                       <div className="px-4 flex flex-col items-center">
@@ -205,13 +208,13 @@ export default function MatchesPage() {
         );
       case 'league_played':
         const playedDays = Array.from({ length: 14 }, (_, i) => i + 1);
-        const playedMatches = groupMatches.filter(m => m.status === 'finished');
+        const playedMatches = filteredMatches.filter(m => m.status === 'finished');
         if (playedMatches.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">No group results yet</div>;
         
         return (
           <div className="space-y-4 animate-in fade-in duration-500">
             {playedDays.map(d => {
-              const matchesForDay = groupMatches.filter(m => m.day === d && m.status === 'finished');
+              const matchesForDay = filteredMatches.filter(m => m.day === d && m.status === 'finished');
               if (matchesForDay.length === 0) return null;
               return (
                 <div key={d} className="space-y-2">
