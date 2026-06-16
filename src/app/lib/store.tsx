@@ -1,14 +1,14 @@
 'use client';
 
 /**
- * @fileOverview Global Game State Store.
- * Centralizes all club data and manages real-time Firestore synchronization.
+ * @fileOverview Global Game State Store & Sync Core.
+ * Centralizes all club data and manages real-time Firestore synchronization with Server-Wait logic.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
 import { Hero, StaffMember, StaffRole } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getSeasonDateLabel } from './time-utils';
-import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, getDocs, arrayUnion } from 'firebase/firestore';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
@@ -25,11 +25,10 @@ interface GameState {
   id: string; 
   isLoaded: boolean;
   
-  // MATCH GATEWAY DATA
-  isDataReady: boolean;
+  // SYNC CORE GATEWAY
+  isDataReady: boolean; // Analog of READY_FOR_MMO
   allSeasonMatches: any[];
   nextMatch: any | null;
-  groupMatches: any[]; 
   isMatchesLoading: boolean;
 
   fromCache: boolean;
@@ -59,7 +58,6 @@ interface GameState {
   seasonNumber: number;
   isSyncing: boolean;
   language: string;
-  lastProcessedSeason: number;
   skillPoints: number;
 
   // Actions
@@ -109,15 +107,14 @@ const DEFAULT_STATE: GameState = {
   credits: 0, crystals: 0, experiencePoints: 0, managerLevel: 1,
   leagueLevel: 9, groupId: 1, selectedLeagueId: null,
   displayName: 'Manager', id: '', isLoaded: false, isMatchesLoading: true, fromCache: false,
-  isDataReady: false, allSeasonMatches: [], nextMatch: null, groupMatches: [],
+  isDataReady: false, allSeasonMatches: [], nextMatch: null,
   lineup: { carry: null, mid: null, offlane: null, support: null, full_support: null, sub1: null, sub2: null, res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null },
   ownedHeroes: [], youthAcademyHeroes: [],
   staff: { coach: null, analyst: null, scout: null, doctor: null, financier: null },
   strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' },
   rewardDay: 1, lastRewardClaimDate: null, matchHistory: [], lastSeenMatchDay: 0,
   managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
-  skillPoints: 0, lastProcessedSeason: 0,
-  arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
+  skillPoints: 0, arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, activeLicenseTier: null,
   rank: 8, seasonDay: 1, seasonNumber: 1, isSyncing: false, language: 'ru',
   addCrystals: () => {}, addCredits: () => {}, updateHero: () => {}, removeHero: () => {}, assignToRole: () => {}, updateTactics: () => {},
@@ -139,28 +136,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const db = useFirestore();
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const [lang, setLang] = useState('ru');
-  const [currentSystemSeason, setCurrentSystemSeason] = useState<number>(1);
   
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
   const setLanguage = (l: string) => setLang(l);
 
-  useEffect(() => {
-    const statusRef = doc(db, 'system_v1', 'status');
-    const unsub = onSnapshot(statusRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.currentSeasonNumber) setCurrentSystemSeason(Number(data.currentSeasonNumber));
-      }
-    });
-    return () => unsub();
-  }, [db]);
-
-  // STABLE MATCH GATEWAY QUERY
+  // === SYNC CORE: MATCHES GATEWAY ===
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!state.selectedLeagueId || !state.id) return null;
-    const seasonId = `season_1`; // Strictly Season 1
+    const seasonId = "season_1"; // STRICT SEASON 1
     const prefixedGroupId = `season_1_league_${state.selectedLeagueId}_group_${state.groupId}`;
     
     return query(
@@ -172,20 +157,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const { data: dbMatches, isLoading: isMatchesLoading, fromCache } = useCollection(groupMatchesQuery);
 
-  // Derive "Data Ready" state to prevent flicker
-  const matchesData = useMemo(() => {
+  const matchesInfo = useMemo(() => {
     const matches = dbMatches || [];
-    const seasonId = `season_1`;
-    const filtered = matches.filter(m => m.seasonId === seasonId);
-    
-    // Data is ready if we are not loading OR if we have data from cache that isn't empty
-    // But to be super safe against flickers, we follow the "Status Gateway" rule:
-    // READY = !isMatchesLoading (which we patched to wait for server if cache empty)
+    // isDataReady analog of READY_FOR_MMO: Don't flip to true if cache is empty but server hasn't answered
     const isReady = !isMatchesLoading;
 
     let next = null;
     if (isReady && user) {
-       const mskNow = getMoscowTime();
+       const filtered = matches.filter(m => m.seasonId === "season_1");
        const myFuture = filtered
          .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished')
          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
@@ -203,7 +182,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
        }
     }
 
-    return { filtered, isReady, next };
+    return { matches, isReady, next };
   }, [dbMatches, isMatchesLoading, user]);
 
   useEffect(() => {
@@ -257,14 +236,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
               country: rootData.country ?? null, isPremium: teamData.premiumUntil ? new Date(teamData.premiumUntil) > new Date() : false,
               premiumUntil: teamData.premiumUntil ?? null, activeSeasonNumber: 1, activeLicenseTier: teamData.activeLicenseTier ?? 4,
               rank: teamData.rank ?? 8, ownedHeroes: allHeroes.filter(h => !h.isYouth), youthAcademyHeroes: allHeroes.filter(h => h.isYouth),
-              staff: staffObj, seasonDay: info.seasonDay, seasonNumber: info.seasonNumber, activeSeasonNumber: 1, 
+              staff: staffObj, seasonDay: info.seasonDay, seasonNumber: info.seasonNumber, 
               isLoaded: true, language: lang,
               
-              // MATCH GATEWAY EXPOSURE
-              isDataReady: matchesData.isReady,
-              allSeasonMatches: matchesData.filtered,
-              nextMatch: matchesData.next,
-              groupMatches: matchesData.filtered,
+              // SYNC CORE EXPOSURE
+              isDataReady: matchesInfo.isReady,
+              allSeasonMatches: matchesInfo.matches,
+              nextMatch: matchesInfo.next,
               isMatchesLoading: isMatchesLoading
             }));
           });
@@ -272,7 +250,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       });
     });
     return () => unsubRoot();
-  }, [user, isUserLoading, db, lang, matchesData, isMatchesLoading]);
+  }, [user, isUserLoading, db, lang, matchesInfo, isMatchesLoading]);
 
   const getRefs = useCallback(() => {
     const s = stateRef.current;

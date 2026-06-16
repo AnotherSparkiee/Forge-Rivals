@@ -150,6 +150,7 @@ export default function Home() {
     );
   }
 
+  // SYNC CORE GATEWAY: Dashboard blocks until READY_FOR_MMO
   if (!isLoaded || !isDataReady) return <LoadingScreen />;
 
   const tHub = {

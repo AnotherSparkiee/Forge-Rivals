@@ -4,9 +4,9 @@ import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
-  ChevronLeft, CalendarDays, UserSearch, CalendarClock, 
+  ChevronLeft, UserSearch, CalendarClock, 
   History, Calendar, CheckSquare, ChevronRight,
-  Clock, Swords, Loader2, User, ShieldAlert
+  Clock, Swords, Loader2, ShieldAlert
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { useUser } from '@/firebase';
-import { LEAGUES } from '../lib/leagues-data';
 import { getMoscowTime, getSeasonDateLabel } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
@@ -45,11 +44,16 @@ export default function MatchesPage() {
     return () => clearInterval(timer);
   }, [user, isUserLoading, router]);
 
-  const league = useMemo(() => LEAGUES[0], []); // Fallback
+  // SYNC CORE GUARD: Block everything until server data is 100% ready
+  if (isUserLoading || !isLoaded || !isDataReady) {
+    return <LoadingScreen />;
+  }
 
   const calendarDays = useMemo(() => {
+    // Filter only Season 1 and real matches
+    const filtered = allSeasonMatches.filter(m => m.seasonId === "season_1");
     const dayGroups: Record<number, any[]> = {};
-    allSeasonMatches.forEach(m => {
+    filtered.forEach(m => {
       if (!dayGroups[m.day]) dayGroups[m.day] = [];
       dayGroups[m.day].push(m);
     });
@@ -60,7 +64,7 @@ export default function MatchesPage() {
   }, [allSeasonMatches]);
 
   const playedDays = useMemo(() => {
-    const finished = allSeasonMatches.filter(m => m.status === 'finished');
+    const finished = allSeasonMatches.filter(m => m.status === 'finished' && m.seasonId === "season_1");
     const dayGroups: Record<number, any[]> = {};
     finished.forEach(m => {
       if (!dayGroups[m.day]) dayGroups[m.day] = [];
@@ -73,7 +77,7 @@ export default function MatchesPage() {
 
   const myMatches = useMemo(() => {
     if (!user) return [];
-    return allSeasonMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid));
+    return allSeasonMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.seasonId === "season_1");
   }, [allSeasonMatches, user]);
 
   const getCountdown = (startTimeIso: string) => {
@@ -101,11 +105,6 @@ export default function MatchesPage() {
       league_played: { label: language === 'ru' ? "Сыгранные в лиге" : "Played in League", desc: language === 'ru' ? "Все результаты группы" : "All group results", icon: CheckSquare }
     }
   };
-
-  // GATEWAY RENDERER
-  if (isUserLoading || !isLoaded || !isDataReady) {
-    return <LoadingScreen />;
-  }
 
   if (activeTab === 'menu') {
     return (
@@ -144,8 +143,10 @@ export default function MatchesPage() {
     );
   }
 
-  // If READY and no matches exist in database for this season
-  if (allSeasonMatches.length === 0) {
+  // Final confirmation if data is ready and matches are 0
+  const isActuallyEmpty = calendarDays.length === 0;
+
+  if (isActuallyEmpty && activeTab !== 'menu') {
     return (
       <div className="max-w-md mx-auto px-4 pt-8">
         <header className="mb-6 flex items-center gap-4">
@@ -168,7 +169,7 @@ export default function MatchesPage() {
   const renderContent = () => {
     switch (activeTab) {
       case 'next_opponent':
-        if (!centralNextMatch) return <div className="py-20 text-center opacity-30 text-xs font-bold uppercase">No upcoming rivals detected</div>;
+        if (!centralNextMatch) return <div className="py-20 text-center opacity-30 text-[10px] font-black uppercase">No active tactical threats</div>;
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
             <Card className="glass-card border-primary/20 bg-primary/5">
@@ -192,7 +193,9 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_future':
-        return <div className="space-y-3 animate-in fade-in duration-500">{myMatches.filter(m => m.status === 'pending').sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map(m => (
+        const future = myMatches.filter(m => m.status === 'pending');
+        if (future.length === 0) return <div className="py-20 text-center opacity-30 text-[10px] font-black uppercase">{t.noMatches}</div>;
+        return <div className="space-y-3 animate-in fade-in duration-500">{future.sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map(m => (
           <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
             <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2">
               <span className="text-[8px] text-muted-foreground uppercase">{getSeasonDateLabel(m.day)}</span>
