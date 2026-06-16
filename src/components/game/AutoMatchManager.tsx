@@ -71,11 +71,15 @@ export function AutoMatchManager() {
         const expectedSeasonStart = new Date(epochBase);
         expectedSeasonStart.setDate(expectedSeasonStart.getDate() + (activeSeason - 1) * 16);
 
-        // Force regeneration if season mismatch OR group integrity lost OR dates are stale
+        // Force regeneration if season mismatch OR group integrity lost OR bot format old
         const groupData = groupSnap.data();
+        const firstBot = teams.find(t => t.isBot);
+        const hasOldBots = groupData?.teams?.some((t: any) => t.isBot && !t.name.includes('🤖'));
+        
         const forceRegen = !groupSnap.exists() || 
                            groupData?.seasonId !== activeSeason ||
-                           (groupData?.teams?.length !== 8);
+                           (groupData?.teams?.length !== 8) ||
+                           hasOldBots;
 
         if (forceRegen) {
           const calendar = generateSeasonCalendar(teams);

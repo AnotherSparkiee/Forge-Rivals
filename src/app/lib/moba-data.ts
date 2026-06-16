@@ -1,4 +1,3 @@
-
 export type Role = 'Tank' | 'Carry' | 'Support' | 'Midlaner' | 'Jungler';
 
 export interface Hero {
@@ -283,25 +282,30 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
   };
 }
 
-export function generateBotSquad(targetOvr: number = 25): any[] {
+/**
+ * Generates a bot squad with OVR in 20-25 range.
+ */
+export function generateBotSquad(targetOvr: number = 22): any[] {
   const roles: Role[] = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'];
   return roles.map((role, i) => {
+    // Ensuring stats around the 20-25 range
+    const val = Math.floor(20 + Math.random() * 6);
     const stats = {
-      lastHitting: targetOvr,
-      mapAwareness: targetOvr,
-      positioning: targetOvr,
-      reflexes: targetOvr,
-      manaManagement: targetOvr,
-      objectiveControl: targetOvr,
-      communication: targetOvr,
-      tiltResistance: targetOvr,
-      versatility: targetOvr,
-      ganking: targetOvr
+      lastHitting: val,
+      mapAwareness: val,
+      positioning: val,
+      reflexes: val,
+      manaManagement: val,
+      objectiveControl: val,
+      communication: val,
+      tiltResistance: val,
+      versatility: val,
+      ganking: val
     };
     return {
       name: `${role} AI ${i + 1}`,
       role: role,
-      overallRating: targetOvr,
+      overallRating: val,
       proStats: stats,
       isSub: false
     };
@@ -377,4 +381,4 @@ export function getRandomStartingSquad(): Hero[] {
   return roles.map((role, i) => generateUniqueHero(role, i, true));
 }
 
-export const INITIAL_HEROES: Hero[] = []; 
+export const INITIAL_HEROES: Hero[] = [];

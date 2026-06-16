@@ -92,16 +92,6 @@ export function getGlobalSeasonInfo() {
 }
 
 /**
- * Возвращает конец московского дня для экспирации маркета
- */
-export function getEndOfMoscowDay(): string {
-  const now = getMoscowTime();
-  const end = new Date(now);
-  end.setHours(23, 59, 59, 999);
-  return end.toISOString();
-}
-
-/**
  * Возвращает возраст игрока с учетом прошедшего времени
  */
 export function calculateLiveAge(baseAge: number, hiredAtIso: string) {

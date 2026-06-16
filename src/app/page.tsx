@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -99,13 +98,16 @@ export default function Home() {
 
     const timer = setInterval(() => {
       const mskNow = getMoscowTime();
-      if (!nextMatchData?.match?.startTime) {
+      
+      // Calculate countdown to the specific next match start time
+      const targetTime = nextMatchData?.match?.startTime ? new Date(nextMatchData.match.startTime) : null;
+      
+      if (!targetTime) {
         setCountdown(language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...');
         return;
       }
 
-      const target = new Date(nextMatchData.match.startTime);
-      const diff = target.getTime() - mskNow.getTime();
+      const diff = targetTime.getTime() - mskNow.getTime();
       
       if (diff <= 0) {
         setCountdown('00:00:00');
