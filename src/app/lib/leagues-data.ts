@@ -80,33 +80,31 @@ export function generateSeasonCalendar(teams: any[]) {
 
       // ПРИНУДИТЕЛЬНОЕ ЧЕРЕДОВАНИЕ (V3)
       // Для каждой пары (i) мы инвертируем Home/Away в зависимости от раунда.
-      // Это гарантирует, что даже "неподвижная" команда 0 будет играть H-A-H-A...
       if ((i + round) % 2 === 1) {
         [hIdx, aIdx] = [aIdx, hIdx];
       }
 
-      const pairData = {
-        homeId: teams[hIdx].id,
-        homeName: teams[hIdx].name,
-        awayId: teams[aIdx].id,
-        awayName: teams[aIdx].name,
-        pairKey: [teams[hIdx].id, teams[aIdx].id].sort().join('_vs_') // Ключ для ID документа
-      };
+      // Детерминированный ключ пары для уникального ID
+      const pairKey = [teams[hIdx].id, teams[aIdx].id].sort().join('_vs_');
 
       // Первый круг (Дни 1-7)
       matches.push({
         day: round + 1,
-        ...pairData
+        homeId: teams[hIdx].id,
+        homeName: teams[hIdx].name,
+        awayId: teams[aIdx].id,
+        awayName: teams[aIdx].name,
+        pairKey
       });
 
       // Второй круг (Зеркальный своп) (Дни 8-14)
       matches.push({
         day: round + 1 + roundsPerHalf,
-        homeId: pairData.awayId,
-        homeName: pairData.awayName,
-        awayId: pairData.homeId,
-        awayName: pairData.homeName,
-        pairKey: pairData.pairKey
+        homeId: teams[aIdx].id,
+        homeName: teams[aIdx].name,
+        awayId: teams[hIdx].id,
+        awayName: teams[hIdx].name,
+        pairKey
       });
     }
     
