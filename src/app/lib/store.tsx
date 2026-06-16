@@ -239,10 +239,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId]);
 
-  // 3. MATCHES SYNC CORE - MEMORY LOCKED
+  // 3. MATCHES SYNC CORE - MEMORY LOCKED & INDEX-FREE
   useEffect(() => {
     const s = state;
-    // CRITICAL: isLoaded must be true to determine if we even need matches
     if (!s.isLoaded || !s.id) return;
 
     if (!s.selectedLeagueId) {
@@ -254,11 +253,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const seasonId = "season_1";
     const prefixedGroupId = `season_1_league_${s.selectedLeagueId}_group_${s.groupId}`;
     
+    // REMOVED orderBy TO AVOID INDEX ERRORS
     const q = query(
       collection(db, 'matches_v1'),
       where('seasonId', '==', seasonId),
-      where('groupId', '==', prefixedGroupId),
-      orderBy('day', 'asc')
+      where('groupId', '==', prefixedGroupId)
     );
 
     setIsMatchesReady(memoryCache.current.hasDataEverLoaded);
@@ -266,15 +265,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const loaded = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
       
-      const isSpuriousCacheEmpty = snapshot.metadata.fromCache && loaded.length === 0;
+      // SORT IN MEMORY TO BYPASS INDEX REQUIREMENTS
+      const sorted = loaded.sort((a, b) => (a.day || 0) - (b.day || 0));
+
+      const isSpuriousCacheEmpty = snapshot.metadata.fromCache && sorted.length === 0;
       if (isSpuriousCacheEmpty && memoryCache.current.hasDataEverLoaded) {
         setIsMatchesReady(true);
         return;
       }
 
-      memoryCache.current.lastValidMatches = loaded;
+      memoryCache.current.lastValidMatches = sorted;
       memoryCache.current.hasDataEverLoaded = true;
-      setAllMatches(loaded);
+      setAllMatches(sorted);
       setIsMatchesReady(true);
     }, (error) => {
       console.warn("[SyncCore] Matches error:", error);
@@ -289,9 +291,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!isMatchesReady || !user) return null;
     const matchesToUse = allMatches.length > 0 ? allMatches : memoryCache.current.lastValidMatches;
     
-    const myFuture = matchesToUse
-      .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished')
-      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    // Ensure chronological order for search
+    const sorted = [...matchesToUse].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    
+    const myFuture = sorted
+      .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished');
     
     if (myFuture.length > 0) {
       const m = myFuture[0];

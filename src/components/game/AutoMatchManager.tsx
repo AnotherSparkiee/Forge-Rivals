@@ -40,35 +40,29 @@ export function AutoMatchManager() {
       processingRef.current = true;
 
       try {
-        const seasonId = `season_1`; // Strictly Season 1
-        const activeSeason = 1;
+        const seasonId = "season_1";
+        const seasonInfo = getGlobalSeasonInfo();
+        const activeSeason = Math.max(1, seasonInfo.activeSeasonNumber);
         const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
         
         // UNIQUE SEASON-PREFIXED GROUP ID
         const prefixedGroupId = `season_1_league_${selectedLeagueId}_group_${groupId}`;
-        const groupPath = `leagues_v2/${selectedLeagueId}/divisions/${String(leagueLevel)}/groups/${prefixedGroupId}`;
-        const groupRef = doc(db, groupPath);
+        const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId);
         
         const groupSnap = await getDoc(groupRef);
 
-        // SANITARY CHECK: Do we have matches?
+        // Check current match count for this group
         const matchesQ = query(collection(db, 'matches_v1'), where('groupId', '==', prefixedGroupId));
         const currentMatchesSnap = await getDocs(matchesQ);
         
-        const hasGarbage = currentMatchesSnap.docs.some(d => {
-          const data = d.data();
-          const names = (data.homeName + data.awayName).toLowerCase();
-          return names.includes('9.1.1') || names.includes('elite bot') || names.includes('bot 10');
-        });
-
-        const needsInitialization = !groupSnap.exists() || hasGarbage || currentMatchesSnap.size < 56;
+        const needsInitialization = !groupSnap.exists() || currentMatchesSnap.size < 56;
 
         if (needsInitialization) {
           console.log(`[Engine] INITIALIZING ${seasonId.toUpperCase()} FOR GROUP ${prefixedGroupId}...`);
           
           const batch = writeBatch(db);
           
-          // Delete old matches if cleaning up
+          // Clear possible fragments if under 56
           currentMatchesSnap.docs.forEach(d => batch.delete(d.ref));
 
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
@@ -135,6 +129,7 @@ export function AutoMatchManager() {
 
         pendingSnap.docs.forEach(docSnap => {
           const m = docSnap.data();
+          // Check if match time + 1 minute has passed
           if (mskNow.getTime() > new Date(m.startTime).getTime() + 60000) {
             const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, activeSeason);
             const winner = sA > sB ? m.homeName : (sA === sB ? "Draw" : m.awayName);
@@ -147,16 +142,30 @@ export function AutoMatchManager() {
               simulation: {
                 winner,
                 seriesScore: `${sA}-${sB}`,
-                games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 0 ? (sB > 1 ? 1 : 0) : 0, duration: "38:00", matchSummary: "Standard engagement protocol complete." }]
+                games: [{ 
+                  scoreA: sA > 0 ? 1 : 0, 
+                  scoreB: sB > 0 ? (sB > 1 ? 1 : 0) : 0, 
+                  duration: "38:00", 
+                  matchSummary: "Standard engagement protocol complete." 
+                }]
               }
             };
 
             simBatch.update(docSnap.ref, finishedData);
             simCount++;
 
+            // Record history locally if player is involved
             if (m.homeId === userId || m.awayId === userId) {
               const isHome = m.homeId === userId;
-              recordMatch(winner, { scoreA: isHome ? sA : sB, scoreB: isHome ? sB : sA, ...finishedData.simulation }, 30000, isHome ? m.awayName : m.homeName, 'league', mskNow.toISOString(), m.id);
+              recordMatch(
+                winner, 
+                { scoreA: isHome ? sA : sB, scoreB: isHome ? sB : sA, ...finishedData.simulation }, 
+                30000, 
+                isHome ? m.awayName : m.homeName, 
+                'league', 
+                mskNow.toISOString(), 
+                m.id
+              );
             }
           }
         });
