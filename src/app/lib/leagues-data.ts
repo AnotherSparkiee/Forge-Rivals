@@ -74,7 +74,7 @@ export function getStableGroupTeams(level: any, group: any, leagueId: string, al
   
   for (let i = 0; i < botsNeeded; i++) {
     // Глобально уникальный ID бота: [Лига (01-16)][Див (1-9)][Гр (01-256)][Индекс (1-8)]
-    // Пример: Лига 1, Див 9, Группа 1, Бот 1 -> 19011
+    // Пример: Лига 1, Див 9, Группа 1, Бот 1 -> 109011
     const botIdNum = ((leagueIdx + 1) * 100000) + (lvl * 1000) + (grp * 10) + (i + 1);
     const botId = `bot_${botIdNum}`;
     const botName = `bot${botIdNum}`;

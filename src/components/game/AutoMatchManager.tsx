@@ -8,7 +8,7 @@
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs, deleteDoc } from 'firebase/firestore';
 import { 
   getStableGroupTeams, generateSeasonCalendar, getMatchResult, 
   LEAGUES 
@@ -71,16 +71,30 @@ export function AutoMatchManager() {
         const expectedSeasonStart = new Date(epochBase);
         expectedSeasonStart.setDate(expectedSeasonStart.getDate() + (activeSeason - 1) * 16);
 
-        // Force regeneration if season mismatch OR group integrity lost OR bot format old
+        // Force regeneration if season mismatch OR group integrity lost OR old bot naming convention
         const groupData = groupSnap.data();
         const hasOldBots = groupData?.teams?.some((t: any) => t.isBot && !t.name.startsWith('bot'));
+        const isOldEpoch = groupData?.initializedAt && new Date(groupData.initializedAt.toMillis()).getFullYear() < 2026;
         
         const forceRegen = !groupSnap.exists() || 
                            groupData?.seasonId !== activeSeason ||
                            (groupData?.teams?.length !== 8) ||
-                           hasOldBots;
+                           hasOldBots ||
+                           isOldEpoch;
 
         if (forceRegen) {
+          // CLEANUP OLD MATCHES BEFORE REGEN
+          const oldMatchesQ = query(
+            collection(db, 'matches_v1'),
+            where('leagueId', '==', selectedLeagueId),
+            where('divisionId', '==', Number(leagueLevel)),
+            where('groupId', '==', Number(groupId))
+          );
+          const oldSnap = await getDocs(oldMatchesQ);
+          const cleanupBatch = writeBatch(db);
+          oldSnap.docs.forEach(d => cleanupBatch.delete(d.ref));
+          await cleanupBatch.commit();
+
           const calendar = generateSeasonCalendar(teams);
           const batch = writeBatch(db);
           batch.set(groupRef, {
@@ -115,7 +129,7 @@ export function AutoMatchManager() {
           return;
         }
 
-        // --- PHASE 2: CATCH-UP & NAME SYNC LOGIC ---
+        // --- PHASE 2: CATCH-UP & SYNC LOGIC ---
         const matchesQuery = query(
           collection(db, 'matches_v1'),
           where('leagueId', '==', selectedLeagueId),
@@ -133,7 +147,7 @@ export function AutoMatchManager() {
           const correctHome = teams.find(t => t.id === m.homeId);
           const correctAway = teams.find(t => t.id === m.awayId);
 
-          // FORCE SYNC OLD BOT NAMES (Elite Bot -> botID)
+          // Force update bot names if they don't match deterministic unique IDs
           if ((correctHome && m.homeName !== correctHome.name) || (correctAway && m.awayName !== correctAway.name)) {
             batch.update(matchDoc.ref, {
               homeName: correctHome?.name || m.homeName,
@@ -187,7 +201,7 @@ export function AutoMatchManager() {
     heartbeat();
     const interval = setInterval(heartbeat, 60000);
     return () => clearInterval(interval);
-  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, recordMatch, displayName, ownedHeroes]);
+  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, recordMatch, displayName, ownedHeroes, removeHero]);
 
   return null;
 }
