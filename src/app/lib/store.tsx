@@ -240,7 +240,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId]);
 
-  // 3. MATCHES SYNC CORE - MEMORY LOCKED
+  // 3. MATCHES SYNC CORE - MEMORY LOCKED & DEDUPLICATED
   useEffect(() => {
     const s = state;
     if (!s.isLoaded || !s.id) return;
@@ -267,12 +267,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const loaded = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      // Step 1: Deduplicate using unique match.id
+      const uniqueMatchesMap = new Map();
+      snapshot.forEach((doc) => {
+        uniqueMatchesMap.set(doc.id, { ...doc.data(), id: doc.id });
+      });
+
+      const loaded = Array.from(uniqueMatchesMap.values());
       const sorted = loaded.sort((a, b) => (a.day || 0) - (b.day || 0));
 
+      // Step 2: Handle flickering and cache states
       const isSpuriousCacheEmpty = snapshot.metadata.fromCache && sorted.length === 0;
 
-      // КРИТИЧЕСКИЙ ФИКС: Если идет процесс записи (движок обновляет базу), игнорируем пустой кэш
       if ((isSpuriousCacheEmpty || snapshot.metadata.hasPendingWrites) && memoryCache.current.hasDataEverLoaded) {
         return; 
       }
@@ -286,6 +292,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         setIsMatchesReady(true);
       }
     }, (error) => {
+      console.warn("[Matches Sync] Error:", error);
       setIsMatchesReady(true); 
     });
 

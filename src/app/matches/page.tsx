@@ -86,10 +86,6 @@ export default function MatchesPage() {
     return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
   };
 
-  if (isUserLoading || !isLoaded || !isDataReady) {
-    return <LoadingScreen />;
-  }
-
   const t = {
     title: language === 'ru' ? "СПИСОК МАТЧЕЙ" : "OPERATIONAL MATCHES",
     subtitle: language === 'ru' ? "Расписание и История" : "Tactical Schedule & History",
@@ -105,6 +101,10 @@ export default function MatchesPage() {
       league_played: { label: language === 'ru' ? "Сыгранные в лиге" : "Played in League", desc: language === 'ru' ? "Все результаты группы" : "All group results", icon: CheckSquare }
     }
   };
+
+  if (isUserLoading || !isLoaded || !isDataReady) {
+    return <LoadingScreen />;
+  }
 
   if (activeTab === 'menu') {
     return (
@@ -143,7 +143,9 @@ export default function MatchesPage() {
     );
   }
 
-  const isActuallyEmpty = calendarDays.length === 0;
+  const isActuallyEmpty = (activeTab === 'league_calendar' && calendarDays.length === 0) || 
+                         (activeTab === 'my_future' && myMatches.filter(m => m.status === 'pending').length === 0) ||
+                         (activeTab === 'my_played' && matchHistory.length === 0);
 
   if (isActuallyEmpty && activeTab !== 'menu') {
     return (
@@ -193,7 +195,6 @@ export default function MatchesPage() {
         );
       case 'my_future':
         const future = myMatches.filter(m => m.status === 'pending');
-        if (future.length === 0) return <div className="py-20 text-center opacity-30 text-[10px] font-black uppercase">{t.noMatches}</div>;
         return <div className="space-y-3 animate-in fade-in duration-500">{future.sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map(m => (
           <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
             <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2">
@@ -211,7 +212,7 @@ export default function MatchesPage() {
         return (
           <div className="space-y-4 animate-in fade-in duration-500">
             {calendarDays.map(({ day, matches }) => (
-              <div key={day} className="space-y-2">
+              <div key={`day-group-${day}`} className="space-y-2">
                 <div className="flex justify-between items-center px-1">
                   <h3 className="text-[10px] font-black uppercase text-accent tracking-widest">{t.day} {day}</h3>
                   <span className="text-[8px] font-bold text-muted-foreground uppercase">{getSeasonDateLabel(day)}</span>
@@ -239,7 +240,7 @@ export default function MatchesPage() {
         return (
           <div className="space-y-4 animate-in fade-in duration-500">
             {playedDays.map(({ day, matches }) => (
-              <div key={day} className="space-y-2">
+              <div key={`played-day-${day}`} className="space-y-2">
                 <div className="flex justify-between items-center px-1">
                   <h3 className="text-[10px] font-black uppercase text-primary tracking-widest">{t.day} {day}</h3>
                   <span className="text-[8px] font-bold text-muted-foreground uppercase">{getSeasonDateLabel(day)}</span>
@@ -288,7 +289,7 @@ export default function MatchesPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">
-            {(t.tabs as any)[activeTab].label}
+            {(t.tabs as any)[activeTab]?.label || 'MATCHES'}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p>
         </div>
