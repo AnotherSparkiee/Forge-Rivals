@@ -71,20 +71,21 @@ export function AutoMatchManager() {
         const expectedSeasonStart = new Date(epochBase);
         expectedSeasonStart.setDate(expectedSeasonStart.getDate() + (activeSeason - 1) * 16);
 
-        // ADDITIONAL CLEANUP FOR OLD BOT NAMES
-        const checkOldMatchesQ = query(
+        // ADDITIONAL CLEANUP FOR OLD BOT NAMES AND EPOCHS
+        const checkMatchesQ = query(
           collection(db, 'matches_v1'),
           where('leagueId', '==', selectedLeagueId),
           where('divisionId', '==', Number(leagueLevel)),
           where('groupId', '==', Number(groupId))
         );
-        const existingMatchesSnap = await getDocs(checkOldMatchesQ);
+        const existingMatchesSnap = await getDocs(checkMatchesQ);
+        
+        // AGGRESSIVE SANITARY PROTOCOL: Look for any "Elite Bot" or "9.1.1"
         const hasLegacyBots = existingMatchesSnap.docs.some(d => {
           const m = d.data();
-          return m.homeName.includes('Elite Bot') || m.awayName.includes('Elite Bot');
+          return m.homeName.includes('Elite Bot') || m.awayName.includes('Elite Bot') || m.homeName.includes('9.1.1') || m.awayName.includes('9.1.1');
         });
 
-        // Force regeneration if season mismatch OR group integrity lost OR legacy bots found
         const groupData = groupSnap.data();
         const isOldEpoch = groupData?.initializedAt && new Date(groupData.initializedAt.toMillis()).getFullYear() < 2026;
         
