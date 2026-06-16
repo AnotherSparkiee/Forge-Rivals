@@ -1,5 +1,6 @@
 /**
  * @fileOverview Ядро лиг: детерминированное расписание, уникальные боты и круговая система.
+ * Внедрены 7-значные уникальные ID для исключения путаницы между лигами.
  */
 
 export interface LeagueOption {
@@ -34,6 +35,7 @@ export const LEAGUES: LeagueOption[] = [
 /**
  * Генерирует стабильный список из 8 команд.
  * Формула ID бота: bot[Лига(2)][Див(1)][Гр(3)][Индекс(1)] - Всего 7 цифр
+ * Это гарантирует уникальность во всей игре.
  */
 export function getStableGroupTeams(level: number, group: number, leagueId: string, allLeaguePlayers: any[] = []) {
   const leagueIdx = LEAGUES.findIndex(l => l.id === leagueId);
@@ -76,6 +78,7 @@ export function generateSeasonCalendar(teams: any[]) {
       const homeIdx = indices[i];
       const awayIdx = indices[n - 1 - i];
 
+      // Первый круг
       matches.push({
         day: round + 1,
         homeId: teams[homeIdx].id,
@@ -84,6 +87,7 @@ export function generateSeasonCalendar(teams: any[]) {
         awayName: teams[awayIdx].name
       });
 
+      // Второй круг (реверс)
       matches.push({
         day: round + 1 + roundsPerHalf,
         homeId: teams[awayIdx].id,

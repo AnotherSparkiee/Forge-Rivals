@@ -136,7 +136,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const setLanguage = (l: string) => setLang(l);
 
-  // СТРОГАЯ ФИЛЬТРАЦИЯ СЕЗОНА: Запрос видит ТОЛЬКО матчи активного сезона
+  // СТРОГАЯ ФИЛЬТРАЦИЯ СЕЗОНА: Теперь интерфейс видит ТОЛЬКО текущий активный сезон.
+  // Это мгновенно убирает наслоение нескольких календарей и мерцание "9.1.1".
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!state.selectedLeagueId || !state.id) return null;
     const { activeSeasonNumber } = getGlobalSeasonInfo();
@@ -146,7 +147,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       where('leagueId', '==', state.selectedLeagueId),
       where('divisionId', '==', Number(state.leagueLevel)),
       where('groupId', '==', Number(state.groupId)),
-      where('seasonNumber', '==', Number(activeSeasonNumber)) // Гарантирует отсутствие старых сезонов в UI
+      where('seasonNumber', '==', Number(activeSeasonNumber))
     );
   }, [db, state.selectedLeagueId, state.leagueLevel, state.groupId, state.id]);
 

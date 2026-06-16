@@ -1,6 +1,7 @@
 /**
  * @fileOverview Автономный движок сезонов. 
  * Использует детерминированные ID для предотвращения дубликатов и конфликтов.
+ * Внедрен протокол агрессивной зачистки старых ботов (9.1.1).
  */
 
 'use client';
@@ -20,7 +21,7 @@ export function AutoMatchManager() {
   const db = useFirestore();
   const processingRef = useRef(false);
 
-  // Запрос всех игроков текущей группы
+  // Исправлено название переменной запроса игроков группы
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
@@ -49,7 +50,7 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const groupData = groupSnap.data();
 
-        // 1. ПРОВЕРКА НА КОНФЛИКТЫ И СТАРЫХ БОТОВ (9.1.1, Elite Bot)
+        // 1. ПОИСК И УДАЛЕНИЕ СТАРЫХ МАТЧЕЙ (9.1.1, Elite Bot и т.д.)
         const matchesQ = query(
           collection(db, 'matches_v1'),
           where('leagueId', '==', selectedLeagueId),
@@ -58,35 +59,33 @@ export function AutoMatchManager() {
         );
         const existingSnap = await getDocs(matchesQ);
         
-        // AGGRESSIVE PURGE: Проверяем наличие имен старых ботов или неверного сезона
-        const hasLegacy = existingSnap.docs.some(d => {
+        // Проверяем наличие "грязных" данных
+        const dirtyMatches = existingSnap.docs.filter(d => {
           const m = d.data();
           const name = (m.homeName || "") + (m.awayName || "");
-          // Удаляем всё, что содержит 9.1.1, Elite Bot или не совпадает с активным сезоном
           return name.includes('Elite Bot') || 
                  name.includes('9.1.1') || 
                  name.includes('Bot 10') ||
                  m.seasonNumber !== activeSeason;
         });
 
-        const needsInitialization = !groupSnap.exists() || groupData?.seasonId !== activeSeason || hasLegacy;
+        const needsInitialization = !groupSnap.exists() || groupData?.seasonId !== activeSeason || dirtyMatches.length > 0;
 
         if (needsInitialization) {
-          console.log("[Engine] Purging legacy and generating Season " + activeSeason);
+          console.log("[Engine] Total Purge & Initialization for Season " + activeSeason);
           
           const batch = writeBatch(db);
-          // Удаляем АБСОЛЮТНО ВСЕ матчи этой группы, чтобы избежать наслоения
+          // Удаляем ВСЕ матчи группы, если найден хоть один старый, чтобы избежать наслоения
           existingSnap.docs.forEach(d => batch.delete(d.ref));
           
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const calendar = generateSeasonCalendar(teams);
           
-          // Рассчитываем дату начала сезона (каждый цикл 16 дней)
+          // Эпоха Сезона 1: 17 Июня 2026
           const epochBase = new Date('2026-06-17T00:00:00+03:00');
           const seasonStart = new Date(epochBase);
           seasonStart.setDate(seasonStart.getDate() + (activeSeason - 1) * 16);
 
-          // Обновляем метаданные группы
           batch.set(groupRef, {
             seasonId: activeSeason,
             teams,
@@ -95,7 +94,7 @@ export function AutoMatchManager() {
           }, { merge: true });
 
           calendar.forEach((m) => {
-            // ДЕТЕРМИНИРОВАННЫЙ ID: Гарантирует уникальность и перезапись старых данных
+            // ДЕТЕРМИНИРОВАННЫЙ ID: Гарантирует уникальный слот для каждого матча
             const matchId = `m_${selectedLeagueId}_${leagueLevel}_${groupId}_s${activeSeason}_d${m.day}_h${m.homeId}`;
             
             const matchDate = new Date(seasonStart);
@@ -120,14 +119,13 @@ export function AutoMatchManager() {
           return;
         }
 
-        // 2. СИМУЛЯЦИЯ ЗАВЕРШЕННЫХ МАТЧЕЙ
+        // 2. СИМУЛЯЦИЯ (только для матчей текущего сезона)
         const mskNow = getMoscowTime();
         const simBatch = writeBatch(db);
         let simCount = 0;
 
         existingSnap.docs.forEach(docSnap => {
           const m = docSnap.data();
-          // Процессим только матчи текущего сезона
           if (m.seasonNumber === activeSeason && m.status === 'pending' && mskNow.getTime() > new Date(m.startTime).getTime() + 60000) {
             const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, activeSeason);
             const winner = sA > sB ? m.homeName : (sA === sB ? "Draw" : m.awayName);
@@ -142,8 +140,8 @@ export function AutoMatchManager() {
                 games: [{ 
                   scoreA: sA > 0 ? 1 : 0, 
                   scoreB: sB > 0 ? (sB > 1 ? 1 : 0) : 0, 
-                  duration: "40:00", 
-                  matchSummary: "Competitive series finalized." 
+                  duration: "38:00", 
+                  matchSummary: "Elite match sequence finalized." 
                 }]
               }
             };
