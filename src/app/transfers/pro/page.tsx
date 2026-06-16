@@ -10,8 +10,7 @@ import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, Star, ShoppingCart, 
-  Crown, Zap, Target, Trophy, Info, Users
+  ChevronLeft, Crown, Zap, Target, Trophy, Info, Users
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';

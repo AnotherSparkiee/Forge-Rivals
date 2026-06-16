@@ -13,10 +13,10 @@ import {
   getStableGroupTeams, generateSeasonCalendar, getMatchResult, 
   LEAGUES 
 } from '@/app/lib/leagues-data';
-import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, calculateLiveAge } from '@/app/lib/time-utils';
+import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString } from '@/app/lib/time-utils';
 
 export function AutoMatchManager() {
-  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, recordMatch, displayName, ownedHeroes, removeHero } = useGameState();
+  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, recordMatch, displayName } = useGameState();
   const db = useFirestore();
   const processingRef = useRef(false);
 
@@ -50,7 +50,7 @@ export function AutoMatchManager() {
         const todayStr = getMoscowDateString();
         const mskNow = getMoscowTime();
 
-        // Check for outdated matches
+        // 1. SCAN FOR LEGACY OR CONFLICTING DATA
         const checkMatchesQ = query(
           collection(db, 'matches_v1'),
           where('leagueId', '==', selectedLeagueId),
@@ -59,7 +59,7 @@ export function AutoMatchManager() {
         );
         const existingMatchesSnap = await getDocs(checkMatchesQ);
         
-        // Protocol: Wipe if old bot names or wrong season detected
+        // Protocol: Wipe if old names, old season, or duplicates detected
         const hasLegacyData = existingMatchesSnap.docs.some(d => {
           const m = d.data();
           const hName = String(m.homeName || "");
@@ -78,12 +78,14 @@ export function AutoMatchManager() {
         if (forceRegen) {
           console.log("[Engine] Cleaning legacy data and initializing clean season...");
           const cleanupBatch = writeBatch(db);
+          // Delete EVERY match in the group to prevent duplicates
           existingMatchesSnap.docs.forEach(d => cleanupBatch.delete(d.ref));
           await cleanupBatch.commit();
 
           const teams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, allGroupPlayers);
           const calendar = generateSeasonCalendar(teams);
           
+          // Fixed start based on Epoch June 17 2026
           const epochBase = new Date('2026-06-17T00:00:00+03:00');
           const expectedSeasonStart = new Date(epochBase);
           expectedSeasonStart.setDate(expectedSeasonStart.getDate() + (activeSeason - 1) * 16);
@@ -120,7 +122,7 @@ export function AutoMatchManager() {
           return;
         }
 
-        // Processing matches
+        // 2. PROCESS PENDING MATCHES
         const matchesQuery = query(
           collection(db, 'matches_v1'),
           where('leagueId', '==', selectedLeagueId),
@@ -144,7 +146,7 @@ export function AutoMatchManager() {
               simulation: {
                 winner: sA > sB ? m.homeName : (sA === sB ? "Draw" : m.awayName),
                 seriesScore: `${sA}-${sB}`,
-                games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 1 ? 1 : 0, duration: "40:00", matchSummary: "Pro league combat." }]
+                games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 0 ? (sB > 1 ? 1 : 0) : 0, duration: "40:00", matchSummary: "Official series concluded." }]
               }
             };
             simBatch.update(matchDoc.ref, finishedData);
@@ -167,9 +169,9 @@ export function AutoMatchManager() {
     };
 
     heartbeat();
-    const interval = setInterval(heartbeat, 30000);
+    const interval = setInterval(heartbeat, 60000);
     return () => clearInterval(interval);
-  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, recordMatch, displayName, ownedHeroes, removeHero]);
+  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, recordMatch, displayName]);
 
   return null;
 }
