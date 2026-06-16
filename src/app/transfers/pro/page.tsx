@@ -53,8 +53,8 @@ export default function ProTransfersPage() {
       const vtuneId = `sys_vtune_v900_final_standard_${today}`;
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       
-      // 1. CLEANUP ALL PREVIOUS SYSTEM VERSIONS
       try {
+        // 1. CLEANUP ALL PREVIOUS SYSTEM VERSIONS
         const q = query(collection(db, 'market_v7'), where('isSystem', '==', true));
         const allSystemSnap = await getDocs(q);
         for (const d of allSystemSnap.docs) {
@@ -62,43 +62,43 @@ export default function ProTransfersPage() {
             await deleteDoc(d.ref);
           }
         }
+
+        // 2. CHECK IF CURRENT EXISTS, IF NOT - DROP
+        const vtuneSnap = await getDoc(vtuneRef);
+        if (!vtuneSnap.exists()) {
+          const hero = generateVtuneHero(today);
+          const mskNow = getMoscowTime();
+          
+          const expiry = new Date(mskNow);
+          expiry.setDate(expiry.getDate() + 2);
+          expiry.setHours(23, 59, 59, 999);
+
+          await setDoc(vtuneRef, {
+            id: vtuneId,
+            heroData: JSON.parse(JSON.stringify(hero)),
+            currentBid: 2000,
+            startingPrice: 2000,
+            highestBidderId: null,
+            highestBidderName: null,
+            bidders: [],
+            expiresAt: expiry.toISOString(),
+            dropDate: today,
+            createdAt: serverTimestamp(),
+            isSystem: true,
+            isPro: true,
+            currency: 'crystals',
+            sellerId: 'system',
+            sellerName: 'System'
+          });
+        }
       } catch (e) {
-        console.error("System cleanup failed", e);
-      }
-
-      // 2. CHECK IF CURRENT EXISTS, IF NOT - DROP
-      const vtuneSnap = await getDoc(vtuneRef);
-      if (!vtuneSnap.exists()) {
-        const hero = generateVtuneHero(today);
-        const mskNow = getMoscowTime();
-        
-        const expiry = new Date(mskNow);
-        expiry.setDate(expiry.getDate() + 2);
-        expiry.setHours(23, 59, 59, 999);
-
-        await setDoc(vtuneRef, {
-          id: vtuneId,
-          heroData: JSON.parse(JSON.stringify(hero)),
-          currentBid: 2000,
-          startingPrice: 2000,
-          highestBidderId: null,
-          highestBidderName: null,
-          bidders: [],
-          expiresAt: expiry.toISOString(),
-          dropDate: today,
-          createdAt: serverTimestamp(),
-          isSystem: true,
-          isPro: true,
-          currency: 'crystals',
-          sellerId: 'system',
-          sellerName: 'System'
-        });
+        console.error("System legend management failed", e);
       }
     };
 
     if (!initTriggeredRef.current) {
       initTriggeredRef.current = true;
-      checkAndDropLegends().catch(e => console.error("Legend drop failed", e));
+      checkAndDropLegends();
     }
   }, [user?.uid, isStoreLoaded, db]);
 
