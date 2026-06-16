@@ -31,19 +31,24 @@ export default function PyramidCupPage() {
   const [activeRound, setActiveRound] = useState(1);
   const [isInitializing, setIsInitializing] = useState(false);
 
+  // Ослабленный запрос для обхода багов типов
   const cupQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     const sNum = activeSeasonNumber || 1;
     return query(
       collection(db, 'cup_matches'),
       where('leagueId', '==', selectedLeagueId),
-      where('seasonNumber', '==', Number(sNum)),
-      where('round', '==', Number(activeRound)),
-      limit(100) 
+      where('round', '==', Number(activeRound))
     );
   }, [db, selectedLeagueId, activeSeasonNumber, activeRound]);
 
-  const { data: matches, isLoading: isMatchesLoading } = useCollection(cupQuery);
+  const { data: rawMatches, isLoading: isMatchesLoading } = useCollection(cupQuery);
+
+  // Дополнительная фильтрация на клиенте для надежности
+  const matches = useMemo(() => {
+    if (!rawMatches) return [];
+    return rawMatches.filter(m => Number(m.seasonNumber || m.seasonId_num) === (activeSeasonNumber || 1));
+  }, [rawMatches, activeSeasonNumber]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -55,7 +60,7 @@ export default function PyramidCupPage() {
     setIsInitializing(true);
     try {
       await generatePyramidCup();
-      toast({ title: language === 'ru' ? "Раунд 1 сгенерирован!" : "Round 1 Generated!" });
+      toast({ title: language === 'ru' ? "Тотальная генерация завершена!" : "Total Generation Complete!" });
     } catch (e) {
       toast({ variant: "destructive", title: "Generation failed" });
     } finally {
@@ -74,14 +79,12 @@ export default function PyramidCupPage() {
       round: "Round",
       final: "Grand Final",
       waiting: "WAITING...",
-      bye: "BYES (DIV 1)",
       yourMatch: "YOUR ENGAGEMENT",
-      noMatches: "Next round will be generated once the current one finishes.",
-      initialize: "INITIATE SEASON 1 (ROUND 1)",
+      initialize: "FORCE GENERATE SEASON 1 BRACKET",
       loading: "Synchronizing Bracket...",
       home: "HOME",
       away: "AWAY",
-      formatInfo: "Dynamic seeding: each round is sorted Strong-vs-Weak. Div 1 joins in Round 2."
+      formatInfo: "Emergency multi-format sync enabled. All divisions (1-9) seeded for immediate visibility."
     },
     ru: {
       title: "КУБОК ПИРАМИДЫ",
@@ -89,14 +92,12 @@ export default function PyramidCupPage() {
       round: "Раунд",
       final: "Гранд-Финал",
       waiting: "ОЖИДАНИЕ...",
-      bye: "ПРОПУСК (ДИВ 1)",
       yourMatch: "ВАШ МАТЧ",
-      noMatches: "Следующий раунд будет создан после завершения всех игр текущего.",
-      initialize: "ИНИЦИИРОВАТЬ СЕЗОН 1 (РАУНД 1)",
+      initialize: "ПРИНУДИТЕЛЬНО СОЗДАТЬ СЕТКУ СЕЗОНА 1",
       loading: "Синхронизация сетки...",
       home: "ДОМА",
       away: "В ГОСТЯХ",
-      formatInfo: "Динамический посев: каждый раунд сортируется заново (сильный против слабого). Див 1 вступает в R2."
+      formatInfo: "Включена экстренная мультиформатная синхронизация. Все дивизионы (1-9) посеяны для моментального отображения."
     }
   }[language as 'en' | 'ru'] || { title: "CUP" };
 
@@ -136,16 +137,14 @@ export default function PyramidCupPage() {
         </div>
       </div>
 
-      {matches && matches.length > 0 && (
-        <Card className="glass-card mb-6 border-primary/20 bg-primary/5">
-          <CardContent className="p-4 flex gap-4">
-            <Info className="w-5 h-5 text-primary shrink-0" />
-            <p className="text-[9px] text-muted-foreground leading-relaxed italic uppercase font-bold tracking-tight">
-              {t.formatInfo}
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      <Card className="glass-card mb-6 border-accent/20 bg-accent/5">
+        <CardContent className="p-4 flex gap-4">
+          <Info className="w-5 h-5 text-accent shrink-0" />
+          <p className="text-[9px] text-muted-foreground leading-relaxed italic uppercase font-bold tracking-tight">
+            {t.formatInfo}
+          </p>
+        </CardContent>
+      </Card>
 
       <div className="space-y-3">
         {isMatchesLoading ? (
@@ -156,6 +155,7 @@ export default function PyramidCupPage() {
         ) : matches && matches.length > 0 ? (
           matches.map((m) => {
             const isMyMatch = m.homeTeamId === user?.uid || m.awayTeamId === user?.uid;
+            const isFinished = m.isFinished || m.status === 'finished';
             
             return (
               <Card 
@@ -163,7 +163,7 @@ export default function PyramidCupPage() {
                 className={cn(
                   "glass-card border-white/5 overflow-hidden transition-all",
                   isMyMatch && "border-primary/40 bg-primary/10 ring-1 ring-primary/20",
-                  m.status === 'finished' && "opacity-80"
+                  isFinished && "opacity-80"
                 )}
               >
                 <CardContent className="p-0">
@@ -192,8 +192,8 @@ export default function PyramidCupPage() {
                     </div>
 
                     <div className="flex flex-col items-center justify-center gap-1">
-                      {m.status === 'finished' ? (
-                        <p className="text-xl font-headline font-black italic text-primary">{m.scoreA}:{m.scoreB}</p>
+                      {isFinished ? (
+                        <p className="text-xl font-headline font-black italic text-primary">{m.scoreA || 0}:{m.scoreB || 0}</p>
                       ) : (
                         <div className="bg-background/60 p-1.5 rounded-lg border border-white/5">
                           <Swords className="w-4 h-4 text-accent" />
@@ -213,7 +213,7 @@ export default function PyramidCupPage() {
                           "text-[11px] font-headline font-bold uppercase truncate italic",
                           m.awayTeamId === user?.uid ? "text-primary" : "text-white"
                         )}>
-                          {m.awayTeamId ? 'TEAM ' + m.awayTeamId.slice(0, 5) : (activeRound === 1 ? t.bye : t.waiting)}
+                          {m.awayTeamId ? 'TEAM ' + m.awayTeamId.slice(0, 5) : t.waiting}
                         </p>
                       </div>
                     </div>
@@ -224,27 +224,16 @@ export default function PyramidCupPage() {
           })
         ) : (
           <div className="py-12 text-center animate-in fade-in duration-700 flex flex-col items-center">
-            {activeRound === 1 ? (
-              <>
-                <AlertTriangle className="w-12 h-12 text-orange-500 mb-4 opacity-50" />
-                <h2 className="text-lg font-headline font-bold uppercase text-white mb-2">{language === 'ru' ? 'КУБОК НЕ НАЧАТ' : 'CUP NOT STARTED'}</h2>
-                <Button 
-                  className="h-14 px-8 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl mt-6" 
-                  onClick={handleInitialize}
-                  disabled={isInitializing}
-                >
-                  {isInitializing ? <RefreshCw className="w-5 h-5 animate-spin mr-2" /> : <RefreshCw className="w-5 h-5 mr-2" />}
-                  {t.initialize}
-                </Button>
-              </>
-            ) : (
-              <div className="opacity-40 space-y-4">
-                <Calendar className="w-12 h-12 mx-auto" />
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] px-10 leading-relaxed">
-                  {t.noMatches}
-                </p>
-              </div>
-            )}
+            <AlertTriangle className="w-12 h-12 text-orange-500 mb-4 opacity-50" />
+            <h2 className="text-lg font-headline font-bold uppercase text-white mb-2">{language === 'ru' ? 'СЕТКА НЕ СФОРМИРОВАНА' : 'BRACKET NOT SEEDED'}</h2>
+            <Button 
+              className="h-14 px-8 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl mt-6" 
+              onClick={handleInitialize}
+              disabled={isInitializing}
+            >
+              {isInitializing ? <RefreshCw className="w-5 h-5 animate-spin mr-2" /> : <RefreshCw className="w-5 h-5 mr-2" />}
+              {t.initialize}
+            </Button>
           </div>
         )}
       </div>
