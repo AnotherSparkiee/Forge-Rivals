@@ -58,8 +58,12 @@ export function getGlobalSeasonInfo() {
   
   // Если мы до эпохи (например 16 июня), ставим сезон 1, день подготовки
   if (diffMs < 0) {
-    currentSeasonNumber = 1;
-    currentSeasonDay = 16 + Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    return {
+      seasonDay: 16 + Math.floor(diffMs / (1000 * 60 * 60 * 24)),
+      seasonNumber: 1,
+      isTransitionPhase: true,
+      activeSeasonNumber: 1 // Фикс: До старта всегда сезон 1
+    };
   }
 
   const isTransitionPhase = currentSeasonDay >= 15 || currentSeasonNumber < 1;

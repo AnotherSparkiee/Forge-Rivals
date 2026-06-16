@@ -1,7 +1,7 @@
 /**
  * @fileOverview Автономный движок сезонов. 
  * Использует детерминированные ID и атомарные батчи.
- * Внедрена система глобального указателя активного сезона.
+ * Исправлен расчет времени матчей (scheduledAt) с использованием иммутабельных таймстампов.
  */
 
 'use client';
@@ -21,7 +21,6 @@ export function AutoMatchManager() {
   const db = useFirestore();
   const processingRef = useRef(false);
 
-  // Исправлено название переменной: groupPlayersQuery
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
@@ -50,7 +49,6 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const groupData = groupSnap.data();
 
-        // ПОЛНЫЙ ПОИСК МУСОРА
         const matchesQ = query(
           collection(db, 'matches_v1'),
           where('leagueId', '==', selectedLeagueId),
@@ -74,18 +72,16 @@ export function AutoMatchManager() {
           console.log("[Engine] ATOMIC SEASON INITIALIZATION: Season " + activeSeason);
           
           const batch = writeBatch(db);
-          
-          // 1. Атомарное удаление всего мусора
           existingSnap.docs.forEach(d => batch.delete(d.ref));
           
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const calendar = generateSeasonCalendar(teams);
           
-          const epochBase = new Date('2026-06-17T00:00:00+03:00');
-          const seasonStart = new Date(epochBase);
-          seasonStart.setDate(seasonStart.getDate() + (activeSeason - 1) * 16);
+          // ИММУТАБЕЛЬНЫЙ РАСЧЕТ ВРЕМЕНИ
+          const epochMs = new Date('2026-06-17T00:00:00+03:00').getTime();
+          const dayMs = 24 * 60 * 60 * 1000;
+          const seasonStartMs = epochMs + (activeSeason - 1) * 16 * dayMs;
 
-          // 2. Обновление указателя сезона группы
           batch.set(groupRef, {
             seasonId: activeSeason,
             teams,
@@ -93,22 +89,19 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           }, { merge: true });
 
-          // 3. Обновление ГЛОБАЛЬНОГО системного указателя
-          // Это заставляет всех клиентов мгновенно переключиться
           const systemStatusRef = doc(db, 'system_v1', 'status');
           batch.set(systemStatusRef, {
             currentSeasonNumber: activeSeason,
             updatedAt: serverTimestamp()
           }, { merge: true });
 
-          // 4. Генерация календаря с детерминированными ID
           calendar.forEach((m) => {
             const matchId = `m_${selectedLeagueId}_${leagueLevel}_${groupId}_s${activeSeason}_d${m.day}_h${m.homeId}`;
             
-            const matchDate = new Date(seasonStart);
-            matchDate.setDate(matchDate.getDate() + (m.day - 1));
+            // Расчет времени без мутации Date
             const [hh, mm] = league.startTime.split(':').map(Number);
-            matchDate.setHours(hh, mm, 0, 0);
+            const matchTimeOffset = (m.day - 1) * dayMs + (hh * 60 * 60 * 1000) + (mm * 60 * 1000);
+            const finalStartTime = new Date(seasonStartMs + matchTimeOffset).toISOString();
 
             batch.set(doc(db, 'matches_v1', matchId), {
               ...m,
@@ -118,7 +111,7 @@ export function AutoMatchManager() {
               groupId: Number(groupId),
               seasonNumber: activeSeason,
               status: 'pending',
-              startTime: matchDate.toISOString()
+              startTime: finalStartTime
             });
           });
 
@@ -127,7 +120,6 @@ export function AutoMatchManager() {
           return;
         }
 
-        // СИМУЛЯЦИЯ
         const mskNow = getMoscowTime();
         const simBatch = writeBatch(db);
         let simCount = 0;
