@@ -154,7 +154,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (isUserLoading || !user) {
-      if (!isUserLoading) setState(s => ({ ...s, isLoaded: true }));
+      if (!isUserLoading) {
+        setState(s => ({ ...DEFAULT_STATE, isLoaded: true, language: s.language }));
+      }
       return;
     }
 
@@ -463,7 +465,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const refs = getRefs();
     if (!refs || Number(s.credits || 0) < cost) return false;
     const durationMs = 8 * 60 * 60 * 1000; // Fixed 8 hours for expansion
-    const finishTime = new Date(Date.now() + durationMs).toISOString();
+    const finishTime = new Date(finishTime).toISOString();
     
     setDoc(refs.team, {
       credits: Number(s.credits || 0) - cost,

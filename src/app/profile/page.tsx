@@ -48,7 +48,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      router.push('/auth/register');
+      router.push('/');
     }
   }, [user, isUserLoading, router]);
 
@@ -299,7 +299,7 @@ export default function ProfilePage() {
             <Button variant="outline" className="h-12 border-white/5 bg-secondary/20 hover:bg-white/5 justify-between px-4 group"><div className="flex items-center gap-3"><Settings2 className="w-4 h-4 text-accent group-hover:scale-110 transition-transform" /><span className="text-[10px] font-black uppercase">Security & Account Settings</span></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Button>
           </div>
           <div className="pt-6">
-            <Button variant="destructive" className="w-full h-14 hero-gradient border-none font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-95 transition-all" onClick={async () => { setIsLoggingOut(true); await signOut(auth); router.push('/auth/register'); }} disabled={isLoggingOut}>{isLoggingOut ? <Loader2 className="animate-spin" /> : <><LogOut className="w-4 h-4 mr-2" /> {t.logout}</>}</Button>
+            <Button variant="destructive" className="w-full h-14 hero-gradient border-none font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-95 transition-all" onClick={async () => { setIsLoggingOut(true); await signOut(auth); router.push('/'); }} disabled={isLoggingOut}>{isLoggingOut ? <Loader2 className="animate-spin" /> : <><LogOut className="w-4 h-4 mr-2" /> {t.logout}</>}</Button>
           </div>
         </div>
       )}

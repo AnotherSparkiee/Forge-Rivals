@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Autonomous Season Engine (Synchronized Heartbeat).
  * Handles synchronized Bo2 match simulation and season transitions.
@@ -80,10 +81,12 @@ export function AutoMatchManager() {
         );
         const existingMatchesSnap = await getDocs(checkMatchesQ);
         
-        // AGGRESSIVE SANITARY PROTOCOL: Look for any "Elite Bot" or "9.1.1"
+        // AGGRESSIVE SANITARY PROTOCOL: Look for any "Elite Bot" or "9.1.1" or "Bot 10"
         const hasLegacyBots = existingMatchesSnap.docs.some(d => {
           const m = d.data();
-          return m.homeName.includes('Elite Bot') || m.awayName.includes('Elite Bot') || m.homeName.includes('9.1.1') || m.awayName.includes('9.1.1');
+          return m.homeName.includes('Elite Bot') || m.awayName.includes('Elite Bot') || 
+                 m.homeName.includes('9.1.1') || m.awayName.includes('9.1.1') ||
+                 m.homeName.includes('Bot ') || m.awayName.includes('Bot ');
         });
 
         const groupData = groupSnap.data();
