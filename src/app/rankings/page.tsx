@@ -7,7 +7,7 @@ import {
   Trophy, Medal, ChevronLeft, ChevronRight, 
   Shield, Globe, Layers, LayoutGrid,
   MapPin, Home, Info, Search, List, Filter,
-  Crown, Swords, Timer, Zap
+  Crown, Swords, Timer, Zap, Loader2, Calendar, User
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -34,11 +34,13 @@ export default function RankingsPage() {
   const [navLevel, setNavLevel] = useState<number | null>(null);
   const [navGroup, setNavGroup] = useState<number | null>(null);
   const [clStage, setClStage] = useState<'groups' | 'playoffs'>('groups');
+  const [cupRound, setCupRound] = useState(1);
 
   const contextLeagueId = navLeague || selectedLeagueId || "ALPHA";
   const contextLevel = navLevel || leagueLevel;
   const contextGroup = navGroup || groupId;
 
+  // LEAGUE STANDINGS
   const playersQuery = useMemoFirebase(() => {
     return query(
       collection(db, 'players_v10'), 
@@ -62,7 +64,7 @@ export default function RankingsPage() {
 
   const { data: groupMatches } = useCollection(matchesQuery);
 
-  // ЛИГА ЧЕМПИОНОВ: Загрузка матчей
+  // CHAMPIONS LEAGUE
   const clQuery = useMemoFirebase(() => {
     return query(
       collection(db, 'cl_matches_v1'),
@@ -71,6 +73,20 @@ export default function RankingsPage() {
   }, [db, activeSeasonNumber]);
 
   const { data: clMatches, isLoading: isClLoading } = useCollection(clQuery);
+
+  // PYRAMID CUP
+  const cupQuery = useMemoFirebase(() => {
+    if (activeTab !== 'pyramid_cup') return null;
+    return query(
+      collection(db, 'cup_matches'),
+      where('leagueId', '==', selectedLeagueId),
+      where('seasonNumber', '==', Number(activeSeasonNumber)),
+      where('round', '==', Number(cupRound)),
+      limit(50)
+    );
+  }, [db, activeTab, selectedLeagueId, activeSeasonNumber, cupRound]);
+
+  const { data: cupMatches, isLoading: isCupLoading } = useCollection(cupQuery);
 
   const standings = useMemo(() => {
     if (!isLoaded) return [];
@@ -89,7 +105,8 @@ export default function RankingsPage() {
       title: "RANKINGS HUB", subtitle: "Global Competitive Terminals",
       pts: "PTS", winLoss: "W-D-L", back: "Back",
       selectDiv: "Select Division", selectGroup: "Select Group",
-      cl: "CHAMPIONS LEAGUE",
+      cl: "CHAMPIONS LEAGUE", cup: "PYRAMID CUP",
+      waiting: "WAITING...", bye: "BYE (DIV 1)",
       menu: [
         { id: 'my_league', label: 'My Current Table', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'champions_league', label: 'Champions League', desc: 'Elite Inter-Server Blitz', icon: Crown, color: 'text-yellow-500' },
@@ -102,7 +119,8 @@ export default function RankingsPage() {
       title: "ТАБЛИЦЫ РЕЙТИНГА", subtitle: "Терминалы глобальных соревнований",
       pts: "ОЧК", winLoss: "В-Н-П", back: "Назад",
       selectDiv: "Выберите дивизион", selectGroup: "Выберите группу",
-      cl: "ЛИГА ЧЕМПИОНОВ",
+      cl: "ЛИГА ЧЕМПИОНОВ", cup: "КУБОК ПИРАМИДЫ",
+      waiting: "ОЖИДАНИЕ...", bye: "ПРОПУСК (ДИВ 1)",
       menu: [
         { id: 'my_league', label: 'Своя таблица', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'champions_league', label: 'Лига Чемпионов', desc: 'Элитный межсерверный блиц', icon: Crown, color: 'text-yellow-500' },
@@ -114,6 +132,59 @@ export default function RankingsPage() {
   }[language as 'en' | 'ru'];
 
   if (isUserLoading || !isLoaded) return <LoadingScreen />;
+
+  const renderCup = () => {
+    if (isCupLoading) return <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>;
+
+    return (
+      <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="overflow-x-auto scrollbar-hide -mx-4 px-4">
+          <div className="flex gap-2 min-w-max pb-2">
+            {Array.from({ length: 11 }, (_, i) => i + 1).map(r => (
+              <Button 
+                key={r} 
+                variant={cupRound === r ? "default" : "outline"}
+                className={cn("h-10 px-6 font-black text-[10px] uppercase", cupRound === r ? "hero-gradient border-none" : "bg-secondary/20 border-white/5")}
+                onClick={() => setCupRound(r)}
+              >
+                Раунд {r}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          {cupMatches && cupMatches.length > 0 ? cupMatches.map(m => {
+            const isMyMatch = m.homeTeamId === user?.uid || m.awayTeamId === user?.uid;
+            return (
+              <Card key={m.id} className={cn("glass-card border-white/5", isMyMatch && "border-primary/40 bg-primary/10")}>
+                <CardContent className="p-3">
+                  <div className="grid grid-cols-[1fr_40px_1fr] items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold uppercase truncate">{m.homeTeamId ? (m.homeTeamId.startsWith('sys_bot') ? 'SYSTEM BOT' : 'TEAM ' + m.homeTeamId.slice(0, 5)) : t.waiting}</p>
+                      <span className="text-[7px] text-muted-foreground uppercase">HOME</span>
+                    </div>
+                    <div className="text-center">
+                      <Swords className="w-4 h-4 text-accent mx-auto" />
+                      {m.status === 'finished' && <p className="text-[10px] font-mono font-bold text-primary mt-1">{m.scoreA}:{m.scoreB}</p>}
+                    </div>
+                    <div className="text-left">
+                      <p className="text-[10px] font-bold uppercase truncate">{m.awayTeamId ? (m.awayTeamId.startsWith('sys_bot') ? 'SYSTEM BOT' : 'TEAM ' + m.awayTeamId.slice(0, 5)) : (cupRound === 1 ? t.bye : t.waiting)}</p>
+                      <span className="text-[7px] text-muted-foreground uppercase">AWAY</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          }) : (
+            <div className="py-20 text-center opacity-30">
+              <p className="text-xs font-black uppercase tracking-widest">Нет матчей для отображения</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const renderCL = () => {
     if (isClLoading) return <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>;
@@ -261,8 +332,8 @@ export default function RankingsPage() {
           <ChevronLeft className="w-6 h-6" />
         </Button>
         <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{activeTab === 'menu' ? t.title : (activeTab === 'champions_league' ? t.cl : t.menu.find(m => m.id === activeTab)?.label)}</h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{contextLeagueId} {navLevel ? `> DIV ${navLevel}` : ''}</p>
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{activeTab === 'menu' ? t.title : (activeTab === 'champions_league' ? t.cl : (activeTab === 'pyramid_cup' ? t.cup : t.menu.find(m => m.id === activeTab)?.label))}</h1>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{activeTab === 'pyramid_cup' ? 'TOURNAMENT BRACKET' : contextLeagueId} {navLevel ? `> DIV ${navLevel}` : ''}</p>
         </div>
       </header>
 
@@ -283,6 +354,7 @@ export default function RankingsPage() {
       ) : (
         <>
           {activeTab === 'champions_league' ? renderCL() : 
+           activeTab === 'pyramid_cup' ? renderCup() :
            activeTab === 'all_pyramids' && !navLeague ? renderLeaguePicker() : 
            !navLevel ? renderDivisionPicker() : 
            !navGroup ? renderGroupPicker() : 

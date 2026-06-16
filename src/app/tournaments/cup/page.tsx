@@ -12,7 +12,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
 import { collection, query, where, doc, orderBy, limit } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -36,7 +35,7 @@ export default function PyramidCupPage() {
       where('leagueId', '==', selectedLeagueId),
       where('seasonNumber', '==', Number(activeSeasonNumber)),
       where('round', '==', Number(activeRound)),
-      limit(100) // Лимит для плавности UI, в реальности раунды 1-2 огромные
+      limit(100) 
     );
   }, [db, selectedLeagueId, activeSeasonNumber, activeRound]);
 
@@ -143,7 +142,7 @@ export default function PyramidCupPage() {
           </div>
         ) : matches && matches.length > 0 ? (
           matches.map((m) => {
-            const isMyMatch = m.homeTeamId === user.uid || m.awayTeamId === user.uid;
+            const isMyMatch = m.homeTeamId === user?.uid || m.awayTeamId === user?.uid;
             
             return (
               <Card 
@@ -173,7 +172,7 @@ export default function PyramidCupPage() {
                         <p className="text-[7px] font-black text-muted-foreground uppercase mb-0.5">{t.home}</p>
                         <p className={cn(
                           "text-[11px] font-headline font-bold uppercase truncate italic",
-                          m.homeTeamId === user.uid ? "text-primary" : "text-white"
+                          m.homeTeamId === user?.uid ? "text-primary" : "text-white"
                         )}>
                           {m.homeTeamId ? (m.homeTeamId.startsWith('sys_bot') ? 'SYSTEM BOT' : 'TEAM ' + m.homeTeamId.slice(0, 5)) : t.waiting}
                         </p>
@@ -205,7 +204,7 @@ export default function PyramidCupPage() {
                         <p className="text-[7px] font-black text-muted-foreground uppercase mb-0.5">{t.away}</p>
                         <p className={cn(
                           "text-[11px] font-headline font-bold uppercase truncate italic",
-                          m.awayTeamId === user.uid ? "text-primary" : "text-white"
+                          m.awayTeamId === user?.uid ? "text-primary" : "text-white"
                         )}>
                           {m.awayTeamId ? (m.awayTeamId.startsWith('sys_bot') ? 'SYSTEM BOT' : 'TEAM ' + m.awayTeamId.slice(0, 5)) : (activeRound === 1 ? t.bye : t.waiting)}
                         </p>
