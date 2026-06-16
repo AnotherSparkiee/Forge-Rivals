@@ -106,17 +106,17 @@ export default function TournamentsPage() {
       </header>
       <div className="space-y-2">
         <Link href="/tournaments/cup">
-          <Card className="glass-card p-4 flex items-center justify-between border-yellow-500/20 bg-yellow-500/5">
+          <Card className="glass-card p-4 flex items-center justify-between border-yellow-500/20 bg-yellow-500/5 group hover:bg-yellow-500/10 transition-all">
             <div className="flex items-center gap-4">
-              <div className="p-2 rounded-xl bg-yellow-500/20">
-                <Trophy className="text-yellow-500 w-5 h-5" />
+              <div className="p-2.5 rounded-xl bg-yellow-500/20 border border-yellow-500/30 group-hover:scale-110 transition-transform">
+                <Trophy className="text-yellow-500 w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-sm font-bold uppercase">{t.cup}</h3>
-                <p className="text-[10px] text-muted-foreground">{t.cupDesc}</p>
+                <h3 className="text-sm font-bold uppercase text-white">{t.cup}</h3>
+                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-tight">{t.cupDesc}</p>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-yellow-500 transition-colors" />
           </Card>
         </Link>
         
