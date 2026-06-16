@@ -20,8 +20,8 @@ export function AutoMatchManager() {
   const db = useFirestore();
   const processingRef = useRef(false);
 
-  // FIX: Using the correct name for the query variable used in useCollection
-  const allGroupPlayersQuery = useMemoFirebase(() => {
+  // FIX: Using a stable query for current group players
+  const groupPlayersQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
       collection(db, 'players_v10'), 
@@ -31,7 +31,7 @@ export function AutoMatchManager() {
     );
   }, [db, selectedLeagueId, leagueLevel, groupId]);
 
-  const { data: allGroupPlayers } = useCollection(allGroupPlayersQuery);
+  const { data: allGroupPlayers } = useCollection(groupPlayersQuery);
 
   useEffect(() => {
     if (!isLoaded || !userId || !selectedLeagueId || processingRef.current || !allGroupPlayers) return;
