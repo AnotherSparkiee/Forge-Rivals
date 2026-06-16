@@ -1,48 +1,40 @@
-
 {
   "entities": {
     "PlayerProfile": {
-      "title": "PlayerProfile",
-      "description": "Root pointer for user location in the pyramid",
-      "type": "object",
+      "collection": "players_v10",
       "properties": {
-        "id": { "type": "string" },
-        "displayName": { "type": "string" },
-        "selectedLeagueId": { "type": "string" },
-        "leagueLevel": { "type": "number" },
-        "groupId": { "type": "number" },
-        "lastProcessedSeason": { "type": "number" },
-        "setupDate": { "type": "string", "format": "date-time" }
+        "selectedLeagueId": "string (ALPHA, BETA...)",
+        "leagueLevel": "number (1-9)",
+        "groupId": "number (1-256)",
+        "tournaments": "array (active tour IDs)",
+        "setupDate": "ISO date"
       }
     },
     "LeagueGroup": {
-      "title": "LeagueGroup",
-      "description": "Synchronized state for a single group of 8 teams",
-      "type": "object",
+      "collection": "leagues_v2/{leagueId}/divisions/{divId}/groups/{groupId}",
+      "description": "State for a group of 8 teams",
       "properties": {
-        "seasonId": { "type": "number" },
-        "roundNumber": { "type": "number" },
-        "teams": { "type": "array" },
-        "calendar": { "type": "array" },
-        "lastProcessedDate": { "type": "string" }
+        "seasonId": "number",
+        "teams": "array (8 unique IDs)",
+        "lastProcessedDate": "YYYY-MM-DD"
+      }
+    },
+    "Match": {
+      "collection": "matches_v1",
+      "idFormat": "m_{league}_{div}_{group}_s{season}_d{day}_h{homeId}",
+      "properties": {
+        "status": "pending | finished",
+        "startTime": "ISO date",
+        "seasonNumber": "number",
+        "scoreA": "number",
+        "scoreB": "number"
       }
     }
   },
-  "auth": {
-    "providers": ["password", "google.com"]
-  },
-  "firestore": {
-    "/players_v10/{userId}": {
-      "schema": "PlayerProfile",
-      "description": "User account and location"
-    },
-    "/leagues_v2/{leagueId}/divisions/{divId}/groups/{groupId}": {
-      "schema": "LeagueGroup",
-      "description": "Autonomous group engine state"
-    },
-    "/matches_v1/{matchId}": {
-      "schema": "Match",
-      "description": "Historical record of all matches"
-    }
+  "automation": {
+    "season_cycle": "16 days (14 play + 2 break)",
+    "epoch": "2026-06-17T00:00:00+03:00",
+    "algorithm": "Round-robin (deterministic)",
+    "conflict_resolution": "Aggressive purge of legacy bot names on season start"
   }
 }

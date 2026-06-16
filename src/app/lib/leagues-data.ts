@@ -1,5 +1,5 @@
 /**
- * @fileOverview Core logic for League structure, deterministic scheduling, and Bo2 result generation.
+ * @fileOverview Ядро лиг: детерминированное расписание, уникальные боты и круговая система.
  */
 
 export interface LeagueOption {
@@ -32,36 +32,18 @@ export const LEAGUES: LeagueOption[] = [
 ];
 
 /**
- * Deterministic Bo2 Result: [2,0], [1,1], [0,2]
+ * Генерирует стабильный список из 8 команд.
+ * Формула ID бота: bot[Лига(2)][Див(1)][Гр(3)][Индекс(1)]
  */
-export function getMatchResult(homeId: string, awayId: string, day: number = 0, season: number = 1): [number, number] {
-  const combinedId = `${homeId}-${awayId}-${day}-${season}`;
-  let hash = 0;
-  for (let i = 0; i < combinedId.length; i++) {
-    hash = ((hash << 5) - hash) + combinedId.charCodeAt(i);
-    hash |= 0;
-  }
-  const seed = Math.abs(hash);
-  
-  const val = seed % 100;
-  if (val < 35) return [2, 0];
-  if (val < 65) return [1, 1];
-  return [0, 2];
-}
-
-/**
- * Generates a stable list of 8 teams for a group with globally unique deterministic bot IDs and Names.
- * Bot ID formula: bot[League(1-16)][Div(1-9)][Group(3-digits)][Index(1)]
- */
-export function getStableGroupTeams(level: any, group: any, leagueId: string, allLeaguePlayers: any[] = []) {
-  const lvl = Number(level);
-  const grp = Number(group);
+export function getStableGroupTeams(level: number, group: number, leagueId: string, allLeaguePlayers: any[] = []) {
   const leagueIdx = LEAGUES.findIndex(l => l.id === leagueId);
+  const leagueNum = (leagueIdx + 1).toString().padStart(2, '0');
+  const groupNum = group.toString().padStart(3, '0');
 
   const groupPlayers = allLeaguePlayers.filter(p => 
     p.selectedLeagueId === leagueId && 
-    Number(p.leagueLevel) === lvl && 
-    Number(p.groupId) === grp
+    Number(p.leagueLevel) === level && 
+    Number(p.groupId) === group
   ).map(p => ({
     id: p.id,
     name: p.displayName || "Unknown Commander",
@@ -72,97 +54,73 @@ export function getStableGroupTeams(level: any, group: any, leagueId: string, al
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   
   for (let i = 0; i < botsNeeded; i++) {
-    // Unique ID: bot[LeagueIndex+1(2)][Level(1)][Group(3)][Index(1)]
-    const botIdNum = ((leagueIdx + 1) * 100000) + (lvl * 1000) + (grp * 10) + (i + 1);
-    const botId = `bot${botIdNum}`;
+    const botId = `bot${leagueNum}${level}${groupNum}${i + 1}`;
     teams.push({ id: botId, name: botId, isBot: true });
   }
 
+  // Сортировка для стабильности индексов в алгоритме круговой системы
   return teams.sort((a, b) => a.id.localeCompare(b.id));
 }
 
 /**
- * Circle-robin algorithm for 14-day calendar.
+ * Алгоритм круговой системы (Round-robin) для 8 команд.
+ * Генерирует пары на 14 дней (2 круга).
  */
 export function generateSeasonCalendar(teams: any[]) {
   const n = teams.length;
-  const rounds = (n - 1) * 2;
+  const roundsPerHalf = n - 1; // 7 дней в одном круге
   const matches = [];
-  const teamIndices = Array.from({ length: n }, (_, i) => i);
 
-  for (let r = 0; r < rounds; r++) {
-    const day = r + 1;
-    const isSecondHalf = r >= (n - 1);
-    
+  // Создаем массив индексов [0, 1, 2, 3, 4, 5, 6, 7]
+  const indices = Array.from({ length: n }, (_, i) => i);
+
+  for (let round = 0; round < roundsPerHalf; round++) {
     for (let i = 0; i < n / 2; i++) {
-      let hIdx = teamIndices[i];
-      let aIdx = teamIndices[n - 1 - i];
-      if (isSecondHalf) [hIdx, aIdx] = [aIdx, hIdx];
+      const homeIdx = indices[i];
+      const awayIdx = indices[n - 1 - i];
 
+      // Первый круг (Дни 1-7)
       matches.push({
-        day,
-        homeId: teams[hIdx].id,
-        homeName: teams[hIdx].name,
-        awayId: teams[aIdx].id,
-        awayName: teams[aIdx].name,
-        status: 'pending',
-        scoreA: 0,
-        scoreB: 0
+        day: round + 1,
+        homeId: teams[homeIdx].id,
+        homeName: teams[homeIdx].name,
+        awayId: teams[awayIdx].id,
+        awayName: teams[awayIdx].name
+      });
+
+      // Второй круг (Дни 8-14) - зеркальные матчи
+      matches.push({
+        day: round + 1 + roundsPerHalf,
+        homeId: teams[awayIdx].id,
+        homeName: teams[awayIdx].name,
+        awayId: teams[homeIdx].id,
+        awayName: teams[homeIdx].name
       });
     }
-    teamIndices.splice(1, 0, teamIndices.pop()!);
+
+    // Вращение индексов (кроме первого элемента)
+    const pivot = indices[0];
+    const rest = indices.slice(1);
+    const last = rest.pop()!;
+    indices.splice(0, n, pivot, last, ...rest);
   }
+
   return matches;
 }
 
 /**
- * Calculates standings from a list of matches.
+ * Детерминированный результат матча Bo2.
  */
-export function calculateStandings(teams: any[], matches: any[]) {
-  const stats = teams.map(t => ({ 
-    ...t, 
-    wins: 0, 
-    draws: 0, 
-    losses: 0, 
-    points: 0, 
-    goalsFor: 0, 
-    goalsAgainst: 0,
-    played: 0
-  }));
-
-  matches.filter(m => m.status === 'finished').forEach(m => {
-    const home = stats.find(t => t.id === m.homeId);
-    const away = stats.find(t => t.id === m.awayId);
-    if (!home || !away) return;
-
-    home.played++;
-    away.played++;
-    home.goalsFor += (m.scoreA || 0);
-    home.goalsAgainst += (m.scoreB || 0);
-    away.goalsFor += (m.scoreB || 0);
-    away.goalsAgainst += (m.scoreA || 0);
-
-    if (m.scoreA > m.scoreB) {
-      home.wins++; home.points += 3; away.losses++;
-    } else if (m.scoreA === m.scoreB) {
-      home.draws++; home.points += 1; away.draws++; away.points += 1;
-    } else {
-      away.wins++; away.points += 3; home.losses++;
-    }
-  });
-
-  return stats.sort((a, b) => 
-    b.points - a.points || 
-    (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst) || 
-    b.goalsFor - a.goalsFor ||
-    a.id.localeCompare(b.id)
-  );
-}
-
-/**
- * Higher level helper for Rankings page.
- */
-export function getGroupStandings(level: number, group: number, leagueId: string, season: number, allPlayers: any[], matches: any[]) {
-  const teams = getStableGroupTeams(level, group, leagueId, allPlayers);
-  return calculateStandings(teams, matches);
+export function getMatchResult(homeId: string, awayId: string, day: number, season: number): [number, number] {
+  const seedStr = `${homeId}_${awayId}_s${season}_d${day}`;
+  let hash = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    hash = ((hash << 5) - hash) + seedStr.charCodeAt(i);
+    hash |= 0;
+  }
+  const val = Math.abs(hash) % 100;
+  
+  if (val < 35) return [2, 0];
+  if (val < 65) return [1, 1];
+  return [0, 2];
 }
