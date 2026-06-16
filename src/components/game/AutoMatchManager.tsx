@@ -61,8 +61,7 @@ export function AutoMatchManager() {
             const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
             if (liveAge.numeric >= hero.careerEndAge) {
                console.log(`[Lifecycle] ${hero.name} has reached retirement age (${hero.careerEndAge}). Unit deactivated.`);
-               removeHero(hero.id, 0); // Automatic retirement (no refund)
-               // The transfer market logic in pro/page.tsx will handle the re-drop tomorrow
+               removeHero(hero.id, 0); 
             }
           }
         }
@@ -70,9 +69,10 @@ export function AutoMatchManager() {
         // --- PHASE 1: INITIALIZE GROUP & CALENDAR ---
         const teams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, allGroupPlayers);
 
+        // Force regeneration if season mismatch OR epoch mismatch (detected by wrong team count or bots)
         const forceRegen = !groupSnap.exists() || 
                            groupSnap.data().seasonId !== activeSeason ||
-                           (groupSnap.data().teams?.[0]?.name?.includes('Bot') && !groupSnap.data().teams?.[0]?.name?.includes('.'));
+                           (groupSnap.data().teams?.length !== 8);
 
         if (forceRegen) {
           const calendar = generateSeasonCalendar(teams);
@@ -87,7 +87,8 @@ export function AutoMatchManager() {
 
           calendar.forEach((m) => {
             const matchId = `match_${selectedLeagueId}_g${groupId}_s${activeSeason}_d${m.day}_h${m.homeId}`;
-            const matchDate = new Date('2026-06-13T00:00:00+03:00');
+            // SYNCED WITH EPOCH 2024-06-01
+            const matchDate = new Date('2024-06-01T00:00:00+03:00');
             matchDate.setDate(matchDate.getDate() + (activeSeason - 1) * 16 + (m.day - 1));
             const [hh, mm] = league.startTime.split(':').map(Number);
             matchDate.setHours(hh, mm, 0, 0);
