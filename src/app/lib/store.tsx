@@ -1,4 +1,3 @@
-
 'use client';
 
 /**
@@ -110,8 +109,8 @@ const DEFAULT_STATE: GameState = {
   managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
   managerLevel: 1, skillPoints: 0, lastProcessedSeason: 0,
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
-  country: null, isPremium: false, premiumUntil: null, activeLicenseTier: null,
-  rank: 8, seasonDay: 1, seasonNumber: 1, activeSeasonNumber: 1, isSyncing: false, language: 'ru',
+  country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, activeLicenseTier: null,
+  rank: 8, seasonDay: 1, seasonNumber: 1, isSyncing: false, language: 'ru',
   addCrystals: () => {}, addCredits: () => {}, updateHero: () => {}, removeHero: () => {}, assignToRole: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
   syncStats: () => {}, setTrainingFocus: () => {}, startDailyHeroTraining: () => {}, claimDailyHeroTraining: () => {},
@@ -137,17 +136,17 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const setLanguage = (l: string) => setLang(l);
 
-  // Real-time synchronization for all group matches in current season
+  // СТРОГАЯ ФИЛЬТРАЦИЯ СЕЗОНА: Запрос видит ТОЛЬКО матчи активного сезона
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!state.selectedLeagueId || !state.id) return null;
     const { activeSeasonNumber } = getGlobalSeasonInfo();
-    // CRITICAL: Force filtering by activeSeasonNumber to prevent "flickering" between old and new matches
+    
     return query(
       collection(db, 'matches_v1'),
       where('leagueId', '==', state.selectedLeagueId),
       where('divisionId', '==', Number(state.leagueLevel)),
       where('groupId', '==', Number(state.groupId)),
-      where('seasonNumber', '==', Number(activeSeasonNumber))
+      where('seasonNumber', '==', Number(activeSeasonNumber)) // Гарантирует отсутствие старых сезонов в UI
     );
   }, [db, state.selectedLeagueId, state.leagueLevel, state.groupId, state.id]);
 

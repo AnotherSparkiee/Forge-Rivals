@@ -33,7 +33,7 @@ export const LEAGUES: LeagueOption[] = [
 
 /**
  * Генерирует стабильный список из 8 команд.
- * Формула ID бота: bot[Лига(2)][Див(1)][Гр(3)][Индекс(1)]
+ * Формула ID бота: bot[Лига(2)][Див(1)][Гр(3)][Индекс(1)] - Всего 7 цифр
  */
 export function getStableGroupTeams(level: number, group: number, leagueId: string, allLeaguePlayers: any[] = []) {
   const leagueIdx = LEAGUES.findIndex(l => l.id === leagueId);
@@ -54,7 +54,7 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   
   for (let i = 0; i < botsNeeded; i++) {
-    // bot1090011 -> Лига 1, Див 9, Группа 1, Бот 1
+    // Пример: bot0190011 -> Лига 1 (ALPHA), Див 9, Группа 1, Бот 1
     const botId = `bot${leagueNum}${level}${groupNum}${i + 1}`;
     teams.push({ id: botId, name: botId, isBot: true });
   }
