@@ -21,6 +21,7 @@ import { LEAGUES } from '@/app/lib/leagues-data';
 interface CupMatch {
   cupMatchId: string;
   seasonId: string;
+  seasonNumber: number;
   leagueId: string;
   round: number;
   date: string; // ISO UTC
@@ -66,10 +67,10 @@ class FirestoreBatcher {
  */
 export async function generatePyramidCup() {
   const { firestore: db } = initializeFirebase();
-  const CURRENT_SEASON = "2";
+  const CURRENT_SEASON_NUM = 1;
   const START_DATE_STR = "2026-06-17T20:00:00Z";
 
-  console.log(`[CUP] Starting generation for Season ${CURRENT_SEASON}`);
+  console.log(`[CUP] Starting generation for Season ${CURRENT_SEASON_NUM}`);
 
   for (const league of LEAGUES) {
     console.log(`[CUP] Processing League: ${league.id}`);
@@ -95,8 +96,8 @@ export async function generatePyramidCup() {
     // Сортировка lowerTeams (от сильных к слабым)
     lowerTeams.sort((a, b) => Number(a.divisionId) - Number(b.divisionId) || a.rank - b.rank);
 
-    // 2. Генерация пар Раунда 1 (От края до края)
-    const round1Matches: { homeId: string, awayId: string | null }[] = [];
+    // 2. Генерируем Раунд 1 (От края до края)
+    const round1Pairs: { homeId: string, awayId: string | null }[] = [];
     let left = 0;
     let right = lowerTeams.length - 1;
 
@@ -104,28 +105,29 @@ export async function generatePyramidCup() {
       const strongTeam = lowerTeams[left];
       const weakTeam = lowerTeams[right];
       // Сильный (strong) — в гостях, слабый (weak) — дома
-      round1Matches.push({ homeId: weakTeam.id, awayId: strongTeam.id });
+      round1Pairs.push({ homeId: weakTeam.id, awayId: strongTeam.id });
       left++;
       right--;
     }
 
     if (left === right) {
-      round1Matches.push({ homeId: lowerTeams[left].id, awayId: null });
+      round1Pairs.push({ homeId: lowerTeams[left].id, awayId: null });
     }
 
-    const totalR1Matches = round1Matches.length;
+    const totalR1Matches = round1Pairs.length;
 
     // 3. Запись Раунда 1
     for (let i = 0; i < totalR1Matches; i++) {
-      const match = round1Matches[i];
+      const match = round1Pairs[i];
       const mNum = i + 1;
-      const matchId = `season_${CURRENT_SEASON}_league_${league.id}_round_1_match_${mNum}`;
+      const matchId = `season_${CURRENT_SEASON_NUM}_league_${league.id}_round_1_match_${mNum}`;
       const nextMatchNum = Math.ceil(mNum / 2);
-      const nextCupMatchId = `season_${CURRENT_SEASON}_league_${league.id}_round_2_match_${nextMatchNum}`;
+      const nextCupMatchId = `season_${CURRENT_SEASON_NUM}_league_${league.id}_round_2_match_${nextMatchNum}`;
 
       await batcher.set(doc(db, 'cup_matches', matchId), {
         cupMatchId: matchId,
-        seasonId: CURRENT_SEASON,
+        seasonId: `season_${CURRENT_SEASON_NUM}`,
+        seasonNumber: CURRENT_SEASON_NUM,
         leagueId: league.id,
         round: 1,
         date: START_DATE_STR,
@@ -141,16 +143,17 @@ export async function generatePyramidCup() {
     const totalR2Matches = Math.ceil((totalR1Matches + div1Teams.length) / 2);
 
     for (let mNum = 1; mNum <= totalR2Matches; mNum++) {
-      const matchId = `season_${CURRENT_SEASON}_league_${league.id}_round_2_match_${mNum}`;
+      const matchId = `season_${CURRENT_SEASON_NUM}_league_${league.id}_round_2_match_${mNum}`;
       const nextMatchNum = Math.ceil(mNum / 2);
-      const nextCupMatchId = `season_${CURRENT_SEASON}_league_${league.id}_round_3_match_${nextMatchNum}`;
+      const nextCupMatchId = `season_${CURRENT_SEASON_NUM}_league_${league.id}_round_3_match_${nextMatchNum}`;
       
       // Див 1 садятся гостями в первые матчи
       const byeTeamId = div1Teams[mNum - 1] ? div1Teams[mNum - 1].id : null;
 
       await batcher.set(doc(db, 'cup_matches', matchId), {
         cupMatchId: matchId,
-        seasonId: CURRENT_SEASON,
+        seasonId: `season_${CURRENT_SEASON_NUM}`,
+        seasonNumber: CURRENT_SEASON_NUM,
         leagueId: league.id,
         round: 2,
         date: START_DATE_STR,
@@ -162,17 +165,18 @@ export async function generatePyramidCup() {
       } as CupMatch);
     }
 
-    // 5. Генерация остального дерева до Финала (обычно до R12)
-    let matchesInRound = Math.ceil(totalR2Matches / 2);
+    // 5. Генерация остального дерева до Финала (Раунд 12)
+    let currentRoundMatches = Math.ceil(totalR2Matches / 2);
     for (let r = 3; r <= 12; r++) {
-      if (matchesInRound === 0) break;
-      for (let mNum = 1; mNum <= matchesInRound; mNum++) {
-        const matchId = `season_${CURRENT_SEASON}_league_${league.id}_round_${r}_match_${mNum}`;
-        const nextMatchId = r < 12 ? `season_${CURRENT_SEASON}_league_${league.id}_round_${r+1}_match_${Math.ceil(mNum / 2)}` : null;
+      if (currentRoundMatches === 0) break;
+      for (let mNum = 1; mNum <= currentRoundMatches; mNum++) {
+        const matchId = `season_${CURRENT_SEASON_NUM}_league_${league.id}_round_${r}_match_${mNum}`;
+        const nextMatchId = r < 12 ? `season_${CURRENT_SEASON_NUM}_league_${league.id}_round_${r+1}_match_${Math.ceil(mNum / 2)}` : null;
 
         await batcher.set(doc(db, 'cup_matches', matchId), {
           cupMatchId: matchId,
-          seasonId: CURRENT_SEASON,
+          seasonId: `season_${CURRENT_SEASON_NUM}`,
+          seasonNumber: CURRENT_SEASON_NUM,
           leagueId: league.id,
           round: r,
           date: START_DATE_STR,
@@ -183,8 +187,8 @@ export async function generatePyramidCup() {
           nextCupMatchId: nextMatchId
         } as CupMatch);
       }
-      if (matchesInRound === 1) break;
-      matchesInRound = Math.ceil(matchesInRound / 2);
+      if (currentRoundMatches === 1) break;
+      currentRoundMatches = Math.ceil(currentRoundMatches / 2);
     }
 
     await batcher.commit();
@@ -196,7 +200,6 @@ export async function generatePyramidCup() {
 
 /**
  * Реактивное продвижение победителя.
- * Внедряется в onUpdate триггер коллекции 'cup_matches'.
  */
 export async function advanceCupWinner(matchId: string, winnerId: string) {
   const { firestore: db } = initializeFirebase();
@@ -219,13 +222,9 @@ export async function advanceCupWinner(matchId: string, winnerId: string) {
 
   // Правило продвижения:
   // Победитель нечетного матча идет в Home, четного - в Away.
-  // Исключение: Если в Away уже сидит команда 1-го дивизиона (во 2-м раунде).
   const currentMatchNumStr = matchId.split('_match_').pop() || '1';
   const currentMatchNum = parseInt(currentMatchNumStr);
-  const targetSlot = (currentMatchNum % 2 !== 0) ? 'homeTeamId' : 'awayTeamId';
 
-  // Если целевой слот уже занят (например, командой 1-го дивизиона), 
-  // используем альтернативный свободный слот.
   if (nextData.homeTeamId === null) {
     await updateDoc(nextRef, { homeTeamId: winnerId });
   } else {

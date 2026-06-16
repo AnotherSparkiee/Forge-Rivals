@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { getGroupStandings, LEAGUES, MAX_LEVELS } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, where, orderBy, limit } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
@@ -52,21 +52,23 @@ export default function RankingsPage() {
   const { data: groupPlayers } = useCollection(playersQuery);
 
   const matchesQuery = useMemoFirebase(() => {
+    const sNum = activeSeasonNumber || 1;
     return query(
       collection(db, 'matches_v1'),
       where('leagueId', '==', contextLeagueId),
       where('divisionId', '==', Number(contextLevel)),
       where('groupId', '==', Number(contextGroup)),
-      where('seasonNumber', '==', Number(activeSeasonNumber))
+      where('seasonNumber', '==', Number(sNum))
     );
   }, [db, contextLeagueId, contextLevel, contextGroup, activeSeasonNumber]);
 
   const { data: groupMatches } = useCollection(matchesQuery);
 
   const clQuery = useMemoFirebase(() => {
+    const sNum = activeSeasonNumber || 1;
     return query(
       collection(db, 'cl_matches_v1'),
-      where('seasonNumber', '==', Number(activeSeasonNumber))
+      where('seasonNumber', '==', Number(sNum))
     );
   }, [db, activeSeasonNumber]);
 
@@ -74,10 +76,11 @@ export default function RankingsPage() {
 
   const cupQuery = useMemoFirebase(() => {
     if (activeTab !== 'pyramid_cup') return null;
+    const sNum = activeSeasonNumber || 1;
     return query(
       collection(db, 'cup_matches'),
       where('leagueId', '==', selectedLeagueId),
-      where('seasonNumber', '==', Number(activeSeasonNumber)),
+      where('seasonNumber', '==', Number(sNum)),
       where('round', '==', Number(cupRound)),
       limit(100)
     );
@@ -87,11 +90,12 @@ export default function RankingsPage() {
 
   const standings = useMemo(() => {
     if (!isLoaded) return [];
+    const sNum = activeSeasonNumber || 1;
     return getGroupStandings(
       Number(contextLevel),
       Number(contextGroup),
       contextLeagueId,
-      Number(activeSeasonNumber),
+      Number(sNum),
       groupPlayers || [],
       groupMatches || []
     );
@@ -158,7 +162,7 @@ export default function RankingsPage() {
                 <CardContent className="p-3">
                   <div className="grid grid-cols-[1fr_40px_1fr] items-center gap-4">
                     <div className="text-right">
-                      <p className="text-[10px] font-bold uppercase truncate">{m.homeTeamId ? (m.homeTeamId.startsWith('sys_bot') ? 'SYSTEM BOT' : 'TEAM ' + m.homeTeamId.slice(0, 5)) : t.waiting}</p>
+                      <p className="text-[10px] font-bold uppercase truncate">{m.homeTeamId ? 'TEAM ' + m.homeTeamId.slice(0, 5) : t.waiting}</p>
                       <span className="text-[7px] text-muted-foreground uppercase tracking-widest">HOME</span>
                     </div>
                     <div className="text-center">
@@ -166,19 +170,19 @@ export default function RankingsPage() {
                       {m.status === 'finished' && <p className="text-[10px] font-mono font-bold text-primary mt-1">{m.scoreA}:{m.scoreB}</p>}
                     </div>
                     <div className="text-left">
-                      <p className="text-[10px] font-bold uppercase truncate">{m.awayTeamId ? (m.awayTeamId.startsWith('sys_bot') ? 'SYSTEM BOT' : 'TEAM ' + m.awayTeamId.slice(0, 5)) : (cupRound === 1 ? t.bye : t.waiting)}</p>
+                      <p className="text-[10px] font-bold uppercase truncate">{m.awayTeamId ? 'TEAM ' + m.awayTeamId.slice(0, 5) : (cupRound === 1 ? t.bye : t.waiting)}</p>
                       <span className="text-[7px] text-muted-foreground uppercase tracking-widest">AWAY</span>
                     </div>
                   </div>
                   <div className="mt-2 flex justify-center">
-                    <span className="text-[7px] font-mono text-muted-foreground/60">{new Date(m.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} UTC</span>
+                    <span className="text-[7px] font-mono text-muted-foreground/60">SESSION_UTC_SYNC</span>
                   </div>
                 </CardContent>
               </Card>
             );
           }) : (
-            <div className="py-20 text-center opacity-30">
-              <p className="text-xs font-black uppercase tracking-widest">Нет матчей для отображения</p>
+            <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl">
+              <p className="text-xs font-black uppercase tracking-widest">Нет матчей в Раунде {cupRound}</p>
             </div>
           )}
         </div>

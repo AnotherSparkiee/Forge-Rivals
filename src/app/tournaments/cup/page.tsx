@@ -17,7 +17,7 @@ import { collection, query, where, doc, orderBy, limit } from 'firebase/firestor
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
 
-const TOTAL_ROUNDS = 11;
+const TOTAL_ROUNDS = 12;
 
 export default function PyramidCupPage() {
   const { user, isUserLoading } = useUser();
@@ -30,10 +30,11 @@ export default function PyramidCupPage() {
   // 1. Подгружаем все матчи текущей лиги для выбранного раунда
   const cupQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
+    const sNum = activeSeasonNumber || 1;
     return query(
       collection(db, 'cup_matches'),
       where('leagueId', '==', selectedLeagueId),
-      where('seasonNumber', '==', Number(activeSeasonNumber)),
+      where('seasonNumber', '==', Number(sNum)),
       where('round', '==', Number(activeRound)),
       limit(100) 
     );
@@ -146,7 +147,7 @@ export default function PyramidCupPage() {
             
             return (
               <Card 
-                key={m.id} 
+                key={m.cupMatchId} 
                 className={cn(
                   "glass-card border-white/5 overflow-hidden transition-all",
                   isMyMatch && "border-primary/40 bg-primary/10 ring-1 ring-primary/20 shadow-[0_0_20px_rgba(var(--primary),0.1)]",
@@ -161,7 +162,7 @@ export default function PyramidCupPage() {
                   )}
                   
                   <div className="grid grid-cols-[1fr_50px_1fr] items-center p-4">
-                    {/* HOME TEAM (WEAKER) */}
+                    {/* HOME TEAM */}
                     <div className="text-right space-y-2">
                       <div className="flex justify-end">
                         <div className="w-10 h-10 rounded-xl bg-secondary/50 border border-white/10 flex items-center justify-center">
@@ -174,7 +175,7 @@ export default function PyramidCupPage() {
                           "text-[11px] font-headline font-bold uppercase truncate italic",
                           m.homeTeamId === user?.uid ? "text-primary" : "text-white"
                         )}>
-                          {m.homeTeamId ? (m.homeTeamId.startsWith('sys_bot') ? 'SYSTEM BOT' : 'TEAM ' + m.homeTeamId.slice(0, 5)) : t.waiting}
+                          {m.homeTeamId ? 'TEAM ' + m.homeTeamId.slice(0, 5) : t.waiting}
                         </p>
                       </div>
                     </div>
@@ -188,12 +189,9 @@ export default function PyramidCupPage() {
                           <Swords className="w-4 h-4 text-accent" />
                         </div>
                       )}
-                      <p className="text-[8px] font-mono text-muted-foreground">
-                        {new Date(m.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
                     </div>
 
-                    {/* AWAY TEAM (STRONGER) */}
+                    {/* AWAY TEAM */}
                     <div className="text-left space-y-2">
                       <div className="flex justify-start">
                         <div className="w-10 h-10 rounded-xl bg-secondary/50 border border-white/10 flex items-center justify-center">
@@ -206,7 +204,7 @@ export default function PyramidCupPage() {
                           "text-[11px] font-headline font-bold uppercase truncate italic",
                           m.awayTeamId === user?.uid ? "text-primary" : "text-white"
                         )}>
-                          {m.awayTeamId ? (m.awayTeamId.startsWith('sys_bot') ? 'SYSTEM BOT' : 'TEAM ' + m.awayTeamId.slice(0, 5)) : (activeRound === 1 ? t.bye : t.waiting)}
+                          {m.awayTeamId ? 'TEAM ' + m.awayTeamId.slice(0, 5) : (activeRound === 1 ? t.bye : t.waiting)}
                         </p>
                       </div>
                     </div>
@@ -216,12 +214,12 @@ export default function PyramidCupPage() {
                     <div className="flex items-center gap-1.5">
                       <Calendar className="w-3 h-3 text-muted-foreground" />
                       <span className="text-[9px] font-mono font-bold text-muted-foreground">
-                        {new Date(m.startTime).toLocaleDateString()}
+                        {new Date(m.date).toLocaleDateString()}
                       </span>
                     </div>
                     {m.winnerId && (
                       <Badge className="bg-green-600/20 text-green-400 text-[8px] font-black h-4 px-2 border-none">
-                        WINNER: {m.winnerId === m.homeTeamId ? 'HOME' : 'AWAY'}
+                        WINNER SECURED
                       </Badge>
                     )}
                   </div>
@@ -230,9 +228,9 @@ export default function PyramidCupPage() {
             );
           })
         ) : (
-          <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4 border-2 border-dashed border-white/5 rounded-3xl">
+          <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4 border-2 border-dashed border-white/5 rounded-3xl p-10">
             <Medal className="w-16 h-16" />
-            <p className="text-xs font-black uppercase tracking-widest">{t.noMatches}</p>
+            <p className="text-xs font-black uppercase tracking-widest">Нет матчей в Раунде {activeRound}</p>
           </div>
         )}
       </div>
