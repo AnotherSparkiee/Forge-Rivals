@@ -8,7 +8,7 @@
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs, Timestamp } from 'firebase/firestore';
 import { 
   getStableGroupTeams, generateSeasonCalendar, getMatchResult, 
   LEAGUES 
@@ -49,7 +49,8 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const groupData = groupSnap.data();
 
-        // Получаем все существующие матчи группы для проверки чистоты данных
+        // --- ТОТАЛЬНАЯ САНИТАРНАЯ ПРОВЕРКА ---
+        // Получаем ВООБЩЕ ВСЕ матчи этой группы, не фильтруя по сезону
         const matchesQ = query(
           collection(db, 'matches_v1'),
           where('leagueId', '==', selectedLeagueId),
@@ -58,21 +59,18 @@ export function AutoMatchManager() {
         );
         const existingSnap = await getDocs(matchesQ);
         
-        // КРИТЕРИИ ОЧИСТКИ (Sanitary Protocol)
-        // 1. Старые имена ботов (Elite Bot, 9.1.1)
-        // 2. Неверный номер сезона
-        // 3. Некорректная дата старта (День 1 должен быть 17.06.2026)
+        // Ищем признаки мусора: старые боты, неверный сезон или некорректная дата старта
         const dirtyMatches = existingSnap.docs.filter(d => {
           const m = d.data();
           const namePool = (m.homeName || "") + (m.awayName || "");
           const isOldBot = namePool.includes('Elite Bot') || namePool.includes('9.1.1') || namePool.includes('Bot 10');
           const isWrongSeason = m.seasonNumber !== activeSeason;
           
-          // Проверка даты старта для Сезона 1
+          // Проверка даты старта (должна быть 17.06.2026 для 1-го сезона)
           let isWrongDate = false;
           if (activeSeason === 1 && m.day === 1) {
-             const startDate = new Date(m.startTime).getDate();
-             if (startDate !== 17) isWrongDate = true; 
+             const startDateStr = String(m.startTime || m.scheduledAt || "");
+             if (startDateStr && !startDateStr.includes('2026-06-17')) isWrongDate = true;
           }
           
           return isOldBot || isWrongSeason || isWrongDate;
@@ -85,7 +83,7 @@ export function AutoMatchManager() {
           
           const batch = writeBatch(db);
           
-          // АТОМАРНОЕ УДАЛЕНИЕ ВСЕГО МУСОРА
+          // АТОМАРНОЕ УДАЛЕНИЕ ВСЕГО МУСОРА ПЕРЕД ГЕНЕРАЦИЕЙ
           existingSnap.docs.forEach(d => batch.delete(d.ref));
           
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
@@ -104,20 +102,21 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           }, { merge: true });
 
-          // Обновляем Глобальный Указатель для клиентов
-          const systemStatusRef = doc(db, 'system_v1', 'status');
-          batch.set(systemStatusRef, {
+          // Обновляем Глобальный Указатель для мгновенного переключения клиентов
+          batch.set(doc(db, 'system_v1', 'status'), {
             currentSeasonNumber: activeSeason,
             updatedAt: serverTimestamp()
           }, { merge: true });
 
-          // Генерируем 56 новых чистых матчей
+          // Генерируем 56 новых чистых матчей с детерминированными ID
           calendar.forEach((m) => {
             const matchId = `m_${selectedLeagueId}_${leagueLevel}_${groupId}_s${activeSeason}_d${m.day}_h${m.homeId}`;
             
             const [hh, mm] = league.startTime.split(':').map(Number);
+            // Точный расчет: База + День + Часы лиги
             const matchTimeOffset = (m.day - 1) * dayMs + (hh * 60 * 60 * 1000) + (mm * 60 * 1000);
-            const finalStartTime = new Date(seasonStartMs + matchTimeOffset).toISOString();
+            const finalDate = new Date(seasonStartMs + matchTimeOffset);
+            const finalStartTime = finalDate.toISOString();
 
             batch.set(doc(db, 'matches_v1', matchId), {
               ...m,
@@ -128,7 +127,7 @@ export function AutoMatchManager() {
               seasonNumber: activeSeason,
               status: 'pending',
               startTime: finalStartTime,
-              scheduledAt: finalStartTime // Совместимость с полем scheduledAt
+              scheduledAt: Timestamp.fromDate(finalDate) // Сохраняем и как Timestamp для бэкенда
             });
           });
 
@@ -138,7 +137,7 @@ export function AutoMatchManager() {
           return;
         }
 
-        // Логика симуляции завершенных матчей
+        // Логика авто-симуляции матчей (проверка раз в минуту)
         const mskNow = getMoscowTime();
         const simBatch = writeBatch(db);
         let simCount = 0;
