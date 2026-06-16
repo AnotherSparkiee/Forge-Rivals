@@ -92,7 +92,7 @@ const COUNTRY_PHOTOS: Record<string, { flag: string, name: string, url: string }
   'UA': { flag: '🇺🇦', name: 'Украина', url: 'https://i.postimg.cc/X7fs4pYn/ua-1.jpg' },
   'KR': { flag: '🇰🇷', name: 'Южная Корея', url: 'https://i.postimg.cc/43mv7dsH/kr-1.jpg' },
   'BR': { flag: '🇧🇷', name: 'Бразилия', url: 'https://i.postimg.cc/Z5906yvS/br-1.jpg' },
-  'TR': { flag: '🇹🇷', name: 'Турция', url: 'https://i.postimg.cc/MHvbRpyd/tr-1.jpg' }
+  'TR': { flag: 'Турция', name: 'Турция', url: 'https://i.postimg.cc/MHvbRpyd/tr-1.jpg' }
 };
 
 const HERO_NAMES = [

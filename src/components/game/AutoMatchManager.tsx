@@ -21,7 +21,7 @@ export function AutoMatchManager() {
   const processingRef = useRef(false);
 
   // Sync all players in current group to form stable team list
-  const groupPlayersQuery = useMemoFirebase(() => {
+  const allGroupPlayersQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
       collection(db, 'players_v10'), 
