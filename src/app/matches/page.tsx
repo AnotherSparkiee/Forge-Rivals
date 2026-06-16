@@ -52,10 +52,10 @@ export default function MatchesPage() {
 
   const league = useMemo(() => LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0], [profile?.selectedLeagueId]);
 
-  // UI GUARD: Strict filtering by current active season
+  // UI GUARD: Strictly show only the active season's matches
   const filteredMatches = useMemo(() => {
     if (!groupMatches) return [];
-    return groupMatches.filter(m => Number(m.seasonNumber) === Number(activeSeasonNumber));
+    return groupMatches.filter(m => m.seasonId === `season_${activeSeasonNumber}`);
   }, [groupMatches, activeSeasonNumber]);
 
   const myMatches = useMemo(() => {
@@ -96,6 +96,28 @@ export default function MatchesPage() {
     return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
   };
 
+  const calendarDays = useMemo(() => {
+    const dayGroups: Record<number, any[]> = {};
+    filteredMatches.forEach(m => {
+      if (!dayGroups[m.day]) dayGroups[m.day] = [];
+      dayGroups[m.day].push(m);
+    });
+    return Object.entries(dayGroups)
+      .map(([day, matches]) => ({ day: Number(day), matches }))
+      .sort((a, b) => a.day - b.day);
+  }, [filteredMatches]);
+
+  const playedDays = useMemo(() => {
+    const dayGroups: Record<number, any[]> = {};
+    filteredMatches.filter(m => m.status === 'finished').forEach(m => {
+      if (!dayGroups[m.day]) dayGroups[m.day] = [];
+      dayGroups[m.day].push(m);
+    });
+    return Object.entries(dayGroups)
+      .map(([day, matches]) => ({ day: Number(day), matches }))
+      .sort((a, b) => a.day - b.day);
+  }, [filteredMatches]);
+
   if (isUserLoading || !isLoaded || !user || isProfileLoading) return <LoadingScreen />;
 
   const t = {
@@ -104,6 +126,7 @@ export default function MatchesPage() {
     day: language === 'ru' ? "День" : "Day",
     startsIn: language === 'ru' ? "ДО МАТЧА ОСТАЛОСЬ:" : "TIME UNTIL MATCH:",
     back: language === 'ru' ? "Назад" : "Back",
+    noMatches: language === 'ru' ? "Нет запланированных игр" : "No matches scheduled",
     tabs: {
       next_opponent: { label: language === 'ru' ? "Следующий соперник" : "Next Opponent", desc: language === 'ru' ? "Досье на ближайшего врага" : "Detailed brief on your next rival", icon: UserSearch },
       my_future: { label: language === 'ru' ? "Свои будущие" : "My Future", desc: language === 'ru' ? "Предстоящие игры команды" : "Upcoming matches for your team", icon: CalendarClock },
@@ -178,17 +201,17 @@ export default function MatchesPage() {
           ))}
         </div>;
       case 'league_calendar':
-        const days = Array.from({ length: 14 }, (_, i) => i + 1);
+        if (calendarDays.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">{t.noMatches}</div>;
         return (
           <div className="space-y-4 animate-in fade-in duration-500">
-            {days.map(d => (
-              <div key={d} className="space-y-2">
+            {calendarDays.map(({ day, matches }) => (
+              <div key={day} className="space-y-2">
                 <div className="flex justify-between items-center px-1">
-                  <h3 className="text-[10px] font-black uppercase text-accent tracking-widest">{t.day} {d}</h3>
-                  <span className="text-[8px] font-bold text-muted-foreground uppercase">{getSeasonDateLabel(d)}</span>
+                  <h3 className="text-[10px] font-black uppercase text-accent tracking-widest">{t.day} {day}</h3>
+                  <span className="text-[8px] font-bold text-muted-foreground uppercase">{getSeasonDateLabel(day)}</span>
                 </div>
                 <div className="grid gap-2">
-                  {filteredMatches.filter(m => m.day === d).map((m: any) => (
+                  {matches.map((m: any) => (
                     <div key={m.id} className={cn("bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between text-[10px] font-bold uppercase", m.status === 'finished' && "opacity-60")}>
                       <span className={cn("flex-1 text-right truncate", m.homeId === user.uid && "text-primary")}>{m.homeName}</span>
                       <div className="px-4 flex flex-col items-center">
@@ -207,37 +230,30 @@ export default function MatchesPage() {
           </div>
         );
       case 'league_played':
-        const playedDays = Array.from({ length: 14 }, (_, i) => i + 1);
-        const playedMatches = filteredMatches.filter(m => m.status === 'finished');
-        if (playedMatches.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">No group results yet</div>;
-        
+        if (playedDays.length === 0) return <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black">No group results yet</div>;
         return (
           <div className="space-y-4 animate-in fade-in duration-500">
-            {playedDays.map(d => {
-              const matchesForDay = filteredMatches.filter(m => m.day === d && m.status === 'finished');
-              if (matchesForDay.length === 0) return null;
-              return (
-                <div key={d} className="space-y-2">
-                  <div className="flex justify-between items-center px-1">
-                    <h3 className="text-[10px] font-black uppercase text-primary tracking-widest">{t.day} {d}</h3>
-                    <span className="text-[8px] font-bold text-muted-foreground uppercase">{getSeasonDateLabel(d)}</span>
-                  </div>
-                  <div className="grid gap-2">
-                    {matchesForDay.map((m: any) => (
-                      <Link key={m.id} href={`/match?id=${m.id}`} className="block">
-                        <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3 group hover:bg-white/5 transition-all">
-                          <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.homeId === user.uid && "text-accent")}>{m.homeName}</span>
-                          <div className="px-3 flex flex-col items-center">
-                            <span className="text-lg font-headline font-black italic text-white leading-none">{m.scoreA}:{m.scoreB}</span>
-                          </div>
-                          <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.awayId === user.uid && "text-accent")}>{m.awayName}</span>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
+            {playedDays.map(({ day, matches }) => (
+              <div key={day} className="space-y-2">
+                <div className="flex justify-between items-center px-1">
+                  <h3 className="text-[10px] font-black uppercase text-primary tracking-widest">{t.day} {day}</h3>
+                  <span className="text-[8px] font-bold text-muted-foreground uppercase">{getSeasonDateLabel(day)}</span>
                 </div>
-              );
-            })}
+                <div className="grid gap-2">
+                  {matches.map((m: any) => (
+                    <Link key={m.id} href={`/match?id=${m.id}`} className="block">
+                      <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3 group hover:bg-white/5 transition-all">
+                        <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.homeId === user.uid && "text-accent")}>{m.homeName}</span>
+                        <div className="px-3 flex flex-col items-center">
+                          <span className="text-lg font-headline font-black italic text-white leading-none">{m.scoreA}:{m.scoreB}</span>
+                        </div>
+                        <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.awayId === user.uid && "text-accent")}>{m.awayName}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         );
       default: return null;

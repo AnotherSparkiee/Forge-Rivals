@@ -6,12 +6,11 @@
 
 import { 
   collection, 
-  query, 
   getDocs, 
   writeBatch, 
   doc, 
-  serverTimestamp, 
-  where 
+  serverTimestamp,
+  setDoc
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 
@@ -19,7 +18,7 @@ export async function runEmergencyMigration() {
   const { firestore: db } = initializeFirebase();
   const matchesRef = collection(db, 'matches_v1');
 
-  console.log("Starting Migration: Archiving old drafts...");
+  console.log("Starting Migration: Archiving old drafts and setting global status...");
   
   // 1. Находим все матчи, не принадлежащие Сезону 1 или со старыми ботами
   const snapshot = await getDocs(matchesRef);
@@ -28,7 +27,7 @@ export async function runEmergencyMigration() {
 
   for (const d of snapshot.docs) {
     const data = d.data();
-    const isOldBot = (data.homeName || "").includes("ELITE BOT") || (data.awayName || "").includes("ELITE BOT");
+    const isOldBot = (data.homeName || "").includes("ELITE BOT") || (data.awayName || "").includes("ELITE BOT") || (data.homeName || "").includes("9.1.1");
     const isWrongSeason = data.seasonId !== "season_1";
 
     if (isOldBot || isWrongSeason) {
@@ -47,7 +46,7 @@ export async function runEmergencyMigration() {
   await batch.commit();
   console.log(`Archived ${count} old match documents.`);
 
-  // 2. Обновляем глобальный статус
+  // 2. Обновляем глобальный статус системы
   const statusRef = doc(db, 'system_v1', 'status');
   await setDoc(statusRef, {
     currentSeasonNumber: 1,

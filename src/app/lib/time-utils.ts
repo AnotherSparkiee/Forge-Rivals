@@ -30,6 +30,8 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
   const targetDate = new Date(mskNow);
   
   if (info.isTransitionPhase) {
+    // Correctly calculate offset to Day 1 of the new season
+    // If today is 16.06 and it's Day 16, Day 1 is tomorrow (17 - 16 = 1)
     const daysUntilNewSeason = (17 - info.seasonDay);
     targetDate.setDate(mskNow.getDate() + daysUntilNewSeason + (dayOfSeason - 1));
   } else {
@@ -51,14 +53,14 @@ export function getGlobalSeasonInfo() {
   
   const diffMs = mskNow.getTime() - epochDate.getTime();
   
-  // КОРРЕКЦИЯ: Если мы до старта эпохи (например, 16.06)
+  // КОРРЕКЦИЯ: Если мы до старта эпохи
   if (diffMs < 0) {
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffDaysFloor = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     return {
-      seasonDay: 16 + diffDays, // Будет 15 или 16 (дни подготовки)
+      seasonDay: 17 + diffDaysFloor, // If 1 day before (diffDays -1), seasonDay 16. Correct.
       seasonNumber: 1,
       isTransitionPhase: true,
-      activeSeasonNumber: 1 // ВАЖНО: До старта всегда сезон 1
+      activeSeasonNumber: 1
     };
   }
 
