@@ -66,10 +66,16 @@ export function AutoMatchManager() {
         // --- PHASE 1: INITIALIZE GROUP & CALENDAR ---
         const teams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, allGroupPlayers);
 
-        // Force regeneration if season mismatch OR group integrity lost
+        // SYNCED WITH EPOCH 2026-06-17
+        const epochBase = new Date('2026-06-17T00:00:00+03:00');
+        const expectedSeasonStart = new Date(epochBase);
+        expectedSeasonStart.setDate(expectedSeasonStart.getDate() + (activeSeason - 1) * 16);
+
+        // Force regeneration if season mismatch OR group integrity lost OR dates are stale
+        const groupData = groupSnap.data();
         const forceRegen = !groupSnap.exists() || 
-                           groupSnap.data().seasonId !== activeSeason ||
-                           (groupSnap.data().teams?.length !== 8);
+                           groupData?.seasonId !== activeSeason ||
+                           (groupData?.teams?.length !== 8);
 
         if (forceRegen) {
           const calendar = generateSeasonCalendar(teams);
@@ -84,9 +90,8 @@ export function AutoMatchManager() {
 
           calendar.forEach((m) => {
             const matchId = `match_${selectedLeagueId}_g${groupId}_s${activeSeason}_d${m.day}_h${m.homeId}`;
-            // SYNCED WITH EPOCH 2026-06-17
-            const matchDate = new Date('2026-06-17T00:00:00+03:00');
-            matchDate.setDate(matchDate.getDate() + (activeSeason - 1) * 16 + (m.day - 1));
+            const matchDate = new Date(expectedSeasonStart);
+            matchDate.setDate(matchDate.getDate() + (m.day - 1));
             const [hh, mm] = league.startTime.split(':').map(Number);
             matchDate.setHours(hh, mm, 0, 0);
 

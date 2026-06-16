@@ -78,10 +78,10 @@ export function getGlobalSeasonInfo() {
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
   let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
   
-  // Фаза перехода: 15 и 16 дни
+  // Фаза перехода: 15 и 16 дни (или время до начала эпохи)
   const isTransitionPhase = currentSeasonDay >= 15 || currentSeasonNumber < 1;
   
-  const effectiveSeason = Math.max(1, (currentSeasonDay >= 15) ? currentSeasonNumber + 1 : currentSeasonNumber);
+  const effectiveSeason = Math.max(1, (currentSeasonDay >= 15 || currentSeasonNumber < 1) ? Math.max(0, currentSeasonNumber) + 1 : currentSeasonNumber);
   
   return {
     seasonDay: currentSeasonDay,
