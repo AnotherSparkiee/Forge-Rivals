@@ -25,6 +25,7 @@ interface GameState {
   id: string; 
   isLoaded: boolean;
   isMatchesLoading: boolean;
+  fromCache: boolean;
   lineup: Record<LineupSlot, string | null>;
   ownedHeroes: Hero[];
   youthAcademyHeroes: Hero[];
@@ -101,7 +102,7 @@ export function getLevelThreshold(lvl: number) {
 const DEFAULT_STATE: GameState = {
   credits: 0, crystals: 0, experiencePoints: 0, managerLevel: 1,
   leagueLevel: 9, groupId: 1, selectedLeagueId: null,
-  displayName: 'Manager', id: '', isLoaded: false, isMatchesLoading: true,
+  displayName: 'Manager', id: '', isLoaded: false, isMatchesLoading: true, fromCache: false,
   lineup: { carry: null, mid: null, offlane: null, support: null, full_support: null, sub1: null, sub2: null, res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null },
   ownedHeroes: [], youthAcademyHeroes: [],
   staff: { coach: null, analyst: null, scout: null, doctor: null, financier: null },
@@ -164,7 +165,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     );
   }, [db, state.selectedLeagueId, state.groupId, state.id, currentSystemSeason]);
 
-  const { data: dbMatches, isLoading: isMatchesLoading } = useCollection(groupMatchesQuery);
+  const { data: dbMatches, isLoading: isMatchesLoading, fromCache } = useCollection(groupMatchesQuery);
 
   useEffect(() => {
     if (isUserLoading || !user) {
@@ -221,7 +222,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
               premiumUntil: teamData.premiumUntil ?? null, activeLicenseTier: teamData.activeLicenseTier ?? 4,
               rank: teamData.rank ?? 8, ownedHeroes: allHeroes.filter(h => !h.isYouth), youthAcademyHeroes: allHeroes.filter(h => h.isYouth),
               staff: staffObj, seasonDay: info.seasonDay, seasonNumber: info.seasonNumber, activeSeasonNumber: seasonToDisplay, 
-              isLoaded: true, isMatchesLoading: isMatchesLoading, language: lang,
+              isLoaded: true, isMatchesLoading: isMatchesLoading, fromCache: fromCache, language: lang,
               groupMatches: matchesToShow
             }));
           });
@@ -229,7 +230,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       });
     });
     return () => unsubRoot();
-  }, [user, isUserLoading, db, lang, dbMatches, currentSystemSeason, isMatchesLoading]);
+  }, [user, isUserLoading, db, lang, dbMatches, currentSystemSeason, isMatchesLoading, fromCache]);
 
   const getRefs = useCallback(() => {
     const s = stateRef.current;

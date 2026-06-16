@@ -6,7 +6,7 @@ import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, CalendarDays, UserSearch, CalendarClock, 
   History, Calendar, CheckSquare, ChevronRight,
-  Clock, Swords, Loader2, User
+  Clock, Swords, Loader2, User, ShieldAlert
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -27,11 +27,13 @@ type MatchTab =
   | 'league_calendar' 
   | 'league_played';
 
+type PageStatus = 'INITIAL_LOADING' | 'SYNCING_WITH_SERVER' | 'READY';
+
 export default function MatchesPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { 
-    isLoaded, isMatchesLoading, language, leagueLevel, groupId, 
+    isLoaded, isMatchesLoading, fromCache, language, leagueLevel, groupId, 
     matchHistory, groupMatches, activeSeasonNumber
   } = useGameState();
   const db = useFirestore();
@@ -52,12 +54,23 @@ export default function MatchesPage() {
 
   const league = useMemo(() => LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0], [profile?.selectedLeagueId]);
 
-  // STABILITY GUARD: Filtering strictly for Season 1 to avoid data soup
+  // STATUS GATEWAY: Определяем состояние страницы
+  const pageStatus = useMemo<PageStatus>(() => {
+    if (isUserLoading || !isLoaded || isMatchesLoading) return 'INITIAL_LOADING';
+    
+    // Если данные пришли из кэша и они пустые, но мы ожидаем Сезон 1 - мы все еще синхронизируемся
+    // Но так как useCollection уже держит isLoading, здесь мы просто страхуемся
+    if (groupMatches.length === 0 && fromCache) return 'SYNCING_WITH_SERVER';
+    
+    return 'READY';
+  }, [isUserLoading, isLoaded, isMatchesLoading, groupMatches, fromCache]);
+
+  // STABILITY GUARD: Фильтрация строго по Сезону 1
   const activeSeasonMatches = useMemo(() => {
-    if (!groupMatches) return [];
+    if (pageStatus !== 'READY') return [];
     const seasonId = `season_${activeSeasonNumber}`;
     return groupMatches.filter(m => m.seasonId === seasonId);
-  }, [groupMatches, activeSeasonNumber]);
+  }, [groupMatches, activeSeasonNumber, pageStatus]);
 
   const calendarDays = useMemo(() => {
     const dayGroups: Record<number, any[]> = {};
@@ -122,8 +135,8 @@ export default function MatchesPage() {
     day: language === 'ru' ? "День" : "Day",
     startsIn: language === 'ru' ? "ДО МАТЧА ОСТАЛОСЬ:" : "TIME UNTIL MATCH:",
     back: language === 'ru' ? "Назад" : "Back",
-    noMatches: language === 'ru' ? "Нет запланированных игр" : "No matches scheduled",
-    connecting: language === 'ru' ? "Синхронизация..." : "Syncing sequence...",
+    noMatches: language === 'ru' ? "НЕТ ЗАПЛАНИРОВАННЫХ ИГР" : "NO MATCHES SCHEDULED",
+    connecting: language === 'ru' ? "СИНХРОНИЗАЦИЯ С СЕРВЕРОМ..." : "SYNCING WITH SERVER...",
     tabs: {
       next_opponent: { label: language === 'ru' ? "Следующий соперник" : "Next Opponent", desc: language === 'ru' ? "Досье на ближайшего врага" : "Detailed brief on your next rival", icon: UserSearch },
       my_future: { label: language === 'ru' ? "Свои будущие" : "My Future", desc: language === 'ru' ? "Предстоящие игры команды" : "Upcoming matches for your team", icon: CalendarClock },
@@ -133,43 +146,76 @@ export default function MatchesPage() {
     }
   };
 
-  // 1. STRICT LOADING STATE
-  if (isUserLoading || !isLoaded || (isMatchesLoading && activeTab !== 'menu')) {
+  // ЭТАП 1: Глобальная загрузка
+  if (pageStatus === 'INITIAL_LOADING' || (pageStatus === 'SYNCING_WITH_SERVER' && activeTab !== 'menu')) {
     return <LoadingScreen />;
   }
 
-  // 2. EMPTY STATE GUARD
-  if (activeTab !== 'menu' && activeTab !== 'next_opponent') {
-    let dataList: any[] = [];
-    if (activeTab === 'league_calendar') dataList = calendarDays;
-    else if (activeTab === 'league_played') dataList = playedDays;
-    else if (activeTab === 'my_future') dataList = myMatches.filter(m => m.status === 'pending');
-    else if (activeTab === 'my_played') dataList = matchHistory;
-
-    if (dataList.length === 0) {
-      return (
-        <div className="max-w-md mx-auto px-4 pt-8">
-           <header className="mb-6 flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}>
+  // ЭТАП 2: Рендер меню
+  if (activeTab === 'menu') {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 pb-24">
+        <header className="mb-6 flex items-center gap-4">
+          <Link href="/">
+            <Button variant="ghost" size="icon" className="rounded-full">
               <ChevronLeft className="w-6 h-6" />
             </Button>
-            <div>
-              <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{(t.tabs as any)[activeTab].label}</h1>
-              <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p>
-            </div>
-          </header>
-          <div className="py-20 text-center opacity-30 animate-in fade-in duration-500">
-            <p className="text-[10px] uppercase font-black tracking-widest">{t.noMatches}</p>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1>
+            <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
           </div>
+        </header>
+
+        <div className="space-y-2">
+          {(Object.entries(t.tabs) as [MatchTab, any][]).map(([id, data]) => (
+            <Card key={id} className="glass-card hover:bg-white/5 cursor-pointer transition-all border-white/5" onClick={() => setActiveTab(id)}>
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={cn("p-2.5 rounded-xl bg-secondary/50")}>
+                    <data.icon className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{data.label}</h3>
+                    <p className="text-[10px] text-muted-foreground leading-tight">{data.desc}</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      );
-    }
+      </div>
+    );
+  }
+
+  // ЭТАП 3: Проверка пустоты только в статусе READY
+  const isDataEmpty = activeSeasonMatches.length === 0;
+
+  if (isDataEmpty && pageStatus === 'READY') {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8">
+        <header className="mb-6 flex items-center gap-4">
+          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}>
+            <ChevronLeft className="w-6 h-6" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{(t.tabs as any)[activeTab].label}</h1>
+            <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p>
+          </div>
+        </header>
+        <div className="py-20 flex flex-col items-center justify-center text-center opacity-30 animate-in fade-in duration-700">
+          <ShieldAlert className="w-16 h-16 mb-4 text-muted-foreground" />
+          <p className="text-[10px] uppercase font-black tracking-[0.2em]">{t.noMatches}</p>
+        </div>
+      </div>
+    );
   }
 
   const renderContent = () => {
     switch (activeTab) {
       case 'next_opponent':
-        if (!leagueNextMatch) return <div className="py-20 text-center opacity-30 text-xs font-bold uppercase">Season Ended</div>;
+        if (!leagueNextMatch) return <div className="py-20 text-center opacity-30 text-xs font-bold uppercase">Season Transition</div>;
         const info = leagueNextMatch as any;
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -279,43 +325,6 @@ export default function MatchesPage() {
       default: return null;
     }
   };
-
-  if (activeTab === 'menu') {
-    return (
-      <div className="max-w-md mx-auto px-4 pt-8 pb-24">
-        <header className="mb-6 flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ChevronLeft className="w-6 h-6" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1>
-            <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
-          </div>
-        </header>
-
-        <div className="space-y-2">
-          {(Object.entries(t.tabs) as [MatchTab, any][]).map(([id, data]) => (
-            <Card key={id} className="glass-card hover:bg-white/5 cursor-pointer transition-all border-white/5" onClick={() => setActiveTab(id)}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={cn("p-2.5 rounded-xl bg-secondary/50")}>
-                    <data.icon className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{data.label}</h3>
-                    <p className="text-[10px] text-muted-foreground leading-tight">{data.desc}</p>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">

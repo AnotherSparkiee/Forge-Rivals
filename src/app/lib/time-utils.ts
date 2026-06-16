@@ -51,20 +51,14 @@ export function getGlobalSeasonInfo() {
   const epochDate = new Date('2026-06-17T00:00:00+03:00');
   
   const diffMs = mskNow.getTime() - epochDate.getTime();
-  
-  // КОРРЕКЦИЯ: Если мы до старта эпохи (например 16 июня)
-  if (diffMs < 0) {
-    return {
-      seasonDay: 1, 
-      seasonNumber: 1,
-      isTransitionPhase: true,
-      activeSeasonNumber: 1
-    };
-  }
-
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   const cycleDuration = 16; 
-  let currentSeasonDay = (diffDays % cycleDuration) + 1;
+  
+  // КОРРЕКЦИЯ: Использование правильного деления и остатка для дат до эпохи
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  // currentSeasonDay: 1..16
+  let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
+  // currentSeasonNumber: 1, 2, 3...
   let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
 
   const isTransitionPhase = currentSeasonDay >= 15;
@@ -74,7 +68,7 @@ export function getGlobalSeasonInfo() {
     seasonDay: currentSeasonDay,
     seasonNumber: currentSeasonNumber,
     isTransitionPhase,
-    activeSeasonNumber: effectiveSeason
+    activeSeasonNumber: Math.max(1, effectiveSeason)
   };
 }
 
