@@ -1,17 +1,17 @@
 'use server';
 
 /**
- * @fileOverview Глобальный движок Кубка Пирамиды (Pyramid Cup Engine) v2.
+ * @fileOverview Реактивный движок Кубка Пирамиды v3.
  * 
- * Логика генерации сетки:
- * - 16 независимых лиг (ALPHA..PI).
- * - Каждая лига должна иметь 4096 участников для идеального дерева.
- * - Если игроков не хватает, создаются системные боты.
+ * Логика:
+ * 1. В межсезонье генерируется ТОЛЬКО Раунд 1 (Дивизионы 2-9).
+ * 2. Дивизион 1 вступает во втором раунде.
+ * 3. Следующий раунд генерируется только после завершения ВСЕХ матчей предыдущего в конкретной лиге.
  */
 
 import { 
   collection, doc, getDocs, writeBatch, query, where, 
-  getDoc, updateDoc, Firestore, serverTimestamp
+  getDoc, updateDoc, Firestore, serverTimestamp, orderBy, limit
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -27,7 +27,6 @@ interface CupMatch {
   awayTeamId: string | null;
   status: 'scheduled' | 'finished';
   winnerId: string | null;
-  nextCupMatchId: string | null;
   createdAt: any;
 }
 
@@ -58,138 +57,82 @@ class FirestoreBatcher {
 }
 
 /**
- * ПРИНУДИТЕЛЬНАЯ ГЕНЕРАЦИЯ КУБКА.
- * Заполняет сетку для всех 16 лиг.
+ * ИНИЦИАЦИЯ КУБКА: Генерация ТОЛЬКО Раунда 1.
  */
 export async function generatePyramidCup() {
   const { firestore: db } = initializeFirebase();
   const CURRENT_SEASON_NUM = 1;
-  const START_DATE_STR = "2026-06-17T20:00:00Z";
+  const CURRENT_SEASON_ID = "season_1";
+  const TARGET_DATE = "2026-06-17T20:00:00Z";
 
-  console.log(`[CUP] Starting generation for Season ${CURRENT_SEASON_NUM}`);
+  console.log(`[CUP] Starting initialization: Round 1 Only for Season ${CURRENT_SEASON_NUM}`);
 
   for (const league of LEAGUES) {
-    console.log(`[CUP] Processing League: ${league.id}`);
     const batcher = new FirestoreBatcher(db);
     
-    // 1. Сбор реальных участников
+    // 1. Сбор участников Дивизионов 2-9
     const q = query(
       collection(db, 'players_v10'),
-      where('selectedLeagueId', '==', league.id)
+      where('selectedLeagueId', '==', league.id),
+      where('leagueLevel', '>', 1)
     );
     
     const snap = await getDocs(q);
-    const realTeams = snap.docs.map(d => ({ 
+    const lowerTeams = snap.docs.map(d => ({ 
       id: d.id, 
-      divisionId: String(d.data().leagueLevel || "9"),
-      rank: Number(d.data().rank || 8)
+      rank: Number(d.data().rank || 8),
+      level: Number(d.data().leagueLevel || 9)
     }));
-    
-    // 2. Разделение и добивка ботами
-    const div1Teams = realTeams.filter(t => t.divisionId === "1").slice(0, 8);
-    // Добиваем Div 1 до 8 команд
-    while (div1Teams.length < 8) {
-      div1Teams.push({ id: `bot_l${league.id}_d1_g1_${div1Teams.length + 1}`, divisionId: "1", rank: div1Teams.length + 1 });
-    }
 
-    const lowerTeams = realTeams.filter(t => t.divisionId !== "1");
-    // Добиваем нижние дивизионы до 4080 команд (чтобы общее было 4088)
-    const totalLowerNeeded = 4080;
-    while (lowerTeams.length < totalLowerNeeded) {
-      const botId = `bot_l${league.id}_lower_${lowerTeams.length + 1}`;
-      lowerTeams.push({ id: botId, divisionId: "9", rank: 8 });
-    }
+    // Сортировка от сильных к слабым (уровень -> ранг)
+    lowerTeams.sort((a, b) => a.level - b.level || a.rank - b.rank);
 
-    // Сортировка lowerTeams (от сильных к слабым)
-    lowerTeams.sort((a, b) => Number(a.divisionId) - Number(b.divisionId) || a.rank - b.rank);
-
-    // 3. Раунд 1 (От края до края)
-    const round1Pairs: { homeId: string, awayId: string | null }[] = [];
+    // 2. Формируем пары "От края до края"
     let left = 0;
     let right = lowerTeams.length - 1;
+    let matchNum = 1;
 
     while (left < right) {
-      round1Pairs.push({ homeId: lowerTeams[right].id, awayId: lowerTeams[left].id });
-      left++;
-      right--;
-    }
+      const strongTeam = lowerTeams[left];
+      const weakTeam = lowerTeams[right];
 
-    const totalR1Matches = round1Pairs.length; // 2040
-
-    // Запись Раунда 1
-    for (let i = 0; i < totalR1Matches; i++) {
-      const match = round1Pairs[i];
-      const mNum = i + 1;
-      const matchId = `season_${CURRENT_SEASON_NUM}_league_${league.id}_round_1_match_${mNum}`;
-      const nextMatchNum = Math.ceil(mNum / 2);
-      const nextCupMatchId = `season_${CURRENT_SEASON_NUM}_league_${league.id}_round_2_match_${nextMatchNum}`;
+      const matchId = `season_${CURRENT_SEASON_NUM}_league_${league.id}_round_1_match_${matchNum}`;
 
       await batcher.set(doc(db, 'cup_matches', matchId), {
         cupMatchId: matchId,
-        seasonId: `season_${CURRENT_SEASON_NUM}`,
+        seasonId: CURRENT_SEASON_ID,
         seasonNumber: CURRENT_SEASON_NUM,
         leagueId: league.id,
         round: 1,
-        date: START_DATE_STR,
-        homeTeamId: match.homeId,
-        awayTeamId: match.awayId,
+        date: TARGET_DATE,
+        homeTeamId: weakTeam.id, // Слабый дома
+        awayTeamId: strongTeam.id, // Сильный в гостях
         status: 'scheduled',
         winnerId: null,
-        nextCupMatchId: nextCupMatchId,
         createdAt: serverTimestamp()
       } as CupMatch);
+
+      left++;
+      right--;
+      matchNum++;
     }
 
-    // 4. Раунд 2 (1024 матча)
-    // Див 1 садятся гостями в первые 8 матчей
-    const totalR2Matches = 1024;
-    for (let mNum = 1; mNum <= totalR2Matches; mNum++) {
-      const matchId = `season_${CURRENT_SEASON_NUM}_league_${league.id}_round_2_match_${mNum}`;
-      const nextMatchNum = Math.ceil(mNum / 2);
-      const nextCupMatchId = `season_${CURRENT_SEASON_NUM}_league_${league.id}_round_3_match_${nextMatchNum}`;
-      
-      const byeTeamId = div1Teams[mNum - 1]?.id || null;
-
+    // Если нечетное число - последний автоматом проходит (имитация завершенного матча)
+    if (left === right) {
+      const matchId = `season_${CURRENT_SEASON_NUM}_league_${league.id}_round_1_match_${matchNum}`;
       await batcher.set(doc(db, 'cup_matches', matchId), {
         cupMatchId: matchId,
-        seasonId: `season_${CURRENT_SEASON_NUM}`,
+        seasonId: CURRENT_SEASON_ID,
         seasonNumber: CURRENT_SEASON_NUM,
         leagueId: league.id,
-        round: 2,
-        date: START_DATE_STR,
-        homeTeamId: null, 
-        awayTeamId: byeTeamId, 
-        status: 'scheduled',
-        winnerId: null,
-        nextCupMatchId: nextCupMatchId,
+        round: 1,
+        date: TARGET_DATE,
+        homeTeamId: lowerTeams[left].id,
+        awayTeamId: null,
+        status: 'finished',
+        winnerId: lowerTeams[left].id,
         createdAt: serverTimestamp()
       } as CupMatch);
-    }
-
-    // 5. Остальные раунды до Финала (R12)
-    let currentRoundMatches = 512;
-    for (let r = 3; r <= 12; r++) {
-      for (let mNum = 1; mNum <= currentRoundMatches; mNum++) {
-        const matchId = `season_${CURRENT_SEASON_NUM}_league_${league.id}_round_${r}_match_${mNum}`;
-        const nextMatchId = r < 12 ? `season_${CURRENT_SEASON_NUM}_league_${league.id}_round_${r+1}_match_${Math.ceil(mNum / 2)}` : null;
-
-        await batcher.set(doc(db, 'cup_matches', matchId), {
-          cupMatchId: matchId,
-          seasonId: `season_${CURRENT_SEASON_NUM}`,
-          seasonNumber: CURRENT_SEASON_NUM,
-          leagueId: league.id,
-          round: r,
-          date: START_DATE_STR,
-          homeTeamId: null,
-          awayTeamId: null,
-          status: 'scheduled',
-          winnerId: null,
-          nextCupMatchId: nextMatchId,
-          createdAt: serverTimestamp()
-        } as CupMatch);
-      }
-      if (currentRoundMatches === 1) break;
-      currentRoundMatches = currentRoundMatches / 2;
     }
 
     await batcher.commit();
@@ -199,28 +142,126 @@ export async function generatePyramidCup() {
 }
 
 /**
- * Продвижение победителя.
+ * РЕАКТИВНАЯ ГЕНЕРАЦИЯ СЛЕДУЮЩЕГО РАУНДА.
+ * Вызывается после записи winnerId в матч.
  */
-export async function advanceCupWinner(matchId: string, winnerId: string) {
+export async function checkAndGenerateNextRound(leagueId: string, seasonNumber: number, finishedRound: number) {
   const { firestore: db } = initializeFirebase();
-  const matchRef = doc(db, 'cup_matches', matchId);
-  const snap = await getDoc(matchRef);
-  
-  if (!snap.exists()) return;
-  const data = snap.data() as CupMatch;
-  
-  if (!data.nextCupMatchId) return;
+  const seasonId = `season_${seasonNumber}`;
 
-  const nextRef = doc(db, 'cup_matches', data.nextCupMatchId);
-  const nextSnap = await getDoc(nextRef);
-  if (!nextSnap.exists()) return;
-  
-  const currentMatchNum = parseInt(matchId.split('_match_').pop() || '1');
+  // 1. Проверяем, остались ли незавершенные матчи в этом раунде для этой лиги
+  const qActive = query(
+    collection(db, 'cup_matches'),
+    where('seasonId', '==', seasonId),
+    where('leagueId', '==', leagueId),
+    where('round', '==', finishedRound),
+    where('status', '==', 'scheduled')
+  );
 
-  // Победитель нечетного матча -> Home, четного -> Away
-  if (currentMatchNum % 2 !== 0) {
-    await updateDoc(nextRef, { homeTeamId: winnerId });
-  } else {
-    await updateDoc(nextRef, { awayTeamId: winnerId });
+  const activeSnap = await getDocs(qActive);
+  if (!activeSnap.empty) {
+    console.log(`[CUP] Round ${finishedRound} in ${leagueId} still active. ${activeSnap.size} matches left.`);
+    return; // Раунд еще идет
   }
+
+  console.log(`[CUP] Round ${finishedRound} in ${leagueId} COMPLETE. Generating Round ${finishedRound + 1}...`);
+
+  // 2. Собираем всех победителей
+  const qWinners = query(
+    collection(db, 'cup_matches'),
+    where('seasonId', '==', seasonId),
+    where('leagueId', '==', leagueId),
+    where('round', '==', finishedRound)
+  );
+  const winnersSnap = await getDocs(qWinners);
+  const winnersIds = winnersSnap.docs.map(d => d.data().winnerId).filter(Boolean);
+
+  let nextParticipants: string[] = [...winnersIds];
+
+  // 3. Если завершился Раунд 1 - добавляем Дивизион 1
+  if (finishedRound === 1) {
+    const qDiv1 = query(
+      collection(db, 'players_v10'),
+      where('selectedLeagueId', '==', leagueId),
+      where('leagueLevel', '==', 1)
+    );
+    const div1Snap = await getDocs(qDiv1);
+    div1Snap.forEach(d => nextParticipants.push(d.id));
+  }
+
+  if (nextParticipants.length <= 1) {
+    console.log(`[CUP] Tournament for ${leagueId} has ended. Champion found.`);
+    return;
+  }
+
+  // 4. Получаем данные о силе участников для посева
+  const participantsData: any[] = [];
+  for (const teamId of nextParticipants) {
+    // В прототипе используем players_v10 как источник силы
+    const tDoc = await getDoc(doc(db, 'players_v10', teamId));
+    if (tDoc.exists()) {
+      const d = tDoc.data();
+      participantsData.push({
+        id: teamId,
+        level: Number(d.leagueLevel || 9),
+        rank: Number(d.rank || 8)
+      });
+    }
+  }
+
+  // Сортировка: Сильные вверх
+  participantsData.sort((a, b) => a.level - b.level || a.rank - b.rank);
+
+  // 5. Генерируем новый раунд
+  const batcher = new FirestoreBatcher(db);
+  const nextRoundNum = finishedRound + 1;
+  const nextRoundDate = new Date().toISOString(); // В продакшене: текущая дата + сдвиг
+
+  let left = 0;
+  let right = participantsData.length - 1;
+  let matchNum = 1;
+
+  while (left < right) {
+    const strong = participantsData[left];
+    const weak = participantsData[right];
+    const matchId = `season_${seasonNumber}_league_${leagueId}_round_${nextRoundNum}_match_${matchNum}`;
+
+    await batcher.set(doc(db, 'cup_matches', matchId), {
+      cupMatchId: matchId,
+      seasonId,
+      seasonNumber,
+      leagueId,
+      round: nextRoundNum,
+      date: nextRoundDate,
+      homeTeamId: weak.id,
+      awayTeamId: strong.id,
+      status: 'scheduled',
+      winnerId: null,
+      createdAt: serverTimestamp()
+    });
+
+    left++;
+    right--;
+    matchNum++;
+  }
+
+  // Обработка нечетного количества
+  if (left === right) {
+    const matchId = `season_${seasonNumber}_league_${leagueId}_round_${nextRoundNum}_match_${matchNum}`;
+    await batcher.set(doc(db, 'cup_matches', matchId), {
+      cupMatchId: matchId,
+      seasonId,
+      seasonNumber,
+      leagueId,
+      round: nextRoundNum,
+      date: nextRoundDate,
+      homeTeamId: participantsData[left].id,
+      awayTeamId: null,
+      status: 'finished',
+      winnerId: participantsData[left].id,
+      createdAt: serverTimestamp()
+    });
+  }
+
+  await batcher.commit();
 }

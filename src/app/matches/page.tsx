@@ -13,9 +13,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { getMoscowTime, getSeasonDateLabel } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { collection, query, where, limit } from 'firebase/firestore';
 
 type MatchTab = 
   | 'menu'
@@ -23,14 +24,17 @@ type MatchTab =
   | 'my_future' 
   | 'my_played' 
   | 'league_calendar' 
-  | 'league_played';
+  | 'league_played'
+  | 'cup_matches';
 
 export default function MatchesPage() {
   const { user, isUserLoading } = useUser();
+  const db = useFirestore();
   const router = useRouter();
   const { 
     isLoaded, isDataReady, language, leagueLevel, groupId, 
-    matchHistory, allSeasonMatches, nextMatch: centralNextMatch
+    matchHistory, allSeasonMatches, nextMatch: centralNextMatch,
+    activeSeasonNumber, selectedLeagueId
   } = useGameState();
   
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
@@ -44,6 +48,24 @@ export default function MatchesPage() {
     return () => clearInterval(timer);
   }, [user, isUserLoading, router]);
 
+  // Запрос кубковых матчей для вкладки "Свои будущие"
+  const cupMatchesQuery = useMemoFirebase(() => {
+    if (!user?.uid || !selectedLeagueId) return null;
+    return query(
+      collection(db, 'cup_matches'),
+      where('seasonNumber', '==', activeSeasonNumber || 1),
+      where('leagueId', '==', selectedLeagueId),
+      limit(200)
+    );
+  }, [db, user?.uid, selectedLeagueId, activeSeasonNumber]);
+
+  const { data: rawCupMatches } = useCollection(cupMatchesQuery);
+
+  const myCupMatches = useMemo(() => {
+    if (!user || !rawCupMatches) return [];
+    return rawCupMatches.filter(m => m.homeTeamId === user.uid || m.awayTeamId === user.uid);
+  }, [rawCupMatches, user]);
+
   const calendarDays = useMemo(() => {
     if (!isDataReady) return [];
     const filtered = allSeasonMatches.filter(m => m.seasonId === "season_1");
@@ -53,19 +75,6 @@ export default function MatchesPage() {
       dayGroups[m.day].push(m);
     });
     
-    return Object.entries(dayGroups)
-      .map(([day, matches]) => ({ day: Number(day), matches }))
-      .sort((a, b) => a.day - b.day);
-  }, [allSeasonMatches, isDataReady]);
-
-  const playedDays = useMemo(() => {
-    if (!isDataReady) return [];
-    const finished = allSeasonMatches.filter(m => m.status === 'finished' && m.seasonId === "season_1");
-    const dayGroups: Record<number, any[]> = {};
-    finished.forEach(m => {
-      if (!dayGroups[m.day]) dayGroups[m.day] = [];
-      dayGroups[m.day].push(m);
-    });
     return Object.entries(dayGroups)
       .map(([day, matches]) => ({ day: Number(day), matches }))
       .sort((a, b) => a.day - b.day);
@@ -143,30 +152,6 @@ export default function MatchesPage() {
     );
   }
 
-  const isActuallyEmpty = (activeTab === 'league_calendar' && calendarDays.length === 0) || 
-                         (activeTab === 'my_future' && myMatches.filter(m => m.status === 'pending').length === 0) ||
-                         (activeTab === 'my_played' && matchHistory.length === 0);
-
-  if (isActuallyEmpty && activeTab !== 'menu') {
-    return (
-      <div className="max-w-md mx-auto px-4 pt-8">
-        <header className="mb-6 flex items-center gap-4">
-          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}>
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{(t.tabs as any)[activeTab].label}</h1>
-            <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p>
-          </div>
-        </header>
-        <div className="py-20 flex flex-col items-center justify-center text-center opacity-30 animate-in fade-in duration-700">
-          <ShieldAlert className="w-16 h-16 mb-4 text-muted-foreground" />
-          <p className="text-[10px] uppercase font-black tracking-[0.2em]">{t.noMatches}</p>
-        </div>
-      </div>
-    );
-  }
-
   const renderContent = () => {
     switch (activeTab) {
       case 'next_opponent':
@@ -194,20 +179,60 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_future':
-        const future = myMatches.filter(m => m.status === 'pending');
-        return <div className="space-y-3 animate-in fade-in duration-500">{future.sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map(m => (
-          <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
-            <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2">
-              <span className="text-[8px] text-muted-foreground uppercase">{getSeasonDateLabel(m.day)}</span>
-              <span className="text-[10px] font-mono font-bold text-accent">DAY {m.day}</span>
-            </div>
-            <div className="flex-1 flex items-center justify-between min-w-0">
-               <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.homeId === user!.uid && "text-primary")}>{m.homeName}</span>
-               <div className="px-3 flex flex-col items-center"><Badge variant="outline" className="text-[7px] px-1 py-0 border-accent/20 text-accent">VS</Badge></div>
-               <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.awayId === user!.uid && "text-primary")}>{m.awayName}</span>
-            </div>
+        const futureLeague = myMatches.filter(m => m.status === 'pending');
+        const futureCup = myCupMatches.filter(m => m.status === 'scheduled');
+        
+        return (
+          <div className="space-y-4 animate-in fade-in duration-500">
+            {futureLeague.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-[10px] font-black uppercase text-accent tracking-widest px-1">LEAGUE MATCHES</h3>
+                {futureLeague.sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map(m => (
+                  <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
+                    <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2">
+                      <span className="text-[8px] text-muted-foreground uppercase">{getSeasonDateLabel(m.day)}</span>
+                      <span className="text-[10px] font-mono font-bold text-accent">DAY {m.day}</span>
+                    </div>
+                    <div className="flex-1 flex items-center justify-between min-w-0">
+                       <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.homeId === user!.uid && "text-primary")}>{m.homeName}</span>
+                       <div className="px-3 flex flex-col items-center"><Badge variant="outline" className="text-[7px] px-1 py-0 border-accent/20 text-accent">VS</Badge></div>
+                       <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.awayId === user!.uid && "text-primary")}>{m.awayName}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {futureCup.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-[10px] font-black uppercase text-yellow-500 tracking-widest px-1">PYRAMID CUP</h3>
+                {futureCup.map(m => (
+                  <div key={m.cupMatchId} className="bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/20 flex items-center justify-between gap-3">
+                    <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2">
+                      <span className="text-[10px] font-mono font-bold text-yellow-500">R{m.round}</span>
+                    </div>
+                    <div className="flex-1 flex items-center justify-between min-w-0 text-[10px] font-bold uppercase">
+                       <span className={cn("flex-1 text-right truncate", m.homeTeamId === user!.uid && "text-primary")}>
+                         {m.homeTeamId === user!.uid ? 'YOU' : 'OPPONENT'}
+                       </span>
+                       <div className="px-3 text-yellow-500 italic">VS</div>
+                       <span className={cn("flex-1 text-left truncate", m.awayTeamId === user!.uid && "text-primary")}>
+                         {m.awayTeamId === user!.uid ? 'YOU' : 'OPPONENT'}
+                       </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {futureLeague.length === 0 && futureCup.length === 0 && (
+              <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
+                <ShieldAlert className="w-12 h-12" />
+                <p className="text-[10px] font-black uppercase">{t.noMatches}</p>
+              </div>
+            )}
           </div>
-        ))}</div>;
+        );
       case 'league_calendar':
         return (
           <div className="space-y-4 animate-in fade-in duration-500">
@@ -280,6 +305,19 @@ export default function MatchesPage() {
       default: return null;
     }
   };
+
+  const playedDays = useMemo(() => {
+    if (!isDataReady) return [];
+    const finished = allSeasonMatches.filter(m => m.status === 'finished' && m.seasonId === "season_1");
+    const dayGroups: Record<number, any[]> = {};
+    finished.forEach(m => {
+      if (!dayGroups[m.day]) dayGroups[m.day] = [];
+      dayGroups[m.day].push(m);
+    });
+    return Object.entries(dayGroups)
+      .map(([day, matches]) => ({ day: Number(day), matches }))
+      .sort((a, b) => a.day - b.day);
+  }, [allSeasonMatches, isDataReady]);
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">

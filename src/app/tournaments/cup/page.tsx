@@ -6,21 +6,20 @@ import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@
 import { useGameState } from '@/app/lib/store';
 import { 
   ChevronLeft, Trophy, Shield, Swords, 
-  Loader2, Target, Calendar, User,
-  ChevronRight, Medal, Star, Timer, Info,
-  AlertTriangle, RefreshCw
+  Loader2, Calendar, User,
+  AlertTriangle, RefreshCw, Info
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { collection, query, where, doc, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, doc, limit } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
 import { generatePyramidCup } from '@/app/actions/cup-engine';
 import { useToast } from '@/hooks/use-toast';
 
-const TOTAL_ROUNDS = 12;
+const MAX_CUP_ROUNDS = 12;
 
 export default function PyramidCupPage() {
   const { user, isUserLoading } = useUser();
@@ -40,14 +39,11 @@ export default function PyramidCupPage() {
       where('leagueId', '==', selectedLeagueId),
       where('seasonNumber', '==', Number(sNum)),
       where('round', '==', Number(activeRound)),
-      limit(50) 
+      limit(100) 
     );
   }, [db, selectedLeagueId, activeSeasonNumber, activeRound]);
 
   const { data: matches, isLoading: isMatchesLoading } = useCollection(cupQuery);
-
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
-  const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -59,7 +55,7 @@ export default function PyramidCupPage() {
     setIsInitializing(true);
     try {
       await generatePyramidCup();
-      toast({ title: language === 'ru' ? "Кубок сгенерирован!" : "Cup Generated!" });
+      toast({ title: language === 'ru' ? "Раунд 1 сгенерирован!" : "Round 1 Generated!" });
     } catch (e) {
       toast({ variant: "destructive", title: "Generation failed" });
     } finally {
@@ -74,33 +70,33 @@ export default function PyramidCupPage() {
   const t = {
     en: {
       title: "PYRAMID CUP",
-      subtitle: "National Single-Elimination Tournament",
+      subtitle: "Dynamic National Knockout Stage",
       round: "Round",
       final: "Grand Final",
       waiting: "WAITING...",
-      bye: "BYE (DIV 1)",
+      bye: "BYES (DIV 1)",
       yourMatch: "YOUR ENGAGEMENT",
-      noMatches: "No matches found for this season.",
-      initialize: "GENERATE SEASON 1 BRACKET",
+      noMatches: "Next round will be generated once the current one finishes.",
+      initialize: "INITIATE SEASON 1 (ROUND 1)",
       loading: "Synchronizing Bracket...",
       home: "HOME",
       away: "AWAY",
-      formatInfo: "Favored teams play away. Division 1 enters at Round 2."
+      formatInfo: "Dynamic seeding: each round is sorted Strong-vs-Weak. Div 1 joins in Round 2."
     },
     ru: {
       title: "КУБОК ПИРАМИДЫ",
-      subtitle: "Национальный турнир на выбывание",
+      subtitle: "Динамический национальный турнир",
       round: "Раунд",
       final: "Гранд-Финал",
       waiting: "ОЖИДАНИЕ...",
       bye: "ПРОПУСК (ДИВ 1)",
       yourMatch: "ВАШ МАТЧ",
-      noMatches: "Матчи для этого сезона не найдены.",
-      initialize: "СОЗДАТЬ СЕТКУ СЕЗОНА 1",
+      noMatches: "Следующий раунд будет создан после завершения всех игр текущего.",
+      initialize: "ИНИЦИИРОВАТЬ СЕЗОН 1 (РАУНД 1)",
       loading: "Синхронизация сетки...",
       home: "ДОМА",
       away: "В ГОСТЯХ",
-      formatInfo: "Сильные команды играют в гостях. Див 1 вступает со 2-го раунда."
+      formatInfo: "Динамический посев: каждый раунд сортируется заново (сильный против слабого). Див 1 вступает в R2."
     }
   }[language as 'en' | 'ru'] || { title: "CUP" };
 
@@ -121,10 +117,9 @@ export default function PyramidCupPage() {
         </div>
       </header>
 
-      {/* ROUND SELECTOR */}
       <div className="mb-8 overflow-x-auto scrollbar-hide -mx-4 px-4 py-2">
         <div className="flex gap-2 min-w-max">
-          {Array.from({ length: TOTAL_ROUNDS }, (_, i) => i + 1).map((r) => (
+          {Array.from({ length: MAX_CUP_ROUNDS }, (_, i) => i + 1).map((r) => (
             <Button
               key={r}
               variant={activeRound === r ? "default" : "outline"}
@@ -135,7 +130,7 @@ export default function PyramidCupPage() {
                 activeRound === r ? "hero-gradient border-none shadow-lg shadow-primary/20" : "bg-secondary/20 border-white/5 text-muted-foreground"
               )}
             >
-              {r === TOTAL_ROUNDS ? t.final : `${t.round} ${r}`}
+              {r === MAX_CUP_ROUNDS ? t.final : `${t.round} ${r}`}
             </Button>
           ))}
         </div>
@@ -152,7 +147,6 @@ export default function PyramidCupPage() {
         </Card>
       )}
 
-      {/* MATCH LIST */}
       <div className="space-y-3">
         {isMatchesLoading ? (
           <div className="py-20 text-center opacity-50 flex flex-col items-center gap-4">
@@ -168,7 +162,7 @@ export default function PyramidCupPage() {
                 key={m.cupMatchId} 
                 className={cn(
                   "glass-card border-white/5 overflow-hidden transition-all",
-                  isMyMatch && "border-primary/40 bg-primary/10 ring-1 ring-primary/20 shadow-[0_0_20px_rgba(var(--primary),0.1)]",
+                  isMyMatch && "border-primary/40 bg-primary/10 ring-1 ring-primary/20",
                   m.status === 'finished' && "opacity-80"
                 )}
               >
@@ -224,32 +218,33 @@ export default function PyramidCupPage() {
                       </div>
                     </div>
                   </div>
-
-                  <div className="bg-black/20 px-4 py-2 border-t border-white/5 flex justify-between items-center">
-                    <div className="flex items-center gap-1.5">
-                      <Calendar className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-[9px] font-mono font-bold text-muted-foreground">
-                        {new Date(m.date).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
             );
           })
         ) : (
           <div className="py-12 text-center animate-in fade-in duration-700 flex flex-col items-center">
-            <AlertTriangle className="w-12 h-12 text-orange-500 mb-4 opacity-50" />
-            <h2 className="text-lg font-headline font-bold uppercase text-white mb-2">{t.noMatches}</h2>
-            <p className="text-xs text-muted-foreground italic mb-8 px-10">"The pyramid core is offline. Operational initialization required."</p>
-            <Button 
-              className="h-14 px-8 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl" 
-              onClick={handleInitialize}
-              disabled={isInitializing}
-            >
-              {isInitializing ? <RefreshCw className="w-5 h-5 animate-spin mr-2" /> : <RefreshCw className="w-5 h-5 mr-2" />}
-              {t.initialize}
-            </Button>
+            {activeRound === 1 ? (
+              <>
+                <AlertTriangle className="w-12 h-12 text-orange-500 mb-4 opacity-50" />
+                <h2 className="text-lg font-headline font-bold uppercase text-white mb-2">{language === 'ru' ? 'КУБОК НЕ НАЧАТ' : 'CUP NOT STARTED'}</h2>
+                <Button 
+                  className="h-14 px-8 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl mt-6" 
+                  onClick={handleInitialize}
+                  disabled={isInitializing}
+                >
+                  {isInitializing ? <RefreshCw className="w-5 h-5 animate-spin mr-2" /> : <RefreshCw className="w-5 h-5 mr-2" />}
+                  {t.initialize}
+                </Button>
+              </>
+            ) : (
+              <div className="opacity-40 space-y-4">
+                <Calendar className="w-12 h-12 mx-auto" />
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] px-10 leading-relaxed">
+                  {t.noMatches}
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
