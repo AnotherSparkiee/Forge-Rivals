@@ -76,15 +76,13 @@ export default function RankingsPage() {
 
   const cupQuery = useMemoFirebase(() => {
     if (activeTab !== 'pyramid_cup') return null;
-    const sNum = activeSeasonNumber || 1;
     return query(
       collection(db, 'cup_matches'),
       where('leagueId', '==', selectedLeagueId),
-      where('seasonNumber', '==', Number(sNum)),
       where('round', '==', Number(cupRound)),
-      limit(100)
+      limit(200)
     );
-  }, [db, activeTab, selectedLeagueId, activeSeasonNumber, cupRound]);
+  }, [db, activeTab, selectedLeagueId, cupRound]);
 
   const { data: cupMatches, isLoading: isCupLoading } = useCollection(cupQuery);
 
@@ -107,7 +105,7 @@ export default function RankingsPage() {
       pts: "PTS", winLoss: "W-D-L", back: "Back",
       selectDiv: "Select Division", selectGroup: "Select Group",
       cl: "CHAMPIONS LEAGUE", cup: "PYRAMID CUP",
-      waiting: "WAITING...", bye: "BYE (DIV 1)",
+      waiting: "WAITING...",
       menu: [
         { id: 'my_league', label: 'My Current Table', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'champions_league', label: 'Champions League', desc: 'Elite Inter-Server Blitz', icon: Crown, color: 'text-yellow-500' },
@@ -121,7 +119,7 @@ export default function RankingsPage() {
       pts: "ОЧК", winLoss: "В-Н-П", back: "Назад",
       selectDiv: "Выберите дивизион", selectGroup: "Выберите группу",
       cl: "ЛИГА ЧЕМПИОНОВ", cup: "КУБОК ПИРАМИДЫ",
-      waiting: "ОЖИДАНИЕ...", bye: "ПРОПУСК (ДИВ 1)",
+      waiting: "ОЖИДАНИЕ...",
       menu: [
         { id: 'my_league', label: 'Своя таблица', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'champions_league', label: 'Лига Чемпионов', desc: 'Элитный межсерверный блиц', icon: Crown, color: 'text-yellow-500' },
@@ -136,6 +134,8 @@ export default function RankingsPage() {
 
   const renderCup = () => {
     if (isCupLoading) return <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>;
+
+    const filteredCupMatches = cupMatches ? cupMatches.filter(m => m.seasonId === "2" || m.seasonId_num === 2) : [];
 
     return (
       <div className="space-y-6 animate-in fade-in duration-500">
@@ -155,34 +155,31 @@ export default function RankingsPage() {
         </div>
 
         <div className="space-y-2">
-          {cupMatches && cupMatches.length > 0 ? cupMatches.map(m => {
+          {filteredCupMatches.length > 0 ? filteredCupMatches.map(m => {
             const isMyMatch = m.homeTeamId === user?.uid || m.awayTeamId === user?.uid;
             return (
               <Card key={m.cupMatchId} className={cn("glass-card border-white/5", isMyMatch && "border-primary/40 bg-primary/10")}>
                 <CardContent className="p-3">
                   <div className="grid grid-cols-[1fr_40px_1fr] items-center gap-4">
                     <div className="text-right">
-                      <p className="text-[10px] font-bold uppercase truncate">{m.homeTeamId ? 'TEAM ' + m.homeTeamId.slice(0, 5) : t.waiting}</p>
+                      <p className="text-[10px] font-bold uppercase truncate">{m.homeTeamId ? `ID:${m.homeTeamId.slice(0,8)}` : t.waiting}</p>
                       <span className="text-[7px] text-muted-foreground uppercase tracking-widest">HOME</span>
                     </div>
                     <div className="text-center">
                       <Swords className="w-4 h-4 text-accent mx-auto" />
-                      {m.status === 'finished' && <p className="text-[10px] font-mono font-bold text-primary mt-1">{m.scoreA}:{m.scoreB}</p>}
+                      {(m.status === 'finished' || m.isFinished) && <p className="text-[10px] font-mono font-bold text-primary mt-1">{m.scoreA || 0}:{m.scoreB || 0}</p>}
                     </div>
                     <div className="text-left">
-                      <p className="text-[10px] font-bold uppercase truncate">{m.awayTeamId ? 'TEAM ' + m.awayTeamId.slice(0, 5) : (cupRound === 1 ? t.bye : t.waiting)}</p>
+                      <p className="text-[10px] font-bold uppercase truncate">{m.awayTeamId ? `ID:${m.awayTeamId.slice(0,8)}` : t.waiting}</p>
                       <span className="text-[7px] text-muted-foreground uppercase tracking-widest">AWAY</span>
                     </div>
-                  </div>
-                  <div className="mt-2 flex justify-center">
-                    <span className="text-[7px] font-mono text-muted-foreground/60">SESSION_UTC_SYNC</span>
                   </div>
                 </CardContent>
               </Card>
             );
           }) : (
             <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl">
-              <p className="text-xs font-black uppercase tracking-widest">Нет матчей в Раунде {cupRound}</p>
+              <p className="text-xs font-black uppercase tracking-widest">Нет данных для Раунда {cupRound}</p>
             </div>
           )}
         </div>

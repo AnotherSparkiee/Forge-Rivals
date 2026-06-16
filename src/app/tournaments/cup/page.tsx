@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { collection, query, where, limit } from 'firebase/firestore';
+import { collection, query, where, limit, orderBy } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
 import { generatePyramidCup } from '@/app/actions/cup-engine';
@@ -25,13 +25,12 @@ export default function PyramidCupPage() {
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
-  const { language, isLoaded, selectedLeagueId, activeSeasonNumber } = useGameState();
+  const { language, isLoaded, selectedLeagueId } = useGameState();
   
   const [activeRound, setActiveRound] = useState(1);
   const [isInitializing, setIsInitializing] = useState(false);
 
-  // ГИБКИЙ ЗАПРОС: Ищем по leagueId и раунду. 
-  // Мы НЕ фильтруем по сезону здесь, чтобы не пропустить из-за несовпадения типов (str/num)
+  // ГИБКИЙ ЗАПРОС: Ищем по leagueId и раунду. Поддержка Сезона 2 и дублирующих типов.
   const cupQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
@@ -44,16 +43,16 @@ export default function PyramidCupPage() {
 
   const { data: rawMatches, isLoading: isMatchesLoading } = useCollection(cupQuery);
 
-  // Клиентская фильтрация по сезону (Сезон 1)
+  // Фильтрация: Показываем матчи Сезона 2 (или 1 для совместимости)
   const matches = useMemo(() => {
     if (!rawMatches) return [];
-    const targetSeason = 1; 
     return rawMatches.filter(m => 
-      Number(m.seasonNumber) === targetSeason || 
-      Number(m.seasonId_num) === targetSeason || 
-      m.seasonId === "1" || 
-      m.seasonId === "season_1"
-    );
+      m.seasonId === "2" || m.seasonId_num === 2 || m.seasonId === "1" || m.seasonId_num === 1
+    ).sort((a, b) => {
+      const numA = parseInt(a.cupMatchId?.split('match_')[1] || '0');
+      const numB = parseInt(b.cupMatchId?.split('match_')[1] || '0');
+      return numA - numB;
+    });
   }, [rawMatches]);
 
   useEffect(() => {
@@ -87,10 +86,10 @@ export default function PyramidCupPage() {
       final: "Final",
       waiting: "WAITING...",
       yourMatch: "YOUR ENGAGEMENT",
-      initialize: "INITIALIZE SEASON 1 BRACKET",
+      initialize: "INITIALIZE SEASON 2 BRACKET",
       loading: "Scanning Frequencies...",
       empty: "Tournament bracket not detected.",
-      formatInfo: "Universal Data Sync active. Seeding includes all divisions (1-9)."
+      formatInfo: "Universal Data Sync v7. Emergency bypass active."
     },
     ru: {
       title: "КУБОК ПИРАМИДЫ",
@@ -99,12 +98,12 @@ export default function PyramidCupPage() {
       final: "Финал",
       waiting: "ОЖИДАНИЕ...",
       yourMatch: "ВАШ МАТЧ",
-      initialize: "ПРИНУДИТЕЛЬНО СОЗДАТЬ СЕТКУ",
+      initialize: "ПРИНУДИТЕЛЬНО СОЗДАТЬ СЕТКУ СЕЗОНА 2",
       loading: "Сканирование эфира...",
       empty: "Сетка турнира не обнаружена.",
-      formatInfo: "Активна универсальная синхронизация. Посев включает все дивизионы (1-9)."
+      formatInfo: "Синхронизация v7. Экстренный режим обхода фильтров."
     }
-  }[language as 'en' | 'ru'] || { title: "CUP" };
+  }[language as 'en' | 'ru'];
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
@@ -175,7 +174,7 @@ export default function PyramidCupPage() {
                     <div className="grid grid-cols-[1fr_50px_1fr] items-center">
                       <div className="text-right">
                         <p className={cn("text-[10px] font-bold uppercase truncate", m.homeTeamId === user?.uid ? "text-primary" : "text-white")}>
-                          {m.homeTeamId ? m.homeTeamId.slice(0, 10) : t.waiting}
+                          {m.homeTeamId ? `ID:${m.homeTeamId.slice(0, 8)}` : t.waiting}
                         </p>
                         <span className="text-[7px] text-muted-foreground uppercase font-black">HOME</span>
                       </div>
@@ -188,7 +187,7 @@ export default function PyramidCupPage() {
                       </div>
                       <div className="text-left">
                         <p className={cn("text-[10px] font-bold uppercase truncate", m.awayTeamId === user?.uid ? "text-primary" : "text-white")}>
-                          {m.awayTeamId ? m.awayTeamId.slice(0, 10) : t.waiting}
+                          {m.awayTeamId ? `ID:${m.awayTeamId.slice(0, 8)}` : t.waiting}
                         </p>
                         <span className="text-[7px] text-muted-foreground uppercase font-black">AWAY</span>
                       </div>
