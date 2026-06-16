@@ -21,7 +21,7 @@ export function AutoMatchManager() {
   const processingRef = useRef(false);
 
   // Sync all players in current group to form stable team list
-  const allGroupPlayersQuery = useMemoFirebase(() => {
+  const groupPlayersQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
       collection(db, 'players_v10'), 
@@ -31,7 +31,7 @@ export function AutoMatchManager() {
     );
   }, [db, selectedLeagueId, leagueLevel, groupId]);
 
-  const { data: allGroupPlayers } = useCollection(allGroupPlayersQuery);
+  const { data: allGroupPlayers } = useCollection(groupPlayersQuery);
 
   useEffect(() => {
     if (!isLoaded || !userId || !selectedLeagueId || processingRef.current || !allGroupPlayers) return;
@@ -133,6 +133,7 @@ export function AutoMatchManager() {
           const correctHome = teams.find(t => t.id === m.homeId);
           const correctAway = teams.find(t => t.id === m.awayId);
 
+          // FORCE SYNC OLD BOT NAMES (Elite Bot -> botID)
           if ((correctHome && m.homeName !== correctHome.name) || (correctAway && m.awayName !== correctAway.name)) {
             batch.update(matchDoc.ref, {
               homeName: correctHome?.name || m.homeName,

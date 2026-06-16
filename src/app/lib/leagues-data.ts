@@ -73,8 +73,8 @@ export function getStableGroupTeams(level: any, group: any, leagueId: string, al
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   
   for (let i = 0; i < botsNeeded; i++) {
-    // Globally unique bot ID: [League (01-16)][Div (1-9)][Group (01-256)][Index (1-8)]
-    // Example: League 1, Div 9, Group 1, Bot 1 -> 19011
+    // Глобально уникальный ID бота: [Лига (01-16)][Див (1-9)][Гр (01-256)][Индекс (1-8)]
+    // Пример: Лига 1, Див 9, Группа 1, Бот 1 -> 19011
     const botIdNum = ((leagueIdx + 1) * 100000) + (lvl * 1000) + (grp * 10) + (i + 1);
     const botId = `bot_${botIdNum}`;
     const botName = `bot${botIdNum}`;
@@ -82,7 +82,7 @@ export function getStableGroupTeams(level: any, group: any, leagueId: string, al
     teams.push({ id: botId, name: botName, isBot: true });
   }
 
-  // Sort by ID to ensure deterministic order across all clients
+  // Сортировка по ID гарантирует одинаковый порядок у всех клиентов
   return teams.sort((a, b) => a.id.localeCompare(b.id));
 }
 

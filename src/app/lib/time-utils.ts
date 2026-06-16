@@ -73,8 +73,6 @@ export function getGlobalSeasonInfo() {
   const cycleDuration = 16; 
   
   // Текущий день в цикле (1-16)
-  // Если мы до эпохи (разница отрицательная), diffDays будет < 0.
-  // Используем математический остаток для корректной работы.
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
   let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
   
