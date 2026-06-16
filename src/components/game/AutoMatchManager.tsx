@@ -20,7 +20,8 @@ export function AutoMatchManager() {
   const db = useFirestore();
   const processingRef = useRef(false);
 
-  const groupPlayersQuery = useMemoFirebase(() => {
+  // FIX: Using the correct name for the query variable used in useCollection
+  const allGroupPlayersQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
       collection(db, 'players_v10'), 
@@ -30,7 +31,7 @@ export function AutoMatchManager() {
     );
   }, [db, selectedLeagueId, leagueLevel, groupId]);
 
-  const { data: allGroupPlayers } = useCollection(groupPlayersQuery);
+  const { data: allGroupPlayers } = useCollection(allGroupPlayersQuery);
 
   useEffect(() => {
     if (!isLoaded || !userId || !selectedLeagueId || processingRef.current || !allGroupPlayers) return;
@@ -78,13 +79,15 @@ export function AutoMatchManager() {
         );
         const existingMatchesSnap = await getDocs(checkMatchesQ);
         
-        // SANITARY PROTOCOL: Wipe and regenerate if old names (Elite Bot) or legacy IDs found
+        // SANITARY PROTOCOL: Wipe and regenerate if any old names (Elite Bot) or legacy IDs found
         const hasLegacyData = existingMatchesSnap.docs.some(d => {
           const m = d.data();
-          return m.homeName.includes('Elite Bot') || m.awayName.includes('Elite Bot') || 
-                 m.homeName.includes('9.1.1') || m.awayName.includes('9.1.1') ||
-                 (m.homeId.startsWith('bot_') && !m.homeName.startsWith('bot')) ||
-                 (m.awayId.startsWith('bot_') && !m.awayName.startsWith('bot'));
+          const hName = String(m.homeName || "");
+          const aName = String(m.awayName || "");
+          return hName.includes('Elite Bot') || aName.includes('Elite Bot') || 
+                 hName.includes('9.1.1') || aName.includes('9.1.1') ||
+                 (m.homeId?.startsWith('bot_') && !hName.startsWith('bot')) ||
+                 (m.awayId?.startsWith('bot_') && !aName.startsWith('bot'));
         });
 
         const groupData = groupSnap.data();
