@@ -3,7 +3,6 @@
 /**
  * @fileOverview Global Game State Store & Sync Core.
  * Centralizes all club data and manages real-time Firestore synchronization.
- * Fixed: Nested listeners replaced with independent effects to prevent infinite loading.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -167,7 +166,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         leagueLevel: data.leagueLevel || 9,
         groupId: data.groupId || 1,
         country: data.country || null,
-        isLoaded: true // CRITICAL: Profile confirmed
+        isLoaded: true
       }));
     }, (err) => {
       console.error("Profile sync error", err);
@@ -239,8 +238,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   // 3. MATCHES SYNC CORE
   useEffect(() => {
     const s = state;
+    // CRITICAL FIX: If league is not selected, mark as ready to avoid hang
     if (!s.id || !s.selectedLeagueId) {
-      setIsMatchesReady(false);
+      if (s.isLoaded) setIsMatchesReady(true);
       return;
     }
 
@@ -272,7 +272,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [db, state.id, state.selectedLeagueId, state.groupId]);
+  }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, state.isLoaded]);
 
   // DERIVED DATA
   const nextMatchInfo = useMemo(() => {
@@ -294,7 +294,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return null;
   }, [allMatches, isMatchesReady, user]);
 
-  const isDataReady = isMatchesReady && (allMatches.length > 0 || memoryCache.current.hasDataEverLoaded);
+  const isDataReady = isMatchesReady;
 
   const getRefs = useCallback(() => {
     const s = stateRef.current;

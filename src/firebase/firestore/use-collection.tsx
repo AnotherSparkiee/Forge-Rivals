@@ -21,7 +21,7 @@ export interface UseCollectionResult<T> {
 
 /**
  * Hook for subscribing to Firestore collections.
- * Optimized to prevent flickering by waiting for server data if cache is empty.
+ * Simplified loading logic to prevent infinite hangs.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
@@ -57,17 +57,13 @@ export function useCollection<T = any>(
         });
         
         const isFromCache = snapshot.metadata.fromCache;
-        const isServerUpdatePending = snapshot.metadata.hasPendingWrites;
-        
-        // CRITICAL FIX: If we have 0 results from cache, keep loading true until server responds
-        const isWaitingForServer = isFromCache && results.length === 0;
 
         setData(results);
         setFromCache(isFromCache);
         
-        if (!isWaitingForServer) {
-          setIsLoading(false);
-        }
+        // Resolve loading immediately upon first response (cache or server)
+        // to avoid infinite loader if network is slow but cache is empty.
+        setIsLoading(false);
       },
       (fError: FirestoreError) => {
         if (!active) return;

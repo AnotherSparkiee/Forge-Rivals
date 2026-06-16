@@ -150,7 +150,8 @@ export default function Home() {
     );
   }
 
-  if (!isLoaded || !isDataReady) return <LoadingScreen />;
+  // CRITICAL FIX: Only block on isLoaded, allow isDataReady to resolve later
+  if (!isLoaded) return <LoadingScreen />;
 
   const tHub = {
     en: { nextMatch: seasonInfo.isTransitionPhase ? "Season Transition" : "Next Engagement", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", sync: "CALENDAR SYNC" },
