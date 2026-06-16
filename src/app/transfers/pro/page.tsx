@@ -59,7 +59,6 @@ export default function ProTransfersPage() {
       const vtuneRef = doc(db, 'market_v7', vtuneId);
       
       try {
-        // CLEANUP ALL OLD SYSTEM PROS
         const q = query(collection(db, 'market_v7'), where('isSystem', '==', true));
         const allSystemSnap = await getDocs(q);
         for (const d of allSystemSnap.docs) {
@@ -73,7 +72,6 @@ export default function ProTransfersPage() {
           const hero = generateVtuneHero(today);
           const mskNow = getMoscowTime();
           
-          // Set expiry to end of day + 2 days
           const expiry = new Date(mskNow);
           expiry.setDate(expiry.getDate() + 2);
           expiry.setHours(23, 59, 59, 999);
@@ -127,7 +125,6 @@ export default function ProTransfersPage() {
       const timeLeft = expiryTime - mskNow;
       let finalExpiresAt = agent.expiresAt;
       
-      // Anti-snipe: extend by 10 mins if bid in last 10 mins
       if (timeLeft < 600000) { 
         finalExpiresAt = new Date(mskNow + 600000).toISOString(); 
       }
@@ -162,9 +159,7 @@ export default function ProTransfersPage() {
     if (!agents) return [];
     
     return agents.filter(a => {
-      // ONLY V900 SYSTEM VERSION
       if (a.isSystem && !a.id.includes('v900')) return false;
-
       const expiry = new Date(a.expiresAt).getTime();
       if (expiry <= now) return false;
       return true;

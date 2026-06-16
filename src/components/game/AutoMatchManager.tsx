@@ -8,7 +8,7 @@
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs } from 'firebase/firestore';
 import { 
   getStableGroupTeams, generateSeasonCalendar, getMatchResult, 
   LEAGUES 
@@ -44,32 +44,13 @@ export function AutoMatchManager() {
         const activeSeason = seasonInfo.activeSeasonNumber;
         const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
         
-        const groupPath = `leagues_v2/${selectedLeagueId}/divisions/${leagueLevel}/groups/${groupId}`;
-        const groupRef = doc(db, groupPath);
+        const groupRef = doc(db, `leagues_v2/${selectedLeagueId}/divisions/${leagueLevel}/groups/${groupId}`);
         const groupSnap = await getDoc(groupRef);
         
         const todayStr = getMoscowDateString();
         const mskNow = getMoscowTime();
 
-        // --- CAREER LIFECYCLE ---
-        const squad = ownedHeroes || [];
-        for (const hero of squad) {
-          if (hero.isPro && hero.careerEndAge) {
-            const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
-            if (liveAge.numeric >= hero.careerEndAge) {
-               removeHero(hero.id, 0); 
-            }
-          }
-        }
-        
-        // --- PHASE 1: INITIALIZE GROUP & CALENDAR ---
-        const teams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, allGroupPlayers);
-
-        // START OF EPOCH: 17 June 2026
-        const epochBase = new Date('2026-06-17T00:00:00+03:00');
-        const expectedSeasonStart = new Date(epochBase);
-        expectedSeasonStart.setDate(expectedSeasonStart.getDate() + (activeSeason - 1) * 16);
-
+        // Check for outdated matches
         const checkMatchesQ = query(
           collection(db, 'matches_v1'),
           where('leagueId', '==', selectedLeagueId),
@@ -78,7 +59,7 @@ export function AutoMatchManager() {
         );
         const existingMatchesSnap = await getDocs(checkMatchesQ);
         
-        // SANITARY PROTOCOL: Wipe and regenerate if any old names (Elite Bot, 9.1.1) or legacy IDs found
+        // Protocol: Wipe if old bot names or wrong season detected
         const hasLegacyData = existingMatchesSnap.docs.some(d => {
           const m = d.data();
           const hName = String(m.homeName || "");
@@ -86,29 +67,30 @@ export function AutoMatchManager() {
           return hName.includes('Elite Bot') || aName.includes('Elite Bot') || 
                  hName.includes('9.1.1') || aName.includes('9.1.1') ||
                  hName.includes('Bot ') || aName.includes('Bot ') ||
-                 m.seasonNumber !== activeSeason; // Wipe if multiple seasons coexist
+                 m.seasonNumber !== activeSeason;
         });
 
         const groupData = groupSnap.data();
-        const isOldEpoch = groupData?.initializedAt && new Date(groupData.initializedAt.toMillis()).getFullYear() < 2026;
-        
         const forceRegen = !groupSnap.exists() || 
                            groupData?.seasonId !== activeSeason ||
-                           (groupData?.teams?.length !== 8) ||
-                           hasLegacyData ||
-                           isOldEpoch;
+                           hasLegacyData;
 
         if (forceRegen) {
-          // TOTAL WIPE OF GROUP MATCHES
+          console.log("[Engine] Cleaning legacy data and initializing clean season...");
           const cleanupBatch = writeBatch(db);
           existingMatchesSnap.docs.forEach(d => cleanupBatch.delete(d.ref));
           await cleanupBatch.commit();
 
+          const teams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, allGroupPlayers);
           const calendar = generateSeasonCalendar(teams);
-          const batch = writeBatch(db);
-          batch.set(groupRef, {
+          
+          const epochBase = new Date('2026-06-17T00:00:00+03:00');
+          const expectedSeasonStart = new Date(epochBase);
+          expectedSeasonStart.setDate(expectedSeasonStart.getDate() + (activeSeason - 1) * 16);
+
+          const initBatch = writeBatch(db);
+          initBatch.set(groupRef, {
             seasonId: activeSeason,
-            roundNumber: 1,
             teams,
             lastProcessedDate: todayStr,
             initializedAt: serverTimestamp()
@@ -121,7 +103,7 @@ export function AutoMatchManager() {
             const [hh, mm] = league.startTime.split(':').map(Number);
             matchDate.setHours(hh, mm, 0, 0);
 
-            batch.set(doc(db, 'matches_v1', matchId), {
+            initBatch.set(doc(db, 'matches_v1', matchId), {
               ...m,
               id: matchId,
               leagueId: selectedLeagueId,
@@ -133,12 +115,12 @@ export function AutoMatchManager() {
             });
           });
 
-          await batch.commit();
+          await initBatch.commit();
           processingRef.current = false;
           return;
         }
 
-        // --- PHASE 2: SYNC & SIMULATE ---
+        // Processing matches
         const matchesQuery = query(
           collection(db, 'matches_v1'),
           where('leagueId', '==', selectedLeagueId),
@@ -148,56 +130,44 @@ export function AutoMatchManager() {
         );
 
         const allMatchesSnap = await getDocs(matchesQuery);
-        const batch = writeBatch(db);
-        let batchCount = 0;
+        const simBatch = writeBatch(db);
+        let simCount = 0;
 
         for (const matchDoc of allMatchesSnap.docs) {
           const m = matchDoc.data();
-          const startTime = new Date(m.startTime);
-          
-          if (m.status === 'pending' && mskNow.getTime() > startTime.getTime() + 60000) {
+          if (m.status === 'pending' && mskNow.getTime() > new Date(m.startTime).getTime() + 60000) {
             const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, activeSeason);
             const finishedData = {
               status: 'finished',
-              scoreA: sA,
-              scoreB: sB,
+              scoreA: sA, scoreB: sB,
               finishedAt: serverTimestamp(),
               simulation: {
                 winner: sA > sB ? m.homeName : (sA === sB ? "Draw" : m.awayName),
                 seriesScore: `${sA}-${sB}`,
-                games: [
-                  { scoreA: sA > 0 ? 1 : 0, scoreB: sB > 1 ? 1 : 0, duration: "42:00", matchSummary: "Elite competition in the pro league." },
-                  { scoreA: sA > 1 ? 1 : 0, scoreB: sB > 0 ? 1 : 0, duration: "38:00", matchSummary: "Tactical readjustment phase." }
-                ]
+                games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 1 ? 1 : 0, duration: "40:00", matchSummary: "Pro league combat." }]
               }
             };
-            batch.update(matchDoc.ref, finishedData);
-            batchCount++;
+            simBatch.update(matchDoc.ref, finishedData);
+            simCount++;
 
             if (m.homeId === userId || m.awayId === userId) {
               const isHome = m.homeId === userId;
-              recordMatch(
-                finishedData.simulation.winner,
-                { scoreA: isHome ? sA : sB, scoreB: isHome ? sB : sA, ...finishedData.simulation },
-                30000, isHome ? m.awayName : m.homeName, 'league', mskNow.toISOString(), m.id
-              );
+              recordMatch(finishedData.simulation.winner, { scoreA: isHome ? sA : sB, scoreB: isHome ? sB : sA, ...finishedData.simulation }, 30000, isHome ? m.awayName : m.homeName, 'league', mskNow.toISOString(), m.id);
             }
           }
         }
 
-        if (batchCount > 0) {
-          await batch.commit();
-        }
+        if (simCount > 0) await simBatch.commit();
 
       } catch (e: any) {
-        console.warn("[Engine] Heartbeat Error:", e.message);
+        console.warn("[Engine] Sync Error:", e.message);
       } finally {
         processingRef.current = false;
       }
     };
 
     heartbeat();
-    const interval = setInterval(heartbeat, 60000);
+    const interval = setInterval(heartbeat, 30000);
     return () => clearInterval(interval);
   }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, recordMatch, displayName, ownedHeroes, removeHero]);
 
