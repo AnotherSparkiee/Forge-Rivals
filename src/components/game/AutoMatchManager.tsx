@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Автономный движок сезонов с архитектурой "Изолированных Сезонов".
  * Гарантирует уникальные ID групп и матчей с привязкой к номеру сезона.
@@ -52,8 +53,6 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
 
         // Check if group initialization is truly needed. 
-        // We only initialize if group document doesn't exist.
-        // We avoid checking match count here because partial cache can trigger false wipes.
         const needsInitialization = !groupSnap.exists();
 
         if (needsInitialization) {
@@ -61,11 +60,6 @@ export function AutoMatchManager() {
           
           const batch = writeBatch(db);
           
-          // Before re-init, find any partial existing matches and clear them
-          const matchesQ = query(collection(db, 'matches_v1'), where('groupId', '==', prefixedGroupId));
-          const currentMatchesSnap = await getDocs(matchesQ);
-          currentMatchesSnap.docs.forEach(d => batch.delete(d.ref));
-
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const calendar = generateSeasonCalendar(teams);
           
@@ -91,7 +85,7 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           }, { merge: true });
 
-          // Prefixed Matches
+          // Prefixed Matches - Using set with merge to avoid flickering during overwrite
           calendar.forEach((m) => {
             const matchId = `m_${prefixedGroupId}_d${m.day}_h${m.homeId}`;
             const [hh, mm] = league.startTime.split(':').map(Number);
@@ -130,7 +124,6 @@ export function AutoMatchManager() {
 
         pendingSnap.docs.forEach(docSnap => {
           const m = docSnap.data();
-          // Check if match time + 1 minute has passed
           if (mskNow.getTime() > new Date(m.startTime).getTime() + 60000) {
             const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, activeSeason);
             const winner = sA > sB ? m.homeName : (sA === sB ? "Draw" : m.awayName);
@@ -155,7 +148,6 @@ export function AutoMatchManager() {
             simBatch.update(docSnap.ref, finishedData);
             simCount++;
 
-            // Record history locally if player is involved
             if (m.homeId === userId || m.awayId === userId) {
               const isHome = m.homeId === userId;
               recordMatch(

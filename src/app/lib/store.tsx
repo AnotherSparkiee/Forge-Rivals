@@ -1,3 +1,4 @@
+
 'use client';
 
 /**
@@ -280,13 +281,19 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const loaded = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
       const sorted = loaded.sort((a, b) => (a.day || 0) - (b.day || 0));
 
-      // CRITICAL MEMORY LOCK: 
-      // If Firestore gives an empty snapshot from cache (happens on transitions)
-      // but we ALREADY have data in memory - DO NOT clear the state.
+      // CRITICAL FIX: If operations are pending (writes) or snapshot is from empty cache, 
+      // we do NOT set ready if we expect data.
       const isSpuriousCacheEmpty = snapshot.metadata.fromCache && sorted.length === 0;
+      const isSyncingInProcess = snapshot.metadata.hasPendingWrites;
       
-      if (isSpuriousCacheEmpty && memoryCache.current.hasDataEverLoaded) {
-        setIsMatchesReady(true);
+      if ((isSpuriousCacheEmpty || isSyncingInProcess) && memoryCache.current.hasDataEverLoaded) {
+        // Keep previous data valid while engine is working
+        return; 
+      }
+
+      // If it's a server response with 0 data, and we haven't ever loaded, 
+      // we only set ready if metadata confirms it's not a partial cache response.
+      if (sorted.length === 0 && snapshot.metadata.fromCache && !memoryCache.current.hasDataEverLoaded) {
         return; 
       }
 
@@ -296,7 +303,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       setIsMatchesReady(true);
     }, (error) => {
       console.warn("[SyncCore] Matches error:", error);
-      setIsMatchesReady(true); // Don't block UI forever
+      setIsMatchesReady(true); 
     });
 
     return () => unsubscribe();

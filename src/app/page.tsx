@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -38,7 +39,7 @@ export default function Home() {
   const { toast } = useToast();
   const { 
     language, setLanguage, isLoaded, selectedLeagueId,
-    nextMatch, isDataReady
+    nextMatch, isDataReady, allSeasonMatches
   } = useGameState();
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -51,7 +52,7 @@ export default function Home() {
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
   useEffect(() => {
-    // Only run timer if system is ready
+    // Only run timer if system is ready and matches are calculated
     if (!isDataReady || !selectedLeagueId) return;
 
     const timer = setInterval(() => {
@@ -59,7 +60,6 @@ export default function Home() {
       const targetTime = nextMatch?.match?.startTime ? new Date(nextMatch.match.startTime) : null;
       
       if (!targetTime) {
-        // If we are ready but there's no match, don't show "Synchronizing"
         setCountdown('00:00:00');
         return;
       }
@@ -155,8 +155,8 @@ export default function Home() {
   if (!isLoaded) return <LoadingScreen />;
 
   const tHub = {
-    en: { nextMatch: seasonInfo.isTransitionPhase ? "Season Transition" : "Next Engagement", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", sync: "CALENDAR SYNC" },
-    ru: { nextMatch: seasonInfo.isTransitionPhase ? "Смена сезона" : "Следующий матч", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ" }
+    en: { nextMatch: seasonInfo.isTransitionPhase ? "Season Transition" : "Next Engagement", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", sync: "CALENDAR SYNC", noMatches: "NO UPCOMING MATCHES" },
+    ru: { nextMatch: seasonInfo.isTransitionPhase ? "Смена сезона" : "Следующий матч", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ", noMatches: "НЕТ БУДУЩИХ МАТЧЕЙ" }
   }[language as 'en' | 'ru'];
 
   const menu = [ 
@@ -172,6 +172,10 @@ export default function Home() {
     { label: language === 'ru' ? 'Чаты' : 'Communications', href: '/chats', icon: MessageSquare, desc: language === 'ru' ? 'Связь' : 'Messaging' }, 
     { label: language === 'ru' ? 'Профиль' : 'Profile', href: '/profile', icon: UserCog, desc: language === 'ru' ? 'Настройки' : 'Operational dossier' } 
   ];
+
+  // CRITICAL UI GUARD: If we have a league but nextMatch is missing and we aren't "DataReady", 
+  // keep the sync loader visible to prevent flickering "NO MATCHES".
+  const isWaitingForSync = selectedLeagueId && !nextMatch && (!isDataReady || allSeasonMatches.length === 0);
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
@@ -200,7 +204,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                {!isDataReady ? (
+                {isWaitingForSync ? (
                   <div className="py-4 opacity-30 flex flex-col items-center">
                      <Loader2 className="w-6 h-6 animate-spin mb-2" />
                      <p className="text-[10px] font-bold uppercase">{tHub.sync}</p>
@@ -222,7 +226,7 @@ export default function Home() {
                   </div>
                 ) : (
                   <div className="py-6 opacity-30 flex flex-col items-center">
-                     <p className="text-[10px] font-bold uppercase tracking-widest">{language === 'ru' ? 'НЕТ БУДУЩИХ МАТЧЕЙ' : 'NO UPCOMING MATCHES'}</p>
+                     <p className="text-[10px] font-bold uppercase tracking-widest">{tHub.noMatches}</p>
                   </div>
                 )}
               </div>
@@ -233,7 +237,7 @@ export default function Home() {
                 </p>
                 <div className="flex items-center justify-center gap-2">
                   <Timer className="w-4 h-4 text-accent" />
-                  <p className="text-xl font-headline font-bold text-primary tabular-nums tracking-tighter">{countdown || (isDataReady ? '00:00:00' : '00:00:00')}</p>
+                  <p className="text-xl font-headline font-bold text-primary tabular-nums tracking-tighter">{countdown || '00:00:00'}</p>
                 </div>
               </div>
             </div>
