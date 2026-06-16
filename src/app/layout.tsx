@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Metadata } from 'next';
@@ -21,12 +20,15 @@ import { useUser } from '@/firebase';
 
 function GameInterface({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const { isLoaded } = useGameState();
   
   const isAuthOrSetup = pathname?.startsWith('/auth') || pathname === '/setup';
 
-  // Render TopBar and BottomNav if user is logged in and not on auth/setup pages
+  // ВАЖНО: Если идет загрузка пользователя — показываем экран загрузки
+  if (isUserLoading) return <LoadingScreen />;
+
+  // Рендерим TopBar и BottomNav ТОЛЬКО если пользователь авторизован, данные загружены и это не служебные страницы
   const shouldRenderBars = !!user && isLoaded && !isAuthOrSetup;
 
   return (

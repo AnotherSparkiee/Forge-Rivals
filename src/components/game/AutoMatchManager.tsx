@@ -20,7 +20,6 @@ export function AutoMatchManager() {
   const db = useFirestore();
   const processingRef = useRef(false);
 
-  // Sync all players in current group to form stable team list
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
@@ -52,7 +51,7 @@ export function AutoMatchManager() {
         const todayStr = getMoscowDateString();
         const mskNow = getMoscowTime();
 
-        // --- CAREER LIFECYCLE: MONITOR RETIREMENT ---
+        // --- CAREER LIFECYCLE ---
         const squad = ownedHeroes || [];
         for (const hero of squad) {
           if (hero.isPro && hero.careerEndAge) {
@@ -66,12 +65,10 @@ export function AutoMatchManager() {
         // --- PHASE 1: INITIALIZE GROUP & CALENDAR ---
         const teams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, allGroupPlayers);
 
-        // SYNCED WITH EPOCH 2026-06-17
         const epochBase = new Date('2026-06-17T00:00:00+03:00');
         const expectedSeasonStart = new Date(epochBase);
         expectedSeasonStart.setDate(expectedSeasonStart.getDate() + (activeSeason - 1) * 16);
 
-        // ADDITIONAL CLEANUP FOR OLD BOT NAMES AND EPOCHS
         const checkMatchesQ = query(
           collection(db, 'matches_v1'),
           where('leagueId', '==', selectedLeagueId),
@@ -80,12 +77,15 @@ export function AutoMatchManager() {
         );
         const existingMatchesSnap = await getDocs(checkMatchesQ);
         
-        // AGGRESSIVE SANITARY PROTOCOL: Look for any "Elite Bot" or "9.1.1" or "Bot 10"
+        // SANITARY PROTOCOL: Look for any "Elite Bot" or "9.1.1" or names without "bot" prefix for bots
         const hasLegacyBots = existingMatchesSnap.docs.some(d => {
           const m = d.data();
-          return m.homeName.includes('Elite Bot') || m.awayName.includes('Elite Bot') || 
-                 m.homeName.includes('9.1.1') || m.awayName.includes('9.1.1') ||
-                 m.homeName.includes('Bot ') || m.awayName.includes('Bot ');
+          const isHomeBot = m.homeId.startsWith('bot_');
+          const isAwayBot = m.awayId.startsWith('bot_');
+          return (isHomeBot && !m.homeName.startsWith('bot')) || 
+                 (isAwayBot && !m.awayName.startsWith('bot')) ||
+                 m.homeName.includes('Elite Bot') || m.awayName.includes('Elite Bot') ||
+                 m.homeName.includes('9.1.1') || m.awayName.includes('9.1.1');
         });
 
         const groupData = groupSnap.data();
@@ -98,7 +98,6 @@ export function AutoMatchManager() {
                            isOldEpoch;
 
         if (forceRegen) {
-          // CLEANUP ALL MATCHES FOR THIS GROUP BEFORE REGEN
           const cleanupBatch = writeBatch(db);
           existingMatchesSnap.docs.forEach(d => cleanupBatch.delete(d.ref));
           await cleanupBatch.commit();
@@ -137,7 +136,7 @@ export function AutoMatchManager() {
           return;
         }
 
-        // --- PHASE 2: CATCH-UP & SYNC LOGIC ---
+        // --- PHASE 2: SYNC ---
         const matchesQuery = query(
           collection(db, 'matches_v1'),
           where('leagueId', '==', selectedLeagueId),
@@ -155,7 +154,6 @@ export function AutoMatchManager() {
           const correctHome = teams.find(t => t.id === m.homeId);
           const correctAway = teams.find(t => t.id === m.awayId);
 
-          // Force update names if they don't match deterministic unique IDs
           if ((correctHome && m.homeName !== correctHome.name) || (correctAway && m.awayName !== correctAway.name)) {
             batch.update(matchDoc.ref, {
               homeName: correctHome?.name || m.homeName,

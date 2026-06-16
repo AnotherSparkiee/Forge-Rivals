@@ -19,7 +19,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   const [isInitialCheckDone, setIsInitialCheckDone] = useState(false);
 
   useEffect(() => {
-    if (isUserLoading || !isLoaded) return;
+    if (isUserLoading) return;
 
     const isRoot = pathname === '/';
     const isAuthPage = pathname?.startsWith('/auth');
@@ -27,7 +27,6 @@ export function AuthGuard({ children }: { children: ReactNode }) {
 
     // 1. ЕСЛИ НЕ АВТОРИЗОВАН
     if (!user) {
-      // Разрешаем только главную и страницы авторизации
       if (!isRoot && !isAuthPage) {
         router.replace('/');
       } else {
@@ -37,35 +36,33 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     }
 
     // 2. ЕСЛИ АВТОРИЗОВАН
+    // Ждем загрузки состояния игры только для авторизованных
+    if (!isLoaded) return;
+
     const isProfileComplete = !!(selectedLeagueId && country);
     
     if (!isProfileComplete) {
-      // Если профиль не настроен, пускаем ТОЛЬКО на /setup или / (где сработает логика рендера)
-      // Добавляем исключение для страниц /auth/* чтобы не мешать процессу входа/выхода
       if (!isSetupPage && !isRoot && !isAuthPage) {
         router.replace('/setup');
       } else {
         setIsInitialCheckDone(true);
       }
     } else {
-      // Профиль настроен, если зашли на страницы авторизации или настройки -> на хаб (корень)
-      // Опять же, если мы на /auth, возможно мы выходим или меняем аккаунт, позволяем остаться
-      if (isAuthPage || isSetupPage) {
-        if (isSetupPage) {
-           router.replace('/');
-        } else {
-           setIsInitialCheckDone(true);
-        }
+      if (isSetupPage) {
+        router.replace('/');
       } else {
         setIsInitialCheckDone(true);
       }
     }
   }, [user, isUserLoading, isLoaded, selectedLeagueId, country, router, pathname]);
 
-  // Пока идет первичная проверка или загрузка данных — показываем сплэш-экран
   if (isUserLoading || !isInitialCheckDone) {
     return <LoadingScreen />;
   }
+
+  // Если нет пользователя и мы не на разрешенных страницах — не рендерим ничего (ждем редиректа)
+  const isAllowedPath = pathname === '/' || pathname?.startsWith('/auth');
+  if (!user && !isAllowedPath) return <LoadingScreen />;
 
   return (
     <div className="animate-in fade-in duration-500 h-full">
