@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { getMoscowTime, getGlobalSeasonInfo, getSeasonDateLabel } from './lib/time-utils';
+import { getMoscowTime, getGlobalSeasonInfo } from './lib/time-utils';
 import { LEAGUES } from './lib/leagues-data';
 import {
   DropdownMenu,
@@ -38,7 +38,7 @@ export default function Home() {
   const { toast } = useToast();
   const { 
     language, setLanguage, isLoaded, selectedLeagueId,
-    allSeasonMatches, nextMatch, isDataReady
+    nextMatch, isDataReady
   } = useGameState();
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -47,7 +47,6 @@ export default function Home() {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [countdown, setCountdown] = useState('');
 
-  // ПЕРЕНОС ХУКОВ ВВЕРХ (ДО EARLY RETURNS)
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
@@ -98,7 +97,6 @@ export default function Home() {
     }
   };
 
-  // ТЕПЕРЬ МОЖНО ДЕЛАТЬ УСЛОВНЫЕ ВОЗВРАТЫ
   if (isUserLoading) return <LoadingScreen />;
 
   if (!user) {
@@ -152,7 +150,6 @@ export default function Home() {
     );
   }
 
-  // SYNC CORE GATEWAY: Dashboard blocks until READY_FOR_MMO
   if (!isLoaded || !isDataReady) return <LoadingScreen />;
 
   const tHub = {

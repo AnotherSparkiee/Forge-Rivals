@@ -36,7 +36,6 @@ export default function MatchesPage() {
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
   const [now, setNow] = useState(getMoscowTime());
 
-  // ПЕРЕНОС ХУКОВ ВВЕРХ (ДО EARLY RETURNS)
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push('/auth/register');
@@ -46,7 +45,7 @@ export default function MatchesPage() {
   }, [user, isUserLoading, router]);
 
   const calendarDays = useMemo(() => {
-    // Filter only Season 1 and real matches
+    if (!isDataReady) return [];
     const filtered = allSeasonMatches.filter(m => m.seasonId === "season_1");
     const dayGroups: Record<number, any[]> = {};
     filtered.forEach(m => {
@@ -57,9 +56,10 @@ export default function MatchesPage() {
     return Object.entries(dayGroups)
       .map(([day, matches]) => ({ day: Number(day), matches }))
       .sort((a, b) => a.day - b.day);
-  }, [allSeasonMatches]);
+  }, [allSeasonMatches, isDataReady]);
 
   const playedDays = useMemo(() => {
+    if (!isDataReady) return [];
     const finished = allSeasonMatches.filter(m => m.status === 'finished' && m.seasonId === "season_1");
     const dayGroups: Record<number, any[]> = {};
     finished.forEach(m => {
@@ -69,12 +69,12 @@ export default function MatchesPage() {
     return Object.entries(dayGroups)
       .map(([day, matches]) => ({ day: Number(day), matches }))
       .sort((a, b) => a.day - b.day);
-  }, [allSeasonMatches]);
+  }, [allSeasonMatches, isDataReady]);
 
   const myMatches = useMemo(() => {
-    if (!user) return [];
+    if (!user || !isDataReady) return [];
     return allSeasonMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.seasonId === "season_1");
-  }, [allSeasonMatches, user]);
+  }, [allSeasonMatches, user, isDataReady]);
 
   const getCountdown = (startTimeIso: string) => {
     const target = new Date(startTimeIso).getTime();
@@ -86,7 +86,6 @@ export default function MatchesPage() {
     return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
   };
 
-  // SYNC CORE GUARD: Block everything until server data is 100% ready
   if (isUserLoading || !isLoaded || !isDataReady) {
     return <LoadingScreen />;
   }
@@ -144,7 +143,6 @@ export default function MatchesPage() {
     );
   }
 
-  // Final confirmation if data is ready and matches are 0
   const isActuallyEmpty = calendarDays.length === 0;
 
   if (isActuallyEmpty && activeTab !== 'menu') {

@@ -2,14 +2,14 @@
 
 /**
  * @fileOverview Global Game State Store & Sync Core.
- * Centralizes all club data and manages real-time Firestore synchronization with Server-Wait logic.
+ * Centralizes all club data and manages real-time Firestore synchronization with Memory-Locked logic.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
 import { Hero, StaffMember, StaffRole } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getSeasonDateLabel } from './time-utils';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, getDocs, arrayUnion } from 'firebase/firestore';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, arrayUnion, orderBy } from 'firebase/firestore';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
@@ -25,8 +25,8 @@ interface GameState {
   id: string; 
   isLoaded: boolean;
   
-  // SYNC CORE GATEWAY
-  isDataReady: boolean; // Analog of READY_FOR_MMO
+  // SYNC CORE GATEWAY (Memory-Locked)
+  isDataReady: boolean;
   allSeasonMatches: any[];
   nextMatch: any | null;
   isMatchesLoading: boolean;
@@ -136,54 +136,82 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const db = useFirestore();
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const [lang, setLang] = useState('ru');
+  const [isMatchesReady, setIsMatchesReady] = useState(false);
+  const [allMatches, setAllMatches] = useState<any[]>([]);
   
   const stateRef = useRef(state);
+  const memoryCache = useRef({
+    hasDataEverLoaded: false,
+    lastValidMatches: [] as any[]
+  });
+
   useEffect(() => { stateRef.current = state; }, [state]);
 
   const setLanguage = (l: string) => setLang(l);
 
-  // === SYNC CORE: MATCHES GATEWAY ===
-  const groupMatchesQuery = useMemoFirebase(() => {
-    if (!state.selectedLeagueId || !state.id) return null;
-    const seasonId = "season_1"; // STRICT SEASON 1
-    const prefixedGroupId = `season_1_league_${state.selectedLeagueId}_group_${state.groupId}`;
-    
-    return query(
-      collection(db, 'matches_v1'),
-      where('seasonId', '==', seasonId),
-      where('groupId', '==', prefixedGroupId)
-    );
-  }, [db, state.selectedLeagueId, state.groupId, state.id]);
-
-  const { data: dbMatches, isLoading: isMatchesLoading, fromCache } = useCollection(groupMatchesQuery);
-
-  const matchesInfo = useMemo(() => {
-    const matches = dbMatches || [];
-    // isDataReady analog of READY_FOR_MMO: Don't flip to true if cache is empty but server hasn't answered
-    const isReady = !isMatchesLoading;
-
-    let next = null;
-    if (isReady && user) {
-       const filtered = matches.filter(m => m.seasonId === "season_1");
-       const myFuture = filtered
-         .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished')
-         .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-       
-       if (myFuture.length > 0) {
-         const m = myFuture[0];
-         const isHome = m.homeId === user.uid;
-         next = {
-           match: m,
-           opponentName: isHome ? m.awayName : m.homeName,
-           day: m.day,
-           dateLabel: getSeasonDateLabel(m.day),
-           isHome
-         };
-       }
+  // === SYNC CORE: MATCHES GATEWAY (Memory-Locked) ===
+  useEffect(() => {
+    if (!state.id || !state.selectedLeagueId) {
+      setIsMatchesReady(false);
+      return;
     }
 
-    return { matches, isReady, next };
-  }, [dbMatches, isMatchesLoading, user]);
+    const seasonId = "season_1";
+    const prefixedGroupId = `season_1_league_${state.selectedLeagueId}_group_${state.groupId}`;
+    
+    const q = query(
+      collection(db, 'matches_v1'),
+      where('seasonId', '==', seasonId),
+      where('groupId', '==', prefixedGroupId),
+      orderBy('day', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const loaded = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      
+      // КРИТИЧЕСКИЙ ФИКС: Игнорируем пустой снимок из кэша, если данные уже были загружены ранее
+      const isSpuriousCacheEmpty = snapshot.metadata.fromCache && loaded.length === 0;
+      
+      if (isSpuriousCacheEmpty && memoryCache.current.hasDataEverLoaded) {
+        console.log("[SyncCore] Ignoring empty cache snapshot to prevent UI flicker.");
+        return;
+      }
+
+      memoryCache.current.lastValidMatches = loaded;
+      
+      // Обновляем стейт только если данные получены с сервера или кэш не пуст
+      if (loaded.length > 0 || !snapshot.metadata.fromCache) {
+        memoryCache.current.hasDataEverLoaded = true;
+        setAllMatches(loaded);
+        setIsMatchesReady(true);
+      }
+    }, (error) => {
+      console.warn("[SyncCore] Matches error:", error);
+      setIsMatchesReady(true);
+    });
+
+    return () => unsubscribe();
+  }, [db, state.id, state.selectedLeagueId, state.groupId]);
+
+  const nextMatchInfo = useMemo(() => {
+    if (!isMatchesReady || !user) return null;
+    const myFuture = allMatches
+      .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished')
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    
+    if (myFuture.length > 0) {
+      const m = myFuture[0];
+      const isHome = m.homeId === user.uid;
+      return {
+        match: m,
+        opponentName: isHome ? m.awayName : m.homeName,
+        day: m.day,
+        dateLabel: getSeasonDateLabel(m.day),
+        isHome
+      };
+    }
+    return null;
+  }, [allMatches, isMatchesReady, user]);
 
   useEffect(() => {
     if (isUserLoading || !user) {
@@ -239,18 +267,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
               staff: staffObj, seasonDay: info.seasonDay, seasonNumber: info.seasonNumber, 
               isLoaded: true, language: lang,
               
-              // SYNC CORE EXPOSURE
-              isDataReady: matchesInfo.isReady,
-              allSeasonMatches: matchesInfo.matches,
-              nextMatch: matchesInfo.next,
-              isMatchesLoading: isMatchesLoading
+              // SYNC CORE DATA EXPOSURE
+              isDataReady: isMatchesReady && (allMatches.length > 0 || memoryCache.current.hasDataEverLoaded),
+              allSeasonMatches: memoryCache.current.lastValidMatches.length > 0 ? memoryCache.current.lastValidMatches : allMatches,
+              nextMatch: nextMatchInfo,
+              isMatchesLoading: !isMatchesReady
             }));
           });
         });
       });
     });
     return () => unsubRoot();
-  }, [user, isUserLoading, db, lang, matchesInfo, isMatchesLoading]);
+  }, [user, isUserLoading, db, lang, isMatchesReady, allMatches, nextMatchInfo]);
 
   const getRefs = useCallback(() => {
     const s = stateRef.current;
