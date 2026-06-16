@@ -85,6 +85,20 @@ export default function MatchesPage() {
     return allSeasonMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.seasonId === "season_1");
   }, [allSeasonMatches, user, isDataReady]);
 
+  // FIX: Переносим useMemo выше условных возвратов
+  const playedDays = useMemo(() => {
+    if (!isDataReady) return [];
+    const finished = allSeasonMatches.filter(m => m.status === 'finished' && m.seasonId === "season_1");
+    const dayGroups: Record<number, any[]> = {};
+    finished.forEach(m => {
+      if (!dayGroups[m.day]) dayGroups[m.day] = [];
+      dayGroups[m.day].push(m);
+    });
+    return Object.entries(dayGroups)
+      .map(([day, matches]) => ({ day: Number(day), matches }))
+      .sort((a, b) => a.day - b.day);
+  }, [allSeasonMatches, isDataReady]);
+
   const getCountdown = (startTimeIso: string) => {
     const target = new Date(startTimeIso).getTime();
     const diff = target - now.getTime();
@@ -306,23 +320,10 @@ export default function MatchesPage() {
     }
   };
 
-  const playedDays = useMemo(() => {
-    if (!isDataReady) return [];
-    const finished = allSeasonMatches.filter(m => m.status === 'finished' && m.seasonId === "season_1");
-    const dayGroups: Record<number, any[]> = {};
-    finished.forEach(m => {
-      if (!dayGroups[m.day]) dayGroups[m.day] = [];
-      dayGroups[m.day].push(m);
-    });
-    return Object.entries(dayGroups)
-      .map(([day, matches]) => ({ day: Number(day), matches }))
-      .sort((a, b) => a.day - b.day);
-  }, [allSeasonMatches, isDataReady]);
-
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
       <header className="mb-6 flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}>
+        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { if (activeTab === 'menu') router.push('/'); else setActiveTab('menu'); }}>
           <ChevronLeft className="w-6 h-6" />
         </Button>
         <div>
