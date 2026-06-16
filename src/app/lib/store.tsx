@@ -255,7 +255,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
               arena: teamData.arena ?? { capacity: 5000 }, hq: teamData.hq ?? {}, bootcamp: teamData.bootcamp ?? {},
               academy: teamData.academy ?? {}, medical: teamData.medical ?? {},
               country: rootData.country ?? null, isPremium: teamData.premiumUntil ? new Date(teamData.premiumUntil) > new Date() : false,
-              premiumUntil: teamData.premiumUntil ?? null, activeLicenseTier: teamData.activeLicenseTier ?? 4,
+              premiumUntil: teamData.premiumUntil ?? null, activeSeasonNumber: 1, activeLicenseTier: teamData.activeLicenseTier ?? 4,
               rank: teamData.rank ?? 8, ownedHeroes: allHeroes.filter(h => !h.isYouth), youthAcademyHeroes: allHeroes.filter(h => h.isYouth),
               staff: staffObj, seasonDay: info.seasonDay, seasonNumber: info.seasonNumber, activeSeasonNumber: 1, 
               isLoaded: true, language: lang,
