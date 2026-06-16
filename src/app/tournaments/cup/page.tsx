@@ -30,7 +30,8 @@ export default function PyramidCupPage() {
   const [activeRound, setActiveRound] = useState(1);
   const [isInitializing, setIsInitializing] = useState(false);
 
-  // ГИБКИЙ ЗАПРОС: Ищем матчи текущей лиги и раунда
+  // ГИБКИЙ ЗАПРОС: Ищем по leagueId и раунду. 
+  // Мы НЕ фильтруем по сезону здесь, чтобы не пропустить из-за несовпадения типов (str/num)
   const cupQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
@@ -43,16 +44,17 @@ export default function PyramidCupPage() {
 
   const { data: rawMatches, isLoading: isMatchesLoading } = useCollection(cupQuery);
 
-  // Фильтрация по сезону на клиенте (защита от разных типов данных)
+  // Клиентская фильтрация по сезону (Сезон 1)
   const matches = useMemo(() => {
     if (!rawMatches) return [];
-    const targetSeason = Number(activeSeasonNumber || 1);
+    const targetSeason = 1; 
     return rawMatches.filter(m => 
       Number(m.seasonNumber) === targetSeason || 
       Number(m.seasonId_num) === targetSeason || 
-      m.seasonId === `season_${targetSeason}`
+      m.seasonId === "1" || 
+      m.seasonId === "season_1"
     );
-  }, [rawMatches, activeSeasonNumber]);
+  }, [rawMatches]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -88,7 +90,7 @@ export default function PyramidCupPage() {
       initialize: "INITIALIZE SEASON 1 BRACKET",
       loading: "Scanning Frequencies...",
       empty: "Tournament bracket not detected.",
-      formatInfo: "Multi-format data sync active. Round 1 seeded for all 9 divisions simultaneously."
+      formatInfo: "Universal Data Sync active. Seeding includes all divisions (1-9)."
     },
     ru: {
       title: "КУБОК ПИРАМИДЫ",
@@ -100,7 +102,7 @@ export default function PyramidCupPage() {
       initialize: "ПРИНУДИТЕЛЬНО СОЗДАТЬ СЕТКУ",
       loading: "Сканирование эфира...",
       empty: "Сетка турнира не обнаружена.",
-      formatInfo: "Активна мультиформатная синхронизация. Раунд 1 сформирован для всех 9 дивизионов сразу."
+      formatInfo: "Активна универсальная синхронизация. Посев включает все дивизионы (1-9)."
     }
   }[language as 'en' | 'ru'] || { title: "CUP" };
 

@@ -1,13 +1,13 @@
 'use server';
 
 /**
- * @fileOverview Ультимативный движок Кубка Пирамиды v5 (Anti-Crisis Edition).
+ * @fileOverview Ультимативный движок Кубка Пирамиды v6 (Emergency Edition).
  * 
  * Особенности:
- * 1. Использует системные ID лиг ("ALPHA", "BETA"...).
- * 2. Генерирует Раунд 1 для ВСЕХ дивизионов сразу (Тотальный посев).
- * 3. Автоматически заполняет пустые слоты ботами (Гарантия отображения).
- * 4. Дублирует типы данных (str/num) и форматы дат.
+ * 1. Собирает участников из /players_v10 (Мастер-индекс).
+ * 2. Генерирует Раунд 1 для ВСЕХ дивизионов сразу (Тотальный посев 1-9 див).
+ * 3. Дублирует типы данных (leagueId_num, seasonNumber) для обхода фильтров.
+ * 4. Использует три формата даты: ISO, String, Timestamp.
  */
 
 import { 
@@ -44,25 +44,26 @@ class FirestoreBatcher {
 }
 
 /**
- * ЭКСТРЕННАЯ ГЕНЕРАЦИЯ: Раунд 1 для всей пирамиды.
+ * ЭКСТРЕННАЯ ГЕНЕРАЦИЯ: Раунд 1 для всей пирамиды (1-9 дивизионы).
  */
 export async function generatePyramidCup() {
   const { firestore: db } = initializeFirebase();
   
-  // КРИТИЧЕСКИЕ КОНСТАНТЫ (Синхронизация с store.tsx)
-  const CURRENT_SEASON_NUM = 1; 
-  const CURRENT_SEASON_ID = "season_1";
+  // КРИТИЧЕСКИЕ КОНСТАНТЫ
+  const SEASON_NUM = 1; 
+  const SEASON_ID = "1";
   const TARGET_DATE_ISO = "2026-06-17T20:00:00.000Z";
   const TARGET_DATE_SHORT = "2026-06-17";
   const TARGET_TIMESTAMP = Timestamp.fromDate(new Date("2026-06-17T20:00:00Z"));
 
-  console.log(`[EMERGENCY] Starting Total Generation for Season ${CURRENT_SEASON_NUM}...`);
+  console.log(`[EMERGENCY V6] Starting Total Seeding for Season ${SEASON_NUM}...`);
 
   for (let i = 0; i < LEAGUES.length; i++) {
     const league = LEAGUES[i];
+    const leagueNum = i + 1;
     const batcher = new FirestoreBatcher(db);
     
-    // 1. Сбор участников текущей лиги
+    // 1. Сбор ВСЕХ участников лиги из мастер-индекса
     const q = query(
       collection(db, 'players_v10'),
       where('selectedLeagueId', '==', league.id)
@@ -86,14 +87,14 @@ export async function generatePyramidCup() {
       allTeams.push({
         id: botId,
         name: `Elite Bot ${allTeams.length + 1}`,
-        power: 1000 + allTeams.length // Боты слабее лидеров
+        power: 1000 + allTeams.length 
       });
     }
 
     // Сортировка: Сильные (низкий power) -> Слабые (высокий power)
     allTeams.sort((a, b) => a.power - b.power);
 
-    // 3. Формируем пары "От края до края" (Тотальный зеркальный посев)
+    // 3. Формируем пары "От края до края" (Зеркальный посев всей лиги)
     let left = 0;
     let right = allTeams.length - 1;
     let matchNum = 1;
@@ -102,21 +103,24 @@ export async function generatePyramidCup() {
       const strongTeam = allTeams[left];
       const weakTeam = allTeams[right];
 
-      const matchId = `season_${CURRENT_SEASON_NUM}_league_${league.id}_round_1_match_${matchNum}`;
+      const matchId = `season_${SEASON_NUM}_league_${league.id}_round_1_match_${matchNum}`;
 
       await batcher.set(doc(db, 'cup_matches', matchId), {
         cupMatchId: matchId,
         
-        // ДУБЛИРОВАНИЕ ТИПОВ ДЛЯ ГАРАНТИИ ФИЛЬТРАЦИИ:
-        seasonId: CURRENT_SEASON_ID,
-        seasonNumber: CURRENT_SEASON_NUM,
+        // ДУБЛИРОВАНИЕ ТИПОВ (Защита от багов фильтрации):
+        seasonId: SEASON_ID,
+        seasonNumber: SEASON_NUM,
+        seasonId_num: SEASON_NUM,
+        
         leagueId: league.id,
-        leagueId_num: i + 1,
+        leagueId_num: leagueNum,
+        leagueId_str: String(leagueNum),
         
         round: 1,
         round_str: "1",
 
-        // МУЛЬТИФОРМАТ ДАТЫ (Обход багов парсинга):
+        // МУЛЬТИФОРМАТ ДАТЫ:
         date: TARGET_DATE_ISO,
         dateString: TARGET_DATE_SHORT,
         timestamp: TARGET_TIMESTAMP,
@@ -140,7 +144,7 @@ export async function generatePyramidCup() {
     }
 
     await batcher.commit();
-    console.log(`[CUP] League ${league.id} seeded. Matches: ${matchNum - 1}`);
+    console.log(`[CUP V6] League ${league.id} seeded. Matches: ${matchNum - 1}`);
   }
   
   return { success: true };
@@ -153,13 +157,13 @@ export async function generatePyramidCup() {
 export async function checkAndGenerateNextRound(leagueId: string, seasonNumber: number, finishedRound: number) {
   const { firestore: db } = initializeFirebase();
 
-  // 1. Проверяем, завершен ли раунд
+  // 1. Проверяем, завершен ли раунд в лиге
   const qActive = query(
     collection(db, 'cup_matches'),
     where('seasonNumber', '==', seasonNumber),
     where('leagueId', '==', leagueId),
     where('round', '==', finishedRound),
-    where('isFinished', '==', false)
+    where('status', '==', 'scheduled')
   );
 
   const activeSnap = await getDocs(qActive);
@@ -177,24 +181,22 @@ export async function checkAndGenerateNextRound(leagueId: string, seasonNumber: 
   const winnersSnap = await getDocs(qWinners);
   const winnersIds = winnersSnap.docs.map(d => d.data().winnerId).filter(Boolean);
 
-  if (winnersIds.length <= 1) return; // Финал завершен
+  if (winnersIds.length <= 1) return; 
 
-  // 3. Сортировка для нового раунда
+  // 3. Сбор данных о силе участников следующего раунда
   const participantsData: any[] = [];
   for (const teamId of winnersIds) {
-    // Пытаемся найти игрока
     const pDoc = await getDocs(query(collection(db, 'players_v10'), where('id', '==', teamId)));
     if (!pDoc.empty) {
       const d = pDoc.docs[0].data();
       participantsData.push({ id: teamId, power: (Number(d.leagueLevel || 9) * 100) + Number(d.rank || 8) });
     } else {
-      // Это бот
       participantsData.push({ id: teamId, power: 5000 });
     }
   }
   participantsData.sort((a, b) => a.power - b.power);
 
-  // 4. Генерация новых матчей
+  // 4. Генерация нового раунда
   const batcher = new FirestoreBatcher(db);
   const nextRoundNum = finishedRound + 1;
   const nextDate = new Date().toISOString();
