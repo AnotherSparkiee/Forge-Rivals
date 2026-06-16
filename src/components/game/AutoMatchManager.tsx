@@ -1,6 +1,7 @@
 /**
  * @fileOverview Автономный движок сезонов с архитектурой "Изолированных Сезонов".
  * Гарантирует уникальные ID групп и матчей с привязкой к номеру сезона.
+ * Внедрена версия календаря v2 для поддержки чередования Дома/В гостях.
  */
 
 'use client';
@@ -41,6 +42,7 @@ export function AutoMatchManager() {
 
       try {
         const seasonId = "season_1";
+        const calendarVersion = 2; // ВЕРСИЯ 2: Чередование Home/Away
         const seasonInfo = getGlobalSeasonInfo();
         const activeSeason = Math.max(1, seasonInfo.activeSeasonNumber);
         const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
@@ -53,10 +55,11 @@ export function AutoMatchManager() {
           getDocs(query(collection(db, 'matches_v1'), where('groupId', '==', prefixedGroupId), limit(1)))
         ]);
 
-        const needsInitialization = !groupSnap.exists() || matchesSnap.empty;
+        // Пересоздаем если группы нет, если нет матчей ИЛИ если версия календаря устарела
+        const needsInitialization = !groupSnap.exists() || matchesSnap.empty || groupSnap.data()?.calendarVersion !== calendarVersion;
 
         if (needsInitialization) {
-          console.log(`[Engine] INITIALIZING ${seasonId.toUpperCase()} FOR GROUP ${prefixedGroupId}...`);
+          console.log(`[Engine] INITIALIZING CALENDAR V${calendarVersion} FOR GROUP ${prefixedGroupId}...`);
           
           const batch = writeBatch(db);
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
@@ -65,12 +68,13 @@ export function AutoMatchManager() {
           const epochMs = new Date('2026-06-17T00:00:00+03:00').getTime();
           const dayMs = 24 * 60 * 60 * 1000;
 
-          // Prefixed Group Document
+          // Prefixed Group Document with Version
           batch.set(groupRef, {
             id: prefixedGroupId,
             seasonId,
             seasonNumber: activeSeason,
             teams,
+            calendarVersion,
             lastProcessedDate: getMoscowDateString(),
             updatedAt: serverTimestamp()
           }, { merge: true });
@@ -82,6 +86,8 @@ export function AutoMatchManager() {
             const matchTimeOffset = (m.day - 1) * dayMs + (hh * 60 * 60 * 1000) + (mm * 60 * 1000);
             const finalDate = new Date(epochMs + matchTimeOffset);
 
+            // Используем set с merge: true, чтобы не затереть уже сыгранные матчи,
+            // но исправить структуру Home/Away для будущих игр
             batch.set(doc(db, 'matches_v1', matchId), {
               ...m,
               id: matchId,

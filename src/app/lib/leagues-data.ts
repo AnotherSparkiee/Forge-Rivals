@@ -56,7 +56,6 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   
   for (let i = 0; i < botsNeeded; i++) {
-    // Пример: bot0190011 -> Лига 1 (ALPHA), Див 9, Группа 1, Бот 1
     const botId = `bot${leagueNum}${level}${groupNum}${i + 1}`;
     teams.push({ id: botId, name: botId, isBot: true });
   }
@@ -65,7 +64,8 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
 }
 
 /**
- * Алгоритм круговой системы (Round-robin) для 8 команд.
+ * Алгоритм круговой системы (Round-robin) с чередованием Дома/В гостях.
+ * Исправлено: теперь матчи строго чередуются (один дома, один гость).
  */
 export function generateSeasonCalendar(teams: any[]) {
   const n = teams.length;
@@ -75,10 +75,16 @@ export function generateSeasonCalendar(teams: any[]) {
 
   for (let round = 0; round < roundsPerHalf; round++) {
     for (let i = 0; i < n / 2; i++) {
-      const homeIdx = indices[i];
-      const awayIdx = indices[n - 1 - i];
+      let homeIdx = indices[i];
+      let awayIdx = indices[n - 1 - i];
 
-      // Первый круг
+      // ЧЕРЕДОВАНИЕ: на каждом нечетном раунде меняем хозяев и гостей местами
+      // Это предотвращает ситуацию "3 матча дома подряд"
+      if (round % 2 === 1) {
+        [homeIdx, awayIdx] = [awayIdx, homeIdx];
+      }
+
+      // Первый круг (Дни 1-7)
       matches.push({
         day: round + 1,
         homeId: teams[homeIdx].id,
@@ -87,7 +93,7 @@ export function generateSeasonCalendar(teams: any[]) {
         awayName: teams[awayIdx].name
       });
 
-      // Второй круг (реверс)
+      // Второй круг (реверс) (Дни 8-14)
       matches.push({
         day: round + 1 + roundsPerHalf,
         homeId: teams[awayIdx].id,
@@ -96,10 +102,11 @@ export function generateSeasonCalendar(teams: any[]) {
         awayName: teams[homeIdx].name
       });
     }
-    const pivot = indices[0];
-    const rest = indices.slice(1);
-    const last = rest.pop()!;
-    indices.splice(0, n, pivot, last, ...rest);
+    
+    // Вращение по кругу (Berger rotation)
+    const fixed = indices[0];
+    const last = indices.pop()!;
+    indices.splice(1, 0, last);
   }
 
   return matches;
