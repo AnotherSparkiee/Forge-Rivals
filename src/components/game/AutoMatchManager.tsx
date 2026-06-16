@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Autonomous Season Engine (Synchronized Heartbeat).
  * Handles synchronized Bo2 match simulation and season transitions.
@@ -87,8 +86,8 @@ export function AutoMatchManager() {
 
           calendar.forEach((m) => {
             const matchId = `match_${selectedLeagueId}_g${groupId}_s${activeSeason}_d${m.day}_h${m.homeId}`;
-            // SYNCED WITH EPOCH 2024-06-01
-            const matchDate = new Date('2024-06-01T00:00:00+03:00');
+            // SYNCED WITH EPOCH 2026-06-16
+            const matchDate = new Date('2026-06-16T00:00:00+03:00');
             matchDate.setDate(matchDate.getDate() + (activeSeason - 1) * 16 + (m.day - 1));
             const [hh, mm] = league.startTime.split(':').map(Number);
             matchDate.setHours(hh, mm, 0, 0);
