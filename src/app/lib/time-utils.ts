@@ -61,13 +61,13 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
 /**
  * Глобальный расчет сезона. 
  * Цикл: 16 дней (14 игры + 2 переход).
- * СТАТИЧЕСКАЯ ЭПОХА: Сезон 1 НАЧАТ 16 Июня 2026 в 00:00 MSK.
+ * СТАТИЧЕСКАЯ ЭПОХА: Сезон 1 НАЧИНАЕТСЯ 17 Июня 2026 в 00:00 MSK.
  */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   
-  // ФИКСИРОВАННАЯ ТОЧКА ОТСЧЕТА: 16 июня 2026
-  const epochDate = new Date('2026-06-16T00:00:00+03:00');
+  // ФИКСИРОВАННАЯ ТОЧКА ОТСЧЕТА: 17 июня 2026
+  const epochDate = new Date('2026-06-17T00:00:00+03:00');
   
   const diffMs = mskNow.getTime() - epochDate.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));

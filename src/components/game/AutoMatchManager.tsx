@@ -1,7 +1,6 @@
 /**
  * @fileOverview Autonomous Season Engine (Synchronized Heartbeat).
  * Handles synchronized Bo2 match simulation and season transitions.
- * Monitors player career age and retirement.
  */
 
 'use client';
@@ -9,10 +8,10 @@
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, setDoc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs } from 'firebase/firestore';
 import { 
   getStableGroupTeams, generateSeasonCalendar, getMatchResult, 
-  calculateStandings, MAX_LEVELS, LEAGUES 
+  LEAGUES 
 } from '@/app/lib/leagues-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, calculateLiveAge } from '@/app/lib/time-utils';
 
@@ -59,7 +58,6 @@ export function AutoMatchManager() {
           if (hero.isPro && hero.careerEndAge) {
             const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
             if (liveAge.numeric >= hero.careerEndAge) {
-               console.log(`[Lifecycle] ${hero.name} has reached retirement age (${hero.careerEndAge}). Unit deactivated.`);
                removeHero(hero.id, 0); 
             }
           }
@@ -68,7 +66,7 @@ export function AutoMatchManager() {
         // --- PHASE 1: INITIALIZE GROUP & CALENDAR ---
         const teams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, allGroupPlayers);
 
-        // Force regeneration if season mismatch OR epoch mismatch (detected by wrong team count or bots)
+        // Force regeneration if season mismatch OR group integrity lost
         const forceRegen = !groupSnap.exists() || 
                            groupSnap.data().seasonId !== activeSeason ||
                            (groupSnap.data().teams?.length !== 8);
@@ -86,8 +84,8 @@ export function AutoMatchManager() {
 
           calendar.forEach((m) => {
             const matchId = `match_${selectedLeagueId}_g${groupId}_s${activeSeason}_d${m.day}_h${m.homeId}`;
-            // SYNCED WITH EPOCH 2026-06-16
-            const matchDate = new Date('2026-06-16T00:00:00+03:00');
+            // SYNCED WITH EPOCH 2026-06-17
+            const matchDate = new Date('2026-06-17T00:00:00+03:00');
             matchDate.setDate(matchDate.getDate() + (activeSeason - 1) * 16 + (m.day - 1));
             const [hh, mm] = league.startTime.split(':').map(Number);
             matchDate.setHours(hh, mm, 0, 0);
