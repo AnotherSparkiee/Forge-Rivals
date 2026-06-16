@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -7,7 +6,8 @@ import { useGameState } from '../lib/store';
 import { 
   Trophy, Medal, ChevronLeft, ChevronRight, 
   Shield, Globe, Layers, LayoutGrid,
-  MapPin, Home, Info, Search, List, Filter
+  MapPin, Home, Info, Search, List, Filter,
+  Crown, Swords, Timer, Zap
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -15,10 +15,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { getGroupStandings, LEAGUES, MAX_LEVELS } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'pyramid_cup';
+type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'pyramid_cup' | 'champions_league';
 
 export default function RankingsPage() {
   const { user, isUserLoading } = useUser();
@@ -33,13 +33,12 @@ export default function RankingsPage() {
   const [navLeague, setNavLeague] = useState<string | null>(null);
   const [navLevel, setNavLevel] = useState<number | null>(null);
   const [navGroup, setNavGroup] = useState<number | null>(null);
+  const [clStage, setClStage] = useState<'groups' | 'playoffs'>('groups');
 
-  // Contextual IDs
   const contextLeagueId = navLeague || selectedLeagueId || "ALPHA";
   const contextLevel = navLevel || leagueLevel;
   const contextGroup = navGroup || groupId;
 
-  // Real data for current group view
   const playersQuery = useMemoFirebase(() => {
     return query(
       collection(db, 'players_v10'), 
@@ -63,6 +62,16 @@ export default function RankingsPage() {
 
   const { data: groupMatches } = useCollection(matchesQuery);
 
+  // ЛИГА ЧЕМПИОНОВ: Загрузка матчей
+  const clQuery = useMemoFirebase(() => {
+    return query(
+      collection(db, 'cl_matches_v1'),
+      where('seasonNumber', '==', Number(activeSeasonNumber))
+    );
+  }, [db, activeSeasonNumber]);
+
+  const { data: clMatches, isLoading: isClLoading } = useCollection(clQuery);
+
   const standings = useMemo(() => {
     if (!isLoaded) return [];
     return getGroupStandings(
@@ -80,8 +89,10 @@ export default function RankingsPage() {
       title: "RANKINGS HUB", subtitle: "Global Competitive Terminals",
       pts: "PTS", winLoss: "W-D-L", back: "Back",
       selectDiv: "Select Division", selectGroup: "Select Group",
+      cl: "CHAMPIONS LEAGUE",
       menu: [
         { id: 'my_league', label: 'My Current Table', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
+        { id: 'champions_league', label: 'Champions League', desc: 'Elite Inter-Server Blitz', icon: Crown, color: 'text-yellow-500' },
         { id: 'my_pyramid', label: 'My Pyramid', desc: `Explore ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
         { id: 'all_pyramids', label: 'Global Structure', desc: 'Browse all 16 leagues', icon: Globe, color: 'text-blue-400' },
         { id: 'pyramid_cup', label: 'Pyramid Cup', desc: 'Knockout Stage', icon: Medal, color: 'text-yellow-500' },
@@ -91,8 +102,10 @@ export default function RankingsPage() {
       title: "ТАБЛИЦЫ РЕЙТИНГА", subtitle: "Терминалы глобальных соревнований",
       pts: "ОЧК", winLoss: "В-Н-П", back: "Назад",
       selectDiv: "Выберите дивизион", selectGroup: "Выберите группу",
+      cl: "ЛИГА ЧЕМПИОНОВ",
       menu: [
         { id: 'my_league', label: 'Своя таблица', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
+        { id: 'champions_league', label: 'Лига Чемпионов', desc: 'Элитный межсерверный блиц', icon: Crown, color: 'text-yellow-500' },
         { id: 'my_pyramid', label: 'Своя пирамида', desc: `Изучить лигу ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
         { id: 'all_pyramids', label: 'Глобальная структура', desc: 'Все 16 лиг мира', icon: Globe, color: 'text-blue-400' },
         { id: 'pyramid_cup', label: 'Кубок пирамиды', desc: 'Сетка плей-офф', icon: Medal, color: 'text-yellow-500' },
@@ -101,6 +114,72 @@ export default function RankingsPage() {
   }[language as 'en' | 'ru'];
 
   if (isUserLoading || !isLoaded) return <LoadingScreen />;
+
+  const renderCL = () => {
+    if (isClLoading) return <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>;
+    
+    if (!clMatches || clMatches.length === 0) {
+      return (
+        <div className="py-20 text-center opacity-40">
+          <Crown className="w-16 h-16 mx-auto mb-4" />
+          <p className="text-xs font-black uppercase tracking-widest">Лига Чемпионов начнется в Межсезонье</p>
+        </div>
+      );
+    }
+
+    const clGroups = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+    return (
+      <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="grid grid-cols-2 gap-2 bg-secondary/20 p-1 rounded-xl border border-white/5">
+           <Button variant="ghost" className={cn("h-10 text-[10px] font-black uppercase", clStage === 'groups' && "bg-white/10 text-primary")} onClick={() => setClStage('groups')}>ГРУППЫ</Button>
+           <Button variant="ghost" className={cn("h-10 text-[10px] font-black uppercase", clStage === 'playoffs' && "bg-white/10 text-primary")} onClick={() => setClStage('playoffs')}>ПЛЕЙ-ОФФ</Button>
+        </div>
+
+        {clStage === 'groups' ? (
+          <div className="space-y-4">
+            {clGroups.map(gId => {
+              const matches = clMatches.filter(m => m.groupId === gId);
+              return (
+                <Card key={gId} className="glass-card border-white/5">
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-sm font-black text-yellow-500">ГРУППА {gId}</h3>
+                      <Badge variant="outline" className="text-[8px] border-white/10">32 КОМАНДЫ</Badge>
+                    </div>
+                    <div className="space-y-1">
+                      {matches.slice(0, 4).map(m => (
+                        <div key={m.id} className="flex justify-between items-center p-2 bg-background/40 rounded-lg text-[10px] font-bold">
+                          <span className="truncate flex-1">{m.homeName}</span>
+                          <span className="px-3 text-accent">{m.status === 'finished' ? `${m.scoreA}:${m.scoreB}` : 'vs'}</span>
+                          <span className="truncate flex-1 text-right">{m.awayName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="space-y-4">
+             {['1/8', '1/4', 'semi', 'final'].map(stage => (
+               <div key={stage} className="space-y-2">
+                 <h3 className="text-[10px] font-black uppercase text-accent tracking-widest px-1">{stage} FINALS</h3>
+                 {clMatches.filter(m => m.stage === stage).map(m => (
+                    <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex justify-between items-center">
+                       <span className="text-[10px] font-bold uppercase truncate">{m.homeName}</span>
+                       <Badge className="bg-primary/20 text-primary font-mono text-[10px]">{m.status === 'finished' ? `${m.scoreA}:${m.scoreB}` : '09:00'}</Badge>
+                       <span className="text-[10px] font-bold uppercase truncate">{m.awayName}</span>
+                    </div>
+                 ))}
+               </div>
+             ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderStandings = () => (
     <div className="space-y-4 animate-in fade-in duration-500">
@@ -182,7 +261,7 @@ export default function RankingsPage() {
           <ChevronLeft className="w-6 h-6" />
         </Button>
         <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{activeTab === 'menu' ? t.title : t.menu.find(m => m.id === activeTab)?.label}</h1>
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{activeTab === 'menu' ? t.title : (activeTab === 'champions_league' ? t.cl : t.menu.find(m => m.id === activeTab)?.label)}</h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{contextLeagueId} {navLevel ? `> DIV ${navLevel}` : ''}</p>
         </div>
       </header>
@@ -203,7 +282,8 @@ export default function RankingsPage() {
         </div>
       ) : (
         <>
-          {activeTab === 'all_pyramids' && !navLeague ? renderLeaguePicker() : 
+          {activeTab === 'champions_league' ? renderCL() : 
+           activeTab === 'all_pyramids' && !navLeague ? renderLeaguePicker() : 
            !navLevel ? renderDivisionPicker() : 
            !navGroup ? renderGroupPicker() : 
            renderStandings()}
