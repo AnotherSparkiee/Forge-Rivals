@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Глобальный движок Кубка Пирамиды (Pyramid Cup Emergency Engine).
+ * @fileOverview Глобальный движок Кубка Пирамиды (Pyramid Cup Engine).
  * 
  * Логика генерации сетки:
  * - 16 независимых лиг (ALPHA..PI).
@@ -29,7 +29,7 @@ interface CupMatch {
   homeTeamId: string | null;
   awayTeamId: string | null;
   status: 'scheduled' | 'finished';
-  winnerId: null;
+  winnerId: string | null;
   nextCupMatchId: string | null;
 }
 
@@ -81,37 +81,34 @@ function calculateCupTime(leagueStartTime: string, round: number, seasonNumber: 
 }
 
 /**
- * ПРИНУДИТЕЛЬНАЯ ГЕНЕРАЦИЯ КУБКА (EMERGENCY SCRIPT).
- * Запускается вручную или триггером старта сезона.
+ * ПРИНУДИТЕЛЬНАЯ ГЕНЕРАЦИЯ КУБКА.
+ * Реализует логику "От края до края" и "Byes для Див 1".
  */
 export async function generatePyramidCup() {
   const { firestore: db } = initializeFirebase();
   const { activeSeasonNumber } = getGlobalSeasonInfo();
   const seasonId = `season_${activeSeasonNumber}`;
 
-  console.log(`[CUP_EMERGENCY] Starting generation for Season ${activeSeasonNumber}`);
+  console.log(`[CUP] Starting generation for Season ${activeSeasonNumber}`);
 
   for (const league of LEAGUES) {
-    console.log(`[CUP_EMERGENCY] Processing League: ${league.id}`);
+    console.log(`[CUP] Processing League: ${league.id}`);
     const batcher = new FirestoreBatcher(db);
     
-    // 1. Сбор всех участников лиги через корневой профиль (эффективнее скана вложенностей)
+    // 1. Сбор участников лиги (через корневой профиль для скорости)
     const q = query(
       collection(db, 'players_v10'),
-      where('selectedLeagueId', '==', league.id),
-      orderBy('leagueLevel', 'asc'),
-      orderBy('groupId', 'asc'),
-      orderBy('rank', 'asc')
+      where('selectedLeagueId', '==', league.id)
     );
     
     const snap = await getDocs(q);
     const players = snap.docs.map(d => ({ 
       id: d.id, 
-      level: d.data().leagueLevel || 9,
-      rank: d.data().rank || 8
+      level: Number(d.data().leagueLevel || 9),
+      rank: Number(d.data().rank || 8)
     }));
     
-    // Добиваем системными ботами до 4096 (идеальное дерево 2^12)
+    // Добиваем системными ботами до 4096 (идеальное дерево)
     const allParticipants = [...players];
     while (allParticipants.length < 4096) {
       allParticipants.push({ 
@@ -121,19 +118,41 @@ export async function generatePyramidCup() {
       });
     }
 
-    // Разделение: Див 1 (Byes) и Див 2-9 (R1 Participants)
+    // Разделение: Див 1 (Byes) и Див 2-9 (R1)
     const div1Teams = allParticipants.filter(p => p.level === 1).slice(0, 8);
     const lowerTeams = allParticipants.filter(p => p.level > 1);
 
-    // 2. Генерация Раунда 1 (2040 матчей для 4080 команд)
-    // Посев "От края до края": Сильный (из топа) vs Слабый (из хвоста)
-    // Правило: Слабый ДОМА (home), Сильный В ГОСТЯХ (away)
-    for (let i = 0; i < 2040; i++) {
-      const strongTeam = lowerTeams[i];
-      const weakTeam = lowerTeams[lowerTeams.length - 1 - i];
-      
-      const matchId = `season_${activeSeasonNumber}_league_${league.id}_round_1_match_${i}`;
-      const nextMatchId = `season_${activeSeasonNumber}_league_${league.id}_round_2_match_${Math.floor(i / 2)}`;
+    // Сортировка lowerTeams (от сильных к слабым)
+    // Сильнее тот, у кого меньше level, а при равном level — меньше rank
+    lowerTeams.sort((a, b) => a.level - b.level || a.rank - b.rank);
+
+    // 2. Генерация пар Раунда 1 (От края до края)
+    const round1Matches: { homeId: string, awayId: string | null }[] = [];
+    let left = 0;
+    let right = lowerTeams.length - 1;
+
+    while (left < right) {
+      const strongTeam = lowerTeams[left];
+      const weakTeam = lowerTeams[right];
+      // Сильный (strong) — в гостях, слабый (weak) — дома
+      round1Matches.push({ homeId: weakTeam.id, awayId: strongTeam.id });
+      left++;
+      right--;
+    }
+
+    // На случай нечетного количества (хотя при 4096-8=4088 это не произойдет)
+    if (left === right) {
+      round1Matches.push({ homeId: lowerTeams[left].id, awayId: null });
+    }
+
+    const totalR1Matches = round1Matches.length;
+
+    // 3. Запись Раунда 1
+    for (let i = 0; i < totalR1Matches; i++) {
+      const match = round1Matches[i];
+      const matchId = `season_${activeSeasonNumber}_league_${league.id}_round_1_match_${i + 1}`;
+      const nextMatchNum = Math.ceil((i + 1) / 2);
+      const nextCupMatchId = `season_${activeSeasonNumber}_league_${league.id}_round_2_match_${nextMatchNum}`;
 
       await batcher.set(doc(db, 'cup_matches', matchId), {
         cupMatchId: matchId,
@@ -142,22 +161,24 @@ export async function generatePyramidCup() {
         leagueId: league.id,
         round: 1,
         startTime: calculateCupTime(league.startTime, 1, activeSeasonNumber),
-        homeTeamId: weakTeam.id,   // Слабый дома
-        awayTeamId: strongTeam.id, // Сильный в гостях
+        homeTeamId: match.homeId,
+        awayTeamId: match.awayId,
         status: 'scheduled',
         winnerId: null,
-        nextCupMatchId: nextMatchId
+        nextCupMatchId: nextCupMatchId
       });
     }
 
-    // 3. Генерация Раунда 2 (1024 матча)
-    // Включает победителей R1 + 8 команд Див 1
-    for (let i = 0; i < 1024; i++) {
-      const matchId = `season_${activeSeasonNumber}_league_${league.id}_round_2_match_${i}`;
-      const nextMatchId = `season_${activeSeasonNumber}_league_${league.id}_round_3_match_${Math.floor(i / 2)}`;
+    // 4. Генерация Раунда 2 (С Дивизионом 1 в слотах Away)
+    const totalR2Matches = Math.ceil((totalR1Matches + div1Teams.length) / 2);
+
+    for (let i = 0; i < totalR2Matches; i++) {
+      const matchId = `season_${activeSeasonNumber}_league_${league.id}_round_2_match_${i + 1}`;
+      const nextMatchNum = Math.ceil((i + 1) / 2);
+      const nextCupMatchId = `season_${activeSeasonNumber}_league_${league.id}_round_3_match_${nextMatchNum}`;
       
-      // Первые 8 матчей раунда принимают фаворитов Див 1 в слот Away
-      const byeTeamId = i < 8 ? div1Teams[i].id : null;
+      // Див 1 садятся гостями в первые 8 матчей
+      const byeTeamId = div1Teams[i] ? div1Teams[i].id : null;
 
       await batcher.set(doc(db, 'cup_matches', matchId), {
         cupMatchId: matchId,
@@ -166,20 +187,20 @@ export async function generatePyramidCup() {
         leagueId: league.id,
         round: 2,
         startTime: calculateCupTime(league.startTime, 2, activeSeasonNumber),
-        homeTeamId: null,      // Ждет победителя R1
-        awayTeamId: byeTeamId, // Либо Див 1, либо ждет победителя R1
+        homeTeamId: null, // Ждет победителя R1
+        awayTeamId: byeTeamId, 
         status: 'scheduled',
         winnerId: null,
-        nextCupMatchId: nextMatchId
+        nextCupMatchId: nextCupMatchId
       });
     }
 
-    // 4. Генерация дерева до Финала (R3 - R12)
-    let matchesInRound = 512;
+    // 5. Генерация остального дерева (R3 - R12)
+    let matchesInRound = Math.ceil(totalR2Matches / 2);
     for (let r = 3; r <= 12; r++) {
       for (let i = 0; i < matchesInRound; i++) {
-        const matchId = `season_${activeSeasonNumber}_league_${league.id}_round_${r}_match_${i}`;
-        const nextMatchId = r < 12 ? `season_${activeSeasonNumber}_league_${league.id}_round_${r+1}_match_${Math.floor(i / 2)}` : null;
+        const matchId = `season_${activeSeasonNumber}_league_${league.id}_round_${r}_match_${i + 1}`;
+        const nextMatchId = r < 12 ? `season_${activeSeasonNumber}_league_${league.id}_round_${r+1}_match_${Math.ceil((i + 1) / 2)}` : null;
 
         await batcher.set(doc(db, 'cup_matches', matchId), {
           cupMatchId: matchId,
@@ -195,13 +216,14 @@ export async function generatePyramidCup() {
           nextCupMatchId: nextMatchId
         });
       }
-      matchesInRound /= 2;
+      if (matchesInRound === 1) break;
+      matchesInRound = Math.ceil(matchesInRound / 2);
     }
 
     await batcher.commit();
   }
   
-  console.log(`[CUP_EMERGENCY] Complete. Bracket generated for all 16 leagues.`);
+  console.log(`[CUP] Emergency Generation Complete for all 16 leagues.`);
   return { success: true };
 }
 
@@ -226,12 +248,13 @@ export async function advanceCupWinner(matchId: string, winnerId: string) {
   const nextSnap = await getDoc(nextRef);
   if (!nextSnap.exists()) return;
   
-  const nextData = nextSnap.data();
+  const nextData = nextSnap.data() as CupMatch;
   
-  // Логика заполнения слота:
-  // Если текущий match index четный -> идем в Home, если нечетный -> в Away
-  const currentMatchIndex = parseInt(matchId.split('_match_').pop() || '0');
-  const isHomeSlot = currentMatchIndex % 2 === 0;
+  // Логика заполнения слотов:
+  // Если текущий номер матча нечетный -> идем в Home, если четный -> в Away
+  const currentMatchMatchStr = matchId.split('_match_').pop() || '1';
+  const currentMatchNum = parseInt(currentMatchMatchStr);
+  const isHomeSlot = currentMatchNum % 2 !== 0;
 
   if (isHomeSlot) {
     await updateDoc(nextRef, { homeTeamId: winnerId });
