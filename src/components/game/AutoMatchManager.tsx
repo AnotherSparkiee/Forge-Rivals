@@ -1,7 +1,6 @@
 /**
- * @fileOverview Автономный движок сезонов. 
- * Использует детерминированные ID и атомарные батчи.
- * Исправлен расчет времени матчей (scheduledAt) с использованием иммутабельных таймстампов.
+ * @fileOverview Автономный движок сезонов с Протоколом Санитарной Очистки.
+ * Обеспечивает атомарную смену сезона и удаление старых данных (Elite Bot, 9.1.1).
  */
 
 'use client';
@@ -21,7 +20,8 @@ export function AutoMatchManager() {
   const db = useFirestore();
   const processingRef = useRef(false);
 
-  const groupPlayersQuery = useMemoFirebase(() => {
+  // Исправлено: переменная для запроса игроков группы
+  const playersInGroupQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
       collection(db, 'players_v10'), 
@@ -31,7 +31,7 @@ export function AutoMatchManager() {
     );
   }, [db, selectedLeagueId, leagueLevel, groupId]);
 
-  const { data: allGroupPlayers } = useCollection(groupPlayersQuery);
+  const { data: allGroupPlayers } = useCollection(playersInGroupQuery);
 
   useEffect(() => {
     if (!isLoaded || !userId || !selectedLeagueId || processingRef.current || !allGroupPlayers) return;
@@ -49,6 +49,7 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const groupData = groupSnap.data();
 
+        // Получаем все существующие матчи группы для проверки чистоты данных
         const matchesQ = query(
           collection(db, 'matches_v1'),
           where('leagueId', '==', selectedLeagueId),
@@ -57,31 +58,45 @@ export function AutoMatchManager() {
         );
         const existingSnap = await getDocs(matchesQ);
         
+        // КРИТЕРИИ ОЧИСТКИ (Sanitary Protocol)
+        // 1. Старые имена ботов (Elite Bot, 9.1.1)
+        // 2. Неверный номер сезона
+        // 3. Некорректная дата старта (День 1 должен быть 17.06.2026)
         const dirtyMatches = existingSnap.docs.filter(d => {
           const m = d.data();
-          const name = (m.homeName || "") + (m.awayName || "");
-          return name.includes('Elite Bot') || 
-                 name.includes('9.1.1') || 
-                 name.includes('Bot 10') ||
-                 m.seasonNumber !== activeSeason;
+          const namePool = (m.homeName || "") + (m.awayName || "");
+          const isOldBot = namePool.includes('Elite Bot') || namePool.includes('9.1.1') || namePool.includes('Bot 10');
+          const isWrongSeason = m.seasonNumber !== activeSeason;
+          
+          // Проверка даты старта для Сезона 1
+          let isWrongDate = false;
+          if (activeSeason === 1 && m.day === 1) {
+             const startDate = new Date(m.startTime).getDate();
+             if (startDate !== 17) isWrongDate = true; 
+          }
+          
+          return isOldBot || isWrongSeason || isWrongDate;
         });
 
         const needsInitialization = !groupSnap.exists() || groupData?.seasonId !== activeSeason || dirtyMatches.length > 0;
 
         if (needsInitialization) {
-          console.log("[Engine] ATOMIC SEASON INITIALIZATION: Season " + activeSeason);
+          console.log(`[Engine] CLEANING & INITIALIZING SEASON ${activeSeason}...`);
           
           const batch = writeBatch(db);
+          
+          // АТОМАРНОЕ УДАЛЕНИЕ ВСЕГО МУСОРА
           existingSnap.docs.forEach(d => batch.delete(d.ref));
           
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const calendar = generateSeasonCalendar(teams);
           
-          // ИММУТАБЕЛЬНЫЙ РАСЧЕТ ВРЕМЕНИ
+          // ИММУТАБЕЛЬНЫЙ РАСЧЕТ ВРЕМЕНИ (Старт строго 17.06.2026)
           const epochMs = new Date('2026-06-17T00:00:00+03:00').getTime();
           const dayMs = 24 * 60 * 60 * 1000;
           const seasonStartMs = epochMs + (activeSeason - 1) * 16 * dayMs;
 
+          // Обновляем статус группы
           batch.set(groupRef, {
             seasonId: activeSeason,
             teams,
@@ -89,16 +104,17 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           }, { merge: true });
 
+          // Обновляем Глобальный Указатель для клиентов
           const systemStatusRef = doc(db, 'system_v1', 'status');
           batch.set(systemStatusRef, {
             currentSeasonNumber: activeSeason,
             updatedAt: serverTimestamp()
           }, { merge: true });
 
+          // Генерируем 56 новых чистых матчей
           calendar.forEach((m) => {
             const matchId = `m_${selectedLeagueId}_${leagueLevel}_${groupId}_s${activeSeason}_d${m.day}_h${m.homeId}`;
             
-            // Расчет времени без мутации Date
             const [hh, mm] = league.startTime.split(':').map(Number);
             const matchTimeOffset = (m.day - 1) * dayMs + (hh * 60 * 60 * 1000) + (mm * 60 * 1000);
             const finalStartTime = new Date(seasonStartMs + matchTimeOffset).toISOString();
@@ -111,15 +127,18 @@ export function AutoMatchManager() {
               groupId: Number(groupId),
               seasonNumber: activeSeason,
               status: 'pending',
-              startTime: finalStartTime
+              startTime: finalStartTime,
+              scheduledAt: finalStartTime // Совместимость с полем scheduledAt
             });
           });
 
           await batch.commit();
+          console.log("[Engine] Season Initialized Atomically.");
           processingRef.current = false;
           return;
         }
 
+        // Логика симуляции завершенных матчей
         const mskNow = getMoscowTime();
         const simBatch = writeBatch(db);
         let simCount = 0;
@@ -141,7 +160,7 @@ export function AutoMatchManager() {
                   scoreA: sA > 0 ? 1 : 0, 
                   scoreB: sB > 0 ? (sB > 1 ? 1 : 0) : 0, 
                   duration: "38:00", 
-                  matchSummary: "Elite match sequence finalized." 
+                  matchSummary: "Battle sequence completed." 
                 }]
               }
             };

@@ -56,22 +56,22 @@ export function getGlobalSeasonInfo() {
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
   let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
   
-  // Если мы до эпохи (например 16 июня), ставим сезон 1, день подготовки
+  // Если мы до эпохи (16 июня или раньше), ставим сезон 1, день подготовки
   if (diffMs < 0) {
     return {
       seasonDay: 16 + Math.floor(diffMs / (1000 * 60 * 60 * 24)),
       seasonNumber: 1,
       isTransitionPhase: true,
-      activeSeasonNumber: 1 // Фикс: До старта всегда сезон 1
+      activeSeasonNumber: 1
     };
   }
 
-  const isTransitionPhase = currentSeasonDay >= 15 || currentSeasonNumber < 1;
-  const effectiveSeason = isTransitionPhase ? Math.max(1, currentSeasonNumber + 1) : Math.max(1, currentSeasonNumber);
+  const isTransitionPhase = currentSeasonDay >= 15;
+  const effectiveSeason = isTransitionPhase ? currentSeasonNumber + 1 : currentSeasonNumber;
   
   return {
     seasonDay: currentSeasonDay,
-    seasonNumber: Math.max(1, currentSeasonNumber),
+    seasonNumber: currentSeasonNumber,
     isTransitionPhase,
     activeSeasonNumber: effectiveSeason
   };
