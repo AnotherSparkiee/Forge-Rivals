@@ -20,7 +20,8 @@ export function AutoMatchManager() {
   const db = useFirestore();
   const processingRef = useRef(false);
 
-  const groupPlayersQuery = useMemoFirebase(() => {
+  // Используем четкое имя переменной для исключения ReferenceError
+  const allGroupPlayersQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
       collection(db, 'players_v10'), 
@@ -30,7 +31,7 @@ export function AutoMatchManager() {
     );
   }, [db, selectedLeagueId, leagueLevel, groupId]);
 
-  const { data: allGroupPlayers } = useCollection(groupPlayersQuery);
+  const { data: allGroupPlayers } = useCollection(allGroupPlayersQuery);
 
   useEffect(() => {
     if (!isLoaded || !userId || !selectedLeagueId || processingRef.current || !allGroupPlayers) return;
@@ -48,7 +49,7 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const groupData = groupSnap.data();
 
-        // 1. ПРОВЕРКА НА КОНФЛИКТЫ И СТАРЫХ БОТОВ
+        // 1. ПРОВЕРКА НА КОНФЛИКТЫ И СТАРЫХ БОТОВ (9.1.1, Elite Bot)
         const matchesQ = query(
           collection(db, 'matches_v1'),
           where('leagueId', '==', selectedLeagueId),
@@ -61,22 +62,22 @@ export function AutoMatchManager() {
           const m = d.data();
           return m.homeName?.includes('Elite Bot') || 
                  m.homeName?.includes('9.1.1') || 
+                 m.homeName?.includes('Bot 10') ||
                  m.seasonNumber !== activeSeason;
         });
 
         const needsInitialization = !groupSnap.exists() || groupData?.seasonId !== activeSeason || hasLegacy;
 
         if (needsInitialization) {
-          console.log("[Engine] Season Transition Triggered. Purging conflicts...");
+          console.log("[Engine] Purging legacy and generating Season " + activeSeason);
           
           const batch = writeBatch(db);
-          // Удаляем все старые матчи группы
+          // Полное удаление всех старых матчей группы
           existingSnap.docs.forEach(d => batch.delete(d.ref));
           
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const calendar = generateSeasonCalendar(teams);
           
-          // Дата начала Сезона 1: 17 июня 2026
           const epochBase = new Date('2026-06-17T00:00:00+03:00');
           const seasonStart = new Date(epochBase);
           seasonStart.setDate(seasonStart.getDate() + (activeSeason - 1) * 16);
@@ -89,7 +90,6 @@ export function AutoMatchManager() {
           }, { merge: true });
 
           calendar.forEach((m) => {
-            // ДЕТЕРМИНИРОВАННЫЙ ID: m_{лига}_{див}_{группа}_s{сезон}_d{день}_h{ID_дома}
             const matchId = `m_${selectedLeagueId}_${leagueLevel}_${groupId}_s${activeSeason}_d${m.day}_h${m.homeId}`;
             
             const matchDate = new Date(seasonStart);

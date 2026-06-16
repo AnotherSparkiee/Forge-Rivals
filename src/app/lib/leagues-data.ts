@@ -54,24 +54,21 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   
   for (let i = 0; i < botsNeeded; i++) {
+    // bot1090011 -> Лига 1, Див 9, Группа 1, Бот 1
     const botId = `bot${leagueNum}${level}${groupNum}${i + 1}`;
     teams.push({ id: botId, name: botId, isBot: true });
   }
 
-  // Сортировка для стабильности индексов в алгоритме круговой системы
   return teams.sort((a, b) => a.id.localeCompare(b.id));
 }
 
 /**
  * Алгоритм круговой системы (Round-robin) для 8 команд.
- * Генерирует пары на 14 дней (2 круга).
  */
 export function generateSeasonCalendar(teams: any[]) {
   const n = teams.length;
-  const roundsPerHalf = n - 1; // 7 дней в одном круге
+  const roundsPerHalf = n - 1; 
   const matches = [];
-
-  // Создаем массив индексов [0, 1, 2, 3, 4, 5, 6, 7]
   const indices = Array.from({ length: n }, (_, i) => i);
 
   for (let round = 0; round < roundsPerHalf; round++) {
@@ -79,7 +76,6 @@ export function generateSeasonCalendar(teams: any[]) {
       const homeIdx = indices[i];
       const awayIdx = indices[n - 1 - i];
 
-      // Первый круг (Дни 1-7)
       matches.push({
         day: round + 1,
         homeId: teams[homeIdx].id,
@@ -88,7 +84,6 @@ export function generateSeasonCalendar(teams: any[]) {
         awayName: teams[awayIdx].name
       });
 
-      // Второй круг (Дни 8-14) - зеркальные матчи
       matches.push({
         day: round + 1 + roundsPerHalf,
         homeId: teams[awayIdx].id,
@@ -97,8 +92,6 @@ export function generateSeasonCalendar(teams: any[]) {
         awayName: teams[homeIdx].name
       });
     }
-
-    // Вращение индексов (кроме первого элемента)
     const pivot = indices[0];
     const rest = indices.slice(1);
     const last = rest.pop()!;
@@ -106,6 +99,49 @@ export function generateSeasonCalendar(teams: any[]) {
   }
 
   return matches;
+}
+
+/**
+ * Расчет турнирной таблицы группы.
+ */
+export function getGroupStandings(
+  level: number,
+  group: number,
+  leagueId: string,
+  season: number,
+  allGroupPlayers: any[],
+  allGroupMatches: any[]
+) {
+  const teams = getStableGroupTeams(level, group, leagueId, allGroupPlayers);
+  const standings = teams.map(t => ({
+    id: t.id,
+    name: t.name,
+    wins: 0,
+    draws: 0,
+    losses: 0,
+    points: 0,
+    played: 0
+  }));
+
+  allGroupMatches.forEach(m => {
+    if (m.status === 'finished') {
+      const home = standings.find(s => s.id === m.homeId);
+      const away = standings.find(s => s.id === m.awayId);
+      if (home && away) {
+        home.played++;
+        away.played++;
+        if (m.scoreA > m.scoreB) {
+          home.wins++; home.points += 3; away.losses++;
+        } else if (m.scoreB > m.scoreA) {
+          away.wins++; away.points += 3; home.losses++;
+        } else {
+          home.draws++; home.points += 1; away.draws++; away.points += 1;
+        }
+      }
+    }
+  });
+
+  return standings.sort((a, b) => b.points - a.points || b.wins - a.wins || a.id.localeCompare(b.id));
 }
 
 /**
