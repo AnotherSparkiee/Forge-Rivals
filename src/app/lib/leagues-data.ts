@@ -73,12 +73,12 @@ export function getStableGroupTeams(level: any, group: any, leagueId: string, al
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   
   for (let i = 0; i < botsNeeded; i++) {
-    // Globally unique ID: [League(1-16)][Div(1-9)][Group(1-256)][Index(1-8)]
+    // Globally unique ID style: bot1090011
+    // [League(1-16)][Div(1-9)][Group(1-256)][Index(1-8)]
     const botIdNum = ((leagueIdx + 1) * 100000) + (lvl * 1000) + (grp * 10) + (i + 1);
-    const botId = `bot_${botIdNum}`;
-    const botName = `bot${botIdNum}`;
+    const botId = `bot${botIdNum}`;
     
-    teams.push({ id: botId, name: botName, isBot: true });
+    teams.push({ id: botId, name: botId, isBot: true });
   }
 
   return teams.sort((a, b) => a.id.localeCompare(b.id));

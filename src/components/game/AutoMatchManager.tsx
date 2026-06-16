@@ -20,7 +20,7 @@ export function AutoMatchManager() {
   const db = useFirestore();
   const processingRef = useRef(false);
 
-  // FIX: Using a stable query for current group players
+  // FIXED: Variable name matches the one used in useCollection
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
@@ -84,8 +84,10 @@ export function AutoMatchManager() {
           const m = d.data();
           const hName = String(m.homeName || "");
           const aName = String(m.awayName || "");
+          // Aggressive check for old bots or old naming patterns
           return hName.includes('Elite Bot') || aName.includes('Elite Bot') || 
                  hName.includes('9.1.1') || aName.includes('9.1.1') ||
+                 hName.includes('bot ') || aName.includes('bot ') ||
                  (m.homeId?.startsWith('bot_') && !hName.startsWith('bot')) ||
                  (m.awayId?.startsWith('bot_') && !aName.startsWith('bot'));
         });
