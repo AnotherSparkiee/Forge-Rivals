@@ -8,7 +8,7 @@
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs, deleteDoc } from 'firebase/firestore';
 import { 
   getStableGroupTeams, generateSeasonCalendar, getMatchResult, 
   LEAGUES 
@@ -65,6 +65,7 @@ export function AutoMatchManager() {
         // --- PHASE 1: INITIALIZE GROUP & CALENDAR ---
         const teams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, allGroupPlayers);
 
+        // START OF EPOCH: 17 June 2026
         const epochBase = new Date('2026-06-17T00:00:00+03:00');
         const expectedSeasonStart = new Date(epochBase);
         expectedSeasonStart.setDate(expectedSeasonStart.getDate() + (activeSeason - 1) * 16);
@@ -77,15 +78,13 @@ export function AutoMatchManager() {
         );
         const existingMatchesSnap = await getDocs(checkMatchesQ);
         
-        // SANITARY PROTOCOL: Look for any "Elite Bot" or "9.1.1" or names without "bot" prefix for bots
-        const hasLegacyBots = existingMatchesSnap.docs.some(d => {
+        // SANITARY PROTOCOL: Wipe and regenerate if old names (Elite Bot) or legacy IDs found
+        const hasLegacyData = existingMatchesSnap.docs.some(d => {
           const m = d.data();
-          const isHomeBot = m.homeId.startsWith('bot_');
-          const isAwayBot = m.awayId.startsWith('bot_');
-          return (isHomeBot && !m.homeName.startsWith('bot')) || 
-                 (isAwayBot && !m.awayName.startsWith('bot')) ||
-                 m.homeName.includes('Elite Bot') || m.awayName.includes('Elite Bot') ||
-                 m.homeName.includes('9.1.1') || m.awayName.includes('9.1.1');
+          return m.homeName.includes('Elite Bot') || m.awayName.includes('Elite Bot') || 
+                 m.homeName.includes('9.1.1') || m.awayName.includes('9.1.1') ||
+                 (m.homeId.startsWith('bot_') && !m.homeName.startsWith('bot')) ||
+                 (m.awayId.startsWith('bot_') && !m.awayName.startsWith('bot'));
         });
 
         const groupData = groupSnap.data();
@@ -94,7 +93,7 @@ export function AutoMatchManager() {
         const forceRegen = !groupSnap.exists() || 
                            groupData?.seasonId !== activeSeason ||
                            (groupData?.teams?.length !== 8) ||
-                           hasLegacyBots ||
+                           hasLegacyData ||
                            isOldEpoch;
 
         if (forceRegen) {
@@ -136,7 +135,7 @@ export function AutoMatchManager() {
           return;
         }
 
-        // --- PHASE 2: SYNC ---
+        // --- PHASE 2: SYNC & SIMULATE ---
         const matchesQuery = query(
           collection(db, 'matches_v1'),
           where('leagueId', '==', selectedLeagueId),
@@ -151,18 +150,8 @@ export function AutoMatchManager() {
 
         for (const matchDoc of allMatchesSnap.docs) {
           const m = matchDoc.data();
-          const correctHome = teams.find(t => t.id === m.homeId);
-          const correctAway = teams.find(t => t.id === m.awayId);
-
-          if ((correctHome && m.homeName !== correctHome.name) || (correctAway && m.awayName !== correctAway.name)) {
-            batch.update(matchDoc.ref, {
-              homeName: correctHome?.name || m.homeName,
-              awayName: correctAway?.name || m.awayName
-            });
-            batchCount++;
-          }
-
           const startTime = new Date(m.startTime);
+          
           if (m.status === 'pending' && mskNow.getTime() > startTime.getTime() + 60000) {
             const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, activeSeason);
             const finishedData = {
@@ -171,10 +160,10 @@ export function AutoMatchManager() {
               scoreB: sB,
               finishedAt: serverTimestamp(),
               simulation: {
-                winner: sA > sB ? (correctHome?.name || m.homeName) : (sA === sB ? "Draw" : (correctAway?.name || m.awayName)),
+                winner: sA > sB ? m.homeName : (sA === sB ? "Draw" : m.awayName),
                 seriesScore: `${sA}-${sB}`,
                 games: [
-                  { scoreA: sA > 0 ? 1 : 0, scoreB: sB > 1 ? 1 : 0, duration: "42:00", matchSummary: "Standard league operations." },
+                  { scoreA: sA > 0 ? 1 : 0, scoreB: sB > 1 ? 1 : 0, duration: "42:00", matchSummary: "Elite competition in the pro league." },
                   { scoreA: sA > 1 ? 1 : 0, scoreB: sB > 0 ? 1 : 0, duration: "38:00", matchSummary: "Tactical readjustment phase." }
                 ]
               }

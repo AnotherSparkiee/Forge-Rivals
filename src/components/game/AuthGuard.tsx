@@ -7,8 +7,9 @@ import { LoadingScreen } from './LoadingScreen';
 import { useGameState } from '@/app/lib/store';
 
 /**
- * КРИТИЧЕСКИЙ СТРАЖ МАРШРУТОВ
- * Гарантирует, что неавторизованные пользователи всегда видят только "/"
+ * STRATEGIC ROUTE GUARD
+ * Ensures that unauthorized users always land on the Auth form,
+ * and authorized users with incomplete profiles land on Setup.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
@@ -25,7 +26,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     const isAuthPage = pathname?.startsWith('/auth');
     const isSetupPage = pathname === '/setup';
 
-    // 1. ЕСЛИ НЕ АВТОРИЗОВАН
+    // 1. IF NOT AUTHORIZED
     if (!user) {
       if (!isRoot && !isAuthPage) {
         router.replace('/');
@@ -35,19 +36,21 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       return;
     }
 
-    // 2. ЕСЛИ АВТОРИЗОВАН
-    // Ждем загрузки состояния игры только для авторизованных
+    // 2. IF AUTHORIZED
+    // Wait for store to sync profile data
     if (!isLoaded) return;
 
     const isProfileComplete = !!(selectedLeagueId && country);
     
     if (!isProfileComplete) {
-      if (!isSetupPage && !isRoot && !isAuthPage) {
+      // Force setup if profile is missing, even from Root
+      if (!isSetupPage && !isAuthPage) {
         router.replace('/setup');
       } else {
         setIsInitialCheckDone(true);
       }
     } else {
+      // If profile is complete but user hits setup, send to hub
       if (isSetupPage) {
         router.replace('/');
       } else {
@@ -59,10 +62,6 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   if (isUserLoading || !isInitialCheckDone) {
     return <LoadingScreen />;
   }
-
-  // Если нет пользователя и мы не на разрешенных страницах — не рендерим ничего (ждем редиректа)
-  const isAllowedPath = pathname === '/' || pathname?.startsWith('/auth');
-  if (!user && !isAllowedPath) return <LoadingScreen />;
 
   return (
     <div className="animate-in fade-in duration-500 h-full">

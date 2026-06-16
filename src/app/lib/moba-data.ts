@@ -287,9 +287,8 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
  */
 export function generateBotSquad(targetOvr: number = 22): any[] {
   const roles: Role[] = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'];
-  return roles.map((role, i) => {
-    // Ensuring stats strictly around the 20-25 range
-    const val = Math.floor(20 + Math.random() * 6);
+  return roles.map((role) => {
+    const val = Math.floor(20 + Math.random() * 6); // 20-25 Range
     const stats = {
       lastHitting: val,
       mapAwareness: val,

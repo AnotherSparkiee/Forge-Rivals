@@ -51,7 +51,7 @@ export function getMatchResult(homeId: string, awayId: string, day: number = 0, 
 
 /**
  * Generates a stable list of 8 teams for a group with globally unique deterministic bot IDs and Names.
- * Bot format: bot[UniqueNumericID]
+ * Bot ID formula: [LeagueIndex(2)][Level(1)][Group(3)][Index(1)]
  */
 export function getStableGroupTeams(level: any, group: any, leagueId: string, allLeaguePlayers: any[] = []) {
   const lvl = Number(level);
@@ -73,8 +73,7 @@ export function getStableGroupTeams(level: any, group: any, leagueId: string, al
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   
   for (let i = 0; i < botsNeeded; i++) {
-    // Глобально уникальный ID бота: [Лига (01-16)][Див (1-9)][Гр (01-256)][Индекс (1-8)]
-    // Пример: Лига 1, Див 9, Группа 1, Бот 1 -> 109011
+    // Globally unique ID: [League(1-16)][Div(1-9)][Group(1-256)][Index(1-8)]
     const botIdNum = ((leagueIdx + 1) * 100000) + (lvl * 1000) + (grp * 10) + (i + 1);
     const botId = `bot_${botIdNum}`;
     const botName = `bot${botIdNum}`;
@@ -82,7 +81,6 @@ export function getStableGroupTeams(level: any, group: any, leagueId: string, al
     teams.push({ id: botId, name: botName, isBot: true });
   }
 
-  // Сортировка по ID гарантирует одинаковый порядок у всех клиентов
   return teams.sort((a, b) => a.id.localeCompare(b.id));
 }
 
