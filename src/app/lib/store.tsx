@@ -3,7 +3,7 @@
 /**
  * @fileOverview Global Game State Store.
  * Centralizes all club data and manages real-time Firestore synchronization.
- * Fixed: Strict season filtering and isolation logic.
+ * Fixed: Strict season filtering using prefixed IDs.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
@@ -138,7 +138,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const setLanguage = (l: string) => setLang(l);
 
-  // ПОДПИСКА НА ГЛОБАЛЬНЫЙ УКАЗАТЕЛЬ СЕЗОНА
+  // ГЛОБАЛЬНЫЙ УКАЗАТЕЛЬ СЕЗОНА
   useEffect(() => {
     const statusRef = doc(db, 'system_v1', 'status');
     const unsub = onSnapshot(statusRef, (snap) => {
@@ -152,20 +152,19 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => unsub();
   }, [db]);
 
-  // СТРОГАЯ ФИЛЬТРАЦИЯ СЕЗОНА
+  // ИЗОЛИРОВАННЫЙ ЗАПРОС МАТЧЕЙ (Season-Prefixed)
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!state.selectedLeagueId || !state.id) return null;
     
-    // Используем либо системный указатель, либо детерминированный расчет
     const { activeSeasonNumber } = getGlobalSeasonInfo();
     const seasonToFetch = currentSystemSeason || activeSeasonNumber;
+    const seasonId = `season_${seasonToFetch}`;
+    const prefixedGroupId = `${seasonId}_league_${state.selectedLeagueId}_group_${state.groupId}`;
     
     return query(
       collection(db, 'matches_v1'),
-      where('leagueId', '==', state.selectedLeagueId),
-      where('divisionId', '==', Number(state.leagueLevel)),
-      where('groupId', '==', Number(state.groupId)),
-      where('seasonNumber', '==', Number(seasonToFetch))
+      where('seasonId', '==', seasonId),
+      where('groupId', '==', prefixedGroupId)
     );
   }, [db, state.selectedLeagueId, state.leagueLevel, state.groupId, state.id, currentSystemSeason]);
 
@@ -209,9 +208,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
             sSnap.docs.forEach(d => { const m = d.data() as StaffMember; staffObj[m.role] = m; });
             const info = getGlobalSeasonInfo();
 
-            // ЗАЩИТА ОТ ЧАСТИЧНЫХ ДАННЫХ:
             const seasonToDisplay = currentSystemSeason || info.activeSeasonNumber;
-            const matchesToShow = (dbMatches || []).filter(m => m.seasonNumber === seasonToDisplay);
+            const matchesToShow = (dbMatches || []).filter(m => m.seasonId === `season_${seasonToDisplay}`);
 
             setState(s => ({
               ...s, id: user.uid, displayName: rootData.displayName || teamData.displayName || "Manager",

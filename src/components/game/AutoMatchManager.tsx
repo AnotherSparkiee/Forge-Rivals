@@ -1,6 +1,6 @@
 /**
- * @fileOverview Автономный движок сезонов с Протоколом Санитарной Очистки.
- * Обеспечивает атомарную смену сезона и удаление старых данных (Elite Bot, 9.1.1).
+ * @fileOverview Автономный движок сезонов с архитектурой "Изолированных Сезонов".
+ * Гарантирует уникальные ID групп и матчей с привязкой к номеру сезона.
  */
 
 'use client';
@@ -20,7 +20,6 @@ export function AutoMatchManager() {
   const db = useFirestore();
   const processingRef = useRef(false);
 
-  // Исправлено: корректный запрос игроков группы
   const playersInGroupQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
@@ -43,38 +42,23 @@ export function AutoMatchManager() {
       try {
         const seasonInfo = getGlobalSeasonInfo();
         const activeSeason = seasonInfo.activeSeasonNumber;
+        const seasonId = `season_${activeSeason}`;
         const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
         
-        const groupRef = doc(db, `leagues_v2/${selectedLeagueId}/divisions/${leagueLevel}/groups/${groupId}`);
+        // UNIQUE SEASON-PREFIXED GROUP ID
+        const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
+        const groupRef = doc(db, `leagues_v2/${selectedLeagueId}/divisions/${leagueLevel}/groups/${prefixedGroupId}`);
+        
         const groupSnap = await getDoc(groupRef);
         const groupData = groupSnap.data();
 
-        // --- ТОТАЛЬНАЯ САНИТАРНАЯ ПРОВЕРКА ---
-        const matchesQ = query(
-          collection(db, 'matches_v1'),
-          where('leagueId', '==', selectedLeagueId),
-          where('divisionId', '==', Number(leagueLevel)),
-          where('groupId', '==', Number(groupId))
-        );
-        const existingSnap = await getDocs(matchesQ);
-        
-        const dirtyMatches = existingSnap.docs.filter(d => {
-          const m = d.data();
-          const namePool = (m.homeName || "") + (m.awayName || "");
-          const isOldBot = namePool.includes('Elite Bot') || namePool.includes('9.1.1') || namePool.includes('Bot 10');
-          const isWrongSeason = Number(m.seasonNumber) !== Number(activeSeason);
-          return isOldBot || isWrongSeason;
-        });
-
-        const needsInitialization = !groupSnap.exists() || Number(groupData?.seasonId) !== Number(activeSeason) || dirtyMatches.length > 0;
+        // Check if this specific season group exists
+        const needsInitialization = !groupSnap.exists() || Number(groupData?.seasonId) !== Number(activeSeason);
 
         if (needsInitialization) {
-          console.log(`[Engine] CLEANING & INITIALIZING SEASON ${activeSeason}...`);
+          console.log(`[Engine] INITIALIZING ${seasonId.toUpperCase()}...`);
           
           const batch = writeBatch(db);
-          
-          // АТОМАРНОЕ УДАЛЕНИЕ МУСОРА
-          existingSnap.docs.forEach(d => batch.delete(d.ref));
           
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const calendar = generateSeasonCalendar(teams);
@@ -83,21 +67,27 @@ export function AutoMatchManager() {
           const dayMs = 24 * 60 * 60 * 1000;
           const seasonStartMs = epochMs + (activeSeason - 1) * 16 * dayMs;
 
-          // Обновляем Глобальный Указатель СЕЙЧАС, чтобы клиенты знали, что мы в процессе
+          // Global Singleton Status
           batch.set(doc(db, 'system_v1', 'status'), {
             currentSeasonNumber: activeSeason,
+            currentSeasonId: seasonId,
+            status: "active",
             updatedAt: serverTimestamp()
           }, { merge: true });
 
+          // Prefixed Group Document
           batch.set(groupRef, {
-            seasonId: activeSeason,
+            id: prefixedGroupId,
+            seasonId,
+            seasonNumber: activeSeason,
             teams,
             lastProcessedDate: getMoscowDateString(),
             updatedAt: serverTimestamp()
           }, { merge: true });
 
+          // Prefixed Matches
           calendar.forEach((m) => {
-            const matchId = `m_${selectedLeagueId}_${leagueLevel}_${groupId}_s${activeSeason}_d${m.day}_h${m.homeId}`;
+            const matchId = `m_${prefixedGroupId}_d${m.day}_h${m.homeId}`;
             const [hh, mm] = league.startTime.split(':').map(Number);
             const matchTimeOffset = (m.day - 1) * dayMs + (hh * 60 * 60 * 1000) + (mm * 60 * 1000);
             const finalDate = new Date(seasonStartMs + matchTimeOffset);
@@ -105,10 +95,11 @@ export function AutoMatchManager() {
             batch.set(doc(db, 'matches_v1', matchId), {
               ...m,
               id: matchId,
+              seasonId,
+              seasonNumber: activeSeason,
+              groupId: prefixedGroupId,
               leagueId: selectedLeagueId,
               divisionId: Number(leagueLevel),
-              groupId: Number(groupId),
-              seasonNumber: Number(activeSeason),
               status: 'pending',
               startTime: finalDate.toISOString(),
               scheduledAt: Timestamp.fromDate(finalDate)
@@ -116,19 +107,27 @@ export function AutoMatchManager() {
           });
 
           await batch.commit();
-          console.log("[Engine] Season Initialized Atomically.");
+          console.log(`[Engine] ${seasonId} Initialized.`);
           processingRef.current = false;
           return;
         }
 
-        // Авто-симуляция
+        // Auto-simulation for current season matches
         const mskNow = getMoscowTime();
+        const matchesQ = query(
+          collection(db, 'matches_v1'),
+          where('seasonId', '==', seasonId),
+          where('groupId', '==', prefixedGroupId),
+          where('status', '==', 'pending')
+        );
+        const pendingSnap = await getDocs(matchesQ);
+        
         const simBatch = writeBatch(db);
         let simCount = 0;
 
-        existingSnap.docs.forEach(docSnap => {
+        pendingSnap.docs.forEach(docSnap => {
           const m = docSnap.data();
-          if (Number(m.seasonNumber) === Number(activeSeason) && m.status === 'pending' && mskNow.getTime() > new Date(m.startTime).getTime() + 60000) {
+          if (mskNow.getTime() > new Date(m.startTime).getTime() + 60000) {
             const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, activeSeason);
             const winner = sA > sB ? m.homeName : (sA === sB ? "Draw" : m.awayName);
             
