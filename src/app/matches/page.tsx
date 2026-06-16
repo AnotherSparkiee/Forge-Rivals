@@ -32,7 +32,7 @@ export default function MatchesPage() {
   const router = useRouter();
   const { 
     isLoaded, isMatchesLoading, language, leagueLevel, groupId, 
-    matchHistory, groupMatches
+    matchHistory, groupMatches, activeSeasonNumber
   } = useGameState();
   const db = useFirestore();
   
@@ -52,11 +52,12 @@ export default function MatchesPage() {
 
   const league = useMemo(() => LEAGUES.find(l => l.id === profile?.selectedLeagueId) || LEAGUES[0], [profile?.selectedLeagueId]);
 
-  // STABILITY GUARD: Filtering only Season 1 matches
+  // STABILITY GUARD: Filtering strictly for Season 1 to avoid data soup
   const activeSeasonMatches = useMemo(() => {
     if (!groupMatches) return [];
-    return groupMatches.filter(m => m.seasonId === "season_1");
-  }, [groupMatches]);
+    const seasonId = `season_${activeSeasonNumber}`;
+    return groupMatches.filter(m => m.seasonId === seasonId);
+  }, [groupMatches, activeSeasonNumber]);
 
   const calendarDays = useMemo(() => {
     const dayGroups: Record<number, any[]> = {};
@@ -115,8 +116,6 @@ export default function MatchesPage() {
     return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
   };
 
-  if (isUserLoading || !isLoaded) return <LoadingScreen />;
-
   const t = {
     title: language === 'ru' ? "СПИСОК МАТЧЕЙ" : "OPERATIONAL MATCHES",
     subtitle: language === 'ru' ? "Расписание и История" : "Tactical Schedule & History",
@@ -134,34 +133,40 @@ export default function MatchesPage() {
     }
   };
 
-  const renderContent = () => {
-    // 1. ПРИНУДИТЕЛЬНЫЙ ЛОАДЕР (Устраняет мерцание)
-    if (isMatchesLoading && activeTab !== 'menu') {
-      return (
-        <div className="py-20 flex flex-col items-center justify-center space-y-4 animate-in fade-in duration-300">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="text-[10px] uppercase font-black tracking-widest opacity-50">{t.connecting}</p>
-        </div>
-      );
-    }
+  // 1. STRICT LOADING STATE
+  if (isUserLoading || !isLoaded || (isMatchesLoading && activeTab !== 'menu')) {
+    return <LoadingScreen />;
+  }
 
-    // 2. ОПРЕДЕЛЕНИЕ ТЕКУЩЕГО МАССИВА ДЛЯ ТАБА
+  // 2. EMPTY STATE GUARD
+  if (activeTab !== 'menu' && activeTab !== 'next_opponent') {
     let dataList: any[] = [];
     if (activeTab === 'league_calendar') dataList = calendarDays;
     else if (activeTab === 'league_played') dataList = playedDays;
     else if (activeTab === 'my_future') dataList = myMatches.filter(m => m.status === 'pending');
     else if (activeTab === 'my_played') dataList = matchHistory;
 
-    // 3. ПРОВЕРКА НА ПУСТОТУ (После загрузки)
-    if (activeTab !== 'menu' && activeTab !== 'next_opponent' && dataList.length === 0) {
+    if (dataList.length === 0) {
       return (
-        <div className="py-20 text-center opacity-30 animate-in fade-in duration-500">
-          <p className="text-[10px] uppercase font-black tracking-widest">{t.noMatches}</p>
+        <div className="max-w-md mx-auto px-4 pt-8">
+           <header className="mb-6 flex items-center gap-4">
+            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}>
+              <ChevronLeft className="w-6 h-6" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{(t.tabs as any)[activeTab].label}</h1>
+              <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p>
+            </div>
+          </header>
+          <div className="py-20 text-center opacity-30 animate-in fade-in duration-500">
+            <p className="text-[10px] uppercase font-black tracking-widest">{t.noMatches}</p>
+          </div>
         </div>
       );
     }
+  }
 
-    // 4. РЕНДЕРИНГ КОНТЕНТА
+  const renderContent = () => {
     switch (activeTab) {
       case 'next_opponent':
         if (!leagueNextMatch) return <div className="py-20 text-center opacity-30 text-xs font-bold uppercase">Season Ended</div>;
@@ -189,7 +194,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_future':
-        return <div className="space-y-3 animate-in fade-in duration-500">{dataList.sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map(m => (
+        return <div className="space-y-3 animate-in fade-in duration-500">{myMatches.filter(m => m.status === 'pending').sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map(m => (
           <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
             <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2">
               <span className="text-[8px] text-muted-foreground uppercase">{getSeasonDateLabel(m.day)}</span>
@@ -275,21 +280,21 @@ export default function MatchesPage() {
     }
   };
 
-  return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-24">
-      <header className="mb-6 flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => activeTab === 'menu' ? router.push('/') : setActiveTab('menu')}>
-          <ChevronLeft className="w-6 h-6" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">
-            {activeTab === 'menu' ? t.title : (t.tabs as any)[activeTab].label}
-          </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{activeTab === 'menu' ? t.subtitle : t.back}</p>
-        </div>
-      </header>
+  if (activeTab === 'menu') {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 pb-24">
+        <header className="mb-6 flex items-center gap-4">
+          <Link href="/">
+            <Button variant="ghost" size="icon" className="rounded-full">
+              <ChevronLeft className="w-6 h-6" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1>
+            <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
+          </div>
+        </header>
 
-      {activeTab === 'menu' ? (
         <div className="space-y-2">
           {(Object.entries(t.tabs) as [MatchTab, any][]).map(([id, data]) => (
             <Card key={id} className="glass-card hover:bg-white/5 cursor-pointer transition-all border-white/5" onClick={() => setActiveTab(id)}>
@@ -308,7 +313,25 @@ export default function MatchesPage() {
             </Card>
           ))}
         </div>
-      ) : renderContent()}
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-md mx-auto px-4 pt-8 pb-24">
+      <header className="mb-6 flex items-center gap-4">
+        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setActiveTab('menu')}>
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">
+            {(t.tabs as any)[activeTab].label}
+          </h1>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p>
+        </div>
+      </header>
+
+      {renderContent()}
     </div>
   );
 }

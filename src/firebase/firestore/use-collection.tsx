@@ -21,7 +21,7 @@ export interface UseCollectionResult<T> {
 
 /**
  * Hook for subscribing to Firestore collections.
- * Optimized with metadata awareness to prevent flickering during season transitions.
+ * Optimized to prevent flickering by waiting for server data if cache is empty.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
@@ -56,17 +56,18 @@ export function useCollection<T = any>(
           results.push({ ...(doc.data() as T), id: doc.id });
         });
         
-        // Decouple state update
-        setTimeout(() => {
-          if (active) {
-            setData(results);
-            setFromCache(snapshot.metadata.fromCache);
-            // If we have data and it's not from cache anymore, or it's empty but confirmed by server
-            if (!snapshot.metadata.fromCache || (results.length === 0 && !snapshot.metadata.hasPendingWrites)) {
-              setIsLoading(false);
-            }
-          }
-        }, 0);
+        const isFromCache = snapshot.metadata.fromCache;
+        const isServerUpdatePending = snapshot.metadata.hasPendingWrites;
+        
+        // CRITICAL FIX: If we have 0 results from cache, keep loading true until server responds
+        const isWaitingForServer = isFromCache && results.length === 0;
+
+        setData(results);
+        setFromCache(isFromCache);
+        
+        if (!isWaitingForServer) {
+          setIsLoading(false);
+        }
       },
       (fError: FirestoreError) => {
         if (!active) return;

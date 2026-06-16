@@ -156,6 +156,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const seasonId = `season_${seasonToFetch}`;
     const prefixedGroupId = `${seasonId}_league_${state.selectedLeagueId}_group_${state.groupId}`;
     
+    // STRICT SEASON ISOLATION
     return query(
       collection(db, 'matches_v1'),
       where('seasonId', '==', seasonId),
