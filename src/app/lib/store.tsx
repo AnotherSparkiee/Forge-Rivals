@@ -272,11 +272,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
       const isSpuriousCacheEmpty = snapshot.metadata.fromCache && sorted.length === 0;
 
-      if (isSpuriousCacheEmpty && memoryCache.current.hasDataEverLoaded) {
+      // КРИТИЧЕСКИЙ ФИКС: Если идет процесс записи (движок обновляет базу), игнорируем пустой кэш
+      if ((isSpuriousCacheEmpty || snapshot.metadata.hasPendingWrites) && memoryCache.current.hasDataEverLoaded) {
         return; 
       }
 
-      // If we got server data, or cache data that's not empty, or we explicitly got server confirmed empty
       const isSyncComplete = !snapshot.metadata.fromCache || sorted.length > 0;
 
       if (isSyncComplete) {

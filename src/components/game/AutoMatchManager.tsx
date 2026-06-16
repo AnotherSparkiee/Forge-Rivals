@@ -1,7 +1,7 @@
 /**
  * @fileOverview Автономный движок сезонов с архитектурой "Изолированных Сезонов".
  * Гарантирует уникальные ID групп и матчей с привязкой к номеру сезона.
- * Внедрена версия календаря v3 для поддержки СТРОГОГО чередования Дома/В гостях.
+ * Внедрена версия календаря v4 для АГРЕССИВНОЙ ОЧИСТКИ дублей и ритма 1-1-1-1.
  */
 
 'use client';
@@ -42,7 +42,7 @@ export function AutoMatchManager() {
 
       try {
         const seasonId = "season_1";
-        const calendarVersion = 3; // ВЕРСИЯ 3: Детерминированные ID и ритм 1-1-1-1
+        const calendarVersion = 4; // ВЕРСИЯ 4: ПОЛНАЯ ЗАЧИСТКА ДУБЛЕЙ
         const seasonInfo = getGlobalSeasonInfo();
         const activeSeason = Math.max(1, seasonInfo.activeSeasonNumber);
         const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
@@ -53,26 +53,32 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const currentData = groupSnap.data();
 
-        // Если версия календаря устарела — проводим полную очистку старых матчей перед записью новых
+        // Если версия календаря устарела — проводим ПОЛНУЮ ОЧИСТКУ всех матчей группы
         const needsUpgrade = !groupSnap.exists() || (currentData?.calendarVersion || 0) < calendarVersion;
 
         if (needsUpgrade) {
-          console.log(`[Engine] UPGRADING CALENDAR TO V${calendarVersion} FOR GROUP ${prefixedGroupId}...`);
+          console.log(`[Engine] PURGING OLD MATCHES FOR V${calendarVersion} UPGRADE...`);
           
-          const batch = writeBatch(db);
+          let batch = writeBatch(db);
+          
+          // 1. Находим ВООБЩЕ ВСЕ матчи этой группы и удаляем их
+          const oldMatchesSnap = await getDocs(query(
+            collection(db, 'matches_v1'), 
+            where('groupId', '==', prefixedGroupId)
+          ));
+          
+          oldMatchesSnap.docs.forEach(d => {
+            batch.delete(d.ref);
+          });
+
+          // 2. Генерируем новый чистый календарь
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const calendar = generateSeasonCalendar(teams);
           
           const epochMs = new Date('2026-06-17T00:00:00+03:00').getTime();
           const dayMs = 24 * 60 * 60 * 1000;
 
-          // Очистка старых матчей (v1/v2), которые могли иметь другой формат ID
-          if (currentData) {
-            const oldMatchesSnap = await getDocs(query(collection(db, 'matches_v1'), where('groupId', '==', prefixedGroupId)));
-            oldMatchesSnap.docs.forEach(d => batch.delete(d.ref));
-          }
-
-          // Обновляем заголовок группы
+          // 3. Обновляем заголовок группы
           batch.set(groupRef, {
             id: prefixedGroupId,
             seasonId,
@@ -83,9 +89,8 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           }, { merge: true });
 
-          // Записываем новые детерминированные матчи
+          // 4. Записываем новые детерминированные матчи
           calendar.forEach((m) => {
-            // Детерминированный ID на основе дня и пары команд (не зависит от того, кто дома)
             const matchId = `m_${prefixedGroupId}_d${m.day}_${m.pairKey}`;
             
             const [hh, mm] = league.startTime.split(':').map(Number);
@@ -107,6 +112,7 @@ export function AutoMatchManager() {
           });
 
           await batch.commit();
+          console.log(`[Engine] UPGRADE TO V${calendarVersion} COMPLETE.`);
         }
 
         // Auto-simulation check
