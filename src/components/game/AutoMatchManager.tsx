@@ -8,7 +8,7 @@
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, setDoc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs } from 'firebase/firestore';
 import { 
   getStableGroupTeams, generateSeasonCalendar, getMatchResult, 
   LEAGUES 
@@ -31,7 +31,7 @@ export function AutoMatchManager() {
     );
   }, [db, selectedLeagueId, leagueLevel, groupId]);
 
-  const { data: allGroupPlayers } = useCollection(groupPlayersQuery);
+  const { data: allGroupPlayers } = useCollection(allGroupPlayersQuery);
 
   useEffect(() => {
     if (!isLoaded || !userId || !selectedLeagueId || processingRef.current || !allGroupPlayers) return;

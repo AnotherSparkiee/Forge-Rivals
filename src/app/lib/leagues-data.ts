@@ -50,12 +50,13 @@ export function getMatchResult(homeId: string, awayId: string, day: number = 0, 
 }
 
 /**
- * Generates a stable list of 8 teams for a group with deterministic bot IDs and Names.
- * Bot format: bot[NumericID]
+ * Generates a stable list of 8 teams for a group with globally unique deterministic bot IDs and Names.
+ * Bot format: bot[UniqueNumericID]
  */
 export function getStableGroupTeams(level: any, group: any, leagueId: string, allLeaguePlayers: any[] = []) {
   const lvl = Number(level);
   const grp = Number(group);
+  const leagueIdx = LEAGUES.findIndex(l => l.id === leagueId);
 
   // Filter players strictly for this specific group
   const groupPlayers = allLeaguePlayers.filter(p => 
@@ -72,11 +73,10 @@ export function getStableGroupTeams(level: any, group: any, leagueId: string, al
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   
   for (let i = 0; i < botsNeeded; i++) {
-    // Deterministic Bot ID
-    const botIdNum = (lvl * 1000) + (grp * 10) + (i + 1);
-    const botId = `bot_${leagueId}_L${lvl}_G${grp}_${botIdNum}`;
-    
-    // Deterministic Display Name (bot[ID])
+    // Globally unique bot ID: [League (01-16)][Div (1-9)][Group (01-256)][Index (1-8)]
+    // Example: League 1, Div 9, Group 1, Bot 1 -> 19011
+    const botIdNum = ((leagueIdx + 1) * 100000) + (lvl * 1000) + (grp * 10) + (i + 1);
+    const botId = `bot_${botIdNum}`;
     const botName = `bot${botIdNum}`;
     
     teams.push({ id: botId, name: botName, isBot: true });
