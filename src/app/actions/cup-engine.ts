@@ -1,18 +1,19 @@
 'use server';
 
 /**
- * @fileOverview Глобальный движок Кубка Пирамиды (Pyramid Cup Engine).
+ * @fileOverview Глобальный движок Кубка Пирамиды (Pyramid Cup Emergency Engine).
  * 
  * Логика генерации сетки:
- * - 16 независимых лиг.
- * - Посев "От края до края" (Edge-to-Edge) для Див 2-9.
- * - Див 1 пропускает Раунд 1 (Byes) и попадает в Раунд 2 как Гости.
- * - Время: Старт лиги + 12 часов UTC.
+ * - 16 независимых лиг (ALPHA..PI).
+ * - Посев "От края до края" (Edge-to-Edge) для Див 2-9 в Раунде 1.
+ * - Див 1 пропускает Раунд 1 и попадает в Раунд 2 как Гости (awayTeamId).
+ * - Время: 17.06.2026 + 12 часов UTC от старта лиги.
+ * - Пакетная запись Firestore (batches) по 500 операций.
  */
 
 import { 
   collection, doc, getDocs, writeBatch, query, where, 
-  orderBy, serverTimestamp, updateDoc, getDoc 
+  orderBy, getDoc, updateDoc 
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -28,7 +29,7 @@ interface CupMatch {
   homeTeamId: string | null;
   awayTeamId: string | null;
   status: 'scheduled' | 'finished';
-  winnerId: string | null;
+  winnerId: null;
   nextCupMatchId: string | null;
 }
 
@@ -56,41 +57,45 @@ class FirestoreBatcher {
     if (this.count > 0) {
       await this.batch.commit();
       this.count = 0;
+      console.log("[BATCH] Committed partial chunk.");
     }
   }
 }
 
 /**
- * Рассчитывает время начала матча кубка (+12 часов от старта лиги).
+ * Рассчитывает время начала матча кубка (17.06.2026 + раунд + 12 часов).
  */
 function calculateCupTime(leagueStartTime: string, round: number, seasonNumber: number): string {
   const [hh, mm] = leagueStartTime.split(':').map(Number);
-  const epochDate = new Date('2026-06-17T00:00:00Z'); // Начало проекта
+  // Эпоха: 17 июня 2026
+  const epochDate = new Date('2026-06-17T00:00:00Z'); 
   
   const targetDate = new Date(epochDate);
-  // Сдвиг на сезон + раунд + 12 часов
+  // Сдвиг на сезон (цикл 16 дней) + раунд
   const daysOffset = (seasonNumber - 1) * 16 + (round - 1);
   targetDate.setUTCDate(epochDate.getUTCDate() + daysOffset);
+  // Принудительный сдвиг +12 часов
   targetDate.setUTCHours(hh + 12, mm, 0, 0);
   
   return targetDate.toISOString();
 }
 
 /**
- * Основная функция генерации Кубка Пирамиды.
- * Запускается в Межсезонье (15-й день).
+ * ПРИНУДИТЕЛЬНАЯ ГЕНЕРАЦИЯ КУБКА (EMERGENCY SCRIPT).
+ * Запускается вручную или триггером старта сезона.
  */
 export async function generatePyramidCup() {
   const { firestore: db } = initializeFirebase();
   const { activeSeasonNumber } = getGlobalSeasonInfo();
   const seasonId = `season_${activeSeasonNumber}`;
 
-  console.log(`[CUP ENGINE] Initializing Season ${activeSeasonNumber}`);
+  console.log(`[CUP_EMERGENCY] Starting generation for Season ${activeSeasonNumber}`);
 
   for (const league of LEAGUES) {
+    console.log(`[CUP_EMERGENCY] Processing League: ${league.id}`);
     const batcher = new FirestoreBatcher(db);
     
-    // 1. Получаем всех участников лиги
+    // 1. Сбор всех участников лиги через корневой профиль (эффективнее скана вложенностей)
     const q = query(
       collection(db, 'players_v10'),
       where('selectedLeagueId', '==', league.id),
@@ -100,29 +105,35 @@ export async function generatePyramidCup() {
     );
     
     const snap = await getDocs(q);
-    const players = snap.docs.map(d => ({ id: d.id, level: d.data().leagueLevel }));
+    const players = snap.docs.map(d => ({ 
+      id: d.id, 
+      level: d.data().leagueLevel || 9,
+      rank: d.data().rank || 8
+    }));
     
     // Добиваем системными ботами до 4096 (идеальное дерево 2^12)
     const allParticipants = [...players];
     while (allParticipants.length < 4096) {
       allParticipants.push({ 
         id: `sys_bot_${league.id}_${allParticipants.length}`, 
-        level: 9 
+        level: 9,
+        rank: 8
       });
     }
 
-    // Див 1 (8 команд) и остальные (4088 команд)
+    // Разделение: Див 1 (Byes) и Див 2-9 (R1 Participants)
     const div1Teams = allParticipants.filter(p => p.level === 1).slice(0, 8);
-    const div2to9Teams = allParticipants.filter(p => p.level > 1 || !p.level);
+    const lowerTeams = allParticipants.filter(p => p.level > 1);
 
-    // 2. Раунд 1 (2044 матча для 4088 команд)
-    // Посев "От края до края": Лучший vs Худший
-    for (let i = 0; i < 2044; i++) {
-      const strongTeam = div2to9Teams[i];
-      const weakTeam = div2to9Teams[div2to9Teams.length - 1 - i];
+    // 2. Генерация Раунда 1 (2040 матчей для 4080 команд)
+    // Посев "От края до края": Сильный (из топа) vs Слабый (из хвоста)
+    // Правило: Слабый ДОМА (home), Сильный В ГОСТЯХ (away)
+    for (let i = 0; i < 2040; i++) {
+      const strongTeam = lowerTeams[i];
+      const weakTeam = lowerTeams[lowerTeams.length - 1 - i];
       
-      const matchId = `cup_s${activeSeasonNumber}_l${league.id}_r1_m${i}`;
-      const nextMatchId = `cup_s${activeSeasonNumber}_l${league.id}_r2_m${Math.floor(i / 2)}`;
+      const matchId = `season_${activeSeasonNumber}_league_${league.id}_round_1_match_${i}`;
+      const nextMatchId = `season_${activeSeasonNumber}_league_${league.id}_round_2_match_${Math.floor(i / 2)}`;
 
       await batcher.set(doc(db, 'cup_matches', matchId), {
         cupMatchId: matchId,
@@ -139,14 +150,14 @@ export async function generatePyramidCup() {
       });
     }
 
-    // 3. Раунд 2 (1024 матча)
-    // Включает победителей R1 + Byes из Див 1
+    // 3. Генерация Раунда 2 (1024 матча)
+    // Включает победителей R1 + 8 команд Див 1
     for (let i = 0; i < 1024; i++) {
-      const matchId = `cup_s${activeSeasonNumber}_l${league.id}_r2_m${i}`;
-      const nextMatchId = `cup_s${activeSeasonNumber}_l${league.id}_r3_m${Math.floor(i / 2)}`;
+      const matchId = `season_${activeSeasonNumber}_league_${league.id}_round_2_match_${i}`;
+      const nextMatchId = `season_${activeSeasonNumber}_league_${league.id}_round_3_match_${Math.floor(i / 2)}`;
       
-      // Первые 8 матчей принимают фаворитов Див 1 в слот гостей
-      const reservedAwayId = i < 8 ? div1Teams[i].id : null;
+      // Первые 8 матчей раунда принимают фаворитов Див 1 в слот Away
+      const byeTeamId = i < 8 ? div1Teams[i].id : null;
 
       await batcher.set(doc(db, 'cup_matches', matchId), {
         cupMatchId: matchId,
@@ -155,8 +166,8 @@ export async function generatePyramidCup() {
         leagueId: league.id,
         round: 2,
         startTime: calculateCupTime(league.startTime, 2, activeSeasonNumber),
-        homeTeamId: null, // Ждет победителя R1
-        awayTeamId: reservedAwayId,
+        homeTeamId: null,      // Ждет победителя R1
+        awayTeamId: byeTeamId, // Либо Див 1, либо ждет победителя R1
         status: 'scheduled',
         winnerId: null,
         nextCupMatchId: nextMatchId
@@ -167,8 +178,8 @@ export async function generatePyramidCup() {
     let matchesInRound = 512;
     for (let r = 3; r <= 12; r++) {
       for (let i = 0; i < matchesInRound; i++) {
-        const matchId = `cup_s${activeSeasonNumber}_l${league.id}_r${r}_m${i}`;
-        const nextMatchId = r < 12 ? `cup_s${activeSeasonNumber}_l${league.id}_r${r+1}_m${Math.floor(i / 2)}` : null;
+        const matchId = `season_${activeSeasonNumber}_league_${league.id}_round_${r}_match_${i}`;
+        const nextMatchId = r < 12 ? `season_${activeSeasonNumber}_league_${league.id}_round_${r+1}_match_${Math.floor(i / 2)}` : null;
 
         await batcher.set(doc(db, 'cup_matches', matchId), {
           cupMatchId: matchId,
@@ -190,12 +201,13 @@ export async function generatePyramidCup() {
     await batcher.commit();
   }
   
+  console.log(`[CUP_EMERGENCY] Complete. Bracket generated for all 16 leagues.`);
   return { success: true };
 }
 
 /**
  * Реактивное продвижение победителя.
- * Вызывается при обновлении документа в 'finished' с winnerId.
+ * Триггер: update на коллекции 'cup_matches' при status == 'finished'
  */
 export async function advanceCupWinner(matchId: string, winnerId: string) {
   const { firestore: db } = initializeFirebase();
@@ -206,15 +218,19 @@ export async function advanceCupWinner(matchId: string, winnerId: string) {
   const data = snap.data() as CupMatch;
   
   if (!data.nextCupMatchId) {
-    console.log("[CUP] Final Reached. Tournament Closed.");
+    console.log("[CUP] Grand Final Finished. Champion Crowned.");
     return;
   }
 
   const nextRef = doc(db, 'cup_matches', data.nextCupMatchId);
+  const nextSnap = await getDoc(nextRef);
+  if (!nextSnap.exists()) return;
   
-  // Определяем слот (Home/Away) на основе индекса текущего матча
-  // Четный индекс текущего матча -> идет в Home, нечетный -> в Away
-  const currentMatchIndex = parseInt(matchId.split('_m').pop() || '0');
+  const nextData = nextSnap.data();
+  
+  // Логика заполнения слота:
+  // Если текущий match index четный -> идем в Home, если нечетный -> в Away
+  const currentMatchIndex = parseInt(matchId.split('_match_').pop() || '0');
   const isHomeSlot = currentMatchIndex % 2 === 0;
 
   if (isHomeSlot) {
