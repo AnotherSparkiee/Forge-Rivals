@@ -51,18 +51,19 @@ export function AutoMatchManager() {
         
         const groupSnap = await getDoc(groupRef);
 
-        // Check current match count for this group
-        const matchesQ = query(collection(db, 'matches_v1'), where('groupId', '==', prefixedGroupId));
-        const currentMatchesSnap = await getDocs(matchesQ);
-        
-        const needsInitialization = !groupSnap.exists() || currentMatchesSnap.size < 56;
+        // Check if group initialization is truly needed. 
+        // We only initialize if group document doesn't exist.
+        // We avoid checking match count here because partial cache can trigger false wipes.
+        const needsInitialization = !groupSnap.exists();
 
         if (needsInitialization) {
           console.log(`[Engine] INITIALIZING ${seasonId.toUpperCase()} FOR GROUP ${prefixedGroupId}...`);
           
           const batch = writeBatch(db);
           
-          // Clear possible fragments if under 56
+          // Before re-init, find any partial existing matches and clear them
+          const matchesQ = query(collection(db, 'matches_v1'), where('groupId', '==', prefixedGroupId));
+          const currentMatchesSnap = await getDocs(matchesQ);
           currentMatchesSnap.docs.forEach(d => batch.delete(d.ref));
 
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);

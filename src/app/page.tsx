@@ -51,14 +51,16 @@ export default function Home() {
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
   useEffect(() => {
-    if (!isLoaded || !isDataReady || !selectedLeagueId) return;
+    // Only run timer if system is ready
+    if (!isDataReady || !selectedLeagueId) return;
 
     const timer = setInterval(() => {
       const mskNow = getMoscowTime();
       const targetTime = nextMatch?.match?.startTime ? new Date(nextMatch.match.startTime) : null;
       
       if (!targetTime) {
-        setCountdown(language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...');
+        // If we are ready but there's no match, don't show "Synchronizing"
+        setCountdown('00:00:00');
         return;
       }
 
@@ -75,7 +77,7 @@ export default function Home() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isLoaded, isDataReady, selectedLeagueId, nextMatch, language]);
+  }, [isDataReady, selectedLeagueId, nextMatch, language]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,7 +233,7 @@ export default function Home() {
                 </p>
                 <div className="flex items-center justify-center gap-2">
                   <Timer className="w-4 h-4 text-accent" />
-                  <p className="text-xl font-headline font-bold text-primary tabular-nums tracking-tighter">{countdown || '00:00:00'}</p>
+                  <p className="text-xl font-headline font-bold text-primary tabular-nums tracking-tighter">{countdown || (isDataReady ? '00:00:00' : '00:00:00')}</p>
                 </div>
               </div>
             </div>

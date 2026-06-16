@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview Global Game State Store & Sync Core.
- * Centralizes all club data and manages real-time Firestore synchronization.
+ * Centralizes all club data and manages real-time Firestore synchronization with Memory-Locking.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -139,7 +139,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const stateRef = useRef(state);
   const memoryCache = useRef({
     hasDataEverLoaded: false,
-    lastValidMatches: [] as any[]
+    lastValidMatches: [] as any[],
+    lastUserId: null as string | null,
+    lastLeagueId: null as string | null
   });
 
   useEffect(() => { stateRef.current = state; }, [state]);
@@ -239,10 +241,20 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId]);
 
-  // 3. MATCHES SYNC CORE - MEMORY LOCKED & INDEX-FREE
+  // 3. MATCHES SYNC CORE - MEMORY LOCKED
   useEffect(() => {
     const s = state;
     if (!s.isLoaded || !s.id) return;
+
+    // Reset memory cache if user or league changes
+    if (memoryCache.current.lastUserId !== s.id || memoryCache.current.lastLeagueId !== s.selectedLeagueId) {
+      memoryCache.current.hasDataEverLoaded = false;
+      memoryCache.current.lastValidMatches = [];
+      memoryCache.current.lastUserId = s.id;
+      memoryCache.current.lastLeagueId = s.selectedLeagueId;
+      setIsMatchesReady(false);
+      setAllMatches([]);
+    }
 
     if (!s.selectedLeagueId) {
       setIsMatchesReady(true);
@@ -253,25 +265,29 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const seasonId = "season_1";
     const prefixedGroupId = `season_1_league_${s.selectedLeagueId}_group_${s.groupId}`;
     
-    // REMOVED orderBy TO AVOID INDEX ERRORS
     const q = query(
       collection(db, 'matches_v1'),
       where('seasonId', '==', seasonId),
       where('groupId', '==', prefixedGroupId)
     );
 
-    setIsMatchesReady(memoryCache.current.hasDataEverLoaded);
+    // If we have valid data in memory, UI is already "ready"
+    if (memoryCache.current.hasDataEverLoaded) {
+      setIsMatchesReady(true);
+    }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const loaded = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-      
-      // SORT IN MEMORY TO BYPASS INDEX REQUIREMENTS
       const sorted = loaded.sort((a, b) => (a.day || 0) - (b.day || 0));
 
+      // CRITICAL MEMORY LOCK: 
+      // If Firestore gives an empty snapshot from cache (happens on transitions)
+      // but we ALREADY have data in memory - DO NOT clear the state.
       const isSpuriousCacheEmpty = snapshot.metadata.fromCache && sorted.length === 0;
+      
       if (isSpuriousCacheEmpty && memoryCache.current.hasDataEverLoaded) {
         setIsMatchesReady(true);
-        return;
+        return; 
       }
 
       memoryCache.current.lastValidMatches = sorted;
@@ -280,21 +296,22 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       setIsMatchesReady(true);
     }, (error) => {
       console.warn("[SyncCore] Matches error:", error);
-      setIsMatchesReady(true);
+      setIsMatchesReady(true); // Don't block UI forever
     });
 
     return () => unsubscribe();
   }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded]);
 
-  // DERIVED DATA
+  // DERIVED DATA - STABILIZED
   const nextMatchInfo = useMemo(() => {
     if (!isMatchesReady || !user) return null;
+    
+    // Always use the latest matches from memory or state
     const matchesToUse = allMatches.length > 0 ? allMatches : memoryCache.current.lastValidMatches;
     
-    // Ensure chronological order for search
-    const sorted = [...matchesToUse].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-    
-    const myFuture = sorted
+    if (matchesToUse.length === 0) return null;
+
+    const myFuture = matchesToUse
       .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished');
     
     if (myFuture.length > 0) {
@@ -310,7 +327,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return null;
   }, [allMatches, isMatchesReady, user]);
 
-  const isDataReady = isMatchesReady;
+  const isDataReady = isMatchesReady && state.isLoaded;
 
   const getRefs = useCallback(() => {
     const s = stateRef.current;
