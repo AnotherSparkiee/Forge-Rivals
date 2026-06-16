@@ -150,7 +150,6 @@ export default function Home() {
     );
   }
 
-  // CRITICAL FIX: Only block on isLoaded, allow isDataReady to resolve later
   if (!isLoaded) return <LoadingScreen />;
 
   const tHub = {
@@ -199,27 +198,29 @@ export default function Home() {
                   </div>
                 </div>
 
-                {nextMatch ? (
-                  <>
-                    <div className="flex items-center justify-between gap-4 py-2">
-                      <div className={cn("flex-1 text-right", nextMatch.isHome && "text-primary")}>
-                        <p className="text-[7px] font-black uppercase opacity-40 mb-1">{nextMatch.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
-                        <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatch.match.homeName}</p>
-                      </div>
-                      <div className="px-3 py-1 rounded-lg bg-background/60 border border-white/5 flex flex-col items-center">
-                        <Swords className="w-4 h-4 text-accent" />
-                        <span className="text-[8px] font-black text-accent mt-1">VS</span>
-                      </div>
-                      <div className={cn("flex-1 text-left", !nextMatch.isHome && "text-primary")}>
-                        <p className="text-[7px] font-black uppercase opacity-40 mb-1">{!nextMatch.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
-                        <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatch.match.awayName}</p>
-                      </div>
-                    </div>
-                  </>
-                ) : (
+                {!isDataReady ? (
                   <div className="py-4 opacity-30 flex flex-col items-center">
                      <Loader2 className="w-6 h-6 animate-spin mb-2" />
                      <p className="text-[10px] font-bold uppercase">{tHub.sync}</p>
+                  </div>
+                ) : nextMatch ? (
+                  <div className="flex items-center justify-between gap-4 py-2">
+                    <div className={cn("flex-1 text-right", nextMatch.isHome && "text-primary")}>
+                      <p className="text-[7px] font-black uppercase opacity-40 mb-1">{nextMatch.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
+                      <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatch.match.homeName}</p>
+                    </div>
+                    <div className="px-3 py-1 rounded-lg bg-background/60 border border-white/5 flex flex-col items-center">
+                      <Swords className="w-4 h-4 text-accent" />
+                      <span className="text-[8px] font-black text-accent mt-1">VS</span>
+                    </div>
+                    <div className={cn("flex-1 text-left", !nextMatch.isHome && "text-primary")}>
+                      <p className="text-[7px] font-black uppercase opacity-40 mb-1">{!nextMatch.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
+                      <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatch.match.awayName}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-6 opacity-30 flex flex-col items-center">
+                     <p className="text-[10px] font-bold uppercase tracking-widest">{language === 'ru' ? 'НЕТ БУДУЩИХ МАТЧЕЙ' : 'NO UPCOMING MATCHES'}</p>
                   </div>
                 )}
               </div>

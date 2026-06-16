@@ -147,7 +147,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   // 1. ROOT PROFILE LISTENER
   useEffect(() => {
     if (isUserLoading || !user) {
-      if (!isUserLoading) setState(s => ({ ...DEFAULT_STATE, isLoaded: true, language: s.language }));
+      if (!isUserLoading) {
+        setState(s => ({ ...DEFAULT_STATE, isLoaded: true, language: s.language }));
+        memoryCache.current.hasDataEverLoaded = false;
+        memoryCache.current.lastValidMatches = [];
+      }
       return;
     }
 
@@ -235,12 +239,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId]);
 
-  // 3. MATCHES SYNC CORE
+  // 3. MATCHES SYNC CORE - MEMORY LOCKED
   useEffect(() => {
     const s = state;
-    // CRITICAL FIX: If league is not selected, mark as ready to avoid hang
-    if (!s.id || !s.selectedLeagueId) {
-      if (s.isLoaded) setIsMatchesReady(true);
+    // CRITICAL: isLoaded must be true to determine if we even need matches
+    if (!s.isLoaded || !s.id) return;
+
+    if (!s.selectedLeagueId) {
+      setIsMatchesReady(true);
+      setAllMatches([]);
       return;
     }
 
@@ -254,30 +261,35 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       orderBy('day', 'asc')
     );
 
+    setIsMatchesReady(memoryCache.current.hasDataEverLoaded);
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const loaded = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
       
       const isSpuriousCacheEmpty = snapshot.metadata.fromCache && loaded.length === 0;
-      if (isSpuriousCacheEmpty && memoryCache.current.hasDataEverLoaded) return;
+      if (isSpuriousCacheEmpty && memoryCache.current.hasDataEverLoaded) {
+        setIsMatchesReady(true);
+        return;
+      }
 
       memoryCache.current.lastValidMatches = loaded;
-      if (loaded.length > 0 || !snapshot.metadata.fromCache) {
-        memoryCache.current.hasDataEverLoaded = true;
-        setAllMatches(loaded);
-        setIsMatchesReady(true);
-      }
+      memoryCache.current.hasDataEverLoaded = true;
+      setAllMatches(loaded);
+      setIsMatchesReady(true);
     }, (error) => {
       console.warn("[SyncCore] Matches error:", error);
       setIsMatchesReady(true);
     });
 
     return () => unsubscribe();
-  }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, state.isLoaded]);
+  }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded]);
 
   // DERIVED DATA
   const nextMatchInfo = useMemo(() => {
     if (!isMatchesReady || !user) return null;
-    const myFuture = allMatches
+    const matchesToUse = allMatches.length > 0 ? allMatches : memoryCache.current.lastValidMatches;
+    
+    const myFuture = matchesToUse
       .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished')
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
     
@@ -520,7 +532,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const value = useMemo(() => ({
     ...state,
     isDataReady,
-    allSeasonMatches: memoryCache.current.lastValidMatches.length > 0 ? memoryCache.current.lastValidMatches : allMatches,
+    allSeasonMatches: allMatches,
     nextMatch: nextMatchInfo,
     isMatchesLoading: !isMatchesReady,
     addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, syncStats, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, setLanguage: (l: string) => setState(s => ({ ...s, language: l }))

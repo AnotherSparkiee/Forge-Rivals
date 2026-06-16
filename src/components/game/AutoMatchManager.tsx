@@ -46,12 +46,12 @@ export function AutoMatchManager() {
         
         // UNIQUE SEASON-PREFIXED GROUP ID
         const prefixedGroupId = `season_1_league_${selectedLeagueId}_group_${groupId}`;
-        const groupRef = doc(db, `leagues_v2/${selectedLeagueId}/divisions/${leagueLevel}/groups/${prefixedGroupId}`);
+        const groupPath = `leagues_v2/${selectedLeagueId}/divisions/${String(leagueLevel)}/groups/${prefixedGroupId}`;
+        const groupRef = doc(db, groupPath);
         
         const groupSnap = await getDoc(groupRef);
-        const groupData = groupSnap.data();
 
-        // SANITARY CLEANUP: If group exists but has old bots or wrong count, wipe it
+        // SANITARY CHECK: Do we have matches?
         const matchesQ = query(collection(db, 'matches_v1'), where('groupId', '==', prefixedGroupId));
         const currentMatchesSnap = await getDocs(matchesQ);
         
@@ -64,11 +64,11 @@ export function AutoMatchManager() {
         const needsInitialization = !groupSnap.exists() || hasGarbage || currentMatchesSnap.size < 56;
 
         if (needsInitialization) {
-          console.log(`[Engine] ATOMIC CLEANUP & INITIALIZING ${seasonId.toUpperCase()}...`);
+          console.log(`[Engine] INITIALIZING ${seasonId.toUpperCase()} FOR GROUP ${prefixedGroupId}...`);
           
           const batch = writeBatch(db);
           
-          // Delete old matches first if garbage found
+          // Delete old matches if cleaning up
           currentMatchesSnap.docs.forEach(d => batch.delete(d.ref));
 
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
@@ -119,17 +119,16 @@ export function AutoMatchManager() {
 
           await batch.commit();
           console.log(`[Engine] ${seasonId} Atomic Sync Done.`);
-          processingRef.current = false;
-          return;
         }
 
-        // Auto-simulation for current season matches
+        // Auto-simulation check
         const mskNow = getMoscowTime();
-        const pendingSnap = await getDocs(query(
+        const pendingQ = query(
           collection(db, 'matches_v1'),
           where('groupId', '==', prefixedGroupId),
           where('status', '==', 'pending')
-        ));
+        );
+        const pendingSnap = await getDocs(pendingQ);
         
         const simBatch = writeBatch(db);
         let simCount = 0;
