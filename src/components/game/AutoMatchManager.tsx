@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Автономный движок сезонов. 
  * Использует детерминированные ID для предотвращения дубликатов и конфликтов.
@@ -20,8 +21,7 @@ export function AutoMatchManager() {
   const db = useFirestore();
   const processingRef = useRef(false);
 
-  // Используем четкое имя переменной для исключения ReferenceError
-  const allGroupPlayersQuery = useMemoFirebase(() => {
+  const groupPlayersQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
       collection(db, 'players_v10'), 
@@ -31,7 +31,7 @@ export function AutoMatchManager() {
     );
   }, [db, selectedLeagueId, leagueLevel, groupId]);
 
-  const { data: allGroupPlayers } = useCollection(allGroupPlayersQuery);
+  const { data: allGroupPlayers } = useCollection(groupPlayersQuery);
 
   useEffect(() => {
     if (!isLoaded || !userId || !selectedLeagueId || processingRef.current || !allGroupPlayers) return;
@@ -58,11 +58,13 @@ export function AutoMatchManager() {
         );
         const existingSnap = await getDocs(matchesQ);
         
+        // AGGRESSIVE PURGE: Check for old bot names or wrong season number
         const hasLegacy = existingSnap.docs.some(d => {
           const m = d.data();
-          return m.homeName?.includes('Elite Bot') || 
-                 m.homeName?.includes('9.1.1') || 
-                 m.homeName?.includes('Bot 10') ||
+          const name = (m.homeName || "") + (m.awayName || "");
+          return name.includes('Elite Bot') || 
+                 name.includes('9.1.1') || 
+                 name.includes('Bot 10') ||
                  m.seasonNumber !== activeSeason;
         });
 
@@ -72,7 +74,7 @@ export function AutoMatchManager() {
           console.log("[Engine] Purging legacy and generating Season " + activeSeason);
           
           const batch = writeBatch(db);
-          // Полное удаление всех старых матчей группы
+          // Delete ALL matches for this group to start fresh
           existingSnap.docs.forEach(d => batch.delete(d.ref));
           
           const teams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
@@ -90,6 +92,7 @@ export function AutoMatchManager() {
           }, { merge: true });
 
           calendar.forEach((m) => {
+            // DETERMINISTIC ID: Ensures only one match exists per day per slot
             const matchId = `m_${selectedLeagueId}_${leagueLevel}_${groupId}_s${activeSeason}_d${m.day}_h${m.homeId}`;
             
             const matchDate = new Date(seasonStart);
@@ -121,7 +124,8 @@ export function AutoMatchManager() {
 
         existingSnap.docs.forEach(docSnap => {
           const m = docSnap.data();
-          if (m.status === 'pending' && mskNow.getTime() > new Date(m.startTime).getTime() + 60000) {
+          // Only process current season matches
+          if (m.seasonNumber === activeSeason && m.status === 'pending' && mskNow.getTime() > new Date(m.startTime).getTime() + 60000) {
             const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, activeSeason);
             const winner = sA > sB ? m.homeName : (sA === sB ? "Draw" : m.awayName);
             

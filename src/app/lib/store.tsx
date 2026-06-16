@@ -141,6 +141,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!state.selectedLeagueId || !state.id) return null;
     const { activeSeasonNumber } = getGlobalSeasonInfo();
+    // CRITICAL: Force filtering by activeSeasonNumber to prevent "flickering" between old and new matches
     return query(
       collection(db, 'matches_v1'),
       where('leagueId', '==', state.selectedLeagueId),
@@ -465,7 +466,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const refs = getRefs();
     if (!refs || Number(s.credits || 0) < cost) return false;
     const durationMs = 8 * 60 * 60 * 1000; // Fixed 8 hours for expansion
-    const finishTime = new Date(finishTime).toISOString();
+    const finishTime = new Date(Date.now() + durationMs).toISOString();
     
     setDoc(refs.team, {
       credits: Number(s.credits || 0) - cost,
