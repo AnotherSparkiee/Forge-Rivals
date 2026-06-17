@@ -8,7 +8,7 @@
 import { 
   collection, doc, getDocs, 
   query, where, serverTimestamp, 
-  runTransaction, getDoc, setDoc
+  runTransaction
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { isMatchOverdue, getGlobalSeasonInfo } from '@/app/lib/time-utils';
@@ -49,7 +49,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
       try {
         await runTransaction(db, async (transaction) => {
           // 1. ПОДГОТОВКА СТАТИСТИКИ ТАБЛИЦЫ
-          // Путь должен строго соответствовать: leagues_v2 -> {leagueId} -> divisions -> {divId} -> groups -> {groupId} -> teams -> {userId}
+          // Путь: leagues_v2 -> {leagueId} -> divisions -> {divId} -> groups -> {groupId} -> teams -> {userId}
           const teamARef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', m.homeId);
           const teamBRef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', m.awayId);
 

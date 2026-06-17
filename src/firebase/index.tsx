@@ -1,5 +1,3 @@
-'use client';
-
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
@@ -7,6 +5,7 @@ import { firebaseConfig } from "./config";
 
 /**
  * Returns initialized Firebase services.
+ * This function is isomorphic and can be called from both client and server (Server Actions).
  */
 function getSdks(app: FirebaseApp) {
   return {
@@ -17,7 +16,8 @@ function getSdks(app: FirebaseApp) {
 }
 
 /**
- * Main initialization function for the client side.
+ * Main initialization function.
+ * Safe to call on the server in Next.js Server Actions.
  */
 export function initializeFirebase() {
   if (getApps().length > 0) {
@@ -28,7 +28,8 @@ export function initializeFirebase() {
   return getSdks(app);
 }
 
-// Export all providers and hooks from centralized locations
+// Export all providers and hooks
+// Note: Individual hook files must have 'use client' if they use browser-only features or React hooks.
 export * from './provider';
 export * from './client-provider';
 export * from './firestore/use-collection';
