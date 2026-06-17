@@ -1,5 +1,6 @@
+
 /**
- * @fileOverview Автономный движок сезонов v18 (Reality Sync). 
+ * @fileOverview Автономный движок сезонов v19 (Reality Sync). 
  * Пересчитывает календарь под актуальную эпоху 2024 года.
  */
 
@@ -52,13 +53,13 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const currentData = groupSnap.data();
 
-        // 1. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ ПОД ТЕКУЩУЮ ЭПОХУ (V18)
+        // 1. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ ПОД ТЕКУЩУЮ ЭПОХУ (V19)
         if (allGroupPlayers && allGroupPlayers.length > 0) {
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const teamsHash = currentTeams.map(t => t.id).join('|');
 
           const needsUpgrade = !groupSnap.exists() || 
-                              (currentData?.calendarVersion || 0) < 18 ||
+                              (currentData?.calendarVersion || 0) < 19 ||
                               currentData?.teamsHash !== teamsHash;
 
           if (needsUpgrade) {
@@ -75,7 +76,7 @@ export function AutoMatchManager() {
               seasonNumber: activeSeason,
               teams: currentTeams,
               teamsHash,
-              calendarVersion: 18,
+              calendarVersion: 19,
               updatedAt: serverTimestamp()
             }, { merge: true });
 
@@ -104,7 +105,7 @@ export function AutoMatchManager() {
             });
 
             await batch.commit();
-            console.log("[V18 PULSE] Reality Calendar Synced.");
+            console.log("[V19 PULSE] Reality Calendar Synced.");
           }
         }
 
@@ -114,12 +115,12 @@ export function AutoMatchManager() {
         });
 
         if (overdueMatches.length > 0) {
-          console.log(`[V18 PULSE] Resolving ${overdueMatches.length} overdue matches for ${prefixedGroupId}`);
+          console.log(`[V19 PULSE] Resolving ${overdueMatches.length} overdue matches for ${prefixedGroupId}`);
           await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
         }
 
       } catch (e: any) {
-        console.warn("[V18 PULSE] Heartbeat error:", e.message);
+        console.warn("[V19 PULSE] Heartbeat error:", e.message);
       } finally {
         processingRef.current = false;
       }

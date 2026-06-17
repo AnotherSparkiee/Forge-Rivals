@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -17,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, where, orderBy, limit } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { getGlobalSeasonInfo } from '../lib/time-utils';
 
 type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'pyramid_cup' | 'champions_league';
 
@@ -25,7 +27,7 @@ export default function RankingsPage() {
   const router = useRouter();
   const { 
     leagueLevel, groupId, isLoaded, language, 
-    selectedLeagueId, activeSeasonNumber
+    selectedLeagueId
   } = useGameState();
   const db = useFirestore();
   
@@ -35,6 +37,9 @@ export default function RankingsPage() {
   const [navGroup, setNavGroup] = useState<number | null>(null);
   const [clStage, setClStage] = useState<'groups' | 'playoffs'>('groups');
   const [cupRound, setCupRound] = useState(1);
+
+  const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
+  const activeSeasonNumber = seasonInfo.activeSeasonNumber;
 
   const contextLeagueId = navLeague || selectedLeagueId || "ALPHA";
   const contextLevel = navLevel || leagueLevel;
@@ -52,9 +57,7 @@ export default function RankingsPage() {
   const { data: groupPlayers } = useCollection(playersQuery);
 
   const matchesQuery = useMemoFirebase(() => {
-    const sNum = activeSeasonNumber || 1;
-    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Использование префиксного ID группы для поиска матчей
-    const prefixedGroupId = `season_${sNum}_league_${contextLeagueId}_group_${contextGroup}`;
+    const prefixedGroupId = `season_${activeSeasonNumber}_league_${contextLeagueId}_group_${contextGroup}`;
     
     return query(
       collection(db, 'matches_v1'),
@@ -65,10 +68,9 @@ export default function RankingsPage() {
   const { data: groupMatches } = useCollection(matchesQuery);
 
   const clQuery = useMemoFirebase(() => {
-    const sNum = activeSeasonNumber || 1;
     return query(
       collection(db, 'cl_matches_v1'),
-      where('seasonNumber', '==', Number(sNum))
+      where('seasonNumber', '==', Number(activeSeasonNumber))
     );
   }, [db, activeSeasonNumber]);
 
@@ -88,12 +90,11 @@ export default function RankingsPage() {
 
   const standings = useMemo(() => {
     if (!isLoaded) return [];
-    const sNum = activeSeasonNumber || 1;
     return getGroupStandings(
       Number(contextLevel),
       Number(contextGroup),
       contextLeagueId,
-      Number(sNum),
+      Number(activeSeasonNumber),
       groupPlayers || [],
       groupMatches || []
     );
@@ -134,7 +135,7 @@ export default function RankingsPage() {
 
   const renderCup = () => {
     if (isCupLoading) return <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>;
-    const filteredCupMatches = cupMatches ? cupMatches.filter(m => m.seasonId === "1" || m.seasonId_num === 1) : [];
+    const filteredCupMatches = cupMatches ? cupMatches.filter(m => m.seasonId === String(activeSeasonNumber) || m.seasonId_num === activeSeasonNumber) : [];
     return (
       <div className="space-y-6 animate-in fade-in duration-500">
         <div className="overflow-x-auto scrollbar-hide -mx-4 px-4"><div className="flex gap-2 min-w-max pb-2">{Array.from({ length: 12 }, (_, i) => i + 1).map(r => (<Button key={r} variant={cupRound === r ? "default" : "outline"} className={cn("h-10 px-6 font-black text-[10px] uppercase", cupRound === r ? "hero-gradient border-none shadow-lg shadow-primary/20" : "bg-secondary/20 border-white/5")} onClick={() => setCupRound(r)}>{r === 12 ? (language === 'ru' ? 'ФИНАЛ' : 'FINAL') : `${language === 'ru' ? 'Раунд' : 'Round'} ${r}`}</Button>))}</div></div>

@@ -1,7 +1,8 @@
+
 'use server';
 
 /**
- * @fileOverview Ультимативный MMO-Двигатель v18 (Reality-Driven).
+ * @fileOverview Ультимативный MMO-Двигатель v19 (Reality-Driven).
  * Расчитывает результаты матчей лиги на основе реального времени.
  */
 
@@ -21,7 +22,7 @@ import { getMatchResult } from '@/app/lib/leagues-data';
 export async function forceResolveGroupMatches(leagueId: string, divisionId: number, groupId: string) {
   const { firestore: db } = initializeFirebase();
 
-  console.log(`[V18 ENGINE] Scanning group: ${groupId}`);
+  console.log(`[V19 ENGINE] Scanning group: ${groupId}`);
 
   const q = query(
     collection(db, 'matches_v1'),
@@ -29,7 +30,10 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
   );
 
   const snap = await getDocs(q);
-  if (snap.empty) return { success: true, count: 0 };
+  if (snap.empty) {
+    console.log(`[V19 ENGINE] No matches found for group: ${groupId}`);
+    return { success: true, count: 0 };
+  }
 
   const batch = writeBatch(db);
   let resolvedCount = 0;
@@ -37,11 +41,13 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
   for (const docSnap of snap.docs) {
     const m = docSnap.data();
     
-    // ПРЯМАЯ ПРОВЕРКА ВРЕМЕНИ (V18)
+    // ПРЯМАЯ ПРОВЕРКА ВРЕМЕНИ (V19)
     const overdue = isMatchOverdue(m.startTime);
     const hasAnyScore = m.homeScore !== undefined || m.scoreA !== undefined || m.isFinished === true;
 
+    // Если время наступило, а счета еще нет — ГЕНЕРИРУЕМ
     if (overdue && !hasAnyScore) {
+      console.log(`[V19 ENGINE] Resolving match: ${docSnap.id}`);
       const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, m.seasonNumber || 1);
       const winnerId = sA > sB ? m.homeId : (sB > sA ? m.awayId : null);
 
@@ -64,7 +70,9 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
 
   if (resolvedCount > 0) {
     await batch.commit();
-    console.log(`[V18 SUCCESS] Resolved ${resolvedCount} matches in group ${groupId}`);
+    console.log(`[V19 SUCCESS] Resolved ${resolvedCount} matches in group ${groupId}`);
+  } else {
+    console.log(`[V19 ENGINE] No overdue matches to resolve in group ${groupId}`);
   }
 
   return { success: true, count: resolvedCount };

@@ -1,3 +1,4 @@
+
 'use client';
 
 /**
@@ -14,7 +15,7 @@ import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, wher
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
 /**
- * УНИВЕРСАЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА (V17 Absolute Truth)
+ * УНИВЕРСАЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА (V19 Absolute Truth)
  */
 export const checkIsMatchFinished = (match: any) => {
   if (!match) return false;
@@ -158,6 +159,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
+  const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
+
   // 1. ROOT PROFILE LISTENER
   useEffect(() => {
     if (isUserLoading || !user) {
@@ -180,6 +183,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         leagueLevel: Number(data.leagueLevel || 9),
         groupId: Number(data.groupId || 1),
         country: data.country || null,
+        activeSeasonNumber: seasonInfo.activeSeasonNumber,
+        seasonNumber: seasonInfo.seasonNumber,
+        seasonDay: seasonInfo.seasonDay,
         isLoaded: true
       }));
     }, (err) => {
@@ -187,14 +193,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [user, isUserLoading, db]);
+  }, [user, isUserLoading, db, seasonInfo]);
 
   // 2. TEAM DATA LISTENER
   useEffect(() => {
     const s = state;
     if (!s.id || !s.selectedLeagueId) return;
 
-    const seasonInfo = getGlobalSeasonInfo();
     const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
     const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
     
@@ -246,14 +251,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
 
     return () => { unsubTeam(); heroesUnsub(); staffUnsub(); };
-  }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId]);
+  }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, seasonInfo]);
 
   // 3. MATCHES SYNC CORE
   useEffect(() => {
     const s = state;
     if (!s.isLoaded || !s.id || !s.selectedLeagueId) return;
 
-    const seasonInfo = getGlobalSeasonInfo();
     const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
     const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
 
@@ -270,7 +274,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded]);
+  }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded, seasonInfo]);
 
   const nextMatchInfo = useMemo(() => {
     if (!isMatchesReady || !user) return null;
@@ -326,19 +330,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [allMatches, isMatchesReady, user]);
 
   const syncStats = useCallback((groupPlayers: any[]) => {
-    // Больше не требуется принудительно синхронизировать, так как V17 считает на лету
+    // В V19 статистика рассчитывается динамически
   }, []);
 
   const getRefs = useCallback(() => {
     const s = stateRef.current;
     if (!user || !s.selectedLeagueId) return null;
-    const seasonInfo = getGlobalSeasonInfo();
     const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
     const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
     return {
       team: doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid)
     };
-  }, [user, db]);
+  }, [user, db, seasonInfo]);
 
   const addCrystals = (amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { crystals: Math.max(0, stateRef.current.crystals + amount) }, { merge: true }); };
   const addCredits = (amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { credits: Math.max(0, stateRef.current.credits + amount) }, { merge: true }); };
