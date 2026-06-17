@@ -20,19 +20,18 @@ service cloud.firestore {
       allow create: if isOwner(userId);
     }
 
-    // Pyramidal League Structure (V25)
-    // IMPORTANT: Allowing open read/write for game engine collections 
-    // to enable Server Actions (which run unauthenticated in this environment).
+    // Pyramidal League Structure (V25+)
+    // Открываем полный доступ для движка игры (необходимо для Server Actions)
     match /leagues_v2/{document=**} {
       allow read, write: if true;
     }
 
-    // Global Matches (V25)
+    // Global Matches (V25+)
     match /matches_v1/{document=**} {
       allow read, write: if true; 
     }
 
-    // Cup Matches (V25)
+    // Cup Matches (V25+)
     match /cup_matches/{document=**} {
       allow read, write: if true;
     }
@@ -44,8 +43,7 @@ service cloud.firestore {
 
     // Market & Auctions
     match /market_v7/{document=**} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read, write: if isSignedIn();
     }
 
     // Notifications

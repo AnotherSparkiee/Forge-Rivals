@@ -39,7 +39,7 @@ export default function Home() {
   const { toast } = useToast();
   const { 
     language, setLanguage, isLoaded, selectedLeagueId, leagueLevel, groupId,
-    nextMatch, isDataReady, seasonNumber
+    nextMatch, isDataReady
   } = useGameState();
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -47,34 +47,24 @@ export default function Home() {
   const [password, setPassword] = useState('');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [countdown, setCountdown] = useState('');
-  const [isLive, setIsLive] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
+  
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
+  const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
 
-  // MASTER SYNC EFFECT (V24 Standing Overdrive)
+  // Скрытая синхронизация времени и статусов
   useEffect(() => {
     if (!isDataReady || !selectedLeagueId || !nextMatch) return;
 
     const timer = setInterval(() => {
-      // СРЫВ WAITING: Если в Firestore есть счет — убираем статус ожидания мгновенно
       const isActuallyFinished = checkIsMatchFinished(nextMatch.match);
-      if (isActuallyFinished) {
-        setIsLive(false);
-        setIsProcessing(false); 
-        return;
-      }
+      if (isActuallyFinished) return;
 
       const mskNow = getMoscowTime();
       const matchStartTime = new Date(nextMatch.match.startTime).getTime();
       
       if (mskNow.getTime() >= matchStartTime) {
         setCountdown('00:00:00');
-        setIsLive(true); 
-        setIsProcessing(true); // Состояние "ОЖИДАНИЕ РЕЗУЛЬТАТА"
-
-        // Прямой вызов резолвера при заходе в игру
+        // Тихий пинг сервера
         const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
         const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
         forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
@@ -84,8 +74,6 @@ export default function Home() {
         const mm = Math.floor((diff % 3600000) / 60000);
         const ss = Math.floor((diff % 60000) / 1000);
         setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
-        setIsLive(false);
-        setIsProcessing(false);
       }
     }, 2000);
 
@@ -187,6 +175,8 @@ export default function Home() {
   ];
 
   const isMatchReallyDone = checkIsMatchFinished(nextMatch?.match);
+  const mskNow = getMoscowTime();
+  const isMatchTime = nextMatch && mskNow.getTime() >= new Date(nextMatch.match.startTime).getTime();
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
@@ -241,26 +231,23 @@ export default function Home() {
                 <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">
                   {isMatchReallyDone 
                     ? (language === 'ru' ? 'ОПЕРАЦИЯ ЗАВЕРШЕНА' : 'OPERATION CONCLUDED')
-                    : isProcessing 
+                    : isMatchTime 
                     ? (language === 'ru' ? 'ОЖИДАНИЕ РЕЗУЛЬТАТА...' : 'AWAITING RESULT...') 
-                    : isLive 
-                    ? (language === 'ru' ? 'МАТЧ ИДЕТ' : 'MATCH IN PROGRESS') 
                     : (seasonInfo.isTransitionPhase ? "Preparation Countdown" : "Match Start Protocol")}
                 </p>
                 <div className="flex flex-col items-center justify-center gap-2">
                   <div className="flex items-center justify-center gap-2">
                     {isMatchReallyDone ? (
                       <Trophy className="w-5 h-5 text-yellow-500" />
-                    ) : (isLive || isProcessing) ? (
-                      <RefreshCw className={cn("w-4 h-4 text-primary", isProcessing && "animate-spin")} />
+                    ) : isMatchTime ? (
+                      <RefreshCw className="w-4 h-4 text-primary animate-spin" />
                     ) : (
                       <Timer className="w-4 h-4 text-accent" />
                     )}
-                    <p className={cn("text-xl font-headline font-bold tabular-nums tracking-tighter", (isLive || isProcessing) ? "text-primary" : "text-primary")}>
+                    <p className={cn("text-xl font-headline font-bold tabular-nums tracking-tighter", isMatchTime ? "text-primary" : "text-white")}>
                       {isMatchReallyDone 
                         ? `${nextMatch?.match.homeScore ?? nextMatch?.match.scoreA ?? 0}:${nextMatch?.match.awayScore ?? nextMatch?.match.scoreB ?? 0}`
-                        : isProcessing ? 'WAITING' 
-                        : isLive ? 'LIVE'
+                        : isMatchTime ? 'WAITING' 
                         : (countdown || '00:00:00')}
                     </p>
                   </div>

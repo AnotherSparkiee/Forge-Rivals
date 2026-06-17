@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview Глобальное хранилище v26. 
- * Внедрена защита Auth-First для предотвращения ошибок доступа при инициализации.
+ * Внедрена защита Auth-First и тихий фоновый режим запросов.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -121,10 +121,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   // 1. ROOT PROFILE LISTENER
   useEffect(() => {
-    if (isUserLoading || !user) {
-      if (!isUserLoading) setState(s => ({ ...DEFAULT_STATE, isLoaded: true, language: s.language }));
-      return;
-    }
+    if (isUserLoading || !user?.uid) return;
 
     try {
       const rootRef = doc(db, 'players_v10', user.uid);
@@ -148,18 +145,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           isLoaded: true
         }));
       }, (err) => {
-        console.warn("Root profile listener permission lag:", err.message);
+        console.warn("Auth lag (profile):", err.message);
       });
 
       return () => unsubscribe();
     } catch (e) {
-      console.error("Auth-Guard Root Listener setup failed", e);
+      console.error("Critical root sync error:", e);
     }
-  }, [user, isUserLoading, db, seasonInfo]);
+  }, [user?.uid, isUserLoading, db, seasonInfo]);
 
   // 2. TEAM DATA LISTENER
   useEffect(() => {
-    if (isUserLoading || !user || !state.id || !state.selectedLeagueId) return;
+    if (isUserLoading || !user?.uid || !state.id || !state.selectedLeagueId) return;
 
     try {
       const s = state;
@@ -193,7 +190,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           rank: d.rank ?? 8
         }));
       }, (err) => {
-        console.warn("Team data listener permission lag:", err.message);
+        console.debug("Auth lag (team):", err.message);
       });
 
       const heroesUnsub = onSnapshot(collection(teamRef, 'heroes'), (hSnap) => {
@@ -207,13 +204,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
       return () => { unsubTeam(); heroesUnsub(); };
     } catch (e) {
-      console.error("Team listener setup failed", e);
+      console.error("Team sync error:", e);
     }
-  }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, seasonInfo, isUserLoading, user]);
+  }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, seasonInfo, isUserLoading, user?.uid]);
 
   // 3. MATCHES SYNC CORE (V25)
   useEffect(() => {
-    if (isUserLoading || !user || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
+    if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
 
     try {
       const s = state;
@@ -232,17 +229,17 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         setAllMatches(sorted);
         setIsMatchesReady(true);
       }, (err) => {
-        console.warn("Matches listener permission lag:", err.message);
+        console.debug("Auth lag (matches):", err.message);
       });
 
       return () => unsubscribe();
     } catch (e) {
-      console.error("Matches listener setup failed", e);
+      console.error("Matches sync error:", e);
     }
-  }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded, seasonInfo, isUserLoading, user]);
+  }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded, seasonInfo, isUserLoading, user?.uid]);
 
   const nextMatchInfo = useMemo(() => {
-    if (!isMatchesReady || !user) return null;
+    if (!isMatchesReady || !user?.uid) return null;
     const mskNow = getMoscowTime().getTime();
 
     const active = allMatches.find(m => 
@@ -260,17 +257,17 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (future) return { match: future, opponentName: future.homeId === user.uid ? future.awayName : future.homeName, day: future.day, dateLabel: getSeasonDateLabel(future.day), isHome: future.homeId === user.uid };
 
     return null;
-  }, [allMatches, isMatchesReady, user]);
+  }, [allMatches, isMatchesReady, user?.uid]);
 
   const getRefs = useCallback(() => {
     const s = stateRef.current;
-    if (!user || !s.selectedLeagueId) return null;
+    if (!user?.uid || !s.selectedLeagueId) return null;
     const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
     const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
     return {
       team: doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid)
     };
-  }, [user, db, seasonInfo]);
+  }, [user?.uid, db, seasonInfo]);
 
   const addCrystals = (amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { crystals: Math.max(0, stateRef.current.crystals + amount) }, { merge: true }); };
   const addCredits = (amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { credits: Math.max(0, stateRef.current.credits + amount) }, { merge: true }); };
@@ -313,8 +310,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const addHeroDirectly = (h: Hero) => { const r = getRefs(); if (r) setDoc(doc(collection(r.team, 'heroes'), h.id), h); };
   const addYouthHeroDirectly = (h: Hero) => { const r = getRefs(); if (r) setDoc(doc(collection(r.team, 'heroes'), h.id), { ...h, isYouth: true }); };
   const promoteYouthPlayer = (id: string) => updateHero(id, { isYouth: false });
-  const updateProfileName = (n: string) => { if (!user) return; setDoc(doc(db, 'players_v10', user.uid), { displayName: n }, { merge: true }); const r = getRefs(); if (r) setDoc(r.team, { displayName: n }, { merge: true }); };
-  const updateProfileCountry = (c: string) => { if (user) setDoc(doc(db, 'players_v10', user.uid), { country: c }, { merge: true }); };
+  const updateProfileName = (n: string) => { if (!user?.uid) return; setDoc(doc(db, 'players_v10', user.uid), { displayName: n }, { merge: true }); const r = getRefs(); if (r) setDoc(r.team, { displayName: n }, { merge: true }); };
+  const updateProfileCountry = (c: string) => { if (user?.uid) setDoc(doc(db, 'players_v10', user.uid), { country: c }, { merge: true }); };
   const recordMatch = (w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string) => {
     const r = getRefs(); if (!r) return; const s = stateRef.current; const id = mId || `match_${Date.now()}`;
     if (s.matchHistory.some(m => m.id === id)) return;

@@ -1,9 +1,9 @@
+'use client';
+
 /**
  * @fileOverview Автономный менеджер синхронизации v26.
- * Внедрена защита Auth-First для предотвращения ошибок доступа при инициализации.
+ * Оптимизирован для "тихой" фоновой работы без визуальных морганий.
  */
-
-'use client';
 
 import { useEffect, useRef } from 'react';
 import { useGameState, checkIsMatchFinished } from '@/app/lib/store';
@@ -22,25 +22,21 @@ export function AutoMatchManager() {
   const db = useFirestore();
   const processingRef = useRef(false);
 
+  // Стабильный запрос игроков группы
   const playersInGroupQuery = useMemoFirebase(() => {
-    if (isUserLoading || !user || !selectedLeagueId) return null;
-    try {
-      return query(
-        collection(db, 'players_v10'), 
-        where('selectedLeagueId', '==', selectedLeagueId),
-        where('leagueLevel', '==', Number(leagueLevel)),
-        where('groupId', '==', Number(groupId))
-      );
-    } catch (e) {
-      console.error("Manager group query failed", e);
-      return null;
-    }
-  }, [db, selectedLeagueId, leagueLevel, groupId, isUserLoading, user]);
+    if (isUserLoading || !user?.uid || !selectedLeagueId) return null;
+    return query(
+      collection(db, 'players_v10'), 
+      where('selectedLeagueId', '==', selectedLeagueId),
+      where('leagueLevel', '==', Number(leagueLevel)),
+      where('groupId', '==', Number(groupId))
+    );
+  }, [db, selectedLeagueId, leagueLevel, groupId, isUserLoading, user?.uid]);
 
   const { data: allGroupPlayers } = useCollection(playersInGroupQuery);
 
   useEffect(() => {
-    if (isUserLoading || !user || !isLoaded || !userId || !selectedLeagueId || !allGroupPlayers) return;
+    if (isUserLoading || !user?.uid || !isLoaded || !userId || !selectedLeagueId || !allGroupPlayers) return;
 
     const heartbeat = async () => {
       if (processingRef.current) return;
@@ -56,20 +52,17 @@ export function AutoMatchManager() {
         const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId);
         
         const groupSnap = await getDoc(groupRef);
-        const currentData = groupSnap.data();
-
         const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
         const teamsHash = currentTeams.map(t => t.id).join('|');
 
+        // Инициализация сетки если нужно
         const needsUpgrade = !groupSnap.exists() || 
-                            (currentData?.calendarVersion || 0) < 25 ||
-                            currentData?.teamsHash !== teamsHash;
+                            (groupSnap.data()?.calendarVersion || 0) < 25 ||
+                            groupSnap.data()?.teamsHash !== teamsHash;
 
         if (needsUpgrade) {
-          console.log(`[V25 Manager] Synchronizing League Grid for ${prefixedGroupId}...`);
           let batch = writeBatch(db);
           const calendar = generateSeasonCalendar(currentTeams);
-          
           const epochMs = new Date('2026-06-17T00:00:00+03:00').getTime();
           const dayMs = 24 * 60 * 60 * 1000;
 
@@ -84,15 +77,12 @@ export function AutoMatchManager() {
           }, { merge: true });
 
           currentTeams.forEach(team => {
-            const teamInGroupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', team.id);
-            batch.set(teamInGroupRef, {
+            const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', team.id);
+            batch.set(teamRef, {
               id: team.id,
               name: team.name,
               displayName: team.name,
-              wins: 0,
-              draws: 0,
-              losses: 0,
-              points: 0,
+              wins: 0, draws: 0, losses: 0, points: 0,
               updatedAt: serverTimestamp()
             }, { merge: true });
           });
@@ -100,9 +90,8 @@ export function AutoMatchManager() {
           calendar.forEach((m) => {
             const matchId = `m_${prefixedGroupId}_d${m.day}_${m.pairKey}`;
             const [hh, mm] = league.startTime.split(':').map(Number);
-            
-            const matchTimeOffset = (activeSeason - 1) * 16 * dayMs + (m.day - 1) * dayMs + (hh * 60 * 60 * 1000) + (mm * 60 * 1000);
-            const finalDate = new Date(epochMs + matchTimeOffset);
+            const offset = (activeSeason - 1) * 16 * dayMs + (m.day - 1) * dayMs + (hh * 60 * 60 * 1000) + (mm * 60 * 1000);
+            const finalDate = new Date(epochMs + offset);
 
             batch.set(doc(db, 'matches_v1', matchId), {
               ...m,
@@ -121,29 +110,26 @@ export function AutoMatchManager() {
           });
 
           await batch.commit();
-          console.log(`[V25 Manager] Batch committed. Calendar active.`);
         }
 
-        const overdueMatches = allSeasonMatches.filter(m => {
-          return isMatchOverdue(m.startTime) && !checkIsMatchFinished(m);
-        });
-
-        if (overdueMatches.length > 0) {
-          console.log(`[V25 Manager] Found ${overdueMatches.length} overdue matches. Triggering server action...`);
+        // Фоновый расчет просроченных матчей
+        const overdue = allSeasonMatches.filter(m => isMatchOverdue(m.startTime) && !checkIsMatchFinished(m));
+        if (overdue.length > 0) {
           await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
         }
 
       } catch (e: any) {
-        console.warn("[V25 Manager] Pulse error:", e.message);
+        // Ошибки логируются только в консоль для дебага, не мешая пользователю
+        console.debug("[V26 Sync Pulse]:", e.message);
       } finally {
         processingRef.current = false;
       }
     };
 
-    heartbeat();
     const interval = setInterval(heartbeat, 15000); 
+    heartbeat();
     return () => clearInterval(interval);
-  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches, isUserLoading, user]);
+  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches, isUserLoading, user?.uid]);
 
   return null;
 }
