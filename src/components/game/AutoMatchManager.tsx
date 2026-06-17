@@ -1,5 +1,5 @@
 /**
- * @fileOverview Автономный движок сезонов v9. 
+ * @fileOverview Автономный движок сезонов v10. 
  * Внедрена агрессивная система "Total Bypass" для уничтожения статуса WAITING.
  */
 
@@ -31,6 +31,19 @@ export function AutoMatchManager() {
   }, [db, selectedLeagueId, leagueLevel, groupId]);
 
   const { data: allGroupPlayers } = useCollection(playersInGroupQuery);
+
+  // Универсальная проверка завершения матча (Total Bypass Logic)
+  const checkIsMatchFinished = (match: any) => {
+    if (!match) return false;
+    return (
+      match.status === 'finished' || 
+      match.matchStatus === 'finished' || 
+      match.state === 'finished' ||
+      match.isFinished === true || 
+      match.isCompleted === true ||
+      (match.homeScore !== undefined && match.awayScore !== undefined)
+    );
+  };
 
   useEffect(() => {
     if (!isLoaded || !userId || !selectedLeagueId || processingRef.current) return;
@@ -113,7 +126,7 @@ export function AutoMatchManager() {
         const matchesQ = query(
           collection(db, 'matches_v1'),
           where('seasonId', '==', seasonId),
-          where('status', '!=', 'finished')
+          where('groupId', '==', prefixedGroupId)
         );
         const matchesSnap = await getDocs(matchesQ);
         
@@ -123,10 +136,11 @@ export function AutoMatchManager() {
 
           for (const docSnap of matchesSnap.docs) {
             const m = docSnap.data();
+            const isFinished = checkIsMatchFinished(m);
             const startTime = new Date(m.startTime).getTime();
-            const isTimePassed = mskNow.getTime() > startTime + 30000; 
+            const isTimePassed = mskNow.getTime() > startTime + 10000; // Уменьшен буфер до 10 сек
             
-            if (isTimePassed) {
+            if (isTimePassed && !isFinished) {
               const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, activeSeason);
               const winner = sA > sB ? m.homeName : (sA === sB ? "Draw" : m.awayName);
               const winnerId = sA > sB ? m.homeId : (sA === sB ? null : m.awayId);
@@ -173,7 +187,7 @@ export function AutoMatchManager() {
         }
 
       } catch (e: any) {
-        console.warn("[Engine v9] Heartbeat failure:", e.message);
+        console.warn("[Engine v10] Heartbeat failure:", e.message);
       } finally {
         processingRef.current = false;
       }

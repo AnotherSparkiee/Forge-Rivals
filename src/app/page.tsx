@@ -52,12 +52,26 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
+  // Универсальная проверка завершения матча (Total Bypass Logic)
+  const checkIsMatchFinished = (match: any) => {
+    if (!match) return false;
+    return (
+      match.status === 'finished' || 
+      match.matchStatus === 'finished' || 
+      match.state === 'finished' ||
+      match.isFinished === true || 
+      match.isCompleted === true ||
+      (match.scoreA !== undefined && match.scoreB !== undefined && match.status !== 'pending') ||
+      (match.homeScore !== undefined && match.awayScore !== undefined)
+    );
+  };
+
   useEffect(() => {
-    if (!isDataReady || !selectedLeagueId) return;
+    if (!isDataReady || !selectedLeagueId || !nextMatch) return;
 
     const timer = setInterval(() => {
       const mskNow = getMoscowTime();
-      const targetTime = nextMatch?.match?.startTime ? new Date(nextMatch.match.startTime) : null;
+      const targetTime = nextMatch.match.startTime ? new Date(nextMatch.match.startTime) : null;
       
       if (!targetTime) {
         setCountdown('00:00:00');
@@ -67,14 +81,14 @@ export default function Home() {
       }
 
       const diff = targetTime.getTime() - mskNow.getTime();
-      
-      // Улучшенная логика статусов для предотвращения WAITING
-      const isFinished = nextMatch.match.status === 'finished' || nextMatch.match.isFinished === true || nextMatch.match.matchStatus === 'finished';
+      const isFinished = checkIsMatchFinished(nextMatch.match);
 
       if (diff <= 0) {
         setCountdown('00:00:00');
         if (!isFinished) {
-          if (Math.abs(diff) > 45000) { // Если прошло более 45с
+          // Если время прошло, но бэкенд еще не прислал результат
+          // Даем буфер в 15 секунд для статуса LIVE, затем включаем WAITING (Синхронизация)
+          if (Math.abs(diff) > 15000) { 
             setIsLive(false);
             setIsProcessing(true);
           } else {
@@ -82,10 +96,12 @@ export default function Home() {
             setIsProcessing(false);
           }
         } else {
+          // Матч гарантированно завершен по данным из Firestore
           setIsLive(false);
           setIsProcessing(false);
         }
       } else {
+        // Матч еще в будущем
         const hh = Math.floor(diff / 3600000);
         const mm = Math.floor((diff % 3600000) / 60000);
         const ss = Math.floor((diff % 60000) / 1000);
@@ -264,7 +280,7 @@ export default function Home() {
         </Card>
       </section>
 
-      {nextMatch?.match?.status === 'finished' || nextMatch?.match?.isFinished === true ? (
+      {checkIsMatchFinished(nextMatch?.match) ? (
         <Link href={`/match?id=${nextMatch.match.id}`} className="block relative mb-8">
           <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1 transition-all active:scale-95">
             <div className="flex items-center gap-2">

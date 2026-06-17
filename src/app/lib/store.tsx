@@ -186,12 +186,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const s = state;
     if (!s.id || !s.selectedLeagueId) return;
 
-    // Use current season info for the path
     const seasonInfo = getGlobalSeasonInfo();
     const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
     const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
     
-    // Correct 8-segment path: leagues_v2 -> ID -> divisions -> ID -> groups -> ID -> teams -> ID
     const teamRef = doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', s.id);
 
     const unsubTeam = onSnapshot(teamRef, (snap) => {
@@ -283,20 +281,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
       const loaded = Array.from(uniqueMatchesMap.values());
       const sorted = loaded.sort((a, b) => (a.day || 0) - (b.day || 0));
-      const isSpuriousCacheEmpty = snapshot.metadata.fromCache && sorted.length === 0;
-
-      if ((isSpuriousCacheEmpty || snapshot.metadata.hasPendingWrites) && memoryCache.current.hasDataEverLoaded) {
+      
+      if (snapshot.metadata.fromCache && sorted.length === 0 && memoryCache.current.hasDataEverLoaded) {
         return; 
       }
 
-      const isSyncComplete = !snapshot.metadata.fromCache || sorted.length > 0;
-
-      if (isSyncComplete) {
-        memoryCache.current.lastValidMatches = sorted;
-        memoryCache.current.hasDataEverLoaded = true;
-        setAllMatches(sorted);
-        setIsMatchesReady(true);
-      }
+      memoryCache.current.lastValidMatches = sorted;
+      memoryCache.current.hasDataEverLoaded = true;
+      setAllMatches(sorted);
+      setIsMatchesReady(true);
     }, (error) => {
       console.warn("[Matches Sync] Error:", error);
       setIsMatchesReady(true); 
@@ -305,14 +298,27 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded]);
 
+  // Универсальная проверка завершения матча
+  const checkIsMatchFinished = (match: any) => {
+    if (!match) return false;
+    return (
+      match.status === 'finished' || 
+      match.matchStatus === 'finished' || 
+      match.state === 'finished' ||
+      match.isFinished === true || 
+      match.isCompleted === true ||
+      (match.homeScore !== undefined && match.awayScore !== undefined)
+    );
+  };
+
   const nextMatchInfo = useMemo(() => {
     if (!isMatchesReady || !user) return null;
     const matchesToUse = allMatches.length > 0 ? allMatches : memoryCache.current.lastValidMatches;
     if (matchesToUse.length === 0) return null;
 
-    // Сначала ищем любой матч который прямо сейчас LIVE или PENDING (будущий)
+    // Сначала ищем матч, который идет сейчас или будет следующим (не завершен)
     const myFuture = matchesToUse
-      .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished')
+      .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && !checkIsMatchFinished(m))
       .sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
     
     if (myFuture.length > 0) {
@@ -326,9 +332,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       };
     }
     
-    // Если будущих нет, берем последний сыгранный для быстрого перехода к отчету
+    // Если будущих нет, берем последний сыгранный
     const myLast = matchesToUse
-      .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status === 'finished')
+      .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && checkIsMatchFinished(m))
       .sort((a,b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
       
     if (myLast.length > 0) {
