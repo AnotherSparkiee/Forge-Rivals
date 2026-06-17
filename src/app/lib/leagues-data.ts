@@ -103,7 +103,7 @@ export function generateSeasonCalendar(teams: any[]) {
 
 /**
  * Расчет турнирной таблицы группы.
- * УЛУЧШЕНО: Использует мульти-флаговую проверку завершения.
+ * УЛУЧШЕНО V16: Использует абсолютную проверку завершения.
  */
 export function getGroupStandings(
   level: number,
@@ -125,13 +125,12 @@ export function getGroupStandings(
   }));
 
   allGroupMatches.forEach(m => {
-    // МУЛЬТИ-ФЛАГОВАЯ ПРОВЕРКА (Синхронно со store.tsx)
+    // АБСОЛЮТНАЯ ПРОВЕРКА V16 (Матч завершен, если есть ЛЮБОЙ счет)
     const isFinished = 
+      m.homeScore !== undefined && m.homeScore !== null ||
+      m.scoreA !== undefined && m.scoreA !== null ||
       m.status === 'finished' || 
-      m.matchStatus === 'finished' || 
-      m.isFinished === true || 
-      m.isCompleted === true ||
-      (m.homeScore !== undefined && m.homeScore !== null);
+      m.isFinished === true;
 
     if (isFinished) {
       const home = standings.find(s => s.id === m.homeId);

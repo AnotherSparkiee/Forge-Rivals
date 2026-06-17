@@ -14,16 +14,18 @@ import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, wher
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
 /**
- * УНИВЕРСАЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА (V15 Absolute Truth)
+ * УНИВЕРСАЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА (V16 Absolute Truth)
  * Наличие счета в базе — ЕДИНСТВЕННЫЙ И ПЕРВООЧЕРЕДНОЙ ПРИЗНАК.
  */
 export const checkIsMatchFinished = (match: any) => {
   if (!match) return false;
   
-  // АБСОЛЮТНЫЙ ПРИОРИТЕТ: Если есть счет, матч ЗАВЕРШЕН.
+  // АБСОЛЮТНЫЙ ПРИОРИТЕТ: Если есть счет (любое поле), матч ЗАВЕРШЕН.
   const hasScore = (
     match.homeScore !== undefined && match.homeScore !== null ||
-    match.scoreA !== undefined && match.scoreA !== null
+    match.scoreA !== undefined && match.scoreA !== null ||
+    match.awayScore !== undefined && match.awayScore !== null ||
+    match.scoreB !== undefined && match.scoreB !== null
   );
   
   if (hasScore) return true;

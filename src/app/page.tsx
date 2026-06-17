@@ -53,12 +53,11 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // MASTER SYNC EFFECT (V15 Passive Reading)
+  // MASTER SYNC EFFECT (V16 Absolute Standings)
   useEffect(() => {
     if (!isDataReady || !selectedLeagueId || !nextMatch) return;
 
     const timer = setInterval(() => {
-      // ПРИОРИТЕТ ДАННЫХ: Если счет в Firestore есть, статус WAITING блокируется немедленно.
       const isActuallyFinished = checkIsMatchFinished(nextMatch.match);
 
       if (isActuallyFinished) {
@@ -71,21 +70,16 @@ export default function Home() {
       const mskNow = getMoscowTime();
       const targetTime = nextMatch.match.startTime ? new Date(nextMatch.match.startTime) : null;
 
-      if (!targetTime) {
-        setIsProcessing(false);
-        return;
-      }
+      if (!targetTime) return;
 
       const diff = targetTime.getTime() - mskNow.getTime();
 
       if (diff <= 0) {
         setCountdown('00:00:00');
-        // Если время вышло, но счета всё еще нет — включаем режим ожидания сервера.
         setIsLive(true); 
-        if (Math.abs(diff) > 15000) { 
+        // Если время вышло на 10+ сек, включаем режим синхронизации
+        if (Math.abs(diff) > 10000) { 
           setIsProcessing(true); 
-        } else {
-          setIsProcessing(false);
         }
       } else {
         const hh = Math.floor(diff / 3600000);

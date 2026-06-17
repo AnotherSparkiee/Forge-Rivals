@@ -1,5 +1,5 @@
 /**
- * @fileOverview Автономный движок сезонов v15 (Standings-First). 
+ * @fileOverview Автономный движок сезонов v16 (Standings-First). 
  * Мгновенный триггер серверного расчета при наступлении времени матча.
  */
 
@@ -34,7 +34,7 @@ export function AutoMatchManager() {
   const { data: allGroupPlayers } = useCollection(playersInGroupQuery);
 
   useEffect(() => {
-    if (!isLoaded || !userId || !selectedLeagueId || processingRef.current) return;
+    if (!isLoaded || !userId || !selectedLeagueId) return;
 
     const heartbeat = async () => {
       if (processingRef.current) return;
@@ -52,13 +52,13 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const currentData = groupSnap.data();
 
-        // 1. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ
+        // 1. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ (V16)
         if (allGroupPlayers && allGroupPlayers.length > 0) {
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const teamsHash = currentTeams.map(t => t.id).join('|');
 
           const needsUpgrade = !groupSnap.exists() || 
-                              (currentData?.calendarVersion || 0) < 15 ||
+                              (currentData?.calendarVersion || 0) < 16 ||
                               currentData?.teamsHash !== teamsHash;
 
           if (needsUpgrade) {
@@ -73,7 +73,7 @@ export function AutoMatchManager() {
               seasonNumber: activeSeason,
               teams: currentTeams,
               teamsHash,
-              calendarVersion: 15,
+              calendarVersion: 16,
               updatedAt: serverTimestamp()
             }, { merge: true });
 
@@ -100,31 +100,32 @@ export function AutoMatchManager() {
             });
 
             await batch.commit();
-            console.log("[PULSE V15] Calendar synced.");
+            console.log("[V16 PULSE] Calendar synced.");
           }
         }
 
-        // 2. СЕРВЕРНЫЙ РАСЧЕТ ОЧКОВ (Standings-First Priority)
+        // 2. ПРИНУДИТЕЛЬНЫЙ РАСЧЕТ ТАБЛИЦЫ (Standalone Transaction)
         const mskTime = getMoscowTime().getTime();
         const overdue = allSeasonMatches.some(m => {
           const startTime = m.startTime ? new Date(m.startTime).getTime() : 0;
-          return startTime > 0 && mskTime > startTime && !checkIsMatchFinished(m);
+          // Время вышло (с запасом 5 сек) и счета в базе НЕТ
+          return startTime > 0 && mskTime > (startTime + 5000) && !checkIsMatchFinished(m);
         });
 
         if (overdue) {
-          console.log(`[PULSE V15] Overdue match detected. Requesting server resolution...`);
+          console.log(`[V16 PULSE] Triggering Absolute Resolution for ${prefixedGroupId}`);
           await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
         }
 
       } catch (e: any) {
-        console.warn("[PULSE V15] Sync skipped:", e.message);
+        console.warn("[V16 PULSE] Heartbeat skipped:", e.message);
       } finally {
         processingRef.current = false;
       }
     };
 
     heartbeat();
-    const interval = setInterval(heartbeat, 5000); 
+    const interval = setInterval(heartbeat, 8000); 
     return () => clearInterval(interval);
   }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches]);
 
