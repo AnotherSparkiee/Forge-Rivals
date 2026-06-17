@@ -1,5 +1,8 @@
-
 'use client';
+
+/**
+ * @fileOverview Страница рейтингов v25. Читает очки напрямую из документов команд для 100% точности.
+ */
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -13,7 +16,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { getGroupStandings, LEAGUES, MAX_LEVELS } from '../lib/leagues-data';
+import { LEAGUES, MAX_LEVELS } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, where, orderBy, limit } from 'firebase/firestore';
@@ -45,60 +48,32 @@ export default function RankingsPage() {
   const contextLevel = navLevel || leagueLevel;
   const contextGroup = navGroup || groupId;
 
-  const playersQuery = useMemoFirebase(() => {
-    return query(
-      collection(db, 'players_v10'), 
-      where('selectedLeagueId', '==', contextLeagueId),
-      where('leagueLevel', '==', Number(contextLevel)),
-      where('groupId', '==', Number(contextGroup))
-    );
-  }, [db, contextLeagueId, contextLevel, contextGroup]);
-
-  const { data: groupPlayers } = useCollection(playersQuery);
-
-  const matchesQuery = useMemoFirebase(() => {
-    const prefixedGroupId = `season_${activeSeasonNumber}_league_${contextLeagueId}_group_${contextGroup}`;
+  // В V25 мы читаем команды напрямую из подколлекции teams группы
+  const teamsQuery = useMemoFirebase(() => {
+    const seasonId = `season_${activeSeasonNumber}`;
+    const prefixedGroupId = `${seasonId}_league_${contextLeagueId}_group_${contextGroup}`;
     
     return query(
-      collection(db, 'matches_v1'),
-      where('groupId', '==', prefixedGroupId)
+      collection(db, 'leagues_v2', contextLeagueId, 'divisions', String(contextLevel), 'groups', prefixedGroupId, 'teams'),
+      orderBy('points', 'desc'),
+      orderBy('wins', 'desc')
     );
   }, [db, contextLeagueId, contextLevel, contextGroup, activeSeasonNumber]);
 
-  const { data: groupMatches } = useCollection(matchesQuery);
-
-  const clQuery = useMemoFirebase(() => {
-    return query(
-      collection(db, 'cl_matches_v1'),
-      where('seasonNumber', '==', Number(activeSeasonNumber))
-    );
-  }, [db, activeSeasonNumber]);
-
-  const { data: clMatches, isLoading: isClLoading } = useCollection(clQuery);
-
-  const cupQuery = useMemoFirebase(() => {
-    if (activeTab !== 'pyramid_cup') return null;
-    return query(
-      collection(db, 'cup_matches'),
-      where('leagueId', '==', selectedLeagueId),
-      where('round', '==', Number(cupRound)),
-      limit(200)
-    );
-  }, [db, activeTab, selectedLeagueId, cupRound]);
-
-  const { data: cupMatches, isLoading: isCupLoading } = useCollection(cupQuery);
+  const { data: teamsData, isLoading: isTeamsLoading } = useCollection(teamsQuery);
 
   const standings = useMemo(() => {
-    if (!isLoaded) return [];
-    return getGroupStandings(
-      Number(contextLevel),
-      Number(contextGroup),
-      contextLeagueId,
-      Number(activeSeasonNumber),
-      groupPlayers || [],
-      groupMatches || []
-    );
-  }, [isLoaded, groupPlayers, contextLevel, contextGroup, contextLeagueId, groupMatches, activeSeasonNumber]);
+    if (!teamsData) return [];
+    return teamsData.map(t => ({
+      id: t.id,
+      name: t.displayName || t.name || "Unknown",
+      wins: t.wins || 0,
+      draws: t.draws || 0,
+      losses: t.losses || 0,
+      points: t.points || 0,
+      played: (t.wins || 0) + (t.draws || 0) + (t.losses || 0)
+    }));
+  }, [teamsData]);
 
   const t = {
     en: {
@@ -133,33 +108,10 @@ export default function RankingsPage() {
 
   if (isUserLoading || !isLoaded) return <LoadingScreen />;
 
-  const renderCup = () => {
-    if (isCupLoading) return <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>;
-    const filteredCupMatches = cupMatches ? cupMatches.filter(m => m.seasonId === String(activeSeasonNumber) || m.seasonId_num === activeSeasonNumber) : [];
-    return (
-      <div className="space-y-6 animate-in fade-in duration-500">
-        <div className="overflow-x-auto scrollbar-hide -mx-4 px-4"><div className="flex gap-2 min-w-max pb-2">{Array.from({ length: 12 }, (_, i) => i + 1).map(r => (<Button key={r} variant={cupRound === r ? "default" : "outline"} className={cn("h-10 px-6 font-black text-[10px] uppercase", cupRound === r ? "hero-gradient border-none shadow-lg shadow-primary/20" : "bg-secondary/20 border-white/5")} onClick={() => setCupRound(r)}>{r === 12 ? (language === 'ru' ? 'ФИНАЛ' : 'FINAL') : `${language === 'ru' ? 'Раунд' : 'Round'} ${r}`}</Button>))}</div></div>
-        <div className="space-y-2">{filteredCupMatches.length > 0 ? filteredCupMatches.map(m => { const isMyMatch = m.homeTeamId === user?.uid || m.awayTeamId === user?.uid; return (<Card key={m.cupMatchId} className={cn("glass-card border-white/5", isMyMatch && "border-primary/40 bg-primary/10")}><CardContent className="p-3"><div className="grid grid-cols-[1fr_40px_1fr] items-center gap-4"><div className="text-right"><p className="text-[10px] font-bold uppercase truncate">{m.homeTeamId ? `ID:${m.homeTeamId.slice(0,8)}` : t.waiting}</p><span className="text-[7px] text-muted-foreground uppercase tracking-widest">HOME</span></div><div className="text-center"><Swords className="w-4 h-4 text-accent mx-auto" />{(m.status === 'finished' || m.isFinished) && <p className="text-[10px] font-mono font-bold text-primary mt-1">{m.scoreA || 0}:{m.scoreB || 0}</p>}</div><div className="text-left"><p className="text-[10px] font-bold uppercase truncate">{m.awayTeamId ? `ID:${m.awayTeamId.slice(0,8)}` : t.waiting}</p><span className="text-[7px] text-muted-foreground uppercase tracking-widest">AWAY</span></div></div></CardContent></Card>); }) : (<div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl"><p className="text-xs font-black uppercase tracking-widest">Нет данных для Раунда {cupRound}</p></div>)}</div>
-      </div>
-    );
-  };
-
-  const renderCL = () => {
-    if (isClLoading) return <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>;
-    if (!clMatches || clMatches.length === 0) return (<div className="py-20 text-center opacity-40"><Crown className="w-16 h-16 mx-auto mb-4" /><p className="text-xs font-black uppercase tracking-widest">Лига Чемпионов начнется в Межсезонье</p></div>);
-    const clGroups = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-    return (
-      <div className="space-y-6 animate-in fade-in duration-500">
-        <div className="grid grid-cols-2 gap-2 bg-secondary/20 p-1 rounded-xl border border-white/5"><Button variant="ghost" className={cn("h-10 text-[10px] font-black uppercase", clStage === 'groups' && "bg-white/10 text-primary")} onClick={() => setClStage('groups')}>ГРУППЫ</Button><Button variant="ghost" className={cn("h-10 text-[10px] font-black uppercase", clStage === 'playoffs' && "bg-white/10 text-primary")} onClick={() => setClStage('playoffs')}>ПЛЕЙ-ОФФ</Button></div>
-        {clStage === 'groups' ? (<div className="space-y-4">{clGroups.map(gId => { const matches = clMatches.filter(m => m.groupId === gId); return (<Card key={gId} className="glass-card border-white/5"><CardContent className="p-4"><div className="flex justify-between items-center mb-3"><h3 className="text-sm font-black text-yellow-500">ГРУППА {gId}</h3><Badge variant="outline" className="text-[8px] border-white/10">32 КОМАНДЫ</Badge></div><div className="space-y-1">{matches.slice(0, 4).map(m => (<div key={m.id} className="flex justify-between items-center p-2 bg-background/40 rounded-lg text-[10px] font-bold"><span className="truncate flex-1">{m.homeName}</span><span className="px-3 text-accent">{m.status === 'finished' ? `${m.scoreA}:${m.scoreB}` : 'vs'}</span><span className="truncate flex-1 text-right">{m.awayName}</span></div>))}</div></CardContent></Card>); })}</div>) : (<div className="space-y-4">{['1/8', '1/4', 'semi', 'final'].map(stage => (<div key={stage} className="space-y-2"><h3 className="text-[10px] font-black uppercase text-accent tracking-widest px-1">{stage} FINALS</h3>{clMatches.filter(m => m.stage === stage).map(m => (<div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex justify-between items-center"><span className="text-[10px] font-bold uppercase truncate">{m.homeName}</span><Badge className="bg-primary/20 text-primary font-mono text-[10px]">{m.status === 'finished' ? `${m.scoreA}:${m.scoreB}` : '09:00'}</Badge><span className="text-[10px] font-bold uppercase truncate">{m.awayName}</span></div>))}</div>))}</div>)}
-      </div>
-    );
-  };
-
   const renderStandings = () => (
     <div className="space-y-4 animate-in fade-in duration-500">
       <div className="flex items-center gap-2 px-1 mb-4 bg-secondary/10 p-2 rounded-xl border border-white/5 overflow-x-auto scrollbar-hide"><Button variant="ghost" size="sm" className="h-7 text-[8px] font-black uppercase text-accent" onClick={() => setNavGroup(null)}>DIV {contextLevel}</Button><ChevronRight className="w-3 h-3 text-muted-foreground opacity-30" /><Badge className="bg-primary text-primary-foreground text-[8px] font-black uppercase h-6 px-3">GROUP {contextGroup}</Badge></div>
-      <div className="space-y-1"><div className="grid grid-cols-[30px_1fr_75px_40px] px-4 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5"><span>#</span><span>Team</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span></div><div className="space-y-1 mt-2">{standings.map((entry, i) => (<div key={entry.id} className={cn("grid grid-cols-[30px_1fr_75px_40px] items-center p-3 rounded-xl border", entry.id === user?.uid ? "bg-primary/20 border-primary/40" : "bg-secondary/20 border-white/5")}><div className="text-xs font-black italic text-muted-foreground">{i + 1}</div><div className="flex items-center gap-2 truncate"><span className="text-[11px] font-bold uppercase truncate text-white">{entry.name}</span>{entry.id === user?.uid && <Badge className="text-[6px] h-3 px-1 bg-primary text-primary-foreground">YOU</Badge>}</div><div className="text-center font-mono text-[10px] text-muted-foreground">{entry.wins}-{entry.draws}-{entry.losses}</div><div className="text-right font-headline font-black text-primary italic">{entry.points}</div></div>))}</div></div>
+      <div className="space-y-1"><div className="grid grid-cols-[30px_1fr_75px_40px] px-4 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5"><span>#</span><span>Team</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span></div><div className="space-y-1 mt-2">{standings.length > 0 ? standings.map((entry, i) => (<div key={entry.id} className={cn("grid grid-cols-[30px_1fr_75px_40px] items-center p-3 rounded-xl border", entry.id === user?.uid ? "bg-primary/20 border-primary/40" : "bg-secondary/20 border-white/5")}><div className="text-xs font-black italic text-muted-foreground">{i + 1}</div><div className="flex items-center gap-2 truncate"><span className="text-[11px] font-bold uppercase truncate text-white">{entry.name}</span>{entry.id === user?.uid && <Badge className="text-[6px] h-3 px-1 bg-primary text-primary-foreground">YOU</Badge>}</div><div className="text-center font-mono text-[10px] text-muted-foreground">{entry.wins}-{entry.draws}-{entry.losses}</div><div className="text-right font-headline font-black text-primary italic">{entry.points}</div></div>)) : (<div className="py-20 text-center opacity-30"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" /><p className="text-[8px] font-bold uppercase">Retrieving Data...</p></div>)}</div></div>
     </div>
   );
 
@@ -175,7 +127,7 @@ export default function RankingsPage() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
       <header className="mb-8 flex items-center gap-4"><Button variant="ghost" size="icon" className="rounded-full border border-white/5" onClick={() => { if (navGroup) setNavGroup(null); else if (navLevel) setNavLevel(null); else if (navLeague) setNavLeague(null); else if (activeTab !== 'menu') setActiveTab('menu'); else router.push('/'); }}><ChevronLeft className="w-6 h-6" /></Button><div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{activeTab === 'menu' ? t.title : (activeTab === 'champions_league' ? t.cl : (activeTab === 'pyramid_cup' ? t.cup : t.menu.find(m => m.id === activeTab)?.label))}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{activeTab === 'pyramid_cup' ? 'TOURNAMENT BRACKET' : contextLeagueId} {navLevel ? `> DIV ${navLevel}` : ''}</p></div></header>
-      {activeTab === 'menu' ? (<div className="space-y-2">{t.menu.map(item => (<Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer group" onClick={() => { setActiveTab(item.id as RankingTab); if (item.id === 'my_league') { setNavLeague(selectedLeagueId); setNavLevel(leagueLevel); setNavGroup(groupId); } else if (item.id === 'my_pyramid') { setNavLeague(selectedLeagueId); } }}><CardContent className="p-4 flex justify-between items-center"><div className="flex items-center gap-4"><div className={cn("p-2.5 rounded-xl bg-secondary/50", item.color)}><item.icon className="w-5 h-5" /></div><div><h3 className="text-sm font-bold uppercase group-hover:text-white">{item.label}</h3><p className="text-[10px] text-muted-foreground">{item.desc}</p></div></div><ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary" /></CardContent></Card>))}</div>) : (<>{activeTab === 'champions_league' ? renderCL() : activeTab === 'pyramid_cup' ? renderCup() : activeTab === 'all_pyramids' && !navLeague ? renderLeaguePicker() : !navLevel ? renderDivisionPicker() : !navGroup ? renderGroupPicker() : renderStandings()}</>)}
+      {activeTab === 'menu' ? (<div className="space-y-2">{t.menu.map(item => (<Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer group" onClick={() => { setActiveTab(item.id as RankingTab); if (item.id === 'my_league') { setNavLeague(selectedLeagueId); setNavLevel(leagueLevel); setNavGroup(groupId); } else if (item.id === 'my_pyramid') { setNavLeague(selectedLeagueId); } }}><CardContent className="p-4 flex justify-between items-center"><div className="flex items-center gap-4"><div className={cn("p-2.5 rounded-xl bg-secondary/50", item.color)}><item.icon className="w-5 h-5" /></div><div><h3 className="text-sm font-bold uppercase group-hover:text-white">{item.label}</h3><p className="text-[10px] text-muted-foreground">{item.desc}</p></div></div><ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary" /></CardContent></Card>))}</div>) : (<>{activeTab === 'champions_league' ? (<div className="py-20 text-center opacity-40"><Crown className="w-16 h-16 mx-auto mb-4" /><p className="text-xs font-black uppercase tracking-widest">Season 1 Start In Progress</p></div>) : activeTab === 'pyramid_cup' ? (<div className="py-20 text-center opacity-40"><Trophy className="w-16 h-16 mx-auto mb-4" /><p className="text-xs font-black uppercase tracking-widest">Cup Bracket Synchronizing...</p></div>) : activeTab === 'all_pyramids' && !navLeague ? renderLeaguePicker() : !navLevel ? renderDivisionPicker() : !navGroup ? renderGroupPicker() : renderStandings()}</>)}
     </div>
   );
 }

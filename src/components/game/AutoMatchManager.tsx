@@ -1,5 +1,6 @@
 /**
- * @fileOverview Автономный движок сезонов v24 (Absolute Standing Sync). 
+ * @fileOverview Автономный менеджер синхронизации v25.
+ * Обнаруживает новую эпоху и принудительно вызывает серверный расчет.
  */
 
 'use client';
@@ -45,28 +46,28 @@ export function AutoMatchManager() {
         const seasonId = `season_${activeSeason}`;
         const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
         
-        // УНИФИЦИРОВАННЫЙ ID ГРУППЫ v24
+        // УНИФИЦИРОВАННЫЙ ID ГРУППЫ v25
         const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
         const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId);
         
         const groupSnap = await getDoc(groupRef);
         const currentData = groupSnap.data();
 
-        // СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ (V24 - Чистка типов)
+        // СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ (V25 Hard Sync)
         if (allGroupPlayers) {
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const teamsHash = currentTeams.map(t => t.id).join('|');
 
           const needsUpgrade = !groupSnap.exists() || 
-                              (currentData?.calendarVersion || 0) < 24 ||
+                              (currentData?.calendarVersion || 0) < 25 ||
                               currentData?.teamsHash !== teamsHash;
 
           if (needsUpgrade) {
-            console.log(`[V24] Force Reset Calendar for ${prefixedGroupId}...`);
+            console.log(`[V25] Resetting Season Grid for ${prefixedGroupId}...`);
             let batch = writeBatch(db);
             const calendar = generateSeasonCalendar(currentTeams);
             
-            // Жесткая точка отсчета виртуальной эпохи: 17 июня 2026
+            // Виртуальный старт сезона: 17 июня 2026
             const epochMs = new Date('2026-06-17T00:00:00+03:00').getTime();
             const dayMs = 24 * 60 * 60 * 1000;
 
@@ -76,7 +77,7 @@ export function AutoMatchManager() {
               seasonNumber: activeSeason,
               teams: currentTeams,
               teamsHash,
-              calendarVersion: 24,
+              calendarVersion: 25,
               updatedAt: serverTimestamp()
             }, { merge: true });
 
@@ -99,7 +100,7 @@ export function AutoMatchManager() {
                 isFinished: false,
                 startTime: finalDate.toISOString(),
                 scheduledAt: Timestamp.fromDate(finalDate),
-                version: 24
+                version: 25
               }, { merge: true });
             });
 
@@ -107,7 +108,7 @@ export function AutoMatchManager() {
           }
         }
 
-        // РАСЧЕТ ПРОСРОЧЕННЫХ МАТЧЕЙ
+        // РАСЧЕТ ПРОСРОЧЕННЫХ МАТЧЕЙ (V25)
         const overdueMatches = allSeasonMatches.filter(m => {
           return isMatchOverdue(m.startTime) && !checkIsMatchFinished(m);
         });
@@ -117,14 +118,14 @@ export function AutoMatchManager() {
         }
 
       } catch (e: any) {
-        console.warn("[V24 PULSE] error:", e.message);
+        console.warn("[V25 PULSE] error:", e.message);
       } finally {
         processingRef.current = false;
       }
     };
 
     heartbeat();
-    const interval = setInterval(heartbeat, 8000); 
+    const interval = setInterval(heartbeat, 10000); 
     return () => clearInterval(interval);
   }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches]);
 

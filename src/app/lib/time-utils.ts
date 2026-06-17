@@ -1,11 +1,10 @@
 /**
- * @fileOverview Ядро времени v24. Внедрена жесткая виртуальная эпоха 2026 года.
- * Обеспечивает синхронизацию реального 2025-го с игровым 2026-м.
+ * @fileOverview Ядро времени v25. Абсолютная синхронизация с эпохой 17 июня 2026.
  */
 
 /**
  * Возвращает "Виртуальное время Москвы".
- * К текущему реальному времени добавляется смещение, чтобы в игре всегда был Июнь 2026.
+ * Физически переносит систему в 17 июня 2026 года.
  */
 export function getMoscowTime(): Date {
   const now = new Date();
@@ -14,12 +13,12 @@ export function getMoscowTime(): Date {
   const mskOffset = (now.getTimezoneOffset() + 180) * 60000;
   const currentMsk = new Date(now.getTime() + mskOffset);
 
-  // Целевая дата старта: 17 июня 2026 00:00:00
+  // Виртуальный старт: 17 июня 2026 00:00:00
   const virtualEpoch = new Date('2026-06-17T00:00:00+03:00');
-  // Точка отсчета разработки (реальное время)
+  // Реальная точка отсчета (февраль 2025)
   const realReference = new Date('2025-02-21T00:00:00+03:00');
   
-  // Смещение ~481 день
+  // Постоянное смещение (482 дня)
   const offsetMs = virtualEpoch.getTime() - realReference.getTime();
 
   return new Date(currentMsk.getTime() + offsetMs);
@@ -42,17 +41,9 @@ export function formatMoscowTime(date: Date): string {
   return `${day}.${month} ${hours}:${minutes}:${seconds}`;
 }
 
-export function getSeasonDateLabel(dayOfSeason: number): string {
-  const info = getGlobalSeasonInfo();
-  const epochDate = new Date('2026-06-17T00:00:00+03:00');
-  const targetDate = new Date(epochDate);
-  
-  const offsetDays = (info.activeSeasonNumber - 1) * 16 + (dayOfSeason - 1);
-  targetDate.setDate(epochDate.getDate() + offsetDays);
-  
-  return `${String(targetDate.getMonth() + 1).padStart(2, '0')}.${String(targetDate.getDate()).padStart(2, '0')}`;
-}
-
+/**
+ * Расчет текущего игрового дня и сезона.
+ */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   const epochDate = new Date('2026-06-17T00:00:00+03:00');
@@ -68,7 +59,7 @@ export function getGlobalSeasonInfo() {
   const effectiveSeason = isTransitionPhase ? currentSeasonNumber + 1 : currentSeasonNumber;
   
   return {
-    seasonDay: currentSeasonDay,
+    seasonDay: Math.max(1, currentSeasonDay),
     seasonNumber: Math.max(1, currentSeasonNumber),
     isTransitionPhase,
     activeSeasonNumber: Math.max(1, effectiveSeason)
@@ -76,20 +67,23 @@ export function getGlobalSeasonInfo() {
 }
 
 /**
- * ПРОВЕРКА ПРОСРОЧКИ МАТЧА
+ * Проверяет, должен ли матч быть уже рассчитан.
+ * Сравнивает виртуальное время Москвы с временем старта из документа.
  */
 export function isMatchOverdue(startTimeIso: string): boolean {
   const mskNow = getMoscowTime();
   const start = new Date(startTimeIso);
-  // Если виртуальное время Москвы больше времени старта (с запасом 2 секунды)
-  return mskNow.getTime() > (start.getTime() + 2000);
+  // Запас 5 секунд на синхронизацию
+  return mskNow.getTime() > (start.getTime() + 5000);
 }
 
-export function calculateLiveAge(baseAge: number, hiredAtIso: string) {
-  const hiredAt = new Date(hiredAtIso).getTime();
-  const mskNow = getMoscowTime().getTime();
-  const daysPassed = (mskNow - hiredAt) / (1000 * 60 * 60 * 24);
-  const seasonsPassed = daysPassed / 16; 
-  const age = baseAge + seasonsPassed;
-  return { numeric: age, display: age.toFixed(1) };
+export function getSeasonDateLabel(dayOfSeason: number): string {
+  const info = getGlobalSeasonInfo();
+  const epochDate = new Date('2026-06-17T00:00:00+03:00');
+  const targetDate = new Date(epochDate);
+  
+  const offsetDays = (info.activeSeasonNumber - 1) * 16 + (dayOfSeason - 1);
+  targetDate.setDate(epochDate.getDate() + offsetDays);
+  
+  return `${String(targetDate.getMonth() + 1).padStart(2, '0')}.${String(targetDate.getDate()).padStart(2, '0')}`;
 }
