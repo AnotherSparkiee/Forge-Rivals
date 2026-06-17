@@ -1,30 +1,23 @@
 /**
- * @fileOverview Ядро времени. Внедрена поддержка виртуального времени для синхронизации с эпохой 2026.
+ * @fileOverview Ядро времени v22. Внедрена жесткая виртуальная эпоха 2026 года.
  */
 
 /**
  * Возвращает "Виртуальное время Москвы".
- * Если в реальности сейчас 2025 год, функция добавляет смещение, 
- * чтобы системное время соответствовало активному сезону 2026 года.
+ * К текущему реальному времени добавляется смещение, чтобы в игре всегда был Июнь 2026.
  */
 export function getMoscowTime(): Date {
   const now = new Date();
   
-  // Устанавливаем целевую дату старта (17 июня 2026)
-  const virtualEpoch = new Date('2026-06-17T00:00:00+03:00');
-  
-  // Для тестирования и работы считаем, что "сегодня в реальности" (когда бы вы ни открыли код) 
-  // соответствует первому дню сезона 2026.
-  // Мы вычисляем разницу между 17.06.2026 и фиксированной точкой в прошлом (например, моментом написания этого кода)
-  // Но проще: мы просто сдвигаем время так, чтобы 2026 год стал текущим.
-  
+  // MSK Offset (UTC+3)
   const mskOffset = (now.getTimezoneOffset() + 180) * 60000;
   const currentMsk = new Date(now.getTime() + mskOffset);
 
-  // Если реальный год меньше 2026, добавляем разницу в годах/днях
-  // Чтобы не усложнять, просто прибавляем фиксированное количество мс для достижения 2026-06-17
-  // В данном случае, если сегодня 21.02.2025, нам нужно добавить ~481 день.
+  // Целевая дата: 17 июня 2026
+  const virtualEpoch = new Date('2026-06-17T00:00:00+03:00');
+  // Реальная дата написания этого кода (точка отсчета)
   const realReference = new Date('2025-02-21T00:00:00+03:00');
+  
   const offsetMs = virtualEpoch.getTime() - realReference.getTime();
 
   return new Date(currentMsk.getTime() + offsetMs);
@@ -47,9 +40,6 @@ export function formatMoscowTime(date: Date): string {
   return `${day}.${month} ${hours}:${minutes}:${seconds}`;
 }
 
-/**
- * Рассчитывает отображаемую дату для конкретного дня сезона.
- */
 export function getSeasonDateLabel(dayOfSeason: number): string {
   const info = getGlobalSeasonInfo();
   const epochDate = new Date('2026-06-17T00:00:00+03:00');
@@ -61,9 +51,6 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
   return `${String(targetDate.getMonth() + 1).padStart(2, '0')}.${String(targetDate.getDate()).padStart(2, '0')}`;
 }
 
-/**
- * Цикл 16 дней. Сезон 1 начался 17 июня 2026.
- */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   const epochDate = new Date('2026-06-17T00:00:00+03:00');
@@ -92,7 +79,7 @@ export function getGlobalSeasonInfo() {
 export function isMatchOverdue(startTimeIso: string): boolean {
   const mskNow = getMoscowTime();
   const start = new Date(startTimeIso);
-  // Если виртуальное московское время больше времени старта + 5 секунд
+  // Если виртуальное время Москвы больше времени старта + 5 секунд
   return mskNow.getTime() > (start.getTime() + 5000);
 }
 

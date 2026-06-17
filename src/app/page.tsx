@@ -53,15 +53,14 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // MASTER SYNC EFFECT (V18 Reality Driven)
+  // MASTER SYNC EFFECT (V22 Absolute Reality)
   useEffect(() => {
     if (!isDataReady || !selectedLeagueId || !nextMatch) return;
 
     const timer = setInterval(() => {
-      // КРИТИЧЕСКИЙ БАЙПАСС: Если счет в базе уже есть — WAITING не показываем никогда
+      // СРЫВ WAITING: Если счет есть — никакой загрузки
       const isActuallyFinished = checkIsMatchFinished(nextMatch.match);
       if (isActuallyFinished) {
-        setCountdown('00:00:00');
         setIsLive(false);
         setIsProcessing(false); 
         return;
@@ -70,13 +69,11 @@ export default function Home() {
       const mskNow = getMoscowTime();
       const matchStartTime = new Date(nextMatch.match.startTime).getTime();
       
-      // Если время матча наступило (по реальному времени)
       if (mskNow.getTime() >= matchStartTime) {
         setCountdown('00:00:00');
         setIsLive(true); 
         setIsProcessing(true); // Состояние "СИНХРОНИЗАЦИЯ"
       } else {
-        // Обычный отсчет
         const diff = matchStartTime - mskNow.getTime();
         const hh = Math.floor(diff / 3600000);
         const mm = Math.floor((diff % 3600000) / 60000);
@@ -88,7 +85,7 @@ export default function Home() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isDataReady, selectedLeagueId, nextMatch, league]);
+  }, [isDataReady, selectedLeagueId, nextMatch]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,14 +1,14 @@
 'use server';
 
 /**
- * @fileOverview MMO-Двигатель v19.1 (Season 1 / 2026 Reset).
- * Гарантирует зачисление очков в таблицу при наступлении времени матча.
+ * @fileOverview MMO-Двигатель v22 (Season 1 / 2026 Reset).
+ * Гарантирует зачисление очков в таблицу при наступлении виртуального времени матча.
  */
 
 import { 
   collection, doc, getDocs, 
   query, where, serverTimestamp, 
-  writeBatch, runTransaction
+  runTransaction
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { isMatchOverdue, getGlobalSeasonInfo } from '@/app/lib/time-utils';
@@ -16,13 +16,13 @@ import { getMatchResult } from '@/app/lib/leagues-data';
 
 /**
  * ГЛАВНЫЙ СЕРВЕРНЫЙ РАСЧЕТ ГРУППЫ (Targeted Resolution):
- * Обрабатывает только одну группу лиги для предотвращения таймаутов.
+ * Обрабатывает одну группу. Начисляет очки.
  */
 export async function forceResolveGroupMatches(leagueId: string, divisionId: number, groupId: string) {
   const { firestore: db } = initializeFirebase();
   const seasonInfo = getGlobalSeasonInfo();
   
-  console.log(`[V19 RESOLVER] Processing Group: ${groupId} (Season ${seasonInfo.activeSeasonNumber})`);
+  console.log(`[V22 RESOLVER] Processing Group: ${groupId}`);
 
   const q = query(
     collection(db, 'matches_v1'),
@@ -37,19 +37,19 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
   for (const docSnap of snap.docs) {
     const m = docSnap.data();
     
-    // ПРОВЕРКА ВРЕМЕНИ
+    // ПРОВЕРКА ВИРТУАЛЬНОГО ВРЕМЕНИ
     const overdue = isMatchOverdue(m.startTime);
     const hasAnyScore = m.homeScore !== undefined || m.scoreA !== undefined || m.isFinished === true;
 
     if (overdue && !hasAnyScore) {
-      console.log(`[V19] Resolving match: ${docSnap.id}`);
+      console.log(`[V22] Resolving match: ${docSnap.id}`);
       
       const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, seasonInfo.activeSeasonNumber);
       const winnerId = sA > sB ? m.homeId : (sB > sA ? m.awayId : null);
 
       try {
         await runTransaction(db, async (transaction) => {
-          // ОБНОВЛЯЕМ МАТЧ
+          // ОБНОВЛЯЕМ МАТЧ (Унифицируем поля счета)
           transaction.update(docSnap.ref, {
             homeScore: sA,
             awayScore: sB,
@@ -63,14 +63,10 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
             isCompleted: true,
             finishedAt: serverTimestamp()
           });
-
-          // ПРИМЕЧАНИЕ: В MMO-архитектуре V19 таблица рассчитывается динамически 
-          // на основе завершенных матчей (leagues-data.ts -> getGroupStandings).
-          // Поэтому записи счета в документ матча достаточно для оживления таблицы.
         });
         resolvedCount++;
       } catch (e) {
-        console.error(`[V19 ERROR] Match ${docSnap.id} failed:`, e);
+        console.error(`[V22 ERROR] Match ${docSnap.id} failed:`, e);
       }
     }
   }

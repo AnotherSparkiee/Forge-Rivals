@@ -1,5 +1,5 @@
 /**
- * @fileOverview Автономный движок сезонов v21 (Virtual Time Sync). 
+ * @fileOverview Автономный движок сезонов v22 (Absolute Sync). 
  */
 
 'use client';
@@ -12,7 +12,7 @@ import {
   getStableGroupTeams, generateSeasonCalendar, 
   LEAGUES 
 } from '@/app/lib/leagues-data';
-import { getGlobalSeasonInfo, isMatchOverdue } from '@/app/lib/time-utils';
+import { getGlobalSeasonInfo, isMatchOverdue, getMoscowTime } from '@/app/lib/time-utils';
 import { forceResolveGroupMatches } from '@/app/actions/mmo-engine';
 
 export function AutoMatchManager() {
@@ -51,20 +51,21 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const currentData = groupSnap.data();
 
-        // 1. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ (V21)
-        if (allGroupPlayers && allGroupPlayers.length > 0) {
+        // СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ (V22)
+        if (allGroupPlayers) {
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const teamsHash = currentTeams.map(t => t.id).join('|');
 
           const needsUpgrade = !groupSnap.exists() || 
-                              (currentData?.calendarVersion || 0) < 21 ||
+                              (currentData?.calendarVersion || 0) < 22 ||
                               currentData?.teamsHash !== teamsHash;
 
           if (needsUpgrade) {
+            console.log(`[V22] Regenerating Calendar for ${prefixedGroupId}...`);
             let batch = writeBatch(db);
             const calendar = generateSeasonCalendar(currentTeams);
             
-            // СТРОГОЕ СООТВЕТСТВИЕ EPOCH 2026
+            // Жесткая точка отсчета: 17 июня 2026
             const epochMs = new Date('2026-06-17T00:00:00+03:00').getTime();
             const dayMs = 24 * 60 * 60 * 1000;
 
@@ -74,7 +75,7 @@ export function AutoMatchManager() {
               seasonNumber: activeSeason,
               teams: currentTeams,
               teamsHash,
-              calendarVersion: 21,
+              calendarVersion: 22,
               updatedAt: serverTimestamp()
             }, { merge: true });
 
@@ -82,7 +83,7 @@ export function AutoMatchManager() {
               const matchId = `m_${prefixedGroupId}_d${m.day}_${m.pairKey}`;
               const [hh, mm] = league.startTime.split(':').map(Number);
               
-              // Находим время старта в рамках ТЕКУЩЕГО РЕАЛЬНОГО СЕЗОНА
+              // Расчет даты старта относительно Виртуальной Эпохи
               const matchTimeOffset = (activeSeason - 1) * 16 * dayMs + (m.day - 1) * dayMs + (hh * 60 * 60 * 1000) + (mm * 60 * 1000);
               const finalDate = new Date(epochMs + matchTimeOffset);
 
@@ -103,29 +104,28 @@ export function AutoMatchManager() {
             });
 
             await batch.commit();
-            console.log(`[V21 PULSE] Season ${activeSeason} Calendar Reset for Virtual 2026.`);
           }
         }
 
-        // 2. ПРИНУДИТЕЛЬНЫЙ РАСЧЕТ ПРОСРОЧЕННЫХ МАТЧЕЙ
+        // РАСЧЕТ ПРОСРОЧЕННЫХ МАТЧЕЙ (Virtual Check)
         const overdueMatches = allSeasonMatches.filter(m => {
           return isMatchOverdue(m.startTime) && !checkIsMatchFinished(m);
         });
 
         if (overdueMatches.length > 0) {
-          console.log(`[V21 PULSE] Resolving ${overdueMatches.length} overdue matches for ${prefixedGroupId}`);
+          console.log(`[V22] Force Resolving ${overdueMatches.length} overdue matches...`);
           await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
         }
 
       } catch (e: any) {
-        console.warn("[V21 PULSE] Heartbeat error:", e.message);
+        console.warn("[V22 PULSE] error:", e.message);
       } finally {
         processingRef.current = false;
       }
     };
 
     heartbeat();
-    const interval = setInterval(heartbeat, 5000); 
+    const interval = setInterval(heartbeat, 8000); 
     return () => clearInterval(interval);
   }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches]);
 
