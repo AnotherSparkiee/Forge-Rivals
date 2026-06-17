@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени. Эпоха сезона 1: 17 июня 2026.
+ * @fileOverview Ядро времени. Эпоха сезона 1 перенесена на 2024 год для активации системы в реальном времени.
  */
 
 export function getMoscowTime(): Date {
@@ -25,17 +25,14 @@ export function formatMoscowTime(date: Date): string {
 }
 
 /**
- * Calculates display date for a specific day of the season.
- * Ensures Day 1 is June 17, 2026.
+ * Рассчитывает отображаемую дату для конкретного дня сезона.
+ * День 1 Сезона 1 = 17 июня 2024.
  */
 export function getSeasonDateLabel(dayOfSeason: number): string {
   const info = getGlobalSeasonInfo();
-  
-  // FIXED EPOCH DATE: June 17, 2026
-  const epochDate = new Date('2026-06-17T00:00:00+03:00');
+  const epochDate = new Date('2024-06-17T00:00:00+03:00');
   const targetDate = new Date(epochDate);
   
-  // Date = Epoch + (Season - 1) * 16 days + (DayOfSeason - 1) days
   const offsetDays = (info.activeSeasonNumber - 1) * 16 + (dayOfSeason - 1);
   targetDate.setDate(epochDate.getDate() + offsetDays);
   
@@ -43,16 +40,14 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
 }
 
 /**
- * Цикл 16 дней: 14 дней матчей + 2 дня перехода.
- * СЕЗОН 1 НАЧИНАЕТСЯ: 17 Июня 2026 00:00 MSK.
+ * Цикл 16 дней. Сезон 1 начался 17 июня 2024.
  */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
-  const epochDate = new Date('2026-06-17T00:00:00+03:00');
+  const epochDate = new Date('2024-06-17T00:00:00+03:00');
   
   const diffMs = mskNow.getTime() - epochDate.getTime();
   const cycleDuration = 16; 
-  
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
@@ -70,22 +65,14 @@ export function getGlobalSeasonInfo() {
 }
 
 /**
- * ПРОВЕРКА ПРОСРОЧКИ МАТЧА (V16)
- * Игнорирует год, смотрит только на день сезона и время начала.
+ * ПРОВЕРКА ПРОСРОЧКИ МАТЧА (V18 Reality Check)
+ * Сравнивает время начала матча с текущим временем Москвы.
  */
-export function isMatchOverdue(matchDay: number, startTimeStr: string): boolean {
-  const { seasonDay } = getGlobalSeasonInfo();
-  
-  if (matchDay < seasonDay) return true;
-  if (matchDay > seasonDay) return false;
-  
-  // Если день совпадает, проверяем время
+export function isMatchOverdue(startTimeIso: string): boolean {
   const mskNow = getMoscowTime();
-  const [h, m] = startTimeStr.split(':').map(Number);
-  const currentMins = mskNow.getHours() * 60 + mskNow.getMinutes();
-  const matchMins = h * 60 + m;
-  
-  return currentMins >= matchMins;
+  const start = new Date(startTimeIso);
+  // Если сейчас больше времени старта + 10 секунд буфера
+  return mskNow.getTime() > (start.getTime() + 10000);
 }
 
 export function calculateLiveAge(baseAge: number, hiredAtIso: string) {

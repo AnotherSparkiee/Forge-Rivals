@@ -53,12 +53,12 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // MASTER SYNC EFFECT (V17 Absolute Standings)
+  // MASTER SYNC EFFECT (V18 Reality Driven)
   useEffect(() => {
     if (!isDataReady || !selectedLeagueId || !nextMatch) return;
 
     const timer = setInterval(() => {
-      // КРИТИЧЕСКИЙ ОВЕРРАЙД: Если счет в базе есть - WAITING БЛОКИРУЕТСЯ
+      // КРИТИЧЕСКИЙ БАЙПАСС: Если счет в базе уже есть — WAITING не показываем никогда
       const isActuallyFinished = checkIsMatchFinished(nextMatch.match);
       if (isActuallyFinished) {
         setCountdown('00:00:00');
@@ -68,30 +68,20 @@ export default function Home() {
       }
 
       const mskNow = getMoscowTime();
-      const { seasonDay: curDay } = getGlobalSeasonInfo();
-      const matchDay = nextMatch.match.day;
-      const [sh, sm] = league.startTime.split(':').map(Number);
+      const matchStartTime = new Date(nextMatch.match.startTime).getTime();
       
-      const currentMins = mskNow.getHours() * 60 + mskNow.getMinutes();
-      const matchMins = sh * 60 + sm;
-
-      if (curDay > matchDay || (curDay === matchDay && currentMins >= matchMins)) {
+      // Если время матча наступило (по реальному времени)
+      if (mskNow.getTime() >= matchStartTime) {
         setCountdown('00:00:00');
         setIsLive(true); 
-        setIsProcessing(true);
-      } else if (curDay === matchDay) {
-        const targetTime = new Date(mskNow);
-        targetTime.setHours(sh, sm, 0, 0);
-        const diff = targetTime.getTime() - mskNow.getTime();
-        
+        setIsProcessing(true); // Состояние "СИНХРОНИЗАЦИЯ"
+      } else {
+        // Обычный отсчет
+        const diff = matchStartTime - mskNow.getTime();
         const hh = Math.floor(diff / 3600000);
         const mm = Math.floor((diff % 3600000) / 60000);
         const ss = Math.floor((diff % 60000) / 1000);
         setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
-        setIsLive(false);
-        setIsProcessing(false);
-      } else {
-        setCountdown('BATTLE_PENDING');
         setIsLive(false);
         setIsProcessing(false);
       }

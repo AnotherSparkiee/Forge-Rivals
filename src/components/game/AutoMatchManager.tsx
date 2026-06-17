@@ -1,6 +1,6 @@
 /**
- * @fileOverview Автономный движок сезонов v16 (Standings-First). 
- * Мгновенный триггер серверного расчета при наступлении времени матча.
+ * @fileOverview Автономный движок сезонов v18 (Reality Sync). 
+ * Пересчитывает календарь под актуальную эпоху 2024 года.
  */
 
 'use client';
@@ -52,19 +52,21 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const currentData = groupSnap.data();
 
-        // 1. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ (V16)
+        // 1. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ ПОД ТЕКУЩУЮ ЭПОХУ (V18)
         if (allGroupPlayers && allGroupPlayers.length > 0) {
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const teamsHash = currentTeams.map(t => t.id).join('|');
 
           const needsUpgrade = !groupSnap.exists() || 
-                              (currentData?.calendarVersion || 0) < 16 ||
+                              (currentData?.calendarVersion || 0) < 18 ||
                               currentData?.teamsHash !== teamsHash;
 
           if (needsUpgrade) {
             let batch = writeBatch(db);
             const calendar = generateSeasonCalendar(currentTeams);
-            const epochMs = new Date('2026-06-17T00:00:00+03:00').getTime();
+            
+            // СТРОГОЕ СООТВЕТСТВИЕ EPOCH 2024
+            const epochMs = new Date('2024-06-17T00:00:00+03:00').getTime();
             const dayMs = 24 * 60 * 60 * 1000;
 
             batch.set(groupRef, {
@@ -73,14 +75,16 @@ export function AutoMatchManager() {
               seasonNumber: activeSeason,
               teams: currentTeams,
               teamsHash,
-              calendarVersion: 16,
+              calendarVersion: 18,
               updatedAt: serverTimestamp()
             }, { merge: true });
 
             calendar.forEach((m) => {
               const matchId = `m_${prefixedGroupId}_d${m.day}_${m.pairKey}`;
               const [hh, mm] = league.startTime.split(':').map(Number);
-              const matchTimeOffset = (m.day - 1) * dayMs + (hh * 60 * 60 * 1000) + (mm * 60 * 1000);
+              
+              // Находим время старта в рамках ТЕКУЩЕГО РЕАЛЬНОГО СЕЗОНА
+              const matchTimeOffset = (activeSeason - 1) * 16 * dayMs + (m.day - 1) * dayMs + (hh * 60 * 60 * 1000) + (mm * 60 * 1000);
               const finalDate = new Date(epochMs + matchTimeOffset);
 
               batch.set(doc(db, 'matches_v1', matchId), {
@@ -100,30 +104,29 @@ export function AutoMatchManager() {
             });
 
             await batch.commit();
-            console.log("[V16 PULSE] Calendar synced.");
+            console.log("[V18 PULSE] Reality Calendar Synced.");
           }
         }
 
-        // 2. ПРИНУДИТЕЛЬНЫЙ РАСЧЕТ ТАБЛИЦЫ (Standalone Transaction)
-        const overdue = allSeasonMatches.some(m => {
-          const isOverdueMatch = isMatchOverdue(m.day, league.startTime);
-          return isOverdueMatch && !checkIsMatchFinished(m);
+        // 2. ПРИНУДИТЕЛЬНЫЙ РАСЧЕТ ПРОСРОЧЕННЫХ МАТЧЕЙ
+        const overdueMatches = allSeasonMatches.filter(m => {
+          return isMatchOverdue(m.startTime) && !checkIsMatchFinished(m);
         });
 
-        if (overdue) {
-          console.log(`[V16 PULSE] Triggering Absolute Resolution for ${prefixedGroupId}`);
+        if (overdueMatches.length > 0) {
+          console.log(`[V18 PULSE] Resolving ${overdueMatches.length} overdue matches for ${prefixedGroupId}`);
           await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
         }
 
       } catch (e: any) {
-        console.warn("[V16 PULSE] Heartbeat skipped:", e.message);
+        console.warn("[V18 PULSE] Heartbeat error:", e.message);
       } finally {
         processingRef.current = false;
       }
     };
 
     heartbeat();
-    const interval = setInterval(heartbeat, 8000); 
+    const interval = setInterval(heartbeat, 10000); 
     return () => clearInterval(interval);
   }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches]);
 
