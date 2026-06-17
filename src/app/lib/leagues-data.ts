@@ -34,8 +34,6 @@ export const LEAGUES: LeagueOption[] = [
 
 /**
  * Генерирует стабильный список из 8 команд.
- * Формула ID бота: bot[Лига(2)][Див(1)][Гр(3)][Индекс(1)] - Всего 7 цифр
- * Это гарантирует уникальность во всей игре.
  */
 export function getStableGroupTeams(level: number, group: number, leagueId: string, allLeaguePlayers: any[] = []) {
   const leagueIdx = LEAGUES.findIndex(l => l.id === leagueId);
@@ -64,8 +62,7 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
 }
 
 /**
- * Алгоритм круговой системы (Round-robin) с ПРИНУДИТЕЛЬНЫМ чередованием 1-1-1-1.
- * Использует детерминированную инверсию пар для обеспечения ритма Home/Away.
+ * Алгоритм круговой системы.
  */
 export function generateSeasonCalendar(teams: any[]) {
   const n = teams.length;
@@ -77,17 +74,10 @@ export function generateSeasonCalendar(teams: any[]) {
     for (let i = 0; i < n / 2; i++) {
       let hIdx = indices[i];
       let aIdx = indices[n - 1 - i];
-
-      // ПРИНУДИТЕЛЬНОЕ ЧЕРЕДОВАНИЕ (V3)
-      // Для каждой пары (i) мы инвертируем Home/Away в зависимости от раунда.
       if ((i + round) % 2 === 1) {
         [hIdx, aIdx] = [aIdx, hIdx];
       }
-
-      // Детерминированный ключ пары для уникального ID
       const pairKey = [teams[hIdx].id, teams[aIdx].id].sort().join('_vs_');
-
-      // Первый круг (Дни 1-7)
       matches.push({
         day: round + 1,
         homeId: teams[hIdx].id,
@@ -96,8 +86,6 @@ export function generateSeasonCalendar(teams: any[]) {
         awayName: teams[aIdx].name,
         pairKey
       });
-
-      // Второй круг (Зеркальный своп) (Дни 8-14)
       matches.push({
         day: round + 1 + roundsPerHalf,
         homeId: teams[aIdx].id,
@@ -107,17 +95,15 @@ export function generateSeasonCalendar(teams: any[]) {
         pairKey
       });
     }
-    
-    // Вращение по кругу (Berger rotation)
     const last = indices.pop()!;
     indices.splice(1, 0, last);
   }
-
   return matches;
 }
 
 /**
  * Расчет турнирной таблицы группы.
+ * УЛУЧШЕНО: Использует мульти-флаговую проверку завершения.
  */
 export function getGroupStandings(
   level: number,
@@ -139,15 +125,25 @@ export function getGroupStandings(
   }));
 
   allGroupMatches.forEach(m => {
-    if (m.status === 'finished') {
+    // МУЛЬТИ-ФЛАГОВАЯ ПРОВЕРКА (Синхронно со store.tsx)
+    const isFinished = 
+      m.status === 'finished' || 
+      m.matchStatus === 'finished' || 
+      m.isFinished === true || 
+      m.isCompleted === true ||
+      (m.homeScore !== undefined && m.homeScore !== null);
+
+    if (isFinished) {
       const home = standings.find(s => s.id === m.homeId);
       const away = standings.find(s => s.id === m.awayId);
       if (home && away) {
         home.played++;
         away.played++;
-        if (m.scoreA > m.scoreB) {
+        const sA = m.homeScore ?? m.scoreA ?? 0;
+        const sB = m.awayScore ?? m.scoreB ?? 0;
+        if (sA > sB) {
           home.wins++; home.points += 3; away.losses++;
-        } else if (m.scoreB > m.scoreA) {
+        } else if (sB > sA) {
           away.wins++; away.points += 3; home.losses++;
         } else {
           home.draws++; home.points += 1; away.draws++; away.points += 1;
@@ -170,7 +166,6 @@ export function getMatchResult(homeId: string, awayId: string, day: number, seas
     hash |= 0;
   }
   const val = Math.abs(hash) % 100;
-  
   if (val < 35) return [2, 0];
   if (val < 65) return [1, 1];
   return [0, 2];

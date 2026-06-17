@@ -11,7 +11,7 @@ import {
   runTransaction, Firestore, Timestamp
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
-import { getMoscowTime, getGlobalSeasonInfo } from '@/app/lib/time-utils';
+import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getMatchResult } from '@/app/lib/leagues-data';
 
 /**
@@ -29,10 +29,10 @@ export async function forceResolveLeagueMatches() {
 
   console.log(`[V12 CALIBRATION] Starting forced sync for ${CURRENT_DATE_STR}...`);
 
+  // Запрос всех матчей текущего сезона, которые еще не помечены как завершенные
   const q = query(
     collection(db, 'matches_v1'),
-    where('seasonId', '==', seasonId),
-    where('status', 'in', ['pending', 'scheduled', 'waiting', 'playing'])
+    where('seasonId', '==', seasonId)
   );
 
   const snap = await getDocs(q);
@@ -43,11 +43,14 @@ export async function forceResolveLeagueMatches() {
   for (const docSnap of snap.docs) {
     const m = docSnap.data();
     
-    // Фильтр по дате из ТЗ
-    if (m.startTime && m.startTime.includes(CURRENT_DATE_STR)) {
+    // Проверяем: время начала прошло И матч в ожидании ИЛИ дата совпадает
+    const isPast = m.startTime && new Date(m.startTime).getTime() < Date.now();
+    const isPending = !m.isFinished && m.status !== 'finished';
+
+    if (isPast && isPending) {
       const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, seasonNumber);
       
-      // ВЫПОЛНЯЕМ ШАГ 1 и 2 (Сначала таблицы, потом матч)
+      // ВЫПОЛНЯЕМ ТРАНЗАКЦИЮ: Сначала таблицы, потом статус матча
       await runCalibrationTransaction(db, m, sA, sB, docSnap.id);
       resolvedCount++;
     }
@@ -64,7 +67,7 @@ async function runCalibrationTransaction(
   sB: number,
   matchDocId: string
 ) {
-  const { homeId, awayId, leagueId, divisionId, groupId, homeName, awayName } = matchData;
+  const { homeId, awayId, leagueId, divisionId, groupId } = matchData;
 
   // Пути к мастер-профилям
   const homeRootRef = doc(db, 'players_v10', homeId);
@@ -87,7 +90,7 @@ async function runCalibrationTransaction(
         const d = hRoot.data();
         let w = d.wins || 0, dr = d.draws || 0, l = d.losses || 0, p = d.points || 0;
         if (sA > sB) { w++; p += 3; } else if (sA < sB) { l++; } else { dr++; p += 1; }
-        const update = { wins: w, draws: dr, losses: l, points: p, statString: `${w}-${dr}-${l}` };
+        const update = { wins: w, draws: dr, losses: l, points: p, statString: `${w}-${dr}-${l}`, updatedAt: serverTimestamp() };
         transaction.update(homeRootRef, update);
         transaction.update(homeTeamRef, update);
       }
@@ -96,12 +99,12 @@ async function runCalibrationTransaction(
         const d = aRoot.data();
         let w = d.wins || 0, dr = d.draws || 0, l = d.losses || 0, p = d.points || 0;
         if (sB > sA) { w++; p += 3; } else if (sB < sA) { l++; } else { dr++; p += 1; }
-        const update = { wins: w, draws: dr, losses: l, points: p, statString: `${w}-${dr}-${l}` };
+        const update = { wins: w, draws: dr, losses: l, points: p, statString: `${w}-${dr}-${l}`, updatedAt: serverTimestamp() };
         transaction.update(awayRootRef, update);
         transaction.update(awayTeamRef, update);
       }
 
-      // ШАГ 2: УНИЧТОЖЕНИЕ ПЛАШКИ WAITING (Жесткий оверрайд статусов)
+      // ШАГ 2: УНИЧТОЖЕНИЕ ПЛАШКИ WAITING
       transaction.update(matchRef, {
         homeScore: sA,
         awayScore: sB,
