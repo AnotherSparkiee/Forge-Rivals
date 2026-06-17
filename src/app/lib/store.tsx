@@ -186,14 +186,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const s = state;
     if (!s.id || !s.selectedLeagueId) return;
 
-    const teamRef = doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', 'teams', s.id);
+    // Use current season info for the path
+    const seasonInfo = getGlobalSeasonInfo();
+    const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
+    const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
     
-    // ВАЖНО: Мы могли промахнуться мимо подпапки groups/{prefixedId}/teams. 
-    // Находим правильный путь к команде в иерархии v2.
-    const teamPath = `leagues_v2/${s.selectedLeagueId}/divisions/${s.leagueLevel}/groups/season_1_league_${s.selectedLeagueId}_group_${s.groupId}/teams/${s.id}`;
-    const realTeamRef = doc(db, teamPath);
+    // Correct 8-segment path: leagues_v2 -> ID -> divisions -> ID -> groups -> ID -> teams -> ID
+    const teamRef = doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', s.id);
 
-    const unsubTeam = onSnapshot(realTeamRef, (snap) => {
+    const unsubTeam = onSnapshot(teamRef, (snap) => {
       if (!snap.exists()) return;
       const d = snap.data();
       setState(prev => ({
@@ -223,7 +224,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }));
     });
 
-    const heroesUnsub = onSnapshot(collection(realTeamRef, 'heroes'), (hSnap) => {
+    const heroesUnsub = onSnapshot(collection(teamRef, 'heroes'), (hSnap) => {
       const all = hSnap.docs.map(d => ({ ...d.data(), id: d.id } as Hero));
       setState(prev => ({
         ...prev,
@@ -232,7 +233,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }));
     });
 
-    const staffUnsub = onSnapshot(collection(realTeamRef, 'staff'), (sSnap) => {
+    const staffUnsub = onSnapshot(collection(teamRef, 'staff'), (sSnap) => {
       const staffObj: any = {};
       sSnap.docs.forEach(d => { const m = d.data() as StaffMember; staffObj[m.role] = m; });
       setState(prev => ({ ...prev, staff: staffObj }));
@@ -431,6 +432,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }, [getRefs]);
 
+  const setLanguage = (l: string) => {
+    setState(s => ({ ...s, language: l }));
+  };
+
   const setTrainingFocus = (heroId: string, focus: string | null) => { updateHero(heroId, { trainingFocus: focus }); };
   const startDailyHeroTraining = (heroId: string, focus: string) => {
     const finish = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -576,8 +581,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     allSeasonMatches: allMatches,
     nextMatch: nextMatchInfo,
     isMatchesLoading: !isMatchesReady,
-    addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, syncStats, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, setLanguage: (l: string) => setState(s => ({ ...s, language: l }))
-  }), [state, isDataReady, allMatches, nextMatchInfo, isMatchesReady, syncStats, getRefs, checkConstructions]);
+    addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, syncStats, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, setLanguage
+  }), [state, isDataReady, allMatches, nextMatchInfo, isMatchesReady, syncStats, getRefs, checkConstructions, setLanguage]);
 
   return <GameStateContext.Provider value={value as any}>{children}</GameStateContext.Provider>;
 }

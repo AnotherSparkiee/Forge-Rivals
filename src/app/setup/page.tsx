@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -79,15 +78,19 @@ export default function SetupPage() {
       const batch = writeBatch(db);
       const rootRef = doc(db, 'players_v10', user.uid);
       
-      // Инициализируем указатели в корневом профиле
+      // Update root profile pointers
       batch.update(rootRef, pointerData);
 
-      // Инициализируем основной документ команды в иерархии
-      // Используем setDoc чтобы гарантированно создать документ, если его не было
-      const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', '9', 'groups', '1', 'teams', user.uid);
+      // Construct identical 8-segment path used in store.tsx
+      const seasonId = `season_${seasonNumber || 1}`;
+      const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_1`;
+      
+      // leagues_v2 -> {leagueId} -> divisions -> 9 -> groups -> {prefixedGroupId} -> teams -> {userId}
+      const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', '9', 'groups', prefixedGroupId, 'teams', user.uid);
+      
       batch.set(teamRef, teamData, { merge: true });
 
-      // Инициализируем героев
+      // Initialize starting heroes as subcollection
       uniqueSquad.forEach(hero => {
         const heroRef = doc(collection(teamRef, 'heroes'), hero.id);
         batch.set(heroRef, JSON.parse(JSON.stringify(hero)), { merge: true });
