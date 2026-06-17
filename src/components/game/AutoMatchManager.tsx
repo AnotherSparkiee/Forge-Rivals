@@ -22,7 +22,6 @@ export function AutoMatchManager() {
   const db = useFirestore();
   const processingRef = useRef(false);
 
-  // Стабильный запрос игроков группы
   const playersInGroupQuery = useMemoFirebase(() => {
     if (isUserLoading || !user?.uid || !selectedLeagueId) return null;
     return query(
@@ -55,7 +54,6 @@ export function AutoMatchManager() {
         const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
         const teamsHash = currentTeams.map(t => t.id).join('|');
 
-        // Инициализация сетки если нужно
         const needsUpgrade = !groupSnap.exists() || 
                             (groupSnap.data()?.calendarVersion || 0) < 25 ||
                             groupSnap.data()?.teamsHash !== teamsHash;
@@ -112,21 +110,20 @@ export function AutoMatchManager() {
           await batch.commit();
         }
 
-        // Фоновый расчет просроченных матчей
         const overdue = allSeasonMatches.filter(m => isMatchOverdue(m.startTime) && !checkIsMatchFinished(m));
         if (overdue.length > 0) {
           await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
         }
 
       } catch (e: any) {
-        // Ошибки логируются только в консоль для дебага, не мешая пользователю
-        console.debug("[V26 Sync Pulse]:", e.message);
+        // Silent debug log
+        console.debug("[Sync Pulse]:", e.message);
       } finally {
         processingRef.current = false;
       }
     };
 
-    const interval = setInterval(heartbeat, 15000); 
+    const interval = setInterval(heartbeat, 30000); 
     heartbeat();
     return () => clearInterval(interval);
   }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches, isUserLoading, user?.uid]);

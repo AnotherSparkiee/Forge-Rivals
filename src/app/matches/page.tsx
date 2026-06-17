@@ -6,7 +6,7 @@ import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, UserSearch, CalendarClock, 
   History, Calendar, CheckSquare, ChevronRight,
-  Clock, Swords, Loader2, ShieldAlert, User, RefreshCw
+  Clock, Swords, Loader2, ShieldAlert, User
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,6 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebas
 import { getMoscowTime, getSeasonDateLabel, getGlobalSeasonInfo } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { collection, query, where, limit } from 'firebase/firestore';
-import { forceResolveGroupMatches } from '@/app/actions/mmo-engine';
 import { useToast } from '@/hooks/use-toast';
 
 type MatchTab = 
@@ -42,7 +41,6 @@ export default function MatchesPage() {
   
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
   const [now, setNow] = useState(getMoscowTime());
-  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -101,37 +99,6 @@ export default function MatchesPage() {
       .sort((a, b) => a.day - b.day);
   }, [allSeasonMatches, isDataReady, activeSeasonNumber]);
 
-  const hasStuckMatches = useMemo(() => {
-    if (!isDataReady) return false;
-    return allSeasonMatches.some(m => {
-      const startTime = m.startTime ? new Date(m.startTime).getTime() : 0;
-      const isFinished = m.homeScore !== undefined || m.scoreA !== undefined || m.status === 'finished';
-      return !isFinished && now.getTime() > (startTime + 5000);
-    });
-  }, [allSeasonMatches, isDataReady, now]);
-
-  const handleForceSync = async () => {
-    if (!selectedLeagueId) return;
-    setIsSyncing(true);
-    try {
-      const { activeSeasonNumber } = getGlobalSeasonInfo();
-      const seasonId = `season_${activeSeasonNumber}`;
-      const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
-
-      const res = await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
-      if (res.success) {
-        toast({ 
-          title: language === 'ru' ? "Синхронизация завершена" : "Sync Complete", 
-          description: language === 'ru' ? `Обработано матчей: ${res.count}` : `Matches processed: ${res.count}` 
-        });
-      }
-    } catch (e) {
-      toast({ variant: "destructive", title: "Sync Failed" });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   const getCountdown = (startTimeIso: string) => {
     const target = new Date(startTimeIso).getTime();
     const diff = target - now.getTime();
@@ -176,17 +143,6 @@ export default function MatchesPage() {
             <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
           </div>
         </header>
-
-        {hasStuckMatches && (
-          <Button 
-            className="w-full h-14 hero-gradient mb-6 font-black uppercase text-[10px] tracking-widest shadow-xl"
-            onClick={handleForceSync}
-            disabled={isSyncing}
-          >
-            {isSyncing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-            {language === 'ru' ? 'СИНХРОНИЗИРОВАТЬ РЕЗУЛЬТАТЫ' : 'SYNC MATCH RESULTS'}
-          </Button>
-        )}
 
         <div className="space-y-2">
           {(Object.entries(t.tabs) as [MatchTab, any][]).map(([id, data]) => (

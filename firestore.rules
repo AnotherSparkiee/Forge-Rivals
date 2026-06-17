@@ -15,13 +15,12 @@ service cloud.firestore {
 
     // Root profile (Pointers & Callsigns)
     match /players_v10/{userId} {
-      allow read: if isSignedIn();
-      allow update: if isSignedIn();
+      allow read: if true; // Разрешаем публичное чтение для работы серверных скриптов
+      allow update: if isSignedIn() && request.auth.uid == userId;
       allow create: if isOwner(userId);
     }
 
     // Pyramidal League Structure (V25+)
-    // Открываем полный доступ для движка игры (необходимо для Server Actions)
     match /leagues_v2/{document=**} {
       allow read, write: if true;
     }
@@ -43,13 +42,15 @@ service cloud.firestore {
 
     // Market & Auctions
     match /market_v7/{document=**} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
 
     // Notifications
     match /notifications_v7/{notifId} {
-      allow read, create, update: if isSignedIn();
-      allow delete: if isOwner(resource.data.userId);
+      allow read: if isSignedIn();
+      allow create: if true;
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
     }
 
     // Social & Messaging
