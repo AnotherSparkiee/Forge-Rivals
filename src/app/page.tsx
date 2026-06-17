@@ -53,12 +53,12 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // MASTER SYNC EFFECT (V23 Overdrive Reality)
+  // MASTER SYNC EFFECT (V24 Standing Overdrive)
   useEffect(() => {
     if (!isDataReady || !selectedLeagueId || !nextMatch) return;
 
     const timer = setInterval(() => {
-      // СРЫВ WAITING: Если счет есть — никакой загрузки
+      // СРЫВ WAITING: Если в Firestore есть счет — убираем статус ожидания мгновенно
       const isActuallyFinished = checkIsMatchFinished(nextMatch.match);
       if (isActuallyFinished) {
         setIsLive(false);
@@ -72,10 +72,9 @@ export default function Home() {
       if (mskNow.getTime() >= matchStartTime) {
         setCountdown('00:00:00');
         setIsLive(true); 
-        setIsProcessing(true); // Состояние "СИНХРОНИЗАЦИЯ"
+        setIsProcessing(true); // Состояние "ОЖИДАНИЕ РЕЗУЛЬТАТА"
 
-        // ЭКСТРЕННЫЙ ВЫЗОВ (v23)
-        // Если матч должен идти, но счета нет — пинаем бэкенд прямо отсюда
+        // Прямой вызов резолвера при заходе в игру
         const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
         const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
         forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
@@ -243,7 +242,7 @@ export default function Home() {
                   {isMatchReallyDone 
                     ? (language === 'ru' ? 'ОПЕРАЦИЯ ЗАВЕРШЕНА' : 'OPERATION CONCLUDED')
                     : isProcessing 
-                    ? (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...') 
+                    ? (language === 'ru' ? 'ОЖИДАНИЕ РЕЗУЛЬТАТА...' : 'AWAITING RESULT...') 
                     : isLive 
                     ? (language === 'ru' ? 'МАТЧ ИДЕТ' : 'MATCH IN PROGRESS') 
                     : (seasonInfo.isTransitionPhase ? "Preparation Countdown" : "Match Start Protocol")}

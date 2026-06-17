@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview MMO-Двигатель v23 (Standings Overdrive).
+ * @fileOverview MMO-Двигатель v24 (Absolute Standing Resolution).
  * Гарантирует зачисление очков в таблицу при наступлении виртуального времени матча.
  */
 
@@ -15,14 +15,14 @@ import { isMatchOverdue, getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getMatchResult } from '@/app/lib/leagues-data';
 
 /**
- * ГЛАВНЫЙ СЕРВЕРНЫЙ РАСЧЕТ ГРУППЫ (Standings Overdrive):
+ * ГЛАВНЫЙ СЕРВЕРНЫЙ РАСЧЕТ ГРУППЫ (v24):
  * Обрабатывает одну группу. Начисляет очки.
  */
 export async function forceResolveGroupMatches(leagueId: string, divisionId: number, groupId: string) {
   const { firestore: db } = initializeFirebase();
   const seasonInfo = getGlobalSeasonInfo();
   
-  console.log(`[V23 RESOLVER] Processing Group: ${groupId}`);
+  console.log(`[V24 RESOLVER] Targeted Resolution for: ${groupId}`);
 
   const q = query(
     collection(db, 'matches_v1'),
@@ -31,7 +31,6 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
 
   const snap = await getDocs(q);
   if (snap.empty) {
-    console.warn(`[V23] No matches found for groupId: ${groupId}`);
     return { success: true, count: 0 };
   }
 
@@ -42,17 +41,15 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
     
     // ПРОВЕРКА ВИРТУАЛЬНОГО ВРЕМЕНИ
     const overdue = isMatchOverdue(m.startTime);
-    const hasAnyScore = m.homeScore !== undefined || m.scoreA !== undefined || m.status === 'finished' || m.isFinished === true;
+    const hasAnyScore = m.homeScore !== undefined || m.scoreA !== undefined || m.status === 'finished';
 
     if (overdue && !hasAnyScore) {
-      console.log(`[V23] Resolving match: ${docSnap.id}`);
-      
       const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, seasonInfo.activeSeasonNumber);
       const winnerId = sA > sB ? m.homeId : (sB > sA ? m.awayId : null);
 
       try {
         await runTransaction(db, async (transaction) => {
-          // ОБНОВЛЯЕМ МАТЧ (Унифицируем поля счета)
+          // ОБНОВЛЯЕМ МАТЧ (Дублируем поля для совместимости всех версий таблиц)
           transaction.update(docSnap.ref, {
             homeScore: sA,
             awayScore: sB,
@@ -65,12 +62,12 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
             isFinished: true, 
             isCompleted: true,
             finishedAt: serverTimestamp(),
-            resolvedVersion: 23
+            resolvedVersion: 24
           });
         });
         resolvedCount++;
       } catch (e) {
-        console.error(`[V23 ERROR] Match ${docSnap.id} failed:`, e);
+        console.error(`[V24 ERROR] Match ${docSnap.id} failed:`, e);
       }
     }
   }

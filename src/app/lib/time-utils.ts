@@ -1,5 +1,6 @@
 /**
- * @fileOverview Ядро времени v23. Внедрена жесткая виртуальная эпоха 2026 года.
+ * @fileOverview Ядро времени v24. Внедрена жесткая виртуальная эпоха 2026 года.
+ * Обеспечивает синхронизацию реального 2025-го с игровым 2026-м.
  */
 
 /**
@@ -13,11 +14,12 @@ export function getMoscowTime(): Date {
   const mskOffset = (now.getTimezoneOffset() + 180) * 60000;
   const currentMsk = new Date(now.getTime() + mskOffset);
 
-  // Целевая дата: 17 июня 2026
+  // Целевая дата старта: 17 июня 2026 00:00:00
   const virtualEpoch = new Date('2026-06-17T00:00:00+03:00');
-  // Реальная дата написания этого кода (точка отсчета)
+  // Точка отсчета разработки (реальное время)
   const realReference = new Date('2025-02-21T00:00:00+03:00');
   
+  // Смещение ~481 день
   const offsetMs = virtualEpoch.getTime() - realReference.getTime();
 
   return new Date(currentMsk.getTime() + offsetMs);
@@ -79,8 +81,8 @@ export function getGlobalSeasonInfo() {
 export function isMatchOverdue(startTimeIso: string): boolean {
   const mskNow = getMoscowTime();
   const start = new Date(startTimeIso);
-  // Если виртуальное время Москвы больше времени старта + 5 секунд
-  return mskNow.getTime() > (start.getTime() + 5000);
+  // Если виртуальное время Москвы больше времени старта (с запасом 2 секунды)
+  return mskNow.getTime() > (start.getTime() + 2000);
 }
 
 export function calculateLiveAge(baseAge: number, hiredAtIso: string) {
