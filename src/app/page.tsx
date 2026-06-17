@@ -10,7 +10,8 @@ import {
   MessageSquare, UserCog, Heart, Store, Shield, 
   ArrowRight, Loader2, Check, UserPlus,
   ShoppingCart, GraduationCap, CalendarDays, Medal,
-  ArrowRightLeft, Timer, RefreshCw, Home as HomeIcon, MapPin, Calendar, User as UserIcon
+  ArrowRightLeft, Timer, RefreshCw, Home as HomeIcon, MapPin, Calendar, User as UserIcon,
+  Clock, Construction
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -51,34 +52,40 @@ export default function Home() {
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
 
-  // Скрытая синхронизация времени и статусов
   useEffect(() => {
-    if (!isDataReady || !selectedLeagueId || !nextMatch) return;
-
     const timer = setInterval(() => {
-      const isActuallyFinished = checkIsMatchFinished(nextMatch.match);
-      if (isActuallyFinished) return;
-
-      const mskNow = getMoscowTime();
-      const matchStartTime = new Date(nextMatch.match.startTime).getTime();
+      const info = getGlobalSeasonInfo();
       
-      if (mskNow.getTime() >= matchStartTime) {
-        setCountdown('00:00:00');
-        // Тихий пинг сервера
-        const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
-        const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
-        forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
-      } else {
-        const diff = matchStartTime - mskNow.getTime();
-        const hh = Math.floor(diff / 3600000);
-        const mm = Math.floor((diff % 3600000) / 60000);
-        const ss = Math.floor((diff % 60000) / 1000);
-        setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
+      if (info.isOffseason) {
+        const diff = info.startsInMs || 0;
+        const dd = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hh = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const mm = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const ss = Math.floor((diff % (1000 * 60)) / 1000);
+        setCountdown(`${dd}д ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
+      } else if (nextMatch) {
+        const mskNow = getMoscowTime();
+        const matchStartTime = new Date(nextMatch.match.startTime).getTime();
+        
+        if (mskNow.getTime() >= matchStartTime) {
+          setCountdown('00:00:00');
+          if (!checkIsMatchFinished(nextMatch.match)) {
+            const seasonId = `season_${info.activeSeasonNumber}`;
+            const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
+            forceResolveGroupMatches(selectedLeagueId!, Number(leagueLevel), prefixedGroupId);
+          }
+        } else {
+          const diff = matchStartTime - mskNow.getTime();
+          const hh = Math.floor(diff / 3600000);
+          const mm = Math.floor((diff % 3600000) / 60000);
+          const ss = Math.floor((diff % 60000) / 1000);
+          setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
+        }
       }
-    }, 2000);
+    }, 1000);
 
     return () => clearInterval(timer);
-  }, [isDataReady, selectedLeagueId, nextMatch, seasonInfo, leagueLevel, groupId]);
+  }, [nextMatch, selectedLeagueId, leagueLevel, groupId]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,8 +163,8 @@ export default function Home() {
   if (!isLoaded) return <LoadingScreen />;
 
   const tHub = {
-    en: { nextMatch: seasonInfo.isTransitionPhase ? "Season Transition" : "Next Engagement", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", sync: "CALENDAR SYNC", noMatches: "NO UPCOMING MATCHES" },
-    ru: { nextMatch: seasonInfo.isTransitionPhase ? "Смена сезона" : "Следующий матч", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ", noMatches: "НЕТ БУДУЩИХ МАТЧЕЙ" }
+    en: { nextMatch: "Next Engagement", offseason: "Offseason Protocol", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", sync: "CALENDAR SYNC", noMatches: "NO UPCOMING MATCHES", startsIn: "SEASON 1 STARTS IN:" },
+    ru: { nextMatch: "Следующий матч", offseason: "Межсезонье", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ", noMatches: "НЕТ БУДУЩИХ МАТЧЕЙ", startsIn: "СТАРТ 1-ГО СЕЗОНА ЧЕРЕЗ:" }
   }[language as 'en' | 'ru'];
 
   const menu = [ 
@@ -174,105 +181,102 @@ export default function Home() {
     { label: language === 'ru' ? 'ПРОФИЛЬ' : 'Profile', href: '/profile', icon: UserCog, desc: language === 'ru' ? 'Настройки' : 'Operational dossier' } 
   ];
 
-  const isMatchReallyDone = checkIsMatchFinished(nextMatch?.match);
-  const mskNow = getMoscowTime();
-  const isMatchTime = nextMatch && mskNow.getTime() >= new Date(nextMatch.match.startTime).getTime();
-
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6">
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
-          {seasonInfo.isTransitionPhase ? <RefreshCw className="w-6 h-6 text-accent animate-spin" /> : <UserSearch className="w-6 h-6 text-accent" />} 
-          {tHub.nextMatch}
+          {seasonInfo.isOffseason ? <Construction className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
+          {seasonInfo.isOffseason ? tHub.offseason : tHub.nextMatch}
         </h1>
       </header>
 
       <section className="mb-8">
         <Card className={cn(
           "glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden",
-          seasonInfo.isTransitionPhase && "border-accent/30 from-accent/10"
+          seasonInfo.isOffseason && "border-accent/30 from-accent/10"
         )}>
           <CardContent className="p-6">
             <div className="text-center space-y-4">
-              <div className="space-y-4">
-                <div className="flex flex-col items-center gap-1">
-                  <Badge variant="outline" className="bg-primary/10 border-primary/20 text-primary text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5">
-                    {nextMatch ? (language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE') : tHub.sync}
-                  </Badge>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Calendar className="w-3 h-3" />
-                    <span className="text-[10px] font-mono font-bold">{nextMatch?.dateLabel || '--.--'} {league.startTime || '--:--'}</span>
+              {seasonInfo.isOffseason ? (
+                <div className="py-4 space-y-6">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center border border-accent/30">
+                      <Clock className="w-8 h-8 text-accent animate-pulse" />
+                    </div>
+                    <Badge variant="outline" className="bg-accent/10 border-accent/20 text-accent text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5">
+                      STANDBY MODE
+                    </Badge>
                   </div>
+                  <div className="bg-background/60 py-5 rounded-2xl border border-white/5 shadow-inner">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">{tHub.startsIn}</p>
+                    <p className="text-2xl font-headline font-bold tabular-nums tracking-tighter text-white animate-pulse">
+                      {countdown || '--:--:--'}
+                    </p>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic px-6 leading-relaxed">
+                    "Preparing tactical grids and operational maps for Season 1. Regroup your squad and upgrade infrastructure."
+                  </p>
                 </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex flex-col items-center gap-1">
+                    <Badge variant="outline" className="bg-primary/10 border-primary/20 text-primary text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5">
+                      {nextMatch ? (language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE') : tHub.sync}
+                    </Badge>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Calendar className="w-3 h-3" />
+                      <span className="text-[10px] font-mono font-bold">{nextMatch?.dateLabel || '--.--.--'} {league.startTime || '--:--'}</span>
+                    </div>
+                  </div>
 
-                {nextMatch ? (
-                  <div className="flex items-center justify-between gap-4 py-2">
-                    <div className={cn("flex-1 text-right", nextMatch.isHome && "text-primary")}>
-                      <p className="text-[7px] font-black uppercase opacity-40 mb-1">{nextMatch.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
-                      <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatch.match.homeName}</p>
+                  {nextMatch ? (
+                    <div className="flex items-center justify-between gap-4 py-2">
+                      <div className={cn("flex-1 text-right", nextMatch.isHome && "text-primary")}>
+                        <p className="text-[7px] font-black uppercase opacity-40 mb-1">{nextMatch.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
+                        <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatch.match.homeName}</p>
+                      </div>
+                      <div className="px-3 py-1 rounded-lg bg-background/60 border border-white/5 flex flex-col items-center">
+                        <Swords className="w-4 h-4 text-accent" />
+                        <span className="text-[8px] font-black text-accent mt-1">VS</span>
+                      </div>
+                      <div className={cn("flex-1 text-left", !nextMatch.isHome && "text-primary")}>
+                        <p className="text-[7px] font-black uppercase opacity-40 mb-1">{!nextMatch.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
+                        <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatch.match.awayName}</p>
+                      </div>
                     </div>
-                    <div className="px-3 py-1 rounded-lg bg-background/60 border border-white/5 flex flex-col items-center">
-                      <Swords className="w-4 h-4 text-accent" />
-                      <span className="text-[8px] font-black text-accent mt-1">VS</span>
+                  ) : (
+                    <div className="py-6 opacity-30 flex flex-col items-center">
+                       <p className="text-[10px] font-bold uppercase tracking-widest">{tHub.noMatches}</p>
                     </div>
-                    <div className={cn("flex-1 text-left", !nextMatch.isHome && "text-primary")}>
-                      <p className="text-[7px] font-black uppercase opacity-40 mb-1">{!nextMatch.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
-                      <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatch.match.awayName}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="py-6 opacity-30 flex flex-col items-center">
-                     <p className="text-[10px] font-bold uppercase tracking-widest">{tHub.noMatches}</p>
-                  </div>
-                )}
-              </div>
-              
-              <div className="bg-background/60 py-3 rounded-2xl border border-white/5 shadow-inner">
-                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                  {isMatchReallyDone 
-                    ? (language === 'ru' ? 'ОПЕРАЦИЯ ЗАВЕРШЕНА' : 'OPERATION CONCLUDED')
-                    : isMatchTime 
-                    ? (language === 'ru' ? 'ОЖИДАНИЕ РЕЗУЛЬТАТА...' : 'AWAITING RESULT...') 
-                    : (seasonInfo.isTransitionPhase ? "Preparation Countdown" : "Match Start Protocol")}
-                </p>
-                <div className="flex flex-col items-center justify-center gap-2">
-                  <div className="flex items-center justify-center gap-2">
-                    {isMatchReallyDone ? (
-                      <Trophy className="w-5 h-5 text-yellow-500" />
-                    ) : isMatchTime ? (
-                      <RefreshCw className="w-4 h-4 text-primary animate-spin" />
-                    ) : (
-                      <Timer className="w-4 h-4 text-accent" />
-                    )}
-                    <p className={cn("text-xl font-headline font-bold tabular-nums tracking-tighter", isMatchTime ? "text-primary" : "text-white")}>
-                      {isMatchReallyDone 
-                        ? `${nextMatch?.match.homeScore ?? nextMatch?.match.scoreA ?? 0}:${nextMatch?.match.awayScore ?? nextMatch?.match.scoreB ?? 0}`
-                        : isMatchTime ? 'WAITING' 
+                  )}
+
+                  <div className="bg-background/60 py-3 rounded-2xl border border-white/5 shadow-inner">
+                    <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">
+                      {checkIsMatchFinished(nextMatch?.match) 
+                        ? (language === 'ru' ? 'ОПЕРАЦИЯ ЗАВЕРШЕНА' : 'OPERATION CONCLUDED')
+                        : 'TIME TO ENGAGEMENT'}
+                    </p>
+                    <p className="text-xl font-headline font-bold tabular-nums tracking-tighter text-white">
+                      {checkIsMatchFinished(nextMatch?.match) 
+                        ? `${nextMatch?.match.homeScore ?? 0}:${nextMatch?.match.awayScore ?? 0}`
                         : (countdown || '00:00:00')}
                     </p>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </CardContent>
         </Card>
       </section>
 
-      {isMatchReallyDone ? (
-        <Link href={`/match?id=${nextMatch.match.id}`} className="block relative mb-8">
+      {!seasonInfo.isOffseason && (
+        <Link href={checkIsMatchFinished(nextMatch?.match) ? `/match?id=${nextMatch.match.id}` : "/matches"} className="block relative mb-8">
           <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1 transition-all active:scale-95">
             <div className="flex items-center gap-2">
-              <Trophy className="w-6 h-6" />
-              <span className="text-xl font-headline font-bold italic uppercase">{language === 'ru' ? 'РЕЗУЛЬТАТ МАТЧА' : 'MATCH OUTCOME'}</span>
-            </div>
-          </Button>
-        </Link>
-      ) : (
-        <Link href="/matches" className="block relative mb-8">
-          <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1 transition-all active:scale-95">
-            <div className="flex items-center gap-2">
-              <Swords className="w-6 h-6" />
-              <span className="text-xl font-headline font-bold italic uppercase">{tHub.battleBtn}</span>
+              {checkIsMatchFinished(nextMatch?.match) ? <Trophy className="w-6 h-6" /> : <Swords className="w-6 h-6" />}
+              <span className="text-xl font-headline font-bold italic uppercase">
+                {checkIsMatchFinished(nextMatch?.match) ? (language === 'ru' ? 'РЕЗУЛЬТАТ МАТЧА' : 'MATCH OUTCOME') : tHub.battleBtn}
+              </span>
             </div>
           </Button>
         </Link>
