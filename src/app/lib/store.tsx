@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview Global Game State Store & Sync Core.
- * Centralizes all club data and manages real-time Firestore synchronization with Memory-Locking.
+ * Centralizes all club data and manages real-time Firestore synchronization.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -15,29 +15,28 @@ export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support
 
 /**
  * УНИВЕРСАЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА (Total Bypass Logic)
- * Наличие любого счета имеет высший приоритет над временем и статусами.
+ * Наличие счета в базе — абсолютный приоритет над любыми таймерами.
  */
 export const checkIsMatchFinished = (match: any) => {
   if (!match) return false;
   
-  // 1. АБСОЛЮТНЫЙ ПРИОРИТЕТ: Наличие физических данных счета
-  const hasResultData = (
+  // 1. АБСОЛЮТНЫЙ ПРИОРИТЕТ: Физическое наличие счета в Firestore
+  const hasCalculatedScore = (
     match.homeScore !== undefined || 
     match.awayScore !== undefined ||
     match.scoreA !== undefined || 
     match.scoreB !== undefined ||
-    !!match.winnerId ||
-    !!match.simulation?.winner
+    !!match.winnerId
   );
   
-  if (hasResultData) return true;
+  if (hasCalculatedScore) return true;
 
-  // 2. ВТОРИЧНО: Любой из статусных флагов
+  // 2. ВТОРИЧНО: Текстовые статусы готовности
   const finishedStatuses = ['finished', 'completed', 'resolved', 'done'];
+  const statusStr = String(match.status || match.matchStatus || match.state || '').toLowerCase();
+  
   return (
-    finishedStatuses.includes(String(match.status).toLowerCase()) || 
-    finishedStatuses.includes(String(match.matchStatus).toLowerCase()) || 
-    finishedStatuses.includes(String(match.state).toLowerCase()) ||
+    finishedStatuses.includes(statusStr) || 
     match.isFinished === true || 
     match.isCompleted === true
   );
@@ -198,7 +197,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [user, isUserLoading, db]);
 
-  // 2. TEAM DATA LISTENER
+  // 2. TEAM DATA LISTENER (Correct 8-segment paths)
   useEffect(() => {
     const s = state;
     if (!s.id || !s.selectedLeagueId) return;
@@ -207,6 +206,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
     const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
     
+    // leagues_v2 -> {leagueId} -> divisions -> {divId} -> groups -> {prefixedGroupId} -> teams -> {userId}
     const teamRef = doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', s.id);
 
     const unsubTeam = onSnapshot(teamRef, (snap) => {
@@ -286,7 +286,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!isMatchesReady || !user) return null;
     const mskNow = getMoscowTime().getTime();
 
-    // 1. Ищем текущий активный бой (Приоритет: время начала +- 10 мин или статус "live")
+    // 1. Ищем текущий бой (Приоритет: время начала подошло, но он еще не "закрыт")
     const active = allMatches.find(m => 
       (m.homeId === user.uid || m.awayId === user.uid) && 
       !checkIsMatchFinished(m) && 
@@ -294,17 +294,29 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     );
 
     if (active) {
-      return { match: active, opponentName: active.homeId === user.uid ? active.awayName : active.homeName, day: active.day, dateLabel: getSeasonDateLabel(active.day), isHome: active.homeId === user.uid };
+      return { 
+        match: active, 
+        opponentName: active.homeId === user.uid ? active.awayName : active.homeName, 
+        day: active.day, 
+        dateLabel: getSeasonDateLabel(active.day), 
+        isHome: active.homeId === user.uid 
+      };
     }
 
-    // 2. Ищем недавно завершенный (для отображения результата)
+    // 2. Ищем недавно завершенный (для показа результата в Обзоре)
     const recent = allMatches
       .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && checkIsMatchFinished(m))
       .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
       .find(m => mskNow - new Date(m.startTime).getTime() < 8 * 60 * 60 * 1000);
 
     if (recent) {
-      return { match: recent, opponentName: recent.homeId === user.uid ? recent.awayName : recent.homeName, day: recent.day, dateLabel: getSeasonDateLabel(recent.day), isHome: recent.homeId === user.uid };
+      return { 
+        match: recent, 
+        opponentName: recent.homeId === user.uid ? recent.awayName : recent.homeName, 
+        day: recent.day, 
+        dateLabel: getSeasonDateLabel(recent.day), 
+        isHome: recent.homeId === user.uid 
+      };
     }
 
     // 3. Ищем будущий
@@ -313,14 +325,20 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       .sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
     
     if (future) {
-      return { match: future, opponentName: future.homeId === user.uid ? future.awayName : future.homeName, day: future.day, dateLabel: getSeasonDateLabel(future.day), isHome: future.homeId === user.uid };
+      return { 
+        match: future, 
+        opponentName: future.homeId === user.uid ? future.awayName : future.homeName, 
+        day: future.day, 
+        dateLabel: getSeasonDateLabel(future.day), 
+        isHome: future.homeId === user.uid 
+      };
     }
 
     return null;
   }, [allMatches, isMatchesReady, user]);
 
   const syncStats = useCallback((groupPlayers: any[]) => {
-    // Satisfy requirement
+    // Local memory sync for performance
   }, []);
 
   const getRefs = useCallback(() => {
@@ -432,7 +450,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({
     ...state, isDataReady: isMatchesReady && state.isLoaded, allSeasonMatches: allMatches, nextMatch: nextMatchInfo, isMatchesLoading: !isMatchesReady,
-    addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, syncStats, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, setLanguage
+    addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, syncStats, setLanguage,
+    setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions
   }), [state, isMatchesReady, state.isLoaded, allMatches, nextMatchInfo, syncStats, setLanguage, addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions]);
 
   return <GameStateContext.Provider value={value as any}>{children}</GameStateContext.Provider>;

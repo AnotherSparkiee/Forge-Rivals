@@ -1,12 +1,12 @@
 'use server';
 
 /**
- * @fileOverview Глобальный MMO-Двигатель v10.
- * Ультимативное решение проблемы "WAITING": транзакционный расчет и мгновенный апдейт таблиц.
+ * @fileOverview Глобальный MMO-Двигатель v11 (Server-First).
+ * Ультимативное решение: расчет таблицы В ПЕРВУЮ ОЧЕРЕДЬ.
  */
 
 import { 
-  collection, doc, getDocs, writeBatch, 
+  collection, doc, getDocs, 
   query, where, serverTimestamp, 
   runTransaction, Firestore, Timestamp
 } from 'firebase/firestore';
@@ -15,8 +15,8 @@ import { getMoscowTime, getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getMatchResult } from '@/app/lib/leagues-data';
 
 /**
- * ЭКСТРЕННОЕ ПРОТАЛКИВАНИЕ (Anti-WAITING): 
- * Находит матчи, время которых прошло, симулирует результат и обновляет таблицы через транзакции.
+ * ЭКСТРЕННОЕ ПРОТАЛКИВАНИЕ (Server Authority): 
+ * Находит матчи, время которых прошло, и проводит транзакционный расчет.
  */
 export async function forceResolveLeagueMatches() {
   const { firestore: db } = initializeFirebase();
@@ -24,9 +24,9 @@ export async function forceResolveLeagueMatches() {
   const seasonId = `season_${seasonNumber}`;
   const mskNow = getMoscowTime();
 
-  console.log(`[ENGINE v10] Starting Autonomous Resolution for Season ${seasonNumber}...`);
+  console.log(`[SERVER ENGINE v11] Autonomous Resolution Cycle for Season ${seasonNumber}...`);
 
-  // Ищем все матчи, которые не в статусе finished
+  // Ищем матчи, которые не в статусе finished
   const q = query(
     collection(db, 'matches_v1'),
     where('seasonId', '==', seasonId),
@@ -42,43 +42,42 @@ export async function forceResolveLeagueMatches() {
     const m = docSnap.data();
     const startTime = new Date(m.startTime).getTime();
     
-    // Если время матча прошло (+5 секунд буфера для надежности)
+    // Если время матча прошло (+5 секунд буфера)
     if (mskNow.getTime() > startTime + 5000) {
       const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, seasonNumber);
       
       // Выполняем транзакционный пересчет очков и закрытие матча
-      await syncMatchResultsWithTransaction(db, m.homeId, m.awayId, sA, sB, m, seasonNumber, docSnap.id);
+      await syncMatchStandingsWithTransaction(db, m, sA, sB, seasonNumber, docSnap.id);
       resolvedCount++;
     }
   }
 
-  console.log(`[ENGINE v10] Cycle complete. Resolved: ${resolvedCount}`);
+  console.log(`[SERVER ENGINE v11] Cycle complete. Resolved: ${resolvedCount}`);
   return { success: true, count: resolvedCount };
 }
 
 /**
- * ТРАНЗАКЦИОННЫЙ ПЕРЕСЧЕТ: 
- * Гарантирует, что очки будут начислены корректно в профиль игрока и в таблицу лиги одновременно.
+ * ТРАНЗАКЦИОННЫЙ ПЕРЕСЧЕТ ТАБЛИЦЫ (STANDINGS FIRST): 
+ * Гарантирует, что очки начисляются ДО или одновременно с закрытием матча.
  */
-async function syncMatchResultsWithTransaction(
+async function syncMatchStandingsWithTransaction(
   db: Firestore, 
-  homeId: string, 
-  awayId: string, 
+  matchData: any,
   sA: number, 
   sB: number,
-  matchData: any,
   seasonNumber: number,
   matchDocId: string
 ) {
-  // Пути к профилям (players_v10)
-  const homeProfileRef = doc(db, 'players_v10', homeId);
-  const awayProfileRef = doc(db, 'players_v10', awayId);
+  const { homeId, awayId, leagueId, divisionId, groupId } = matchData;
 
-  // Пути к командам внутри структуры лиги (leagues_v2)
-  const homeTeamRef = doc(db, 'leagues_v2', matchData.leagueId, 'divisions', String(matchData.divisionId), 'groups', matchData.groupId, 'teams', homeId);
-  const awayTeamRef = doc(db, 'leagues_v2', matchData.leagueId, 'divisions', String(matchData.divisionId), 'groups', matchData.groupId, 'teams', awayId);
+  // Пути к мастер-профилям
+  const homeRootRef = doc(db, 'players_v10', homeId);
+  const awayRootRef = doc(db, 'players_v10', awayId);
+
+  // Пути к локальным командам в лиге
+  const homeTeamRef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', homeId);
+  const awayTeamRef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', awayId);
   
-  // Путь к самому матчу
   const matchRef = doc(db, 'matches_v1', matchDocId);
 
   const winnerId = sA > sB ? homeId : (sB > sA ? awayId : null);
@@ -86,43 +85,42 @@ async function syncMatchResultsWithTransaction(
 
   try {
     await runTransaction(db, async (transaction) => {
-      const hProf = await transaction.get(homeProfileRef);
-      const aProf = await transaction.get(awayProfileRef);
-      
+      const hRoot = await transaction.get(homeRootRef);
+      const aRoot = await transaction.get(awayRootRef);
       const hTeam = await transaction.get(homeTeamRef);
       const aTeam = await transaction.get(awayTeamRef);
 
-      // 1. Обработка Хозяев
-      if (hProf.exists()) {
-        const d = hProf.data();
+      // 1. Обработка Хозяев (Wins/Draws/Losses)
+      if (hRoot.exists()) {
+        const d = hRoot.data();
         let w = d.wins || 0, dr = d.draws || 0, l = d.losses || 0, p = d.points || 0;
         if (sA > sB) { w++; p += 3; } else if (sA < sB) { l++; } else { dr++; p += 1; }
-        const update = { wins: w, draws: dr, losses: l, points: p, statString: `${w}-${dr}-${l}`, lastStandingsSync: serverTimestamp() };
-        transaction.update(homeProfileRef, update);
+        const update = { wins: w, draws: dr, losses: l, points: p, statString: `${w}-${dr}-${l}`, lastProcessedMatch: matchDocId };
+        transaction.update(homeRootRef, update);
         if (hTeam.exists()) transaction.update(homeTeamRef, update);
       }
 
       // 2. Обработка Гостей
-      if (aProf.exists()) {
-        const d = aProf.data();
+      if (aRoot.exists()) {
+        const d = aRoot.data();
         let w = d.wins || 0, dr = d.draws || 0, l = d.losses || 0, p = d.points || 0;
         if (sB > sA) { w++; p += 3; } else if (sB < sA) { l++; } else { dr++; p += 1; }
-        const update = { wins: w, draws: dr, losses: l, points: p, statString: `${w}-${dr}-${l}`, lastStandingsSync: serverTimestamp() };
-        transaction.update(awayProfileRef, update);
+        const update = { wins: w, draws: dr, losses: l, points: p, statString: `${w}-${dr}-${l}`, lastProcessedMatch: matchDocId };
+        transaction.update(awayRootRef, update);
         if (aTeam.exists()) transaction.update(awayTeamRef, update);
       }
 
-      // 3. Финализация матча со всеми байпасс-флагами
+      // 3. ФИНАЛИЗАЦИЯ МАТЧА (Total Bypass Statuses)
       transaction.update(matchRef, {
         status: 'finished',
         matchStatus: 'finished',
         state: 'finished',
         isFinished: true,
         isCompleted: true,
-        scoreA: sA,
-        scoreB: sB,
         homeScore: sA,
         awayScore: sB,
+        scoreA: sA,
+        scoreB: sB,
         winnerId: winnerId,
         finishedAt: serverTimestamp(),
         simulation: {
@@ -132,13 +130,13 @@ async function syncMatchResultsWithTransaction(
             scoreA: sA > 0 ? 1 : 0, 
             scoreB: sB > 0 ? 1 : 0, 
             duration: "35:00", 
-            matchSummary: "Battle concluded by Autonomous Resolution Engine." 
+            matchSummary: "Transaction finalized by Server Authority." 
           }]
         }
       });
     });
-    console.log(`[SUCCESS] Match ${matchDocId} resolved and standings updated.`);
+    console.log(`[SUCCESS] Standings updated and match ${matchDocId} closed.`);
   } catch (e) {
-    console.error(`[Transaction Error] Match ${matchDocId}:`, e);
+    console.error(`[TRANSACTION FAILED] Match ${matchDocId}:`, e);
   }
 }

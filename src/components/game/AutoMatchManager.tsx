@@ -1,22 +1,23 @@
 /**
- * @fileOverview Автономный движок сезонов v11. 
- * Ультимативное решение: Тотальное пробитие WAITING через агрессивный скан коллекции matches_v1.
+ * @fileOverview Автономный движок сезонов v12. 
+ * Ультимативное решение: Тотальное пробитие WAITING через Server Authority.
  */
 
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useGameState, checkIsMatchFinished } from '@/app/lib/store';
+import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { 
-  getStableGroupTeams, generateSeasonCalendar, getMatchResult, 
+  getStableGroupTeams, generateSeasonCalendar, 
   LEAGUES 
 } from '@/app/lib/leagues-data';
 import { getMoscowTime, getGlobalSeasonInfo } from '@/app/lib/time-utils';
+import { forceResolveLeagueMatches } from '@/app/actions/mmo-engine';
 
 export function AutoMatchManager() {
-  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, recordMatch, matchHistory } = useGameState();
+  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId } = useGameState();
   const db = useFirestore();
   const processingRef = useRef(false);
 
@@ -57,7 +58,7 @@ export function AutoMatchManager() {
           const teamsHash = currentTeams.map(t => t.id).join('|');
 
           const needsUpgrade = !groupSnap.exists() || 
-                              (currentData?.calendarVersion || 0) < 10 ||
+                              (currentData?.calendarVersion || 0) < 12 ||
                               currentData?.teamsHash !== teamsHash;
 
           if (needsUpgrade) {
@@ -72,7 +73,7 @@ export function AutoMatchManager() {
               seasonNumber: activeSeason,
               teams: currentTeams,
               teamsHash,
-              calendarVersion: 10,
+              calendarVersion: 12,
               updatedAt: serverTimestamp()
             }, { merge: true });
 
@@ -102,69 +103,12 @@ export function AutoMatchManager() {
           }
         }
 
-        // 2. АГРЕССИВНОЕ ПРОБИТИЕ СТАТУСОВ (Anti-WAITING)
-        const mskNow = getMoscowTime();
-        
-        // Сканируем ВСЕ матчи пользователя в этом сезоне
-        const matchesQ = query(
-          collection(db, 'matches_v1'),
-          where('seasonId', '==', seasonId),
-          where('leagueId', '==', selectedLeagueId)
-        );
-        const matchesSnap = await getDocs(matchesQ);
-        
-        if (!matchesSnap.empty) {
-          const simBatch = writeBatch(db);
-          let changeCount = 0;
-
-          for (const docSnap of matchesSnap.docs) {
-            const m = docSnap.data();
-            const isHome = m.homeId === userId;
-            const isAway = m.awayId === userId;
-            
-            if (!isHome && !isAway) continue;
-
-            const isFinished = checkIsMatchFinished(m);
-            const startTime = new Date(m.startTime).getTime();
-            
-            // Если время прошло, а результата нет - ПРИНУДИТЕЛЬНО RESOLVE
-            if (!isFinished && mskNow.getTime() > startTime + 5000) {
-              const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, activeSeason);
-              const winnerName = sA > sB ? m.homeName : (sA === sB ? "Draw" : m.awayName);
-              const winnerId = sA > sB ? m.homeId : (sA === sB ? null : m.awayId);
-              
-              const totalBypassData = {
-                status: 'finished',
-                matchStatus: 'finished',
-                state: 'finished',
-                isFinished: true,
-                isCompleted: true,
-                scoreA: sA,
-                scoreB: sB,
-                homeScore: sA,
-                awayScore: sB,
-                winnerId: winnerId,
-                finishedAt: serverTimestamp(),
-                simulation: {
-                  winner: winnerName,
-                  seriesScore: `${sA}-${sB}`,
-                  games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 0 ? 1 : 0, duration: "35:00", matchSummary: "Aggressive sync concluded." }]
-                }
-              };
-
-              simBatch.update(docSnap.ref, totalBypassData);
-              changeCount++;
-
-              // Запись в локальную историю
-              recordMatch(winnerName, { scoreA: isHome ? sA : sB, scoreB: isHome ? sB : sA, ...totalBypassData.simulation }, 30000, isHome ? m.awayName : m.homeName, 'league', mskNow.toISOString(), m.id);
-            }
-          }
-
-          if (changeCount > 0) await simBatch.commit();
-        }
+        // 2. ВЫЗОВ СЕРВЕРНОГО РАСЧЕТА (Server-First Resolution)
+        // Каждые несколько циклов или по наступлению времени вызываем серверный скрипт
+        await forceResolveLeagueMatches();
 
       } catch (e: any) {
-        console.warn("[AutoMatch v11] Heartbeat fail:", e.message);
+        console.warn("[AutoMatch v12] Heartbeat fail:", e.message);
       } finally {
         processingRef.current = false;
       }
@@ -173,7 +117,7 @@ export function AutoMatchManager() {
     heartbeat();
     const interval = setInterval(heartbeat, 8000);
     return () => clearInterval(interval);
-  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, recordMatch]);
+  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db]);
 
   return null;
 }

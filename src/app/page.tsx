@@ -38,7 +38,7 @@ export default function Home() {
   const { toast } = useToast();
   const { 
     language, setLanguage, isLoaded, selectedLeagueId,
-    nextMatch, isDataReady, allSeasonMatches
+    nextMatch, isDataReady
   } = useGameState();
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -52,22 +52,22 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // MASTER SYNC EFFECT
+  // MASTER SYNC EFFECT (Smashes WAITING on result arrival)
   useEffect(() => {
     if (!isDataReady || !selectedLeagueId || !nextMatch) return;
 
     const timer = setInterval(() => {
-      // 1. АБСОЛЮТНЫЙ ПРИОРИТЕТ: Проверка наличия счета в реальном времени
+      // 1. АБСОЛЮТНЫЙ ПРИОРИТЕТ: Если бэкенд прописал счет, МГНОВЕННО срываем WAITING
       const isActuallyFinished = checkIsMatchFinished(nextMatch.match);
 
       if (isActuallyFinished) {
         setCountdown('00:00:00');
         setIsLive(false);
-        setIsProcessing(false); // ПРИНУДИТЕЛЬНО СРЫВАЕМ WAITING
+        setIsProcessing(false); 
         return;
       }
 
-      // 2. ЛОГИКА ТАЙМЕРА
+      // 2. ЛОГИКА ТАЙМЕРА (Только если счета еще нет в базе)
       const mskNow = getMoscowTime();
       const targetTime = nextMatch.match.startTime ? new Date(nextMatch.match.startTime) : null;
 
