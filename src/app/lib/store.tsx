@@ -13,17 +13,30 @@ import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, wher
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
-// Универсальная проверка завершения матча (Total Bypass Logic)
+/**
+ * УНИВЕРСАЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА (Total Bypass Logic)
+ * Наличие любого счета имеет высший приоритет над временем и статусами.
+ */
 export const checkIsMatchFinished = (match: any) => {
   if (!match) return false;
+  
+  // 1. ПРИОРИТЕТ: Наличие физического счета в документе
+  const hasScores = (
+    (match.homeScore !== undefined && match.homeScore !== null) || 
+    (match.awayScore !== undefined && match.awayScore !== null) ||
+    (match.scoreA !== undefined && match.scoreB !== undefined && match.status !== 'pending')
+  );
+  
+  if (hasScores) return true;
+
+  // 2. ВТОРИЧНО: Статусы завершения
   return (
     match.status === 'finished' || 
     match.matchStatus === 'finished' || 
     match.state === 'finished' ||
     match.isFinished === true || 
     match.isCompleted === true ||
-    (match.scoreA !== undefined && match.scoreB !== undefined && match.status !== 'pending') ||
-    (match.homeScore !== undefined && match.awayScore !== undefined)
+    (match.simulation?.winner !== undefined)
   );
 };
 
@@ -133,6 +146,7 @@ const DEFAULT_STATE: GameState = {
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
   syncStats: () => {}, setTrainingFocus: () => {}, startDailyHeroTraining: () => {}, claimDailyHeroTraining: () => {},
   recoverAllFatigue: () => false, hireStaffMember: () => {}, trainStaffSkill: () => false,
+  trainStaffSkillNew: () => false,
   addHeroDirectly: () => {}, addYouthHeroDirectly: () => {}, promoteYouthPlayer: () => {},
   updateProfileName: () => {}, updateProfileCountry: () => {}, recordMatch: () => {},
   markMatchAsSeen: () => {}, markMatchIdAsSeen: () => {}, upgradeManagerSkill: () => {},
@@ -204,6 +218,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
     const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
     
+    // ПРАВИЛЬНЫЙ ПУТЬ: 8 сегментов (leagues_v2 -> {L} -> divisions -> {D} -> groups -> {G} -> teams -> {U})
     const teamRef = doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', s.id);
 
     const unsubTeam = onSnapshot(teamRef, (snap) => {
@@ -258,7 +273,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId]);
 
-  // 3. MATCHES SYNC CORE - MEMORY LOCKED & DEDUPLICATED
+  // 3. MATCHES SYNC CORE
   useEffect(() => {
     const s = state;
     if (!s.isLoaded || !s.id) return;
@@ -296,16 +311,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const loaded = Array.from(uniqueMatchesMap.values());
       const sorted = loaded.sort((a, b) => (a.day || 0) - (b.day || 0));
       
-      if (snapshot.metadata.fromCache && sorted.length === 0 && memoryCache.current.hasDataEverLoaded) {
-        return; 
-      }
-
       memoryCache.current.lastValidMatches = sorted;
       memoryCache.current.hasDataEverLoaded = true;
       setAllMatches(sorted);
       setIsMatchesReady(true);
     }, (error) => {
-      console.warn("[Matches Sync] Error:", error);
       setIsMatchesReady(true); 
     });
 
@@ -319,11 +329,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
     const mskNow = getMoscowTime().getTime();
 
-    // 1. Ищем "Активный" матч: время пришло, но статус не finished
+    // 1. Ищем "Активный" матч: время пришло, но результат ЕЩЕ не синхронизирован
     const activeMatch = matchesToUse.find(m => 
       (m.homeId === user.uid || m.awayId === user.uid) && 
       !checkIsMatchFinished(m) && 
-      new Date(m.startTime).getTime() <= mskNow + 600000 // Либо уже начался, либо начнется через 10 мин
+      new Date(m.startTime).getTime() <= mskNow + 600000
     );
 
     if (activeMatch) {
@@ -336,7 +346,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    // 2. Ищем матч, который только что закончился (не более 12 часов назад)
+    // 2. Ищем матч, который только что закончился
     const recentlyFinished = matchesToUse
       .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && checkIsMatchFinished(m))
       .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())

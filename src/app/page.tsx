@@ -52,22 +52,27 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
+  // MASTER SYNC EFFECT
   useEffect(() => {
+    // Если данных нет - ничего не делаем
     if (!isDataReady || !selectedLeagueId || !nextMatch) return;
 
     const timer = setInterval(() => {
-      const mskNow = getMoscowTime();
-      const targetTime = nextMatch.match.startTime ? new Date(nextMatch.match.startTime) : null;
-      
-      const isFinished = checkIsMatchFinished(nextMatch.match);
+      // 1. АБСОЛЮТНЫЙ ПРИОРИТЕТ: Серверные данные
+      // Если в документе матча УЖЕ есть счет или статус finished,
+      // мы ОБЯЗАНЫ сбросить все стейты ожидания немедленно.
+      const isActuallyFinished = checkIsMatchFinished(nextMatch.match);
 
-      // 1. ПРИОРИТЕТ: Серверный статус. Если матч завершен — убираем WAITING немедленно.
-      if (isFinished) {
+      if (isActuallyFinished) {
         setCountdown('00:00:00');
         setIsLive(false);
-        setIsProcessing(false);
+        setIsProcessing(false); // Убиваем WAITING
         return;
       }
+
+      // 2. РАБОТА С ВРЕМЕНЕМ (Только если счет еще не готов)
+      const mskNow = getMoscowTime();
+      const targetTime = nextMatch.match.startTime ? new Date(nextMatch.match.startTime) : null;
 
       if (!targetTime) {
         setCountdown('00:00:00');
@@ -78,19 +83,21 @@ export default function Home() {
 
       const diff = targetTime.getTime() - mskNow.getTime();
 
+      // Если время матча наступило или прошло
       if (diff <= 0) {
         setCountdown('00:00:00');
-        // Если время прошло, но статус в базе 'pending'
-        // Сокращаем буфер ожидания до минимума, чтобы быстрее показывать SYNCING
-        if (Math.abs(diff) > 5000) { 
+        
+        // Если прошло более 15 секунд и счета всё еще нет - показываем SYNCING
+        // Это более мягкое условие, чем бесконечный WAITING
+        if (Math.abs(diff) > 15000) { 
           setIsLive(false);
-          setIsProcessing(true);
+          setIsProcessing(true); // "СИНХРОНИЗАЦИЯ..."
         } else {
-          setIsLive(true);
+          setIsLive(true); // "LIVE"
           setIsProcessing(false);
         }
       } else {
-        // Матч еще в будущем
+        // Матч еще в будущем - обычный таймер
         const hh = Math.floor(diff / 3600000);
         const mm = Math.floor((diff % 3600000) / 60000);
         const ss = Math.floor((diff % 60000) / 1000);
@@ -199,6 +206,9 @@ export default function Home() {
 
   const isWaitingForSync = selectedLeagueId && (!isDataReady || (allSeasonMatches.length === 0 && !nextMatch));
 
+  // Определение финального статуса для отображения
+  const isMatchReallyDone = checkIsMatchFinished(nextMatch?.match);
+
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6">
@@ -255,12 +265,28 @@ export default function Home() {
               
               <div className="bg-background/60 py-3 rounded-2xl border border-white/5 shadow-inner">
                 <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                  {isLive ? (language === 'ru' ? 'МАТЧ ИДЕТ' : 'MATCH IN PROGRESS') : isProcessing ? (language === 'ru' ? 'СИНХРОНИЗАЦИЯ РЕЗУЛЬТАТА...' : 'SYNCING RESULT...') : (seasonInfo.isTransitionPhase ? "Preparation Countdown" : "Match Start Protocol")}
+                  {isMatchReallyDone 
+                    ? (language === 'ru' ? 'ОПЕРАЦИЯ ЗАВЕРШЕНА' : 'OPERATION CONCLUDED')
+                    : isLive 
+                    ? (language === 'ru' ? 'МАТЧ ИДЕТ' : 'MATCH IN PROGRESS') 
+                    : isProcessing 
+                    ? (language === 'ru' ? 'СИНХРОНИЗАЦИЯ РЕЗУЛЬТАТА...' : 'SYNCING RESULT...') 
+                    : (seasonInfo.isTransitionPhase ? "Preparation Countdown" : "Match Start Protocol")}
                 </p>
                 <div className="flex items-center justify-center gap-2">
-                  {(isLive || isProcessing) ? <RefreshCw className="w-4 h-4 text-primary animate-spin" /> : <Timer className="w-4 h-4 text-accent" />}
+                  {isMatchReallyDone ? (
+                    <Trophy className="w-5 h-5 text-yellow-500" />
+                  ) : (isLive || isProcessing) ? (
+                    <RefreshCw className="w-4 h-4 text-primary animate-spin" />
+                  ) : (
+                    <Timer className="w-4 h-4 text-accent" />
+                  )}
                   <p className={cn("text-xl font-headline font-bold tabular-nums tracking-tighter", (isLive || isProcessing) ? "text-primary" : "text-primary")}>
-                    {isLive ? 'LIVE' : isProcessing ? 'WAITING' : (countdown || '00:00:00')}
+                    {isMatchReallyDone 
+                      ? `${nextMatch?.match.homeScore ?? nextMatch?.match.scoreA ?? 0}:${nextMatch?.match.awayScore ?? nextMatch?.match.scoreB ?? 0}`
+                      : isLive ? 'LIVE' 
+                      : isProcessing ? 'WAITING' 
+                      : (countdown || '00:00:00')}
                   </p>
                 </div>
               </div>
@@ -269,7 +295,7 @@ export default function Home() {
         </Card>
       </section>
 
-      {checkIsMatchFinished(nextMatch?.match) ? (
+      {isMatchReallyDone ? (
         <Link href={`/match?id=${nextMatch.match.id}`} className="block relative mb-8">
           <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1 transition-all active:scale-95">
             <div className="flex items-center gap-2">
