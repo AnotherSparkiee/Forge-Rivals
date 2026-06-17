@@ -106,3 +106,24 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
   
   return `${d}.${m}.${y}`;
 }
+
+/**
+ * Рассчитывает текущий возраст на основе базового возраста и даты найма.
+ * Учитывает виртуальное смещение времени (2026 год).
+ */
+export function calculateLiveAge(baseAge: number, hiredAt: string) {
+  const mskNow = getMoscowTime();
+  const hiredDate = new Date(hiredAt);
+  const diffMs = mskNow.getTime() - hiredDate.getTime();
+  
+  // 1 год = 365.25 дней
+  const msInYear = 1000 * 60 * 60 * 24 * 365.25;
+  const diffYears = diffMs / msInYear;
+  
+  const currentAge = Number(baseAge || 18) + diffYears;
+  
+  return {
+    numeric: currentAge,
+    display: currentAge.toFixed(1)
+  };
+}
