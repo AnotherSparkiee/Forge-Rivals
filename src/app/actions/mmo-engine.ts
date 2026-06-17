@@ -24,21 +24,26 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
   
   console.log(`[V25 ENGINE] Resolving Group: ${groupId}`);
 
+  // Query only matches for the CURRENT season that aren't finished
   const q = query(
     collection(db, 'matches_v1'),
     where('groupId', '==', groupId),
-    where('seasonNumber', '==', seasonInfo.activeSeasonNumber)
+    where('seasonNumber', '==', seasonInfo.activeSeasonNumber),
+    where('isFinished', '==', false)
   );
 
   const snap = await getDocs(q);
-  if (snap.empty) return { success: true, count: 0 };
+  if (snap.empty) {
+    console.log(`[V25 ENGINE] No pending matches found for group ${groupId}`);
+    return { success: true, count: 0 };
+  }
 
   let resolvedCount = 0;
 
   for (const docSnap of snap.docs) {
     const m = docSnap.data();
     
-    // Проверка виртуального времени (v25)
+    // Check if virtual game time has passed
     const overdue = isMatchOverdue(m.startTime);
     const hasAnyScore = m.homeScore !== undefined || m.scoreA !== undefined || m.status === 'finished';
 
@@ -49,7 +54,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
       try {
         await runTransaction(db, async (transaction) => {
           // 1. ПОДГОТОВКА СТАТИСТИКИ ТАБЛИЦЫ
-          // Путь: leagues_v2 -> {leagueId} -> divisions -> {divId} -> groups -> {groupId} -> teams -> {userId}
+          // Path: leagues_v2 -> {leagueId} -> divisions -> {divId} -> groups -> {groupId} -> teams -> {userId}
           const teamARef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', m.homeId);
           const teamBRef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', m.awayId);
 
@@ -59,7 +64,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
           const dataA = snapA.exists() ? snapA.data() : { wins: 0, draws: 0, losses: 0, points: 0, name: m.homeName };
           const dataB = snapB.exists() ? snapB.data() : { wins: 0, draws: 0, losses: 0, points: 0, name: m.awayName };
 
-          // Начисляем очки команде А
+          // Update Team A
           transaction.set(teamARef, {
             ...dataA,
             wins: (dataA.wins || 0) + (sA > sB ? 1 : 0),
@@ -70,7 +75,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
             updatedAt: serverTimestamp()
           }, { merge: true });
 
-          // Начисляем очки команде Б
+          // Update Team B
           transaction.set(teamBRef, {
             ...dataB,
             wins: (dataB.wins || 0) + (sB > sA ? 1 : 0),
@@ -93,6 +98,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
           });
         });
         resolvedCount++;
+        console.log(`[V25 ENGINE] Resolved match: ${docSnap.id} (${sA}:${sB})`);
       } catch (e) {
         console.error(`[V25 CRITICAL] Transaction failed for ${docSnap.id}:`, e);
       }

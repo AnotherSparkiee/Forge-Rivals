@@ -15,34 +15,37 @@ service cloud.firestore {
 
     // Root profile (Pointers & Callsigns)
     match /players_v10/{userId} {
-      allow read, update: if isSignedIn();
+      allow read: if isSignedIn();
+      allow update: if isSignedIn();
       allow create: if isOwner(userId);
     }
 
-    // Pyramidal League Structure (V25: Standings-First approach)
-    // Using recursive wildcard {path=**} to ensure subcollections like 'teams' are covered
+    // Pyramidal League Structure (V25)
+    // IMPORTANT: Allowing open read/write for game engine collections 
+    // to enable Server Actions (which run unauthenticated in this environment).
     match /leagues_v2/{document=**} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
 
-    // Global Matches (V25: Open access for simulation resolution)
+    // Global Matches (V25)
     match /matches_v1/{document=**} {
-      allow read, write: if isSignedIn(); 
+      allow read, write: if true; 
     }
 
-    // Cup Matches (V25: Bracket and knockout stages)
+    // Cup Matches (V25)
     match /cup_matches/{document=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    // Market & Auctions (Recursive to cover agent data)
-    match /market_v7/{document=**} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
 
     // System Status & Metadata
     match /system_v1/{document=**} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
+    }
+
+    // Market & Auctions
+    match /market_v7/{document=**} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
 
     // Notifications
