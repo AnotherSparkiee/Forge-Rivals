@@ -1,6 +1,6 @@
 /**
- * @fileOverview Автономный движок сезонов v10. 
- * Внедрена агрессивная система "Total Bypass" для уничтожения статуса WAITING.
+ * @fileOverview Автономный движок сезонов v11. 
+ * Ультимативное решение: Тотальное пробитие WAITING через агрессивный скан коллекции matches_v1.
  */
 
 'use client';
@@ -51,23 +51,17 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const currentData = groupSnap.data();
 
-        // 1. CALENDAR GENERATION (If needed)
+        // 1. ПРОВЕРКА КАЛЕНДАРЯ
         if (allGroupPlayers && allGroupPlayers.length > 0) {
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const teamsHash = currentTeams.map(t => t.id).join('|');
 
           const needsUpgrade = !groupSnap.exists() || 
-                              (currentData?.calendarVersion || 0) < 9 ||
+                              (currentData?.calendarVersion || 0) < 10 ||
                               currentData?.teamsHash !== teamsHash;
 
           if (needsUpgrade) {
             let batch = writeBatch(db);
-            const oldMatchesSnap = await getDocs(query(
-              collection(db, 'matches_v1'), 
-              where('groupId', '==', prefixedGroupId)
-            ));
-            oldMatchesSnap.docs.forEach(d => batch.delete(d.ref));
-
             const calendar = generateSeasonCalendar(currentTeams);
             const epochMs = new Date('2026-06-17T00:00:00+03:00').getTime();
             const dayMs = 24 * 60 * 60 * 1000;
@@ -78,7 +72,7 @@ export function AutoMatchManager() {
               seasonNumber: activeSeason,
               teams: currentTeams,
               teamsHash,
-              calendarVersion: 9,
+              calendarVersion: 10,
               updatedAt: serverTimestamp()
             }, { merge: true });
 
@@ -101,19 +95,21 @@ export function AutoMatchManager() {
                 isFinished: false,
                 startTime: finalDate.toISOString(),
                 scheduledAt: Timestamp.fromDate(finalDate)
-              });
+              }, { merge: true });
             });
 
             await batch.commit();
           }
         }
 
-        // 2. AGGRESSIVE SIMULATION & STATUS OVERRIDE
+        // 2. АГРЕССИВНОЕ ПРОБИТИЕ СТАТУСОВ (Anti-WAITING)
         const mskNow = getMoscowTime();
+        
+        // Сканируем ВСЕ матчи пользователя в этом сезоне
         const matchesQ = query(
           collection(db, 'matches_v1'),
           where('seasonId', '==', seasonId),
-          where('groupId', '==', prefixedGroupId)
+          where('leagueId', '==', selectedLeagueId)
         );
         const matchesSnap = await getDocs(matchesQ);
         
@@ -123,23 +119,26 @@ export function AutoMatchManager() {
 
           for (const docSnap of matchesSnap.docs) {
             const m = docSnap.data();
+            const isHome = m.homeId === userId;
+            const isAway = m.awayId === userId;
+            
+            if (!isHome && !isAway) continue;
+
             const isFinished = checkIsMatchFinished(m);
             const startTime = new Date(m.startTime).getTime();
-            const isTimePassed = mskNow.getTime() > startTime + 10000; // Уменьшен буфер до 10 сек
             
-            if (isTimePassed && !isFinished) {
+            // Если время прошло, а результата нет - ПРИНУДИТЕЛЬНО RESOLVE
+            if (!isFinished && mskNow.getTime() > startTime + 5000) {
               const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, activeSeason);
-              const winner = sA > sB ? m.homeName : (sA === sB ? "Draw" : m.awayName);
+              const winnerName = sA > sB ? m.homeName : (sA === sB ? "Draw" : m.awayName);
               const winnerId = sA > sB ? m.homeId : (sA === sB ? null : m.awayId);
               
-              const finishedData = {
-                // ПРИНУДИТЕЛЬНОЕ ЗАТИРАНИЕ ВСЕХ СТАТУСОВ
+              const totalBypassData = {
                 status: 'finished',
                 matchStatus: 'finished',
                 state: 'finished',
                 isFinished: true,
                 isCompleted: true,
-                
                 scoreA: sA,
                 scoreB: sB,
                 homeScore: sA,
@@ -147,43 +146,34 @@ export function AutoMatchManager() {
                 winnerId: winnerId,
                 finishedAt: serverTimestamp(),
                 simulation: {
-                  winner,
+                  winner: winnerName,
                   seriesScore: `${sA}-${sB}`,
-                  games: [{ 
-                    scoreA: sA > 0 ? 1 : 0, 
-                    scoreB: sB > 0 ? 1 : 0, 
-                    duration: "38:00", 
-                    matchSummary: "Combat debrief: All flags set to finished." 
-                  }]
+                  games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 0 ? 1 : 0, duration: "35:00", matchSummary: "Aggressive sync concluded." }]
                 }
               };
 
-              simBatch.update(docSnap.ref, finishedData);
+              simBatch.update(docSnap.ref, totalBypassData);
               changeCount++;
 
-              if (m.homeId === userId || m.awayId === userId) {
-                const isHome = m.homeId === userId;
-                recordMatch(winner, { scoreA: isHome ? sA : sB, scoreB: isHome ? sB : sA, ...finishedData.simulation }, 30000, isHome ? m.awayName : m.homeName, 'league', mskNow.toISOString(), m.id);
-              }
+              // Запись в локальную историю
+              recordMatch(winnerName, { scoreA: isHome ? sA : sB, scoreB: isHome ? sB : sA, ...totalBypassData.simulation }, 30000, isHome ? m.awayName : m.homeName, 'league', mskNow.toISOString(), m.id);
             }
           }
 
-          if (changeCount > 0) {
-            await simBatch.commit();
-          }
+          if (changeCount > 0) await simBatch.commit();
         }
 
       } catch (e: any) {
-        console.warn("[Engine v10] Heartbeat failure:", e.message);
+        console.warn("[AutoMatch v11] Heartbeat fail:", e.message);
       } finally {
         processingRef.current = false;
       }
     };
 
     heartbeat();
-    const interval = setInterval(heartbeat, 10000);
+    const interval = setInterval(heartbeat, 8000);
     return () => clearInterval(interval);
-  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, recordMatch, matchHistory]);
+  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, recordMatch]);
 
   return null;
 }

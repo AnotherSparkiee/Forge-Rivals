@@ -10,7 +10,7 @@ import {
   MessageSquare, UserCog, Heart, Store, Shield, 
   ArrowRight, Loader2, Check, UserPlus,
   ShoppingCart, GraduationCap, CalendarDays, Medal,
-  ArrowRightLeft, Timer, RefreshCw, Home as HomeIcon, MapPin, Calendar, User
+  ArrowRightLeft, Timer, RefreshCw, Home as HomeIcon, MapPin, Calendar, User as UserIcon
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -54,50 +54,41 @@ export default function Home() {
 
   // MASTER SYNC EFFECT
   useEffect(() => {
-    // Если данных нет - ничего не делаем
     if (!isDataReady || !selectedLeagueId || !nextMatch) return;
 
     const timer = setInterval(() => {
-      // 1. АБСОЛЮТНЫЙ ПРИОРИТЕТ: Серверные данные
-      // Если в документе матча УЖЕ есть счет или статус finished,
-      // мы ОБЯЗАНЫ сбросить все стейты ожидания немедленно.
+      // 1. АБСОЛЮТНЫЙ ПРИОРИТЕТ: Проверка наличия счета в реальном времени
       const isActuallyFinished = checkIsMatchFinished(nextMatch.match);
 
       if (isActuallyFinished) {
         setCountdown('00:00:00');
         setIsLive(false);
-        setIsProcessing(false); // Убиваем WAITING
+        setIsProcessing(false); // ПРИНУДИТЕЛЬНО СРЫВАЕМ WAITING
         return;
       }
 
-      // 2. РАБОТА С ВРЕМЕНЕМ (Только если счет еще не готов)
+      // 2. ЛОГИКА ТАЙМЕРА
       const mskNow = getMoscowTime();
       const targetTime = nextMatch.match.startTime ? new Date(nextMatch.match.startTime) : null;
 
       if (!targetTime) {
-        setCountdown('00:00:00');
-        setIsLive(false);
         setIsProcessing(false);
         return;
       }
 
       const diff = targetTime.getTime() - mskNow.getTime();
 
-      // Если время матча наступило или прошло
       if (diff <= 0) {
         setCountdown('00:00:00');
-        
-        // Если прошло более 15 секунд и счета всё еще нет - показываем SYNCING
-        // Это более мягкое условие, чем бесконечный WAITING
-        if (Math.abs(diff) > 15000) { 
+        // Если прошло более 10 секунд и счета всё еще нет — статус Ожидания
+        if (Math.abs(diff) > 10000) { 
           setIsLive(false);
-          setIsProcessing(true); // "СИНХРОНИЗАЦИЯ..."
+          setIsProcessing(true); 
         } else {
-          setIsLive(true); // "LIVE"
+          setIsLive(true); 
           setIsProcessing(false);
         }
       } else {
-        // Матч еще в будущем - обычный таймер
         const hh = Math.floor(diff / 3600000);
         const mm = Math.floor((diff % 3600000) / 60000);
         const ss = Math.floor((diff % 60000) / 1000);
@@ -135,7 +126,7 @@ export default function Home() {
   if (!user) {
     const tAuth = {
       en: { title: authMode === 'login' ? "Sync Credentials" : "Initiate Profile", userLabel: "Email or Team Name", passLabel: "Access Key", submit: authMode === 'login' ? "ESTABLISH LINK" : "INITIALIZE", toggle: authMode === 'login' ? "New manager? Create profile" : "Already registered? Sync link", subtitle: "COMMAND CENTER ACCESS" },
-      ru: { title: authMode === 'login' ? "Синхронизация" : "Создание профиля", userLabel: "Почта или Название клуба", passLabel: "Ключ доступа (Пароль)", submit: authMode === 'login' ? "УСТАНОВИТЬ СВЯЗЬ" : "СОЗДАТЬ", toggle: authMode === 'login' ? "Новый менеджер? Создать профиль" : "Есть аккаунт? Войти", subtitle: "ДОСТУП К КОМАНДНОМУ ЦЕНТРУ" }
+      ru: { title: authMode === 'login' ? "Синхронизация" : "Создание профиля", userLabel: "Почта или Название клуба", passLabel: "Ключ доступа (Пароль)", submit: authMode === 'login' ? "УСТАНОВИТЬ СВЯЗЬ" : "СОЗДАТЬ", toggle: authMode === 'login' ? "Новый менеджер? Создать профиль" : "Есть аккаунт? Войти", subtitle: "ДОСТУК К КОМАНДНОМУ ЦЕНТРУ" }
     }[language as 'en' | 'ru'] || { title: "Auth", userLabel: "User", passLabel: "Pass", submit: "Connect", toggle: "Switch", subtitle: "ACCESS" };
 
     return (
@@ -194,7 +185,7 @@ export default function Home() {
     { label: language === 'ru' ? 'Ростер' : 'Roster', href: '/roster', icon: Users, desc: language === 'ru' ? 'Состав команды' : 'Squad management' }, 
     { label: language === 'ru' ? 'Инфраструктура' : 'Infrastructure', href: '/training', icon: Zap, desc: language === 'ru' ? 'База клуба' : 'Facility growth' }, 
     { label: language === 'ru' ? 'Трансферы' : 'Transfers', href: '/transfers', icon: ArrowRightLeft, desc: language === 'ru' ? 'Рынок героев' : 'Asset market' }, 
-    { label: language === 'ru' ? 'Магазин' : 'Shop', href: '/shop', icon: Store, desc: language === 'ru' ? 'Покупка ресурсов' : 'Resource acquisition' },
+    { label: language === 'ru' ? 'Магазин' : 'Shop', href: '/shop', icon: ShoppingCart, desc: language === 'ru' ? 'Покупка ресурсов' : 'Resource acquisition' },
     { label: language === 'ru' ? 'Фан-клуб' : 'Fan-club', href: '/fanclub', icon: Heart, desc: language === 'ru' ? 'Болельщики' : 'Supporter management' },
     { label: language === 'ru' ? 'Юношеская школа' : 'Youth Academy', href: '/youth-academy', icon: GraduationCap, desc: language === 'ru' ? 'Центр талантов' : 'Rising stars' },
     { label: language === 'ru' ? 'Таблицы' : 'Rankings', href: '/rankings', icon: Trophy, desc: language === 'ru' ? 'Рейтинги' : 'Official standings' }, 
@@ -204,9 +195,6 @@ export default function Home() {
     { label: language === 'ru' ? 'Профиль' : 'Profile', href: '/profile', icon: UserCog, desc: language === 'ru' ? 'Настройки' : 'Operational dossier' } 
   ];
 
-  const isWaitingForSync = selectedLeagueId && (!isDataReady || (allSeasonMatches.length === 0 && !nextMatch));
-
-  // Определение финального статуса для отображения
   const isMatchReallyDone = checkIsMatchFinished(nextMatch?.match);
 
   return (
@@ -236,12 +224,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                {isWaitingForSync ? (
-                  <div className="py-4 opacity-30 flex flex-col items-center">
-                     <Loader2 className="w-6 h-6 animate-spin mb-2" />
-                     <p className="text-[10px] font-bold uppercase">{tHub.sync}</p>
-                  </div>
-                ) : nextMatch ? (
+                {nextMatch ? (
                   <div className="flex items-center justify-between gap-4 py-2">
                     <div className={cn("flex-1 text-right", nextMatch.isHome && "text-primary")}>
                       <p className="text-[7px] font-black uppercase opacity-40 mb-1">{nextMatch.isHome ? (language === 'ru' ? 'ДОМА' : 'HOME') : (language === 'ru' ? 'В ГОСТЯХ' : 'AWAY')}</p>
@@ -270,7 +253,7 @@ export default function Home() {
                     : isLive 
                     ? (language === 'ru' ? 'МАТЧ ИДЕТ' : 'MATCH IN PROGRESS') 
                     : isProcessing 
-                    ? (language === 'ru' ? 'СИНХРОНИЗАЦИЯ РЕЗУЛЬТАТА...' : 'SYNCING RESULT...') 
+                    ? (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...') 
                     : (seasonInfo.isTransitionPhase ? "Preparation Countdown" : "Match Start Protocol")}
                 </p>
                 <div className="flex items-center justify-center gap-2">
