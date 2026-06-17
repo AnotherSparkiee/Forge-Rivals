@@ -1,6 +1,6 @@
 /**
- * @fileOverview Автономный движок сезонов v13. 
- * Ультимативное решение: Тотальное пробитие WAITING через Targeted Resolution.
+ * @fileOverview Автономный движок сезонов v14 (Pulse Engine). 
+ * Ультимативное решение: Использование серверного времени Москвы для детерминированного запуска.
  */
 
 'use client';
@@ -52,13 +52,13 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const currentData = groupSnap.data();
 
-        // 1. ГЕНЕРАЦИЯ КАЛЕНДАРЯ (если нужно)
+        // 1. ГЕНЕРАЦИЯ КАЛЕНДАРЯ (Standby Mode)
         if (allGroupPlayers && allGroupPlayers.length > 0) {
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const teamsHash = currentTeams.map(t => t.id).join('|');
 
           const needsUpgrade = !groupSnap.exists() || 
-                              (currentData?.calendarVersion || 0) < 13 ||
+                              (currentData?.calendarVersion || 0) < 14 ||
                               currentData?.teamsHash !== teamsHash;
 
           if (needsUpgrade) {
@@ -73,7 +73,7 @@ export function AutoMatchManager() {
               seasonNumber: activeSeason,
               teams: currentTeams,
               teamsHash,
-              calendarVersion: 13,
+              calendarVersion: 14,
               updatedAt: serverTimestamp()
             }, { merge: true });
 
@@ -100,29 +100,31 @@ export function AutoMatchManager() {
             });
 
             await batch.commit();
-            console.log("[AutoMatch V13] Calendar synchronized.");
+            console.log("[Pulse V14] Calendar synchronized.");
           }
         }
 
-        // 2. ТАРГЕТИРОВАННЫЙ РАСЧЕТ ИМЕННО ЭТОЙ ГРУППЫ
-        const hasStuckMatch = allSeasonMatches.some(m => {
-          const past = m.startTime && new Date(m.startTime).getTime() < Date.now();
-          return past && !checkIsMatchFinished(m);
+        // 2. ТАРГЕТИРОВАННЫЙ РАСЧЕТ ОЧКОВ (Server Time Priority)
+        const mskTime = getMoscowTime().getTime();
+        const stuckMatches = allSeasonMatches.filter(m => {
+          const startTime = m.startTime ? new Date(m.startTime).getTime() : 0;
+          return startTime > 0 && mskTime > startTime && !checkIsMatchFinished(m);
         });
 
-        if (hasStuckMatch) {
+        if (stuckMatches.length > 0) {
+          console.log(`[Pulse V14] Resolving ${stuckMatches.length} stuck matches...`);
           await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
         }
 
       } catch (e: any) {
-        console.warn("[AutoMatch v13] Heartbeat fail:", e.message);
+        console.warn("[Pulse v14] Pulse failed:", e.message);
       } finally {
         processingRef.current = false;
       }
     };
 
     heartbeat();
-    const interval = setInterval(heartbeat, 5000); // Чаще опрашиваем для срыва WAITING
+    const interval = setInterval(heartbeat, 5000); 
     return () => clearInterval(interval);
   }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches]);
 

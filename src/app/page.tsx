@@ -54,18 +54,18 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // MASTER SYNC EFFECT
+  // MASTER SYNC EFFECT (V14 Data Override)
   useEffect(() => {
     if (!isDataReady || !selectedLeagueId || !nextMatch) return;
 
     const timer = setInterval(() => {
-      // 1. ПРИОРИТЕТ ДАННЫХ: Если счет есть - WAITING стирается
+      // ПРИОРИТЕТ ДАННЫХ: Если счет в Firestore есть, статус WAITING блокируется немедленно.
       const isActuallyFinished = checkIsMatchFinished(nextMatch.match);
 
       if (isActuallyFinished) {
         setCountdown('00:00:00');
         setIsLive(false);
-        setIsProcessing(false); 
+        setIsProcessing(false); // ГАРАНТИРОВАННЫЙ СРЫВ WAITING
         return;
       }
 
@@ -81,7 +81,7 @@ export default function Home() {
 
       if (diff <= 0) {
         setCountdown('00:00:00');
-        // Если время вышло, но счета нет - показываем WAITING через 10 сек
+        // Если время вышло, но счета всё еще нет — включаем режим синхронизации.
         if (Math.abs(diff) > 10000) { 
           setIsLive(false);
           setIsProcessing(true); 

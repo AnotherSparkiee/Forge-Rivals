@@ -14,21 +14,21 @@ import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, wher
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
 /**
- * УНИВЕРСАЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА (V13 Absolute Priority)
- * Наличие счета в базе — абсолютный приоритет над любыми таймерами.
+ * УНИВЕРСАЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА (V14 Absolute Data Priority)
+ * Наличие счета в базе — ЕДИНСТВЕННЫЙ И ПЕРВООЧЕРЕДНОЙ ПРИЗНАК.
  */
 export const checkIsMatchFinished = (match: any) => {
   if (!match) return false;
   
-  // 1. АБСОЛЮТНЫЙ ПРИОРИТЕТ: Физическое наличие счета в Firestore
-  const hasCalculatedScore = (
-    (match.homeScore !== undefined && match.homeScore !== null) || 
-    (match.scoreA !== undefined && match.scoreA !== null)
+  // 1. АБСОЛЮТНЫЙ ПРИОРИТЕТ: Если есть счет, WAITING невозможен.
+  const hasScore = (
+    match.homeScore !== undefined && match.homeScore !== null ||
+    match.scoreA !== undefined && match.scoreA !== null
   );
   
-  if (hasCalculatedScore) return true;
+  if (hasScore) return true;
 
-  // 2. ВТОРИЧНО: Текстовые статусы готовности
+  // 2. ВТОРИЧНО: Статусы (для совместимости)
   const finishedStatuses = ['finished', 'completed', 'resolved', 'done'];
   const statusStr = String(match.status || match.matchStatus || match.state || '').toLowerCase();
   
