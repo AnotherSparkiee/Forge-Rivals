@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
@@ -17,27 +16,13 @@ import Link from 'next/link';
 export function TopBar() {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
-  const { credits, crystals, syncStats, isSyncing, language, isPremium } = useGameState();
+  const { credits, crystals, isSyncing, language, isPremium } = useGameState();
   const db = useFirestore();
-  const lastSyncTriggerRef = useRef<string>("");
 
-  // REVERT TO V10
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
-
-  const groupQuery = useMemoFirebase(() => {
-    if (!profile?.selectedLeagueId || !user?.uid) return null;
-    return query(
-      collection(db, 'players_v10'),
-      where('selectedLeagueId', '==', profile.selectedLeagueId),
-      where('leagueLevel', '==', profile.leagueLevel),
-      where('groupId', '==', profile.groupId)
-    );
-  }, [db, profile?.selectedLeagueId, profile?.leagueLevel, profile?.groupId, user?.uid]);
-
-  const { data: groupPlayers } = useCollection(groupQuery);
 
   const unreadMessagesQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
@@ -80,16 +65,6 @@ export function TopBar() {
       return !n.read && (isNaN(notifTime) || notifTime >= setupTime);
     }).length;
   }, [notifications, profile]);
-
-  useEffect(() => {
-    if (groupPlayers && groupPlayers.length > 0) {
-      const currentSyncKey = groupPlayers.map(p => `${p.id}-${p.wins}-${p.points}`).join('|');
-      if (lastSyncTriggerRef.current === currentSyncKey) return;
-      lastSyncTriggerRef.current = currentSyncKey;
-      const timer = setTimeout(() => { syncStats(groupPlayers); }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [groupPlayers, syncStats]);
 
   if (isUserLoading || !user || !profile) return null;
 

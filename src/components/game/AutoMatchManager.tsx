@@ -67,7 +67,6 @@ export function AutoMatchManager() {
             let batch = writeBatch(db);
             const calendar = generateSeasonCalendar(currentTeams);
             
-            // Виртуальный старт сезона: 17 июня 2026
             const epochMs = new Date('2026-06-17T00:00:00+03:00').getTime();
             const dayMs = 24 * 60 * 60 * 1000;
 
@@ -80,6 +79,21 @@ export function AutoMatchManager() {
               calendarVersion: 25,
               updatedAt: serverTimestamp()
             }, { merge: true });
+
+            // Инициализируем документы команд в лиге
+            currentTeams.forEach(team => {
+              const teamInGroupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', team.id);
+              batch.set(teamInGroupRef, {
+                id: team.id,
+                name: team.name,
+                displayName: team.name,
+                wins: 0,
+                draws: 0,
+                losses: 0,
+                points: 0,
+                updatedAt: serverTimestamp()
+              }, { merge: true });
+            });
 
             calendar.forEach((m) => {
               const matchId = `m_${prefixedGroupId}_d${m.day}_${m.pairKey}`;
