@@ -186,9 +186,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const s = state;
     if (!s.id || !s.selectedLeagueId) return;
 
-    const teamRef = doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', String(s.groupId), 'teams', s.id);
+    const teamRef = doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', 'teams', s.id);
     
-    const unsubTeam = onSnapshot(teamRef, (snap) => {
+    // ВАЖНО: Мы могли промахнуться мимо подпапки groups/{prefixedId}/teams. 
+    // Находим правильный путь к команде в иерархии v2.
+    const teamPath = `leagues_v2/${s.selectedLeagueId}/divisions/${s.leagueLevel}/groups/season_1_league_${s.selectedLeagueId}_group_${s.groupId}/teams/${s.id}`;
+    const realTeamRef = doc(db, teamPath);
+
+    const unsubTeam = onSnapshot(realTeamRef, (snap) => {
       if (!snap.exists()) return;
       const d = snap.data();
       setState(prev => ({
@@ -218,7 +223,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }));
     });
 
-    const heroesUnsub = onSnapshot(collection(teamRef, 'heroes'), (hSnap) => {
+    const heroesUnsub = onSnapshot(collection(realTeamRef, 'heroes'), (hSnap) => {
       const all = hSnap.docs.map(d => ({ ...d.data(), id: d.id } as Hero));
       setState(prev => ({
         ...prev,
@@ -227,7 +232,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }));
     });
 
-    const staffUnsub = onSnapshot(collection(teamRef, 'staff'), (sSnap) => {
+    const staffUnsub = onSnapshot(collection(realTeamRef, 'staff'), (sSnap) => {
       const staffObj: any = {};
       sSnap.docs.forEach(d => { const m = d.data() as StaffMember; staffObj[m.role] = m; });
       setState(prev => ({ ...prev, staff: staffObj }));
@@ -245,6 +250,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const s = state;
     if (!s.isLoaded || !s.id) return;
 
+    const seasonInfo = getGlobalSeasonInfo();
+    const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
+
     if (memoryCache.current.lastUserId !== s.id || memoryCache.current.lastLeagueId !== s.selectedLeagueId) {
       memoryCache.current.hasDataEverLoaded = false;
       memoryCache.current.lastValidMatches = [];
@@ -259,15 +267,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const prefixedGroupId = `season_1_league_${s.selectedLeagueId}_group_${s.groupId}`;
+    const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
     const q = query(
       collection(db, 'matches_v1'),
-      where('seasonId', '==', 'season_1'),
+      where('seasonId', '==', seasonId),
       where('groupId', '==', prefixedGroupId)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      // Step 1: Deduplicate using unique match.id
       const uniqueMatchesMap = new Map();
       snapshot.forEach((doc) => {
         uniqueMatchesMap.set(doc.id, { ...doc.data(), id: doc.id });
@@ -275,8 +282,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
       const loaded = Array.from(uniqueMatchesMap.values());
       const sorted = loaded.sort((a, b) => (a.day || 0) - (b.day || 0));
-
-      // Step 2: Handle flickering and cache states
       const isSpuriousCacheEmpty = snapshot.metadata.fromCache && sorted.length === 0;
 
       if ((isSpuriousCacheEmpty || snapshot.metadata.hasPendingWrites) && memoryCache.current.hasDataEverLoaded) {
@@ -304,8 +309,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const matchesToUse = allMatches.length > 0 ? allMatches : memoryCache.current.lastValidMatches;
     if (matchesToUse.length === 0) return null;
 
+    // Сначала ищем любой матч который прямо сейчас LIVE или PENDING (будущий)
     const myFuture = matchesToUse
-      .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished');
+      .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status !== 'finished')
+      .sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
     
     if (myFuture.length > 0) {
       const m = myFuture[0];
@@ -317,6 +324,23 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         isHome: m.homeId === user.uid
       };
     }
+    
+    // Если будущих нет, берем последний сыгранный для быстрого перехода к отчету
+    const myLast = matchesToUse
+      .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.status === 'finished')
+      .sort((a,b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+      
+    if (myLast.length > 0) {
+      const m = myLast[0];
+      return {
+        match: m,
+        opponentName: m.homeId === user.uid ? m.awayName : m.homeName,
+        day: m.day,
+        dateLabel: getSeasonDateLabel(m.day),
+        isHome: m.homeId === user.uid
+      };
+    }
+
     return null;
   }, [allMatches, isMatchesReady, user]);
 
@@ -325,8 +349,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const getRefs = useCallback(() => {
     const s = stateRef.current;
     if (!user || !s.selectedLeagueId) return null;
+    const seasonInfo = getGlobalSeasonInfo();
+    const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
+    const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
     return {
-      team: doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', String(s.groupId), 'teams', user.uid)
+      team: doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid)
     };
   }, [user, db]);
 

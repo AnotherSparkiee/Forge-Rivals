@@ -47,6 +47,7 @@ export default function Home() {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [countdown, setCountdown] = useState('');
   const [isLive, setIsLive] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
@@ -61,6 +62,7 @@ export default function Home() {
       if (!targetTime) {
         setCountdown('00:00:00');
         setIsLive(false);
+        setIsProcessing(false);
         return;
       }
 
@@ -68,13 +70,21 @@ export default function Home() {
       
       if (diff <= 0) {
         setCountdown('00:00:00');
-        setIsLive(true);
+        // Если прошло более 1 минуты и статус всё еще pending — значит идет симуляция
+        if (Math.abs(diff) > 60000 && nextMatch.match.status === 'pending') {
+          setIsLive(false);
+          setIsProcessing(true);
+        } else {
+          setIsLive(true);
+          setIsProcessing(false);
+        }
       } else {
         const hh = Math.floor(diff / 3600000);
         const mm = Math.floor((diff % 3600000) / 60000);
         const ss = Math.floor((diff % 60000) / 1000);
         setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
         setIsLive(false);
+        setIsProcessing(false);
       }
     }, 1000);
 
@@ -233,12 +243,12 @@ export default function Home() {
               
               <div className="bg-background/60 py-3 rounded-2xl border border-white/5 shadow-inner">
                 <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                  {isLive ? (language === 'ru' ? 'МАТЧ ИДЕТ' : 'MATCH IN PROGRESS') : (seasonInfo.isTransitionPhase ? "Preparation Countdown" : "Match Start Protocol")}
+                  {isLive ? (language === 'ru' ? 'МАТЧ ИДЕТ' : 'MATCH IN PROGRESS') : isProcessing ? (language === 'ru' ? 'СИНХРОНИЗАЦИЯ РЕЗУЛЬТАТА...' : 'SYNCING RESULT...') : (seasonInfo.isTransitionPhase ? "Preparation Countdown" : "Match Start Protocol")}
                 </p>
                 <div className="flex items-center justify-center gap-2">
-                  <Timer className={cn("w-4 h-4", isLive ? "text-red-500 animate-pulse" : "text-accent")} />
-                  <p className={cn("text-xl font-headline font-bold tabular-nums tracking-tighter", isLive ? "text-red-500" : "text-primary")}>
-                    {isLive ? 'LIVE' : (countdown || '00:00:00')}
+                  {(isLive || isProcessing) ? <RefreshCw className="w-4 h-4 text-primary animate-spin" /> : <Timer className="w-4 h-4 text-accent" />}
+                  <p className={cn("text-xl font-headline font-bold tabular-nums tracking-tighter", (isLive || isProcessing) ? "text-primary" : "text-primary")}>
+                    {isLive ? 'LIVE' : isProcessing ? 'WAITING' : (countdown || '00:00:00')}
                   </p>
                 </div>
               </div>

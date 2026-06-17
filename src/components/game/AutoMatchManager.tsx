@@ -1,6 +1,6 @@
 /**
  * @fileOverview Автономный движок сезонов. 
- * Внедрена версия v6: Оптимизированная симуляция и синхронизация по Сезону 1.
+ * Внедрена версия v7: Агрессивная симуляция и восстановление потерянных отчетов.
  */
 
 'use client';
@@ -13,10 +13,10 @@ import {
   getStableGroupTeams, generateSeasonCalendar, getMatchResult, 
   LEAGUES 
 } from '@/app/lib/leagues-data';
-import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString } from '@/app/lib/time-utils';
+import { getMoscowTime, getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 export function AutoMatchManager() {
-  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, recordMatch } = useGameState();
+  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, recordMatch, matchHistory } = useGameState();
   const db = useFirestore();
   const processingRef = useRef(false);
 
@@ -40,25 +40,24 @@ export function AutoMatchManager() {
       processingRef.current = true;
 
       try {
-        const seasonId = "season_1";
-        const calendarVersion = 6; 
         const seasonInfo = getGlobalSeasonInfo();
-        const activeSeason = 1; // Force Season 1 to match epoch
+        const activeSeason = seasonInfo.activeSeasonNumber;
+        const seasonId = `season_${activeSeason}`;
         const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
         
-        const prefixedGroupId = `season_1_league_${selectedLeagueId}_group_${groupId}`;
+        const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
         const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId);
         
         const groupSnap = await getDoc(groupRef);
         const currentData = groupSnap.data();
 
         // 1. CALENDAR GENERATION (If needed)
-        if (allGroupPlayers) {
+        if (allGroupPlayers && allGroupPlayers.length > 0) {
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const teamsHash = currentTeams.map(t => t.id).join('|');
 
           const needsUpgrade = !groupSnap.exists() || 
-                              (currentData?.calendarVersion || 0) < calendarVersion ||
+                              (currentData?.calendarVersion || 0) < 7 ||
                               currentData?.teamsHash !== teamsHash;
 
           if (needsUpgrade) {
@@ -81,7 +80,7 @@ export function AutoMatchManager() {
               seasonNumber: activeSeason,
               teams: currentTeams,
               teamsHash,
-              calendarVersion,
+              calendarVersion: 7,
               updatedAt: serverTimestamp()
             }, { merge: true });
 
@@ -109,25 +108,27 @@ export function AutoMatchManager() {
           }
         }
 
-        // 2. SIMULATION ENGINE
+        // 2. SIMULATION ENGINE & RECOVERY
         const mskNow = getMoscowTime();
-        const pendingQ = query(
-          collection(db, 'matches_v1'),
-          where('groupId', '==', prefixedGroupId),
-          where('status', '==', 'pending')
-        );
-        const pendingSnap = await getDocs(pendingQ);
         
-        if (!pendingSnap.empty) {
+        // Поиск всех матчей группы (и завершенных, и ожидающих)
+        const matchesQ = query(
+          collection(db, 'matches_v1'),
+          where('groupId', '==', prefixedGroupId)
+        );
+        const matchesSnap = await getDocs(matchesQ);
+        
+        if (!matchesSnap.empty) {
           const simBatch = writeBatch(db);
-          let simCount = 0;
+          let changeCount = 0;
 
-          for (const docSnap of pendingSnap.docs) {
+          for (const docSnap of matchesSnap.docs) {
             const m = docSnap.data();
             const startTime = new Date(m.startTime).getTime();
+            const isTimePassed = mskNow.getTime() > startTime + 30000; // 30s buffer
             
-            // Если время матча прошло (+1 минута запаса)
-            if (mskNow.getTime() > startTime + 60000) {
+            // СЛУЧАЙ А: Матч прошел, но статус всё еще pending
+            if (m.status === 'pending' && isTimePassed) {
               const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, activeSeason);
               const winner = sA > sB ? m.homeName : (sA === sB ? "Draw" : m.awayName);
               const winnerId = sA > sB ? m.homeId : (sA === sB ? null : m.awayId);
@@ -145,15 +146,15 @@ export function AutoMatchManager() {
                     scoreA: sA > 0 ? 1 : 0, 
                     scoreB: sB > 0 ? (sB > 1 ? 1 : 0) : 0, 
                     duration: "38:00", 
-                    matchSummary: "Standard engagement protocol complete." 
+                    matchSummary: "Battle concluded after heavy engagements." 
                   }]
                 }
               };
 
               simBatch.update(docSnap.ref, finishedData);
-              simCount++;
+              changeCount++;
 
-              // Записываем в историю игрока, если это его матч
+              // Записываем в историю если мой матч
               if (m.homeId === userId || m.awayId === userId) {
                 const isHome = m.homeId === userId;
                 recordMatch(
@@ -167,11 +168,33 @@ export function AutoMatchManager() {
                 );
               }
             }
+            
+            // СЛУЧАЙ Б: Матч уже finished в базе, но по какой-то причине отсутствует в matchHistory игрока
+            else if (m.status === 'finished' && (m.homeId === userId || m.awayId === userId)) {
+              const alreadyInHistory = matchHistory.some(hist => hist.id === m.id);
+              if (!alreadyInHistory) {
+                console.log(`[Engine] RECOVERING match report for ${m.id}`);
+                const isHome = m.homeId === userId;
+                recordMatch(
+                  m.simulation?.winner || "Draw",
+                  { 
+                    scoreA: isHome ? m.scoreA : m.scoreB, 
+                    scoreB: isHome ? m.scoreB : m.scoreA, 
+                    ...m.simulation 
+                  },
+                  30000,
+                  isHome ? m.awayName : m.homeName,
+                  'league',
+                  m.finishedAt?.toDate?.().toISOString() || mskNow.toISOString(),
+                  m.id
+                );
+              }
+            }
           }
 
-          if (simCount > 0) {
+          if (changeCount > 0) {
             await simBatch.commit();
-            console.log(`[Engine] Simulated ${simCount} matches for ${prefixedGroupId}`);
+            console.log(`[Engine] Simulated ${changeCount} stuck matches.`);
           }
         }
 
@@ -183,9 +206,9 @@ export function AutoMatchManager() {
     };
 
     heartbeat();
-    const interval = setInterval(heartbeat, 30000); // Check every 30s
+    const interval = setInterval(heartbeat, 15000); // Check every 15s for better responsiveness
     return () => clearInterval(interval);
-  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, recordMatch]);
+  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, recordMatch, matchHistory]);
 
   return null;
 }
