@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v26. 
- * Внедрена защита Auth-First для предотвращения ошибок доступа при инициализации.
+ * @fileOverview Страница рейтингов v27. 
+ * Нормализованы запросы (строго числовые типы) для исключения Permission Denied.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -39,17 +39,14 @@ export default function RankingsPage() {
   const [navLeague, setNavLeague] = useState<string | null>(null);
   const [navLevel, setNavLevel] = useState<number | null>(null);
   const [navGroup, setNavGroup] = useState<number | null>(null);
-  const [clStage, setClStage] = useState<'groups' | 'playoffs'>('groups');
-  const [cupRound, setCupRound] = useState(1);
 
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
-  const activeSeasonNumber = seasonInfo.activeSeasonNumber;
+  const activeSeasonNumber = Number(seasonInfo.activeSeasonNumber);
 
   const contextLeagueId = navLeague || selectedLeagueId || "ALPHA";
-  const contextLevel = navLevel || leagueLevel;
-  const contextGroup = navGroup || groupId;
+  const contextLevel = Number(navLevel || leagueLevel);
+  const contextGroup = Number(navGroup || groupId);
 
-  // ГАРД: Запрашиваем данные только если юзер авторизован
   const teamsQuery = useMemoFirebase(() => {
     if (isUserLoading || !user || !contextLeagueId) return null;
 
@@ -75,11 +72,11 @@ export default function RankingsPage() {
     return teamsData.map(t => ({
       id: t.id,
       name: t.displayName || t.name || "Unknown",
-      wins: t.wins || 0,
-      draws: t.draws || 0,
-      losses: t.losses || 0,
-      points: t.points || 0,
-      played: (t.wins || 0) + (t.draws || 0) + (t.losses || 0)
+      wins: Number(t.wins || 0),
+      draws: Number(t.draws || 0),
+      losses: Number(t.losses || 0),
+      points: Number(t.points || 0),
+      played: Number(t.wins || 0) + Number(t.draws || 0) + Number(t.losses || 0)
     }));
   }, [teamsData]);
 
@@ -131,10 +128,10 @@ export default function RankingsPage() {
 
   const renderGroupPicker = () => {
     const numGroups = Math.pow(2, contextLevel! - 1);
-    return (<div className="space-y-4 animate-in slide-in-from-right-4"><h3 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.selectGroup}</h3><div className="grid grid-cols-4 gap-2">{Array.from({ length: Math.min(numGroups, 64) }, (_, i) => i + 1).map(g => (<Button key={g} variant="outline" className={cn("h-12 border-white/5 bg-secondary/20 font-bold", contextGroup === g && "border-primary text-primary")} onClick={() => setNavGroup(g)}>{g}</Button>))}</div></div>);
+    return (<div className="space-y-4 animate-in slide-in-from-right-4"><h3 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.selectGroup}</h3><div className="grid grid-cols-4 gap-2">{Array.from({ length: Math.min(numGroups, 64) }, (_, i) => i + 1).map(g => (<Button key={g} variant="outline" className={cn("h-12 border-white/5 bg-secondary/20 font-bold", contextGroup === g && "border-primary text-primary")} onClick={() => setNavGroup(Number(g))}>{g}</Button>))}</div></div>);
   };
 
-  const renderDivisionPicker = () => (<div className="space-y-3 animate-in slide-in-from-right-4"><h3 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.selectDiv}</h3>{Array.from({ length: MAX_LEVELS }, (_, i) => i + 1).map(lvl => (<Card key={lvl} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => setNavLevel(lvl)}><CardContent className="p-4 flex justify-between items-center"><div className="flex items-center gap-4"><div className="w-10 h-10 rounded-xl bg-secondary/50 flex items-center justify-center border border-white/5 font-headline font-bold text-lg italic text-primary">{lvl}</div><span className="text-sm font-bold uppercase tracking-tight">Division {lvl}</span></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></CardContent></Card>))}</div>);
+  const renderDivisionPicker = () => (<div className="space-y-3 animate-in slide-in-from-right-4"><h3 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.selectDiv}</h3>{Array.from({ length: MAX_LEVELS }, (_, i) => i + 1).map(lvl => (<Card key={lvl} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => setNavLevel(Number(lvl))}><CardContent className="p-4 flex justify-between items-center"><div className="flex items-center gap-4"><div className="w-10 h-10 rounded-xl bg-secondary/50 flex items-center justify-center border border-white/5 font-headline font-bold text-lg italic text-primary">{lvl}</div><span className="text-sm font-bold uppercase tracking-tight">Division {lvl}</span></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></CardContent></Card>))}</div>);
 
   const renderLeaguePicker = () => (<div className="grid grid-cols-2 gap-2 animate-in fade-in">{LEAGUES.map(l => (<Card key={l.id} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => setNavLeague(l.id)}><CardContent className="p-4 text-center"><p className="text-sm font-headline font-bold text-white italic">{l.id}</p><p className="text-[7px] text-muted-foreground uppercase font-black mt-1">Start: {l.startTime} MSK</p></CardContent></Card>))}</div>);
 

@@ -1,5 +1,6 @@
 /**
- * @fileOverview Ядро времени v25. Абсолютная синхронизация с эпохой 17 июня 2026.
+ * @fileOverview Ядро времени v27. Абсолютная синхронизация с эпохой 17 июня 2026.
+ * Исключает использование некорректных строковых форматов дат в базе.
  */
 
 /**
@@ -18,7 +19,7 @@ export function getMoscowTime(): Date {
   // Реальная точка отсчета (февраль 2025)
   const realReference = new Date('2025-02-21T00:00:00+03:00');
   
-  // Постоянное смещение (482 дня)
+  // Постоянное смещение (481 день)
   const offsetMs = virtualEpoch.getTime() - realReference.getTime();
 
   return new Date(currentMsk.getTime() + offsetMs);
@@ -59,10 +60,10 @@ export function getGlobalSeasonInfo() {
   const effectiveSeason = isTransitionPhase ? currentSeasonNumber + 1 : currentSeasonNumber;
   
   return {
-    seasonDay: Math.max(1, currentSeasonDay),
-    seasonNumber: Math.max(1, currentSeasonNumber),
+    seasonDay: Number(Math.max(1, currentSeasonDay)),
+    seasonNumber: Number(Math.max(1, currentSeasonNumber)),
     isTransitionPhase,
-    activeSeasonNumber: Math.max(1, effectiveSeason)
+    activeSeasonNumber: Number(Math.max(1, effectiveSeason))
   };
 }
 

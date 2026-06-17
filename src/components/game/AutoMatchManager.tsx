@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v26.
- * Оптимизирован для "тихой" фоновой работы без визуальных морганий.
+ * @fileOverview Автономный менеджер синхронизации v27.
+ * Исключает некорректные форматы дат "10.10" и нормализует числовые поля.
  */
 
 import { useEffect, useRef } from 'react';
@@ -13,7 +13,7 @@ import {
   getStableGroupTeams, generateSeasonCalendar, 
   LEAGUES 
 } from '@/app/lib/leagues-data';
-import { getGlobalSeasonInfo, isMatchOverdue, getMoscowTime } from '@/app/lib/time-utils';
+import { getGlobalSeasonInfo, isMatchOverdue } from '@/app/lib/time-utils';
 import { forceResolveGroupMatches } from '@/app/actions/mmo-engine';
 
 export function AutoMatchManager() {
@@ -26,7 +26,7 @@ export function AutoMatchManager() {
     if (isUserLoading || !user?.uid || !selectedLeagueId) return null;
     return query(
       collection(db, 'players_v10'), 
-      where('selectedLeagueId', '==', selectedLeagueId),
+      where('selectedLeagueId', '==', String(selectedLeagueId)),
       where('leagueLevel', '==', Number(leagueLevel)),
       where('groupId', '==', Number(groupId))
     );
@@ -43,8 +43,8 @@ export function AutoMatchManager() {
 
       try {
         const seasonInfo = getGlobalSeasonInfo();
-        const activeSeason = seasonInfo.activeSeasonNumber;
-        const seasonId = `season_${activeSeason}`;
+        const activeSeasonNum = Number(seasonInfo.activeSeasonNumber);
+        const seasonId = `season_${activeSeasonNum}`;
         const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
         
         const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
@@ -55,7 +55,7 @@ export function AutoMatchManager() {
         const teamsHash = currentTeams.map(t => t.id).join('|');
 
         const needsUpgrade = !groupSnap.exists() || 
-                            (groupSnap.data()?.calendarVersion || 0) < 25 ||
+                            (groupSnap.data()?.calendarVersion || 0) < 27 ||
                             groupSnap.data()?.teamsHash !== teamsHash;
 
         if (needsUpgrade) {
@@ -67,10 +67,10 @@ export function AutoMatchManager() {
           batch.set(groupRef, {
             id: prefixedGroupId,
             seasonId,
-            seasonNumber: activeSeason,
+            seasonNumber: activeSeasonNum,
             teams: currentTeams,
             teamsHash,
-            calendarVersion: 25,
+            calendarVersion: 27,
             updatedAt: serverTimestamp()
           }, { merge: true });
 
@@ -88,22 +88,23 @@ export function AutoMatchManager() {
           calendar.forEach((m) => {
             const matchId = `m_${prefixedGroupId}_d${m.day}_${m.pairKey}`;
             const [hh, mm] = league.startTime.split(':').map(Number);
-            const offset = (activeSeason - 1) * 16 * dayMs + (m.day - 1) * dayMs + (hh * 60 * 60 * 1000) + (mm * 60 * 1000);
+            const offset = (activeSeasonNum - 1) * 16 * dayMs + (m.day - 1) * dayMs + (hh * 60 * 60 * 1000) + (mm * 60 * 1000);
             const finalDate = new Date(epochMs + offset);
 
             batch.set(doc(db, 'matches_v1', matchId), {
               ...m,
               id: matchId,
+              day: Number(m.day),
               seasonId,
-              seasonNumber: activeSeason,
-              groupId: prefixedGroupId,
-              leagueId: selectedLeagueId,
+              seasonNumber: activeSeasonNum,
+              groupId: String(prefixedGroupId),
+              leagueId: String(selectedLeagueId),
               divisionId: Number(leagueLevel),
               status: 'pending',
               isFinished: false,
               startTime: finalDate.toISOString(),
               scheduledAt: Timestamp.fromDate(finalDate),
-              version: 25
+              version: 27
             }, { merge: true });
           });
 
@@ -116,8 +117,7 @@ export function AutoMatchManager() {
         }
 
       } catch (e: any) {
-        // Silent debug log
-        console.debug("[Sync Pulse]:", e.message);
+        console.warn("[Sync Pulse v27]:", e.message);
       } finally {
         processingRef.current = false;
       }

@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v26. 
- * Внедрена защита Auth-First и тихий фоновый режим запросов.
+ * @fileOverview Глобальное хранилище v27. 
+ * Нормализованы запросы для исключения ошибок доступа из-за некорректных типов данных.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -91,7 +91,7 @@ const DEFAULT_STATE: GameState = {
   rewardDay: 1, lastRewardClaimDate: null, matchHistory: [], lastSeenMatchDay: 0,
   managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
   skillPoints: 0, arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
-  country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, activeSeasonId: 'season_1', seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
+  country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
   addCrystals: () => {}, addCredits: () => {}, updateHero: () => {}, removeHero: () => {}, assignToRole: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -119,7 +119,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // 1. ROOT PROFILE LISTENER
   useEffect(() => {
     if (isUserLoading || !user?.uid) return;
 
@@ -139,9 +138,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           leagueLevel: Number(data.leagueLevel || 9),
           groupId: Number(data.groupId || 1),
           country: data.country || null,
-          activeSeasonNumber: seasonInfo.activeSeasonNumber,
-          seasonNumber: seasonInfo.seasonNumber,
-          seasonDay: seasonInfo.seasonDay,
+          activeSeasonNumber: Number(seasonInfo.activeSeasonNumber),
+          seasonNumber: Number(seasonInfo.seasonNumber),
+          seasonDay: Number(seasonInfo.seasonDay),
           isLoaded: true
         }));
       }, (err) => {
@@ -154,13 +153,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.uid, isUserLoading, db, seasonInfo]);
 
-  // 2. TEAM DATA LISTENER
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.id || !state.selectedLeagueId) return;
 
     try {
       const s = state;
-      const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
+      const activeSN = Number(seasonInfo.activeSeasonNumber);
+      const seasonId = `season_${activeSN}`;
       const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
       const teamRef = doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', s.id);
 
@@ -208,24 +207,24 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, seasonInfo, isUserLoading, user?.uid]);
 
-  // 3. MATCHES SYNC CORE (V25)
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
 
     try {
       const s = state;
-      const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
+      const activeSN = Number(seasonInfo.activeSeasonNumber);
+      const seasonId = `season_${activeSN}`;
       const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
 
       const q = query(
         collection(db, 'matches_v1'),
-        where('groupId', '==', prefixedGroupId),
-        where('seasonNumber', '==', seasonInfo.activeSeasonNumber)
+        where('groupId', '==', String(prefixedGroupId)),
+        where('seasonNumber', '==', activeSN)
       );
 
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const loaded = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
-        const sorted = loaded.sort((a, b) => (a.day || 0) - (b.day || 0));
+        const sorted = loaded.sort((a, b) => (Number(a.day) || 0) - (Number(b.day) || 0));
         setAllMatches(sorted);
         setIsMatchesReady(true);
       }, (err) => {
@@ -248,13 +247,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       new Date(m.startTime).getTime() <= mskNow + 300000 
     );
 
-    if (active) return { match: active, opponentName: active.homeId === user.uid ? active.awayName : active.homeName, day: active.day, dateLabel: getSeasonDateLabel(active.day), isHome: active.homeId === user.uid };
+    if (active) return { match: active, opponentName: active.homeId === user.uid ? active.awayName : active.homeName, day: Number(active.day), dateLabel: getSeasonDateLabel(active.day), isHome: active.homeId === user.uid };
 
     const future = allMatches
       .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && !checkIsMatchFinished(m))
       .sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
     
-    if (future) return { match: future, opponentName: future.homeId === user.uid ? future.awayName : future.homeName, day: future.day, dateLabel: getSeasonDateLabel(future.day), isHome: future.homeId === user.uid };
+    if (future) return { match: future, opponentName: future.homeId === user.uid ? future.awayName : future.homeName, day: Number(future.day), dateLabel: getSeasonDateLabel(future.day), isHome: future.homeId === user.uid };
 
     return null;
   }, [allMatches, isMatchesReady, user?.uid]);
@@ -262,7 +261,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const getRefs = useCallback(() => {
     const s = stateRef.current;
     if (!user?.uid || !s.selectedLeagueId) return null;
-    const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
+    const activeSN = Number(seasonInfo.activeSeasonNumber);
+    const seasonId = `season_${activeSN}`;
     const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
     return {
       team: doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid)
@@ -315,16 +315,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const recordMatch = (w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string) => {
     const r = getRefs(); if (!r) return; const s = stateRef.current; const id = mId || `match_${Date.now()}`;
     if (s.matchHistory.some(m => m.id === id)) return;
-    const entry = { id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, matchSummary: res.matchSummary || "Combat concluded.", opponentName: opp, type: t, playedAt: p, reward: rew, seen: false, day: s.seasonDay, seasonNumber: s.seasonNumber, timeline: res.timeline || [], scoreboard: res.scoreboard || [], mvp: res.mvp, duration: res.duration, games: res.games || [] };
+    const entry = { id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, matchSummary: res.matchSummary || "Combat concluded.", opponentName: opp, type: t, playedAt: p, reward: rew, seen: false, day: Number(s.seasonDay), seasonNumber: Number(s.seasonNumber), timeline: res.timeline || [], scoreboard: res.scoreboard || [], mvp: res.mvp, duration: res.duration, games: res.games || [] };
     setDoc(r.team, { credits: s.credits + rew, matchHistory: arrayUnion(entry) }, { merge: true });
   };
-  const markMatchAsSeen = (d: number) => { const r = getRefs(); if (r) setDoc(r.team, { lastSeenMatchDay: d }, { merge: true }); };
+  const markMatchAsSeen = (d: number) => { const r = getRefs(); if (r) setDoc(r.team, { lastSeenMatchDay: Number(d) }, { merge: true }); };
   const markMatchIdAsSeen = (id: string) => { const r = getRefs(); if (!r) return; const hist = stateRef.current.matchHistory.map(m => m.id === id ? { ...m, seen: true } : m); setDoc(r.team, { matchHistory: hist }, { merge: true }); };
   const upgradeManagerSkill = (k: keyof GameState['managerSkills']) => { const s = stateRef.current; if (s.skillPoints <= 0) return; const r = getRefs(); if (r) setDoc(r.team, { skillPoints: s.skillPoints - 1, managerSkills: { ...s.managerSkills, [k]: s.managerSkills[k] + 1 } }, { merge: true }); };
 
   const startConstruction = (type: string, id: string, cost: number, baseH: number) => {
     const s = stateRef.current; const r = getRefs(); if (!r || s.credits < cost) return false;
-    const data = (s as any)[type]; const lvl = data[id] || 0;
+    const data = (s as any)[type]; const lvl = Number(data[id] || 0);
     const dur = baseH * (lvl + 1) * 60 * 60 * 1000;
     setDoc(r.team, { credits: s.credits - cost, [type]: { ...data, constructionStarts: { ...(data.constructionStarts || {}), [id]: new Date().toISOString() }, constructionFinishes: { ...(data.constructionFinishes || {}), [id]: new Date(Date.now() + dur).toISOString() }, isAccelerated: { ...(data.isAccelerated || {}), [id]: false } } }, { merge: true });
     return true;
@@ -336,7 +336,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const startMedicalConstruction = (id: string, c: number) => startConstruction('medical', id, c, 4);
   const startCapacityExpansion = (s: number, c: number) => {
     const r = getRefs(); if (!r || stateRef.current.credits < c) return false;
-    setDoc(r.team, { credits: stateRef.current.credits - c, arena: { ...stateRef.current.arena, pendingSeats: s, constructionStarts: { ...(stateRef.current.arena.constructionStarts || {}), capacity: new Date().toISOString() }, constructionFinishes: { ...(stateRef.current.arena.constructionStarts || {}), capacity: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString() }, isAccelerated: { ...(stateRef.current.arena.isAccelerated || {}), capacity: false } } }, { merge: true });
+    setDoc(r.team, { credits: stateRef.current.credits - c, arena: { ...stateRef.current.arena, pendingSeats: Number(s), constructionStarts: { ...(stateRef.current.arena.constructionStarts || {}), capacity: new Date().toISOString() }, constructionFinishes: { ...(stateRef.current.arena.constructionStarts || {}), capacity: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString() }, isAccelerated: { ...(stateRef.current.arena.isAccelerated || {}), capacity: false } } }, { merge: true });
     return true;
   };
   const accelerateConstruction = (type: string, id: string, mult: number, pr: number) => {
@@ -355,8 +355,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       Object.entries(data.constructionFinishes).forEach(([id, iso]) => {
         if (now >= new Date(iso as string).getTime()) {
           changes = true; const updated = { ...data };
-          if (id === 'capacity') { updated.capacity = (updated.capacity || 5000) + (updated.pendingSeats || 0); delete updated.pendingSeats; }
-          else { updated[id] = (updated[id] || 0) + 1; }
+          if (id === 'capacity') { updated.capacity = Number(updated.capacity || 5000) + Number(updated.pendingSeats || 0); delete updated.pendingSeats; }
+          else { updated[id] = Number(updated[id] || 0) + 1; }
           delete updated.constructionStarts[id]; delete updated.constructionFinishes[id]; delete updated.isAccelerated[id];
           batch.update(r.team, { [t]: updated });
         }
