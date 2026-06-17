@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени. Эпоха сезона 1 перенесена на 2024 год для активации системы в реальном времени.
+ * @fileOverview Ядро времени. Эпоха сезона 1 установлена на 17 июня 2026 года.
  */
 
 export function getMoscowTime(): Date {
@@ -26,11 +26,11 @@ export function formatMoscowTime(date: Date): string {
 
 /**
  * Рассчитывает отображаемую дату для конкретного дня сезона.
- * День 1 Сезона 1 = 17 июня 2024.
+ * День 1 Сезона 1 = 17 июня 2026.
  */
 export function getSeasonDateLabel(dayOfSeason: number): string {
   const info = getGlobalSeasonInfo();
-  const epochDate = new Date('2024-06-17T00:00:00+03:00');
+  const epochDate = new Date('2026-06-17T00:00:00+03:00');
   const targetDate = new Date(epochDate);
   
   const offsetDays = (info.activeSeasonNumber - 1) * 16 + (dayOfSeason - 1);
@@ -40,11 +40,11 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
 }
 
 /**
- * Цикл 16 дней. Сезон 1 начался 17 июня 2024.
+ * Цикл 16 дней. Сезон 1 начался 17 июня 2026.
  */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
-  const epochDate = new Date('2024-06-17T00:00:00+03:00');
+  const epochDate = new Date('2026-06-17T00:00:00+03:00');
   
   const diffMs = mskNow.getTime() - epochDate.getTime();
   const cycleDuration = 16; 
@@ -71,8 +71,8 @@ export function getGlobalSeasonInfo() {
 export function isMatchOverdue(startTimeIso: string): boolean {
   const mskNow = getMoscowTime();
   const start = new Date(startTimeIso);
-  // Если сейчас больше времени старта + 10 секунд буфера
-  return mskNow.getTime() > (start.getTime() + 10000);
+  // Если сейчас больше времени старта + 5 секунд буфера
+  return mskNow.getTime() > (start.getTime() + 5000);
 }
 
 export function calculateLiveAge(baseAge: number, hiredAtIso: string) {

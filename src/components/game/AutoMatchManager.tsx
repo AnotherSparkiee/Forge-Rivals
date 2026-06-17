@@ -1,7 +1,6 @@
-
 /**
- * @fileOverview Автономный движок сезонов v19 (Reality Sync). 
- * Пересчитывает календарь под актуальную эпоху 2024 года.
+ * @fileOverview Автономный движок сезонов v20 (Season 1 Reset). 
+ * Пересчитывает календарь под эпоху 17.06.2026.
  */
 
 'use client';
@@ -53,21 +52,21 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const currentData = groupSnap.data();
 
-        // 1. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ ПОД ТЕКУЩУЮ ЭПОХУ (V19)
+        // 1. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ ПОД ТЕКУЩУЮ ЭПОХУ 2026 (V20)
         if (allGroupPlayers && allGroupPlayers.length > 0) {
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const teamsHash = currentTeams.map(t => t.id).join('|');
 
           const needsUpgrade = !groupSnap.exists() || 
-                              (currentData?.calendarVersion || 0) < 19 ||
+                              (currentData?.calendarVersion || 0) < 20 ||
                               currentData?.teamsHash !== teamsHash;
 
           if (needsUpgrade) {
             let batch = writeBatch(db);
             const calendar = generateSeasonCalendar(currentTeams);
             
-            // СТРОГОЕ СООТВЕТСТВИЕ EPOCH 2024
-            const epochMs = new Date('2024-06-17T00:00:00+03:00').getTime();
+            // СТРОГОЕ СООТВЕТСТВИЕ EPOCH 2026
+            const epochMs = new Date('2026-06-17T00:00:00+03:00').getTime();
             const dayMs = 24 * 60 * 60 * 1000;
 
             batch.set(groupRef, {
@@ -76,7 +75,7 @@ export function AutoMatchManager() {
               seasonNumber: activeSeason,
               teams: currentTeams,
               teamsHash,
-              calendarVersion: 19,
+              calendarVersion: 20,
               updatedAt: serverTimestamp()
             }, { merge: true });
 
@@ -105,7 +104,7 @@ export function AutoMatchManager() {
             });
 
             await batch.commit();
-            console.log("[V19 PULSE] Reality Calendar Synced.");
+            console.log(`[V20 PULSE] Season ${activeSeason} Calendar Reset for 2026.`);
           }
         }
 
@@ -115,19 +114,19 @@ export function AutoMatchManager() {
         });
 
         if (overdueMatches.length > 0) {
-          console.log(`[V19 PULSE] Resolving ${overdueMatches.length} overdue matches for ${prefixedGroupId}`);
+          console.log(`[V20 PULSE] Resolving ${overdueMatches.length} overdue matches for ${prefixedGroupId}`);
           await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
         }
 
       } catch (e: any) {
-        console.warn("[V19 PULSE] Heartbeat error:", e.message);
+        console.warn("[V20 PULSE] Heartbeat error:", e.message);
       } finally {
         processingRef.current = false;
       }
     };
 
     heartbeat();
-    const interval = setInterval(heartbeat, 10000); 
+    const interval = setInterval(heartbeat, 8000); 
     return () => clearInterval(interval);
   }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches]);
 
