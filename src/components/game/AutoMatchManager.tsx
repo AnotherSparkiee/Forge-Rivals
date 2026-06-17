@@ -1,6 +1,5 @@
 /**
- * @fileOverview Автономный движок сезонов v20 (Season 1 Reset). 
- * Пересчитывает календарь под эпоху 17.06.2026.
+ * @fileOverview Автономный движок сезонов v21 (Virtual Time Sync). 
  */
 
 'use client';
@@ -52,13 +51,13 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const currentData = groupSnap.data();
 
-        // 1. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ ПОД ТЕКУЩУЮ ЭПОХУ 2026 (V20)
+        // 1. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ (V21)
         if (allGroupPlayers && allGroupPlayers.length > 0) {
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const teamsHash = currentTeams.map(t => t.id).join('|');
 
           const needsUpgrade = !groupSnap.exists() || 
-                              (currentData?.calendarVersion || 0) < 20 ||
+                              (currentData?.calendarVersion || 0) < 21 ||
                               currentData?.teamsHash !== teamsHash;
 
           if (needsUpgrade) {
@@ -75,7 +74,7 @@ export function AutoMatchManager() {
               seasonNumber: activeSeason,
               teams: currentTeams,
               teamsHash,
-              calendarVersion: 20,
+              calendarVersion: 21,
               updatedAt: serverTimestamp()
             }, { merge: true });
 
@@ -104,7 +103,7 @@ export function AutoMatchManager() {
             });
 
             await batch.commit();
-            console.log(`[V20 PULSE] Season ${activeSeason} Calendar Reset for 2026.`);
+            console.log(`[V21 PULSE] Season ${activeSeason} Calendar Reset for Virtual 2026.`);
           }
         }
 
@@ -114,19 +113,19 @@ export function AutoMatchManager() {
         });
 
         if (overdueMatches.length > 0) {
-          console.log(`[V20 PULSE] Resolving ${overdueMatches.length} overdue matches for ${prefixedGroupId}`);
+          console.log(`[V21 PULSE] Resolving ${overdueMatches.length} overdue matches for ${prefixedGroupId}`);
           await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
         }
 
       } catch (e: any) {
-        console.warn("[V20 PULSE] Heartbeat error:", e.message);
+        console.warn("[V21 PULSE] Heartbeat error:", e.message);
       } finally {
         processingRef.current = false;
       }
     };
 
     heartbeat();
-    const interval = setInterval(heartbeat, 8000); 
+    const interval = setInterval(heartbeat, 5000); 
     return () => clearInterval(interval);
   }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches]);
 
