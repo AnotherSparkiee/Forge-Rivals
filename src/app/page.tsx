@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useAuth, useFirestore } from '@/firebase';
-import { useGameState } from './lib/store';
+import { useGameState, checkIsMatchFinished } from './lib/store';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { 
   Users, Trophy, Zap, UserSearch, Swords, ChevronRight,
@@ -52,20 +52,6 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // Универсальная проверка завершения матча (Total Bypass Logic)
-  const checkIsMatchFinished = (match: any) => {
-    if (!match) return false;
-    return (
-      match.status === 'finished' || 
-      match.matchStatus === 'finished' || 
-      match.state === 'finished' ||
-      match.isFinished === true || 
-      match.isCompleted === true ||
-      (match.scoreA !== undefined && match.scoreB !== undefined && match.status !== 'pending') ||
-      (match.homeScore !== undefined && match.awayScore !== undefined)
-    );
-  };
-
   useEffect(() => {
     if (!isDataReady || !selectedLeagueId || !nextMatch) return;
 
@@ -73,6 +59,16 @@ export default function Home() {
       const mskNow = getMoscowTime();
       const targetTime = nextMatch.match.startTime ? new Date(nextMatch.match.startTime) : null;
       
+      const isFinished = checkIsMatchFinished(nextMatch.match);
+
+      // 1. ПРИОРИТЕТ: Серверный статус. Если матч завершен — убираем WAITING немедленно.
+      if (isFinished) {
+        setCountdown('00:00:00');
+        setIsLive(false);
+        setIsProcessing(false);
+        return;
+      }
+
       if (!targetTime) {
         setCountdown('00:00:00');
         setIsLive(false);
@@ -81,23 +77,16 @@ export default function Home() {
       }
 
       const diff = targetTime.getTime() - mskNow.getTime();
-      const isFinished = checkIsMatchFinished(nextMatch.match);
 
       if (diff <= 0) {
         setCountdown('00:00:00');
-        if (!isFinished) {
-          // Если время прошло, но бэкенд еще не прислал результат
-          // Даем буфер в 15 секунд для статуса LIVE, затем включаем WAITING (Синхронизация)
-          if (Math.abs(diff) > 15000) { 
-            setIsLive(false);
-            setIsProcessing(true);
-          } else {
-            setIsLive(true);
-            setIsProcessing(false);
-          }
-        } else {
-          // Матч гарантированно завершен по данным из Firestore
+        // Если время прошло, но статус в базе 'pending'
+        // Сокращаем буфер ожидания до минимума, чтобы быстрее показывать SYNCING
+        if (Math.abs(diff) > 5000) { 
           setIsLive(false);
+          setIsProcessing(true);
+        } else {
+          setIsLive(true);
           setIsProcessing(false);
         }
       } else {

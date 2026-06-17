@@ -6,7 +6,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useGameState } from '@/app/lib/store';
+import { useGameState, checkIsMatchFinished } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, getDocs, Timestamp } from 'firebase/firestore';
 import { 
@@ -31,19 +31,6 @@ export function AutoMatchManager() {
   }, [db, selectedLeagueId, leagueLevel, groupId]);
 
   const { data: allGroupPlayers } = useCollection(playersInGroupQuery);
-
-  // Универсальная проверка завершения матча (Total Bypass Logic)
-  const checkIsMatchFinished = (match: any) => {
-    if (!match) return false;
-    return (
-      match.status === 'finished' || 
-      match.matchStatus === 'finished' || 
-      match.state === 'finished' ||
-      match.isFinished === true || 
-      match.isCompleted === true ||
-      (match.homeScore !== undefined && match.awayScore !== undefined)
-    );
-  };
 
   useEffect(() => {
     if (!isLoaded || !userId || !selectedLeagueId || processingRef.current) return;

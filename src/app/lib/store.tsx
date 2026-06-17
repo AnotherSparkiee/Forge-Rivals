@@ -13,6 +13,20 @@ import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, wher
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
+// Универсальная проверка завершения матча (Total Bypass Logic)
+export const checkIsMatchFinished = (match: any) => {
+  if (!match) return false;
+  return (
+    match.status === 'finished' || 
+    match.matchStatus === 'finished' || 
+    match.state === 'finished' ||
+    match.isFinished === true || 
+    match.isCompleted === true ||
+    (match.scoreA !== undefined && match.scoreB !== undefined && match.status !== 'pending') ||
+    (match.homeScore !== undefined && match.awayScore !== undefined)
+  );
+};
+
 interface GameState {
   credits: number; 
   crystals: number; 
@@ -298,47 +312,53 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded]);
 
-  // Универсальная проверка завершения матча
-  const checkIsMatchFinished = (match: any) => {
-    if (!match) return false;
-    return (
-      match.status === 'finished' || 
-      match.matchStatus === 'finished' || 
-      match.state === 'finished' ||
-      match.isFinished === true || 
-      match.isCompleted === true ||
-      (match.homeScore !== undefined && match.awayScore !== undefined)
-    );
-  };
-
   const nextMatchInfo = useMemo(() => {
     if (!isMatchesReady || !user) return null;
     const matchesToUse = allMatches.length > 0 ? allMatches : memoryCache.current.lastValidMatches;
     if (matchesToUse.length === 0) return null;
 
-    // Сначала ищем матч, который идет сейчас или будет следующим (не завершен)
+    const mskNow = getMoscowTime().getTime();
+
+    // 1. Ищем "Активный" матч: время пришло, но статус не finished
+    const activeMatch = matchesToUse.find(m => 
+      (m.homeId === user.uid || m.awayId === user.uid) && 
+      !checkIsMatchFinished(m) && 
+      new Date(m.startTime).getTime() <= mskNow + 600000 // Либо уже начался, либо начнется через 10 мин
+    );
+
+    if (activeMatch) {
+      return {
+        match: activeMatch,
+        opponentName: activeMatch.homeId === user.uid ? activeMatch.awayName : activeMatch.homeName,
+        day: activeMatch.day,
+        dateLabel: getSeasonDateLabel(activeMatch.day),
+        isHome: activeMatch.homeId === user.uid
+      };
+    }
+
+    // 2. Ищем матч, который только что закончился (не более 12 часов назад)
+    const recentlyFinished = matchesToUse
+      .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && checkIsMatchFinished(m))
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+      .find(m => mskNow - new Date(m.startTime).getTime() < 12 * 60 * 60 * 1000);
+
+    if (recentlyFinished) {
+      return {
+        match: recentlyFinished,
+        opponentName: recentlyFinished.homeId === user.uid ? recentlyFinished.awayName : recentlyFinished.homeName,
+        day: recentlyFinished.day,
+        dateLabel: getSeasonDateLabel(recentlyFinished.day),
+        isHome: recentlyFinished.homeId === user.uid
+      };
+    }
+
+    // 3. Ищем следующий запланированный матч в будущем
     const myFuture = matchesToUse
       .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && !checkIsMatchFinished(m))
       .sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
     
     if (myFuture.length > 0) {
       const m = myFuture[0];
-      return {
-        match: m,
-        opponentName: m.homeId === user.uid ? m.awayName : m.homeName,
-        day: m.day,
-        dateLabel: getSeasonDateLabel(m.day),
-        isHome: m.homeId === user.uid
-      };
-    }
-    
-    // Если будущих нет, берем последний сыгранный
-    const myLast = matchesToUse
-      .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && checkIsMatchFinished(m))
-      .sort((a,b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-      
-    if (myLast.length > 0) {
-      const m = myLast[0];
       return {
         match: m,
         opponentName: m.homeId === user.uid ? m.awayName : m.homeName,
