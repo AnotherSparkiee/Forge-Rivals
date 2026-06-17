@@ -20,13 +20,12 @@ export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support
 export const checkIsMatchFinished = (match: any) => {
   if (!match) return false;
   
-  // 1. АБСОЛЮТНЫЙ ПРИОРИТЕТ: Физическое наличие счета в Firestore
+  // 1. АБСОЛЮТНЫЙ ПРИОРИТЕТ: Физическое наличие счета в Firestore (Step 3 Requirement)
   const hasCalculatedScore = (
-    match.homeScore !== undefined || 
-    match.awayScore !== undefined ||
-    match.scoreA !== undefined || 
-    match.scoreB !== undefined ||
-    !!match.winnerId
+    match.homeScore !== undefined && match.homeScore !== null || 
+    match.awayScore !== undefined && match.awayScore !== null ||
+    match.scoreA !== undefined && match.scoreA !== null || 
+    match.scoreB !== undefined && match.scoreB !== null
   );
   
   if (hasCalculatedScore) return true;
@@ -206,7 +205,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
     const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
     
-    // leagues_v2 -> {leagueId} -> divisions -> {divId} -> groups -> {prefixedGroupId} -> teams -> {userId}
     const teamRef = doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', s.id);
 
     const unsubTeam = onSnapshot(teamRef, (snap) => {
@@ -286,11 +284,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!isMatchesReady || !user) return null;
     const mskNow = getMoscowTime().getTime();
 
-    // 1. Ищем текущий бой (Приоритет: время начала подошло, но он еще не "закрыт")
     const active = allMatches.find(m => 
       (m.homeId === user.uid || m.awayId === user.uid) && 
       !checkIsMatchFinished(m) && 
-      new Date(m.startTime).getTime() <= mskNow + 300000 // 5 минут до начала
+      new Date(m.startTime).getTime() <= mskNow + 300000 
     );
 
     if (active) {
@@ -303,7 +300,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    // 2. Ищем недавно завершенный (для показа результата в Обзоре)
     const recent = allMatches
       .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && checkIsMatchFinished(m))
       .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
@@ -319,7 +315,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    // 3. Ищем будущий
     const future = allMatches
       .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && !checkIsMatchFinished(m))
       .sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
@@ -338,7 +333,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [allMatches, isMatchesReady, user]);
 
   const syncStats = useCallback((groupPlayers: any[]) => {
-    // Local memory sync for performance
   }, []);
 
   const getRefs = useCallback(() => {

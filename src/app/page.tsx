@@ -57,7 +57,7 @@ export default function Home() {
     if (!isDataReady || !selectedLeagueId || !nextMatch) return;
 
     const timer = setInterval(() => {
-      // 1. АБСОЛЮТНЫЙ ПРИОРИТЕТ: Если бэкенд прописал счет, МГНОВЕННО срываем WAITING
+      // ШАГ 3: ПРИНУДИТЕЛЬНОЕ СКРЫТИЕ WAITING (Step 3 Requirement)
       const isActuallyFinished = checkIsMatchFinished(nextMatch.match);
 
       if (isActuallyFinished) {
@@ -67,7 +67,7 @@ export default function Home() {
         return;
       }
 
-      // 2. ЛОГИКА ТАЙМЕРА (Только если счета еще нет в базе)
+      // ЛОГИКА ТАЙМЕРА (Только если счета еще нет в базе)
       const mskNow = getMoscowTime();
       const targetTime = nextMatch.match.startTime ? new Date(nextMatch.match.startTime) : null;
 
@@ -80,8 +80,8 @@ export default function Home() {
 
       if (diff <= 0) {
         setCountdown('00:00:00');
-        // Если прошло более 10 секунд и счета всё еще нет — статус Ожидания
-        if (Math.abs(diff) > 10000) { 
+        // Если время вышло, но счета нет - показываем WAITING
+        if (Math.abs(diff) > 5000) { 
           setIsLive(false);
           setIsProcessing(true); 
         } else {

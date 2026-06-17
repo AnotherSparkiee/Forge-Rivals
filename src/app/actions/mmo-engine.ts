@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview Глобальный MMO-Двигатель v11 (Server-First).
- * Ультимативное решение: расчет таблицы В ПЕРВУЮ ОЧЕРЕДЬ.
+ * @fileOverview Глобальный MMO-Двигатель v12 (Calibration Mode).
+ * Ультимативное решение: жесткий пересчет таблиц и срыв статуса WAITING.
  */
 
 import { 
@@ -15,22 +15,24 @@ import { getMoscowTime, getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getMatchResult } from '@/app/lib/leagues-data';
 
 /**
- * ЭКСТРЕННОЕ ПРОТАЛКИВАНИЕ (Server Authority): 
- * Находит матчи, время которых прошло, и проводит транзакционный расчет.
+ * ЖЕСТКАЯ КАЛИБРОВКА (Step-by-Step Sync):
+ * 1. Находит матчи за 2026-06-17.
+ * 2. Генерирует результат.
+ * 3. Транзакционно обновляет таблицы (Wins/Points).
+ * 4. Закрывает матч всеми возможными флагами.
  */
 export async function forceResolveLeagueMatches() {
   const { firestore: db } = initializeFirebase();
   const { seasonNumber } = getGlobalSeasonInfo();
   const seasonId = `season_${seasonNumber}`;
-  const mskNow = getMoscowTime();
+  const CURRENT_DATE_STR = "2026-06-17"; 
 
-  console.log(`[SERVER ENGINE v11] Autonomous Resolution Cycle for Season ${seasonNumber}...`);
+  console.log(`[V12 CALIBRATION] Starting forced sync for ${CURRENT_DATE_STR}...`);
 
-  // Ищем матчи, которые не в статусе finished
   const q = query(
     collection(db, 'matches_v1'),
     where('seasonId', '==', seasonId),
-    where('status', 'in', ['pending', 'scheduled', 'waiting'])
+    where('status', 'in', ['pending', 'scheduled', 'waiting', 'playing'])
   );
 
   const snap = await getDocs(q);
@@ -40,35 +42,29 @@ export async function forceResolveLeagueMatches() {
 
   for (const docSnap of snap.docs) {
     const m = docSnap.data();
-    const startTime = new Date(m.startTime).getTime();
     
-    // Если время матча прошло (+5 секунд буфера)
-    if (mskNow.getTime() > startTime + 5000) {
+    // Фильтр по дате из ТЗ
+    if (m.startTime && m.startTime.includes(CURRENT_DATE_STR)) {
       const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, seasonNumber);
       
-      // Выполняем транзакционный пересчет очков и закрытие матча
-      await syncMatchStandingsWithTransaction(db, m, sA, sB, seasonNumber, docSnap.id);
+      // ВЫПОЛНЯЕМ ШАГ 1 и 2 (Сначала таблицы, потом матч)
+      await runCalibrationTransaction(db, m, sA, sB, docSnap.id);
       resolvedCount++;
     }
   }
 
-  console.log(`[SERVER ENGINE v11] Cycle complete. Resolved: ${resolvedCount}`);
+  console.log(`[V12 CALIBRATION] Success. Resolved: ${resolvedCount}`);
   return { success: true, count: resolvedCount };
 }
 
-/**
- * ТРАНЗАКЦИОННЫЙ ПЕРЕСЧЕТ ТАБЛИЦЫ (STANDINGS FIRST): 
- * Гарантирует, что очки начисляются ДО или одновременно с закрытием матча.
- */
-async function syncMatchStandingsWithTransaction(
+async function runCalibrationTransaction(
   db: Firestore, 
   matchData: any,
   sA: number, 
   sB: number,
-  seasonNumber: number,
   matchDocId: string
 ) {
-  const { homeId, awayId, leagueId, divisionId, groupId } = matchData;
+  const { homeId, awayId, leagueId, divisionId, groupId, homeName, awayName } = matchData;
 
   // Пути к мастер-профилям
   const homeRootRef = doc(db, 'players_v10', homeId);
@@ -79,64 +75,48 @@ async function syncMatchStandingsWithTransaction(
   const awayTeamRef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', awayId);
   
   const matchRef = doc(db, 'matches_v1', matchDocId);
-
   const winnerId = sA > sB ? homeId : (sB > sA ? awayId : null);
-  const winnerName = sA > sB ? matchData.homeName : (sB > sA ? matchData.awayName : "Draw");
 
   try {
     await runTransaction(db, async (transaction) => {
       const hRoot = await transaction.get(homeRootRef);
       const aRoot = await transaction.get(awayRootRef);
-      const hTeam = await transaction.get(homeTeamRef);
-      const aTeam = await transaction.get(awayTeamRef);
 
-      // 1. Обработка Хозяев (Wins/Draws/Losses)
+      // ШАГ 1: ПРЯМОЙ ПЕРЕСЧЕТ ТАБЛИЦ (Приоритет №1)
       if (hRoot.exists()) {
         const d = hRoot.data();
         let w = d.wins || 0, dr = d.draws || 0, l = d.losses || 0, p = d.points || 0;
         if (sA > sB) { w++; p += 3; } else if (sA < sB) { l++; } else { dr++; p += 1; }
-        const update = { wins: w, draws: dr, losses: l, points: p, statString: `${w}-${dr}-${l}`, lastProcessedMatch: matchDocId };
+        const update = { wins: w, draws: dr, losses: l, points: p, statString: `${w}-${dr}-${l}` };
         transaction.update(homeRootRef, update);
-        if (hTeam.exists()) transaction.update(homeTeamRef, update);
+        transaction.update(homeTeamRef, update);
       }
 
-      // 2. Обработка Гостей
       if (aRoot.exists()) {
         const d = aRoot.data();
         let w = d.wins || 0, dr = d.draws || 0, l = d.losses || 0, p = d.points || 0;
         if (sB > sA) { w++; p += 3; } else if (sB < sA) { l++; } else { dr++; p += 1; }
-        const update = { wins: w, draws: dr, losses: l, points: p, statString: `${w}-${dr}-${l}`, lastProcessedMatch: matchDocId };
+        const update = { wins: w, draws: dr, losses: l, points: p, statString: `${w}-${dr}-${l}` };
         transaction.update(awayRootRef, update);
-        if (aTeam.exists()) transaction.update(awayTeamRef, update);
+        transaction.update(awayTeamRef, update);
       }
 
-      // 3. ФИНАЛИЗАЦИЯ МАТЧА (Total Bypass Statuses)
+      // ШАГ 2: УНИЧТОЖЕНИЕ ПЛАШКИ WAITING (Жесткий оверрайд статусов)
       transaction.update(matchRef, {
-        status: 'finished',
-        matchStatus: 'finished',
-        state: 'finished',
-        isFinished: true,
-        isCompleted: true,
         homeScore: sA,
         awayScore: sB,
         scoreA: sA,
         scoreB: sB,
         winnerId: winnerId,
-        finishedAt: serverTimestamp(),
-        simulation: {
-          winner: winnerName,
-          seriesScore: `${sA}-${sB}`,
-          games: [{ 
-            scoreA: sA > 0 ? 1 : 0, 
-            scoreB: sB > 0 ? 1 : 0, 
-            duration: "35:00", 
-            matchSummary: "Transaction finalized by Server Authority." 
-          }]
-        }
+        status: 'finished',
+        matchStatus: 'finished',
+        state: 'finished',
+        isFinished: true,
+        isCompleted: true,
+        finishedAt: serverTimestamp()
       });
     });
-    console.log(`[SUCCESS] Standings updated and match ${matchDocId} closed.`);
   } catch (e) {
-    console.error(`[TRANSACTION FAILED] Match ${matchDocId}:`, e);
+    console.error(`[CALIBRATION FAILED] ${matchDocId}:`, e);
   }
 }
