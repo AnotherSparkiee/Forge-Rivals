@@ -1,13 +1,13 @@
 'use server';
 
 /**
- * @fileOverview Ультимативный антикризисный двигатель Кубка v7.
+ * @fileOverview Ультимативный антикризисный двигатель Кубка v8.
  * 
  * Особенности:
- * 1. Генерация Раунда 1 для всех 16 лиг (Сезон 2).
+ * 1. Генерация Раунда 1 для всех 16 лиг (Сезон 1).
  * 2. Дублирование типов (str/num) для пробития любых фильтров.
  * 3. Мультиформатные даты и статусы.
- * 4. Поэтапная генерация раундов (Раунд 2 создается только после финиша Раунда 1).
+ * 4. ПОЛНЫЙ ПОСЕВ: Дивизионы 1-9 включены в Раунд 1.
  */
 
 import { 
@@ -44,25 +44,25 @@ class FirestoreBatcher {
 }
 
 /**
- * ЭКСТРЕННАЯ ГЕНЕРАЦИЯ: Раунд 1 для всех 16 лиг.
+ * ЭКСТРЕННАЯ ГЕНЕРАЦИЯ: Раунд 1 для всех 16 лиг (Сезон 1).
  */
 export async function generatePyramidCup() {
   const { firestore: db } = initializeFirebase();
   
-  // КРИТИЧЕСКИЕ КОНСТАНТЫ ИЗ ВАШЕГО СКРИПТА
-  const SEASON = "2"; 
+  // СИНХРОНИЗАЦИЯ ПО СЕЗОНУ 1 (ЭПОХА 17.06.2026)
+  const SEASON = "1"; 
   const DATE_ISO = "2026-06-17T20:00:00.000Z";
   const DATE_SHORT = "2026-06-17";
   const TIMESTAMP_NOW = Timestamp.fromDate(new Date("2026-06-17T20:00:00Z"));
 
-  console.log(`[EMERGENCY V7] Starting Total Generation for Season ${SEASON}...`);
+  console.log(`[EMERGENCY V8] Starting Total Generation for Season ${SEASON}...`);
 
   for (let i = 0; i < LEAGUES.length; i++) {
     const league = LEAGUES[i];
     const leagueNum = i + 1;
     const batcher = new FirestoreBatcher(db);
     
-    // 1. Сбор участников из мастер-индекса (players_v10)
+    // Сбор участников из мастер-индекса (players_v10)
     const q = query(
       collection(db, 'players_v10'),
       where('selectedLeagueId', '==', league.id)
@@ -74,13 +74,12 @@ export async function generatePyramidCup() {
       return { 
         id: d.id, 
         name: data.displayName || "Manager",
-        // Сила: чем меньше уровень и ранг, тем выше в списке
         power: (Number(data.leagueLevel || 9) * 100) + Number(data.rank || 8),
         divisionId: String(data.leagueLevel || "9")
       };
     });
 
-    // Дозаполнение ботами до 16 или четного (минимум 16 на лигу для теста)
+    // Дозаполнение ботами до 16 или четного
     const minTeams = Math.max(16, allTeams.length + (allTeams.length % 2));
     while (allTeams.length < minTeams) {
       const botId = `sys_bot_cup_${league.id}_${allTeams.length}`;
@@ -92,10 +91,8 @@ export async function generatePyramidCup() {
       });
     }
 
-    // Сортировка: Сильные (низкий power) -> Слабые (высокий power)
     allTeams.sort((a, b) => a.power - b.power);
 
-    // 2. Формируем пары "От края до края"
     let left = 0;
     let right = allTeams.length - 1;
     let matchNum = 1;
@@ -108,32 +105,21 @@ export async function generatePyramidCup() {
 
       await batcher.set(doc(db, 'cup_matches', cupMatchId), {
         cupMatchId,
-        
-        // ДУБЛИРОВАНИЕ ТИПОВ ДЛЯ СТРОГИХ ФИЛЬТРОВ:
         seasonId: SEASON,
         seasonId_num: Number(SEASON),
         seasonNumber: Number(SEASON),
-        
         leagueId: league.id,
         leagueId_num: leagueNum,
-        
         round: 1,
         round_str: "1",
-
-        // МУЛЬТИФОРМАТ ДАТЫ:
         date: DATE_ISO,
         dateString: DATE_SHORT,
         timestamp: TIMESTAMP_NOW,
-
-        // КОМАНДЫ (Слабый всегда дома):
         homeTeamId: weakTeam.id,
         awayTeamId: strongTeam.id,
-        
-        // ДУБЛИРОВАНИЕ СТАТУСОВ:
         status: 'scheduled',
         matchStatus: 'scheduled',
         isFinished: false,
-
         winnerId: null,
         createdAt: serverTimestamp()
       });
@@ -143,7 +129,6 @@ export async function generatePyramidCup() {
       matchNum++;
     }
 
-    // Автопроход для нечетного
     if (left === right) {
       const cupMatchId = `season_${SEASON}_league_${league.id}_round_1_match_${matchNum}`;
       await batcher.set(doc(db, 'cup_matches', cupMatchId), {
@@ -169,7 +154,7 @@ export async function generatePyramidCup() {
     }
 
     await batcher.commit();
-    console.log(`[CUP V7] League ${league.id} initialized. Matches: ${matchNum}`);
+    console.log(`[CUP V8] League ${league.id} initialized. Matches: ${matchNum}`);
   }
   
   return { success: true };
@@ -177,12 +162,10 @@ export async function generatePyramidCup() {
 
 /**
  * РЕАКТИВНЫЙ ТРИГГЕР: Генерация следующего раунда.
- * Вызывается при завершении любого матча.
  */
 export async function advanceCupRound(leagueId: string, seasonId: string, finishedRound: number) {
   const { firestore: db } = initializeFirebase();
 
-  // 1. Проверяем, завершен ли весь раунд в лиге
   const qActive = query(
     collection(db, 'cup_matches'),
     where('seasonId', '==', seasonId),
@@ -192,11 +175,10 @@ export async function advanceCupRound(leagueId: string, seasonId: string, finish
   );
 
   const activeSnap = await getDocs(qActive);
-  if (!activeSnap.empty) return; // Еще есть живые игры
+  if (!activeSnap.empty) return; 
 
   console.log(`[CUP] Advancing Round ${finishedRound} in ${leagueId}...`);
 
-  // 2. Сбор победителей
   const qWinners = query(
     collection(db, 'cup_matches'),
     where('seasonId', '==', seasonId),
@@ -206,9 +188,8 @@ export async function advanceCupRound(leagueId: string, seasonId: string, finish
   const winnersSnap = await getDocs(qWinners);
   const winnersIds = winnersSnap.docs.map(d => d.data().winnerId).filter(Boolean);
 
-  if (winnersIds.length <= 1) return; // Финал завершен
+  if (winnersIds.length <= 1) return; 
 
-  // 3. Сбор данных о силе для перепосева
   const participantsData: any[] = [];
   for (const teamId of winnersIds) {
     const pDoc = await getDoc(doc(db, 'players_v10', teamId!));
@@ -222,7 +203,6 @@ export async function advanceCupRound(leagueId: string, seasonId: string, finish
 
   participantsData.sort((a, b) => a.power - b.power);
 
-  // 4. Генерация нового раунда
   const batcher = new FirestoreBatcher(db);
   const nextRoundNum = finishedRound + 1;
   const nextDateISO = new Date().toISOString();
@@ -240,6 +220,7 @@ export async function advanceCupRound(leagueId: string, seasonId: string, finish
       cupMatchId: mId,
       seasonId,
       seasonId_num: Number(seasonId),
+      seasonNumber: Number(seasonId),
       leagueId,
       round: nextRoundNum,
       round_str: String(nextRoundNum),
