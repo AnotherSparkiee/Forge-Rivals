@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
+    // === HELPERS ===
     function isSignedIn() {
       return request.auth != null;
     }
@@ -11,7 +11,7 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // === СТРУКТУРА ДАННЫХ ===
+    // === DATA STRUCTURES ===
 
     // Root profile (Pointers & Callsigns)
     match /players_v10/{userId} {
@@ -20,22 +20,28 @@ service cloud.firestore {
     }
 
     // Pyramidal League Structure (V25: Standings-First approach)
-    match /leagues_v2/{leagueId}/divisions/{divId}/groups/{groupId} {
+    // Using recursive wildcard {path=**} to ensure subcollections like 'teams' are covered
+    match /leagues_v2/{document=**} {
       allow read, write: if isSignedIn();
-      
-      // Allow writing to any team in the group to support atomic standings updates
-      match /teams/{userId} {
-        allow read, write: if isSignedIn();
-      }
     }
 
     // Global Matches (V25: Open access for simulation resolution)
-    match /matches_v1/{matchId} {
+    match /matches_v1/{document=**} {
       allow read, write: if isSignedIn(); 
     }
 
-    // Market & Auctions (Рынок и трансферы)
-    match /market_v7/{agentId=**} {
+    // Cup Matches (V25: Bracket and knockout stages)
+    match /cup_matches/{document=**} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Market & Auctions (Recursive to cover agent data)
+    match /market_v7/{document=**} {
+      allow read, write: if isSignedIn();
+    }
+
+    // System Status & Metadata
+    match /system_v1/{document=**} {
       allow read, write: if isSignedIn();
     }
 
@@ -67,7 +73,7 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
-    // Глобальная заглушка для безопасности
+    // Fallback security
     match /{document=**} {
       allow read: if isSignedIn();
       allow write: if false;
