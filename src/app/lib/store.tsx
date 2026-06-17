@@ -14,28 +14,21 @@ import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, wher
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
 /**
- * УНИВЕРСАЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА (V16 Absolute Truth)
- * Наличие счета в базе — ЕДИНСТВЕННЫЙ И ПЕРВООЧЕРЕДНОЙ ПРИЗНАК.
+ * УНИВЕРСАЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА (V17 Absolute Truth)
  */
 export const checkIsMatchFinished = (match: any) => {
   if (!match) return false;
   
-  // АБСОЛЮТНЫЙ ПРИОРИТЕТ: Если есть счет (любое поле), матч ЗАВЕРШЕН.
   const hasScore = (
-    match.homeScore !== undefined && match.homeScore !== null ||
-    match.scoreA !== undefined && match.scoreA !== null ||
-    match.awayScore !== undefined && match.awayScore !== null ||
-    match.scoreB !== undefined && match.scoreB !== null
+    (match.homeScore !== undefined && match.homeScore !== null) ||
+    (match.scoreA !== undefined && match.scoreA !== null)
   );
   
   if (hasScore) return true;
 
-  // ВТОРИЧНО: Статусы
-  const finishedStatuses = ['finished', 'completed', 'resolved', 'done'];
   const statusStr = String(match.status || match.matchStatus || match.state || '').toLowerCase();
-  
   return (
-    finishedStatuses.includes(statusStr) || 
+    ['finished', 'completed', 'resolved', 'done'].includes(statusStr) || 
     match.isFinished === true || 
     match.isCompleted === true
   );
@@ -266,7 +259,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
     const q = query(
       collection(db, 'matches_v1'),
-      where('seasonId', '==', seasonId),
       where('groupId', '==', prefixedGroupId)
     );
 
@@ -284,7 +276,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!isMatchesReady || !user) return null;
     const mskNow = getMoscowTime().getTime();
 
-    // 1. Сначала ищем активный или только что завершенный
+    // Сначала ищем активный или только что завершенный
     const active = allMatches.find(m => 
       (m.homeId === user.uid || m.awayId === user.uid) && 
       !checkIsMatchFinished(m) && 
@@ -334,6 +326,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [allMatches, isMatchesReady, user]);
 
   const syncStats = useCallback((groupPlayers: any[]) => {
+    // Больше не требуется принудительно синхронизировать, так как V17 считает на лету
   }, []);
 
   const getRefs = useCallback(() => {

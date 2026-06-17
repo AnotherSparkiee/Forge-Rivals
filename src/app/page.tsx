@@ -53,13 +53,13 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // MASTER SYNC EFFECT (V16 Absolute Standings)
+  // MASTER SYNC EFFECT (V17 Absolute Standings)
   useEffect(() => {
     if (!isDataReady || !selectedLeagueId || !nextMatch) return;
 
     const timer = setInterval(() => {
+      // КРИТИЧЕСКИЙ ОВЕРРАЙД: Если счет в базе есть - WAITING БЛОКИРУЕТСЯ
       const isActuallyFinished = checkIsMatchFinished(nextMatch.match);
-
       if (isActuallyFinished) {
         setCountdown('00:00:00');
         setIsLive(false);
@@ -68,7 +68,6 @@ export default function Home() {
       }
 
       const mskNow = getMoscowTime();
-      // Используем только время и день сезона для оценки "лайва"
       const { seasonDay: curDay } = getGlobalSeasonInfo();
       const matchDay = nextMatch.match.day;
       const [sh, sm] = league.startTime.split(':').map(Number);
@@ -79,7 +78,6 @@ export default function Home() {
       if (curDay > matchDay || (curDay === matchDay && currentMins >= matchMins)) {
         setCountdown('00:00:00');
         setIsLive(true); 
-        // Если время вышло, включаем режим синхронизации (WAITING)
         setIsProcessing(true);
       } else if (curDay === matchDay) {
         const targetTime = new Date(mskNow);
