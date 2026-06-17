@@ -14,18 +14,16 @@ import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, wher
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
 /**
- * УНИВЕРСАЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА (Total Bypass Logic)
+ * УНИВЕРСАЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА (V13 Absolute Priority)
  * Наличие счета в базе — абсолютный приоритет над любыми таймерами.
  */
 export const checkIsMatchFinished = (match: any) => {
   if (!match) return false;
   
-  // 1. АБСОЛЮТНЫЙ ПРИОРИТЕТ: Физическое наличие счета в Firestore (Step 3 Requirement)
+  // 1. АБСОЛЮТНЫЙ ПРИОРИТЕТ: Физическое наличие счета в Firestore
   const hasCalculatedScore = (
-    match.homeScore !== undefined && match.homeScore !== null || 
-    match.awayScore !== undefined && match.awayScore !== null ||
-    match.scoreA !== undefined && match.scoreA !== null || 
-    match.scoreB !== undefined && match.scoreB !== null
+    (match.homeScore !== undefined && match.homeScore !== null) || 
+    (match.scoreA !== undefined && match.scoreA !== null)
   );
   
   if (hasCalculatedScore) return true;
@@ -196,7 +194,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [user, isUserLoading, db]);
 
-  // 2. TEAM DATA LISTENER (Correct 8-segment paths)
+  // 2. TEAM DATA LISTENER
   useEffect(() => {
     const s = state;
     if (!s.id || !s.selectedLeagueId) return;
@@ -284,6 +282,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!isMatchesReady || !user) return null;
     const mskNow = getMoscowTime().getTime();
 
+    // 1. Сначала ищем активный или только что завершенный (в пределах 8 часов)
     const active = allMatches.find(m => 
       (m.homeId === user.uid || m.awayId === user.uid) && 
       !checkIsMatchFinished(m) && 

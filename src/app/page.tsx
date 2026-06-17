@@ -24,6 +24,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { getMoscowTime, getGlobalSeasonInfo } from './lib/time-utils';
 import { LEAGUES } from './lib/leagues-data';
+import { forceResolveGroupMatches } from '@/app/actions/mmo-engine';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,8 +38,8 @@ export default function Home() {
   const db = useFirestore();
   const { toast } = useToast();
   const { 
-    language, setLanguage, isLoaded, selectedLeagueId,
-    nextMatch, isDataReady
+    language, setLanguage, isLoaded, selectedLeagueId, leagueLevel, groupId,
+    nextMatch, isDataReady, seasonNumber
   } = useGameState();
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -48,16 +49,17 @@ export default function Home() {
   const [countdown, setCountdown] = useState('');
   const [isLive, setIsLive] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isForceSyncing, setIsForceSyncing] = useState(false);
 
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // MASTER SYNC EFFECT (Smashes WAITING on result arrival)
+  // MASTER SYNC EFFECT
   useEffect(() => {
     if (!isDataReady || !selectedLeagueId || !nextMatch) return;
 
     const timer = setInterval(() => {
-      // ШАГ 3: ПРИНУДИТЕЛЬНОЕ СКРЫТИЕ WAITING (Step 3 Requirement)
+      // 1. ПРИОРИТЕТ ДАННЫХ: Если счет есть - WAITING стирается
       const isActuallyFinished = checkIsMatchFinished(nextMatch.match);
 
       if (isActuallyFinished) {
@@ -67,7 +69,6 @@ export default function Home() {
         return;
       }
 
-      // ЛОГИКА ТАЙМЕРА (Только если счета еще нет в базе)
       const mskNow = getMoscowTime();
       const targetTime = nextMatch.match.startTime ? new Date(nextMatch.match.startTime) : null;
 
@@ -80,8 +81,8 @@ export default function Home() {
 
       if (diff <= 0) {
         setCountdown('00:00:00');
-        // Если время вышло, но счета нет - показываем WAITING
-        if (Math.abs(diff) > 5000) { 
+        // Если время вышло, но счета нет - показываем WAITING через 10 сек
+        if (Math.abs(diff) > 10000) { 
           setIsLive(false);
           setIsProcessing(true); 
         } else {
@@ -100,6 +101,21 @@ export default function Home() {
 
     return () => clearInterval(timer);
   }, [isDataReady, selectedLeagueId, nextMatch]);
+
+  const handleManualSync = async () => {
+    if (!selectedLeagueId || isForceSyncing) return;
+    setIsForceSyncing(true);
+    try {
+      const sNum = seasonNumber || 1;
+      const prefixedGroupId = `season_${sNum}_league_${selectedLeagueId}_group_${groupId}`;
+      await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
+      toast({ title: language === 'ru' ? "Синхронизация завершена" : "Sync Concluded" });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsForceSyncing(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,21 +272,36 @@ export default function Home() {
                     ? (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...') 
                     : (seasonInfo.isTransitionPhase ? "Preparation Countdown" : "Match Start Protocol")}
                 </p>
-                <div className="flex items-center justify-center gap-2">
-                  {isMatchReallyDone ? (
-                    <Trophy className="w-5 h-5 text-yellow-500" />
-                  ) : (isLive || isProcessing) ? (
-                    <RefreshCw className="w-4 h-4 text-primary animate-spin" />
-                  ) : (
-                    <Timer className="w-4 h-4 text-accent" />
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <div className="flex items-center justify-center gap-2">
+                    {isMatchReallyDone ? (
+                      <Trophy className="w-5 h-5 text-yellow-500" />
+                    ) : (isLive || isProcessing) ? (
+                      <RefreshCw className={cn("w-4 h-4 text-primary", !isForceSyncing && "animate-spin")} />
+                    ) : (
+                      <Timer className="w-4 h-4 text-accent" />
+                    )}
+                    <p className={cn("text-xl font-headline font-bold tabular-nums tracking-tighter", (isLive || isProcessing) ? "text-primary" : "text-primary")}>
+                      {isMatchReallyDone 
+                        ? `${nextMatch?.match.homeScore ?? nextMatch?.match.scoreA ?? 0}:${nextMatch?.match.awayScore ?? nextMatch?.match.scoreB ?? 0}`
+                        : isLive ? 'LIVE' 
+                        : isProcessing ? 'WAITING' 
+                        : (countdown || '00:00:00')}
+                    </p>
+                  </div>
+
+                  {isProcessing && !isMatchReallyDone && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={handleManualSync}
+                      disabled={isForceSyncing}
+                      className="mt-2 h-7 px-4 text-[8px] font-black uppercase bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20"
+                    >
+                      {isForceSyncing ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <RefreshCw className="w-3 h-3 mr-2" />}
+                      {language === 'ru' ? 'ПРИНУДИТЕЛЬНЫЙ РАСЧЕТ' : 'FORCE CALIBRATION'}
+                    </Button>
                   )}
-                  <p className={cn("text-xl font-headline font-bold tabular-nums tracking-tighter", (isLive || isProcessing) ? "text-primary" : "text-primary")}>
-                    {isMatchReallyDone 
-                      ? `${nextMatch?.match.homeScore ?? nextMatch?.match.scoreA ?? 0}:${nextMatch?.match.awayScore ?? nextMatch?.match.scoreB ?? 0}`
-                      : isLive ? 'LIVE' 
-                      : isProcessing ? 'WAITING' 
-                      : (countdown || '00:00:00')}
-                  </p>
                 </div>
               </div>
             </div>

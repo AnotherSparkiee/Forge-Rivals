@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview Глобальный MMO-Двигатель v12 (Calibration Mode).
- * Ультимативное решение: жесткий пересчет таблиц и срыв статуса WAITING.
+ * @fileOverview Глобальный MMO-Двигатель v13 (Targeted Calibration).
+ * Ультимативное решение: расчет конкретной группы для мгновенного результата.
  */
 
 import { 
@@ -15,23 +15,19 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getMatchResult } from '@/app/lib/leagues-data';
 
 /**
- * ЖЕСТКАЯ КАЛИБРОВКА (Step-by-Step Sync):
- * 1. Находит матчи за 2026-06-17.
- * 2. Генерирует результат.
- * 3. Транзакционно обновляет таблицы (Wins/Points).
- * 4. Закрывает матч всеми возможными флагами.
+ * ТАРГЕТИРОВАННАЯ КАЛИБРОВКА ГРУППЫ:
+ * Решает проблему таймаутов, обрабатывая только нужную группу.
  */
-export async function forceResolveLeagueMatches() {
+export async function forceResolveGroupMatches(leagueId: string, divisionId: number, groupId: string) {
   const { firestore: db } = initializeFirebase();
   const { seasonNumber } = getGlobalSeasonInfo();
   const seasonId = `season_${seasonNumber}`;
-  const CURRENT_DATE_STR = "2026-06-17"; 
 
-  console.log(`[V12 CALIBRATION] Starting forced sync for ${CURRENT_DATE_STR}...`);
+  console.log(`[V13 TARGETED] Syncing group ${groupId}...`);
 
-  // Запрос всех матчей текущего сезона, которые еще не помечены как завершенные
   const q = query(
     collection(db, 'matches_v1'),
+    where('groupId', '==', groupId),
     where('seasonId', '==', seasonId)
   );
 
@@ -39,24 +35,20 @@ export async function forceResolveLeagueMatches() {
   if (snap.empty) return { success: true, count: 0 };
 
   let resolvedCount = 0;
+  const now = Date.now();
 
   for (const docSnap of snap.docs) {
     const m = docSnap.data();
+    const startTime = m.startTime ? new Date(m.startTime).getTime() : 0;
     
-    // Проверяем: время начала прошло И матч в ожидании ИЛИ дата совпадает
-    const isPast = m.startTime && new Date(m.startTime).getTime() < Date.now();
-    const isPending = !m.isFinished && m.status !== 'finished';
-
-    if (isPast && isPending) {
+    // Если время прошло и матч не завершен
+    if (startTime > 0 && now > startTime && !m.isFinished && m.status !== 'finished') {
       const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, seasonNumber);
-      
-      // ВЫПОЛНЯЕМ ТРАНЗАКЦИЮ: Сначала таблицы, потом статус матча
       await runCalibrationTransaction(db, m, sA, sB, docSnap.id);
       resolvedCount++;
     }
   }
 
-  console.log(`[V12 CALIBRATION] Success. Resolved: ${resolvedCount}`);
   return { success: true, count: resolvedCount };
 }
 
@@ -69,15 +61,12 @@ async function runCalibrationTransaction(
 ) {
   const { homeId, awayId, leagueId, divisionId, groupId } = matchData;
 
-  // Пути к мастер-профилям
   const homeRootRef = doc(db, 'players_v10', homeId);
   const awayRootRef = doc(db, 'players_v10', awayId);
-
-  // Пути к локальным командам в лиге
   const homeTeamRef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', homeId);
   const awayTeamRef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', awayId);
-  
   const matchRef = doc(db, 'matches_v1', matchDocId);
+  
   const winnerId = sA > sB ? homeId : (sB > sA ? awayId : null);
 
   try {
@@ -85,7 +74,7 @@ async function runCalibrationTransaction(
       const hRoot = await transaction.get(homeRootRef);
       const aRoot = await transaction.get(awayRootRef);
 
-      // ШАГ 1: ПРЯМОЙ ПЕРЕСЧЕТ ТАБЛИЦ (Приоритет №1)
+      // ШАГ 1: Обновление статистики команд
       if (hRoot.exists()) {
         const d = hRoot.data();
         let w = d.wins || 0, dr = d.draws || 0, l = d.losses || 0, p = d.points || 0;
@@ -104,22 +93,38 @@ async function runCalibrationTransaction(
         transaction.update(awayTeamRef, update);
       }
 
-      // ШАГ 2: УНИЧТОЖЕНИЕ ПЛАШКИ WAITING
+      // ШАГ 2: Закрытие матча (Тотальный Bypass)
       transaction.update(matchRef, {
-        homeScore: sA,
-        awayScore: sB,
-        scoreA: sA,
-        scoreB: sB,
+        homeScore: sA, awayScore: sB,
+        scoreA: sA, scoreB: sB,
         winnerId: winnerId,
-        status: 'finished',
-        matchStatus: 'finished',
-        state: 'finished',
-        isFinished: true,
-        isCompleted: true,
+        status: 'finished', matchStatus: 'finished', state: 'finished',
+        isFinished: true, isCompleted: true,
         finishedAt: serverTimestamp()
       });
     });
   } catch (e) {
-    console.error(`[CALIBRATION FAILED] ${matchDocId}:`, e);
+    console.error(`[TX FAILED] ${matchDocId}:`, e);
   }
+}
+
+/**
+ * Legacy support for global resolve
+ */
+export async function forceResolveLeagueMatches() {
+  const { firestore: db } = initializeFirebase();
+  const { seasonNumber } = getGlobalSeasonInfo();
+  const seasonId = `season_${seasonNumber}`;
+  const q = query(collection(db, 'matches_v1'), where('seasonId', '==', seasonId));
+  const snap = await getDocs(q);
+  let count = 0;
+  for (const d of snap.docs) {
+    const m = d.data();
+    if (m.startTime && new Date(m.startTime).getTime() < Date.now() && !m.isFinished) {
+      const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, seasonNumber);
+      await runCalibrationTransaction(db, m, sA, sB, d.id);
+      count++;
+    }
+  }
+  return { success: true, count };
 }

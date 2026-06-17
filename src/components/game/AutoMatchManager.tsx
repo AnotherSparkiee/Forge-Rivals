@@ -1,12 +1,12 @@
 /**
- * @fileOverview Автономный движок сезонов v12. 
- * Ультимативное решение: Тотальное пробитие WAITING через Server Authority.
+ * @fileOverview Автономный движок сезонов v13. 
+ * Ультимативное решение: Тотальное пробитие WAITING через Targeted Resolution.
  */
 
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useGameState } from '@/app/lib/store';
+import { useGameState, checkIsMatchFinished } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { 
@@ -14,10 +14,10 @@ import {
   LEAGUES 
 } from '@/app/lib/leagues-data';
 import { getMoscowTime, getGlobalSeasonInfo } from '@/app/lib/time-utils';
-import { forceResolveLeagueMatches } from '@/app/actions/mmo-engine';
+import { forceResolveGroupMatches } from '@/app/actions/mmo-engine';
 
 export function AutoMatchManager() {
-  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId } = useGameState();
+  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, allSeasonMatches } = useGameState();
   const db = useFirestore();
   const processingRef = useRef(false);
 
@@ -52,13 +52,13 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const currentData = groupSnap.data();
 
-        // 1. ПРОВЕРКА КАЛЕНДАРЯ
+        // 1. ГЕНЕРАЦИЯ КАЛЕНДАРЯ (если нужно)
         if (allGroupPlayers && allGroupPlayers.length > 0) {
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const teamsHash = currentTeams.map(t => t.id).join('|');
 
           const needsUpgrade = !groupSnap.exists() || 
-                              (currentData?.calendarVersion || 0) < 12 ||
+                              (currentData?.calendarVersion || 0) < 13 ||
                               currentData?.teamsHash !== teamsHash;
 
           if (needsUpgrade) {
@@ -73,7 +73,7 @@ export function AutoMatchManager() {
               seasonNumber: activeSeason,
               teams: currentTeams,
               teamsHash,
-              calendarVersion: 12,
+              calendarVersion: 13,
               updatedAt: serverTimestamp()
             }, { merge: true });
 
@@ -100,24 +100,31 @@ export function AutoMatchManager() {
             });
 
             await batch.commit();
+            console.log("[AutoMatch V13] Calendar synchronized.");
           }
         }
 
-        // 2. ВЫЗОВ СЕРВЕРНОГО РАСЧЕТА (Server-First Resolution)
-        // Каждые несколько циклов или по наступлению времени вызываем серверный скрипт
-        await forceResolveLeagueMatches();
+        // 2. ТАРГЕТИРОВАННЫЙ РАСЧЕТ ИМЕННО ЭТОЙ ГРУППЫ
+        const hasStuckMatch = allSeasonMatches.some(m => {
+          const past = m.startTime && new Date(m.startTime).getTime() < Date.now();
+          return past && !checkIsMatchFinished(m);
+        });
+
+        if (hasStuckMatch) {
+          await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
+        }
 
       } catch (e: any) {
-        console.warn("[AutoMatch v12] Heartbeat fail:", e.message);
+        console.warn("[AutoMatch v13] Heartbeat fail:", e.message);
       } finally {
         processingRef.current = false;
       }
     };
 
     heartbeat();
-    const interval = setInterval(heartbeat, 8000);
+    const interval = setInterval(heartbeat, 5000); // Чаще опрашиваем для срыва WAITING
     return () => clearInterval(interval);
-  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db]);
+  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches]);
 
   return null;
 }
