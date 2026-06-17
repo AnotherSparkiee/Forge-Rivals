@@ -14,13 +14,13 @@ import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, wher
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
 /**
- * УНИВЕРСАЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА (V14 Absolute Data Priority)
+ * УНИВЕРСАЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА (V15 Absolute Truth)
  * Наличие счета в базе — ЕДИНСТВЕННЫЙ И ПЕРВООЧЕРЕДНОЙ ПРИЗНАК.
  */
 export const checkIsMatchFinished = (match: any) => {
   if (!match) return false;
   
-  // 1. АБСОЛЮТНЫЙ ПРИОРИТЕТ: Если есть счет, WAITING невозможен.
+  // АБСОЛЮТНЫЙ ПРИОРИТЕТ: Если есть счет, матч ЗАВЕРШЕН.
   const hasScore = (
     match.homeScore !== undefined && match.homeScore !== null ||
     match.scoreA !== undefined && match.scoreA !== null
@@ -28,7 +28,7 @@ export const checkIsMatchFinished = (match: any) => {
   
   if (hasScore) return true;
 
-  // 2. ВТОРИЧНО: Статусы (для совместимости)
+  // ВТОРИЧНО: Статусы
   const finishedStatuses = ['finished', 'completed', 'resolved', 'done'];
   const statusStr = String(match.status || match.matchStatus || match.state || '').toLowerCase();
   
@@ -282,7 +282,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!isMatchesReady || !user) return null;
     const mskNow = getMoscowTime().getTime();
 
-    // 1. Сначала ищем активный или только что завершенный (в пределах 8 часов)
+    // 1. Сначала ищем активный или только что завершенный
     const active = allMatches.find(m => 
       (m.homeId === user.uid || m.awayId === user.uid) && 
       !checkIsMatchFinished(m) && 

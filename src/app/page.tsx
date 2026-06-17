@@ -49,12 +49,11 @@ export default function Home() {
   const [countdown, setCountdown] = useState('');
   const [isLive, setIsLive] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isForceSyncing, setIsForceSyncing] = useState(false);
 
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // MASTER SYNC EFFECT (V14 Data Override)
+  // MASTER SYNC EFFECT (V15 Passive Reading)
   useEffect(() => {
     if (!isDataReady || !selectedLeagueId || !nextMatch) return;
 
@@ -65,7 +64,7 @@ export default function Home() {
       if (isActuallyFinished) {
         setCountdown('00:00:00');
         setIsLive(false);
-        setIsProcessing(false); // ГАРАНТИРОВАННЫЙ СРЫВ WAITING
+        setIsProcessing(false); 
         return;
       }
 
@@ -81,12 +80,11 @@ export default function Home() {
 
       if (diff <= 0) {
         setCountdown('00:00:00');
-        // Если время вышло, но счета всё еще нет — включаем режим синхронизации.
-        if (Math.abs(diff) > 10000) { 
-          setIsLive(false);
+        // Если время вышло, но счета всё еще нет — включаем режим ожидания сервера.
+        setIsLive(true); 
+        if (Math.abs(diff) > 15000) { 
           setIsProcessing(true); 
         } else {
-          setIsLive(true); 
           setIsProcessing(false);
         }
       } else {
@@ -101,21 +99,6 @@ export default function Home() {
 
     return () => clearInterval(timer);
   }, [isDataReady, selectedLeagueId, nextMatch]);
-
-  const handleManualSync = async () => {
-    if (!selectedLeagueId || isForceSyncing) return;
-    setIsForceSyncing(true);
-    try {
-      const sNum = seasonNumber || 1;
-      const prefixedGroupId = `season_${sNum}_league_${selectedLeagueId}_group_${groupId}`;
-      await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
-      toast({ title: language === 'ru' ? "Синхронизация завершена" : "Sync Concluded" });
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsForceSyncing(false);
-    }
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -266,10 +249,10 @@ export default function Home() {
                 <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">
                   {isMatchReallyDone 
                     ? (language === 'ru' ? 'ОПЕРАЦИЯ ЗАВЕРШЕНА' : 'OPERATION CONCLUDED')
-                    : isLive 
-                    ? (language === 'ru' ? 'МАТЧ ИДЕТ' : 'MATCH IN PROGRESS') 
                     : isProcessing 
                     ? (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...') 
+                    : isLive 
+                    ? (language === 'ru' ? 'МАТЧ ИДЕТ' : 'MATCH IN PROGRESS') 
                     : (seasonInfo.isTransitionPhase ? "Preparation Countdown" : "Match Start Protocol")}
                 </p>
                 <div className="flex flex-col items-center justify-center gap-2">
@@ -277,31 +260,18 @@ export default function Home() {
                     {isMatchReallyDone ? (
                       <Trophy className="w-5 h-5 text-yellow-500" />
                     ) : (isLive || isProcessing) ? (
-                      <RefreshCw className={cn("w-4 h-4 text-primary", !isForceSyncing && "animate-spin")} />
+                      <RefreshCw className={cn("w-4 h-4 text-primary", isProcessing && "animate-spin")} />
                     ) : (
                       <Timer className="w-4 h-4 text-accent" />
                     )}
                     <p className={cn("text-xl font-headline font-bold tabular-nums tracking-tighter", (isLive || isProcessing) ? "text-primary" : "text-primary")}>
                       {isMatchReallyDone 
                         ? `${nextMatch?.match.homeScore ?? nextMatch?.match.scoreA ?? 0}:${nextMatch?.match.awayScore ?? nextMatch?.match.scoreB ?? 0}`
-                        : isLive ? 'LIVE' 
                         : isProcessing ? 'WAITING' 
+                        : isLive ? 'LIVE'
                         : (countdown || '00:00:00')}
                     </p>
                   </div>
-
-                  {isProcessing && !isMatchReallyDone && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={handleManualSync}
-                      disabled={isForceSyncing}
-                      className="mt-2 h-7 px-4 text-[8px] font-black uppercase bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20"
-                    >
-                      {isForceSyncing ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <RefreshCw className="w-3 h-3 mr-2" />}
-                      {language === 'ru' ? 'ПРИНУДИТЕЛЬНЫЙ РАСЧЕТ' : 'FORCE CALIBRATION'}
-                    </Button>
-                  )}
                 </div>
               </div>
             </div>

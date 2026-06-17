@@ -1,29 +1,29 @@
 'use server';
 
 /**
- * @fileOverview Глобальный MMO-Двигатель v14 (Standings-First Architecture).
- * Ультимативное решение: расчет очков в таблице имеет абсолютный приоритет над статусом матча.
+ * @fileOverview Ультимативный MMO-Двигатель v15 (Standings-First Architecture).
+ * Серверный расчет результатов лиги.
  */
 
 import { 
   collection, doc, getDocs, 
   query, where, serverTimestamp, 
-  runTransaction, Firestore
+  runTransaction, Firestore, getDoc
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { getGlobalSeasonInfo, getMoscowTime } from '@/app/lib/time-utils';
 import { getMatchResult } from '@/app/lib/leagues-data';
 
 /**
- * ТАРГЕТИРОВАННАЯ КАЛИБРОВКА ГРУППЫ (TABLE-FIRST):
- * Гарантирует начисление очков в таблицу ДО закрытия матча.
+ * ГЛАВНЫЙ СЕРВЕРНЫЙ РАСЧЕТ:
+ * Находит ВСЕ просроченные матчи группы и выполняет транзакционное обновление таблиц и матчей.
  */
 export async function forceResolveGroupMatches(leagueId: string, divisionId: number, groupId: string) {
   const { firestore: db } = initializeFirebase();
   const { seasonNumber } = getGlobalSeasonInfo();
   const seasonId = `season_${seasonNumber}`;
 
-  console.log(`[V14 CALIBRATION] Analyzing group ${groupId}...`);
+  console.log(`[SERVER-ACTION] Resolving Standings for group: ${groupId}`);
 
   const q = query(
     collection(db, 'matches_v1'),
@@ -41,9 +41,11 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
     const m = docSnap.data();
     const startTime = m.startTime ? new Date(m.startTime).getTime() : 0;
     
-    // Если время прошло и нет счета в базе
-    const hasNoScore = m.homeScore === undefined || m.homeScore === null;
-    if (startTime > 0 && mskNow > startTime && hasNoScore) {
+    // Если время матча наступило (08:00 / 20:00 и т.д.) и счета еще нет
+    const isOverdue = startTime > 0 && mskNow > startTime;
+    const isNotFinished = !m.isFinished && m.homeScore === undefined;
+
+    if (isOverdue && isNotFinished) {
       const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, seasonNumber);
       await runTableFirstTransaction(db, m, sA, sB, docSnap.id);
       resolvedCount++;
@@ -55,6 +57,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
 
 /**
  * АТОМАРНАЯ ТРАНЗАКЦИЯ: ТАБЛИЦА -> МАТЧ
+ * Гарантирует, что очки начисляются в первую очередь.
  */
 async function runTableFirstTransaction(
   db: Firestore, 
@@ -65,7 +68,7 @@ async function runTableFirstTransaction(
 ) {
   const { homeId, awayId, leagueId, divisionId, groupId } = matchData;
 
-  // Пути к документам команд (Master Profile + League Team)
+  // Пути к данным команд
   const homeRootRef = doc(db, 'players_v10', homeId);
   const awayRootRef = doc(db, 'players_v10', awayId);
   const homeTeamRef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', homeId);
@@ -76,11 +79,11 @@ async function runTableFirstTransaction(
 
   try {
     await runTransaction(db, async (transaction) => {
-      // 1. ЧТЕНИЕ ТЕКУЩИХ ДАННЫХ
+      // 1. ЧИТАЕМ ТЕКУЩИЕ ДАННЫЕ
       const hRoot = await transaction.get(homeRootRef);
       const aRoot = await transaction.get(awayRootRef);
 
-      // 2. РАСЧЕТ И ОБНОВЛЕНИЕ ТАБЛИЦ (STANDINGS FIRST)
+      // 2. ОБНОВЛЯЕМ ТАБЛИЦЫ (STANDINGS FIRST)
       if (hRoot.exists()) {
         const d = hRoot.data();
         let w = d.wins || 0, dr = d.draws || 0, l = d.losses || 0, p = d.points || 0;
@@ -107,41 +110,22 @@ async function runTableFirstTransaction(
         transaction.update(awayTeamRef, update);
       }
 
-      // 3. ЗАКРЫТИЕ МАТЧА (ТОЛЬКО ПОСЛЕ ТАБЛИЦЫ)
+      // 3. ЗАКРЫВАЕМ МАТЧ (ПОСЛЕДНИЙ ШАГ)
       transaction.update(matchRef, {
-        homeScore: sA, awayScore: sB,
-        scoreA: sA, scoreB: sB,
+        homeScore: sA, 
+        awayScore: sB,
+        scoreA: sA, 
+        scoreB: sB,
         winnerId: winnerId,
-        status: 'finished', matchStatus: 'finished',
-        isFinished: true, isCompleted: true,
+        status: 'finished', 
+        matchStatus: 'finished',
+        isFinished: true, 
+        isCompleted: true,
         finishedAt: serverTimestamp()
       });
     });
-    console.log(`[TX SUCCESS] Match ${matchDocId} and Standings resolved.`);
+    console.log(`[SUCCESS] Match ${matchDocId} resolved and points awarded.`);
   } catch (e) {
-    console.error(`[TX CRITICAL FAIL] ${matchDocId}:`, e);
+    console.error(`[TX FAIL] Match ${matchDocId}:`, e);
   }
-}
-
-/**
- * Глобальный метод для AutoMatchManager
- */
-export async function forceResolveLeagueMatches() {
-  const { firestore: db } = initializeFirebase();
-  const { seasonNumber } = getGlobalSeasonInfo();
-  const seasonId = `season_${seasonNumber}`;
-  const q = query(collection(db, 'matches_v1'), where('seasonId', '==', seasonId));
-  const snap = await getDocs(q);
-  const mskNow = getMoscowTime().getTime();
-  let count = 0;
-  for (const d of snap.docs) {
-    const m = d.data();
-    const startTime = m.startTime ? new Date(m.startTime).getTime() : 0;
-    if (startTime > 0 && mskNow > startTime && !m.isFinished) {
-      const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, seasonNumber);
-      await runTableFirstTransaction(db, m, sA, sB, d.id);
-      count++;
-    }
-  }
-  return { success: true, count };
 }

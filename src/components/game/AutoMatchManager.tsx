@@ -1,6 +1,6 @@
 /**
- * @fileOverview Автономный движок сезонов v14 (Pulse Engine). 
- * Ультимативное решение: Использование серверного времени Москвы для детерминированного запуска.
+ * @fileOverview Автономный движок сезонов v15 (Standings-First). 
+ * Мгновенный триггер серверного расчета при наступлении времени матча.
  */
 
 'use client';
@@ -52,13 +52,13 @@ export function AutoMatchManager() {
         const groupSnap = await getDoc(groupRef);
         const currentData = groupSnap.data();
 
-        // 1. ГЕНЕРАЦИЯ КАЛЕНДАРЯ (Standby Mode)
+        // 1. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ
         if (allGroupPlayers && allGroupPlayers.length > 0) {
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const teamsHash = currentTeams.map(t => t.id).join('|');
 
           const needsUpgrade = !groupSnap.exists() || 
-                              (currentData?.calendarVersion || 0) < 14 ||
+                              (currentData?.calendarVersion || 0) < 15 ||
                               currentData?.teamsHash !== teamsHash;
 
           if (needsUpgrade) {
@@ -73,7 +73,7 @@ export function AutoMatchManager() {
               seasonNumber: activeSeason,
               teams: currentTeams,
               teamsHash,
-              calendarVersion: 14,
+              calendarVersion: 15,
               updatedAt: serverTimestamp()
             }, { merge: true });
 
@@ -100,24 +100,24 @@ export function AutoMatchManager() {
             });
 
             await batch.commit();
-            console.log("[Pulse V14] Calendar synchronized.");
+            console.log("[PULSE V15] Calendar synced.");
           }
         }
 
-        // 2. ТАРГЕТИРОВАННЫЙ РАСЧЕТ ОЧКОВ (Server Time Priority)
+        // 2. СЕРВЕРНЫЙ РАСЧЕТ ОЧКОВ (Standings-First Priority)
         const mskTime = getMoscowTime().getTime();
-        const stuckMatches = allSeasonMatches.filter(m => {
+        const overdue = allSeasonMatches.some(m => {
           const startTime = m.startTime ? new Date(m.startTime).getTime() : 0;
           return startTime > 0 && mskTime > startTime && !checkIsMatchFinished(m);
         });
 
-        if (stuckMatches.length > 0) {
-          console.log(`[Pulse V14] Resolving ${stuckMatches.length} stuck matches...`);
+        if (overdue) {
+          console.log(`[PULSE V15] Overdue match detected. Requesting server resolution...`);
           await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
         }
 
       } catch (e: any) {
-        console.warn("[Pulse v14] Pulse failed:", e.message);
+        console.warn("[PULSE V15] Sync skipped:", e.message);
       } finally {
         processingRef.current = false;
       }
