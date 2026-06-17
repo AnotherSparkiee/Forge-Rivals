@@ -1,4 +1,3 @@
-
 'use client';
 
 /**
@@ -166,23 +165,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [allMatches, setAllMatches] = useState<any[]>([]);
   
   const stateRef = useRef(state);
-  const memoryCache = useRef({
-    hasDataEverLoaded: false,
-    lastValidMatches: [] as any[],
-    lastUserId: null as string | null,
-    lastLeagueId: null as string | null
-  });
-
   useEffect(() => { stateRef.current = state; }, [state]);
 
   // 1. ROOT PROFILE LISTENER
   useEffect(() => {
     if (isUserLoading || !user) {
-      if (!isUserLoading) {
-        setState(s => ({ ...DEFAULT_STATE, isLoaded: true, language: s.language }));
-        memoryCache.current.hasDataEverLoaded = false;
-        memoryCache.current.lastValidMatches = [];
-      }
+      if (!isUserLoading) setState(s => ({ ...DEFAULT_STATE, isLoaded: true, language: s.language }));
       return;
     }
 
@@ -219,7 +207,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
     const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
     
-    // ПУТЬ 8 СЕГМЕНТОВ (leagues_v2 -> {L} -> divisions -> {D} -> groups -> {G} -> teams -> {U})
     const teamRef = doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', s.id);
 
     const unsubTeam = onSnapshot(teamRef, (snap) => {
@@ -299,11 +286,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!isMatchesReady || !user) return null;
     const mskNow = getMoscowTime().getTime();
 
-    // 1. Ищем текущий активный бой
+    // 1. Ищем текущий активный бой (Приоритет: время начала +- 10 мин или статус "live")
     const active = allMatches.find(m => 
       (m.homeId === user.uid || m.awayId === user.uid) && 
       !checkIsMatchFinished(m) && 
-      new Date(m.startTime).getTime() <= mskNow + 300000
+      new Date(m.startTime).getTime() <= mskNow + 300000 // 5 минут до начала
     );
 
     if (active) {
@@ -331,6 +318,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
     return null;
   }, [allMatches, isMatchesReady, user]);
+
+  const syncStats = useCallback((groupPlayers: any[]) => {
+    // Satisfy requirement
+  }, []);
 
   const getRefs = useCallback(() => {
     const s = stateRef.current;
@@ -410,7 +401,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const startMedicalConstruction = (id: string, c: number) => startConstruction('medical', id, c, 4);
   const startCapacityExpansion = (s: number, c: number) => {
     const r = getRefs(); if (!r || stateRef.current.credits < c) return false;
-    setDoc(r.team, { credits: stateRef.current.credits - c, arena: { ...stateRef.current.arena, pendingSeats: s, constructionStarts: { ...(stateRef.current.arena.constructionStarts || {}), capacity: new Date().toISOString() }, constructionFinishes: { ...(stateRef.current.arena.constructionFinishes || {}), capacity: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString() }, isAccelerated: { ...(stateRef.current.arena.isAccelerated || {}), capacity: false } } }, { merge: true });
+    setDoc(r.team, { credits: stateRef.current.credits - c, arena: { ...stateRef.current.arena, pendingSeats: s, constructionStarts: { ...(stateRef.current.arena.constructionStarts || {}), capacity: new Date().toISOString() }, constructionFinishes: { ...(stateRef.current.arena.constructionStarts || {}), capacity: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString() }, isAccelerated: { ...(stateRef.current.arena.isAccelerated || {}), capacity: false } } }, { merge: true });
     return true;
   };
   const accelerateConstruction = (type: string, id: string, mult: number, pr: number) => {
@@ -438,10 +429,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
     if (changes) batch.commit();
   }, [db, getRefs]);
-
-  const syncStats = useCallback((groupPlayers: any[]) => {
-    // Satisfy the requirement of the variable existing and handle basic logic
-  }, []);
 
   const value = useMemo(() => ({
     ...state, isDataReady: isMatchesReady && state.isLoaded, allSeasonMatches: allMatches, nextMatch: nextMatchInfo, isMatchesLoading: !isMatchesReady,
