@@ -1,6 +1,6 @@
 /**
- * @fileOverview Автономный менеджер синхронизации v25.
- * Обнаруживает новую эпоху и принудительно вызывает серверный расчет.
+ * @fileOverview Автономный менеджер синхронизации v26.
+ * Внедрена защита Auth-First для предотвращения ошибок доступа при инициализации.
  */
 
 'use client';
@@ -17,24 +17,30 @@ import { getGlobalSeasonInfo, isMatchOverdue, getMoscowTime } from '@/app/lib/ti
 import { forceResolveGroupMatches } from '@/app/actions/mmo-engine';
 
 export function AutoMatchManager() {
+  const { user, isUserLoading } = useUser();
   const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, allSeasonMatches } = useGameState();
   const db = useFirestore();
   const processingRef = useRef(false);
 
   const playersInGroupQuery = useMemoFirebase(() => {
-    if (!selectedLeagueId) return null;
-    return query(
-      collection(db, 'players_v10'), 
-      where('selectedLeagueId', '==', selectedLeagueId),
-      where('leagueLevel', '==', Number(leagueLevel)),
-      where('groupId', '==', Number(groupId))
-    );
-  }, [db, selectedLeagueId, leagueLevel, groupId]);
+    if (isUserLoading || !user || !selectedLeagueId) return null;
+    try {
+      return query(
+        collection(db, 'players_v10'), 
+        where('selectedLeagueId', '==', selectedLeagueId),
+        where('leagueLevel', '==', Number(leagueLevel)),
+        where('groupId', '==', Number(groupId))
+      );
+    } catch (e) {
+      console.error("Manager group query failed", e);
+      return null;
+    }
+  }, [db, selectedLeagueId, leagueLevel, groupId, isUserLoading, user]);
 
   const { data: allGroupPlayers } = useCollection(playersInGroupQuery);
 
   useEffect(() => {
-    if (!isLoaded || !userId || !selectedLeagueId || !allGroupPlayers) return;
+    if (isUserLoading || !user || !isLoaded || !userId || !selectedLeagueId || !allGroupPlayers) return;
 
     const heartbeat = async () => {
       if (processingRef.current) return;
@@ -46,14 +52,12 @@ export function AutoMatchManager() {
         const seasonId = `season_${activeSeason}`;
         const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
         
-        // УНИФИЦИРОВАННЫЙ ID ГРУППЫ v25
         const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
         const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId);
         
         const groupSnap = await getDoc(groupRef);
         const currentData = groupSnap.data();
 
-        // СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ (V25 Hard Sync)
         const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
         const teamsHash = currentTeams.map(t => t.id).join('|');
 
@@ -79,7 +83,6 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           }, { merge: true });
 
-          // Инициализируем документы команд в лиге
           currentTeams.forEach(team => {
             const teamInGroupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', team.id);
             batch.set(teamInGroupRef, {
@@ -121,7 +124,6 @@ export function AutoMatchManager() {
           console.log(`[V25 Manager] Batch committed. Calendar active.`);
         }
 
-        // РАСЧЕТ ПРОСРОЧЕННЫХ МАТЧЕЙ (V25)
         const overdueMatches = allSeasonMatches.filter(m => {
           return isMatchOverdue(m.startTime) && !checkIsMatchFinished(m);
         });
@@ -141,7 +143,7 @@ export function AutoMatchManager() {
     heartbeat();
     const interval = setInterval(heartbeat, 15000); 
     return () => clearInterval(interval);
-  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches]);
+  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches, isUserLoading, user]);
 
   return null;
 }

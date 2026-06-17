@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v25. Расчет Standings на основе фактических очков в документах команд.
+ * @fileOverview Глобальное хранилище v26. 
+ * Внедрена защита Auth-First для предотвращения ошибок доступа при инициализации.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -12,9 +13,6 @@ import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, wher
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
-/**
- * Проверка завершения матча v25.
- */
 export const checkIsMatchFinished = (match: any) => {
   if (!match) return false;
   return (
@@ -93,8 +91,7 @@ const DEFAULT_STATE: GameState = {
   rewardDay: 1, lastRewardClaimDate: null, matchHistory: [], lastSeenMatchDay: 0,
   managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
   skillPoints: 0, arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
-  country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, activeLicenseTier: null,
-  rank: 8, seasonDay: 1, seasonNumber: 1, isSyncing: false, language: 'ru',
+  country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, activeSeasonId: 'season_1', seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
   addCrystals: () => {}, addCredits: () => {}, updateHero: () => {}, removeHero: () => {}, assignToRole: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -129,110 +126,125 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const rootRef = doc(db, 'players_v10', user.uid);
-    const unsubscribe = onSnapshot(rootRef, (snap) => {
-      if (!snap.exists()) {
-        setState(s => ({ ...s, id: user.uid, isLoaded: true }));
-        return;
-      }
-      const data = snap.data();
-      setState(s => ({
-        ...s,
-        id: user.uid,
-        displayName: data.displayName || "Manager",
-        selectedLeagueId: data.selectedLeagueId || null,
-        leagueLevel: Number(data.leagueLevel || 9),
-        groupId: Number(data.groupId || 1),
-        country: data.country || null,
-        activeSeasonNumber: seasonInfo.activeSeasonNumber,
-        seasonNumber: seasonInfo.seasonNumber,
-        seasonDay: seasonInfo.seasonDay,
-        isLoaded: true
-      }));
-    }, () => {
-      setState(s => ({ ...s, isLoaded: true }));
-    });
+    try {
+      const rootRef = doc(db, 'players_v10', user.uid);
+      const unsubscribe = onSnapshot(rootRef, (snap) => {
+        if (!snap.exists()) {
+          setState(s => ({ ...s, id: user.uid, isLoaded: true }));
+          return;
+        }
+        const data = snap.data();
+        setState(s => ({
+          ...s,
+          id: user.uid,
+          displayName: data.displayName || "Manager",
+          selectedLeagueId: data.selectedLeagueId || null,
+          leagueLevel: Number(data.leagueLevel || 9),
+          groupId: Number(data.groupId || 1),
+          country: data.country || null,
+          activeSeasonNumber: seasonInfo.activeSeasonNumber,
+          seasonNumber: seasonInfo.seasonNumber,
+          seasonDay: seasonInfo.seasonDay,
+          isLoaded: true
+        }));
+      }, (err) => {
+        console.warn("Root profile listener permission lag:", err.message);
+      });
 
-    return () => unsubscribe();
+      return () => unsubscribe();
+    } catch (e) {
+      console.error("Auth-Guard Root Listener setup failed", e);
+    }
   }, [user, isUserLoading, db, seasonInfo]);
 
   // 2. TEAM DATA LISTENER
   useEffect(() => {
-    const s = state;
-    if (!s.id || !s.selectedLeagueId) return;
+    if (isUserLoading || !user || !state.id || !state.selectedLeagueId) return;
 
-    const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
-    const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
-    const teamRef = doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', s.id);
+    try {
+      const s = state;
+      const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
+      const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
+      const teamRef = doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', s.id);
 
-    const unsubTeam = onSnapshot(teamRef, (snap) => {
-      if (!snap.exists()) return;
-      const d = snap.data();
-      setState(prev => ({
-        ...prev,
-        credits: Number(d.credits || 0),
-        crystals: Number(d.crystals || 0),
-        experiencePoints: d.experiencePoints ?? 0,
-        managerLevel: d.managerLevel ?? 1,
-        skillPoints: d.skillPoints ?? 0,
-        lineup: d.lineup || prev.lineup,
-        strategy: d.strategy || 'Balanced Play',
-        lineSettings: d.lineSettings || prev.lineSettings,
-        rewardDay: d.rewardDay ?? 1,
-        lastRewardClaimDate: d.lastRewardClaimDate ?? null,
-        matchHistory: d.matchHistory ?? [],
-        lastSeenMatchDay: d.lastSeenMatchDay ?? 0,
-        managerSkills: d.managerSkills ?? { sponsors: 0, agents: 0, training: 0, medical: 0 },
-        arena: d.arena ?? { capacity: 5000 },
-        hq: d.hq ?? {}, bootcamp: d.bootcamp ?? {}, academy: d.academy ?? {}, medical: d.medical ?? {},
-        activeLicenseTier: d.activeLicenseTier ?? 4,
-        premiumUntil: d.premiumUntil ?? null,
-        isPremium: d.premiumUntil ? new Date(d.premiumUntil) > new Date() : false,
-        rank: d.rank ?? 8
-      }));
-    });
+      const unsubTeam = onSnapshot(teamRef, (snap) => {
+        if (!snap.exists()) return;
+        const d = snap.data();
+        setState(prev => ({
+          ...prev,
+          credits: Number(d.credits || 0),
+          crystals: Number(d.crystals || 0),
+          experiencePoints: d.experiencePoints ?? 0,
+          managerLevel: d.managerLevel ?? 1,
+          skillPoints: d.skillPoints ?? 0,
+          lineup: d.lineup || prev.lineup,
+          strategy: d.strategy || 'Balanced Play',
+          lineSettings: d.lineSettings || prev.lineSettings,
+          rewardDay: d.rewardDay ?? 1,
+          lastRewardClaimDate: d.lastRewardClaimDate ?? null,
+          matchHistory: d.matchHistory ?? [],
+          lastSeenMatchDay: d.lastSeenMatchDay ?? 0,
+          managerSkills: d.managerSkills ?? { sponsors: 0, agents: 0, training: 0, medical: 0 },
+          arena: d.arena ?? { capacity: 5000 },
+          hq: d.hq ?? {}, bootcamp: d.bootcamp ?? {}, academy: d.academy ?? {}, medical: d.medical ?? {},
+          activeLicenseTier: d.activeLicenseTier ?? 4,
+          premiumUntil: d.premiumUntil ?? null,
+          isPremium: d.premiumUntil ? new Date(d.premiumUntil) > new Date() : false,
+          rank: d.rank ?? 8
+        }));
+      }, (err) => {
+        console.warn("Team data listener permission lag:", err.message);
+      });
 
-    const heroesUnsub = onSnapshot(collection(teamRef, 'heroes'), (hSnap) => {
-      const all = hSnap.docs.map(d => ({ ...d.data(), id: d.id } as Hero));
-      setState(prev => ({
-        ...prev,
-        ownedHeroes: all.filter(h => !h.isYouth),
-        youthAcademyHeroes: all.filter(h => h.isYouth)
-      }));
-    });
+      const heroesUnsub = onSnapshot(collection(teamRef, 'heroes'), (hSnap) => {
+        const all = hSnap.docs.map(d => ({ ...d.data(), id: d.id } as Hero));
+        setState(prev => ({
+          ...prev,
+          ownedHeroes: all.filter(h => !h.isYouth),
+          youthAcademyHeroes: all.filter(h => h.isYouth)
+        }));
+      });
 
-    return () => { unsubTeam(); heroesUnsub(); };
-  }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, seasonInfo]);
+      return () => { unsubTeam(); heroesUnsub(); };
+    } catch (e) {
+      console.error("Team listener setup failed", e);
+    }
+  }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, seasonInfo, isUserLoading, user]);
 
   // 3. MATCHES SYNC CORE (V25)
   useEffect(() => {
-    const s = state;
-    if (!s.isLoaded || !s.id || !s.selectedLeagueId) return;
+    if (isUserLoading || !user || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
 
-    const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
-    const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
+    try {
+      const s = state;
+      const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
+      const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
 
-    const q = query(
-      collection(db, 'matches_v1'),
-      where('groupId', '==', prefixedGroupId),
-      where('seasonNumber', '==', seasonInfo.activeSeasonNumber)
-    );
+      const q = query(
+        collection(db, 'matches_v1'),
+        where('groupId', '==', prefixedGroupId),
+        where('seasonNumber', '==', seasonInfo.activeSeasonNumber)
+      );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const loaded = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
-      const sorted = loaded.sort((a, b) => (a.day || 0) - (b.day || 0));
-      setAllMatches(sorted);
-      setIsMatchesReady(true);
-    });
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const loaded = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+        const sorted = loaded.sort((a, b) => (a.day || 0) - (b.day || 0));
+        setAllMatches(sorted);
+        setIsMatchesReady(true);
+      }, (err) => {
+        console.warn("Matches listener permission lag:", err.message);
+      });
 
-    return () => unsubscribe();
-  }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded, seasonInfo]);
+      return () => unsubscribe();
+    } catch (e) {
+      console.error("Matches listener setup failed", e);
+    }
+  }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded, seasonInfo, isUserLoading, user]);
 
   const nextMatchInfo = useMemo(() => {
     if (!isMatchesReady || !user) return null;
     const mskNow = getMoscowTime().getTime();
 
-    // Сначала ищем активный
     const active = allMatches.find(m => 
       (m.homeId === user.uid || m.awayId === user.uid) && 
       !checkIsMatchFinished(m) && 

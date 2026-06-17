@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v25. Читает очки напрямую из документов команд для 100% точности.
+ * @fileOverview Страница рейтингов v26. 
+ * Внедрена защита Auth-First для предотвращения ошибок доступа при инициализации.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -48,17 +49,24 @@ export default function RankingsPage() {
   const contextLevel = navLevel || leagueLevel;
   const contextGroup = navGroup || groupId;
 
-  // В V25 мы читаем команды напрямую из подколлекции teams группы
+  // ГАРД: Запрашиваем данные только если юзер авторизован
   const teamsQuery = useMemoFirebase(() => {
-    const seasonId = `season_${activeSeasonNumber}`;
-    const prefixedGroupId = `${seasonId}_league_${contextLeagueId}_group_${contextGroup}`;
-    
-    return query(
-      collection(db, 'leagues_v2', contextLeagueId, 'divisions', String(contextLevel), 'groups', prefixedGroupId, 'teams'),
-      orderBy('points', 'desc'),
-      orderBy('wins', 'desc')
-    );
-  }, [db, contextLeagueId, contextLevel, contextGroup, activeSeasonNumber]);
+    if (isUserLoading || !user || !contextLeagueId) return null;
+
+    try {
+      const seasonId = `season_${activeSeasonNumber}`;
+      const prefixedGroupId = `${seasonId}_league_${contextLeagueId}_group_${contextGroup}`;
+      
+      return query(
+        collection(db, 'leagues_v2', contextLeagueId, 'divisions', String(contextLevel), 'groups', prefixedGroupId, 'teams'),
+        orderBy('points', 'desc'),
+        orderBy('wins', 'desc')
+      );
+    } catch (e) {
+      console.error("Failed to build standings query", e);
+      return null;
+    }
+  }, [db, contextLeagueId, contextLevel, contextGroup, activeSeasonNumber, isUserLoading, user]);
 
   const { data: teamsData, isLoading: isTeamsLoading } = useCollection(teamsQuery);
 
@@ -106,7 +114,13 @@ export default function RankingsPage() {
     }
   }[language as 'en' | 'ru'];
 
-  if (isUserLoading || !isLoaded) return <LoadingScreen />;
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/');
+    }
+  }, [user, isUserLoading, router]);
+
+  if (isUserLoading || !isLoaded || !user) return <LoadingScreen />;
 
   const renderStandings = () => (
     <div className="space-y-4 animate-in fade-in duration-500">

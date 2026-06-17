@@ -1,5 +1,10 @@
 'use client';
 
+/**
+ * @fileOverview Быстрый поиск игроков v26. 
+ * Внедрена защита Auth-First для предотвращения ошибок доступа при инициализации.
+ */
+
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
@@ -458,13 +463,19 @@ export default function QuickSearchPage() {
     return () => clearInterval(timer);
   }, []);
 
+  // ГАРД: Запрашиваем данные только если юзер авторизован
   const marketQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
-    return query(collection(db, 'market_v7'));
-  }, [db, user?.uid]);
+    if (isUserLoading || !user) return null;
+    try {
+      return query(collection(db, 'market_v7'));
+    } catch (e) {
+      console.error("Market query construction failed", e);
+      return null;
+    }
+  }, [db, user, isUserLoading]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
-  const userDocRef = useMemoFirebase(() => user?.uid ? doc(db, 'players_v10', user.uid) : null, [db, user?.uid]);
+  const userDocRef = useMemoFirebase(() => (isUserLoading || !user) ? null : doc(db, 'players_v10', user.uid), [db, user, isUserLoading]);
   const { data: profile } = useDoc(userDocRef);
 
   const filteredAgents = useMemo(() => {

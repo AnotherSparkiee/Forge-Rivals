@@ -11,7 +11,8 @@ import { COUNTRIES } from '@/app/lib/countries-data';
 import Link from 'next/link';
 
 /**
- * Верхняя панель управления ресурсами и навигацией.
+ * Верхняя панель v26.
+ * Добавлены гарды авторизации для предотвращения Permission Denied.
  */
 export function TopBar() {
   const pathname = usePathname();
@@ -19,19 +20,23 @@ export function TopBar() {
   const { credits, crystals, isSyncing, language, isPremium } = useGameState();
   const db = useFirestore();
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => (isUserLoading || !user) ? null : doc(db, 'players_v10', user.uid), [db, user, isUserLoading]);
   const { data: profile } = useDoc(userRef);
 
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
 
   const unreadMessagesQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
-    return query(
-      collection(db, 'private_messages_v3'),
-      where('participants', 'array-contains', user.uid),
-      limit(50)
-    );
-  }, [db, user?.uid]);
+    if (isUserLoading || !user) return null;
+    try {
+      return query(
+        collection(db, 'private_messages_v3'),
+        where('participants', 'array-contains', user.uid),
+        limit(50)
+      );
+    } catch (e) {
+      return null;
+    }
+  }, [db, user, isUserLoading]);
 
   const { data: allMessages } = useCollection(unreadMessagesQuery);
   
@@ -45,14 +50,18 @@ export function TopBar() {
   }, [allMessages, user, profile]);
 
   const notificationsQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
-    return query(
-      collection(db, 'notifications_v7'),
-      where('userId', '==', user.uid),
-      where('read', '==', false),
-      limit(100)
-    );
-  }, [db, user?.uid]);
+    if (isUserLoading || !user) return null;
+    try {
+      return query(
+        collection(db, 'notifications_v7'),
+        where('userId', '==', user.uid),
+        where('read', '==', false),
+        limit(100)
+      );
+    } catch (e) {
+      return null;
+    }
+  }, [db, user, isUserLoading]);
 
   const { data: notifications } = useCollection(notificationsQuery);
   
