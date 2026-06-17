@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview MMO-Двигатель v22 (Season 1 / 2026 Reset).
+ * @fileOverview MMO-Двигатель v23 (Standings Overdrive).
  * Гарантирует зачисление очков в таблицу при наступлении виртуального времени матча.
  */
 
@@ -15,14 +15,14 @@ import { isMatchOverdue, getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getMatchResult } from '@/app/lib/leagues-data';
 
 /**
- * ГЛАВНЫЙ СЕРВЕРНЫЙ РАСЧЕТ ГРУППЫ (Targeted Resolution):
+ * ГЛАВНЫЙ СЕРВЕРНЫЙ РАСЧЕТ ГРУППЫ (Standings Overdrive):
  * Обрабатывает одну группу. Начисляет очки.
  */
 export async function forceResolveGroupMatches(leagueId: string, divisionId: number, groupId: string) {
   const { firestore: db } = initializeFirebase();
   const seasonInfo = getGlobalSeasonInfo();
   
-  console.log(`[V22 RESOLVER] Processing Group: ${groupId}`);
+  console.log(`[V23 RESOLVER] Processing Group: ${groupId}`);
 
   const q = query(
     collection(db, 'matches_v1'),
@@ -30,7 +30,10 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
   );
 
   const snap = await getDocs(q);
-  if (snap.empty) return { success: true, count: 0 };
+  if (snap.empty) {
+    console.warn(`[V23] No matches found for groupId: ${groupId}`);
+    return { success: true, count: 0 };
+  }
 
   let resolvedCount = 0;
 
@@ -39,10 +42,10 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
     
     // ПРОВЕРКА ВИРТУАЛЬНОГО ВРЕМЕНИ
     const overdue = isMatchOverdue(m.startTime);
-    const hasAnyScore = m.homeScore !== undefined || m.scoreA !== undefined || m.isFinished === true;
+    const hasAnyScore = m.homeScore !== undefined || m.scoreA !== undefined || m.status === 'finished' || m.isFinished === true;
 
     if (overdue && !hasAnyScore) {
-      console.log(`[V22] Resolving match: ${docSnap.id}`);
+      console.log(`[V23] Resolving match: ${docSnap.id}`);
       
       const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, seasonInfo.activeSeasonNumber);
       const winnerId = sA > sB ? m.homeId : (sB > sA ? m.awayId : null);
@@ -61,12 +64,13 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
             state: 'finished',
             isFinished: true, 
             isCompleted: true,
-            finishedAt: serverTimestamp()
+            finishedAt: serverTimestamp(),
+            resolvedVersion: 23
           });
         });
         resolvedCount++;
       } catch (e) {
-        console.error(`[V22 ERROR] Match ${docSnap.id} failed:`, e);
+        console.error(`[V23 ERROR] Match ${docSnap.id} failed:`, e);
       }
     }
   }

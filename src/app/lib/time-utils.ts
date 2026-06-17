@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v22. Внедрена жесткая виртуальная эпоха 2026 года.
+ * @fileOverview Ядро времени v23. Внедрена жесткая виртуальная эпоха 2026 года.
  */
 
 /**
@@ -60,14 +60,14 @@ export function getGlobalSeasonInfo() {
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
-  let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
+  let currentSeasonNumber = Math.floor(diffMs / (1000 * 60 * 60 * 24 * cycleDuration)) + 1;
 
   const isTransitionPhase = currentSeasonDay >= 15;
   const effectiveSeason = isTransitionPhase ? currentSeasonNumber + 1 : currentSeasonNumber;
   
   return {
     seasonDay: currentSeasonDay,
-    seasonNumber: currentSeasonNumber,
+    seasonNumber: Math.max(1, currentSeasonNumber),
     isTransitionPhase,
     activeSeasonNumber: Math.max(1, effectiveSeason)
   };

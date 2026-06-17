@@ -53,7 +53,7 @@ export default function Home() {
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // MASTER SYNC EFFECT (V22 Absolute Reality)
+  // MASTER SYNC EFFECT (V23 Overdrive Reality)
   useEffect(() => {
     if (!isDataReady || !selectedLeagueId || !nextMatch) return;
 
@@ -73,6 +73,12 @@ export default function Home() {
         setCountdown('00:00:00');
         setIsLive(true); 
         setIsProcessing(true); // Состояние "СИНХРОНИЗАЦИЯ"
+
+        // ЭКСТРЕННЫЙ ВЫЗОВ (v23)
+        // Если матч должен идти, но счета нет — пинаем бэкенд прямо отсюда
+        const seasonId = `season_${seasonInfo.activeSeasonNumber}`;
+        const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
+        forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
       } else {
         const diff = matchStartTime - mskNow.getTime();
         const hh = Math.floor(diff / 3600000);
@@ -82,10 +88,10 @@ export default function Home() {
         setIsLive(false);
         setIsProcessing(false);
       }
-    }, 1000);
+    }, 2000);
 
     return () => clearInterval(timer);
-  }, [isDataReady, selectedLeagueId, nextMatch]);
+  }, [isDataReady, selectedLeagueId, nextMatch, seasonInfo, leagueLevel, groupId]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,16 +175,16 @@ export default function Home() {
 
   const menu = [ 
     { label: language === 'ru' ? 'Ростер' : 'Roster', href: '/roster', icon: Users, desc: language === 'ru' ? 'Состав команды' : 'Squad management' }, 
-    { label: language === 'ru' ? 'Инфраструктура' : 'Infrastructure', href: '/training', icon: Zap, desc: language === 'ru' ? 'База клуба' : 'Facility growth' }, 
-    { label: language === 'ru' ? 'Трансферы' : 'Transfers', href: '/transfers', icon: ArrowRightLeft, desc: language === 'ru' ? 'Рынок героев' : 'Asset market' }, 
-    { label: language === 'ru' ? 'Магазин' : 'Shop', href: '/shop', icon: ShoppingCart, desc: language === 'ru' ? 'Покупка ресурсов' : 'Resource acquisition' },
-    { label: language === 'ru' ? 'Фан-клуб' : 'Fan-club', href: '/fanclub', icon: Heart, desc: language === 'ru' ? 'Болельщики' : 'Supporter management' },
-    { label: language === 'ru' ? 'Юношеская школа' : 'Youth Academy', href: '/youth-academy', icon: GraduationCap, desc: language === 'ru' ? 'Центр талантов' : 'Rising stars' },
-    { label: language === 'ru' ? 'Таблицы' : 'Rankings', href: '/rankings', icon: Trophy, desc: language === 'ru' ? 'Рейтинги' : 'Official standings' }, 
-    { label: language === 'ru' ? 'Матчи' : 'Matches', href: '/matches', icon: CalendarDays, desc: language === 'ru' ? 'Расписание' : 'Schedule' }, 
-    { label: language === 'ru' ? 'Турниры' : 'Tournaments', href: '/tournaments', icon: Medal, desc: language === 'ru' ? 'События' : 'Special events' }, 
-    { label: language === 'ru' ? 'Чаты' : 'Communications', href: '/chats', icon: MessageSquare, desc: language === 'ru' ? 'Связь' : 'Messaging' }, 
-    { label: language === 'ru' ? 'Профиль' : 'Profile', href: '/profile', icon: UserCog, desc: language === 'ru' ? 'Настройки' : 'Operational dossier' } 
+    { label: language === 'ru' ? 'ИНФРАСТРУКТУРА' : 'Infrastructure', href: '/training', icon: Zap, desc: language === 'ru' ? 'База клуба' : 'Facility growth' }, 
+    { label: language === 'ru' ? 'ТРАНСФЕРЫ' : 'Transfers', href: '/transfers', icon: ArrowRightLeft, desc: language === 'ru' ? 'Рынок героев' : 'Asset market' }, 
+    { label: language === 'ru' ? 'МАГАЗИН' : 'Shop', icon: ShoppingCart, href: '/shop', desc: language === 'ru' ? 'Покупка ресурсов' : 'Resource acquisition' },
+    { label: language === 'ru' ? 'ФАН-КЛУБ' : 'Fan-club', href: '/fanclub', icon: Heart, desc: language === 'ru' ? 'Болельщики' : 'Supporter management' },
+    { label: language === 'ru' ? 'ЮНОШЕСКАЯ ШКОЛА' : 'Youth Academy', href: '/youth-academy', icon: GraduationCap, desc: language === 'ru' ? 'Центр талантов' : 'Rising stars' },
+    { label: language === 'ru' ? 'ТАБЛИЦЫ' : 'Rankings', href: '/rankings', icon: Trophy, desc: language === 'ru' ? 'Рейтинги' : 'Official standings' }, 
+    { label: language === 'ru' ? 'МАТЧИ' : 'Matches', href: '/matches', icon: CalendarDays, desc: language === 'ru' ? 'Расписание' : 'Schedule' }, 
+    { label: language === 'ru' ? 'ТУРНИРЫ' : 'Tournaments', href: '/tournaments', icon: Medal, desc: language === 'ru' ? 'События' : 'Special events' }, 
+    { label: language === 'ru' ? 'ЧАТЫ' : 'Communications', href: '/chats', icon: MessageSquare, desc: language === 'ru' ? 'Связь' : 'Messaging' }, 
+    { label: language === 'ru' ? 'ПРОФИЛЬ' : 'Profile', href: '/profile', icon: UserCog, desc: language === 'ru' ? 'Настройки' : 'Operational dossier' } 
   ];
 
   const isMatchReallyDone = checkIsMatchFinished(nextMatch?.match);

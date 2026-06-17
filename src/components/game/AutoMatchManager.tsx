@@ -1,5 +1,5 @@
 /**
- * @fileOverview Автономный движок сезонов v22 (Absolute Sync). 
+ * @fileOverview Автономный движок сезонов v23 (Absolute Sync). 
  */
 
 'use client';
@@ -45,23 +45,24 @@ export function AutoMatchManager() {
         const seasonId = `season_${activeSeason}`;
         const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
         
+        // УНИФИЦИРОВАННЫЙ ID ГРУППЫ v23
         const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
         const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId);
         
         const groupSnap = await getDoc(groupRef);
         const currentData = groupSnap.data();
 
-        // СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ (V22)
+        // СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ (V23)
         if (allGroupPlayers) {
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const teamsHash = currentTeams.map(t => t.id).join('|');
 
           const needsUpgrade = !groupSnap.exists() || 
-                              (currentData?.calendarVersion || 0) < 22 ||
+                              (currentData?.calendarVersion || 0) < 23 ||
                               currentData?.teamsHash !== teamsHash;
 
           if (needsUpgrade) {
-            console.log(`[V22] Regenerating Calendar for ${prefixedGroupId}...`);
+            console.log(`[V23] Regenerating Calendar for ${prefixedGroupId}...`);
             let batch = writeBatch(db);
             const calendar = generateSeasonCalendar(currentTeams);
             
@@ -75,7 +76,7 @@ export function AutoMatchManager() {
               seasonNumber: activeSeason,
               teams: currentTeams,
               teamsHash,
-              calendarVersion: 22,
+              calendarVersion: 23,
               updatedAt: serverTimestamp()
             }, { merge: true });
 
@@ -99,7 +100,8 @@ export function AutoMatchManager() {
                 matchStatus: 'pending',
                 isFinished: false,
                 startTime: finalDate.toISOString(),
-                scheduledAt: Timestamp.fromDate(finalDate)
+                scheduledAt: Timestamp.fromDate(finalDate),
+                version: 23
               }, { merge: true });
             });
 
@@ -113,19 +115,19 @@ export function AutoMatchManager() {
         });
 
         if (overdueMatches.length > 0) {
-          console.log(`[V22] Force Resolving ${overdueMatches.length} overdue matches...`);
+          console.log(`[V23] Force Resolving ${overdueMatches.length} overdue matches for ${prefixedGroupId}...`);
           await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
         }
 
       } catch (e: any) {
-        console.warn("[V22 PULSE] error:", e.message);
+        console.warn("[V23 PULSE] error:", e.message);
       } finally {
         processingRef.current = false;
       }
     };
 
     heartbeat();
-    const interval = setInterval(heartbeat, 8000); 
+    const interval = setInterval(heartbeat, 10000); 
     return () => clearInterval(interval);
   }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches]);
 
