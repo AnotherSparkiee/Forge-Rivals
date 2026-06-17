@@ -68,14 +68,21 @@ export default function Home() {
 
       const diff = targetTime.getTime() - mskNow.getTime();
       
+      // Улучшенная логика статусов для предотвращения WAITING
+      const isFinished = nextMatch.match.status === 'finished' || nextMatch.match.isFinished === true || nextMatch.match.matchStatus === 'finished';
+
       if (diff <= 0) {
         setCountdown('00:00:00');
-        // Если прошло более 1 минуты и статус всё еще pending — значит идет симуляция
-        if (Math.abs(diff) > 60000 && nextMatch.match.status === 'pending') {
-          setIsLive(false);
-          setIsProcessing(true);
+        if (!isFinished) {
+          if (Math.abs(diff) > 45000) { // Если прошло более 45с
+            setIsLive(false);
+            setIsProcessing(true);
+          } else {
+            setIsLive(true);
+            setIsProcessing(false);
+          }
         } else {
-          setIsLive(true);
+          setIsLive(false);
           setIsProcessing(false);
         }
       } else {
@@ -257,7 +264,7 @@ export default function Home() {
         </Card>
       </section>
 
-      {nextMatch?.match?.status === 'finished' ? (
+      {nextMatch?.match?.status === 'finished' || nextMatch?.match?.isFinished === true ? (
         <Link href={`/match?id=${nextMatch.match.id}`} className="block relative mb-8">
           <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1 transition-all active:scale-95">
             <div className="flex items-center gap-2">
