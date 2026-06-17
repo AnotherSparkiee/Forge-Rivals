@@ -53,12 +53,9 @@ export function getGlobalSeasonInfo() {
   const diffMs = mskNow.getTime() - epochDate.getTime();
   const cycleDuration = 16; 
   
-  // КОРРЕКЦИЯ: Использование правильного деления и остатка для дат до эпохи
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   
-  // currentSeasonDay: 1..16
   let currentSeasonDay = ((diffDays % cycleDuration) + cycleDuration) % cycleDuration + 1;
-  // currentSeasonNumber: 1, 2, 3...
   let currentSeasonNumber = Math.floor(diffDays / cycleDuration) + 1;
 
   const isTransitionPhase = currentSeasonDay >= 15;
@@ -70,6 +67,25 @@ export function getGlobalSeasonInfo() {
     isTransitionPhase,
     activeSeasonNumber: Math.max(1, effectiveSeason)
   };
+}
+
+/**
+ * ПРОВЕРКА ПРОСРОЧКИ МАТЧА (V16)
+ * Игнорирует год, смотрит только на день сезона и время начала.
+ */
+export function isMatchOverdue(matchDay: number, startTimeStr: string): boolean {
+  const { seasonDay } = getGlobalSeasonInfo();
+  
+  if (matchDay < seasonDay) return true;
+  if (matchDay > seasonDay) return false;
+  
+  // Если день совпадает, проверяем время
+  const mskNow = getMoscowTime();
+  const [h, m] = startTimeStr.split(':').map(Number);
+  const currentMins = mskNow.getHours() * 60 + mskNow.getMinutes();
+  const matchMins = h * 60 + m;
+  
+  return currentMins >= matchMins;
 }
 
 export function calculateLiveAge(baseAge: number, hiredAtIso: string) {

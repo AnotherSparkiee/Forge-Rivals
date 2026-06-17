@@ -13,7 +13,7 @@ import {
   getStableGroupTeams, generateSeasonCalendar, 
   LEAGUES 
 } from '@/app/lib/leagues-data';
-import { getMoscowTime, getGlobalSeasonInfo } from '@/app/lib/time-utils';
+import { getGlobalSeasonInfo, isMatchOverdue } from '@/app/lib/time-utils';
 import { forceResolveGroupMatches } from '@/app/actions/mmo-engine';
 
 export function AutoMatchManager() {
@@ -105,11 +105,9 @@ export function AutoMatchManager() {
         }
 
         // 2. ПРИНУДИТЕЛЬНЫЙ РАСЧЕТ ТАБЛИЦЫ (Standalone Transaction)
-        const mskTime = getMoscowTime().getTime();
         const overdue = allSeasonMatches.some(m => {
-          const startTime = m.startTime ? new Date(m.startTime).getTime() : 0;
-          // Время вышло (с запасом 5 сек) и счета в базе НЕТ
-          return startTime > 0 && mskTime > (startTime + 5000) && !checkIsMatchFinished(m);
+          const isOverdueMatch = isMatchOverdue(m.day, league.startTime);
+          return isOverdueMatch && !checkIsMatchFinished(m);
         });
 
         if (overdue) {

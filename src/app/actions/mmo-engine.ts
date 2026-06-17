@@ -11,8 +11,8 @@ import {
   runTransaction, Firestore, getDoc
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
-import { getGlobalSeasonInfo, getMoscowTime } from '@/app/lib/time-utils';
-import { getMatchResult } from '@/app/lib/leagues-data';
+import { getGlobalSeasonInfo, isMatchOverdue } from '@/app/lib/time-utils';
+import { getMatchResult, LEAGUES } from '@/app/lib/leagues-data';
 
 /**
  * ГЛАВНЫЙ СЕРВЕРНЫЙ РАСЧЕТ ГРУППЫ:
@@ -22,6 +22,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
   const { firestore: db } = initializeFirebase();
   const { activeSeasonNumber } = getGlobalSeasonInfo();
   const seasonId = `season_${activeSeasonNumber}`;
+  const league = LEAGUES.find(l => l.id === leagueId) || LEAGUES[0];
 
   console.log(`[V16 ENGINE] Resolving group: ${groupId} (Season ${activeSeasonNumber})`);
 
@@ -35,17 +36,15 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
   if (snap.empty) return { success: true, count: 0 };
 
   let resolvedCount = 0;
-  const mskNow = getMoscowTime().getTime();
 
   for (const docSnap of snap.docs) {
     const m = docSnap.data();
-    const startTime = m.startTime ? new Date(m.startTime).getTime() : 0;
     
-    // ПРОВЕРКА V16: Только если времени прошло больше 5 сек и счета НЕТ НИГДЕ
-    const isOverdue = startTime > 0 && mskNow > (startTime + 5000);
+    // ПРОВЕРКА V16: Через универсальный хелпер игрового времени
+    const overdue = isMatchOverdue(m.day, league.startTime);
     const hasAnyScore = m.homeScore !== undefined || m.scoreA !== undefined;
 
-    if (isOverdue && !hasAnyScore) {
+    if (overdue && !hasAnyScore) {
       const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, activeSeasonNumber);
       await runAbsoluteTransaction(db, m, sA, sB, docSnap.id, seasonId);
       resolvedCount++;
@@ -84,32 +83,44 @@ async function runAbsoluteTransaction(
       const hRoot = await transaction.get(homeRootRef);
       const aRoot = await transaction.get(awayRootRef);
 
-      // 2. ОБНОВЛЯЕМ ТАБЛИЦЫ (STANDINGS)
-      if (hRoot.exists()) {
-        const d = hRoot.data();
-        let w = d.wins || 0, dr = d.draws || 0, l = d.losses || 0, p = d.points || 0, played = d.played || 0;
+      // 2. ОБНОВЛЯЕМ ТАБЛИЦЫ (Для реальных игроков и ботов)
+      const updatePoints = (currentData: any, scoreSelf: number, scoreOpp: number) => {
+        let w = (currentData?.wins || 0);
+        let dr = (currentData?.draws || 0);
+        let l = (currentData?.losses || 0);
+        let p = (currentData?.points || 0);
+        let played = (currentData?.played || 0);
+        
         played++;
-        if (sA > sB) { w++; p += 3; } else if (sA < sB) { l++; } else { dr++; p += 1; }
-        const update = { 
+        if (scoreSelf > scoreOpp) { w++; p += 3; } 
+        else if (scoreSelf < scoreOpp) { l++; } 
+        else { dr++; p += 1; }
+        
+        return { 
           wins: w, draws: dr, losses: l, points: p, played,
           statString: `${w}-${dr}-${l}`, 
           updatedAt: serverTimestamp() 
         };
+      };
+
+      if (hRoot.exists()) {
+        const update = updatePoints(hRoot.data(), sA, sB);
         transaction.update(homeRootRef, update);
+        transaction.set(homeLeagueRef, update, { merge: true });
+      } else {
+        // Если это бот — обновляем только запись в лиге
+        const hLeagueSnap = await transaction.get(homeLeagueRef);
+        const update = updatePoints(hLeagueSnap.data(), sA, sB);
         transaction.set(homeLeagueRef, update, { merge: true });
       }
 
       if (aRoot.exists()) {
-        const d = aRoot.data();
-        let w = d.wins || 0, dr = d.draws || 0, l = d.losses || 0, p = d.points || 0, played = d.played || 0;
-        played++;
-        if (sB > sA) { w++; p += 3; } else if (sB < sA) { l++; } else { dr++; p += 1; }
-        const update = { 
-          wins: w, draws: dr, losses: l, points: p, played,
-          statString: `${w}-${dr}-${l}`, 
-          updatedAt: serverTimestamp() 
-        };
+        const update = updatePoints(aRoot.data(), sB, sA);
         transaction.update(awayRootRef, update);
+        transaction.set(awayLeagueRef, update, { merge: true });
+      } else {
+        const aLeagueSnap = await transaction.get(awayLeagueRef);
+        const update = updatePoints(aLeagueSnap.data(), sB, sA);
         transaction.set(awayLeagueRef, update, { merge: true });
       }
 

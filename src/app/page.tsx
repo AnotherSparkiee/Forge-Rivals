@@ -68,31 +68,39 @@ export default function Home() {
       }
 
       const mskNow = getMoscowTime();
-      const targetTime = nextMatch.match.startTime ? new Date(nextMatch.match.startTime) : null;
+      // Используем только время и день сезона для оценки "лайва"
+      const { seasonDay: curDay } = getGlobalSeasonInfo();
+      const matchDay = nextMatch.match.day;
+      const [sh, sm] = league.startTime.split(':').map(Number);
+      
+      const currentMins = mskNow.getHours() * 60 + mskNow.getMinutes();
+      const matchMins = sh * 60 + sm;
 
-      if (!targetTime) return;
-
-      const diff = targetTime.getTime() - mskNow.getTime();
-
-      if (diff <= 0) {
+      if (curDay > matchDay || (curDay === matchDay && currentMins >= matchMins)) {
         setCountdown('00:00:00');
         setIsLive(true); 
-        // Если время вышло на 10+ сек, включаем режим синхронизации
-        if (Math.abs(diff) > 10000) { 
-          setIsProcessing(true); 
-        }
-      } else {
+        // Если время вышло, включаем режим синхронизации (WAITING)
+        setIsProcessing(true);
+      } else if (curDay === matchDay) {
+        const targetTime = new Date(mskNow);
+        targetTime.setHours(sh, sm, 0, 0);
+        const diff = targetTime.getTime() - mskNow.getTime();
+        
         const hh = Math.floor(diff / 3600000);
         const mm = Math.floor((diff % 3600000) / 60000);
         const ss = Math.floor((diff % 60000) / 1000);
         setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
         setIsLive(false);
         setIsProcessing(false);
+      } else {
+        setCountdown('BATTLE_PENDING');
+        setIsLive(false);
+        setIsProcessing(false);
       }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isDataReady, selectedLeagueId, nextMatch]);
+  }, [isDataReady, selectedLeagueId, nextMatch, league]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
