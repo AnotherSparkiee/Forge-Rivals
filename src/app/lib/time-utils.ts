@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v36. Абсолютная синхронизация Сезона 1.
+ * @fileOverview Ядро времени v36.2. Абсолютная синхронизация Сезона 1.
  * 
  * Цикл: 15 дней.
  * Дни 1-14: Активные матчи сезона.
@@ -11,15 +11,26 @@ export function getMoscowTime(): Date {
   const now = new Date();
   
   /**
-   * ПИВОТ ВРЕМЕНИ (v36)
-   * Реальное: 26.02.2025 (текущий момент разработки)
-   * Виртуальное: 18.06.2026 (сегодня в игре)
+   * ПИВОТ ВРЕМЕНИ (v36.2)
+   * Мы фиксируем смещение так, чтобы "сегодня" (в реальном мире конец февраля 2025) 
+   * в игре было ровно 18 июня 2026 года.
    */
   const realReference = new Date('2025-02-26T00:00:00+03:00').getTime();
   const virtualReference = new Date('2026-06-18T00:00:00+03:00').getTime();
   const offsetMs = virtualReference - realReference;
 
-  return new Date(now.getTime() + offsetMs);
+  const virtualTime = new Date(now.getTime() + offsetMs);
+
+  // ЗАЩИТА ОТ ДРИФТА: Если время улетело в 2027+, принудительно возвращаем в 2026
+  if (virtualTime.getFullYear() > 2026) {
+    virtualTime.setFullYear(2026);
+    // Если это июнь, оставляем как есть, если позже - сдвигаем назад
+    if (virtualTime.getMonth() > 5) {
+      virtualTime.setMonth(5); // Июнь (0-indexed)
+    }
+  }
+
+  return virtualTime;
 }
 
 /**
