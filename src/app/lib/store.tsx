@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v27. 
- * Нормализованы запросы для исключения ошибок доступа из-за некорректных типов данных.
+ * @fileOverview Глобальное хранилище v31. 
+ * Внедрена фильтрация по версии системы (31) для очистки старых данных.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -224,7 +224,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const loaded = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
-        const sorted = loaded.sort((a, b) => (Number(a.day) || 0) - (Number(b.day) || 0));
+        // ФИЛЬТР ВЕРСИИ 31
+        const currentVersion = loaded.filter(m => m.version === 31);
+        const sorted = currentVersion.sort((a, b) => (Number(a.day) || 0) - (Number(b.day) || 0));
         setAllMatches(sorted);
         setIsMatchesReady(true);
       }, (err) => {
@@ -238,7 +240,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded, seasonInfo, isUserLoading, user?.uid]);
 
   const nextMatchInfo = useMemo(() => {
-    if (!isMatchesReady || !user?.uid) return null;
+    if (!isMatchesReady || !user?.uid || allMatches.length === 0) return null;
     const mskNow = getMoscowTime().getTime();
 
     const active = allMatches.find(m => 

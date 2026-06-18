@@ -40,6 +40,8 @@ export default function MatchesPage() {
   const [activeTab, setActiveTab] = useState<MatchTab>('menu');
   const [now, setNow] = useState(getMoscowTime());
 
+  const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
+
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/auth/register');
     const timer = setInterval(() => setNow(getMoscowTime()), 1000);
@@ -48,7 +50,8 @@ export default function MatchesPage() {
 
   const calendarDays = useMemo(() => {
     if (!isDataReady) return [];
-    const filtered = allSeasonMatches.filter(m => m.seasonNumber === activeSeasonNumber);
+    // ФИЛЬТР ВЕРСИИ 31
+    const filtered = allSeasonMatches.filter(m => m.seasonNumber === activeSeasonNumber && m.version === 31);
     const dayGroups: Record<number, any[]> = {};
     filtered.forEach(m => {
       if (!dayGroups[m.day]) dayGroups[m.day] = [];
@@ -59,7 +62,12 @@ export default function MatchesPage() {
 
   const myMatches = useMemo(() => {
     if (!user || !isDataReady) return [];
-    return allSeasonMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.seasonNumber === activeSeasonNumber);
+    // ФИЛЬТР ВЕРСИИ 31
+    return allSeasonMatches.filter(m => 
+      (m.homeId === user.uid || m.awayId === user.uid) && 
+      m.seasonNumber === activeSeasonNumber &&
+      m.version === 31
+    );
   }, [allSeasonMatches, user, isDataReady, activeSeasonNumber]);
 
   const getCountdown = (startTimeIso: string) => {
@@ -76,6 +84,8 @@ export default function MatchesPage() {
     title: language === 'ru' ? "СПИСОК МАТЧЕЙ" : "OPERATIONAL MATCHES",
     subtitle: language === 'ru' ? "Расписание и История" : "Tactical Schedule & History",
     back: language === 'ru' ? "Назад" : "Back",
+    awaiting: language === 'ru' ? "ОЖИДАНИЕ ГЕНЕРАЦИИ..." : "AWAITING DEPLOYMENT...",
+    offseasonDesc: language === 'ru' ? "Сетка матчей Сезона 1 будет сформирована 19 июня в 16:00." : "Season 1 match grid will be established on June 19, 16:00 MSK.",
     tabs: {
       next_opponent: { label: language === 'ru' ? "Следующий соперник" : "Next Opponent", icon: UserSearch },
       my_future: { label: language === 'ru' ? "Мои будущие" : "My Future", icon: CalendarClock },
@@ -86,6 +96,18 @@ export default function MatchesPage() {
   };
 
   if (isUserLoading || !isLoaded || !isDataReady) return <LoadingScreen />;
+
+  const renderEmptyState = () => (
+    <div className="py-20 text-center animate-in fade-in duration-700">
+      <div className="w-20 h-20 rounded-full bg-secondary/50 border-2 border-dashed border-white/10 flex items-center justify-center mx-auto mb-6">
+        <Clock className="w-10 h-10 text-muted-foreground opacity-30 animate-pulse" />
+      </div>
+      <h2 className="text-xl font-headline font-bold uppercase text-white">{t.awaiting}</h2>
+      <p className="text-[10px] text-muted-foreground mt-4 px-10 italic leading-relaxed uppercase tracking-widest">
+        {t.offseasonDesc}
+      </p>
+    </div>
+  );
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
@@ -117,18 +139,18 @@ export default function MatchesPage() {
                 <div className="w-20 h-20 rounded-full bg-secondary/50 border-2 border-primary flex items-center justify-center"><User className="w-10 h-10 text-primary" /></div>
                 <h3 className="text-xl font-headline font-bold uppercase italic">{centralNextMatch.opponentName}</h3>
              </Card>
-           ) : <div className="py-20 text-center opacity-30 text-[10px] font-black uppercase">No active tactical threats</div>}
+           ) : renderEmptyState()}
         </div>
       ) : activeTab === 'my_future' ? (
         <div className="space-y-4">
-           {myMatches.filter(m => !m.isFinished).map(m => (
+           {myMatches.filter(m => !m.isFinished).length > 0 ? myMatches.filter(m => !m.isFinished).map(m => (
              <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex justify-between items-center text-[10px] font-bold uppercase">
                <span>DAY {m.day}</span>
                <span className={cn(m.homeId === user?.uid && "text-primary")}>{m.homeName}</span>
                <span className="text-accent">VS</span>
                <span className={cn(m.awayId === user?.uid && "text-primary")}>{m.awayName}</span>
              </div>
-           ))}
+           )) : renderEmptyState()}
         </div>
       ) : (
         <div className="py-20 text-center opacity-30 text-[10px] font-black uppercase tracking-widest">Protocol Active</div>
