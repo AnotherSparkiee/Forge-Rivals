@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v28.
- * Внедрена очистка старого календаря и старт Сезона 1 с 20.06.2026.
+ * @fileOverview Автономный менеджер синхронизации v29.
+ * Исправляет дату 2027 и принудительно чистит обломки октября.
  */
 
 import { useEffect, useRef } from 'react';
@@ -52,21 +52,21 @@ export function AutoMatchManager() {
         
         const groupSnap = await getDoc(groupRef);
         
-        // ВЕРСИЯ 28: ПРИНУДИТЕЛЬНЫЙ СБРОС СТАРЫХ МАТЧЕЙ
+        // ВЕРСИЯ 29: ТОТАЛЬНАЯ ОЧИСТКА И ПЕРЕЗАГРУЗКА
         const needsUpgrade = !groupSnap.exists() || 
-                            (groupSnap.data()?.calendarVersion || 0) < 28;
+                            (groupSnap.data()?.calendarVersion || 0) < 29;
 
         if (needsUpgrade) {
-          console.log("[V28 ENGINE] TOTAL RESET INITIATED");
+          console.log("[V29 ENGINE] EMERGENCY RESET INITIATED");
           
-          // 1. Очистка старых матчей октября
+          // 1. Стираем вообще все матчи этой группы (включая ошибки 10.10)
           const qOld = query(collection(db, 'matches_v1'), where('groupId', '==', String(prefixedGroupId)));
           const oldSnap = await getDocs(qOld);
           let clearBatch = writeBatch(db);
           oldSnap.docs.forEach(d => clearBatch.delete(d.ref));
           await clearBatch.commit();
 
-          // 2. Инициализация чистой таблицы
+          // 2. Инициализация чистой таблицы в leagues_v2
           let batch = writeBatch(db);
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
           const teamsHash = currentTeams.map(t => t.id).join('|');
@@ -76,7 +76,7 @@ export function AutoMatchManager() {
             seasonId,
             seasonNumber: activeSN,
             teamsHash,
-            calendarVersion: 28,
+            calendarVersion: 29,
             status: info.isOffseason ? 'offseason' : 'active',
             updatedAt: serverTimestamp()
           }, { merge: true });
@@ -91,7 +91,7 @@ export function AutoMatchManager() {
             }, { merge: true });
           });
 
-          // 3. Генерация Календаря (Начиная с 20.06.2026)
+          // 3. Генерация Календаря (Старт строго 20.06.2026)
           const calendar = generateSeasonCalendar(currentTeams);
           const epochMs = new Date('2026-06-20T00:00:00+03:00').getTime();
           const dayMs = 24 * 60 * 60 * 1000;
@@ -115,15 +115,15 @@ export function AutoMatchManager() {
               isFinished: false,
               startTime: finalDate.toISOString(),
               scheduledAt: Timestamp.fromDate(finalDate),
-              version: 28
+              version: 29
             }, { merge: true });
           });
 
           await batch.commit();
-          console.log("[V28 ENGINE] SEASON 1 GENERATED SUCCESSFULLY");
+          console.log("[V29 ENGINE] CALENDAR GENERATED FOR JUNE 2026");
         }
 
-        // Фоновый расчет если сезон уже идет
+        // Фоновый расчет результатов (только если сезон начался)
         if (!info.isOffseason) {
           const overdue = allSeasonMatches.filter(m => isMatchOverdue(m.startTime) && !m.isFinished);
           if (overdue.length > 0) {
@@ -132,13 +132,13 @@ export function AutoMatchManager() {
         }
 
       } catch (e: any) {
-        console.warn("[V28 Sync Error]:", e.message);
+        console.warn("[V29 Sync Error]:", e.message);
       } finally {
         processingRef.current = false;
       }
     };
 
-    const interval = setInterval(heartbeat, 60000); 
+    const interval = setInterval(heartbeat, 30000); 
     heartbeat();
     return () => clearInterval(interval);
   }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches, isUserLoading, user?.uid]);

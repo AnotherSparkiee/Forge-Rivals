@@ -1,12 +1,12 @@
 /**
- * @fileOverview Ядро времени v28. Абсолютная синхронизация с эпохой 2026.
+ * @fileOverview Ядро времени v29. Абсолютная синхронизация с эпохой 2026.
  * Текущая дата: 18 июня 2026 (Межсезонье).
  * Старт сезона: 20 июня 2026.
  */
 
 /**
  * Возвращает "Виртуальное время Москвы".
- * Физически переносит систему в 18 июня 2026 года.
+ * Гарантирует, что в игре сейчас Июнь 2026 года.
  */
 export function getMoscowTime(): Date {
   const now = new Date();
@@ -15,12 +15,29 @@ export function getMoscowTime(): Date {
   const mskOffset = (now.getTimezoneOffset() + 180) * 60000;
   const currentMsk = new Date(now.getTime() + mskOffset);
 
-  // Виртуальное "Сегодня": 18 июня 2026 12:00:00
+  // Если системные часы УЖЕ в 2026 году (июнь или позже)
+  if (currentMsk.getFullYear() === 2026 && currentMsk.getMonth() >= 5) {
+    return currentMsk;
+  }
+
+  // Если системные часы УШЛИ в будущее (2027+)
+  if (currentMsk.getFullYear() > 2026) {
+    const clamped = new Date(currentMsk);
+    clamped.setFullYear(2026);
+    // Если мы в октябре 2027, станем октябрем 2026 (что тоже не айс для старта), 
+    // поэтому форсируем Июнь для чистоты теста
+    if (clamped.getMonth() > 5) {
+      clamped.setMonth(5); // Июнь
+      clamped.setDate(18); // 18 число
+    }
+    return clamped;
+  }
+
+  // Виртуальное "Сегодня": 18 июня 2026
   const virtualToday = new Date('2026-06-18T12:00:00+03:00');
-  // Реальная точка отсчета (день написания кода)
-  const realReference = new Date('2025-02-21T12:00:00+03:00');
+  // Реальная точка отсчета (сегодняшний день разработки)
+  const realReference = new Date('2025-02-22T12:00:00+03:00');
   
-  // Постоянное смещение (482 дня)
   const offsetMs = virtualToday.getTime() - realReference.getTime();
 
   return new Date(currentMsk.getTime() + offsetMs);
@@ -93,11 +110,8 @@ export function isMatchOverdue(startTimeIso: string): boolean {
 }
 
 export function getSeasonDateLabel(dayOfSeason: number): string {
-  // Эпоха старта
   const epochDate = new Date('2026-06-20T00:00:00+03:00');
   const targetDate = new Date(epochDate);
-  
-  // Прибавляем дни (День 1 = смещение 0)
   targetDate.setDate(epochDate.getDate() + (dayOfSeason - 1));
   
   const d = String(targetDate.getDate()).padStart(2, '0');
@@ -109,14 +123,12 @@ export function getSeasonDateLabel(dayOfSeason: number): string {
 
 /**
  * Рассчитывает текущий возраст на основе базового возраста и даты найма.
- * Учитывает виртуальное смещение времени (2026 год).
  */
 export function calculateLiveAge(baseAge: number, hiredAt: string) {
   const mskNow = getMoscowTime();
   const hiredDate = new Date(hiredAt);
   const diffMs = mskNow.getTime() - hiredDate.getTime();
   
-  // 1 год = 365.25 дней
   const msInYear = 1000 * 60 * 60 * 24 * 365.25;
   const diffYears = diffMs / msInYear;
   

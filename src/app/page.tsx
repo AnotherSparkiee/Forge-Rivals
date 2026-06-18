@@ -163,8 +163,8 @@ export default function Home() {
   if (!isLoaded) return <LoadingScreen />;
 
   const tHub = {
-    en: { nextMatch: "Next Engagement", offseason: "Offseason Protocol", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", sync: "CALENDAR SYNC", noMatches: "NO UPCOMING MATCHES", startsIn: "SEASON 1 STARTS IN:" },
-    ru: { nextMatch: "Следующий матч", offseason: "Межсезонье", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ", noMatches: "НЕТ БУДУЩИХ МАТЧЕЙ", startsIn: "СТАРТ 1-ГО СЕЗОНА ЧЕРЕЗ:" }
+    en: { nextMatch: "Next Engagement", offseason: "OFFSEASON PROTOCOL", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", sync: "CALENDAR SYNC", noMatches: "NO UPCOMING MATCHES", startsIn: "SEASON 1 STARTS IN:" },
+    ru: { nextMatch: "Следующий матч", offseason: "ПРОТОКОЛ МЕЖСЕЗОНЬЯ", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ", noMatches: "НЕТ БУДУЩИХ МАТЧЕЙ", startsIn: "СТАРТ 1-ГО СЕЗОНА ЧЕРЕЗ:" }
   }[language as 'en' | 'ru'];
 
   const menu = [ 
@@ -204,7 +204,7 @@ export default function Home() {
                       <Clock className="w-8 h-8 text-accent animate-pulse" />
                     </div>
                     <Badge variant="outline" className="bg-accent/10 border-accent/20 text-accent text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5">
-                      STANDBY MODE
+                      OFFSEASON STANDBY
                     </Badge>
                   </div>
                   <div className="bg-background/60 py-5 rounded-2xl border border-white/5 shadow-inner">
@@ -214,7 +214,7 @@ export default function Home() {
                     </p>
                   </div>
                   <p className="text-[10px] text-muted-foreground italic px-6 leading-relaxed">
-                    "Preparing tactical grids and operational maps for Season 1. Regroup your squad and upgrade infrastructure."
+                    "Preparing tactical grids for June 2026. Regroup your squad and upgrade infrastructure before Season 1 launch."
                   </p>
                 </div>
               ) : (
