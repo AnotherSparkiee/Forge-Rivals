@@ -8,8 +8,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 
 /**
- * ОПЕРАЦИОННЫЙ ТЕРМИНАЛ (Bottom Bar v37)
- * Синхронизирован с серверным игровым временем.
+ * ОПЕРАЦИОННЫЙ ТЕРМИНАЛ (Bottom Bar v38)
+ * Динамический хронометр, синхронизированный с серверным временем Москвы (UTC+3).
  */
 export function BottomNav() {
   const router = useRouter();
@@ -20,7 +20,7 @@ export function BottomNav() {
 
   useEffect(() => {
     const updateTime = () => {
-      // getMoscowTime() теперь возвращает синхронизированное время сервера
+      // getMoscowTime() теперь возвращает время, синхронизированное с сервером (Real MSK + 1 year)
       const now = getMoscowTime();
       setTerminalTime(formatTerminalTime(now));
     };
@@ -52,7 +52,7 @@ export function BottomNav() {
               </span>
             </div>
             <p className="text-[7px] font-bold text-muted-foreground uppercase tracking-widest">
-              Server: MSK-NODE-1
+              Sync: Global_MSK
             </p>
           </div>
         </div>
@@ -60,7 +60,7 @@ export function BottomNav() {
         <div className="flex flex-col items-center justify-center">
            <div className="px-4 py-1.5 bg-primary/5 rounded-lg border border-primary/20 shadow-inner group">
              <p className="text-[13px] font-mono font-black text-primary whitespace-nowrap tabular-nums tracking-widest leading-none min-w-[140px] text-center transition-all group-hover:text-accent">
-               {terminalTime || 'SYNCING...'}
+               {terminalTime || 'CONNECTING...'}
              </p>
            </div>
         </div>

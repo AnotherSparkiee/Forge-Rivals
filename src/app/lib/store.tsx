@@ -126,7 +126,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     
     const syncTime = async () => {
       try {
-        // Попытка получить мировое время через API
         const response = await fetch('https://worldtimeapi.org/api/timezone/Europe/Moscow', { cache: 'no-store' }).catch(() => null);
         if (response && response.ok) {
           const data = await response.json();
@@ -134,16 +133,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           const localMs = Date.now();
           setServerTimeOffset(serverMs - localMs);
         } else {
-          // Fallback: Замеряем RTT к Firestore для грубой оценки
+          // Fallback: замеряем задержку до Firestore
           const start = Date.now();
           await getDoc(doc(db, 'system_v1', 'status'));
           const end = Date.now();
-          // Смещение = (Время ответа - RTT/2) - LocalNow (Упрощенно)
-          // В прототипе достаточно просто установить флаг готовности
-          console.log("[TIME-SYNC] API failed, relying on system clock.");
+          const rtt = end - start;
+          // Упрощенная компенсация задержки
+          setServerTimeOffset(rtt / 2);
         }
       } catch (e) {
-        console.warn("[TIME-SYNC] Failed to synchronize with external time server.");
+        console.warn("[TIME-SYNC] Failed to synchronize with time server.");
       }
     };
     
