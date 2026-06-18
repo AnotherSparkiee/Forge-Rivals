@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v39. Монотонная синхронизация серверного времени.
+ * @fileOverview Ядро времени v39.1. Монотонная синхронизация серверного времени.
  * 
  * Исключает зависимость от системных часов устройства.
  * Использует performance.now() для защиты от перевода времени пользователем.
@@ -16,10 +16,17 @@ let syncPoint = {
  * Вызывается при запуске приложения после получения времени из сети.
  */
 export function setServerTime(serverMs: number) {
-  syncPoint = {
-    serverMs,
-    perfMs: performance.now()
-  };
+  if (typeof performance !== 'undefined') {
+    syncPoint = {
+      serverMs,
+      perfMs: performance.now()
+    };
+  } else {
+    syncPoint = {
+      serverMs,
+      perfMs: 0
+    };
+  }
   console.log(`[TIME-CORE] Absolute server sync established: ${new Date(serverMs).toISOString()}`);
 }
 
@@ -32,22 +39,21 @@ export function getMoscowTime(): Date {
   
   // 1. Рассчитываем текущее реальное время на основе монотонного таймера
   let currentRealUtcMs;
-  if (isBrowser) {
+  if (isBrowser && performance) {
     const elapsed = performance.now() - syncPoint.perfMs;
     currentRealUtcMs = syncPoint.serverMs + elapsed;
   } else {
     currentRealUtcMs = Date.now(); // Fallback для сервера
   }
   
-  // 2. Константы смещения (Виртуальный таймлайн v39)
-  const MSK_OFFSET = 3 * 60 * 60 * 1000; 
+  // 2. Константы смещения (Виртуальный таймлайн v39.1)
+  // Нам нужно попасть в 18.06.2026 22:44 из 27.02.2025 22:44
+  // Разница составляет ровно 476 дней.
   
-  /**
-   * Смещение для попадания в 18.06.2026 из февраля 2025.
-   * Это ~476 дней. Мы используем фиксированное смещение для прототипа.
-   */
+  const MSK_OFFSET = 3 * 60 * 60 * 1000; 
   const PROTOTYPE_OFFSET = 476 * 24 * 60 * 60 * 1000; 
 
+  // Принудительно вычисляем время относительно UTC, игнорируя локальный часовой пояс устройства
   return new Date(currentRealUtcMs + MSK_OFFSET + PROTOTYPE_OFFSET);
 }
 
@@ -89,8 +95,11 @@ export function getGlobalSeasonInfo() {
   let dayOfCycle: number;
 
   if (totalDaysPassed < 0) {
+    // Период до старта самого первого сезона (Offseason S1)
     seasonNumber = 1;
-    dayOfCycle = totalDaysPassed === -1 ? 15 : (totalDaysPassed === -2 ? 14 : 1);
+    // Маппинг дней до эпохи: -1 -> 15 (Gen), -2 -> 14 (Relax), etc.
+    dayOfCycle = 15 + (totalDaysPassed % 15);
+    if (dayOfCycle === 15 && totalDaysPassed < -1) dayOfCycle = 14; 
   } else {
     seasonNumber = Math.floor(totalDaysPassed / cycleDuration) + 1;
     dayOfCycle = (totalDaysPassed % cycleDuration) + 1;

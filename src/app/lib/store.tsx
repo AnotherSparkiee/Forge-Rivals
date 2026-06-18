@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v39 (Monotonic Sync). 
+ * @fileOverview Глобальное хранилище v39.1 (NTP Sync Refined). 
  * Реализована защита от манипуляций с локальными часами устройства.
  */
 
