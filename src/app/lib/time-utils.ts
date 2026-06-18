@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v32. Бесконечный цикл сезонов.
+ * @fileOverview Ядро времени v33. Бесконечный цикл сезонов.
  * 
  * Цикл: 15 дней.
  * Дни 1-14: Активные матчи сезона.
@@ -11,19 +11,21 @@ export function getMoscowTime(): Date {
   const now = new Date();
   
   /**
-   * СТАБИЛЬНАЯ СИНХРОНИЗАЦИЯ 2026 (v32)
-   * Цель: Сделать так, чтобы сегодня (конец февраля 2025) соответствовало 18 июня 2026.
-   * Опорная дата (Real): 2025-02-26
-   * Опорная дата (Virtual): 2026-06-18
+   * АБСОЛЮТНАЯ СИНХРОНИЗАЦИЯ 2026 (v33)
+   * Цель: Сделать так, чтобы текущее реальное время (июнь 2025) 
+   * соответствовало 18 июня 2026 (День 15 первого цикла).
+   * 
+   * Опорная дата (Real): 2025-06-16 (Текущий момент разработки)
+   * Опорная дата (Virtual): 2026-06-18 (Виртуальное Межсезонье)
    */
-  const realReference = new Date('2025-02-26T12:00:00+03:00').getTime();
+  const realReference = new Date('2025-06-16T12:00:00+03:00').getTime();
   const virtualReference = new Date('2026-06-18T12:00:00+03:00').getTime();
   const offsetMs = virtualReference - realReference;
 
   // Рассчитываем текущее виртуальное время
   const virtualTime = new Date(now.getTime() + offsetMs);
 
-  // ABSOLUTE SAFETY CLAMP (Фиксация в 2026 году для прототипа)
+  // Ограничитель года для прототипа (чтобы не улетать в 2027+)
   if (virtualTime.getFullYear() > 2026) {
     virtualTime.setFullYear(2026);
   }
@@ -90,7 +92,7 @@ export function isMatchOverdue(startTimeIso: string): boolean {
   return mskNow.getTime() > (start.getTime() + 2000);
 }
 
-export function getSeasonDateLabel(dayOfSeason: number, seasonNumber: number): string {
+export function getSeasonDateLabel(dayOfSeason: number, seasonNumber: number = 1): string {
   const epoch = new Date('2026-06-04T00:00:00+03:00');
   const cycleDuration = 15;
   const seasonStartOffset = (seasonNumber - 1) * cycleDuration;
