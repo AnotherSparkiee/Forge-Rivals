@@ -11,11 +11,10 @@ export function getMoscowTime(): Date {
   const now = new Date();
   
   /**
-   * ПИВОТ ВРЕМЕНИ (v36.2)
-   * Мы фиксируем смещение так, чтобы "сегодня" (в реальном мире конец февраля 2025) 
-   * в игре было ровно 18 июня 2026 года.
+   * ПИВОТ ВРЕМЕНИ (v34)
+   * Синхронизация: Реальное 17.02.2025 = Виртуальное 18.06.2026
    */
-  const realReference = new Date('2025-02-26T00:00:00+03:00').getTime();
+  const realReference = new Date('2025-02-17T00:00:00+03:00').getTime();
   const virtualReference = new Date('2026-06-18T00:00:00+03:00').getTime();
   const offsetMs = virtualReference - realReference;
 
@@ -24,9 +23,8 @@ export function getMoscowTime(): Date {
   // ЗАЩИТА ОТ ДРИФТА: Если время улетело в 2027+, принудительно возвращаем в 2026
   if (virtualTime.getFullYear() > 2026) {
     virtualTime.setFullYear(2026);
-    // Если это июнь, оставляем как есть, если позже - сдвигаем назад
     if (virtualTime.getMonth() > 5) {
-      virtualTime.setMonth(5); // Июнь (0-indexed)
+      virtualTime.setMonth(5); // Июнь
     }
   }
 
@@ -71,7 +69,7 @@ export function getGlobalSeasonInfo() {
   let dayOfCycle: number;
 
   if (totalDaysPassed < 0) {
-    // Период ДО старта Сезона 1 (18.06 - 19.06)
+    // Период ДО старта Сезона 1
     seasonNumber = 1;
     // 18.06 -> Day 14 (totalDaysPassed = -2)
     // 19.06 -> Day 15 (totalDaysPassed = -1)
@@ -82,11 +80,9 @@ export function getGlobalSeasonInfo() {
     dayOfCycle = (totalDaysPassed % cycleDuration) + 1;
   }
 
-  // Межсезонье: 15-й день цикла ИЛИ любой день до старта S1
   const isOffseason = dayOfCycle === 15 || totalDaysPassed < 0;
   const isGenerationDay = dayOfCycle === 15;
   
-  // Расчет времени до начала следующего (или первого) сезона
   let nextSeasonStartDate: Date;
   if (totalDaysPassed < 0) {
     nextSeasonStartDate = epoch;

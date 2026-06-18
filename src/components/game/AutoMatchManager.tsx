@@ -139,7 +139,7 @@ export function AutoMatchManager() {
       }
     };
 
-    const interval = setInterval(heartbeat, 120000); // 2 минуты вместо 1
+    const interval = setInterval(heartbeat, 120000); // 2 минуты интервал
     heartbeat();
     return () => clearInterval(interval);
   }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches, isUserLoading, user?.uid]);

@@ -17,22 +17,19 @@ export function BottomNav() {
   const pathname = usePathname();
   const { language } = useGameState();
   
-  // Состояние для времени, которое инициализируется только на клиенте
   const [terminalTime, setTerminalTime] = useState<string | null>(null);
 
   useEffect(() => {
-    // ВАЖНО: Обновляем время каждую секунду через getMoscowTime
     const updateTime = () => {
       const now = getMoscowTime();
       setTerminalTime(formatTerminalTime(now));
     };
 
-    updateTime(); // Начальное обновление
+    updateTime();
     const timer = setInterval(updateTime, 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Скрываем на страницах авторизации
   if (pathname?.startsWith('/auth') || pathname === '/setup') {
     return null;
   }
@@ -46,7 +43,6 @@ export function BottomNav() {
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-t border-white/10 h-20 flex items-center shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
       <div className="w-full max-w-lg mx-auto px-6 grid grid-cols-3 items-center">
         
-        {/* Лево: Статус узла */}
         <div className="flex justify-start">
           <div className="flex flex-col gap-0.5 opacity-80">
             <div className="flex items-center gap-1.5">
@@ -61,7 +57,6 @@ export function BottomNav() {
           </div>
         </div>
 
-        {/* Центр: Динамическое системное время */}
         <div className="flex flex-col items-center justify-center">
            <div className="px-4 py-1.5 bg-primary/5 rounded-lg border border-primary/20 shadow-inner group">
              <p className="text-[13px] font-mono font-black text-primary whitespace-nowrap tabular-nums tracking-widest leading-none min-w-[140px] text-center transition-all group-hover:text-accent">
@@ -70,7 +65,6 @@ export function BottomNav() {
            </div>
         </div>
 
-        {/* Право: Кнопка навигации */}
         <div className="flex justify-end">
           <Button 
             variant="ghost" 
