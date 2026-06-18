@@ -12,25 +12,31 @@ export function getMoscowTime(): Date {
   
   /**
    * АБСОЛЮТНАЯ СИНХРОНИЗАЦИЯ 2026 (v33)
-   * Цель: Сделать так, чтобы текущее реальное время (июнь 2025) 
-   * соответствовало 18 июня 2026 (День 15 первого цикла).
+   * Цель: Сделать так, чтобы текущее реальное время (февраль 2025) 
+   * соответствовало июню 2026.
    * 
-   * Опорная дата (Real): 2025-06-16 (Текущий момент разработки)
+   * Опорная дата (Real): 2025-02-20 (Примерный момент разработки)
    * Опорная дата (Virtual): 2026-06-18 (Виртуальное Межсезонье)
    */
-  const realReference = new Date('2025-06-16T12:00:00+03:00').getTime();
+  const realReference = new Date('2025-02-20T12:00:00+03:00').getTime();
   const virtualReference = new Date('2026-06-18T12:00:00+03:00').getTime();
   const offsetMs = virtualReference - realReference;
 
-  // Рассчитываем текущее виртуальное время
-  const virtualTime = new Date(now.getTime() + offsetMs);
+  // Рассчитываем текущее виртуальное время с учетом смещения
+  return new Date(now.getTime() + offsetMs);
+}
 
-  // Ограничитель года для прототипа (чтобы не улетать в 2027+)
-  if (virtualTime.getFullYear() > 2026) {
-    virtualTime.setFullYear(2026);
-  }
-
-  return virtualTime;
+/**
+ * Форматирует время для нижнего терминала: "18.06 14:05:01"
+ */
+export function formatTerminalTime(date: Date): string {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  
+  return `${day}.${month} ${hours}:${minutes}:${seconds}`;
 }
 
 export function getMoscowDateString(): string {
