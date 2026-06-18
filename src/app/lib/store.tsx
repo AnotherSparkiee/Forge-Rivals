@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v39.1 (NTP Sync Refined). 
- * Реализована защита от манипуляций с локальными часами устройства.
+ * @fileOverview Глобальное хранилище v40 (Absolute Sync). 
+ * Полная синхронизация с реальным временем 2026 года.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';

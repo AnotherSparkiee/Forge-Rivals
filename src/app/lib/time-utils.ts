@@ -1,19 +1,19 @@
 /**
- * @fileOverview Ядро времени v39.1. Монотонная синхронизация серверного времени.
+ * @fileOverview Ядро времени v40. Absolute Real-Time Sync.
  * 
- * Исключает зависимость от системных часов устройства.
- * Использует performance.now() для защиты от перевода времени пользователем.
+ * Система полностью переведена на реальное время без искусственных смещений.
+ * Использует UTC+3 (Москва) как базовый стандарт для всех онлайн-событий.
  */
 
 // Точка синхронизации: [Реальное серверное время в MS, Время performance.now() в MS]
 let syncPoint = {
-  serverMs: Date.now(),
+  serverMs: typeof Date !== 'undefined' ? Date.now() : 0,
   perfMs: typeof performance !== 'undefined' ? performance.now() : 0
 };
 
 /**
  * Устанавливает абсолютную точку отсчета серверного времени.
- * Вызывается при запуске приложения после получения времени из сети.
+ * Вызывается при запуске приложения после получения времени из сети (NTP).
  */
 export function setServerTime(serverMs: number) {
   if (typeof performance !== 'undefined') {
@@ -31,50 +31,49 @@ export function setServerTime(serverMs: number) {
 }
 
 /**
- * Возвращает текущее игровое время по Москве (UTC+3), 
- * полностью защищенное от манипуляций с локальными часами.
+ * Возвращает текущее игровое время по Москве (UTC+3).
+ * Защищено от манипуляций с локальными часами через монотонный таймер.
  */
 export function getMoscowTime(): Date {
   const isBrowser = typeof window !== 'undefined';
   
-  // 1. Рассчитываем текущее реальное время на основе монотонного таймера
-  let currentRealUtcMs;
+  // 1. Рассчитываем текущее реальное UTC время на основе монотонного таймера
+  let currentUtcMs;
   if (isBrowser && performance) {
     const elapsed = performance.now() - syncPoint.perfMs;
-    currentRealUtcMs = syncPoint.serverMs + elapsed;
+    currentUtcMs = syncPoint.serverMs + elapsed;
   } else {
-    currentRealUtcMs = Date.now(); // Fallback для сервера
+    currentUtcMs = Date.now(); 
   }
   
-  // 2. Константы смещения (Виртуальный таймлайн v39.1)
-  // Нам нужно попасть в 18.06.2026 22:44 из 27.02.2025 22:44
-  // Разница составляет ровно 476 дней.
-  
+  // 2. Добавляем смещение МСК (UTC+3)
   const MSK_OFFSET = 3 * 60 * 60 * 1000; 
-  const PROTOTYPE_OFFSET = 476 * 24 * 60 * 60 * 1000; 
 
-  // Принудительно вычисляем время относительно UTC, игнорируя локальный часовой пояс устройства
-  return new Date(currentRealUtcMs + MSK_OFFSET + PROTOTYPE_OFFSET);
+  // Возвращаем объект даты, скорректированный под МСК
+  return new Date(currentUtcMs + MSK_OFFSET);
 }
 
 /**
- * Форматирует время для нижнего терминала: "18.06 22:18:01"
+ * Форматирует время для нижнего терминала: "18.06 22:44:01"
  */
 export function formatTerminalTime(date: Date): string {
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
+  // Нам нужно отобразить дату как 18.06 ЧЧ:ММ:СС. 
+  // Так как мы уже в МСК через getMoscowTime, используем UTC методы объекта даты, 
+  // чтобы избежать повторного наложения локального часового пояса браузера.
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const hours = String(date.getUTCHours()).padStart(2, '0');
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(date.getUTCSeconds()).padStart(2, '0');
   
   return `${day}.${month} ${hours}:${minutes}:${seconds}`;
 }
 
 export function getMoscowDateString(): string {
   const msk = getMoscowTime();
-  const year = msk.getFullYear();
-  const month = String(msk.getMonth() + 1).padStart(2, '0');
-  const day = String(msk.getDate()).padStart(2, '0');
+  const year = msk.getUTCFullYear();
+  const month = String(msk.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(msk.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
@@ -86,6 +85,7 @@ export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   const epoch = new Date('2026-06-20T00:00:00+03:00');
   
+  // Разница в миллисекундах между "сейчас" и стартом Сезона 1
   const diffMs = mskNow.getTime() - epoch.getTime();
   const totalDaysPassed = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   
@@ -94,22 +94,24 @@ export function getGlobalSeasonInfo() {
   let seasonNumber: number;
   let dayOfCycle: number;
 
-  if (totalDaysPassed < 0) {
+  if (diffMs < 0) {
     // Период до старта самого первого сезона (Offseason S1)
     seasonNumber = 1;
-    // Маппинг дней до эпохи: -1 -> 15 (Gen), -2 -> 14 (Relax), etc.
-    dayOfCycle = 15 + (totalDaysPassed % 15);
-    if (dayOfCycle === 15 && totalDaysPassed < -1) dayOfCycle = 14; 
+    // Корректный маппинг дней до эпохи: 
+    // Если сегодня 19.06 (diff ~ -1 день) -> Day 15 (Gen)
+    // Если сегодня 18.06 (diff ~ -2 дня) -> Day 14
+    dayOfCycle = 15 + ((totalDaysPassed + 1) % 15);
+    if (dayOfCycle === 0) dayOfCycle = 15;
   } else {
     seasonNumber = Math.floor(totalDaysPassed / cycleDuration) + 1;
     dayOfCycle = (totalDaysPassed % cycleDuration) + 1;
   }
 
-  const isOffseason = dayOfCycle === 15 || totalDaysPassed < 0;
+  const isOffseason = dayOfCycle === 15 || diffMs < 0;
   const isGenerationDay = dayOfCycle === 15;
   
   let nextSeasonStartDate: Date;
-  if (totalDaysPassed < 0) {
+  if (diffMs < 0) {
     nextSeasonStartDate = epoch;
   } else {
     const cyclesPassed = Math.floor(totalDaysPassed / cycleDuration) + 1;
@@ -142,9 +144,9 @@ export function getSeasonDateLabel(dayOfSeason: number, seasonNumber: number = 1
   const seasonStartOffset = (seasonNumber - 1) * cycleDuration;
   const targetDate = new Date(epoch.getTime() + (seasonStartOffset + dayOfSeason - 1) * 24 * 60 * 60 * 1000);
   
-  const d = String(targetDate.getDate()).padStart(2, '0');
-  const m = String(targetDate.getMonth() + 1).padStart(2, '0');
-  const y = targetDate.getFullYear();
+  const d = String(targetDate.getUTCDate()).padStart(2, '0');
+  const m = String(targetDate.getUTCMonth() + 1).padStart(2, '0');
+  const y = targetDate.getUTCFullYear();
   
   return `${d}.${m}.${y}`;
 }
