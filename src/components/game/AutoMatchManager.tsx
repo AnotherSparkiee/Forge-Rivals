@@ -1,12 +1,7 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v32 "Zero Hour".
- * 
- * Логика:
- * 1. День 15, время >= 16:00 — Генерация календаря Лиги и Кубка для СЛЕДУЮЩЕГО сезона.
- * 2. Очистка старых данных при смене версии до v32.
- * 3. Транзакционный расчет матчей в реальном времени.
+ * @fileOverview Автономный менеджер синхронизации v32.1 "Zero Hour Reset".
  */
 
 import { useEffect, useRef } from 'react';
@@ -51,7 +46,7 @@ export function AutoMatchManager() {
         const mskNow = getMoscowTime();
         
         // Целевой сезон для генерации
-        const nextSN = info.seasonNumber + 1;
+        const nextSN = info.activeSeasonNumber; 
         const nextSeasonId = `season_${nextSN}`;
         
         const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
@@ -103,7 +98,7 @@ export function AutoMatchManager() {
                 groupId: String(nextPrefixedGroupId), leagueId: String(selectedLeagueId),
                 divisionId: Number(leagueLevel), status: 'scheduled', isFinished: false,
                 startTime: finalDate.toISOString(), scheduledAt: Timestamp.fromDate(finalDate),
-                version: 32 // НОВАЯ ВЕРСИЯ ДЛЯ ЧИСТОГО СТАРТА
+                version: 32 
               }, { merge: true });
             });
 

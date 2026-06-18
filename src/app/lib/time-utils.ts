@@ -1,25 +1,24 @@
 /**
- * @fileOverview Ядро времени v35. Бесконечный цикл сезонов.
+ * @fileOverview Ядро времени v36. Абсолютная синхронизация Сезона 1.
  * 
  * Цикл: 15 дней.
  * Дни 1-14: Активные матчи сезона.
- * День 15: Межсезонье. В 16:00 — генерация следующего сезона.
- * День 1 (следующего цикла): Старт нового сезона.
+ * День 15: Межсезонье. В 16:00 — генерация СЛЕДУЮЩЕГО сезона.
+ * ЭПОХА (S1 Day 1): 20.06.2026
  */
 
 export function getMoscowTime(): Date {
   const now = new Date();
   
   /**
-   * АБСОЛЮТНАЯ СИНХРОНИЗАЦИЯ 2026 (v35)
-   * Цель: Сделать так, чтобы текущее реальное время (июнь 2025) 
-   * соответствовало июню 2026.
+   * ПИВОТ ВРЕМЕНИ (v36)
+   * Реальное: 26.02.2025 (текущий момент разработки)
+   * Виртуальное: 18.06.2026 (сегодня в игре)
    */
-  const realReference = new Date('2025-06-18T00:00:00+03:00').getTime();
+  const realReference = new Date('2025-02-26T00:00:00+03:00').getTime();
   const virtualReference = new Date('2026-06-18T00:00:00+03:00').getTime();
   const offsetMs = virtualReference - realReference;
 
-  // Рассчитываем текущее виртуальное время с учетом смещения
   return new Date(now.getTime() + offsetMs);
 }
 
@@ -44,62 +43,58 @@ export function getMoscowDateString(): string {
   return `${year}-${month}-${day}`;
 }
 
-export function formatMoscowTime(date: Date): string {
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
-}
-
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   
   /**
-   * ЭПОХА СЕЗОНА 1: Старт 20.06.2026
+   * ЭПОХА СЕЗОНА 1: Старт 20.06.2026 00:00
    */
   const epoch = new Date('2026-06-20T00:00:00+03:00');
   
   const diffMs = mskNow.getTime() - epoch.getTime();
   const totalDaysPassed = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   
-  const cycleDuration = 15; // 14 дней игры + 1 день перерыва/генерации
-  
-  // Номер сезона. На 18.06 (totalDaysPassed = -2) -> Season 0. На 20.06 (0) -> Season 1.
-  const currentSeasonNumber = Math.floor(totalDaysPassed / cycleDuration) + 1;
-  
-  // День цикла (1-15). 
-  // 20.06 (0) -> 1
-  // 19.06 (-1) -> 15
-  // 18.06 (-2) -> 14
-  const dayOfCycle = ((totalDaysPassed % cycleDuration) + cycleDuration) % cycleDuration + 1;
+  const cycleDuration = 15; 
 
-  // Межсезонье: 15-й день цикла ИЛИ любой день до начала Сезона 1
-  const isOffseason = dayOfCycle === 15 || currentSeasonNumber < 1;
+  let seasonNumber: number;
+  let dayOfCycle: number;
+
+  if (totalDaysPassed < 0) {
+    // Период ДО старта Сезона 1 (18.06 - 19.06)
+    seasonNumber = 1;
+    // 18.06 -> Day 14 (totalDaysPassed = -2)
+    // 19.06 -> Day 15 (totalDaysPassed = -1)
+    dayOfCycle = totalDaysPassed === -1 ? 15 : (totalDaysPassed === -2 ? 14 : 1);
+  } else {
+    // Период после старта Сезона 1
+    seasonNumber = Math.floor(totalDaysPassed / cycleDuration) + 1;
+    dayOfCycle = (totalDaysPassed % cycleDuration) + 1;
+  }
+
+  // Межсезонье: 15-й день цикла ИЛИ любой день до старта S1
+  const isOffseason = dayOfCycle === 15 || totalDaysPassed < 0;
   const isGenerationDay = dayOfCycle === 15;
   
-  // Расчет времени до начала следующего сезона
-  let nextCycleStartDays = 0;
+  // Расчет времени до начала следующего (или первого) сезона
+  let nextSeasonStartDate: Date;
   if (totalDaysPassed < 0) {
-    nextCycleStartDays = 0; // Ждем 20.06
+    nextSeasonStartDate = epoch;
   } else {
-    nextCycleStartDays = (Math.floor(totalDaysPassed / cycleDuration) + 1) * cycleDuration;
+    const cyclesPassed = Math.floor(totalDaysPassed / cycleDuration) + 1;
+    nextSeasonStartDate = new Date(epoch.getTime() + (cyclesPassed * cycleDuration * 24 * 60 * 60 * 1000));
   }
   
-  const nextSeasonStart = new Date(epoch.getTime() + (nextCycleStartDays * 24 * 60 * 60 * 1000));
-  const timeToStartMs = nextSeasonStart.getTime() - mskNow.getTime();
+  const timeToStartMs = nextSeasonStartDate.getTime() - mskNow.getTime();
 
   return {
-    seasonDay: (dayOfCycle > 14 || currentSeasonNumber < 1) ? 0 : dayOfCycle,
+    seasonDay: (isOffseason) ? 0 : dayOfCycle,
     dayOfCycle,
-    seasonNumber: currentSeasonNumber,
-    activeSeasonNumber: (dayOfCycle === 15 || currentSeasonNumber < 1) ? (currentSeasonNumber < 1 ? 1 : currentSeasonNumber + 1) : currentSeasonNumber,
+    seasonNumber: Math.max(1, seasonNumber),
+    activeSeasonNumber: isGenerationDay ? seasonNumber + 1 : seasonNumber,
     isOffseason,
     isGenerationDay,
-    timeToStartMs,
-    nextSeasonStart
+    timeToStartMs: Math.max(0, timeToStartMs),
+    nextSeasonStart: nextSeasonStartDate
   };
 }
 
