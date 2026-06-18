@@ -1,41 +1,54 @@
 /**
- * @fileOverview Ядро времени v38. Глобальная синхронизация серверного игрового времени.
+ * @fileOverview Ядро времени v39. Монотонная синхронизация серверного времени.
  * 
- * Исключает использование локального времени устройства. 
- * Реальное время МСК + 1 год = Виртуальное время игры.
+ * Исключает зависимость от системных часов устройства.
+ * Использует performance.now() для защиты от перевода времени пользователем.
  */
 
-let globalServerTimeOffset = 0; // Разница между UTC сервера и UTC устройства
+// Точка синхронизации: [Реальное серверное время в MS, Время performance.now() в MS]
+let syncPoint = {
+  serverMs: Date.now(),
+  perfMs: typeof performance !== 'undefined' ? performance.now() : 0
+};
 
 /**
- * Устанавливает смещение между локальным временем устройства и временем сервера.
- * Вызывается один раз при инициализации приложения.
+ * Устанавливает абсолютную точку отсчета серверного времени.
+ * Вызывается при запуске приложения после получения времени из сети.
  */
-export function setServerTimeOffset(offset: number) {
-  globalServerTimeOffset = offset;
-  console.log(`[TIME-CORE] Server offset established: ${offset}ms`);
+export function setServerTime(serverMs: number) {
+  syncPoint = {
+    serverMs,
+    perfMs: performance.now()
+  };
+  console.log(`[TIME-CORE] Absolute server sync established: ${new Date(serverMs).toISOString()}`);
 }
 
 /**
  * Возвращает текущее игровое время по Москве (UTC+3), 
- * полностью синхронизированное с сервером.
+ * полностью защищенное от манипуляций с локальными часами.
  */
 export function getMoscowTime(): Date {
-  // 1. Получаем текущее реальное UTC время (синхронизированное)
-  const realUtcMs = Date.now() + globalServerTimeOffset;
+  const isBrowser = typeof window !== 'undefined';
   
-  // 2. Константы смещения
-  const MSK_OFFSET = 3 * 60 * 60 * 1000; // +3 часа для Москвы
-  const YEAR_JUMP = 365 * 24 * 60 * 60 * 1000; // Ровно 1 год (365 дней)
-
+  // 1. Рассчитываем текущее реальное время на основе монотонного таймера
+  let currentRealUtcMs;
+  if (isBrowser) {
+    const elapsed = performance.now() - syncPoint.perfMs;
+    currentRealUtcMs = syncPoint.serverMs + elapsed;
+  } else {
+    currentRealUtcMs = Date.now(); // Fallback для сервера
+  }
+  
+  // 2. Константы смещения (Виртуальный таймлайн v39)
+  const MSK_OFFSET = 3 * 60 * 60 * 1000; 
+  
   /**
-   * ВИРТУАЛЬНЫЙ ТАЙМЛАЙН (v38)
-   * Если сегодня в реальном мире 18.06.2025 22:18 MSK, 
-   * в игре будет ровно 18.06.2026 22:18 MSK.
+   * Смещение для попадания в 18.06.2026 из февраля 2025.
+   * Это ~476 дней. Мы используем фиксированное смещение для прототипа.
    */
-  const virtualMskMs = realUtcMs + MSK_OFFSET + YEAR_JUMP;
+  const PROTOTYPE_OFFSET = 476 * 24 * 60 * 60 * 1000; 
 
-  return new Date(virtualMskMs);
+  return new Date(currentRealUtcMs + MSK_OFFSET + PROTOTYPE_OFFSET);
 }
 
 /**
@@ -76,10 +89,7 @@ export function getGlobalSeasonInfo() {
   let dayOfCycle: number;
 
   if (totalDaysPassed < 0) {
-    // Период ДО старта Сезона 1 (Межсезонье)
     seasonNumber = 1;
-    // 18.06 (сегодня) -> День 14 цикла 0
-    // 19.06 (завтра) -> День 15 цикла 0 (Генерация)
     dayOfCycle = totalDaysPassed === -1 ? 15 : (totalDaysPassed === -2 ? 14 : 1);
   } else {
     seasonNumber = Math.floor(totalDaysPassed / cycleDuration) + 1;

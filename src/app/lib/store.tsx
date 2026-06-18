@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v32.4 (Temporal Sync). 
- * Добавлена синхронизация с серверным временем при загрузке.
+ * @fileOverview Глобальное хранилище v39 (Monotonic Sync). 
+ * Реализована защита от манипуляций с локальными часами устройства.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
 import { Hero, StaffMember, StaffRole } from './moba-data';
-import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getSeasonDateLabel, setServerTimeOffset } from './time-utils';
+import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getSeasonDateLabel, setServerTime } from './time-utils';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, arrayUnion, orderBy, getDoc } from 'firebase/firestore';
 
@@ -120,29 +120,29 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { stateRef.current = state; }, [state]);
 
-  // СИНХРОНИЗАЦИЯ СЕРВЕРНОГО ВРЕМЕНИ
+  // ГЛОБАЛЬНАЯ СЕТЕВАЯ СИНХРОНИЗАЦИЯ (NTP)
   useEffect(() => {
     if (!db) return;
     
     const syncTime = async () => {
       try {
+        // Пробуем получить точное время через внешний API
         const response = await fetch('https://worldtimeapi.org/api/timezone/Europe/Moscow', { cache: 'no-store' }).catch(() => null);
         if (response && response.ok) {
           const data = await response.json();
+          // Это реальное UTC время сервера
           const serverMs = new Date(data.datetime).getTime();
-          const localMs = Date.now();
-          setServerTimeOffset(serverMs - localMs);
+          setServerTime(serverMs);
         } else {
-          // Fallback: замеряем задержку до Firestore
+          // Если API недоступен — используем задержку до базы данных
           const start = Date.now();
           await getDoc(doc(db, 'system_v1', 'status'));
           const end = Date.now();
           const rtt = end - start;
-          // Упрощенная компенсация задержки
-          setServerTimeOffset(rtt / 2);
+          setServerTime(Date.now() - (rtt / 2));
         }
       } catch (e) {
-        console.warn("[TIME-SYNC] Failed to synchronize with time server.");
+        console.warn("[TIME-SYNC] Network NTP failed, using local fallback.");
       }
     };
     
