@@ -1,20 +1,21 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v29.
- * Исправляет дату 2027 и принудительно чистит обломки октября.
+ * @fileOverview Автономный менеджер синхронизации v30 "Silent Horizon".
+ * Удаляет октябрьские данные и инициирует глобальную генерацию 19.06 в 16:00.
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, Timestamp, getDocs } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, Timestamp, getDocs, deleteDoc } from 'firebase/firestore';
 import { 
   getStableGroupTeams, generateSeasonCalendar, 
   LEAGUES 
 } from '@/app/lib/leagues-data';
-import { getGlobalSeasonInfo, isMatchOverdue } from '@/app/lib/time-utils';
+import { getGlobalSeasonInfo, isMatchOverdue, getMoscowTime } from '@/app/lib/time-utils';
 import { forceResolveGroupMatches } from '@/app/actions/mmo-engine';
+import { generatePyramidCup } from '@/app/actions/cup-engine';
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
@@ -43,40 +44,42 @@ export function AutoMatchManager() {
 
       try {
         const info = getGlobalSeasonInfo();
+        const mskNow = getMoscowTime();
         const activeSN = Number(info.activeSeasonNumber);
         const seasonId = `season_${activeSN}`;
         const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
-        
         const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
-        const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId);
         
+        const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId);
         const groupSnap = await getDoc(groupRef);
         
-        // ВЕРСИЯ 29: ТОТАЛЬНАЯ ОЧИСТКА И ПЕРЕЗАГРУЗКА
-        const needsUpgrade = !groupSnap.exists() || 
-                            (groupSnap.data()?.calendarVersion || 0) < 29;
+        // ВЕРСИЯ 30: ТОТАЛЬНАЯ ОЧИСТКА ПЕРЕД СТАРТОМ
+        const currentVersion = groupSnap.data()?.calendarVersion || 0;
+        const needsUpgrade = currentVersion < 30;
+
+        // ГЛОБАЛЬНЫЙ ТРИГГЕР: 19.06.2026 16:00
+        const triggerTime = new Date('2026-06-19T16:00:00+03:00').getTime();
+        const isTriggerTime = mskNow.getTime() >= triggerTime;
 
         if (needsUpgrade) {
-          console.log("[V29 ENGINE] EMERGENCY RESET INITIATED");
-          
-          // 1. Стираем вообще все матчи этой группы (включая ошибки 10.10)
+          // 1. Очистка старых матчей
           const qOld = query(collection(db, 'matches_v1'), where('groupId', '==', String(prefixedGroupId)));
           const oldSnap = await getDocs(qOld);
-          let clearBatch = writeBatch(db);
-          oldSnap.docs.forEach(d => clearBatch.delete(d.ref));
-          await clearBatch.commit();
+          if (!oldSnap.empty) {
+            let clearBatch = writeBatch(db);
+            oldSnap.docs.forEach(d => clearBatch.delete(d.ref));
+            await clearBatch.commit();
+          }
 
-          // 2. Инициализация чистой таблицы в leagues_v2
+          // 2. Инициализация команды в таблице
           let batch = writeBatch(db);
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
-          const teamsHash = currentTeams.map(t => t.id).join('|');
-
+          
           batch.set(groupRef, {
             id: prefixedGroupId,
             seasonId,
             seasonNumber: activeSN,
-            teamsHash,
-            calendarVersion: 29,
+            calendarVersion: 30,
             status: info.isOffseason ? 'offseason' : 'active',
             updatedAt: serverTimestamp()
           }, { merge: true });
@@ -91,7 +94,7 @@ export function AutoMatchManager() {
             }, { merge: true });
           });
 
-          // 3. Генерация Календаря (Старт строго 20.06.2026)
+          // 3. Генерация Календаря Лиги (Старт 20.06.2026)
           const calendar = generateSeasonCalendar(currentTeams);
           const epochMs = new Date('2026-06-20T00:00:00+03:00').getTime();
           const dayMs = 24 * 60 * 60 * 1000;
@@ -115,12 +118,24 @@ export function AutoMatchManager() {
               isFinished: false,
               startTime: finalDate.toISOString(),
               scheduledAt: Timestamp.fromDate(finalDate),
-              version: 29
+              version: 30
             }, { merge: true });
           });
 
           await batch.commit();
-          console.log("[V29 ENGINE] CALENDAR GENERATED FOR JUNE 2026");
+        }
+
+        // ГЛОБАЛЬНАЯ ГЕНЕРАЦИЯ КУБКА ПРИ НАСТУПЛЕНИИ ВРЕМЕНИ
+        if (isTriggerTime) {
+          const sysStatusRef = doc(db, 'system_v1', 'status');
+          const sysStatus = await getDoc(sysStatusRef);
+          const lastCupGen = sysStatus.data()?.lastCupGenerationDate || "";
+          const today = mskNow.toISOString().split('T')[0];
+
+          if (lastCupGen !== today) {
+            await generatePyramidCup();
+            await updateDoc(sysStatusRef, { lastCupGenerationDate: today });
+          }
         }
 
         // Фоновый расчет результатов (только если сезон начался)
@@ -132,7 +147,7 @@ export function AutoMatchManager() {
         }
 
       } catch (e: any) {
-        console.warn("[V29 Sync Error]:", e.message);
+        // Silent failure for production stability
       } finally {
         processingRef.current = false;
       }

@@ -17,7 +17,6 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebas
 import { getMoscowTime, getSeasonDateLabel, getGlobalSeasonInfo } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { collection, query, where, limit } from 'firebase/firestore';
-import { useToast } from '@/hooks/use-toast';
 
 type MatchTab = 
   | 'menu'
@@ -32,7 +31,6 @@ export default function MatchesPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const router = useRouter();
-  const { toast } = useToast();
   const { 
     isLoaded, isDataReady, language, leagueLevel, groupId, 
     matchHistory, allSeasonMatches, nextMatch: centralNextMatch,
@@ -43,61 +41,26 @@ export default function MatchesPage() {
   const [now, setNow] = useState(getMoscowTime());
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.push('/auth/register');
-    }
+    if (!isUserLoading && !user) router.push('/auth/register');
     const timer = setInterval(() => setNow(getMoscowTime()), 1000);
     return () => clearInterval(timer);
   }, [user, isUserLoading, router]);
 
-  const cupMatchesQuery = useMemoFirebase(() => {
-    if (!user?.uid || !selectedLeagueId) return null;
-    return query(
-      collection(db, 'cup_matches'),
-      where('seasonNumber', '==', activeSeasonNumber || 1),
-      where('leagueId', '==', selectedLeagueId),
-      limit(200)
-    );
-  }, [db, user?.uid, selectedLeagueId, activeSeasonNumber]);
-
-  const { data: rawCupMatches } = useCollection(cupMatchesQuery);
-
-  const myCupMatches = useMemo(() => {
-    if (!user || !rawCupMatches) return [];
-    return rawCupMatches.filter(m => m.homeTeamId === user.uid || m.awayTeamId === user.uid);
-  }, [rawCupMatches, user]);
-
   const calendarDays = useMemo(() => {
     if (!isDataReady) return [];
-    const filtered = allSeasonMatches.filter(m => m.seasonId === `season_${activeSeasonNumber}`);
+    const filtered = allSeasonMatches.filter(m => m.seasonNumber === activeSeasonNumber);
     const dayGroups: Record<number, any[]> = {};
     filtered.forEach(m => {
       if (!dayGroups[m.day]) dayGroups[m.day] = [];
       dayGroups[m.day].push(m);
     });
-    
-    return Object.entries(dayGroups)
-      .map(([day, matches]) => ({ day: Number(day), matches }))
-      .sort((a, b) => a.day - b.day);
+    return Object.entries(dayGroups).map(([day, matches]) => ({ day: Number(day), matches })).sort((a, b) => a.day - b.day);
   }, [allSeasonMatches, isDataReady, activeSeasonNumber]);
 
   const myMatches = useMemo(() => {
     if (!user || !isDataReady) return [];
-    return allSeasonMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.seasonId === `season_${activeSeasonNumber}`);
+    return allSeasonMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.seasonNumber === activeSeasonNumber);
   }, [allSeasonMatches, user, isDataReady, activeSeasonNumber]);
-
-  const playedDays = useMemo(() => {
-    if (!isDataReady) return [];
-    const finished = allSeasonMatches.filter(m => (m.status === 'finished' || m.isFinished) && m.seasonId === `season_${activeSeasonNumber}`);
-    const dayGroups: Record<number, any[]> = {};
-    finished.forEach(m => {
-      if (!dayGroups[m.day]) dayGroups[m.day] = [];
-      dayGroups[m.day].push(m);
-    });
-    return Object.entries(dayGroups)
-      .map(([day, matches]) => ({ day: Number(day), matches }))
-      .sort((a, b) => a.day - b.day);
-  }, [allSeasonMatches, isDataReady, activeSeasonNumber]);
 
   const getCountdown = (startTimeIso: string) => {
     const target = new Date(startTimeIso).getTime();
@@ -112,244 +75,64 @@ export default function MatchesPage() {
   const t = {
     title: language === 'ru' ? "СПИСОК МАТЧЕЙ" : "OPERATIONAL MATCHES",
     subtitle: language === 'ru' ? "Расписание и История" : "Tactical Schedule & History",
-    day: language === 'ru' ? "День" : "Day",
-    startsIn: language === 'ru' ? "ДО МАТЧА ОСТАЛОСЬ:" : "TIME UNTIL MATCH:",
     back: language === 'ru' ? "Назад" : "Back",
-    noMatches: language === 'ru' ? "НЕТ ЗАПЛАНИРОВАННЫХ ИГР" : "NO MATCHES SCHEDULED",
     tabs: {
-      next_opponent: { label: language === 'ru' ? "Следующий соперник" : "Next Opponent", desc: language === 'ru' ? "Досье на ближайшего врага" : "Detailed brief on your next rival", icon: UserSearch },
-      my_future: { label: language === 'ru' ? "Свои будущие" : "My Future", desc: language === 'ru' ? "Предстоящие игры команды" : "Upcoming matches for your team", icon: CalendarClock },
-      my_played: { label: language === 'ru' ? "Свои сыгранные" : "My Played", desc: language === 'ru' ? "История ваших сражений" : "History of your previous encounters", icon: History },
-      league_calendar: { label: language === 'ru' ? "Календарь лиги" : "League Calendar", desc: language === 'ru' ? "Полное расписание сезона" : "Full season schedule", icon: Calendar },
-      league_played: { label: language === 'ru' ? "Сыгранные в лиге" : "Played in League", desc: language === 'ru' ? "Все результаты группы" : "All group results", icon: CheckSquare }
+      next_opponent: { label: language === 'ru' ? "Следующий соперник" : "Next Opponent", icon: UserSearch },
+      my_future: { label: language === 'ru' ? "Мои будущие" : "My Future", icon: CalendarClock },
+      my_played: { label: language === 'ru' ? "Мои сыгранные" : "My Played", icon: History },
+      league_calendar: { label: language === 'ru' ? "Календарь лиги" : "League Calendar", icon: Calendar },
+      league_played: { label: language === 'ru' ? "Сыгранные в лиге" : "Played in League", icon: CheckSquare }
     }
   };
 
-  if (isUserLoading || !isLoaded || !isDataReady) {
-    return <LoadingScreen />;
-  }
+  if (isUserLoading || !isLoaded || !isDataReady) return <LoadingScreen />;
 
-  if (activeTab === 'menu') {
-    return (
-      <div className="max-w-md mx-auto px-4 pt-8 pb-24">
-        <header className="mb-6 flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ChevronLeft className="w-6 h-6" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1>
-            <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
-          </div>
-        </header>
+  return (
+    <div className="max-w-md mx-auto px-4 pt-8 pb-24">
+      <header className="mb-6 flex items-center gap-4">
+        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => activeTab === 'menu' ? router.push('/') : setActiveTab('menu')}><ChevronLeft className="w-6 h-6" /></Button>
+        <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{activeTab === 'menu' ? t.title : (t.tabs as any)[activeTab]?.label}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p></div>
+      </header>
 
+      {activeTab === 'menu' ? (
         <div className="space-y-2">
-          {(Object.entries(t.tabs) as [MatchTab, any][]).map(([id, data]) => (
-            <Card key={id} className="glass-card hover:bg-white/5 cursor-pointer transition-all border-white/5" onClick={() => setActiveTab(id)}>
+          {Object.entries(t.tabs).map(([id, data]) => (
+            <Card key={id} className="glass-card hover:bg-white/5 cursor-pointer transition-all border-white/5" onClick={() => setActiveTab(id as any)}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className={cn("p-2.5 rounded-xl bg-secondary/50")}>
-                    <data.icon className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{data.label}</h3>
-                    <p className="text-[10px] text-muted-foreground leading-tight">{data.desc}</p>
-                  </div>
+                  <div className="p-2.5 rounded-xl bg-secondary/50"><data.icon className="w-5 h-5 text-primary" /></div>
+                  <h3 className="text-sm font-bold uppercase">{data.label}</h3>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
               </CardContent>
             </Card>
           ))}
         </div>
-      </div>
-    );
-  }
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'next_opponent':
-        if (!centralNextMatch) return <div className="py-20 text-center opacity-30 text-[10px] font-black uppercase">No active tactical threats</div>;
-        return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-            <Card className="glass-card border-primary/20 bg-primary/5">
-              <CardHeader className="text-center">
-                <CardTitle className="text-lg font-headline font-bold uppercase tracking-tighter text-accent">{language === 'ru' ? 'СЛЕДУЮЩИЙ БОЙ' : 'NEXT ENGAGEMENT'}</CardTitle>
-                <div className="flex flex-col items-center mt-4">
-                  <div className="bg-background/50 px-6 py-2 rounded-xl border border-white/5">
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">{t.startsIn}</p>
-                    <p className="text-3xl font-headline font-bold tabular-nums tracking-tighter text-primary">{getCountdown(centralNextMatch.match.startTime)}</p>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center space-y-4">
-                <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center border-2 border-primary shadow-[0_0_15px_rgba(var(--primary),0.2)]">
-                  <User className="w-10 h-10 text-primary" />
-                </div>
-                <h3 className="text-xl font-headline font-bold italic uppercase truncate w-full px-4 text-center">{centralNextMatch.opponentName}</h3>
-                <Badge variant="secondary" className="mt-2 text-[10px]">OPERATIONAL RIVAL | DIV {leagueLevel}.{groupId}</Badge>
-              </CardContent>
-            </Card>
-          </div>
-        );
-      case 'my_future':
-        const futureLeague = myMatches.filter(m => !m.isFinished && m.status === 'pending');
-        const futureCup = myCupMatches.filter(m => !m.isFinished && m.status === 'scheduled');
-        
-        return (
-          <div className="space-y-4 animate-in fade-in duration-500">
-            {futureLeague.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-[10px] font-black uppercase text-accent tracking-widest px-1">LEAGUE MATCHES</h3>
-                {futureLeague.sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map(m => (
-                  <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
-                    <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2">
-                      <span className="text-[8px] text-muted-foreground uppercase">{getSeasonDateLabel(m.day)}</span>
-                      <span className="text-[10px] font-mono font-bold text-accent">DAY {m.day}</span>
-                    </div>
-                    <div className="flex-1 flex items-center justify-between min-w-0">
-                       <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.homeId === user!.uid && "text-primary")}>{m.homeName}</span>
-                       <div className="px-3 flex flex-col items-center"><Badge variant="outline" className="text-[7px] px-1 py-0 border-accent/20 text-accent">VS</Badge></div>
-                       <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.awayId === user!.uid && "text-primary")}>{m.awayName}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            {futureCup.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-[10px] font-black uppercase text-yellow-500 tracking-widest px-1">PYRAMID CUP</h3>
-                {futureCup.map(m => (
-                  <div key={m.cupMatchId} className="bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/20 flex items-center justify-between gap-3">
-                    <div className="flex flex-col items-center w-12 border-r border-white/5 pr-2">
-                      <span className="text-[10px] font-mono font-bold text-yellow-500">R{m.round}</span>
-                    </div>
-                    <div className="flex-1 flex items-center justify-between min-w-0 text-[10px] font-bold uppercase">
-                       <span className={cn("flex-1 text-right truncate", m.homeTeamId === user!.uid && "text-primary")}>
-                         {m.homeTeamId === user!.uid ? 'YOU' : 'OPPONENT'}
-                       </span>
-                       <div className="px-3 text-yellow-500 italic">VS</div>
-                       <span className={cn("flex-1 text-left truncate", m.awayTeamId === user!.uid && "text-primary")}>
-                         {m.awayTeamId === user!.uid ? 'YOU' : 'OPPONENT'}
-                       </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {futureLeague.length === 0 && futureCup.length === 0 && (
-              <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
-                <ShieldAlert className="w-12 h-12" />
-                <p className="text-[10px] font-black uppercase">{t.noMatches}</p>
-              </div>
-            )}
-          </div>
-        );
-      case 'league_calendar':
-        return (
-          <div className="space-y-4 animate-in fade-in duration-500">
-            {calendarDays.map(({ day, matches }) => (
-              <div key={`day-group-${day}`} className="space-y-2">
-                <div className="flex justify-between items-center px-1">
-                  <h3 className="text-[10px] font-black uppercase text-accent tracking-widest">{t.day} {day}</h3>
-                  <span className="text-[8px] font-bold text-muted-foreground uppercase">{getSeasonDateLabel(day)}</span>
-                </div>
-                <div className="grid gap-2">
-                  {matches.map((m: any) => {
-                    const isFinished = m.homeScore !== undefined || m.scoreA !== undefined || m.status === 'finished';
-                    return (
-                      <div key={m.id} className={cn("bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between text-[10px] font-bold uppercase", isFinished && "opacity-60")}>
-                        <span className={cn("flex-1 text-right truncate", m.homeId === user!.uid && "text-primary")}>{m.homeName}</span>
-                        <div className="px-4 flex flex-col items-center">
-                          {isFinished ? (
-                            <span className="text-accent font-mono font-black">{m.scoreA ?? m.homeScore}:{m.scoreB ?? m.awayScore}</span>
-                          ) : (
-                            <span className="opacity-30 italic">VS</span>
-                          )}
-                        </div>
-                        <span className={cn("flex-1 text-left truncate", m.awayId === user!.uid && "text-primary")}>{m.awayName}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      case 'league_played':
-        return (
-          <div className="space-y-4 animate-in fade-in duration-500">
-            {playedDays.length > 0 ? playedDays.map(({ day, matches }) => (
-              <div key={`played-day-${day}`} className="space-y-2">
-                <div className="flex justify-between items-center px-1">
-                  <h3 className="text-[10px] font-black uppercase text-primary tracking-widest">{t.day} {day}</h3>
-                  <span className="text-[8px] font-bold text-muted-foreground uppercase">{getSeasonDateLabel(day)}</span>
-                </div>
-                <div className="grid gap-2">
-                  {matches.map((m: any) => (
-                    <Link key={m.id} href={`/match?id=${m.id}`} className="block">
-                      <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3 group hover:bg-white/5 transition-all">
-                        <span className={cn("flex-1 text-right text-[10px] font-bold uppercase truncate", m.homeId === user!.uid && "text-accent")}>{m.homeName}</span>
-                        <div className="px-3 flex flex-col items-center">
-                          <span className="text-lg font-headline font-black italic text-white leading-none">{m.scoreA ?? m.homeScore}:{m.scoreB ?? m.awayScore}</span>
-                        </div>
-                        <span className={cn("flex-1 text-left text-[10px] font-bold uppercase truncate", m.awayId === user!.uid && "text-accent")}>{m.awayName}</span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )) : (
-              <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
-                <ShieldAlert className="w-12 h-12" />
-                <p className="text-[10px] font-black uppercase">No played matches recorded</p>
-              </div>
-            )}
-          </div>
-        );
-      case 'my_played':
-        return <div className="space-y-3 animate-in fade-in duration-500">
-          {matchHistory.length > 0 ? [...matchHistory].reverse().map(m => (
-            <Link key={m.id} href={`/match?id=${m.id}`} className="block">
-              <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 flex items-center justify-between">
-                <div className="flex flex-col gap-1">
-                  <Badge variant="outline" className="text-[7px] w-fit border-primary/20 text-primary">{m.type.toUpperCase()}</Badge>
-                  <span className="text-xs font-bold uppercase text-white truncate max-w-[150px]">{m.opponentName}</span>
-                  <span className="text-[8px] text-muted-foreground">{new Date(m.playedAt).toLocaleDateString()}</span>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-headline font-black italic tracking-widest text-primary">{m.scoreA}:{m.scoreB}</p>
-                </div>
-              </div>
-            </Link>
-          )) : (
-            <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
-              <ShieldAlert className="w-12 h-12" />
-              <p className="text-[10px] font-black uppercase">Combat archive empty</p>
-            </div>
-          )}
-        </div>;
-      default: return null;
-    }
-  };
-
-  return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-24">
-      <header className="mb-6 flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { if (activeTab === 'menu') router.push('/'); else setActiveTab('menu'); }}>
-          <ChevronLeft className="w-6 h-6" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">
-            {(t.tabs as any)[activeTab]?.label || 'MATCHES'}
-          </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.back}</p>
+      ) : activeTab === 'next_opponent' ? (
+        <div className="space-y-6">
+           {centralNextMatch ? (
+             <Card className="glass-card border-primary/20 bg-primary/5 p-6 flex flex-col items-center gap-4">
+                <p className="text-[10px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ДО МАТЧА' : 'TIME TO BATTLE'}</p>
+                <p className="text-4xl font-headline font-bold text-primary">{getCountdown(centralNextMatch.match.startTime)}</p>
+                <div className="w-20 h-20 rounded-full bg-secondary/50 border-2 border-primary flex items-center justify-center"><User className="w-10 h-10 text-primary" /></div>
+                <h3 className="text-xl font-headline font-bold uppercase italic">{centralNextMatch.opponentName}</h3>
+             </Card>
+           ) : <div className="py-20 text-center opacity-30 text-[10px] font-black uppercase">No active tactical threats</div>}
         </div>
-      </header>
-
-      {renderContent()}
+      ) : activeTab === 'my_future' ? (
+        <div className="space-y-4">
+           {myMatches.filter(m => !m.isFinished).map(m => (
+             <div key={m.id} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex justify-between items-center text-[10px] font-bold uppercase">
+               <span>DAY {m.day}</span>
+               <span className={cn(m.homeId === user?.uid && "text-primary")}>{m.homeName}</span>
+               <span className="text-accent">VS</span>
+               <span className={cn(m.awayId === user?.uid && "text-primary")}>{m.awayName}</span>
+             </div>
+           ))}
+        </div>
+      ) : (
+        <div className="py-20 text-center opacity-30 text-[10px] font-black uppercase tracking-widest">Protocol Active</div>
+      )}
     </div>
   );
 }

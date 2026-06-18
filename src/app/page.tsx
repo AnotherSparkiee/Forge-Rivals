@@ -163,8 +163,16 @@ export default function Home() {
   if (!isLoaded) return <LoadingScreen />;
 
   const tHub = {
-    en: { nextMatch: "Next Engagement", offseason: "OFFSEASON PROTOCOL", battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", sync: "CALENDAR SYNC", noMatches: "NO UPCOMING MATCHES", startsIn: "SEASON 1 STARTS IN:" },
-    ru: { nextMatch: "Следующий матч", offseason: "ПРОТОКОЛ МЕЖСЕЗОНЬЯ", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ", noMatches: "НЕТ БУДУЩИХ МАТЧЕЙ", startsIn: "СТАРТ 1-ГО СЕЗОНА ЧЕРЕЗ:" }
+    en: { 
+      nextMatch: "Next Engagement", 
+      offseason: seasonInfo.diffDays > 1 ? "OFFSEASON" : "OFFSEASON PROTOCOL", 
+      battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", sync: "CALENDAR SYNC", noMatches: "NO UPCOMING MATCHES", startsIn: "SEASON 1 STARTS IN:" 
+    },
+    ru: { 
+      nextMatch: "Следующий матч", 
+      offseason: seasonInfo.diffDays > 1 ? "МЕЖСЕЗОНЬЕ" : "ПРОТОКОЛ МЕЖСЕЗОНЬЯ", 
+      battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ", noMatches: "НЕТ БУДУЩИХ МАТЧЕЙ", startsIn: "СТАРТ 1-ГО СЕЗОНА ЧЕРЕЗ:" 
+    }
   }[language as 'en' | 'ru'];
 
   const menu = [ 
@@ -185,8 +193,8 @@ export default function Home() {
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6">
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
-          {seasonInfo.isOffseason ? <Construction className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
-          {seasonInfo.isOffseason ? tHub.offseason : tHub.nextMatch}
+          {seasonInfo.isOffseason ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
+          {tHub.offseason}
         </h1>
       </header>
 
@@ -204,18 +212,15 @@ export default function Home() {
                       <Clock className="w-8 h-8 text-accent animate-pulse" />
                     </div>
                     <Badge variant="outline" className="bg-accent/10 border-accent/20 text-accent text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5">
-                      OFFSEASON STANDBY
+                      STANDBY
                     </Badge>
                   </div>
                   <div className="bg-background/60 py-5 rounded-2xl border border-white/5 shadow-inner">
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">{tHub.startsIn}</p>
-                    <p className="text-2xl font-headline font-bold tabular-nums tracking-tighter text-white animate-pulse">
+                    <p className="text-2xl font-headline font-bold tabular-nums tracking-tighter text-white">
                       {countdown || '--:--:--'}
                     </p>
                   </div>
-                  <p className="text-[10px] text-muted-foreground italic px-6 leading-relaxed">
-                    "Preparing tactical grids for June 2026. Regroup your squad and upgrade infrastructure before Season 1 launch."
-                  </p>
                 </div>
               ) : (
                 <div className="space-y-4">
