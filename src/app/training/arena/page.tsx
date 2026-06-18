@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -46,7 +45,7 @@ export default function ArenaPage() {
       const timer = setInterval(() => {
         checkConstructions();
         setNow(Date.now());
-      }, 1000); 
+      }, 5000); // Реже опрашиваем базу
       return () => clearInterval(timer);
     }
   }, [isLoaded, checkConstructions]);

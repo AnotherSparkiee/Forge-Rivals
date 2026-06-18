@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v32. 
- * Внедрена фильтрация по версии системы (32) для очистки старых данных.
+ * @fileOverview Глобальное хранилище v32.3 (Performance Optimized). 
+ * Внедрена защита от повторных записей при проверке строительства.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -51,6 +51,7 @@ interface GameState {
   setLanguage: (lang: string) => void;
   purchaseLicense: (tier: number, cost: number) => boolean;
   purchasePremium: () => boolean;
+  setLanguageDirect: (lang: string) => void;
   setTrainingFocus: (heroId: string, focus: string | null) => void;
   startDailyHeroTraining: (heroId: string, focus: string) => void;
   claimDailyHeroTraining: (heroId: string) => void;
@@ -94,7 +95,7 @@ const DEFAULT_STATE: GameState = {
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
   addCrystals: () => {}, addCredits: () => {}, updateHero: () => {}, removeHero: () => {}, assignToRole: () => {}, updateTactics: () => {},
-  claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
+  claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false, setLanguageDirect: () => {},
   setTrainingFocus: () => {}, startDailyHeroTraining: () => {}, claimDailyHeroTraining: () => {},
   recoverAllFatigue: () => false, hireStaffMember: () => {}, trainStaffSkill: () => false,
   addHeroDirectly: () => {}, addYouthHeroDirectly: () => {}, promoteYouthPlayer: () => {},
@@ -115,6 +116,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [allMatches, setAllMatches] = useState<any[]>([]);
   
   const stateRef = useRef(state);
+  const isCheckingConstructions = useRef(false);
+
   useEffect(() => { stateRef.current = state; }, [state]);
 
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
@@ -222,14 +225,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const q = query(
         collection(db, 'matches_v1'),
         where('groupId', '==', String(prefixedGroupId)),
-        where('seasonNumber', '==', activeSN)
+        where('seasonNumber', '==', activeSN),
+        where('version', '==', 32)
       );
 
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const loaded = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
-        // ФИЛЬТР ВЕРСИИ 32
-        const currentVersion = loaded.filter(m => m.version === 32);
-        const sorted = currentVersion.sort((a, b) => (Number(a.day) || 0) - (Number(b.day) || 0));
+        const sorted = loaded.sort((a, b) => (Number(a.day) || 0) - (Number(b.day) || 0));
         setAllMatches(sorted);
         setIsMatchesReady(true);
       }, (err) => {
@@ -288,7 +290,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const claimReward = (cr: number, cry: number) => { const r = getRefs(); if (r) setDoc(r.team, { credits: stateRef.current.credits + cr, crystals: stateRef.current.crystals + (stateRef.current.isPremium ? cry + 50 : cry), lastRewardClaimDate: getMoscowDateString(), rewardDay: (stateRef.current.rewardDay % 30) + 1 }, { merge: true }); };
   const purchaseLicense = (t: number, c: number) => { const r = getRefs(); if (!r || stateRef.current.crystals < c) return false; setDoc(r.team, { crystals: stateRef.current.crystals - c, activeLicenseTier: t }, { merge: true }); return true; };
   const purchasePremium = () => { const r = getRefs(); if (!r || stateRef.current.crystals < 5000) return false; const exp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); setDoc(r.team, { crystals: stateRef.current.crystals - 5000, premiumUntil: exp.toISOString() }, { merge: true }); return true; };
-  const setLanguage = (l: string) => setState(s => ({ ...s, language: l }));
+  const setLanguageDirect = (lang: string) => setState(s => ({ ...s, language: lang }));
+  const setLanguage = (lang: string) => setState(s => ({ ...s, language: lang }));
   const setTrainingFocus = (id: string, f: string | null) => updateHero(id, { trainingFocus: f });
   const startDailyHeroTraining = (id: string, f: string) => updateHero(id, { dailyTrainingFocus: f, dailyTrainingFinishTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() });
   const claimDailyHeroTraining = (id: string) => {
@@ -353,13 +356,20 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setDoc(r.team, { crystals: stateRef.current.crystals - pr, [type]: { ...data, constructionFinishes: { ...data.constructionFinishes, [id]: newFin }, isAccelerated: { ...data.isAccelerated, [id]: true } } }, { merge: true });
     return true;
   };
+
   const checkConstructions = useCallback(() => {
+    if (isCheckingConstructions.current) return;
     const r = getRefs(); if (!r) return;
-    const types = ['arena', 'hq', 'bootcamp', 'academy', 'medical']; const now = Date.now(); const batch = writeBatch(db); let changes = false;
+    
+    const types = ['arena', 'hq', 'bootcamp', 'academy', 'medical']; 
+    const nowMs = Date.now(); 
+    const batch = writeBatch(db); 
+    let changes = false;
+    
     types.forEach(t => {
       const data = (stateRef.current as any)[t]; if (!data?.constructionFinishes) return;
       Object.entries(data.constructionFinishes).forEach(([id, iso]) => {
-        if (now >= new Date(iso as string).getTime()) {
+        if (nowMs >= new Date(iso as string).getTime()) {
           changes = true; const updated = { ...data };
           if (id === 'capacity') { updated.capacity = Number(updated.capacity || 5000) + Number(updated.pendingSeats || 0); delete updated.pendingSeats; }
           else { updated[id] = Number(updated[id] || 0) + 1; }
@@ -368,14 +378,20 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         }
       });
     });
-    if (changes) batch.commit();
+
+    if (changes) {
+      isCheckingConstructions.current = true;
+      batch.commit().finally(() => {
+        isCheckingConstructions.current = false;
+      });
+    }
   }, [db, getRefs]);
 
   const value = useMemo(() => ({
     ...state, isDataReady: isMatchesReady && state.isLoaded, allSeasonMatches: allMatches, nextMatch: nextMatchInfo, isMatchesLoading: !isMatchesReady,
-    addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage,
+    addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setLanguageDirect,
     setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions
-  }), [state, isMatchesReady, state.isLoaded, allMatches, nextMatchInfo, setLanguage, addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions]);
+  }), [state, isMatchesReady, state.isLoaded, allMatches, nextMatchInfo, addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setLanguageDirect, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions]);
 
   return <GameStateContext.Provider value={value as any}>{children}</GameStateContext.Provider>;
 }
