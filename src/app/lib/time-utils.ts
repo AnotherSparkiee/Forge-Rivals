@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v31. Бесконечный цикл сезонов.
+ * @fileOverview Ядро времени v32. Бесконечный цикл сезонов.
  * 
  * Цикл: 15 дней.
  * Дни 1-14: Активные матчи сезона.
@@ -10,17 +10,18 @@
 export function getMoscowTime(): Date {
   const now = new Date();
   
-  // MSK Offset (UTC+3)
-  const mskOffset = (now.getTimezoneOffset() + 180) * 60000;
-  const currentMsk = new Date(now.getTime() + mskOffset);
+  /**
+   * СТАБИЛЬНАЯ СИНХРОНИЗАЦИЯ 2026 (v32)
+   * Цель: Сделать так, чтобы сегодня (конец февраля 2025) соответствовало 18 июня 2026.
+   * Опорная дата (Real): 2025-02-26
+   * Опорная дата (Virtual): 2026-06-18
+   */
+  const realReference = new Date('2025-02-26T12:00:00+03:00').getTime();
+  const virtualReference = new Date('2026-06-18T12:00:00+03:00').getTime();
+  const offsetMs = virtualReference - realReference;
 
-  // Опорная точка: 18 июня 2026 должна быть 15-м днем цикла (днем генерации)
-  // Для этого эпоха (День 1) должна быть 4 июня 2026.
-  const virtualToday = new Date('2026-06-18T12:00:00+03:00');
-  const realReference = new Date('2025-02-23T12:00:00+03:00'); // Фикс под текущую дату разработки
-  const offsetMs = virtualToday.getTime() - realReference.getTime();
-
-  const virtualTime = new Date(currentMsk.getTime() + offsetMs);
+  // Рассчитываем текущее виртуальное время
+  const virtualTime = new Date(now.getTime() + offsetMs);
 
   // ABSOLUTE SAFETY CLAMP (Фиксация в 2026 году для прототипа)
   if (virtualTime.getFullYear() > 2026) {
@@ -41,15 +42,20 @@ export function getMoscowDateString(): string {
 export function formatMoscowTime(date: Date): string {
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
   const seconds = String(date.getSeconds()).padStart(2, '0');
-  return `${day}.${month}.${date.getFullYear()} ${hours}:${minutes}:${seconds}`;
+  return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
 }
 
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
-  // Эпоха: Начало самого первого цикла
+  
+  /**
+   * Эпоха: Начало самого первого цикла.
+   * Чтобы 18.06.2026 был 15-м днем, Эпоха должна быть 04.06.2026.
+   */
   const epoch = new Date('2026-06-04T00:00:00+03:00');
   
   const diffMs = mskNow.getTime() - epoch.getTime();

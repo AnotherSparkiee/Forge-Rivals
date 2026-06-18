@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -13,12 +12,16 @@ export function BottomNav() {
   const router = useRouter();
   const pathname = usePathname();
   const { language } = useGameState();
-  const [serverTime, setServerTime] = useState('');
+  const [serverTime, setServerTime] = useState<string | null>(null);
 
   useEffect(() => {
+    // ВАЖНО: Обновляем время только на клиенте после монтирования, 
+    // чтобы избежать ошибок гидратации и сброса даты.
     const updateTime = () => {
-      setServerTime(formatMoscowTime(getMoscowTime()));
+      const now = getMoscowTime();
+      setServerTime(formatMoscowTime(now));
     };
+
     updateTime();
     const timer = setInterval(updateTime, 1000);
     return () => clearInterval(timer);
@@ -54,8 +57,8 @@ export function BottomNav() {
         {/* Center: Server Time Terminal */}
         <div className="flex flex-col items-center justify-center">
            <div className="px-3 py-1 bg-accent/5 rounded border border-accent/10 shadow-[0_0_15px_rgba(var(--accent),0.05)]">
-             <p className="text-[11px] font-mono font-bold text-accent whitespace-nowrap tabular-nums tracking-tight leading-none">
-               {serverTime || '00.00 00:00:00'}
+             <p className="text-[11px] font-mono font-bold text-accent whitespace-nowrap tabular-nums tracking-tight leading-none min-w-[140px] text-center">
+               {serverTime || 'SYNCING...'}
              </p>
            </div>
         </div>
