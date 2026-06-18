@@ -57,7 +57,7 @@ export default function Home() {
       const info = getGlobalSeasonInfo();
       
       if (info.isOffseason) {
-        const diff = info.startsInMs || 0;
+        const diff = info.timeToStartMs || 0;
         const dd = Math.floor(diff / (1000 * 60 * 60 * 24));
         const hh = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const mm = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -75,7 +75,7 @@ export default function Home() {
         if (mskNow.getTime() >= matchStartTime) {
           setCountdown('00:00:00');
           if (!checkIsMatchFinished(nextMatch.match)) {
-            const seasonId = `season_${info.activeSeasonNumber}`;
+            const seasonId = `season_${info.seasonNumber}`;
             const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
             forceResolveGroupMatches(selectedLeagueId!, Number(leagueLevel), prefixedGroupId);
           }
@@ -170,13 +170,13 @@ export default function Home() {
   const tHub = {
     en: { 
       nextMatch: "Next Engagement", 
-      offseason: seasonInfo.diffDays > 1 ? "OFFSEASON" : "OFFSEASON PROTOCOL", 
-      battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", sync: "CALENDAR SYNC", noMatches: "NO UPCOMING MATCHES", startsIn: "SEASON 1 STARTS IN:" 
+      offseason: "OFFSEASON", 
+      battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", sync: "CALENDAR SYNC", noMatches: "NO UPCOMING MATCHES", startsIn: "NEXT SEASON STARTS IN:" 
     },
     ru: { 
       nextMatch: "Следующий матч", 
-      offseason: seasonInfo.diffDays > 1 ? "МЕЖСЕЗОНЬЕ" : "ПРОТОКОЛ МЕЖСЕЗОНЬЯ", 
-      battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ", noMatches: "НЕТ БУДУЩИХ МАТЧЕЙ", startsIn: "СТАРТ 1-ГО СЕЗОНА ЧЕРЕЗ:" 
+      offseason: "МЕЖСЕЗОНЬЕ", 
+      battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ", noMatches: "НЕТ БУДУЩИХ МАТЧЕЙ", startsIn: "СТАРТ СЛЕДУЮЩЕГО СЕЗОНА:" 
     }
   }[language as 'en' | 'ru'];
 
@@ -199,7 +199,7 @@ export default function Home() {
       <header className="mb-6">
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
           {seasonInfo.isOffseason ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
-          {tHub.offseason}
+          {seasonInfo.isOffseason ? tHub.offseason : (language === 'ru' ? `СЕЗОН ${seasonInfo.seasonNumber}` : `SEASON ${seasonInfo.seasonNumber}`)}
         </h1>
       </header>
 
@@ -217,7 +217,7 @@ export default function Home() {
                       <Clock className="w-8 h-8 text-accent animate-pulse" />
                     </div>
                     <Badge variant="outline" className="bg-accent/10 border-accent/20 text-accent text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5">
-                      STANDBY
+                      {seasonInfo.dayOfCycle === 15 ? (language === 'ru' ? 'ГЕНЕРАЦИЯ СЛЕДУЮЩЕГО СЕЗОНА' : 'GENERATING NEXT SEASON') : 'STANDBY'}
                     </Badge>
                   </div>
                   <div className="bg-background/60 py-5 rounded-2xl border border-white/5 shadow-inner">

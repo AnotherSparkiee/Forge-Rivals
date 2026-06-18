@@ -1,10 +1,12 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v31 "Clean Slate".
- * 1. Очищает старые данные (версии < 31).
- * 2. Инициализирует таблицы лиг (очки в 0).
- * 3. Генерирует календарь Лиги и Кубка СТРОГО 19.06 в 16:00.
+ * @fileOverview Автономный менеджер синхронизации v32 "Infinite Cycles".
+ * 
+ * Логика:
+ * 1. День 15, время >= 16:00 — Генерация календаря Лиги и Кубка для СЛЕДУЮЩЕГО сезона.
+ * 2. Очистка старых данных при смене версии.
+ * 3. Транзакционный расчет матчей в реальном времени.
  */
 
 import { useEffect, useRef } from 'react';
@@ -47,84 +49,76 @@ export function AutoMatchManager() {
       try {
         const info = getGlobalSeasonInfo();
         const mskNow = getMoscowTime();
-        const activeSN = Number(info.activeSeasonNumber);
-        const seasonId = `season_${activeSN}`;
+        
+        // Сезон, который мы должны сгенерировать сегодня в 16:00
+        const nextSN = info.seasonNumber + 1;
+        const nextSeasonId = `season_${nextSN}`;
+        
         const league = LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0];
-        const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
+        const nextPrefixedGroupId = `${nextSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
         
-        const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId);
-        const groupSnap = await getDoc(groupRef);
+        // Глобальный статус системы для предотвращения дублей
+        const sysStatusRef = doc(db, 'system_v1', 'status');
+        const sysStatusSnap = await getDoc(sysStatusRef);
+        const sysData = sysStatusSnap.exists() ? sysStatusSnap.data() : {};
+
+        // 1. ПРОВЕРКА ТРИГГЕРА ГЕНЕРАЦИИ (День 15, 16:00)
+        const isGenTime = info.dayOfCycle === 15 && mskNow.getHours() >= 16;
         
-        const currentVersion = groupSnap.data()?.calendarVersion || 0;
-        const needsUpgrade = currentVersion < 31; // ВЕРСИЯ 31
-
-        // ГЛОБАЛЬНЫЙ ТРИГГЕР: 19.06.2026 16:00
-        const triggerTime = new Date('2026-06-19T16:00:00+03:00').getTime();
-        const isTriggerTime = mskNow.getTime() >= triggerTime;
-
-        if (needsUpgrade) {
-          // 1. Очистка старых матчей группы
-          const qOld = query(collection(db, 'matches_v1'), where('groupId', '==', String(prefixedGroupId)));
-          const oldSnap = await getDocs(qOld);
-          if (!oldSnap.empty) {
-            let clearBatch = writeBatch(db);
-            oldSnap.docs.forEach(d => clearBatch.delete(d.ref));
-            await clearBatch.commit();
+        if (isGenTime) {
+          // Проверяем, генерировали ли мы уже этот сезон глобально
+          const lastGenSeason = sysData.lastGeneratedSeason || 0;
+          
+          if (lastGenSeason < nextSN) {
+            console.log(`[AUTO-GEN] Triggering Global Generation for Season ${nextSN}`);
+            
+            // Генерация Кубка (Атомарное действие на всю лигу)
+            await generatePyramidCup(nextSN);
+            
+            // Обновляем глобальный флаг
+            await updateDoc(sysStatusRef, { 
+              lastGeneratedSeason: nextSN,
+              lastGenTimestamp: serverTimestamp() 
+            });
           }
 
-          // 2. Сброс таблицы лиги
-          let batch = writeBatch(db);
-          const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
-          
-          batch.set(groupRef, {
-            id: prefixedGroupId,
-            seasonId,
-            seasonNumber: activeSN,
-            calendarVersion: 31,
-            status: 'offseason_reset',
-            updatedAt: serverTimestamp()
-          }, { merge: true });
+          // Локальная генерация календаря группы (если еще нет)
+          const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', nextPrefixedGroupId);
+          const groupSnap = await getDoc(groupRef);
 
-          currentTeams.forEach(team => {
-            const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', team.id);
-            batch.set(teamRef, {
-              id: team.id,
-              name: team.name,
-              wins: 0, draws: 0, losses: 0, points: 0,
-              updatedAt: serverTimestamp()
-            }, { merge: true });
-          });
-
-          await batch.commit();
-        }
-
-        // ГЕНЕРАЦИЯ КАЛЕНДАРЯ (Лига + Кубок) - Сработает 19.06 16:00
-        if (isTriggerTime) {
-          const sysStatusRef = doc(db, 'system_v1', 'status');
-          const sysStatus = await getDoc(sysStatusRef);
-          const groupData = groupSnap.data();
-          
-          // Генерируем лигу, если еще не готова для этой версии
-          if (groupData?.status !== 'ready_for_battle') {
+          if (!groupSnap.exists() || groupSnap.data()?.status !== 'ready_for_battle') {
             const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
             const calendar = generateSeasonCalendar(currentTeams);
-            const epochMs = new Date('2026-06-20T00:00:00+03:00').getTime();
+            
+            // Начало следующего сезона (День 1 следующего цикла)
+            const nextSeasonEpochMs = info.nextSeasonStart.getTime();
             const dayMs = 24 * 60 * 60 * 1000;
 
             let batch = writeBatch(db);
+            
+            // Инициализация группы
+            batch.set(groupRef, {
+              id: nextPrefixedGroupId,
+              seasonId: nextSeasonId,
+              seasonNumber: nextSN,
+              status: 'ready_for_battle',
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+
+            // Генерация матчей
             calendar.forEach((m) => {
-              const matchId = `m_${prefixedGroupId}_d${m.day}_${m.pairKey}`;
+              const matchId = `m_${nextPrefixedGroupId}_d${m.day}_${m.pairKey}`;
               const [hh, mm] = league.startTime.split(':').map(Number);
-              const offset = (activeSN - 1) * 16 * dayMs + (m.day - 1) * dayMs + (hh * 60 * 60 * 1000) + (mm * 60 * 1000);
-              const finalDate = new Date(epochMs + offset);
+              const offset = (m.day - 1) * dayMs + (hh * 60 * 60 * 1000) + (mm * 60 * 1000);
+              const finalDate = new Date(nextSeasonEpochMs + offset);
 
               batch.set(doc(db, 'matches_v1', matchId), {
                 ...m,
                 id: matchId,
                 day: Number(m.day),
-                seasonId,
-                seasonNumber: activeSN,
-                groupId: String(prefixedGroupId),
+                seasonId: nextSeasonId,
+                seasonNumber: nextSN,
+                groupId: String(nextPrefixedGroupId),
                 leagueId: String(selectedLeagueId),
                 divisionId: Number(leagueLevel),
                 status: 'scheduled',
@@ -134,37 +128,42 @@ export function AutoMatchManager() {
                 version: 31
               }, { merge: true });
             });
-            
-            batch.update(groupRef, { status: 'ready_for_battle', updatedAt: serverTimestamp() });
+
+            // Обнуление очков команд для нового сезона
+            currentTeams.forEach(team => {
+              const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', nextPrefixedGroupId, 'teams', team.id);
+              batch.set(teamRef, {
+                id: team.id,
+                name: team.name,
+                wins: 0, draws: 0, losses: 0, points: 0,
+                updatedAt: serverTimestamp()
+              }, { merge: true });
+            });
+
             await batch.commit();
-          }
-
-          // Генерируем Кубок один раз в день триггера
-          const lastCupGen = sysStatus.data()?.lastCupGenerationDate || "";
-          const todayStr = mskNow.toISOString().split('T')[0];
-
-          if (lastCupGen !== todayStr) {
-            await generatePyramidCup();
-            await updateDoc(sysStatusRef, { lastCupGenerationDate: todayStr });
+            console.log(`[AUTO-GEN] Group ${nextPrefixedGroupId} initialized successfully.`);
           }
         }
 
-        // Расчет только если сезон реально идет
-        if (!info.isOffseason && groupSnap.data()?.status === 'ready_for_battle') {
-          const overdue = allSeasonMatches.filter(m => m.version === 31 && isMatchOverdue(m.startTime) && !m.isFinished);
+        // 2. РЕЗОЛВЕР МАТЧЕЙ (Если сезон идет)
+        if (!info.isOffseason) {
+          const seasonId = `season_${info.seasonNumber}`;
+          const currentPrefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
+          const overdue = allSeasonMatches.filter(m => isMatchOverdue(m.startTime) && !m.isFinished);
+          
           if (overdue.length > 0) {
-            await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
+            await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), currentPrefixedGroupId);
           }
         }
 
       } catch (e: any) {
-        // Фоновая ошибка
+        console.error("[AUTO-MANAGER ERROR]", e);
       } finally {
         processingRef.current = false;
       }
     };
 
-    const interval = setInterval(heartbeat, 30000); 
+    const interval = setInterval(heartbeat, 60000); 
     heartbeat();
     return () => clearInterval(interval);
   }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches, isUserLoading, user?.uid]);

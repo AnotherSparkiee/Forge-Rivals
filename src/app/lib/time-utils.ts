@@ -1,7 +1,10 @@
 /**
- * @fileOverview Ядро времени v30.1. Абсолютная синхронизация с эпохой 2026.
- * Текущая дата: 18 июня 2026 (Межсезонье).
- * Старт сезона: 20 июня 2026.
+ * @fileOverview Ядро времени v31. Бесконечный цикл сезонов.
+ * 
+ * Цикл: 15 дней.
+ * Дни 1-14: Активные матчи сезона.
+ * День 15: Межсезонье. В 16:00 — генерация следующего сезона.
+ * День 1 (следующего цикла): Старт нового сезона.
  */
 
 export function getMoscowTime(): Date {
@@ -11,34 +14,17 @@ export function getMoscowTime(): Date {
   const mskOffset = (now.getTimezoneOffset() + 180) * 60000;
   const currentMsk = new Date(now.getTime() + mskOffset);
 
-  // Map real-world time to virtual 2026.
-  // If real time is around May 2025, we add ~390 days to hit June 2026.
-  // If real time is already 2026, we add minimal offset.
-  const needsLargeOffset = currentMsk.getFullYear() < 2026;
-  
-  let offsetMs = 0;
-  if (needsLargeOffset) {
-    // Reference: Feb 2025 -> June 2026 (~479 days)
-    const virtualToday = new Date('2026-06-18T12:00:00+03:00');
-    const realReference = new Date('2025-02-23T12:00:00+03:00');
-    offsetMs = virtualToday.getTime() - realReference.getTime();
-  }
+  // Опорная точка: 18 июня 2026 должна быть 15-м днем цикла (днем генерации)
+  // Для этого эпоха (День 1) должна быть 4 июня 2026.
+  const virtualToday = new Date('2026-06-18T12:00:00+03:00');
+  const realReference = new Date('2025-02-23T12:00:00+03:00'); // Фикс под текущую дату разработки
+  const offsetMs = virtualToday.getTime() - realReference.getTime();
 
   const virtualTime = new Date(currentMsk.getTime() + offsetMs);
 
-  // ABSOLUTE SAFETY CLAMP
-  // Force 2026 to prevent 2027 drift reported by user
+  // ABSOLUTE SAFETY CLAMP (Фиксация в 2026 году для прототипа)
   if (virtualTime.getFullYear() > 2026) {
     virtualTime.setFullYear(2026);
-  }
-  
-  // Force June if we are in June testing phase and drift occurs
-  if (virtualTime.getFullYear() === 2026 && virtualTime.getMonth() > 5) {
-     virtualTime.setMonth(5); // June is month index 5
-     // If we hit late June/July in drift, reset to 18th for offseason feel
-     if (virtualTime.getDate() > 20) {
-        virtualTime.setDate(18);
-     }
   }
 
   return virtualTime;
@@ -63,38 +49,32 @@ export function formatMoscowTime(date: Date): string {
 
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
-  const seasonStart = new Date('2026-06-20T00:00:00+03:00');
+  // Эпоха: Начало самого первого цикла
+  const epoch = new Date('2026-06-04T00:00:00+03:00');
   
-  const isOffseason = mskNow.getTime() < seasonStart.getTime();
-  const diffMs = seasonStart.getTime() - mskNow.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (isOffseason) {
-    return {
-      seasonDay: 0,
-      seasonNumber: 1,
-      isOffseason: true,
-      activeSeasonNumber: 1,
-      isTransitionPhase: false,
-      startsInMs: diffMs,
-      diffDays
-    };
-  }
-
-  const activeMs = mskNow.getTime() - seasonStart.getTime();
-  const cycleDuration = 16; 
-  const totalDaysPassed = Math.floor(activeMs / (1000 * 60 * 60 * 24));
+  const diffMs = mskNow.getTime() - epoch.getTime();
+  const totalDaysPassed = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   
-  let currentSeasonDay = (totalDaysPassed % cycleDuration) + 1;
-  let currentSeasonNumber = Math.floor(totalDaysPassed / cycleDuration) + 1;
+  const cycleDuration = 15; // 14 дней игры + 1 день перерыва/генерации
+  const currentSeasonNumber = Math.floor(totalDaysPassed / cycleDuration) + 1;
+  const dayOfCycle = (totalDaysPassed % cycleDuration) + 1;
+
+  const isOffseason = dayOfCycle === 15;
+  const isGenerationDay = dayOfCycle === 15;
+  
+  // Расчет времени до начала следующего сезона (День 16 / День 1 следующего цикла)
+  const nextSeasonStart = new Date(epoch.getTime() + (currentSeasonNumber * cycleDuration * 24 * 60 * 60 * 1000));
+  const timeToStartMs = nextSeasonStart.getTime() - mskNow.getTime();
 
   return {
-    seasonDay: Number(currentSeasonDay),
-    seasonNumber: Number(currentSeasonNumber),
-    isTransitionPhase: currentSeasonDay >= 15,
-    isOffseason: false,
-    activeSeasonNumber: currentSeasonDay >= 15 ? currentSeasonNumber + 1 : currentSeasonNumber,
-    diffDays: 0
+    seasonDay: dayOfCycle > 14 ? 0 : dayOfCycle,
+    dayOfCycle,
+    seasonNumber: currentSeasonNumber,
+    activeSeasonNumber: isOffseason ? currentSeasonNumber + 1 : currentSeasonNumber,
+    isOffseason,
+    isGenerationDay,
+    timeToStartMs,
+    nextSeasonStart
   };
 }
 
@@ -104,10 +84,11 @@ export function isMatchOverdue(startTimeIso: string): boolean {
   return mskNow.getTime() > (start.getTime() + 2000);
 }
 
-export function getSeasonDateLabel(dayOfSeason: number): string {
-  const epochDate = new Date('2026-06-20T00:00:00+03:00');
-  const targetDate = new Date(epochDate);
-  targetDate.setDate(epochDate.getDate() + (dayOfSeason - 1));
+export function getSeasonDateLabel(dayOfSeason: number, seasonNumber: number): string {
+  const epoch = new Date('2026-06-04T00:00:00+03:00');
+  const cycleDuration = 15;
+  const seasonStartOffset = (seasonNumber - 1) * cycleDuration;
+  const targetDate = new Date(epoch.getTime() + (seasonStartOffset + dayOfSeason - 1) * 24 * 60 * 60 * 1000);
   
   const d = String(targetDate.getDate()).padStart(2, '0');
   const m = String(targetDate.getMonth() + 1).padStart(2, '0');

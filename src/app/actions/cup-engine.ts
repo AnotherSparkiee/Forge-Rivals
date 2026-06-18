@@ -1,18 +1,16 @@
 'use server';
 
 /**
- * @fileOverview Ультимативный антикризисный двигатель Кубка v8.
+ * @fileOverview Ультимативный антикризисный двигатель Кубка v9.
  * 
  * Особенности:
- * 1. Генерация Раунда 1 для всех 16 лиг (Сезон 1).
- * 2. Дублирование типов (str/num) для пробития любых фильтров.
- * 3. Мультиформатные даты и статусы.
- * 4. ПОЛНЫЙ ПОСЕВ: Дивизионы 1-9 включены в Раунд 1.
+ * 1. Поддержка любого номера сезона для планирования.
+ * 2. Генерация Раунда 1 для всех 16 лиг.
  */
 
 import { 
   collection, doc, getDocs, writeBatch, query, where, 
-  Firestore, serverTimestamp, Timestamp, getDoc, setDoc
+  Firestore, serverTimestamp, Timestamp, getDoc
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -38,24 +36,24 @@ class FirestoreBatcher {
     if (this.count > 0) {
       await this.batch.commit();
       this.count = 0;
-      console.log("[BATCH] Committed successfully.");
     }
   }
 }
 
 /**
- * ЭКСТРЕННАЯ ГЕНЕРАЦИЯ: Раунд 1 для всех 16 лиг (Сезон 1).
+ * ЭКСТРЕННАЯ ГЕНЕРАЦИЯ: Раунд 1 для всех 16 лиг на указанный сезон.
  */
-export async function generatePyramidCup() {
+export async function generatePyramidCup(targetSeasonNumber?: number) {
   const { firestore: db } = initializeFirebase();
   
-  // СИНХРОНИЗАЦИЯ ПО СЕЗОНУ 1 (ЭПОХА 17.06.2026)
-  const SEASON = "1"; 
-  const DATE_ISO = "2026-06-17T20:00:00.000Z";
-  const DATE_SHORT = "2026-06-17";
-  const TIMESTAMP_NOW = Timestamp.fromDate(new Date("2026-06-17T20:00:00Z"));
+  // Если сезон не указан, берем 1-й
+  const SEASON_NUM = targetSeasonNumber || 1;
+  const SEASON_ID = String(SEASON_NUM);
 
-  console.log(`[EMERGENCY V8] Starting Total Generation for Season ${SEASON}...`);
+  // Опорная дата начала сезона (упрощенно для кубка, будет синхронизировано через time-utils)
+  const TIMESTAMP_NOW = Timestamp.now();
+
+  console.log(`[CUP ENGINE v9] Initializing Season ${SEASON_ID}...`);
 
   for (let i = 0; i < LEAGUES.length; i++) {
     const league = LEAGUES[i];
@@ -75,23 +73,21 @@ export async function generatePyramidCup() {
         id: d.id, 
         name: data.displayName || "Manager",
         power: (Number(data.leagueLevel || 9) * 100) + Number(data.rank || 8),
-        divisionId: String(data.leagueLevel || "9")
       };
     });
 
     // Дозаполнение ботами до 16 или четного
     const minTeams = Math.max(16, allTeams.length + (allTeams.length % 2));
     while (allTeams.length < minTeams) {
-      const botId = `sys_bot_cup_${league.id}_${allTeams.length}`;
+      const botId = `sys_bot_cup_${league.id}_s${SEASON_ID}_${allTeams.length}`;
       allTeams.push({
         id: botId,
         name: `Elite Bot ${allTeams.length + 1}`,
         power: 1000 + allTeams.length,
-        divisionId: "9"
       });
     }
 
-    allTeams.sort((a, b) => a.power - b.power);
+    allTeams.sort((a, b) => b.power - a.power); // Сильные против слабых
 
     let left = 0;
     let right = allTeams.length - 1;
@@ -101,19 +97,18 @@ export async function generatePyramidCup() {
       const strongTeam = allTeams[left];
       const weakTeam = allTeams[right];
 
-      const cupMatchId = `season_${SEASON}_league_${league.id}_round_1_match_${matchNum}`;
+      const cupMatchId = `season_${SEASON_ID}_league_${league.id}_round_1_match_${matchNum}`;
 
       await batcher.set(doc(db, 'cup_matches', cupMatchId), {
         cupMatchId,
-        seasonId: SEASON,
-        seasonId_num: Number(SEASON),
-        seasonNumber: Number(SEASON),
+        seasonId: SEASON_ID,
+        seasonId_num: SEASON_NUM,
+        seasonNumber: SEASON_NUM,
         leagueId: league.id,
         leagueId_num: leagueNum,
         round: 1,
         round_str: "1",
-        date: DATE_ISO,
-        dateString: DATE_SHORT,
+        date: new Date().toISOString(),
         timestamp: TIMESTAMP_NOW,
         homeTeamId: weakTeam.id,
         awayTeamId: strongTeam.id,
@@ -129,134 +124,8 @@ export async function generatePyramidCup() {
       matchNum++;
     }
 
-    if (left === right) {
-      const cupMatchId = `season_${SEASON}_league_${league.id}_round_1_match_${matchNum}`;
-      await batcher.set(doc(db, 'cup_matches', cupMatchId), {
-        cupMatchId,
-        seasonId: SEASON,
-        seasonId_num: Number(SEASON),
-        seasonNumber: Number(SEASON),
-        leagueId: league.id,
-        leagueId_num: leagueNum,
-        round: 1,
-        round_str: "1",
-        date: DATE_ISO,
-        dateString: DATE_SHORT,
-        timestamp: TIMESTAMP_NOW,
-        homeTeamId: allTeams[left].id,
-        awayTeamId: null,
-        status: 'finished',
-        matchStatus: 'finished',
-        isFinished: true,
-        winnerId: allTeams[left].id,
-        createdAt: serverTimestamp()
-      });
-    }
-
     await batcher.commit();
-    console.log(`[CUP V8] League ${league.id} initialized. Matches: ${matchNum}`);
   }
   
   return { success: true };
-}
-
-/**
- * РЕАКТИВНЫЙ ТРИГГЕР: Генерация следующего раунда.
- */
-export async function advanceCupRound(leagueId: string, seasonId: string, finishedRound: number) {
-  const { firestore: db } = initializeFirebase();
-
-  const qActive = query(
-    collection(db, 'cup_matches'),
-    where('seasonId', '==', seasonId),
-    where('leagueId', '==', leagueId),
-    where('round', '==', finishedRound),
-    where('status', '==', 'scheduled')
-  );
-
-  const activeSnap = await getDocs(qActive);
-  if (!activeSnap.empty) return; 
-
-  console.log(`[CUP] Advancing Round ${finishedRound} in ${leagueId}...`);
-
-  const qWinners = query(
-    collection(db, 'cup_matches'),
-    where('seasonId', '==', seasonId),
-    where('leagueId', '==', leagueId),
-    where('round', '==', finishedRound)
-  );
-  const winnersSnap = await getDocs(qWinners);
-  const winnersIds = winnersSnap.docs.map(d => d.data().winnerId).filter(Boolean);
-
-  if (winnersIds.length <= 1) return; 
-
-  const participantsData: any[] = [];
-  for (const teamId of winnersIds) {
-    const pDoc = await getDoc(doc(db, 'players_v10', teamId!));
-    if (pDoc.exists()) {
-      const d = pDoc.data();
-      participantsData.push({ id: teamId, power: (Number(d.leagueLevel || 9) * 100) + Number(d.rank || 8) });
-    } else {
-      participantsData.push({ id: teamId, power: 9999 });
-    }
-  }
-
-  participantsData.sort((a, b) => a.power - b.power);
-
-  const batcher = new FirestoreBatcher(db);
-  const nextRoundNum = finishedRound + 1;
-  const nextDateISO = new Date().toISOString();
-
-  let left = 0;
-  let right = participantsData.length - 1;
-  let mNum = 1;
-
-  while (left < right) {
-    const strong = participantsData[left];
-    const weak = participantsData[right];
-    const mId = `season_${seasonId}_league_${leagueId}_round_${nextRoundNum}_match_${mNum}`;
-
-    await batcher.set(doc(db, 'cup_matches', mId), {
-      cupMatchId: mId,
-      seasonId,
-      seasonId_num: Number(seasonId),
-      seasonNumber: Number(seasonId),
-      leagueId,
-      round: nextRoundNum,
-      round_str: String(nextRoundNum),
-      date: nextDateISO,
-      dateString: nextDateISO.split('T')[0],
-      timestamp: Timestamp.now(),
-      homeTeamId: weak.id,
-      awayTeamId: strong.id,
-      status: 'scheduled',
-      matchStatus: 'scheduled',
-      isFinished: false,
-      winnerId: null,
-      createdAt: serverTimestamp()
-    });
-
-    left++;
-    right--;
-    mNum++;
-  }
-
-  if (left === right) {
-    const mId = `season_${seasonId}_league_${leagueId}_round_${nextRoundNum}_match_${mNum}`;
-    await batcher.set(doc(db, 'cup_matches', mId), {
-      cupMatchId: mId,
-      seasonId,
-      leagueId,
-      round: nextRoundNum,
-      date: nextDateISO,
-      homeTeamId: participantsData[left].id,
-      awayTeamId: null,
-      status: 'finished',
-      isFinished: true,
-      winnerId: participantsData[left].id,
-      createdAt: serverTimestamp()
-    });
-  }
-
-  await batcher.commit();
 }
