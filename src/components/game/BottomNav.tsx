@@ -3,14 +3,13 @@
 import { useState, useEffect } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { getMoscowTime, formatTerminalTime } from '@/app/lib/time-utils';
-import { ChevronLeft, Radio } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 
 /**
- * ОПЕРАЦИОННЫЙ ТЕРМИНАЛ (Bottom Bar v33)
- * Динамическое время по МСК (18.06.2026) в реальном времени.
+ * ОПЕРАЦИОННЫЙ ТЕРМИНАЛ (Bottom Bar v37)
+ * Синхронизирован с серверным игровым временем.
  */
 export function BottomNav() {
   const router = useRouter();
@@ -21,6 +20,7 @@ export function BottomNav() {
 
   useEffect(() => {
     const updateTime = () => {
+      // getMoscowTime() теперь возвращает синхронизированное время сервера
       const now = getMoscowTime();
       setTerminalTime(formatTerminalTime(now));
     };
@@ -52,7 +52,7 @@ export function BottomNav() {
               </span>
             </div>
             <p className="text-[7px] font-bold text-muted-foreground uppercase tracking-widest">
-              Node: ALPHA-7
+              Server: MSK-NODE-1
             </p>
           </div>
         </div>
@@ -60,7 +60,7 @@ export function BottomNav() {
         <div className="flex flex-col items-center justify-center">
            <div className="px-4 py-1.5 bg-primary/5 rounded-lg border border-primary/20 shadow-inner group">
              <p className="text-[13px] font-mono font-black text-primary whitespace-nowrap tabular-nums tracking-widest leading-none min-w-[140px] text-center transition-all group-hover:text-accent">
-               {terminalTime || 'LOADING...'}
+               {terminalTime || 'SYNCING...'}
              </p>
            </div>
         </div>

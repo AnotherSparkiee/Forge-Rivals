@@ -1,34 +1,38 @@
 /**
- * @fileOverview Ядро времени v36.2. Абсолютная синхронизация Сезона 1.
+ * @fileOverview Ядро времени v37. Глобальная синхронизация серверного игрового времени.
  * 
- * Цикл: 15 дней.
- * Дни 1-14: Активные матчи сезона.
- * День 15: Межсезонье. В 16:00 — генерация СЛЕДУЮЩЕГО сезона.
- * ЭПОХА (S1 Day 1): 20.06.2026
+ * Все события в игре привязаны к этой шкале. 
+ * Реальное время 27.02.2025 = Виртуальное 18.06.2026.
  */
 
+let globalServerTimeOffset = 0;
+
+/**
+ * Устанавливает смещение между локальным временем устройства и временем сервера.
+ */
+export function setServerTimeOffset(offset: number) {
+  globalServerTimeOffset = offset;
+  console.log(`[TIME-CORE] Server offset established: ${offset}ms`);
+}
+
+/**
+ * Возвращает текущее игровое время по Москве (UTC+3), 
+ * синхронизированное с сервером.
+ */
 export function getMoscowTime(): Date {
-  const now = new Date();
+  // 1. Получаем реальное "мировое" время (UTC/MSK)
+  const nowReal = new Date(Date.now() + globalServerTimeOffset);
   
   /**
-   * ПИВОТ ВРЕМЕНИ (v34)
-   * Синхронизация: Реальное 17.02.2025 = Виртуальное 18.06.2026
+   * ПИВОТ ВРЕМЕНИ (v37)
+   * Синхронизация: Реальное 27.02.2025 12:00 = Виртуальное 18.06.2026 12:00
    */
-  const realReference = new Date('2025-02-17T00:00:00+03:00').getTime();
-  const virtualReference = new Date('2026-06-18T00:00:00+03:00').getTime();
-  const offsetMs = virtualReference - realReference;
+  const realReference = new Date('2025-02-27T12:00:00+03:00').getTime();
+  const virtualReference = new Date('2026-06-18T12:00:00+03:00').getTime();
+  const driftMs = virtualReference - realReference;
 
-  const virtualTime = new Date(now.getTime() + offsetMs);
-
-  // ЗАЩИТА ОТ ДРИФТА: Если время улетело в 2027+, принудительно возвращаем в 2026
-  if (virtualTime.getFullYear() > 2026) {
-    virtualTime.setFullYear(2026);
-    if (virtualTime.getMonth() > 5) {
-      virtualTime.setMonth(5); // Июнь
-    }
-  }
-
-  return virtualTime;
+  // 2. Трансформируем реальное время в виртуальное
+  return new Date(nowReal.getTime() + driftMs);
 }
 
 /**
@@ -52,12 +56,12 @@ export function getMoscowDateString(): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * Рассчитывает состояние сезона на основе 15-дневного цикла.
+ * Эпоха (S1 Day 1): 20.06.2026 00:00
+ */
 export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
-  
-  /**
-   * ЭПОХА СЕЗОНА 1: Старт 20.06.2026 00:00
-   */
   const epoch = new Date('2026-06-20T00:00:00+03:00');
   
   const diffMs = mskNow.getTime() - epoch.getTime();
@@ -71,11 +75,10 @@ export function getGlobalSeasonInfo() {
   if (totalDaysPassed < 0) {
     // Период ДО старта Сезона 1
     seasonNumber = 1;
-    // 18.06 -> Day 14 (totalDaysPassed = -2)
-    // 19.06 -> Day 15 (totalDaysPassed = -1)
+    // 18.06 -> Day 14
+    // 19.06 -> Day 15 (Generation)
     dayOfCycle = totalDaysPassed === -1 ? 15 : (totalDaysPassed === -2 ? 14 : 1);
   } else {
-    // Период после старта Сезона 1
     seasonNumber = Math.floor(totalDaysPassed / cycleDuration) + 1;
     dayOfCycle = (totalDaysPassed % cycleDuration) + 1;
   }
