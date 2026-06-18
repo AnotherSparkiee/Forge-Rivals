@@ -62,7 +62,12 @@ export default function Home() {
         const hh = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const mm = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const ss = Math.floor((diff % (1000 * 60)) / 1000);
-        setCountdown(`${dd}д ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
+        
+        if (dd > 0) {
+           setCountdown(`${dd}д ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
+        } else {
+           setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
+        }
       } else if (nextMatch) {
         const mskNow = getMoscowTime();
         const matchStartTime = new Date(nextMatch.match.startTime).getTime();
@@ -139,7 +144,7 @@ export default function Home() {
                 <CardHeader><CardTitle className="font-headline text-center uppercase tracking-widest text-accent text-lg">{tAuth.title}</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2"><Label>{tAuth.userLabel}</Label><Input value={identifier} onChange={e => setIdentifier(e.target.value)} required className="bg-secondary/50 h-12" /></div>
-                  <div className="space-y-2"><Label>{tAuth.passLabel}</Label><Input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50 h-12" /></div>
+                  <div className="space-y-2"><Label>{tAuth.passLabel}</Label><Input type="password" password="true" value={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50 h-12" /></div>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-4">
                   <Button type="submit" className="w-full h-14 hero-gradient font-black text-xs uppercase" disabled={isAuthLoading}>{isAuthLoading ? <Loader2 className="animate-spin" /> : tAuth.submit}</Button>

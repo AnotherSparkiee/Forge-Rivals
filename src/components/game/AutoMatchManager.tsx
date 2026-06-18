@@ -1,14 +1,14 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v30 "Silent Horizon".
+ * @fileOverview Автономный менеджер синхронизации v30.1 "Silent Horizon".
  * Удаляет октябрьские данные и инициирует глобальную генерацию 19.06 в 16:00.
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, Timestamp, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, Timestamp, getDocs, deleteDoc, updateDoc } from 'firebase/firestore';
 import { 
   getStableGroupTeams, generateSeasonCalendar, 
   LEAGUES 
@@ -53,7 +53,7 @@ export function AutoMatchManager() {
         const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId);
         const groupSnap = await getDoc(groupRef);
         
-        // ВЕРСИЯ 30: ТОТАЛЬНАЯ ОЧИСТКА ПЕРЕД СТАРТОМ
+        // ВЕРСИЯ 30.1: ТОТАЛЬНАЯ ОЧИСТКА ПЕРЕД СТАРТОМ
         const currentVersion = groupSnap.data()?.calendarVersion || 0;
         const needsUpgrade = currentVersion < 30;
 

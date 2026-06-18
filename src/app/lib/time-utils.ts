@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v30. Абсолютная синхронизация с эпохой 2026.
+ * @fileOverview Ядро времени v30.1. Абсолютная синхронизация с эпохой 2026.
  * Текущая дата: 18 июня 2026 (Межсезонье).
  * Старт сезона: 20 июня 2026.
  */
@@ -11,23 +11,37 @@ export function getMoscowTime(): Date {
   const mskOffset = (now.getTimezoneOffset() + 180) * 60000;
   const currentMsk = new Date(now.getTime() + mskOffset);
 
-  // Hard clamp to 2026 to prevent 2027+ drift
-  if (currentMsk.getFullYear() > 2026) {
-    const clamped = new Date(currentMsk);
-    clamped.setFullYear(2026);
-    if (clamped.getMonth() > 5) {
-      clamped.setMonth(5);
-      clamped.setDate(18);
-    }
-    return clamped;
+  // Map real-world time to virtual 2026.
+  // If real time is around May 2025, we add ~390 days to hit June 2026.
+  // If real time is already 2026, we add minimal offset.
+  const needsLargeOffset = currentMsk.getFullYear() < 2026;
+  
+  let offsetMs = 0;
+  if (needsLargeOffset) {
+    // Reference: Feb 2025 -> June 2026 (~479 days)
+    const virtualToday = new Date('2026-06-18T12:00:00+03:00');
+    const realReference = new Date('2025-02-23T12:00:00+03:00');
+    offsetMs = virtualToday.getTime() - realReference.getTime();
   }
 
-  // Virtual "Today": 18 June 2026
-  const virtualToday = new Date('2026-06-18T12:00:00+03:00');
-  const realReference = new Date('2025-02-23T12:00:00+03:00');
+  const virtualTime = new Date(currentMsk.getTime() + offsetMs);
+
+  // ABSOLUTE SAFETY CLAMP
+  // Force 2026 to prevent 2027 drift reported by user
+  if (virtualTime.getFullYear() > 2026) {
+    virtualTime.setFullYear(2026);
+  }
   
-  const offsetMs = virtualToday.getTime() - realReference.getTime();
-  return new Date(currentMsk.getTime() + offsetMs);
+  // Force June if we are in June testing phase and drift occurs
+  if (virtualTime.getFullYear() === 2026 && virtualTime.getMonth() > 5) {
+     virtualTime.setMonth(5); // June is month index 5
+     // If we hit late June/July in drift, reset to 18th for offseason feel
+     if (virtualTime.getDate() > 20) {
+        virtualTime.setDate(18);
+     }
+  }
+
+  return virtualTime;
 }
 
 export function getMoscowDateString(): string {
