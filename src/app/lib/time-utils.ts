@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v34. Бесконечный цикл сезонов.
+ * @fileOverview Ядро времени v35. Бесконечный цикл сезонов.
  * 
  * Цикл: 15 дней.
  * Дни 1-14: Активные матчи сезона.
@@ -11,7 +11,7 @@ export function getMoscowTime(): Date {
   const now = new Date();
   
   /**
-   * АБСОЛЮТНАЯ СИНХРОНИЗАЦИЯ 2026 (v34)
+   * АБСОЛЮТНАЯ СИНХРОНИЗАЦИЯ 2026 (v35)
    * Цель: Сделать так, чтобы текущее реальное время (июнь 2025) 
    * соответствовало июню 2026.
    */
@@ -58,30 +58,44 @@ export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   
   /**
-   * Эпоха: Начало самого первого цикла.
-   * 18.06.2026 — это 15-й день цикла (Межсезонье).
+   * ЭПОХА СЕЗОНА 1: Старт 20.06.2026
    */
-  const epoch = new Date('2026-06-04T00:00:00+03:00');
+  const epoch = new Date('2026-06-20T00:00:00+03:00');
   
   const diffMs = mskNow.getTime() - epoch.getTime();
   const totalDaysPassed = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   
   const cycleDuration = 15; // 14 дней игры + 1 день перерыва/генерации
+  
+  // Номер сезона. На 18.06 (totalDaysPassed = -2) -> Season 0. На 20.06 (0) -> Season 1.
   const currentSeasonNumber = Math.floor(totalDaysPassed / cycleDuration) + 1;
-  const dayOfCycle = (totalDaysPassed % cycleDuration) + 1;
+  
+  // День цикла (1-15). 
+  // 20.06 (0) -> 1
+  // 19.06 (-1) -> 15
+  // 18.06 (-2) -> 14
+  const dayOfCycle = ((totalDaysPassed % cycleDuration) + cycleDuration) % cycleDuration + 1;
 
-  const isOffseason = dayOfCycle === 15;
+  // Межсезонье: 15-й день цикла ИЛИ любой день до начала Сезона 1
+  const isOffseason = dayOfCycle === 15 || currentSeasonNumber < 1;
   const isGenerationDay = dayOfCycle === 15;
   
-  // Расчет времени до начала следующего сезона (День 16 / День 1 следующего цикла)
-  const nextSeasonStart = new Date(epoch.getTime() + (currentSeasonNumber * cycleDuration * 24 * 60 * 60 * 1000));
+  // Расчет времени до начала следующего сезона
+  let nextCycleStartDays = 0;
+  if (totalDaysPassed < 0) {
+    nextCycleStartDays = 0; // Ждем 20.06
+  } else {
+    nextCycleStartDays = (Math.floor(totalDaysPassed / cycleDuration) + 1) * cycleDuration;
+  }
+  
+  const nextSeasonStart = new Date(epoch.getTime() + (nextCycleStartDays * 24 * 60 * 60 * 1000));
   const timeToStartMs = nextSeasonStart.getTime() - mskNow.getTime();
 
   return {
-    seasonDay: dayOfCycle > 14 ? 0 : dayOfCycle,
+    seasonDay: (dayOfCycle > 14 || currentSeasonNumber < 1) ? 0 : dayOfCycle,
     dayOfCycle,
     seasonNumber: currentSeasonNumber,
-    activeSeasonNumber: isOffseason ? currentSeasonNumber + 1 : currentSeasonNumber,
+    activeSeasonNumber: (dayOfCycle === 15 || currentSeasonNumber < 1) ? (currentSeasonNumber < 1 ? 1 : currentSeasonNumber + 1) : currentSeasonNumber,
     isOffseason,
     isGenerationDay,
     timeToStartMs,
@@ -96,7 +110,7 @@ export function isMatchOverdue(startTimeIso: string): boolean {
 }
 
 export function getSeasonDateLabel(dayOfSeason: number, seasonNumber: number = 1): string {
-  const epoch = new Date('2026-06-04T00:00:00+03:00');
+  const epoch = new Date('2026-06-20T00:00:00+03:00');
   const cycleDuration = 15;
   const seasonStartOffset = (seasonNumber - 1) * cycleDuration;
   const targetDate = new Date(epoch.getTime() + (seasonStartOffset + dayOfSeason - 1) * 24 * 60 * 60 * 1000);

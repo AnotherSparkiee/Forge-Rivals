@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v31. 
- * Внедрена фильтрация по версии системы (31) для очистки старых данных.
+ * @fileOverview Глобальное хранилище v32. 
+ * Внедрена фильтрация по версии системы (32) для очистки старых данных.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -130,6 +130,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           return;
         }
         const data = snap.data();
+        const info = getGlobalSeasonInfo();
         setState(s => ({
           ...s,
           id: user.uid,
@@ -138,9 +139,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           leagueLevel: Number(data.leagueLevel || 9),
           groupId: Number(data.groupId || 1),
           country: data.country || null,
-          activeSeasonNumber: Number(seasonInfo.activeSeasonNumber),
-          seasonNumber: Number(seasonInfo.seasonNumber),
-          seasonDay: Number(seasonInfo.seasonDay),
+          activeSeasonNumber: Number(info.activeSeasonNumber),
+          seasonNumber: Number(info.seasonNumber),
+          seasonDay: Number(info.seasonDay),
           isLoaded: true
         }));
       }, (err) => {
@@ -151,14 +152,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.error("Critical root sync error:", e);
     }
-  }, [user?.uid, isUserLoading, db, seasonInfo]);
+  }, [user?.uid, isUserLoading, db]);
 
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.id || !state.selectedLeagueId) return;
 
     try {
       const s = state;
-      const activeSN = Number(seasonInfo.activeSeasonNumber);
+      const info = getGlobalSeasonInfo();
+      const activeSN = Number(info.activeSeasonNumber);
       const seasonId = `season_${activeSN}`;
       const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
       const teamRef = doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', s.id);
@@ -205,14 +207,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.error("Team sync error:", e);
     }
-  }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, seasonInfo, isUserLoading, user?.uid]);
+  }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
 
     try {
       const s = state;
-      const activeSN = Number(seasonInfo.activeSeasonNumber);
+      const info = getGlobalSeasonInfo();
+      const activeSN = Number(info.activeSeasonNumber);
       const seasonId = `season_${activeSN}`;
       const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
 
@@ -224,8 +227,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const loaded = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
-        // ФИЛЬТР ВЕРСИИ 31
-        const currentVersion = loaded.filter(m => m.version === 31);
+        // ФИЛЬТР ВЕРСИИ 32
+        const currentVersion = loaded.filter(m => m.version === 32);
         const sorted = currentVersion.sort((a, b) => (Number(a.day) || 0) - (Number(b.day) || 0));
         setAllMatches(sorted);
         setIsMatchesReady(true);
@@ -237,7 +240,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.error("Matches sync error:", e);
     }
-  }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded, seasonInfo, isUserLoading, user?.uid]);
+  }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded, isUserLoading, user?.uid]);
 
   const nextMatchInfo = useMemo(() => {
     if (!isMatchesReady || !user?.uid || allMatches.length === 0) return null;
@@ -249,13 +252,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       new Date(m.startTime).getTime() <= mskNow + 300000 
     );
 
-    if (active) return { match: active, opponentName: active.homeId === user.uid ? active.awayName : active.homeName, day: Number(active.day), dateLabel: getSeasonDateLabel(active.day), isHome: active.homeId === user.uid };
+    if (active) return { match: active, opponentName: active.homeId === user.uid ? active.awayName : active.homeName, day: Number(active.day), dateLabel: getSeasonDateLabel(active.day, active.seasonNumber), isHome: active.homeId === user.uid };
 
     const future = allMatches
       .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && !checkIsMatchFinished(m))
       .sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
     
-    if (future) return { match: future, opponentName: future.homeId === user.uid ? future.awayName : future.homeName, day: Number(future.day), dateLabel: getSeasonDateLabel(future.day), isHome: future.homeId === user.uid };
+    if (future) return { match: future, opponentName: future.homeId === user.uid ? future.awayName : future.homeName, day: Number(future.day), dateLabel: getSeasonDateLabel(future.day, future.seasonNumber), isHome: future.homeId === user.uid };
 
     return null;
   }, [allMatches, isMatchesReady, user?.uid]);
@@ -263,13 +266,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const getRefs = useCallback(() => {
     const s = stateRef.current;
     if (!user?.uid || !s.selectedLeagueId) return null;
-    const activeSN = Number(seasonInfo.activeSeasonNumber);
+    const info = getGlobalSeasonInfo();
+    const activeSN = Number(info.activeSeasonNumber);
     const seasonId = `season_${activeSN}`;
     const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
     return {
       team: doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid)
     };
-  }, [user?.uid, db, seasonInfo]);
+  }, [user?.uid, db]);
 
   const addCrystals = (amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { crystals: Math.max(0, stateRef.current.crystals + amount) }, { merge: true }); };
   const addCredits = (amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { credits: Math.max(0, stateRef.current.credits + amount) }, { merge: true }); };
