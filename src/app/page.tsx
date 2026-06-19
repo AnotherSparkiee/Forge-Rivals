@@ -26,7 +26,6 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { getMoscowTime, getGlobalSeasonInfo } from './lib/time-utils';
 import { LEAGUES } from './lib/leagues-data';
-import { forceResolveGroupMatches } from '@/app/actions/mmo-engine';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,13 +55,10 @@ export default function Home() {
   useEffect(() => {
     const timer = setInterval(() => {
       const info = getGlobalSeasonInfo();
-      
-      // Логика отсчета до 20.06.2026 или до генерации 19.06.2026 16:00
       const mskNow = getMoscowTime();
       let targetTime: number;
 
       if (info.isOffseason) {
-        // Если это день генерации (19.06), показываем время до 16:00 или до старта 20.06
         const genTime = new Date('2026-06-19T16:00:00+03:00').getTime();
         const startTime = new Date('2026-06-20T00:00:00+03:00').getTime();
         
@@ -85,7 +81,6 @@ export default function Home() {
         }
       } else if (nextMatch) {
         const matchStartTime = new Date(nextMatch.match.startTime).getTime();
-        
         if (mskNow.getTime() >= matchStartTime) {
           setCountdown('00:00:00');
         } else {
@@ -97,7 +92,6 @@ export default function Home() {
         }
       }
     }, 1000);
-
     return () => clearInterval(timer);
   }, [nextMatch]);
 
