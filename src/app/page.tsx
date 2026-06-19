@@ -51,11 +51,15 @@ export default function Home() {
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
 
-  // НАХОДИМ ПОСЛЕДНИЙ НЕПРОСМОТРЕННЫЙ РЕЗУЛЬТАТ (ПРИОРИТЕТ)
-  const latestUnreadResult = useMemo(() => {
-    if (!matchHistory || matchHistory.length === 0) return null;
-    return [...matchHistory].reverse().find(m => m.seen === false);
+  // НАХОДИМ НЕПРОСМОТРЕННЫЕ МАТЧИ
+  const unreadMatches = useMemo(() => {
+    if (!matchHistory) return [];
+    return matchHistory.filter(m => m.seen === false);
   }, [matchHistory]);
+
+  const latestUnreadResult = useMemo(() => {
+    return unreadMatches.length > 0 ? unreadMatches[unreadMatches.length - 1] : null;
+  }, [unreadMatches]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -171,21 +175,19 @@ export default function Home() {
       nextMatch: "Next Engagement", 
       offseason: "OFFSEASON", 
       battleBtn: "BATTLE OVERVIEW", 
-      resultBtn: "MATCH OUTCOME",
+      resultBtn: "MATCH OVERVIEW",
       navTitle: "Command Terminals", sync: "CALENDAR SYNC", noMatches: "NO UPCOMING MATCHES", 
       startsIn: getMoscowTime().getDate() === 19 ? "GENERATION STARTS IN:" : "SEASON 1 STARTS IN:",
-      phase: "PHASE: STABILIZATION",
-      tourTypes: { trial: "TRIAL", friendly: "FRIENDLY", basket: "BASKET", league: "LEAGUE", cup: "CUP" }
+      phase: "PHASE: STABILIZATION"
     },
     ru: { 
       nextMatch: "Следующий матч", 
       offseason: "МЕЖСЕЗОНЬЕ", 
       battleBtn: "ОБЗОР МАТЧЕЙ", 
-      resultBtn: "РЕЗУЛЬТАТ МАТЧА",
+      resultBtn: "ОБЗОР МАТЧЕЙ",
       navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ", noMatches: "НЕТ БУДУЩИХ МАТЧЕЙ", 
       startsIn: getMoscowTime().getDate() === 19 ? "ГЕНЕРАЦИЯ НАЧНЕТСЯ ЧЕРЕЗ:" : "СЕЗОН 1 НАЧНЕТСЯ ЧЕРЕЗ:",
-      phase: "ФАЗА: СТАБИЛИЗАЦИЯ",
-      tourTypes: { trial: "ПРОБНЫЙ", friendly: "ТОВ. МАТЧ", basket: "КОРЗИНА", league: "ЛИГА", cup: "КУБОК" }
+      phase: "ФАЗА: СТАБИЛИЗАЦИЯ"
     }
   }[language as 'en' | 'ru'];
 
@@ -298,40 +300,28 @@ export default function Home() {
         </Card>
       </section>
 
-      {/* ПРИОРИТЕТНЫЙ БЛОК РЕЗУЛЬТАТА (Если есть непросмотренный матч) */}
+      {/* УНИВЕРСАЛЬНАЯ КНОПКА ОБЗОРА МАТЧЕЙ СО СЧЕТЧИКОМ */}
       {latestUnreadResult ? (
         <Link href={`/match?id=${latestUnreadResult.id}`} className="block relative mb-8">
           <div className="absolute -inset-1 bg-gradient-to-r from-accent to-primary rounded-2xl blur opacity-30 animate-pulse"></div>
-          <Button className="w-full h-24 bg-accent text-accent-foreground border-none shadow-xl flex flex-col gap-1 transition-all active:scale-95 relative z-10">
-            <div className="flex flex-col items-center">
-              <Badge className="bg-white/20 text-white text-[7px] font-black uppercase mb-1 tracking-widest">
-                { (tHub.tourTypes as any)[latestUnreadResult.type] || 'ENGAGEMENT' } OUTCOME
-              </Badge>
-              <div className="flex items-center gap-3">
-                <Trophy className="w-6 h-6" />
-                <span className="text-2xl font-headline font-bold italic uppercase tracking-tight">
-                  {tHub.resultBtn}
-                </span>
-                <span className="text-2xl font-mono font-black border-l border-white/20 pl-3">
-                  {latestUnreadResult.scoreA}:{latestUnreadResult.scoreB}
-                </span>
-              </div>
-              <p className="text-[8px] font-black uppercase opacity-60 mt-1 flex items-center gap-1">
-                VS {latestUnreadResult.opponentName} <ArrowRight className="w-2.5 h-2.5" />
-              </p>
-            </div>
+          <Button className="w-full h-20 bg-accent text-accent-foreground border-none shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 relative z-10">
+            <Swords className="w-6 h-6" />
+            <span className="text-xl font-headline font-bold italic uppercase tracking-tight">
+              {tHub.resultBtn}
+            </span>
+            <Badge className="bg-white/20 text-white font-black text-xs px-2 h-6 min-w-[24px] flex items-center justify-center rounded-full">
+              {unreadMatches.length}
+            </Badge>
           </Button>
         </Link>
       ) : !seasonInfo.isOffseason ? (
         <Link href={checkIsMatchFinished(nextMatch?.match) ? `/match?id=${nextMatch.match.id}` : "/matches"} className="block relative mb-8">
           <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-2xl blur opacity-25 animate-pulse"></div>
-          <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1 transition-all active:scale-95 relative z-10">
-            <div className="flex items-center gap-2">
-              {checkIsMatchFinished(nextMatch?.match) ? <Trophy className="w-6 h-6" /> : <Swords className="w-6 h-6" />}
-              <span className="text-xl font-headline font-bold italic uppercase">
-                {checkIsMatchFinished(nextMatch?.match) ? tHub.resultBtn : tHub.battleBtn}
-              </span>
-            </div>
+          <Button className="w-full h-20 hero-gradient border-none shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 relative z-10">
+            {checkIsMatchFinished(nextMatch?.match) ? <Trophy className="w-6 h-6" /> : <Swords className="w-6 h-6" />}
+            <span className="text-xl font-headline font-bold italic uppercase">
+              {checkIsMatchFinished(nextMatch?.match) ? tHub.resultBtn : tHub.battleBtn}
+            </span>
           </Button>
         </Link>
       ) : null}
