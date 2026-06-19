@@ -95,22 +95,26 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
   const activeHeroes = team.heroes.filter(h => !h.isSub).slice(0, 5);
   let power = 0;
 
+  if (activeHeroes.length === 0) return { power: 100, offenseMod: 1.0, defenseMod: 1.0 };
+
   activeHeroes.forEach(hero => {
     const weights = ROLE_WEIGHTS[hero.role] || ROLE_WEIGHTS['Midlaner'];
-    let heroPower = hero.overallRating * 0.5; // База от OVR
+    let heroPower = Number(hero.overallRating || 0) * 0.5; // База от OVR
 
     // Вклад навыков с учетом ролевых весов
-    Object.entries(hero.proStats).forEach(([key, val]) => {
-      const weight = weights[key as keyof typeof weights] || 1.0;
-      heroPower += val * weight;
-    });
+    if (hero.proStats) {
+      Object.entries(hero.proStats).forEach(([key, val]) => {
+        const weight = weights[key as keyof typeof weights] || 1.0;
+        heroPower += Number(val || 0) * weight;
+      });
+    }
 
     if (hero.isPro) heroPower += 20; // Бонус профессионала
     power += heroPower;
   });
 
   // Модификаторы тактики
-  const strategy = team.strategy.toLowerCase();
+  const strategy = (team.strategy || "").toLowerCase();
   let offenseMod = 1.0;
   let defenseMod = 1.0;
 
@@ -144,25 +148,37 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
   const timeline: any[] = [];
   const playerStats = new Map<string, any>();
 
-  const allActive = [...teamA.heroes.filter(h => !h.isSub), ...teamB.heroes.filter(h => !h.isSub)];
+  const heroesA = teamA.heroes.filter(h => !h.isSub);
+  const heroesB = teamB.heroes.filter(h => !h.isSub);
+  const allActive = [...heroesA, ...heroesB];
+
   allActive.forEach(h => {
-    playerStats.set(h.name, { kills: 0, deaths: 0, assists: 0, cs: 0, team: teamA.heroes.includes(h) ? teamA.name : teamB.name, pro: !!h.isPro, role: h.role });
+    playerStats.set(h.name, { 
+      kills: 0, deaths: 0, assists: 0, cs: 0, 
+      team: heroesA.some(ha => ha.name === h.name) ? teamA.name : teamB.name, 
+      pro: !!h.isPro, role: h.role 
+    });
   });
 
   let killsA = 0, killsB = 0;
+  let phase = 'early';
 
   for (let m = 1; m <= durationMin; m++) {
     const time = `${m}:00`;
-    const phase = m < 15 ? 'early' : (m < 30 ? 'mid' : 'late');
+    phase = m < 15 ? 'early' : (m < 30 ? 'mid' : 'late');
     const side = Math.random() > 0.5 ? 'A' : 'B';
     const activeTeam = side === 'A' ? teamA : teamB;
     const opponentTeam = side === 'A' ? teamB : teamA;
     const activePot = side === 'A' ? potA : potB;
     const oppPot = side === 'A' ? potB : potA;
 
-    const heroes = activeTeam.heroes.filter(h => !h.isSub);
+    const currentHeroes = activeTeam.heroes.filter(h => !h.isSub);
     const oppHeroes = opponentTeam.heroes.filter(h => !h.isSub);
-    const hero = heroes[Math.floor(Math.random() * heroes.length)];
+    
+    // Safety check for empty squads
+    if (currentHeroes.length === 0 || oppHeroes.length === 0) continue;
+
+    const hero = currentHeroes[Math.floor(Math.random() * currentHeroes.length)];
     const oppHero = oppHeroes[Math.floor(Math.random() * oppHeroes.length)];
 
     if (!hero || !oppHero) continue;
@@ -173,21 +189,21 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
     if (roll < 0.4) {
       const ps = playerStats.get(hero.name);
       if (ps) {
-        const farmEff = (hero.proStats.lastHitting + hero.proStats.manaManagement) / 10;
+        const farmEff = (Number(hero.proStats.lastHitting || 0) + Number(hero.proStats.manaManagement || 0)) / 10;
         ps.cs += Math.floor(farmEff * 5) + 5;
         if (m % 8 === 0) {
-          timeline.push({ time, type: 'farm', event: `${hero.name} (${ps.team}) эффективно забирает ресурсы, используя менеджмент маны.`, score: `${killsA}:${killsB}` });
+          timeline.push({ time, type: 'farm', event: `${hero.name} (${ps.team}) эффективно забирает ресурсы.`, score: `${killsA}:${killsB}` });
         }
       }
     }
     // 2. Ганк / Сражение
     else if (roll < 0.7) {
-      const gankPower = (hero.proStats.ganking * activePot.offenseMod) + (hero.isPro ? 15 : 0);
-      const escapePower = (oppHero.proStats.mapAwareness + oppHero.proStats.reflexes) * oppPot.defenseMod;
+      const gankPower = (Number(hero.proStats.ganking || 0) * activePot.offenseMod) + (hero.isPro ? 15 : 0);
+      const escapePower = (Number(oppHero.proStats.mapAwareness || 0) + Number(oppHero.proStats.reflexes || 0)) * oppPot.defenseMod;
 
       if (escapePower > gankPower + 10 && Math.random() > 0.4) {
         if (m % 10 === 0) {
-          timeline.push({ time, type: 'save', event: `${oppHero.name} читает карту и уходит от атаки ${hero.name}. Блестящие рефлексы!`, score: `${killsA}:${killsB}` });
+          timeline.push({ time, type: 'save', event: `${oppHero.name} читает карту и уходит от атаки ${hero.name}.`, score: `${killsA}:${killsB}` });
         }
       } else {
         const ps = playerStats.get(hero.name);
@@ -197,7 +213,7 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
           if (side === 'A') killsA++; else killsB++;
           timeline.push({ time, type: 'kill', event: `${hero.name} совершает убийство! ${oppHero.name} не успел среагировать.`, score: `${killsA}:${killsB}` });
           // Ассисты
-          heroes.filter(h => h.name !== hero.name).slice(0, 2).forEach(ah => {
+          currentHeroes.filter(h => h.name !== hero.name).slice(0, 2).forEach(ah => {
             const aps = playerStats.get(ah.name);
             if (aps) aps.assists++;
           });
@@ -207,23 +223,21 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
     // 3. Объекты (Башни/Рошан)
     else if (roll < 0.85) {
       if (m % 12 === 0) {
-        const objControl = hero.proStats.objectiveControl;
-        timeline.push({ time, type: 'objective', event: `${hero.name} координирует захват объекта. Контроль объектов: ${objControl}.`, score: `${killsA}:${killsB}` });
+        timeline.push({ time, type: 'objective', event: `${hero.name} координирует захват объекта.`, score: `${killsA}:${killsB}` });
       }
     }
     // 4. Тимфайты (Late Game)
     else if (phase === 'late') {
-      const teamComm = activeTeam.heroes.reduce((acc, h) => acc + h.proStats.communication, 0) / 5;
       if (m % 15 === 0) {
-        timeline.push({ time, type: 'teamfight', event: `Масштабная битва! Команда ${activeTeam.name} доминирует благодаря сыгранности.`, score: `${killsA}:${killsB}` });
+        timeline.push({ time, type: 'teamfight', event: `Масштабная битва! Команда ${activeTeam.name} доминирует.`, score: `${killsA}:${killsB}` });
       }
     }
 
     // ТИЛЬТ (После 35 минуты)
     if (m > 35 && Math.random() > 0.85) {
       const tiltHero = Math.random() > 0.5 ? hero : oppHero;
-      if (tiltHero.proStats.tiltResistance < 25) {
-        timeline.push({ time, type: 'tilt', event: `${tiltHero.name} теряет концентрацию! Критическая ошибка под давлением.`, score: `${killsA}:${killsB}` });
+      if (Number(tiltHero.proStats.tiltResistance || 0) < 25) {
+        timeline.push({ time, type: 'tilt', event: `${tiltHero.name} теряет концентрацию! Ошибка под давлением.`, score: `${killsA}:${killsB}` });
       }
     }
   }
@@ -233,9 +247,12 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
     kdaRatio: ((s.kills + s.assists) / Math.max(1, s.deaths)).toFixed(2)
   }));
 
+  const sortedScoreboard = [...scoreboard].sort((a,b) => parseFloat(b.kdaRatio) - parseFloat(a.kdaRatio));
+  const mvp = sortedScoreboard.length > 0 ? sortedScoreboard[0].name : "None";
+
   return {
     scoreA: finalScoreA, scoreB: finalScoreB, duration: `${durationMin}:00`,
-    mvp: scoreboard.sort((a,b) => parseFloat(b.kdaRatio) - parseFloat(a.kdaRatio))[0].name,
+    mvp,
     matchSummary: `Матч завершился победой ${finalScoreA > finalScoreB ? teamA.name : teamB.name}. Решающим фактором стала ${phase === 'early' ? 'доминация на линиях' : 'командная тактика в лейт-гейме'}.`,
     timeline: timeline.slice(0, 30), scoreboard
   };
@@ -246,6 +263,14 @@ export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<
   const games: any[] = [];
   let winsA = 0, winsB = 0;
 
+  // Validate teams
+  if (!input.teamA.heroes || input.teamA.heroes.length === 0) {
+    return { winner: input.teamB.name, seriesScore: "0-2", games: [] };
+  }
+  if (!input.teamB.heroes || input.teamB.heroes.length === 0) {
+    return { winner: input.teamA.name, seriesScore: "2-0", games: [] };
+  }
+
   for (let i = 0; i < numGames; i++) {
     let forced: 'A' | 'B' | undefined = undefined;
     
@@ -255,12 +280,26 @@ export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<
       else if (input.scoreA === 1 && input.scoreB === 1) forced = i === 0 ? 'A' : 'B';
     }
 
-    const g = runSingleGame(input, forced);
-    games.push(g);
-    winsA += g.scoreA;
-    winsB += g.scoreB;
+    try {
+      const g = runSingleGame(input, forced);
+      games.push(g);
+      winsA += g.scoreA;
+      winsB += g.scoreB;
 
-    if (input.isBo3 && (winsA === 2 || winsB === 2)) break;
+      if (input.isBo3 && (winsA === 2 || winsB === 2)) break;
+    } catch (e) {
+      console.error("Simulation internal error", e);
+      // Fallback game state
+      games.push({
+        scoreA: forced === 'A' ? 1 : 0,
+        scoreB: forced === 'B' ? 1 : 0,
+        duration: "30:00",
+        mvp: "None",
+        matchSummary: "Simulation interrupted.",
+        timeline: [],
+        scoreboard: []
+      });
+    }
   }
 
   return {

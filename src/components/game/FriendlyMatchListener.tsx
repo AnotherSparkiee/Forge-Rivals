@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -206,13 +205,26 @@ export function FriendlyMatchListener() {
     try {
       const lobbyRef = doc(db, 'friendly_lobbies_v3', activeLobby.id);
       if (accept) {
-        const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
-          name: h.name,
-          role: h.role,
-          overallRating: h.overallRating,
-          proStats: h.proStats,
-          isSub: h.id === lineup.sub1 || h.id === lineup.sub2
-        }));
+        const squad = ownedHeroes
+          .filter(h => Object.values(lineup).includes(h.id))
+          .map(h => ({
+            name: h.name,
+            role: h.role,
+            overallRating: h.overallRating,
+            proStats: h.proStats,
+            isSub: h.id === lineup.sub1 || h.id === lineup.sub2
+          }));
+
+        if (squad.length < 5) {
+          toast({ 
+            title: language === 'ru' ? "Недостаточно игроков" : "Incomplete Squad", 
+            description: language === 'ru' ? "В активном составе должно быть минимум 5 героев." : "At least 5 heroes required in active lineup.",
+            variant: "destructive" 
+          });
+          setIsActionLoading(false);
+          setShowChallengeModal(false);
+          return;
+        }
 
         const botSquad = generateBotSquad(25);
 
@@ -237,7 +249,7 @@ export function FriendlyMatchListener() {
           updatedAt: serverTimestamp()
         });
         
-        if (activeLobby.challengerId && activeLobby.challengerId !== 'sys_bot') {
+        if (activeLobby.challengerId && activeLobby.challengerId !== 'sys_bot' && activeLobby.challengerId !== 'sys_bot_trainer') {
           sendNotification(
             activeLobby.challengerId,
             language === 'ru' ? "Вызов принят!" : "Challenge Accepted!",
@@ -255,8 +267,9 @@ export function FriendlyMatchListener() {
           updatedAt: serverTimestamp()
         });
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error("Match start failed:", e);
+      toast({ title: "Failed to start match", description: e.message, variant: "destructive" });
     } finally {
       setIsActionLoading(false);
       setShowChallengeModal(false);
