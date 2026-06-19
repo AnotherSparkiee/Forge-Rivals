@@ -1,4 +1,3 @@
-
 'use client';
 
 /**
@@ -22,7 +21,7 @@ import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
 import { Hero } from '../../lib/moba-data';
 import { calculateLiveAge } from '@/app/lib/time-utils';
-import { renderStars } from '@/app/transfers/quick-search/page';
+import { renderStars, STAT_KEYS } from '@/app/transfers/quick-search/page';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
