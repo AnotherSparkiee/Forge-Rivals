@@ -17,7 +17,7 @@ import { useRouter } from 'next/navigation';
 import { getMatchResult } from '@/app/lib/leagues-data';
 
 const MATCH_DURATION_MS = 15 * 60 * 1000; 
-const TRIAL_DURATION_MS = 5 * 1000; 
+const TRIAL_DURATION_MS = 1000; // Instant trial for testing
 const LOBBY_EXPIRATION_MS = 60 * 1000; 
 
 function sanitizeForFirestore(obj: any) {
@@ -33,7 +33,7 @@ export function FriendlyMatchListener() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const router = useRouter();
-  const { language, team, strategy, recordMatch, ownedHeroes, lineup, matchHistory, displayName } = useGameState();
+  const { language, strategy, recordMatch, ownedHeroes, lineup, matchHistory, displayName } = useGameState();
   const { toast } = useToast();
 
   const [activeLobby, setActiveLobby] = useState<any | null>(null);
@@ -159,7 +159,6 @@ export function FriendlyMatchListener() {
           try {
             const result = data.matchResult;
             
-            // Format result based on host/challenger perspective
             const seriesScoreParts = result.seriesScore.split('-');
             const winsA = parseInt(seriesScoreParts[0]);
             const winsB = parseInt(seriesScoreParts[1]);
@@ -195,7 +194,7 @@ export function FriendlyMatchListener() {
         }
       };
 
-      const timer = setInterval(checkAndComplete, 5000);
+      const timer = setInterval(checkAndComplete, 2000);
       checkAndComplete();
       return () => clearInterval(timer);
     }
@@ -217,13 +216,12 @@ export function FriendlyMatchListener() {
 
         const botSquad = generateBotSquad(25);
 
-        // ENFORCE Bo2 FOR FRIENDLIES TOO
-        const [finalScoreA, finalScoreB] = getMatchResult(activeLobby.hostId, activeLobby.challengerId, 0, false);
+        const [finalScoreA, finalScoreB] = getMatchResult(activeLobby.hostId, activeLobby.challengerId || "bot", 0, 1);
 
         const result = await simulateMobaMatch({
           teamA: { name: activeLobby.hostName, strategy: strategy, heroes: squad },
           teamB: { 
-            name: activeLobby.challengerName || "Rival Manager", 
+            name: activeLobby.challengerName || "AI Trainer", 
             strategy: "Balanced Play", 
             heroes: botSquad
           },
@@ -239,11 +237,13 @@ export function FriendlyMatchListener() {
           updatedAt: serverTimestamp()
         });
         
-        sendNotification(
-          activeLobby.challengerId,
-          language === 'ru' ? "Вызов принят!" : "Challenge Accepted!",
-          language === 'ru' ? `Менеджер ${activeLobby.hostName} готов к бою.` : `Manager ${activeLobby.hostName} is ready for battle.`
-        );
+        if (activeLobby.challengerId && activeLobby.challengerId !== 'sys_bot') {
+          sendNotification(
+            activeLobby.challengerId,
+            language === 'ru' ? "Вызов принят!" : "Challenge Accepted!",
+            language === 'ru' ? `Менеджер ${activeLobby.hostName} готов к бою.` : `Manager ${activeLobby.hostName} is ready for battle.`
+          );
+        }
 
         toast({
           title: language === 'ru' ? "Матч начат" : "Match Started",
@@ -265,7 +265,7 @@ export function FriendlyMatchListener() {
 
   const t = {
     hostTitle: language === 'ru' ? "ПОЛУЧЕН ВЫЗОВ" : "CHALLENGE RECEIVED",
-    hostDesc: language === 'ru' ? `Менеджер ${activeLobby?.challengerName} хочет провести товарищеский матч.` : `Manager ${activeLobby?.challengerName} wants a friendly match.`,
+    hostDesc: language === 'ru' ? `Менеджер ${activeLobby?.challengerName} хочет провести матч.` : `Manager ${activeLobby?.challengerName} wants a match.`,
     accept: language === 'ru' ? "ПРИНЯТЬ" : "ACCEPT",
     decline: language === 'ru' ? "ОТКЛОНИТЬ" : "DECLINE",
   };

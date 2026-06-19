@@ -1,8 +1,9 @@
+
 'use client';
 
 /**
  * @fileOverview ТУРНИРНЫЙ ХАБ.
- * Добавлен доступ к Кубку Пирамиды.
+ * Добавлен функционал пробных матчей для тестирования Match Engine v3.
  */
 
 import { useEffect, useState, useMemo } from 'react';
@@ -22,15 +23,13 @@ import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
-import { generateBotSquad } from '@/app/lib/moba-data';
 
 export default function TournamentsPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
-  const { language, isLoaded, strategy, ownedHeroes, lineup, displayName } = useGameState();
+  const { language, isLoaded, displayName } = useGameState();
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies_v3', user.uid) : null, [db, user]);
@@ -62,6 +61,7 @@ export default function TournamentsPage() {
       cw: "CW Basket",
       history: "Tournament History",
       trial: "Trial Match",
+      trialDesc: "Instant battle against AI Trainer",
       cup: "Pyramid Cup",
       cupDesc: "Main National Trophy"
     },
@@ -75,6 +75,7 @@ export default function TournamentsPage() {
       cw: "КВ корзина",
       history: "История турниров",
       trial: "Пробный матч",
+      trialDesc: "Мгновенный бой против ИИ-Тренера",
       cup: "Кубок Пирамиды",
       cupDesc: "Главный трофей нации"
     }
@@ -98,6 +99,28 @@ export default function TournamentsPage() {
     } finally { setIsActionLoading(false); }
   };
 
+  const handleStartTrial = async () => {
+    if (!user || isActionLoading) return;
+    if (isBusy) { toast({ title: t.busy, variant: "destructive" }); return; }
+    
+    setIsActionLoading(true);
+    try {
+      // Create a lobby already challenged by a bot
+      await setDoc(doc(db, 'friendly_lobbies_v3', user.uid), {
+        hostId: user.uid, 
+        hostName: displayName || "Manager",
+        status: 'challenged',
+        challengerId: 'sys_bot_trainer',
+        challengerName: language === 'ru' ? 'ИИ-Тренер' : 'AI Trainer',
+        isTrial: true,
+        updatedAt: serverTimestamp()
+      });
+      toast({ title: language === 'ru' ? "Вызов от ИИ получен" : "AI Challenge received" });
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-20">
       <header className="mb-6 flex items-center gap-4">
@@ -119,6 +142,20 @@ export default function TournamentsPage() {
             <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-yellow-500 transition-colors" />
           </Card>
         </Link>
+
+        {/* TRIAL MATCH BUTTON */}
+        <Card className="glass-card p-4 flex items-center justify-between cursor-pointer border-primary/20 bg-primary/5 hover:bg-primary/10 transition-all" onClick={handleStartTrial}>
+          <div className="flex items-center gap-4">
+            <div className="p-2.5 rounded-xl bg-primary/20 border border-primary/30">
+              <Gamepad2 className="text-primary w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold uppercase text-white">{t.trial}</h3>
+              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-tight">{t.trialDesc}</p>
+            </div>
+          </div>
+          {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+        </Card>
         
         <Link href="/tournaments/open"><Card className="glass-card p-4 flex items-center justify-between"><div className="flex items-center gap-4"><Medal className="text-primary w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">Open Tournaments</h3></div></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Card></Link>
         <Card className="glass-card p-4 flex items-center justify-between cursor-pointer" onClick={handleToggleLobby}><div className="flex items-center gap-4"><UserPlus className="text-accent w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">{myLobby ? t.cancel : t.schedule}</h3></div></div>{isActionLoading && <Loader2 className="w-4 h-4 animate-spin" />}</Card>
