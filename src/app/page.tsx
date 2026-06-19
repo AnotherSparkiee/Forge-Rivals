@@ -11,8 +11,8 @@ import {
   MessageSquare, UserCog, Heart, Store, Shield, 
   ArrowRight, Loader2, Check, UserPlus,
   ShoppingCart, GraduationCap, CalendarDays, Medal,
-  ArrowRightLeft, Timer, RefreshCw, Home as HomeIcon, MapPin, Calendar, User as UserIcon,
-  Clock, Construction, LayoutGrid, Activity
+  ArrowRightLeft, RefreshCw, Calendar, 
+  Clock, Activity, LayoutGrid, Radio
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,7 +39,7 @@ export default function Home() {
   const db = useFirestore();
   const { toast } = useToast();
   const { 
-    language, setLanguage, isLoaded, selectedLeagueId, leagueLevel, groupId,
+    language, setLanguage, isLoaded, selectedLeagueId,
     nextMatch, isDataReady
   } = useGameState();
 
@@ -204,15 +204,16 @@ export default function Home() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6 flex justify-between items-end">
-        <div>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <Radio className="w-3 h-3 text-red-500 animate-pulse" />
+            <span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.33</span>
+          </div>
           <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
             {seasonInfo.isOffseason ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
             {seasonInfo.isOffseason ? tHub.offseason : (language === 'ru' ? `СЕЗОН ${seasonInfo.seasonNumber}` : `SEASON ${seasonInfo.seasonNumber}`)}
           </h1>
-          <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mt-1 opacity-50">{tHub.phase}</p>
-        </div>
-        <div className="flex gap-1">
-          <Badge variant="outline" className="border-white/10 bg-secondary/20 text-[7px] font-black uppercase py-0.5">Build 1.0.32</Badge>
+          <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mt-0.5 opacity-50">{tHub.phase}</p>
         </div>
       </header>
 
@@ -245,7 +246,7 @@ export default function Home() {
                   <div className="flex items-center justify-center gap-4 text-[7px] font-black uppercase tracking-widest text-muted-foreground opacity-40">
                      <span className="flex items-center gap-1"><Shield className="w-2.5 h-2.5" /> SECURE</span>
                      <span className="flex items-center gap-1"><Zap className="w-2.5 h-2.5" /> SYNCED</span>
-                     <span className="flex items-center gap-1"><RefreshCw className="w-2.5 h-2.5" /> AUTO-V32</span>
+                     <span className="flex items-center gap-1"><RefreshCw className="w-2.5 h-2.5" /> AUTO-V33</span>
                   </div>
                 </div>
               ) : (
@@ -325,7 +326,7 @@ export default function Home() {
               <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group hover:border-primary/20">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="p-2.5 rounded-xl bg-secondary/50 group-hover:bg-primary/20 transition-colors border border-white/5"><item.icon className="w-5 h-5 text-primary" /></div>
+                    <div className="p-2.5 rounded-xl bg-secondary/50 group-hover:bg-primary/20 transition-colors border border-white/5 shadow-inner"><item.icon className="w-5 h-5 text-primary" /></div>
                     <div><h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{item.label}</h3><p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p></div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-all" />
