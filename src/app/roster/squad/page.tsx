@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
@@ -11,7 +12,7 @@ import {
   ChevronLeft, UserPlus, X,
   ShieldCheck, Zap, HeartPulse,
   Box, Undo2, Info, ShoppingCart, Loader2,
-  Award, Clock, Users, Brain, TrendingUp, Crosshair,
+  Award, Clock, Users, Brain, TrendingUp, Crosshair, 
   Target, Eye, Map, Star, Activity, User, ShieldAlert, Gem, Timer, Activity as ActivityIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -38,7 +39,10 @@ const normTalent = (val: any) => {
 };
 
 export default function SquadPage() {
-  const { ownedHeroes, lineup, assignToRole, isLoaded, language, updateHero, isPremium, activeLicenseTier, displayName } = useGameState();
+  const { 
+    ownedHeroes, youthAcademyHeroes, lineup, assignToRole, isLoaded, 
+    language, updateHero, isPremium, activeLicenseTier, displayName 
+  } = useGameState();
   const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
@@ -48,6 +52,11 @@ export default function SquadPage() {
   const [now, setNow] = useState(Date.now());
   
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Объединяем всех героев для поиска
+  const allAvailableHeroes = useMemo(() => {
+    return [...ownedHeroes, ...youthAcademyHeroes];
+  }, [ownedHeroes, youthAcademyHeroes]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -80,7 +89,7 @@ export default function SquadPage() {
     availableHeroes: language === 'ru' ? "Подходящие герои" : "Compatible Heroes",
     assigned: language === 'ru' ? "ЗАНЯТ" : "ASSIGNED",
     cancel: language === 'ru' ? "ОТМЕНА" : "CANCEL",
-    tooYoung: language === 'ru' ? "Игрок слишком молод! Мин. возраст — 18.0" : "Player is too young! Min age — 18.0",
+    tooYoung: language === 'ru' ? "Игрок в Академии! Нужно 18 лет и перевод в основу." : "In Academy! Needs age 18 and promotion.",
     onAuction: language === 'ru' ? "ИГРОК НА АУКЦИОНЕ" : "PLAYER ON AUCTION",
     putOnTransfer: language === 'ru' ? "ВЫСТАВИТЬ НА ТРАНСФЕР" : "PUT ON TRANSFER",
     profile: {
@@ -144,7 +153,7 @@ export default function SquadPage() {
     tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
   };
 
-  const getHeroById = (id: string | null) => ownedHeroes.find(h => h.id === id);
+  const getHeroById = (id: string | null) => allAvailableHeroes.find(h => h.id === id);
 
   const teamOvr = useMemo(() => {
     const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
@@ -152,7 +161,7 @@ export default function SquadPage() {
     if (activeHeroes.length === 0) return 0;
     const sum = activeHeroes.reduce((acc, h) => acc + h.overallRating, 0);
     return Math.round(sum / activeHeroes.length);
-  }, [lineup, ownedHeroes]);
+  }, [lineup, allAvailableHeroes]);
 
   const handleStartPress = (hero: Hero | undefined) => {
     if (!hero) return;
@@ -171,8 +180,7 @@ export default function SquadPage() {
       toast({ variant: "destructive", title: t.onAuction });
       return;
     }
-    const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
-    if (liveAge.numeric < 18) {
+    if (hero.isYouth) {
       toast({ variant: "destructive", title: t.tooYoung });
       return;
     }
@@ -182,10 +190,9 @@ export default function SquadPage() {
 
   const handlePutOnTransfer = async () => {
     if (!profileHero || !user || !profile || isTransferring) return;
-    const liveAge = calculateLiveAge(profileHero.baseAge, profileHero.hiredAt);
-    if (liveAge.numeric < 18) {
-      toast({ variant: "destructive", title: t.tooYoung });
-      return;
+    if (profileHero.isYouth) {
+       toast({ variant: "destructive", title: t.tooYoung });
+       return;
     }
     setIsTransferring(true);
     try {
@@ -273,6 +280,7 @@ export default function SquadPage() {
               <h1 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h1>
               <div className="flex items-center justify-center gap-2 mt-2">
                 <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
+                {profileHero.isYouth && <Badge className="bg-accent text-accent-foreground text-[10px] font-black uppercase px-2 h-5">ACADEMY</Badge>}
               </div>
             </div>
           </div>
@@ -351,32 +359,6 @@ export default function SquadPage() {
                 </div>
               </section>
 
-              <section>
-                <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Zap className="w-3.5 h-3.5" /> {t.profile.talents}
-                </h3>
-                <div className="space-y-2">
-                  {STAT_KEYS.map((key) => {
-                    const talentLimit = normTalent((profileHero.proTalents as any)[key]);
-                    const Icon = icons[key] || Info;
-                    return (
-                      <div key={`talent-${key}`} className="p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[48px] flex flex-col justify-center">
-                        <div className="flex justify-between items-center px-0.5">
-                          <div className="flex items-center gap-2">
-                            <Icon className="w-4 h-4 text-accent/50" />
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                             {renderStars(talentLimit)}
-                             <span className="text-xs font-mono font-bold text-accent">{talentLimit}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-
               <div className="pt-4 pb-12 flex flex-col gap-2">
                 <Button className="w-full h-14 bg-orange-600 hover:bg-orange-700 text-white font-black text-[11px] tracking-widest uppercase shadow-xl" onClick={handlePutOnTransfer} disabled={isTransferring || (profileHero.onTransferUntil && new Date(profileHero.onTransferUntil) > now)}>
                   {isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
@@ -430,12 +412,36 @@ export default function SquadPage() {
           <section className="space-y-3 pt-6 border-t border-primary/20 animate-in slide-in-from-bottom-4">
             <div className="flex items-center justify-between px-1"><div className="flex items-center gap-2"><Box className="w-4 h-4 text-primary" /><h2 className="text-sm font-bold uppercase tracking-tight text-primary">{t.availableHeroes}</h2></div><Button variant="ghost" size="sm" onClick={() => setSelectingSlot(null)} className="h-7 text-[10px] font-bold text-muted-foreground"><Undo2 className="w-3 h-3 mr-1" /> {t.cancel}</Button></div>
             <div className="grid grid-cols-1 gap-1.5">
-              {ownedHeroes.filter(h => roleMapping[selectingSlot].includes(h.role)).map((hero) => {
+              {allAvailableHeroes.filter(h => roleMapping[selectingSlot].includes(h.role)).map((hero) => {
                 const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
                 const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil).getTime() > now;
+                const isTooYoung = hero.isYouth;
+                
                 return (
-                  <Card key={hero.id} className={cn("glass-card border-white/10 overflow-hidden cursor-pointer", (liveAge.numeric < 18 || onAuction) && "opacity-60 grayscale cursor-not-allowed")} onClick={() => onAuction ? null : handleHeroAssign(hero)}>
-                    <CardContent className="p-2 flex items-center gap-3"><div className="w-10 h-10 rounded-lg overflow-hidden bg-muted"><img src={hero.image} alt="" className="w-full h-full object-cover" /></div><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><h4 className="font-bold text-[11px] truncate">{hero.name}</h4><span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span></div><div className="flex items-center gap-3 mt-0.5"><span className="text-[9px] font-bold text-accent flex items-center gap-1"><Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}</span><span className={cn("text-[8px] font-black uppercase tracking-tighter", liveAge.numeric < 18 ? "text-red-400" : "text-muted-foreground")}>{liveAge.display} {t.profile.years}</span></div></div><div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-3 h-3" /></div></CardContent>
+                  <Card key={hero.id} className={cn("glass-card border-white/10 overflow-hidden cursor-pointer", (isTooYoung || onAuction) && "opacity-60 grayscale cursor-not-allowed")} onClick={() => (onAuction || isTooYoung) ? null : handleHeroAssign(hero)}>
+                    <CardContent className="p-2 flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted">
+                        <img src={hero.image} alt="" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-[11px] truncate">{hero.name}</h4>
+                          <span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span>
+                        </div>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <span className="text-[9px] font-bold text-accent flex items-center gap-1"><Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}</span>
+                          <span className={cn("text-[8px] font-black uppercase tracking-tighter", isTooYoung ? "text-red-400" : "text-muted-foreground")}>{liveAge.display} {t.profile.years}</span>
+                          {hero.isYouth && <Badge className="text-[6px] h-3 px-1 border-none bg-orange-500/20 text-orange-400">В АКАДЕМИИ</Badge>}
+                        </div>
+                      </div>
+                      {!isTooYoung && !onAuction ? (
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary/10 border border-primary/20 text-primary">
+                          <Plus className="w-3 h-3" />
+                        </div>
+                      ) : (
+                        <Lock className="w-4 h-4 text-muted-foreground/30" />
+                      )}
+                    </CardContent>
                   </Card>
                 );
               })}
@@ -446,3 +452,7 @@ export default function SquadPage() {
     </div>
   );
 }
+
+const Lock = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+);

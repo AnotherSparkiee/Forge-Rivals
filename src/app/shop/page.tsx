@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -42,7 +43,7 @@ type ShopTab =
 export default function ShopPage() {
   const { 
     language, isLoaded, credits, crystals, 
-    addCrystals, addCredits, addYouthHeroDirectly, 
+    addCrystals, addCredits, addYouthHeroDirectly, addHeroDirectly,
     updateProfileName, updateProfileCountry, purchaseLicense, purchasePremium,
     activeLicenseTier, country: currentCountry, isPremium, premiumUntil
   } = useGameState();
@@ -55,7 +56,7 @@ export default function ShopPage() {
   const [heroNickname, setHeroNickname] = useState('');
   const [heroRole, setHeroRole] = useState<Role>('Carry');
   const [heroTalent, setHeroTalent] = useState('4.0');
-  const [heroAge, setHeroAge] = useState('16');
+  const [heroAge, setHeroAge] = useState('18');
   const [heroCountryCode, setHeroCountryCode] = useState('US');
 
   const creationCost = useMemo(() => {
@@ -154,7 +155,7 @@ export default function ShopPage() {
           }
         ]
       },
-      creator: { nickname: "Hero Name", placeholderNick: "Enter unique nickname...", role: "Primary Role", talent: "Talent Potential", age: "Starting Age", country: "Nationality", summary: "Strategic Unit Profile", summaryDesc: "Hero will be added to your Youth Academy", insufficient: "Insufficient Diamonds" },
+      creator: { nickname: "Hero Name", placeholderNick: "Enter unique nickname...", role: "Primary Role", talent: "Talent Potential", age: "Starting Age", country: "Nationality", summary: "Strategic Unit Profile", summaryDesc: "Adult units (18+) join main squad immediately", insufficient: "Insufficient Diamonds" },
       confirm: "CONFIRM TRANSACTION",
       diamondPacks: [ { label: "Cadet Pack", amount: 1000, price: "$4.99" }, { label: "Commander Cache", amount: 5000, price: "$19.99" }, { label: "Emperor Vault", amount: 15000, price: "$49.99" } ],
     },
@@ -238,7 +239,7 @@ export default function ShopPage() {
           }
         ]
       },
-      creator: { nickname: "Имя героя", placeholderNick: "Введите уникальный позывной...", role: "Специализация", talent: "Предел таланта", age: "Начальный возраст", country: "Национальность", summary: "Профиль боевой единицы", summaryDesc: "Герой будет зачислен в Юношескую Академию", insufficient: "Недостаточно алмазов" },
+      creator: { nickname: "Имя героя", placeholderNick: "Введите уникальный позывной...", role: "Специализация", talent: "Предел таланта", age: "Начальный возраст", country: "Национальность", summary: "Профиль боевой единицы", summaryDesc: "Взрослые юнииты (18+) сразу попадают в основу", insufficient: "Недостаточно алмазов" },
       confirm: "ПОДТВЕРДИТЬ ТРАНЗАКЦИЮ",
       diamondPacks: [ { label: "Пакет Кадета", amount: 1000, price: "4.99 $" }, { label: "Кейс Командира", amount: 5000, price: "19.99 $" }, { label: "Хранилище Императора", amount: 15000, price: "49.99 $" } ],
     }
@@ -260,10 +261,40 @@ export default function ShopPage() {
     setIsProcessing(true);
     setTimeout(() => {
       const country = COUNTRIES.find(c => c.code === heroCountryCode) || COUNTRIES[0];
-      const newHero: Hero = { id: `custom_${Date.now()}`, name: heroNickname.trim(), role: heroRole, baseStats: { attack: 40, defense: 40, health: 900, abilityPower: 40, speed: 320 }, overallRating: 30, abilitiesFocus: 'Balanced', image: 'https://i.postimg.cc/mg3yfqj5/rus-2.jpg', description: "Specially commissioned elite asset.", price: 0, baseAge: parseInt(heroAge), hiredAt: new Date().toISOString(), age: parseInt(heroAge), salary: 1500, form: 95, fatigue: 0, country: { code: country.code, name: country.name, flag: country.flag }, isInjured: false, proStats: { lastHitting: 50, mapAwareness: 50, positioning: 50, reflexes: 50, manaManagement: 50, objectiveControl: 50, communication: 50, tiltResistance: 50, versatility: 50, ganking: 50 }, proTalents: { lastHitting: parseFloat(heroTalent), mapAwareness: parseFloat(heroTalent), positioning: parseFloat(heroTalent), reflexes: parseFloat(heroTalent), manaManagement: parseFloat(heroTalent), objectiveControl: parseFloat(heroTalent), communication: parseFloat(heroTalent), tiltResistance: parseFloat(heroTalent), versatility: parseFloat(heroTalent), ganking: parseFloat(heroTalent) } };
-      addYouthHeroDirectly(newHero);
+      const ageNum = parseInt(heroAge);
+      const isAdult = ageNum >= 18;
+      
+      const newHero: Hero = { 
+        id: `custom_${Date.now()}`, 
+        name: heroNickname.trim(), 
+        role: heroRole, 
+        baseStats: { attack: 40, defense: 40, health: 900, abilityPower: 40, speed: 320 }, 
+        overallRating: 30, 
+        abilitiesFocus: 'Balanced', 
+        image: 'https://i.postimg.cc/mg3yfqj5/rus-2.jpg', 
+        description: "Specially commissioned elite asset.", 
+        price: 0, 
+        baseAge: ageNum, 
+        hiredAt: new Date().toISOString(), 
+        age: ageNum, 
+        salary: 1500, 
+        form: 95, 
+        fatigue: 0, 
+        country: { code: country.code, name: country.name, flag: country.flag }, 
+        isInjured: false, 
+        isYouth: !isAdult,
+        proStats: { lastHitting: 50, mapAwareness: 50, positioning: 50, reflexes: 50, manaManagement: 50, objectiveControl: 50, communication: 50, tiltResistance: 50, versatility: 50, ganking: 50 }, 
+        proTalents: { lastHitting: parseFloat(heroTalent), mapAwareness: parseFloat(heroTalent), positioning: parseFloat(heroTalent), reflexes: parseFloat(heroTalent), manaManagement: parseFloat(heroTalent), objectiveControl: parseFloat(heroTalent), communication: parseFloat(heroTalent), tiltResistance: parseFloat(heroTalent), versatility: parseFloat(heroTalent), ganking: parseFloat(heroTalent) } 
+      };
+      
+      if (isAdult) {
+        addHeroDirectly(newHero);
+      } else {
+        addYouthHeroDirectly(newHero);
+      }
+      
       addCrystals(-creationCost);
-      toast({ title: "Elite unit commissioned!" });
+      toast({ title: isAdult ? "Elite unit commissioned to main roster!" : "Elite cadet assigned to Academy!" });
       setIsProcessing(false);
       setActiveTab('menu');
     }, 1500);
