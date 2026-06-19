@@ -186,16 +186,16 @@ export function generateVtuneHero(seed?: string): Hero {
       ganking: 4,
     },
     proTalents: {
-      lastHitting: 61, 
-      positioning: 56,
-      reflexes: 55,
-      tiltResistance: 54,
-      versatility: 52,
-      mapAwareness: rng.range(50, 65),
-      manaManagement: rng.range(50, 65),
-      objectiveControl: rng.range(50, 65),
-      communication: rng.range(50, 65),
-      ganking: rng.range(50, 65)
+      lastHitting: 8, 
+      positioning: 7,
+      reflexes: 8,
+      tiltResistance: 7,
+      versatility: 6,
+      mapAwareness: 3,
+      manaManagement: 2,
+      objectiveControl: 4,
+      communication: 3,
+      ganking: 4
     },
     xpStats: {},
     matchesPlayedToday: 0,
@@ -249,16 +249,16 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
   };
 
   const proTalents = {
-    lastHitting: isPro ? getRandomStat(60, 65, rng) : getRandomStat(25, 45, rng),
-    mapAwareness: isPro ? getRandomStat(18, 37, rng) : getRandomStat(25, 45, rng),
-    positioning: isPro ? getRandomStat(50, 55, rng) : getRandomStat(25, 45, rng),
-    reflexes: isPro ? getRandomStat(50, 55, rng) : getRandomStat(25, 45, rng),
-    manaManagement: isPro ? getRandomStat(18, 37, rng) : getRandomStat(25, 45, rng),
-    objectiveControl: isPro ? getRandomStat(18, 37, rng) : getRandomStat(25, 45, rng),
-    communication: isPro ? getRandomStat(18, 37, rng) : getRandomStat(25, 45, rng),
-    tiltResistance: isPro ? getRandomStat(50, 55, rng) : getRandomStat(25, 45, rng),
-    versatility: isPro ? getRandomStat(18, 37, rng) : getRandomStat(25, 45, rng),
-    ganking: isPro ? getRandomStat(18, 37, rng) : getRandomStat(25, 45, rng),
+    lastHitting: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 6 : 5, isStarter ? 8 : 15, rng),
+    mapAwareness: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 1 : 5, isStarter ? 4 : 15, rng),
+    positioning: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 6 : 5, isStarter ? 8 : 15, rng),
+    reflexes: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 6 : 5, isStarter ? 8 : 15, rng),
+    manaManagement: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 1 : 5, isStarter ? 4 : 15, rng),
+    objectiveControl: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 1 : 5, isStarter ? 4 : 15, rng),
+    communication: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 1 : 5, isStarter ? 4 : 15, rng),
+    tiltResistance: isPro ? getRandomStat(6, 8, rng) : getRandomStat(isStarter ? 6 : 5, isStarter ? 8 : 15, rng),
+    versatility: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 1 : 5, isStarter ? 4 : 15, rng),
+    ganking: isPro ? getRandomStat(1, 4, rng) : getRandomStat(isStarter ? 1 : 5, isStarter ? 4 : 15, rng),
   };
 
   return {
@@ -297,8 +297,9 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
 }
 
 /**
- * Advanced Scout Generation Logic v5.
- * Talents depend on Academy Scout level and are role-aligned.
+ * Advanced Scout Generation Logic v6.
+ * Talents depend on Academy Scout level, role-aligned but highly randomized.
+ * 70+ talent is a rare peak skill.
  */
 export function generateScoutedHero(index: number, scoutLevel: number, seed?: string): Hero {
   const rng = new SeededRandom(seed || `scout_${Date.now()}_${index}`);
@@ -333,7 +334,7 @@ export function generateScoutedHero(index: number, scoutLevel: number, seed?: st
 
   let finalTalent = rng.range(minT, maxT);
 
-  // Apply Lucky/Elite logic
+  // Apply Lucky/Elite logic (Allows for 70+ rare talent)
   if (scoutLevel > 125 && rng.next() < 0.01) {
     finalTalent = rng.range(60, 75); 
   }
@@ -347,18 +348,27 @@ export function generateScoutedHero(index: number, scoutLevel: number, seed?: st
     finalTalent = 40;
   }
 
-  // ROLE-ALIGNED TALENT DISTRIBUTION
+  // ROLE-ALIGNED RANDOMIZED DISTRIBUTION
   const coreSkills = ROLE_CORE_SKILLS[role] || [];
   const proTalents: any = {};
   
+  // Pick ONE core skill to be the "Peak Potential"
+  const peakSkill = coreSkills[rng.range(0, coreSkills.length - 1)];
+  
   ALL_SKILL_KEYS.forEach(key => {
-    if (coreSkills.includes(key)) {
-      // Core skills get the peak potential
-      proTalents[key] = Math.max(5, finalTalent - rng.range(0, 5));
+    if (key === peakSkill) {
+      // This is the player's defining talent, near the finalTalent peak
+      proTalents[key] = Math.max(5, finalTalent - rng.range(0, 3));
+    } else if (coreSkills.includes(key)) {
+      // Other core skills can be high OR surprisingly low (below 50 even for 7-star)
+      // Range: 40% to 100% of finalTalent
+      const mult = 0.4 + (rng.next() * 0.6);
+      proTalents[key] = Math.max(5, Math.floor(finalTalent * mult));
     } else {
-      // Secondary skills get lower potential (40-70% of finalTalent)
-      const secondaryMult = 0.4 + (rng.next() * 0.3);
-      proTalents[key] = Math.max(5, Math.floor(finalTalent * secondaryMult));
+      // Secondary skills are much lower
+      // Range: 15% to 60% of finalTalent
+      const mult = 0.15 + (rng.next() * 0.45);
+      proTalents[key] = Math.max(5, Math.floor(finalTalent * mult));
     }
   });
 
