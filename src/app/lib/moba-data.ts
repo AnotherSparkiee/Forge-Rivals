@@ -297,12 +297,15 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
 }
 
 /**
- * Advanced Scout Generation Logic v6.
- * Talents depend on Academy Scout level, role-aligned but highly randomized.
- * 70+ talent is a rare peak skill.
+ * Advanced Scouting Logic v7 (Tiered Distribution).
+ * Implements the requested tiered talent distribution:
+ * Peak Tier (1 skill) -> up to 99
+ * High Tier (1 skill) -> 80+
+ * Mid Tier (1 skill) -> 50+
+ * Low Tier (others) -> 10-27
  */
 export function generateScoutedHero(index: number, scoutLevel: number, seed?: string): Hero {
-  const rng = new SeededRandom(seed || `scout_${Date.now()}_${index}`);
+  const rng = new SeededRandom(seed || `scout_v7_${Date.now()}_${index}`);
   const roles: Role[] = ['Tank', 'Carry', 'Midlaner', 'Jungler', 'Support'];
   const role = roles[rng.range(0, roles.length - 1)];
   const hero = generateUniqueHero(role, index, false, seed);
@@ -317,58 +320,65 @@ export function generateScoutedHero(index: number, scoutLevel: number, seed?: st
   // Global Lucky Roll (Monthly Random Super Talent)
   const isMonthlyLucky = rng.next() < 0.0005; 
 
-  let minT = 5; 
-  let maxT = 35;
+  let maxPeak = 35;
 
   if (scoutLevel <= 25) {
-    minT = 5; maxT = 35;
+    maxPeak = 40;
   } else if (scoutLevel <= 50) {
-    minT = 5; maxT = 40; 
+    maxPeak = 55; 
   } else if (scoutLevel <= 80) {
-    minT = 20; maxT = 45; 
-  } else if (scoutLevel <= 124) {
-    minT = 35; maxT = 50; 
+    maxPeak = 70; 
+  } else if (scoutLevel <= 100) {
+    maxPeak = 85; 
   } else {
-    minT = 40; maxT = 50; 
+    maxPeak = 95; 
   }
 
-  let finalTalent = rng.range(minT, maxT);
-
-  // Apply Lucky/Elite logic (Allows for 70+ rare talent)
+  // Elite Chance for 125+
   if (scoutLevel > 125 && rng.next() < 0.01) {
-    finalTalent = rng.range(60, 75); 
+    maxPeak = 99; 
   }
 
+  // Override for monthly lucky
   if (isMonthlyLucky) {
-    finalTalent = rng.range(60, 85); 
+    maxPeak = 99;
   }
 
-  // Cap top talent based on scoutLevel if not lucky
-  if (!isMonthlyLucky && finalTalent > 40 && scoutLevel <= 25) {
-    finalTalent = 40;
-  }
+  const finalPeak = rng.range(Math.max(5, maxPeak - 15), maxPeak);
 
-  // ROLE-ALIGNED RANDOMIZED DISTRIBUTION
-  const coreSkills = ROLE_CORE_SKILLS[role] || [];
+  // TIERED DISTRIBUTION LOGIC
+  const coreSkills = [...ROLE_CORE_SKILLS[role]];
+  const allSkills = [...ALL_SKILL_KEYS];
   const proTalents: any = {};
-  
-  // Pick ONE core skill to be the "Peak Potential"
-  const peakSkill = coreSkills[rng.range(0, coreSkills.length - 1)];
-  
-  ALL_SKILL_KEYS.forEach(key => {
-    if (key === peakSkill) {
-      // This is the player's defining talent, near the finalTalent peak
-      proTalents[key] = Math.max(5, finalTalent - rng.range(0, 3));
-    } else if (coreSkills.includes(key)) {
-      // Other core skills can be high OR surprisingly low (below 50 even for 7-star)
-      // Range: 40% to 100% of finalTalent
-      const mult = 0.4 + (rng.next() * 0.6);
-      proTalents[key] = Math.max(5, Math.floor(finalTalent * mult));
-    } else {
-      // Secondary skills are much lower
-      // Range: 15% to 60% of finalTalent
-      const mult = 0.15 + (rng.next() * 0.45);
-      proTalents[key] = Math.max(5, Math.floor(finalTalent * mult));
+
+  // 1. Peak Tier (1 core skill)
+  const peakIdx = rng.range(0, coreSkills.length - 1);
+  const peakSkill = coreSkills.splice(peakIdx, 1)[0];
+  proTalents[peakSkill] = finalPeak;
+
+  // 2. High Tier (1 core skill) - 80+ if finalPeak is high
+  const highIdx = rng.range(0, coreSkills.length - 1);
+  const highSkill = coreSkills.splice(highIdx, 1)[0];
+  if (finalPeak >= 70) {
+    proTalents[highSkill] = rng.range(80, Math.min(95, finalPeak - 2));
+  } else {
+    proTalents[highSkill] = Math.floor(finalPeak * (0.6 + rng.next() * 0.2));
+  }
+
+  // 3. Mid Tier (1 skill from remaining core or secondary) - 50+ if finalPeak high
+  const combinedRemaining = [...coreSkills, ...allSkills.filter(s => !ROLE_CORE_SKILLS[role].includes(s))];
+  const midIdx = rng.range(0, combinedRemaining.length - 1);
+  const midSkill = combinedRemaining.splice(midIdx, 1)[0];
+  if (finalPeak >= 70) {
+    proTalents[midSkill] = rng.range(50, 65);
+  } else {
+    proTalents[midSkill] = Math.floor(finalPeak * (0.3 + rng.next() * 0.2));
+  }
+
+  // 4. Low Tier (All others) - 10-27 as requested
+  allSkills.forEach(skill => {
+    if (!proTalents[skill]) {
+      proTalents[skill] = rng.range(10, 27);
     }
   });
 

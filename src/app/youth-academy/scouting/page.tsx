@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Терминал скаутинга v5. 
- * Внедрена зависимость талантов от уровня Скаутов Академии (не HQ).
+ * @fileOverview Терминал скаутинга v7. 
+ * Реализована жесткая тировая система распределения талантов и исправлены ошибки рендеринга.
  */
 
 import { useState, useEffect, useMemo } from 'react';
@@ -31,6 +31,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Progress } from '@/components/ui/progress';
 
 const normTalent = (val: any) => {
   const n = Number(val);
@@ -215,7 +216,7 @@ export default function ScoutingPage() {
           {scoutingCandidates && scoutingCandidates.length > 0 ? (
             <div className="space-y-2">
               {scoutingCandidates.map((hero) => {
-                const talentsValues = Object.values(hero.proTalents || {}).map(v => Number(v));
+                const talentsValues = Object.values(hero.proTalents || {}).map(v => normTalent(v));
                 const maxTalentValue = Math.max(...talentsValues);
                 
                 return (
