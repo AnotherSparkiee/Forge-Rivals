@@ -61,6 +61,7 @@ export default function ContractsPage() {
     priceTitle: language === 'ru' ? "ЦЕНА ИГРОКА" : "UNIT PRICE",
     talent: language === 'ru' ? "Талант" : "Talent",
     salary: language === 'ru' ? "Зарплата" : "Salary",
+    intel: language === 'ru' ? "ОБЩИЕ ДАННЫЕ" : "GENERAL INTEL",
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
       mapAwareness: language === 'ru' ? "Контроль карты" : "Map Awareness",
@@ -149,11 +150,11 @@ export default function ContractsPage() {
 
               <section className="space-y-3">
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
+                  <Info className="w-3.5 h-3.5" /> {t.intel}
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">Age</span>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.years}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
@@ -196,7 +197,7 @@ export default function ContractsPage() {
                         <div className="flex justify-between items-center px-0.5">
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-muted-foreground/60" />
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{(t.proStatsLabels as any)[key] || key.toUpperCase()}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs font-mono font-bold text-white">{displayValue}</span>
@@ -224,7 +225,7 @@ export default function ContractsPage() {
                         <div className="flex justify-between items-center px-0.5">
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-accent/50" />
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{(t.proStatsLabels as any)[key] || key.toUpperCase()}</span>
                           </div>
                           <div className="flex items-center gap-3">
                              {renderStars(talentLimit)}

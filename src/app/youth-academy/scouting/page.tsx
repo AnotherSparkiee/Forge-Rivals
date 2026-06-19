@@ -1,4 +1,3 @@
-
 'use client';
 
 /**
@@ -32,6 +31,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+
+const normTalent = (val: any) => {
+  const n = Number(val);
+  if (isNaN(n)) return 0;
+  return n < 10 ? Math.round(n * 10) : Math.round(n);
+};
 
 export default function ScoutingPage() {
   const { 
@@ -271,7 +276,7 @@ export default function ScoutingPage() {
                         </div>
                         <div className="flex items-center gap-3">
                            {renderStars(maxTalent)}
-                           <span className="text-[8px] font-black text-muted-foreground uppercase">ВОЗРАСТ: {hero.baseAge}</span>
+                           <span className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}: {hero.baseAge}</span>
                         </div>
                       </div>
                       <ChevronRight className="w-4 h-4 text-muted-foreground/30" />
