@@ -4,6 +4,7 @@
 /**
  * @fileOverview ТУРНИРНЫЙ ХАБ.
  * Добавлен функционал пробных матчей для тестирования Match Engine v3.
+ * Улучшена обработка ошибок "Оперативного конфликта" и добавлен экстренный сброс.
  */
 
 import { useEffect, useState, useMemo } from 'react';
@@ -15,7 +16,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { 
   Trophy, Medal, Swords, UserPlus, 
   Search, History, Gamepad2, ChevronLeft, 
-  ChevronRight, Loader2, XCircle, ShoppingBasket
+  ChevronRight, Loader2, XCircle, ShoppingBasket, RefreshCw, AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -55,6 +56,8 @@ export default function TournamentsPage() {
       title: "TOURNAMENT HUB",
       subtitle: "Global Competitions & Friendly Matches",
       busy: "Operational Conflict",
+      busyLobby: "You have an active Friendly or Trial match request.",
+      busyBasket: "You are currently in the CW Basket queue.",
       schedule: "Schedule Friendly",
       cancel: "Cancel Friendly Match",
       open: "Open Friendlies",
@@ -63,12 +66,16 @@ export default function TournamentsPage() {
       trial: "Trial Match",
       trialDesc: "Instant battle against AI Trainer",
       cup: "Pyramid Cup",
-      cupDesc: "Main National Trophy"
+      cupDesc: "Main National Trophy",
+      reset: "EMERGENCY RESET",
+      resetDesc: "Clear all stuck match tasks"
     },
     ru: {
       title: "ТУРНИРНЫЙ ХАБ",
       subtitle: "Глобальные соревнования и товарищеские игры",
       busy: "Оперативный конфликт",
+      busyLobby: "У вас уже есть активная заявка на матч или поиск.",
+      busyBasket: "Вы находитесь в очереди КВ Корзины.",
       schedule: "Назначить тов. Матч",
       cancel: "Отменить тов. Матч",
       open: "Открытые тов. Матчи",
@@ -77,7 +84,9 @@ export default function TournamentsPage() {
       trial: "Пробный матч",
       trialDesc: "Мгновенный бой против ИИ-Тренера",
       cup: "Кубок Пирамиды",
-      cupDesc: "Главный трофей нации"
+      cupDesc: "Главный трофей нации",
+      reset: "ЭКСТРЕННЫЙ СБРОС",
+      resetDesc: "Очистить все застрявшие задачи"
     }
   };
 
@@ -85,7 +94,11 @@ export default function TournamentsPage() {
 
   const handleToggleLobby = async () => {
     if (!user || isActionLoading) return;
-    if (!myLobby && isBusy) { toast({ title: t.busy, variant: "destructive" }); return; }
+    if (!myLobby && isBusy) { 
+      const errorMsg = myBasket ? t.busyBasket : t.busyLobby;
+      toast({ title: t.busy, description: errorMsg, variant: "destructive" }); 
+      return; 
+    }
     setIsActionLoading(true);
     try {
       if (myLobby) {
@@ -101,11 +114,14 @@ export default function TournamentsPage() {
 
   const handleStartTrial = async () => {
     if (!user || isActionLoading) return;
-    if (isBusy) { toast({ title: t.busy, variant: "destructive" }); return; }
+    if (isBusy) { 
+      const errorMsg = myBasket ? t.busyBasket : t.busyLobby;
+      toast({ title: t.busy, description: errorMsg, variant: "destructive" }); 
+      return; 
+    }
     
     setIsActionLoading(true);
     try {
-      // Create a lobby already challenged by a bot
       await setDoc(doc(db, 'friendly_lobbies_v3', user.uid), {
         hostId: user.uid, 
         hostName: displayName || "Manager",
@@ -121,12 +137,25 @@ export default function TournamentsPage() {
     }
   };
 
+  const handleEmergencyReset = async () => {
+    if (!user || isActionLoading) return;
+    setIsActionLoading(true);
+    try {
+      if (myLobby) await deleteDoc(doc(db, 'friendly_lobbies_v3', user.uid));
+      if (myBasket) await deleteDoc(doc(db, 'cw_basket_v2', user.uid));
+      toast({ title: language === 'ru' ? "Задачи очищены!" : "Tasks Cleared!" });
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-20">
       <header className="mb-6 flex items-center gap-4">
         <Link href="/"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
         <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase">{t.subtitle}</p></div>
       </header>
+
       <div className="space-y-2">
         <Link href="/tournaments/cup">
           <Card className="glass-card p-4 flex items-center justify-between border-yellow-500/20 bg-yellow-500/5 group hover:bg-yellow-500/10 transition-all">
@@ -143,8 +172,13 @@ export default function TournamentsPage() {
           </Card>
         </Link>
 
-        {/* TRIAL MATCH BUTTON */}
-        <Card className="glass-card p-4 flex items-center justify-between cursor-pointer border-primary/20 bg-primary/5 hover:bg-primary/10 transition-all" onClick={handleStartTrial}>
+        <Card 
+          className={cn(
+            "glass-card p-4 flex items-center justify-between cursor-pointer transition-all",
+            isBusy && !myLobby?.isTrial ? "opacity-50 border-white/5" : "border-primary/20 bg-primary/5 hover:bg-primary/10"
+          )} 
+          onClick={handleStartTrial}
+        >
           <div className="flex items-center gap-4">
             <div className="p-2.5 rounded-xl bg-primary/20 border border-primary/30">
               <Gamepad2 className="text-primary w-6 h-6" />
@@ -158,11 +192,48 @@ export default function TournamentsPage() {
         </Card>
         
         <Link href="/tournaments/open"><Card className="glass-card p-4 flex items-center justify-between"><div className="flex items-center gap-4"><Medal className="text-primary w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">Open Tournaments</h3></div></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Card></Link>
-        <Card className="glass-card p-4 flex items-center justify-between cursor-pointer" onClick={handleToggleLobby}><div className="flex items-center gap-4"><UserPlus className="text-accent w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">{myLobby ? t.cancel : t.schedule}</h3></div></div>{isActionLoading && <Loader2 className="w-4 h-4 animate-spin" />}</Card>
+        
+        <Card className="glass-card p-4 flex items-center justify-between cursor-pointer" onClick={handleToggleLobby}>
+          <div className="flex items-center gap-4">
+            <div className="p-2.5 rounded-xl bg-secondary/50 border border-white/5">
+              {myLobby ? <XCircle className="text-red-400 w-5 h-5" /> : <UserPlus className="text-accent w-5 h-5" />}
+            </div>
+            <div><h3 className="text-sm font-bold uppercase">{myLobby ? t.cancel : t.schedule}</h3></div>
+          </div>
+          {isActionLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+        </Card>
+
         <Link href="/tournaments/open-friendlies"><Card className="glass-card p-4 flex items-center justify-between"><div className="flex items-center gap-4"><Search className="text-muted-foreground w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">{t.open}</h3></div></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Card></Link>
         <Link href="/tournaments/cw-basket"><Card className="glass-card p-4 flex items-center justify-between"><div className="flex items-center gap-4"><ShoppingBasket className="text-green-400 w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">{t.cw}</h3></div></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Card></Link>
         <Link href="/tournaments/history"><Card className="glass-card p-4 flex items-center justify-between"><div className="flex items-center gap-4"><History className="text-muted-foreground w-5 h-5" /><div><h3 className="text-sm font-bold uppercase">{t.history}</h3></div></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Card></Link>
       </div>
+
+      {isBusy && (
+        <div className="mt-8 animate-in fade-in slide-in-from-bottom-4">
+          <Card className="glass-card border-red-500/20 bg-red-500/5">
+            <CardContent className="p-4 space-y-4">
+               <div className="flex items-center gap-3">
+                 <AlertTriangle className="w-5 h-5 text-red-400" />
+                 <div>
+                   <h4 className="text-xs font-bold uppercase text-red-400">{t.busy}</h4>
+                   <p className="text-[10px] text-muted-foreground">{myBasket ? t.busyBasket : t.busyLobby}</p>
+                 </div>
+               </div>
+               <Button 
+                variant="outline" 
+                className="w-full h-10 border-red-500/20 text-red-400 font-black text-[9px] uppercase tracking-widest hover:bg-red-500/10"
+                onClick={handleEmergencyReset}
+                disabled={isActionLoading}
+               >
+                 {isActionLoading ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <RefreshCw className="w-3 h-3 mr-2" />}
+                 {t.reset}
+               </Button>
+               <p className="text-[7px] text-center text-muted-foreground uppercase opacity-50">{t.resetDesc}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
+
