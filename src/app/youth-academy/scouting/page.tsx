@@ -13,7 +13,8 @@ import {
   ChevronLeft, Radar, Search, UserPlus, 
   Info, Zap, Star, Trophy, Sparkles, Loader2,
   Users, Target, Brain, TrendingUp, Crosshair, 
-  Sword, Eye, Map, Clock, ShieldAlert, X
+  Sword, Eye, Map, Clock, ShieldAlert, X,
+  ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -165,7 +166,7 @@ export default function ScoutingPage() {
 
         {/* CANDIDATES LIST */}
         <div className="space-y-3">
-          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent px-1 flex items-center gap-2">
+          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent px-1 flex items-center gap-2 px-1">
             <Search className="w-3.5 h-3.5" /> {t.reportTitle}
           </h2>
 
