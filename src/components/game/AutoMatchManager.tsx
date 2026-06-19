@@ -2,8 +2,8 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v32.4 (Phase 1 Roadmap).
- * Реализован детальный мониторинг фаз Межсезонья и Генерации.
+ * @fileOverview Автономный менеджер синхронизации v33 (Phase 2 Start).
+ * Реализован мониторинг фаз Межсезонья, Генерации и Экономического цикла.
  */
 
 import { useEffect, useRef } from 'react';
@@ -14,15 +14,16 @@ import {
   getStableGroupTeams, generateSeasonCalendar, 
   LEAGUES 
 } from '@/app/lib/leagues-data';
-import { getGlobalSeasonInfo, isMatchOverdue, getMoscowTime } from '@/app/lib/time-utils';
+import { getGlobalSeasonInfo, isMatchOverdue, getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
 import { forceResolveGroupMatches } from '@/app/actions/mmo-engine';
 import { generatePyramidCup } from '@/app/actions/cup-engine';
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
-  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, allSeasonMatches } = useGameState();
+  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, allSeasonMatches, addCredits } = useGameState();
   const db = useFirestore();
   const processingRef = useRef(false);
+  const lastEconomicCheckRef = useRef<string | null>(null);
 
   const playersInGroupQuery = useMemoFirebase(() => {
     if (isUserLoading || !user?.uid || !selectedLeagueId) return null;
@@ -46,6 +47,7 @@ export function AutoMatchManager() {
       try {
         const info = getGlobalSeasonInfo();
         const mskNow = getMoscowTime();
+        const todayStr = getMoscowDateString();
         
         const nextSN = info.activeSeasonNumber; 
         const nextSeasonId = `season_${nextSN}`;
@@ -57,17 +59,52 @@ export function AutoMatchManager() {
         const sysStatusSnap = await getDoc(sysStatusRef);
         const sysData = sysStatusSnap.exists() ? sysStatusSnap.data() : {};
 
-        // ГЕНЕРАЦИЯ: День 15 цикла, после 16:00
+        // === ЭКОНОМИЧЕСКИЙ ЦИКЛ (Phase 2) ===
+        // Выплата спонсорских раз в сутки при входе
+        if (lastEconomicCheckRef.current !== todayStr) {
+          const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', `${nextSeasonId}_league_${selectedLeagueId}_group_${groupId}`, 'teams', userId);
+          const teamSnap = await getDoc(teamRef);
+          
+          if (teamSnap.exists()) {
+            const teamData = teamSnap.data();
+            if (teamData.lastSponsorPayoutDate !== todayStr) {
+              const basePayout = 250000;
+              // Бонус от скилла менеджера
+              const bonusMult = 1 + ((teamData.managerSkills?.sponsors || 0) * 0.1);
+              const finalPayout = Math.round(basePayout * bonusMult);
+              
+              await updateDoc(teamRef, {
+                credits: (teamData.credits || 0) + finalPayout,
+                lastSponsorPayoutDate: todayStr,
+                updatedAt: serverTimestamp()
+              });
+              
+              // Создаем уведомление
+              const notifId = `sponsor_${userId}_${todayStr}`;
+              await setDoc(doc(db, 'notifications_v7', notifId), {
+                userId,
+                title: language === 'ru' ? "Спонсорская выплата" : "Sponsor Payout",
+                description: language === 'ru' ? `Получено €${finalPayout.toLocaleString()} от спонсоров лиги.` : `Received €${finalPayout.toLocaleString()} from league sponsors.`,
+                type: 'league',
+                read: false,
+                createdAt: new Date().toISOString()
+              });
+
+              console.log(`[ECONOMY] Granted sponsor payout to ${userId}: ${finalPayout}`);
+            }
+          }
+          lastEconomicCheckRef.current = todayStr;
+        }
+
+        // === ГЕНЕРАЦИЯ (Phase 1 Final) ===
+        // День 15 цикла, после 16:00
         const isGenTime = info.dayOfCycle === 15 && mskNow.getHours() >= 16;
         
         if (isGenTime) {
-          console.log(`[ROADMAP-PHASE] Generation Day Detected. Target Season: ${nextSN}`);
-          
           const lastGenSeason = sysData.lastGeneratedSeason || 0;
           
-          // 1. Глобальная генерация Кубка (один раз на сезон)
           if (lastGenSeason < nextSN) {
-            console.log(`[AUTO-GEN] Initiating Global Cup Bracket for Season ${nextSN}`);
+            console.log(`[AUTO-GEN] Global Cup for Season ${nextSN}`);
             await generatePyramidCup(nextSN);
             await updateDoc(sysStatusRef, { 
               lastGeneratedSeason: nextSN,
@@ -75,14 +112,12 @@ export function AutoMatchManager() {
             });
           }
 
-          // 2. Локальная генерация календаря группы
           const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', nextPrefixedGroupId);
           const groupSnap = await getDoc(groupRef);
           const groupData = groupSnap.exists() ? groupSnap.data() : {};
 
           if (groupData.status !== 'ready_for_battle' && groupData.status !== 'generating') {
-            await new Promise(resolve => setTimeout(resolve, Math.random() * 5000)); // Jitter
-            
+            await new Promise(resolve => setTimeout(resolve, Math.random() * 5000));
             await updateDoc(groupRef, { status: 'generating', updatedAt: serverTimestamp() });
 
             const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
@@ -121,18 +156,15 @@ export function AutoMatchManager() {
             });
 
             await batch.commit();
-            console.log(`[AUTO-GEN] Group Calendar established for Season ${nextSN}`);
           }
         }
 
-        // ПРОВЕРКА ПРОСРОЧЕННЫХ МАТЧЕЙ (в активной фазе)
+        // === РЕЗОЛВЕР МАТЧЕЙ ===
         if (!info.isOffseason) {
-          const seasonId = `season_${info.seasonNumber}`;
-          const currentPrefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
           const overdue = allSeasonMatches.filter(m => isMatchOverdue(m.startTime) && !m.isFinished);
-          
           if (overdue.length > 0) {
-            console.log(`[ROADMAP-PHASE] Active Season. Resolving ${overdue.length} overdue matches.`);
+            const seasonId = `season_${info.seasonNumber}`;
+            const currentPrefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
             await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), currentPrefixedGroupId);
           }
         }
@@ -144,10 +176,10 @@ export function AutoMatchManager() {
       }
     };
 
-    const interval = setInterval(heartbeat, 120000);
+    const interval = setInterval(heartbeat, 60000);
     heartbeat();
     return () => clearInterval(interval);
-  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches, isUserLoading, user?.uid]);
+  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches, isUserLoading, user?.uid, language]);
 
   return null;
 }
