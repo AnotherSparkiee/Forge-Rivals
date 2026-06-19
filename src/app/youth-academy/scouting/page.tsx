@@ -30,6 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 
 export default function ScoutingPage() {
@@ -216,7 +217,9 @@ export default function ScoutingPage() {
                 <span className="text-xl">{selectedHero?.country?.flag}</span>
               </div>
             </div>
-            <h2 className="text-2xl font-headline font-bold uppercase tracking-tight text-white leading-none">{selectedHero?.name}</h2>
+            <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white leading-none">
+              {selectedHero?.name}
+            </DialogTitle>
             <div className="flex items-center justify-center gap-2 mt-2">
               <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{selectedHero?.role}</Badge>
             </div>
