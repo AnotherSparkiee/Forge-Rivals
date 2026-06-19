@@ -105,6 +105,20 @@ const HERO_NAMES = [
 const FIRST_NAMES = ["James", "Robert", "John", "Michael", "David", "William", "Richard", "Joseph", "Thomas", "Charles", "Viktor", "Dmitry", "Hans", "Lee", "Chen", "Artyom"];
 const LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Ivanov", "Petrov", "Schmidt", "Wang", "Kim", "Park", "Sokolov"];
 
+const ROLE_CORE_SKILLS: Record<string, string[]> = {
+  'Carry': ['lastHitting', 'positioning', 'reflexes', 'tiltResistance', 'versatility'],
+  'Midlaner': ['reflexes', 'lastHitting', 'ganking', 'positioning', 'tiltResistance'],
+  'Tank': ['objectiveControl', 'positioning', 'ganking', 'tiltResistance', 'versatility'],
+  'Jungler': ['ganking', 'objectiveControl', 'reflexes', 'communication', 'versatility'],
+  'Support': ['communication', 'reflexes', 'positioning', 'objectiveControl', 'tiltResistance']
+};
+
+const ALL_SKILL_KEYS = [
+  'lastHitting', 'mapAwareness', 'positioning', 'reflexes', 
+  'manaManagement', 'objectiveControl', 'communication', 
+  'tiltResistance', 'versatility', 'ganking'
+];
+
 class SeededRandom {
   private seed: number;
   constructor(seed: string | number) {
@@ -283,8 +297,8 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
 }
 
 /**
- * Advanced Scout Generation Logic v4.
- * Talents depend on HQ Scout level.
+ * Advanced Scout Generation Logic v5.
+ * Talents depend on Academy Scout level and are role-aligned.
  */
 export function generateScoutedHero(index: number, scoutLevel: number, seed?: string): Hero {
   const rng = new SeededRandom(seed || `scout_${Date.now()}_${index}`);
@@ -299,35 +313,33 @@ export function generateScoutedHero(index: number, scoutLevel: number, seed?: st
   hero.overallRating = getRandomStat(10, 20, rng);
   hero.salary = getRandomStat(300, 1200, rng);
 
-  // Global Lucky Roll (Monthly Random Super Talent - simulation)
-  const isMonthlyLucky = Math.random() < 0.0005; // Very tiny chance for anyone
+  // Global Lucky Roll (Monthly Random Super Talent)
+  const isMonthlyLucky = rng.next() < 0.0005; 
 
   let minT = 5; 
   let maxT = 35;
-  let luckyChance = 0.05;
 
   if (scoutLevel <= 25) {
-    minT = 5; maxT = 35; luckyChance = 0.05; // Max 4 stars (40) rare
+    minT = 5; maxT = 35;
   } else if (scoutLevel <= 50) {
-    minT = 5; maxT = 40; luckyChance = 0.02; // Max 5 stars (50) rare
+    minT = 5; maxT = 40; 
   } else if (scoutLevel <= 80) {
-    minT = 20; maxT = 45; luckyChance = 0.3; // High chance for 5 stars
+    minT = 20; maxT = 45; 
   } else if (scoutLevel <= 124) {
-    minT = 35; maxT = 50; luckyChance = 0.8; // Very high chance for 5 stars
+    minT = 35; maxT = 50; 
   } else {
-    // 125+
-    minT = 40; maxT = 50; luckyChance = 0.99; // Almost always 5 stars + <1% Elite
+    minT = 40; maxT = 50; 
   }
 
   let finalTalent = rng.range(minT, maxT);
 
   // Apply Lucky/Elite logic
-  if (scoutLevel > 125 && Math.random() < 0.01) {
-    finalTalent = rng.range(60, 75); // Elite 6-7 Stars
+  if (scoutLevel > 125 && rng.next() < 0.01) {
+    finalTalent = rng.range(60, 75); 
   }
 
   if (isMonthlyLucky) {
-    finalTalent = rng.range(60, 85); // Monthly Super Talent (5-8 Elite Stars)
+    finalTalent = rng.range(60, 85); 
   }
 
   // Cap top talent based on scoutLevel if not lucky
@@ -335,18 +347,22 @@ export function generateScoutedHero(index: number, scoutLevel: number, seed?: st
     finalTalent = 40;
   }
 
-  hero.proTalents = {
-    lastHitting: finalTalent,
-    mapAwareness: Math.max(5, finalTalent - rng.range(0, 15)),
-    positioning: finalTalent,
-    reflexes: finalTalent,
-    manaManagement: Math.max(5, finalTalent - rng.range(0, 15)),
-    objectiveControl: Math.max(5, finalTalent - rng.range(0, 15)),
-    communication: Math.max(5, finalTalent - rng.range(0, 15)),
-    tiltResistance: finalTalent,
-    versatility: Math.max(5, finalTalent - rng.range(0, 15)),
-    ganking: Math.max(5, finalTalent - rng.range(0, 15)),
-  };
+  // ROLE-ALIGNED TALENT DISTRIBUTION
+  const coreSkills = ROLE_CORE_SKILLS[role] || [];
+  const proTalents: any = {};
+  
+  ALL_SKILL_KEYS.forEach(key => {
+    if (coreSkills.includes(key)) {
+      // Core skills get the peak potential
+      proTalents[key] = Math.max(5, finalTalent - rng.range(0, 5));
+    } else {
+      // Secondary skills get lower potential (40-70% of finalTalent)
+      const secondaryMult = 0.4 + (rng.next() * 0.3);
+      proTalents[key] = Math.max(5, Math.floor(finalTalent * secondaryMult));
+    }
+  });
+
+  hero.proTalents = proTalents;
   
   hero.proStats = {
     lastHitting: getRandomStat(1, 4, rng),
