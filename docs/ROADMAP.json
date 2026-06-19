@@ -1,6 +1,5 @@
-
 {
-  "version": "1.0.35",
+  "version": "1.0.36",
   "current_phase": "DEPTH",
   "phases": {
     "PHASE_1_STABILIZATION": {
@@ -28,12 +27,12 @@
       "target_date": "2026-06-22",
       "tasks": [
         "Youth Academy Scouting Mechanics - DONE",
-        "Scouting Cycle (4 Days / 3 Units) - DONE",
+        "Tiered Talent Distribution (v7) - DONE",
+        "Match Engine v3: Role & Skill Logic - DONE",
         "Infrastructure Bonus Integration to Sim - PENDING",
-        "Medical Center Injury Logic - PENDING",
-        "Tactics Hall Effectiveness Boost - PENDING"
+        "Medical Center Injury Logic - PENDING"
       ]
     }
   },
-  "last_updated": "2026-06-18T23:55:00Z"
+  "last_updated": "2026-06-18T23:58:00Z"
 }
