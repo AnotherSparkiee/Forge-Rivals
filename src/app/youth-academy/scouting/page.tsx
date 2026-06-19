@@ -1,11 +1,12 @@
+
 'use client';
 
 /**
- * @fileOverview Терминал скаутинга v1. 
- * Реализует поиск и найм новых талантов в Академию.
+ * @fileOverview Терминал скаутинга v2. 
+ * Реализует 4-дневный цикл обновления с ротацией 3 кандидатов.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,14 +15,14 @@ import {
   Info, Zap, Star, Trophy, Sparkles, Loader2,
   Users, Target, Brain, TrendingUp, Crosshair, 
   Sword, Eye, Map, Clock, ShieldAlert, X,
-  ChevronRight
+  ChevronRight, RefreshCw, AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
 import { Hero } from '../../lib/moba-data';
-import { calculateLiveAge } from '@/app/lib/time-utils';
+import { calculateLiveAge, getMoscowTime } from '@/app/lib/time-utils';
 import { renderStars, STAT_KEYS } from '@/app/transfers/quick-search/page';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -36,60 +37,96 @@ import {
 export default function ScoutingPage() {
   const { 
     language, isLoaded, scoutingCandidates, lastScoutDate, 
-    scoutCandidates, recruitCandidate, hq, academy, youthAcademyHeroes,
-    activeLicenseTier, isPremium
+    scoutCandidates, recruitCandidate, clearScoutingReport,
+    hq, academy, youthAcademyHeroes
   } = useGameState();
   
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
+  const [now, setNow] = useState(getMoscowTime().getTime());
+
+  // Обновление локального времени каждую секунду
+  useEffect(() => {
+    const timer = setInterval(() => setNow(getMoscowTime().getTime()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 4 дня в миллисекундах
+  const CYCLE_MS = 4 * 24 * 60 * 60 * 1000;
+  
+  const scoutingStatus = useMemo(() => {
+    if (!lastScoutDate) return { isExpired: true, timeLeft: 0 };
+    const lastDate = new Date(lastScoutDate).getTime();
+    const expiryDate = lastDate + CYCLE_MS;
+    const timeLeft = expiryDate - now;
+    return {
+      isExpired: timeLeft <= 0,
+      timeLeft: Math.max(0, timeLeft),
+      expiryDate
+    };
+  }, [lastScoutDate, now]);
+
+  // Автоматическая очистка просроченного отчета
+  useEffect(() => {
+    if (scoutingStatus.isExpired && scoutingCandidates.length > 0) {
+      clearScoutingReport();
+    }
+  }, [scoutingStatus.isExpired, scoutingCandidates.length, clearScoutingReport]);
 
   const t = {
     en: {
       title: "SCOUTING TERMINAL",
-      subtitle: "Talent Discovery & Recruitment",
-      find: "COMMISSION SCOUTING REPORT",
-      findDesc: "Direct scouts to search for gifted local cadets.",
-      reportTitle: "Operational Candidates",
-      lastScouted: "Last report",
-      noCandidates: "No candidates currently detected.",
+      subtitle: "Talent Discovery Cycle",
+      find: "INITIATE SEARCH",
+      findDesc: "Assign scouts to find 3 gifted local cadets. Results valid for 4 days.",
+      reportTitle: "Active Candidates",
+      expiresIn: "Expires in",
+      expired: "Report Expired",
+      noCandidates: "Scouting sectors clear. Initiate search mission.",
       recruit: "SIGN TO ACADEMY",
       limitReached: "Academy at full capacity",
-      alreadyIn: "Candidate enlisted",
       success: "Cadet Enlisted",
-      successDesc: "New talent has been moved to the Academy squad.",
-      capacity: "ACADEMY CAPACITY",
+      successDesc: "New talent moved to Academy squad.",
+      capacity: "ACADEMY SLOTS",
       stats: "Candidate Dossier",
       close: "CLOSE"
     },
     ru: {
       title: "ТЕРМИНАЛ СКАУТИНГА",
-      subtitle: "Поиск и набор талантов",
-      find: "ЗАПРОСИТЬ ОТЧЕТ СКАУТОВ",
-      findDesc: "Направить скаутов на поиск одаренных кадетов.",
+      subtitle: "Цикл поиска талантов",
+      find: "НАЧАТЬ ПОИСК",
+      findDesc: "Найти 3 одаренных кадетов. Отчет актуален 4 дня.",
       reportTitle: "Доступные кандидаты",
-      lastScouted: "Последний отчет",
-      noCandidates: "Кандидаты не обнаружены.",
+      expiresIn: "Истекает через",
+      expired: "Отчет устарел",
+      noCandidates: "Сектора пусты. Запросите новый отчет скаутов.",
       recruit: "ЗАЧИСЛИТЬ В ШКОЛУ",
       limitReached: "Академия переполнена",
-      alreadyIn: "Кандидат зачислен",
       success: "Кадет зачислен",
-      successDesc: "Новый талант направлен в состав Юношеской школы.",
-      capacity: "ВМЕСТИМОСТЬ ШКОЛЫ",
+      successDesc: "Новый талант направлен в Юношескую школу.",
+      capacity: "МЕСТА В ШКОЛЕ",
       stats: "Досье кандидата",
       close: "ЗАКРЫТЬ"
     }
   }[language as 'en' | 'ru'];
 
+  const formatTimeLeft = (ms: number) => {
+    const days = Math.floor(ms / (24 * 60 * 60 * 1000));
+    const hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+    const mins = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
+    const secs = Math.floor((ms % (60 * 1000)) / 1000);
+    return days > 0 ? `${days}d ${hours}h` : `${hours}h ${mins}m ${secs}s`;
+  };
+
   const academyLimit = 10 + (academy.youthBootcampLevel || 0);
 
   const handleScout = async () => {
     setIsProcessing(true);
-    // Simulate complex analysis
     setTimeout(() => {
       scoutCandidates();
       setIsProcessing(false);
-      toast({ title: language === 'ru' ? "Отчет готов!" : "Report Ready!" });
+      toast({ title: language === 'ru' ? "Сектора просканированы!" : "Sectors Scanned!" });
     }, 2000);
   };
 
@@ -123,85 +160,111 @@ export default function ScoutingPage() {
       </header>
 
       <div className="space-y-6">
-        {/* CAPACITY INFO */}
-        <Card className="glass-card border-white/5 bg-secondary/10">
-          <CardContent className="p-4 flex items-center justify-between">
-             <div className="flex items-center gap-3">
-               <div className="p-2 rounded-lg bg-primary/20"><Users className="w-4 h-4 text-primary" /></div>
-               <span className="text-[10px] font-black uppercase text-muted-foreground">{t.capacity}</span>
-             </div>
-             <div className="text-right">
-               <span className="text-sm font-headline font-bold text-white italic">{youthAcademyHeroes.length} / {academyLimit}</span>
-             </div>
-          </CardContent>
-        </Card>
+        {/* CAPACITY & CYCLE STATUS */}
+        <div className="grid grid-cols-2 gap-3">
+          <Card className="glass-card border-white/5 bg-secondary/10">
+            <CardContent className="p-3 text-center">
+               <p className="text-[7px] font-black uppercase text-muted-foreground mb-1">{t.capacity}</p>
+               <p className="text-xl font-headline font-bold text-white italic">{youthAcademyHeroes.length} / {academyLimit}</p>
+            </CardContent>
+          </Card>
+          <Card className={cn(
+            "glass-card border-white/5 bg-secondary/10",
+            !scoutingStatus.isExpired && "border-accent/20 bg-accent/5"
+          )}>
+            <CardContent className="p-3 text-center">
+               <p className="text-[7px] font-black uppercase text-muted-foreground mb-1">
+                 {scoutingStatus.isExpired ? t.expired : t.expiresIn}
+               </p>
+               <p className={cn(
+                 "text-sm font-mono font-bold uppercase",
+                 scoutingStatus.isExpired ? "text-red-400" : "text-accent"
+               )}>
+                 {scoutingStatus.isExpired ? '--:--:--' : formatTimeLeft(scoutingStatus.timeLeft)}
+               </p>
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* SCOUTING ACTION */}
-        <Card className={cn(
-          "glass-card border-dashed border-primary/30 transition-all",
-          isProcessing && "animate-pulse border-accent"
-        )}>
-          <CardContent className="p-6 text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center mx-auto relative">
-              {isProcessing ? <Loader2 className="w-8 h-8 text-accent animate-spin" /> : <Radar className="w-8 h-8 text-primary" />}
-              {isProcessing && <div className="absolute inset-0 rounded-full border-2 border-accent border-t-transparent animate-spin"></div>}
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-sm font-bold uppercase text-white">{t.find}</h3>
-              <p className="text-[9px] text-muted-foreground uppercase leading-relaxed italic">{t.findDesc}</p>
-            </div>
-            <Button 
-              className="w-full h-12 hero-gradient font-black text-[10px] tracking-widest uppercase shadow-lg shadow-primary/20"
-              onClick={handleScout}
-              disabled={isProcessing}
-            >
-              {isProcessing ? 'SCANNING SECTORS...' : 'START SCOUTING MISSION'}
-            </Button>
-            {lastScoutDate && (
-              <p className="text-[7px] font-black text-muted-foreground/40 uppercase tracking-widest">
-                {t.lastScouted}: {lastScoutDate}
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        {/* SCOUTING ACTION - ONLY VISIBLE IF EXPIRED OR NO CANDIDATES */}
+        {(scoutingStatus.isExpired || scoutingCandidates.length === 0) && (
+          <Card className={cn(
+            "glass-card border-dashed border-primary/30 transition-all",
+            isProcessing && "animate-pulse border-accent"
+          )}>
+            <CardContent className="p-6 text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center mx-auto relative">
+                {isProcessing ? <Loader2 className="w-8 h-8 text-accent animate-spin" /> : <Radar className="w-8 h-8 text-primary" />}
+                {isProcessing && <div className="absolute inset-0 rounded-full border-2 border-accent border-t-transparent animate-spin"></div>}
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold uppercase text-white">{t.find}</h3>
+                <p className="text-[9px] text-muted-foreground uppercase leading-relaxed italic">{t.findDesc}</p>
+              </div>
+              <Button 
+                className="w-full h-12 hero-gradient font-black text-[10px] tracking-widest uppercase shadow-lg shadow-primary/20"
+                onClick={handleScout}
+                disabled={isProcessing}
+              >
+                {isProcessing ? 'SCANNING SECTORS...' : 'START SCOUTING MISSION'}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* CANDIDATES LIST */}
         <div className="space-y-3">
-          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent px-1 flex items-center gap-2 px-1">
+          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent flex items-center gap-2 px-1">
             <Search className="w-3.5 h-3.5" /> {t.reportTitle}
           </h2>
 
-          {scoutingCandidates.length > 0 ? scoutingCandidates.map((hero) => {
-            const talentsValues = Object.values(hero.proTalents || {}).map(v => Number(v));
-            const maxTalent = Math.max(...talentsValues);
-            
-            return (
-              <Card key={hero.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer" onClick={() => setSelectedHero(hero)}>
-                <CardContent className="p-3 flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-lg overflow-hidden border border-white/10 bg-secondary/50 shrink-0">
-                    <img src={hero.image} alt="" className="w-full h-full object-cover" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="text-xs font-bold uppercase truncate text-white">{hero.name}</h4>
-                      <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
-                    </div>
-                    <div className="flex items-center gap-3">
-                       {renderStars(maxTalent)}
-                       <span className="text-[8px] font-black text-muted-foreground uppercase">AGE: {hero.baseAge}</span>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground/30" />
-                </CardContent>
-              </Card>
-            );
-          }) : (
+          {scoutingCandidates.length > 0 && !scoutingStatus.isExpired ? (
+            <div className="space-y-2">
+              {scoutingCandidates.map((hero) => {
+                const talentsValues = Object.values(hero.proTalents || {}).map(v => Number(v));
+                const maxTalent = Math.max(...talentsValues);
+                
+                return (
+                  <Card key={hero.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer" onClick={() => setSelectedHero(hero)}>
+                    <CardContent className="p-3 flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-lg overflow-hidden border border-white/10 bg-secondary/50 shrink-0">
+                        <img src={hero.image} alt="" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="text-xs font-bold uppercase truncate text-white">{hero.name}</h4>
+                          <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
+                        </div>
+                        <div className="flex items-center gap-3">
+                           {renderStars(maxTalent)}
+                           <span className="text-[8px] font-black text-muted-foreground uppercase">AGE: {hero.baseAge}</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/30" />
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : !isProcessing && (
             <div className="py-12 text-center opacity-30 border border-dashed border-white/5 rounded-2xl flex flex-col items-center gap-4">
                <ShieldAlert className="w-8 h-8" />
-               <p className="text-[8px] font-black uppercase tracking-widest">{t.noCandidates}</p>
+               <p className="text-[8px] font-black uppercase tracking-widest leading-relaxed">
+                 {t.noCandidates}
+               </p>
             </div>
           )}
         </div>
+        
+        {/* CYCLE INFO */}
+        {!scoutingStatus.isExpired && scoutingCandidates.length > 0 && (
+          <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 flex gap-4">
+             <Info className="w-5 h-5 text-primary shrink-0" />
+             <p className="text-[9px] text-muted-foreground leading-relaxed italic uppercase font-bold">
+               "Operational report remains active. Any unrecruited units will be reassigned when the cycle timer reaches zero."
+             </p>
+          </div>
+        )}
       </div>
 
       {/* CANDIDATE DOSSIER */}

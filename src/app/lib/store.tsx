@@ -2,8 +2,8 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v41 (Scouting Depth). 
- * Добавлен функционал скаутинга молодежи и найма кандидатов.
+ * @fileOverview Глобальное хранилище v42 (Scouting Cycle). 
+ * Реализован 4-дневный цикл скаутинга с 3 вариантами игроков.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -79,6 +79,7 @@ interface GameState {
   checkConstructions: () => void;
   scoutCandidates: () => void;
   recruitCandidate: (heroId: string) => void;
+  clearScoutingReport: () => void;
 }
 
 export function getLevelThreshold(lvl: number) {
@@ -108,7 +109,7 @@ const DEFAULT_STATE: GameState = {
   startArenaConstruction: () => false, startHQConstruction: () => false, startBootcampConstruction: () => false,
   startAcademyConstruction: () => false, startMedicalConstruction: () => false, startCapacityExpansion: () => false,
   accelerateConstruction: () => false, checkConstructions: () => {},
-  scoutCandidates: () => {}, recruitCandidate: () => {}
+  scoutCandidates: () => {}, recruitCandidate: () => {}, clearScoutingReport: () => {}
 };
 
 const GameStateContext = createContext<GameState | undefined>(undefined);
@@ -364,14 +365,19 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const r = getRefs(); if (!r) return;
     const s = stateRef.current;
     
-    // Количество кандидатов зависит от HQ Scouts Level
-    const count = Math.min(6, 3 + Math.floor((s.hq.scoutsLevel || 0) / 10));
+    // Всегда 3 варианта, как просил пользователь
+    const count = 3;
     const candidates = Array.from({ length: count }).map((_, i) => generateYouthHero(i, `scout_${Date.now()}_${i}`));
     
     updateDoc(r.team, {
       scoutingCandidates: JSON.parse(JSON.stringify(candidates)),
-      lastScoutDate: getMoscowDateString()
+      lastScoutDate: new Date().toISOString() // Используем ISO для точности цикла
     });
+  }, [getRefs]);
+
+  const clearScoutingReport = useCallback(() => {
+    const r = getRefs(); if (!r) return;
+    updateDoc(r.team, { scoutingCandidates: [] });
   }, [getRefs]);
 
   const recruitCandidate = useCallback((heroId: string) => {
@@ -424,8 +430,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     ...state, isDataReady: isMatchesReady && state.isLoaded, allSeasonMatches: allMatches, nextMatch: nextMatchInfo, isMatchesLoading: !isMatchesReady,
     addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setLanguageDirect,
     setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions,
-    scoutCandidates, recruitCandidate
-  }), [state, isMatchesReady, state.isLoaded, allMatches, nextMatchInfo, addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setLanguageDirect, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, scoutCandidates, recruitCandidate]);
+    scoutCandidates, recruitCandidate, clearScoutingReport
+  }), [state, isMatchesReady, state.isLoaded, allMatches, nextMatchInfo, addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setLanguageDirect, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, scoutCandidates, recruitCandidate, clearScoutingReport]);
 
   return <GameStateContext.Provider value={value as any}>{children}</GameStateContext.Provider>;
 }
