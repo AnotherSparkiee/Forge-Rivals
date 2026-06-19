@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Терминал скаутинга v4. 
- * Внедрена зависимость талантов от уровня скаутов и временное отключение кулдауна.
+ * @fileOverview Терминал скаутинга v5. 
+ * Внедрена зависимость талантов от уровня Скаутов Академии (не HQ).
  */
 
 import { useState, useEffect, useMemo } from 'react';
@@ -49,7 +49,8 @@ export default function ScoutingPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
 
-  const scoutLevel = Number(hq?.scoutsLevel || 0);
+  // Use Academy Scouts Level
+  const scoutLevel = Number(academy?.scoutsLevel || 0);
 
   const rolesRu: Record<string, string> = {
     'Carry': 'Керри',
@@ -64,7 +65,7 @@ export default function ScoutingPage() {
       title: "SCOUTING TERMINAL",
       subtitle: "Talent Discovery Hub",
       find: "INITIATE SEARCH",
-      findDesc: `Your current Scout Level (${scoutLevel}) determines talent quality.`,
+      findDesc: `Academy Scout Level (${scoutLevel}) determines talent quality.`,
       reportTitle: "Active Candidates",
       expiresIn: "Cooldown Bypass Active",
       noCandidates: "Scouting sectors clear. Initiate search mission.",
@@ -79,7 +80,7 @@ export default function ScoutingPage() {
       telemetry: "TALENT TELEMETRY",
       ovr: "Initial OVR",
       intel: "GENERAL INTEL",
-      scoutPower: "Scout Effectiveness",
+      scoutPower: "Academy Scouts",
       proStatsLabels: {
         lastHitting: "Last Hitting",
         mapAwareness: "Map Awareness",
@@ -97,7 +98,7 @@ export default function ScoutingPage() {
       title: "ТЕРМИНАЛ СКАУТИНГА",
       subtitle: "Центр поиска талантов",
       find: "НАЧАТЬ ПОИСК",
-      findDesc: `Уровень ваших скаутов (${scoutLevel}) влияет на качество находок.`,
+      findDesc: `Уровень Скаутов Академии (${scoutLevel}) влияет на качество находок.`,
       reportTitle: "Доступные кандидаты",
       expiresIn: "Bypass: Кулдаун временно отключен",
       noCandidates: "Сектора пусты. Запросите новый отчет скаутов.",
@@ -112,7 +113,7 @@ export default function ScoutingPage() {
       telemetry: "ТЕЛЕМЕТРИЯ ТАЛАНТА",
       ovr: "Начальный ОБЩ",
       intel: "ОБЩИЕ ДАННЫЕ",
-      scoutPower: "Эффективность скаутов",
+      scoutPower: "Скауты Академии",
       proStatsLabels: {
         lastHitting: "Добив крипов",
         mapAwareness: "Контроль карты",

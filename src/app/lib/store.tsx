@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v43 (Advanced Scouting Logic). 
- * Реализован расчет талантов в зависимости от уровня скаутов.
+ * @fileOverview Глобальное хранилище v44 (Youth Academy Focused Scouting). 
+ * Перенос зависимости скаутинга на профильное строение Академии.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -364,8 +364,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const r = getRefs(); if (!r) return;
     const s = stateRef.current;
     
-    // Pass Scout Level to generator
-    const scoutLevel = Number(s.hq?.scoutsLevel || 0);
+    // Pass Academy Scout Level instead of HQ Scouts
+    const scoutLevel = Number(s.academy?.scoutsLevel || 0);
     const count = 3;
     const candidates = Array.from({ length: count }).map((_, i) => generateScoutedHero(i, scoutLevel, `scout_${Date.now()}_${i}`));
     
