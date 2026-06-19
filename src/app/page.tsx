@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -12,7 +11,7 @@ import {
   ArrowRight, Loader2, Check, UserPlus,
   ShoppingCart, GraduationCap, CalendarDays, Medal,
   ArrowRightLeft, RefreshCw, Calendar, 
-  Clock, Activity, LayoutGrid, Radio
+  Clock, Activity, LayoutGrid, Radio, CheckCircle2, History
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,7 +39,7 @@ export default function Home() {
   const { toast } = useToast();
   const { 
     language, setLanguage, isLoaded, selectedLeagueId,
-    nextMatch, isDataReady
+    nextMatch, isDataReady, matchHistory
   } = useGameState();
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -52,6 +51,12 @@ export default function Home() {
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
 
+  // НАХОДИМ ПОСЛЕДНИЙ НЕПРОСМОТРЕННЫЙ РЕЗУЛЬТАТ (ПРИОРИТЕТ)
+  const latestUnreadResult = useMemo(() => {
+    if (!matchHistory || matchHistory.length === 0) return null;
+    return [...matchHistory].reverse().find(m => m.seen === false);
+  }, [matchHistory]);
+
   useEffect(() => {
     const timer = setInterval(() => {
       const info = getGlobalSeasonInfo();
@@ -62,11 +67,8 @@ export default function Home() {
         const genTime = new Date('2026-06-19T16:00:00+03:00').getTime();
         const startTime = new Date('2026-06-20T00:00:00+03:00').getTime();
         
-        if (mskNow.getTime() < genTime) {
-          targetTime = genTime;
-        } else {
-          targetTime = startTime;
-        }
+        if (mskNow.getTime() < genTime) targetTime = genTime;
+        else targetTime = startTime;
 
         const diff = targetTime - mskNow.getTime();
         const dd = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -74,16 +76,12 @@ export default function Home() {
         const mm = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const ss = Math.floor((diff % (1000 * 60)) / 1000);
         
-        if (dd > 0) {
-           setCountdown(`${dd}д ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
-        } else {
-           setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
-        }
+        if (dd > 0) setCountdown(`${dd}д ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
+        else setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
       } else if (nextMatch) {
         const matchStartTime = new Date(nextMatch.match.startTime).getTime();
-        if (mskNow.getTime() >= matchStartTime) {
-          setCountdown('00:00:00');
-        } else {
+        if (mskNow.getTime() >= matchStartTime) setCountdown('00:00:00');
+        else {
           const diff = matchStartTime - mskNow.getTime();
           const hh = Math.floor(diff / 3600000);
           const mm = Math.floor((diff % 3600000) / 60000);
@@ -110,9 +108,7 @@ export default function Home() {
       await signInWithEmailAndPassword(auth, emailToUse, password);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Denied", description: error.message });
-    } finally {
-      setIsAuthLoading(false);
-    }
+    } finally { setIsAuthLoading(false); }
   };
 
   if (isUserLoading) return <LoadingScreen />;
@@ -174,16 +170,22 @@ export default function Home() {
     en: { 
       nextMatch: "Next Engagement", 
       offseason: "OFFSEASON", 
-      battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", sync: "CALENDAR SYNC", noMatches: "NO UPCOMING MATCHES", 
+      battleBtn: "BATTLE OVERVIEW", 
+      resultBtn: "MATCH OUTCOME",
+      navTitle: "Command Terminals", sync: "CALENDAR SYNC", noMatches: "NO UPCOMING MATCHES", 
       startsIn: getMoscowTime().getDate() === 19 ? "GENERATION STARTS IN:" : "SEASON 1 STARTS IN:",
-      phase: "PHASE: STABILIZATION"
+      phase: "PHASE: STABILIZATION",
+      tourTypes: { trial: "TRIAL", friendly: "FRIENDLY", basket: "BASKET", league: "LEAGUE", cup: "CUP" }
     },
     ru: { 
       nextMatch: "Следующий матч", 
       offseason: "МЕЖСЕЗОНЬЕ", 
-      battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ", noMatches: "НЕТ БУДУЩИХ МАТЧЕЙ", 
+      battleBtn: "ОБЗОР МАТЧЕЙ", 
+      resultBtn: "РЕЗУЛЬТАТ МАТЧА",
+      navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ", noMatches: "НЕТ БУДУЩИХ МАТЧЕЙ", 
       startsIn: getMoscowTime().getDate() === 19 ? "ГЕНЕРАЦИЯ НАЧНЕТСЯ ЧЕРЕЗ:" : "СЕЗОН 1 НАЧНЕТСЯ ЧЕРЕЗ:",
-      phase: "ФАЗА: СТАБИЛИЗАЦИЯ"
+      phase: "ФАЗА: СТАБИЛИЗАЦИЯ",
+      tourTypes: { trial: "ПРОБНЫЙ", friendly: "ТОВ. МАТЧ", basket: "КОРЗИНА", league: "ЛИГА", cup: "КУБОК" }
     }
   }[language as 'en' | 'ru'];
 
@@ -207,7 +209,7 @@ export default function Home() {
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <Radio className="w-3 h-3 text-red-500 animate-pulse" />
-            <span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.33</span>
+            <span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.35</span>
           </div>
           <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
             {seasonInfo.isOffseason ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
@@ -242,11 +244,6 @@ export default function Home() {
                     <p className="text-3xl font-headline font-bold tabular-nums tracking-tighter text-white">
                       {countdown || '--:--:--'}
                     </p>
-                  </div>
-                  <div className="flex items-center justify-center gap-4 text-[7px] font-black uppercase tracking-widest text-muted-foreground opacity-40">
-                     <span className="flex items-center gap-1"><Shield className="w-2.5 h-2.5" /> SECURE</span>
-                     <span className="flex items-center gap-1"><Zap className="w-2.5 h-2.5" /> SYNCED</span>
-                     <span className="flex items-center gap-1"><RefreshCw className="w-2.5 h-2.5" /> AUTO-V33</span>
                   </div>
                 </div>
               ) : (
@@ -301,19 +298,43 @@ export default function Home() {
         </Card>
       </section>
 
-      {!seasonInfo.isOffseason && (
+      {/* ПРИОРИТЕТНЫЙ БЛОК РЕЗУЛЬТАТА (Если есть непросмотренный матч) */}
+      {latestUnreadResult ? (
+        <Link href={`/match?id=${latestUnreadResult.id}`} className="block relative mb-8">
+          <div className="absolute -inset-1 bg-gradient-to-r from-accent to-primary rounded-2xl blur opacity-30 animate-pulse"></div>
+          <Button className="w-full h-24 bg-accent text-accent-foreground border-none shadow-xl flex flex-col gap-1 transition-all active:scale-95 relative z-10">
+            <div className="flex flex-col items-center">
+              <Badge className="bg-white/20 text-white text-[7px] font-black uppercase mb-1 tracking-widest">
+                { (tHub.tourTypes as any)[latestUnreadResult.type] || 'ENGAGEMENT' } OUTCOME
+              </Badge>
+              <div className="flex items-center gap-3">
+                <Trophy className="w-6 h-6" />
+                <span className="text-2xl font-headline font-bold italic uppercase tracking-tight">
+                  {tHub.resultBtn}
+                </span>
+                <span className="text-2xl font-mono font-black border-l border-white/20 pl-3">
+                  {latestUnreadResult.scoreA}:{latestUnreadResult.scoreB}
+                </span>
+              </div>
+              <p className="text-[8px] font-black uppercase opacity-60 mt-1 flex items-center gap-1">
+                VS {latestUnreadResult.opponentName} <ArrowRight className="w-2.5 h-2.5" />
+              </p>
+            </div>
+          </Button>
+        </Link>
+      ) : !seasonInfo.isOffseason ? (
         <Link href={checkIsMatchFinished(nextMatch?.match) ? `/match?id=${nextMatch.match.id}` : "/matches"} className="block relative mb-8">
           <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-2xl blur opacity-25 animate-pulse"></div>
           <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1 transition-all active:scale-95 relative z-10">
             <div className="flex items-center gap-2">
               {checkIsMatchFinished(nextMatch?.match) ? <Trophy className="w-6 h-6" /> : <Swords className="w-6 h-6" />}
               <span className="text-xl font-headline font-bold italic uppercase">
-                {checkIsMatchFinished(nextMatch?.match) ? (language === 'ru' ? 'РЕЗУЛЬТАТ МАТЧА' : 'MATCH OUTCOME') : tHub.battleBtn}
+                {checkIsMatchFinished(nextMatch?.match) ? tHub.resultBtn : tHub.battleBtn}
               </span>
             </div>
           </Button>
         </Link>
-      )}
+      ) : null}
 
       <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
@@ -326,7 +347,7 @@ export default function Home() {
               <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group hover:border-primary/20">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="p-2.5 rounded-xl bg-secondary/50 group-hover:bg-primary/20 transition-colors border border-white/5 shadow-inner"><item.icon className="w-5 h-5 text-primary" /></div>
+                    <div className={cn("p-2.5 rounded-xl bg-secondary/50 group-hover:bg-primary/20 transition-colors border border-white/5 shadow-inner")}><item.icon className="w-5 h-5 text-primary" /></div>
                     <div><h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{item.label}</h3><p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p></div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-all" />

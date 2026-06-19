@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -6,7 +7,7 @@ import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, UserSearch, CalendarClock, 
   History, Calendar, CheckSquare, ChevronRight,
-  Clock, Swords, Loader2, ShieldAlert, User
+  Clock, Swords, Loader2, ShieldAlert, User, Trophy, Medal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -50,8 +51,8 @@ export default function MatchesPage() {
 
   const calendarDays = useMemo(() => {
     if (!isDataReady) return [];
-    // ФИЛЬТР ВЕРСИИ 31
-    const filtered = allSeasonMatches.filter(m => m.seasonNumber === activeSeasonNumber && m.version === 31);
+    // ФИЛЬТР ВЕРСИИ 32 (Актуальная версия для Сезона 1)
+    const filtered = allSeasonMatches.filter(m => m.seasonNumber === activeSeasonNumber && m.version === 32);
     const dayGroups: Record<number, any[]> = {};
     filtered.forEach(m => {
       if (!dayGroups[m.day]) dayGroups[m.day] = [];
@@ -62,11 +63,10 @@ export default function MatchesPage() {
 
   const myMatches = useMemo(() => {
     if (!user || !isDataReady) return [];
-    // ФИЛЬТР ВЕРСИИ 31
     return allSeasonMatches.filter(m => 
       (m.homeId === user.uid || m.awayId === user.uid) && 
       m.seasonNumber === activeSeasonNumber &&
-      m.version === 31
+      m.version === 32
     );
   }, [allSeasonMatches, user, isDataReady, activeSeasonNumber]);
 
@@ -86,6 +86,9 @@ export default function MatchesPage() {
     back: language === 'ru' ? "Назад" : "Back",
     awaiting: language === 'ru' ? "ОЖИДАНИЕ ГЕНЕРАЦИИ..." : "AWAITING DEPLOYMENT...",
     offseasonDesc: language === 'ru' ? "Сетка матчей Сезона 1 будет сформирована 19 июня в 16:00." : "Season 1 match grid will be established on June 19, 16:00 MSK.",
+    noHistory: language === 'ru' ? "История пуста" : "No combat records",
+    tourTypes: { trial: "TRIAL", friendly: "FRIENDLY", basket: "BASKET", league: "LEAGUE", cup: "CUP" },
+    tourTypesRu: { trial: "ПРОБНЫЙ", friendly: "ТОВАРИЩЕСКИЙ", basket: "КОРЗИНА", league: "ЛИГА", cup: "КУБОК" },
     tabs: {
       next_opponent: { label: language === 'ru' ? "Следующий соперник" : "Next Opponent", icon: UserSearch },
       my_future: { label: language === 'ru' ? "Мои будущие" : "My Future", icon: CalendarClock },
@@ -151,6 +154,55 @@ export default function MatchesPage() {
                <span className={cn(m.awayId === user?.uid && "text-primary")}>{m.awayName}</span>
              </div>
            )) : renderEmptyState()}
+        </div>
+      ) : activeTab === 'my_played' ? (
+        <div className="space-y-2">
+          {[...matchHistory].reverse().map((m) => {
+            const isWin = (m.scoreA > m.scoreB);
+            const isDraw = m.scoreA === m.scoreB;
+            const tourTypeLabel = language === 'ru' ? (t.tourTypesRu[m.type as keyof typeof t.tourTypesRu] || m.type) : (t.tourTypes[m.type as keyof typeof t.tourTypes] || m.type);
+            
+            return (
+              <Link key={m.id} href={`/match?id=${m.id}`}>
+                <Card className={cn(
+                  "glass-card border-white/5 hover:bg-white/5 transition-all overflow-hidden",
+                  !m.seen && "border-primary/40 bg-primary/5 shadow-[0_0_15px_rgba(var(--primary),0.1)]"
+                )}>
+                  <CardContent className="p-3 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "w-10 h-10 rounded-lg flex items-center justify-center border",
+                        isWin ? "bg-green-500/10 border-green-500/30 text-green-400" : (isDraw ? "bg-accent/10 border-accent/30 text-accent" : "bg-red-500/10 border-red-500/30 text-red-400")
+                      )}>
+                        {isWin ? <Trophy className="w-5 h-5" /> : <Medal className="w-5 h-5" />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                           <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase font-black">{tourTypeLabel}</Badge>
+                           <span className="text-[8px] text-muted-foreground font-mono">{new Date(m.playedAt).toLocaleDateString()}</span>
+                        </div>
+                        <h4 className="text-[11px] font-bold uppercase truncate mt-0.5">vs {m.opponentName}</h4>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <div className="text-lg font-headline font-black italic tracking-tighter">
+                        <span className={cn(isWin && "text-primary")}>{m.scoreA}</span>
+                        <span className="opacity-20 mx-1">:</span>
+                        <span>{m.scoreB}</span>
+                      </div>
+                      {!m.seen && <span className="text-[6px] font-black text-primary uppercase animate-pulse">NEW RESULT</span>}
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
+          {matchHistory.length === 0 && (
+            <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
+               <History className="w-12 h-12" />
+               <p className="text-xs font-black uppercase tracking-widest">{t.noHistory}</p>
+            </div>
+          )}
         </div>
       ) : (
         <div className="py-20 text-center opacity-30 text-[10px] font-black uppercase tracking-widest">Protocol Active</div>

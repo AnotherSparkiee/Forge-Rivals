@@ -1,5 +1,10 @@
 'use client';
 
+/**
+ * @fileOverview Слушатель товарищеских и пробных матчей v6 (Review Logic Fixed).
+ * Гарантирует появление результатов пробных матчей на главном экране Хаба.
+ */
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
@@ -16,7 +21,7 @@ import { useRouter } from 'next/navigation';
 import { getMatchResult } from '@/app/lib/leagues-data';
 
 const MATCH_DURATION_MS = 15 * 60 * 1000; 
-const TRIAL_DURATION_MS = 1000; // Instant trial for testing
+const TRIAL_DURATION_MS = 1000; 
 const LOBBY_EXPIRATION_MS = 60 * 1000; 
 
 function sanitizeForFirestore(obj: any) {
@@ -110,11 +115,6 @@ export function FriendlyMatchListener() {
       const checkExpiration = () => {
         if (Date.now() - createdAt > LOBBY_EXPIRATION_MS) {
           deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
-          toast({
-            title: language === 'ru' ? "Заявка истекла" : "Request Expired",
-            description: language === 'ru' ? "Никто не принял ваш вызов в течение минуты." : "No one accepted your challenge within a minute.",
-            variant: "destructive"
-          });
         }
       };
       const expirationTimer = setInterval(checkExpiration, 10000);
@@ -122,13 +122,6 @@ export function FriendlyMatchListener() {
     }
 
     if (data.status === 'rejected') {
-      if (!isHost) {
-        toast({
-          title: language === 'ru' ? "Вызов отклонен" : "Challenge Rejected",
-          description: language === 'ru' ? `Менеджер ${data.hostName} отклонил ваш вызов.` : `Manager ${data.hostName} rejected your challenge.`,
-          variant: "destructive"
-        });
-      }
       if (isHost) {
         deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
       }
@@ -140,12 +133,6 @@ export function FriendlyMatchListener() {
       const matchType = data.isTrial ? 'trial' : 'friendly';
       const matchUniqueId = `${matchType}_${data.id}_${acceptedAt}`;
       
-      const alreadyProcessed = matchHistory.some(m => m.id === matchUniqueId);
-      if (alreadyProcessed) {
-        if (isHost) deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
-        return;
-      }
-
       const duration = data.isTrial ? TRIAL_DURATION_MS : MATCH_DURATION_MS;
       const finishTime = acceptedAt + duration;
       
@@ -154,10 +141,16 @@ export function FriendlyMatchListener() {
         const now = Date.now();
 
         if (now >= finishTime) {
+          // ПРОВЕРКА ДУБЛЯ В ЛОКАЛЬНОМ STATE
+          const alreadyRecorded = matchHistory.some(m => m.id === matchUniqueId);
+          if (alreadyRecorded) {
+            if (isHost) await deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
+            return;
+          }
+
           isSimulatingRef.current = true;
           try {
             const result = data.matchResult;
-            
             const seriesScoreParts = result.seriesScore.split('-');
             const winsA = parseInt(seriesScoreParts[0]);
             const winsB = parseInt(seriesScoreParts[1]);
@@ -166,10 +159,20 @@ export function FriendlyMatchListener() {
             const myScoreB = isHost ? winsB : winsA;
             
             const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
+            const myName = isHost ? data.hostName : data.challengerName;
             
+            // ЗАПИСЬ С seen: false ДЛЯ ТРИГГЕРА В page.tsx
             recordMatch(
-              myScoreA > myScoreB ? (isHost ? data.hostName : data.challengerName) : (myScoreA === myScoreB ? "Draw" : opponentName), 
-              { ...result.games[0], scoreA: myScoreA, scoreB: myScoreB, seriesScore: `${myScoreA}-${myScoreB}`, games: result.games }, 
+              myScoreA > myScoreB ? myName : (myScoreA === myScoreB ? "Draw" : opponentName), 
+              { 
+                ...result.games[0], 
+                scoreA: myScoreA, 
+                scoreB: myScoreB, 
+                seriesScore: `${myScoreA}-${myScoreB}`, 
+                games: result.games,
+                homeName: data.hostName,
+                awayName: data.challengerName
+              }, 
               0, 
               opponentName, 
               matchType, 
@@ -179,9 +182,10 @@ export function FriendlyMatchListener() {
             
             toast({
               title: language === 'ru' ? "Матч завершен" : "Match Finished",
-              description: language === 'ru' ? `Отчет боя против ${opponentName} готов.` : `Battle report vs ${opponentName} is ready.`,
+              description: language === 'ru' ? `Отчет боя против ${opponentName} доступен на главной.` : `Battle report vs ${opponentName} ready on hub.`,
             });
 
+            // УДАЛЕНИЕ ЛОББИ ТОЛЬКО ПОСЛЕ ЗАПИСИ
             if (isHost) {
               await deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
             }
@@ -193,7 +197,7 @@ export function FriendlyMatchListener() {
         }
       };
 
-      const timer = setInterval(checkAndComplete, 2000);
+      const timer = setInterval(checkAndComplete, 1000);
       checkAndComplete();
       return () => clearInterval(timer);
     }
@@ -227,7 +231,6 @@ export function FriendlyMatchListener() {
         }
 
         const botSquad = generateBotSquad(25);
-
         const [finalScoreA, finalScoreB] = getMatchResult(activeLobby.hostId, activeLobby.challengerId || "bot", 0, 1);
 
         const result = await simulateMobaMatch({
@@ -249,18 +252,13 @@ export function FriendlyMatchListener() {
           updatedAt: serverTimestamp()
         });
         
-        if (activeLobby.challengerId && activeLobby.challengerId !== 'sys_bot' && activeLobby.challengerId !== 'sys_bot_trainer') {
+        if (activeLobby.challengerId && !activeLobby.challengerId.startsWith('sys_')) {
           sendNotification(
             activeLobby.challengerId,
             language === 'ru' ? "Вызов принят!" : "Challenge Accepted!",
             language === 'ru' ? `Менеджер ${activeLobby.hostName} готов к бою.` : `Manager ${activeLobby.hostName} is ready for battle.`
           );
         }
-
-        toast({
-          title: language === 'ru' ? "Матч начат" : "Match Started",
-          description: language === 'ru' ? "Игра отображается на главной странице." : "Match is visible on the home page.",
-        });
       } else {
         await updateDoc(lobbyRef, {
           status: 'rejected',
@@ -269,7 +267,6 @@ export function FriendlyMatchListener() {
       }
     } catch (e: any) {
       console.error("Match start failed:", e);
-      toast({ title: "Failed to start match", description: e.message, variant: "destructive" });
     } finally {
       setIsActionLoading(false);
       setShowChallengeModal(false);

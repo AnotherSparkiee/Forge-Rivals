@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v44 (Youth Academy Focused Scouting). 
- * Перенос зависимости скаутинга на профильное строение Академии.
+ * @fileOverview Глобальное хранилище v47 (Fixed Match Recording). 
+ * Исправлена логика записи и отображения результатов для всех типов матчей.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -324,14 +324,53 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const promoteYouthPlayer = (id: string) => updateHero(id, { isYouth: false });
   const updateProfileName = (n: string) => { if (!user?.uid) return; setDoc(doc(db, 'players_v10', user.uid), { displayName: n }, { merge: true }); const r = getRefs(); if (r) setDoc(r.team, { displayName: n }, { merge: true }); };
   const updateProfileCountry = (c: string) => { if (user?.uid) setDoc(doc(db, 'players_v10', user.uid), { country: c }, { merge: true }); };
+  
   const recordMatch = (w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string) => {
-    const r = getRefs(); if (!r) return; const s = stateRef.current; const id = mId || `match_${Date.now()}`;
+    const r = getRefs(); if (!r) return; 
+    const s = stateRef.current; 
+    const id = mId || `match_${Date.now()}`;
+    
+    // ПРЕДОТВРАЩЕНИЕ ДУБЛЕЙ
     if (s.matchHistory.some(m => m.id === id)) return;
-    const entry = { id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, matchSummary: res.matchSummary || "Combat concluded.", opponentName: opp, type: t, playedAt: p, reward: rew, seen: false, day: Number(s.seasonDay), seasonNumber: Number(s.seasonNumber), timeline: res.timeline || [], scoreboard: res.scoreboard || [], mvp: res.mvp, duration: res.duration, games: res.games || [] };
-    setDoc(r.team, { credits: s.credits + rew, matchHistory: arrayUnion(entry) }, { merge: true });
+
+    // ФОРМИРОВАНИЕ ЗАПИСИ (seen: false для появления на главной)
+    const entry = { 
+      id, 
+      winner: w, 
+      scoreA: res.scoreA, 
+      scoreB: res.scoreB, 
+      matchSummary: res.matchSummary || "Combat concluded.", 
+      opponentName: opp, 
+      type: t, 
+      playedAt: p, 
+      reward: rew, 
+      seen: false, 
+      day: Number(s.seasonDay), 
+      seasonNumber: Number(s.seasonNumber), 
+      timeline: res.timeline || [], 
+      scoreboard: res.scoreboard || [], 
+      mvp: res.mvp || "None", 
+      duration: res.duration || "30:00", 
+      games: res.games || [res],
+      homeName: res.homeName || s.displayName,
+      awayName: res.awayName || opp
+    };
+
+    updateDoc(r.team, { 
+      credits: s.credits + rew, 
+      matchHistory: arrayUnion(entry) 
+    });
   };
+
   const markMatchAsSeen = (d: number) => { const r = getRefs(); if (r) setDoc(r.team, { lastSeenMatchDay: Number(d) }, { merge: true }); };
-  const markMatchIdAsSeen = (id: string) => { const r = getRefs(); if (!r) return; const hist = stateRef.current.matchHistory.map(m => m.id === id ? { ...m, seen: true } : m); setDoc(r.team, { matchHistory: hist }, { merge: true }); };
+  
+  const markMatchIdAsSeen = (id: string) => { 
+    const r = getRefs(); if (!r) return; 
+    const s = stateRef.current;
+    const hist = s.matchHistory.map(m => m.id === id ? { ...m, seen: true } : m); 
+    updateDoc(r.team, { matchHistory: hist }); 
+  };
+
   const upgradeManagerSkill = (k: keyof GameState['managerSkills']) => { const s = stateRef.current; if (s.skillPoints <= 0) return; const r = getRefs(); if (r) setDoc(r.team, { skillPoints: s.skillPoints - 1, managerSkills: { ...s.managerSkills, [k]: s.managerSkills[k] + 1 } }, { merge: true }); };
 
   const startConstruction = (type: string, id: string, cost: number, baseH: number) => {
@@ -363,16 +402,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const scoutCandidates = useCallback(() => {
     const r = getRefs(); if (!r) return;
     const s = stateRef.current;
-    
-    // Pass Academy Scout Level instead of HQ Scouts
     const scoutLevel = Number(s.academy?.scoutsLevel || 0);
     const count = 3;
     const candidates = Array.from({ length: count }).map((_, i) => generateScoutedHero(i, scoutLevel, `scout_${Date.now()}_${i}`));
-    
-    updateDoc(r.team, {
-      scoutingCandidates: JSON.parse(JSON.stringify(candidates)),
-      lastScoutDate: new Date().toISOString()
-    });
+    updateDoc(r.team, { scoutingCandidates: JSON.parse(JSON.stringify(candidates)), lastScoutDate: new Date().toISOString() });
   }, [getRefs]);
 
   const clearScoutingReport = useCallback(() => {
@@ -385,26 +418,19 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const s = stateRef.current;
     const candidate = s.scoutingCandidates.find(c => c.id === heroId);
     if (!candidate) return;
-
     const remaining = s.scoutingCandidates.filter(c => c.id !== heroId);
-    
-    // Add hero to subcollection
     const heroRef = doc(collection(r.team, 'heroes'), candidate.id);
     setDoc(heroRef, { ...candidate, isYouth: true }, { merge: true });
-    
-    // Update team document
     updateDoc(r.team, { scoutingCandidates: remaining });
   }, [getRefs]);
 
   const checkConstructions = useCallback(() => {
     if (isCheckingConstructions.current) return;
     const r = getRefs(); if (!r) return;
-    
     const types = ['arena', 'hq', 'bootcamp', 'academy', 'medical']; 
     const nowMs = Date.now(); 
     const batch = writeBatch(db); 
     let changes = false;
-    
     types.forEach(t => {
       const data = (stateRef.current as any)[t]; if (!data?.constructionFinishes) return;
       Object.entries(data.constructionFinishes).forEach(([id, iso]) => {
@@ -417,12 +443,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         }
       });
     });
-
     if (changes) {
       isCheckingConstructions.current = true;
-      batch.commit().finally(() => {
-        isCheckingConstructions.current = false;
-      });
+      batch.commit().finally(() => { isCheckingConstructions.current = false; });
     }
   }, [db, getRefs]);
 
