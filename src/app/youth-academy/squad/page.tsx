@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -21,6 +22,13 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { renderStars, STAT_KEYS } from '@/app/transfers/quick-search/page';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 const normTalent = (val: any) => {
   const n = Number(val);
@@ -46,6 +54,14 @@ export default function YouthSquadPage() {
   const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v10', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
+  const rolesRu: Record<string, string> = {
+    'Carry': 'Керри',
+    'Midlaner': 'Мидер',
+    'Tank': 'Танк',
+    'Jungler': 'Лес',
+    'Support': 'Саппорт'
+  };
+
   const t = {
     title: language === 'ru' ? "СОСТАВ АКАДЕМИИ" : "ACADEMY SQUAD",
     promote: language === 'ru' ? "В ОСНОВУ" : "PROMOTE",
@@ -59,6 +75,7 @@ export default function YouthSquadPage() {
     sale: language === 'ru' ? "ПРОДАЖА" : "SALE",
     priceTitle: language === 'ru' ? "ЦЕНА ЮНИОРА" : "UNIT PRICE",
     talent: language === 'ru' ? "Талант" : "Talent",
+    intel: language === 'ru' ? "ОБЩИЕ ДАННЫЕ" : "GENERAL INTEL",
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
       mapAwareness: language === 'ru' ? "Контроль карты" : "Map Awareness",
@@ -123,9 +140,11 @@ export default function YouthSquadPage() {
               <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{selectedHero.country?.flag}</span></div>
             </div>
             <div className="space-y-1">
-              <h1 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{selectedHero.name}</h1>
+              <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{selectedHero.name}</DialogTitle>
               <div className="flex items-center justify-center gap-2 mt-2">
-                <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{selectedHero.role}</Badge>
+                <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">
+                  {rolesRu[selectedHero.role] || selectedHero.role}
+                </Badge>
               </div>
             </div>
           </div>
@@ -150,11 +169,11 @@ export default function YouthSquadPage() {
 
               <section className="space-y-3">
                 <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
+                  <Info className="w-3.5 h-3.5" /> {t.intel}
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">Age</span>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.years}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
@@ -169,7 +188,7 @@ export default function YouthSquadPage() {
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
-                     <span className="text-[10px] font-bold uppercase">{selectedHero.role}</span>
+                     <span className="text-[10px] font-bold uppercase">{rolesRu[selectedHero.role] || selectedHero.role}</span>
                   </div>
                 </div>
               </section>
@@ -235,7 +254,7 @@ export default function YouthSquadPage() {
                   <Gem className="w-3.5 h-3.5" /> {t.priceTitle}
                 </h3>
                 <div className="bg-secondary/30 p-4 rounded-xl border border-white/5">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase">ESTIMATED VALUE</p>
+                   <p className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ОЦЕНОЧНАЯ СТОИМОСТЬ' : 'ESTIMATED VALUE'}</p>
                    <p className="text-xl font-headline font-bold text-white italic">€ {(selectedHero.overallRating * 5000 + 25000).toLocaleString()}</p>
                 </div>
               </section>
@@ -259,7 +278,7 @@ export default function YouthSquadPage() {
     <div className="max-w-md mx-auto px-4 pt-8 pb-6">
       <header className="mb-6 flex items-center gap-4">
         <Link href="/youth-academy"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
-        <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-primary">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">Future tactical assets</p></div>
+        <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-primary">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{language === 'ru' ? 'Будущие активы клуба' : 'Future tactical assets'}</p></div>
       </header>
       <div className="space-y-1.5">
         {youthAcademyHeroes.length > 0 ? youthAcademyHeroes.map((hero) => {
@@ -274,12 +293,14 @@ export default function YouthSquadPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="text-[11px] font-bold truncate uppercase">{hero.name}</h3>
-                    <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
+                    <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase opacity-60">
+                      {rolesRu[hero.role] || hero.role}
+                    </Badge>
                     {onAuction && <Badge className="bg-yellow-500 text-black text-[6px] h-3 px-1 font-black animate-pulse uppercase">Auction</Badge>}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     {renderStars(maxTalent)}
-                    <p className="text-[7px] text-muted-foreground font-black uppercase tracking-widest">Age: {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.years}</p>
+                    <p className="text-[7px] text-muted-foreground font-black uppercase tracking-widest">{language === 'ru' ? 'Возраст' : 'Age'}: {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.years}</p>
                   </div>
                 </div>
                 <div className="text-right border-l border-white/5 pl-2 min-w-[35px]">
@@ -290,7 +311,7 @@ export default function YouthSquadPage() {
             </Card>
           );
         }) : (
-          <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4 border border-dashed border-white/10 rounded-2xl"><Users className="w-12 h-12" /><p className="text-xs font-black uppercase tracking-widest">Academy slots empty</p></div>
+          <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4 border border-dashed border-white/10 rounded-2xl"><Users className="w-12 h-12" /><p className="text-xs font-black uppercase tracking-widest">{language === 'ru' ? 'Места в школе пусты' : 'Academy slots empty'}</p></div>
         )}
       </div>
     </div>

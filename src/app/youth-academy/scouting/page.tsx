@@ -2,8 +2,8 @@
 'use client';
 
 /**
- * @fileOverview Терминал скаутинга v2. 
- * Реализует 4-дневный цикл обновления с ротацией 3 кандидатов.
+ * @fileOverview Терминал скаутинга v3. 
+ * Полная локализация на русский язык и поддержка 4-дневного цикла.
  */
 
 import { useState, useEffect, useMemo } from 'react';
@@ -31,7 +31,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 
 export default function ScoutingPage() {
@@ -46,13 +45,11 @@ export default function ScoutingPage() {
   const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
   const [now, setNow] = useState(getMoscowTime().getTime());
 
-  // Обновление локального времени каждую секунду
   useEffect(() => {
     const timer = setInterval(() => setNow(getMoscowTime().getTime()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // 4 дня в миллисекундах
   const CYCLE_MS = 4 * 24 * 60 * 60 * 1000;
   
   const scoutingStatus = useMemo(() => {
@@ -67,12 +64,19 @@ export default function ScoutingPage() {
     };
   }, [lastScoutDate, now]);
 
-  // Автоматическая очистка просроченного отчета
   useEffect(() => {
     if (scoutingStatus.isExpired && scoutingCandidates.length > 0) {
       clearScoutingReport();
     }
   }, [scoutingStatus.isExpired, scoutingCandidates.length, clearScoutingReport]);
+
+  const rolesRu: Record<string, string> = {
+    'Carry': 'Керри',
+    'Midlaner': 'Мидер',
+    'Tank': 'Танк',
+    'Jungler': 'Лес',
+    'Support': 'Саппорт'
+  };
 
   const t = {
     en: {
@@ -90,7 +94,23 @@ export default function ScoutingPage() {
       successDesc: "New talent moved to Academy squad.",
       capacity: "ACADEMY SLOTS",
       stats: "Candidate Dossier",
-      close: "CLOSE"
+      close: "CLOSE",
+      potential: "Potential",
+      telemetry: "TALENT TELEMETRY",
+      ovr: "Initial OVR",
+      intel: "GENERAL INTEL",
+      proStatsLabels: {
+        lastHitting: "Last Hitting",
+        mapAwareness: "Map Awareness",
+        positioning: "Positioning",
+        reflexes: "Reflexes",
+        manaManagement: "Mana Management",
+        objectiveControl: "Objective Control",
+        communication: "Communication",
+        tiltResistance: "Tilt Resistance",
+        versatility: "Versatility",
+        ganking: "Ganking",
+      }
     },
     ru: {
       title: "ТЕРМИНАЛ СКАУТИНГА",
@@ -107,7 +127,23 @@ export default function ScoutingPage() {
       successDesc: "Новый талант направлен в Юношескую школу.",
       capacity: "МЕСТА В ШКОЛЕ",
       stats: "Досье кандидата",
-      close: "ЗАКРЫТЬ"
+      close: "ЗАКРЫТЬ",
+      potential: "Потенциал",
+      telemetry: "ТЕЛЕМЕТРИЯ ТАЛАНТА",
+      ovr: "Начальный ОБЩ",
+      intel: "ОБЩИЕ ДАННЫЕ",
+      proStatsLabels: {
+        lastHitting: "Добив крипов",
+        mapAwareness: "Контроль карты",
+        positioning: "Позиционка",
+        reflexes: "Рефлексы",
+        manaManagement: "Менеджмент маны",
+        objectiveControl: "Объекты",
+        communication: "Коммуникация",
+        tiltResistance: "Стрессоустойчивость",
+        versatility: "Универсальность",
+        ganking: "Ганкинг",
+      }
     }
   }[language as 'en' | 'ru'];
 
@@ -116,7 +152,7 @@ export default function ScoutingPage() {
     const hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
     const mins = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
     const secs = Math.floor((ms % (60 * 1000)) / 1000);
-    return days > 0 ? `${days}d ${hours}h` : `${hours}h ${mins}m ${secs}s`;
+    return days > 0 ? `${days}д ${hours}ч` : `${hours}ч ${mins}м ${secs}с`;
   };
 
   const academyLimit = 10 + (academy.youthBootcampLevel || 0);
@@ -160,7 +196,6 @@ export default function ScoutingPage() {
       </header>
 
       <div className="space-y-6">
-        {/* CAPACITY & CYCLE STATUS */}
         <div className="grid grid-cols-2 gap-3">
           <Card className="glass-card border-white/5 bg-secondary/10">
             <CardContent className="p-3 text-center">
@@ -186,7 +221,6 @@ export default function ScoutingPage() {
           </Card>
         </div>
 
-        {/* SCOUTING ACTION - ONLY VISIBLE IF EXPIRED OR NO CANDIDATES */}
         {(scoutingStatus.isExpired || scoutingCandidates.length === 0) && (
           <Card className={cn(
             "glass-card border-dashed border-primary/30 transition-all",
@@ -195,7 +229,6 @@ export default function ScoutingPage() {
             <CardContent className="p-6 text-center space-y-4">
               <div className="w-16 h-16 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center mx-auto relative">
                 {isProcessing ? <Loader2 className="w-8 h-8 text-accent animate-spin" /> : <Radar className="w-8 h-8 text-primary" />}
-                {isProcessing && <div className="absolute inset-0 rounded-full border-2 border-accent border-t-transparent animate-spin"></div>}
               </div>
               <div className="space-y-1">
                 <h3 className="text-sm font-bold uppercase text-white">{t.find}</h3>
@@ -206,13 +239,12 @@ export default function ScoutingPage() {
                 onClick={handleScout}
                 disabled={isProcessing}
               >
-                {isProcessing ? 'SCANNING SECTORS...' : 'START SCOUTING MISSION'}
+                {isProcessing ? (language === 'ru' ? 'СКАНИРОВАНИЕ...' : 'SCANNING SECTORS...') : t.find}
               </Button>
             </CardContent>
           </Card>
         )}
 
-        {/* CANDIDATES LIST */}
         <div className="space-y-3">
           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent flex items-center gap-2 px-1">
             <Search className="w-3.5 h-3.5" /> {t.reportTitle}
@@ -233,11 +265,13 @@ export default function ScoutingPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <h4 className="text-xs font-bold uppercase truncate text-white">{hero.name}</h4>
-                          <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
+                          <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase opacity-60">
+                            {rolesRu[hero.role] || hero.role}
+                          </Badge>
                         </div>
                         <div className="flex items-center gap-3">
                            {renderStars(maxTalent)}
-                           <span className="text-[8px] font-black text-muted-foreground uppercase">AGE: {hero.baseAge}</span>
+                           <span className="text-[8px] font-black text-muted-foreground uppercase">ВОЗРАСТ: {hero.baseAge}</span>
                         </div>
                       </div>
                       <ChevronRight className="w-4 h-4 text-muted-foreground/30" />
@@ -255,19 +289,8 @@ export default function ScoutingPage() {
             </div>
           )}
         </div>
-        
-        {/* CYCLE INFO */}
-        {!scoutingStatus.isExpired && scoutingCandidates.length > 0 && (
-          <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 flex gap-4">
-             <Info className="w-5 h-5 text-primary shrink-0" />
-             <p className="text-[9px] text-muted-foreground leading-relaxed italic uppercase font-bold">
-               "Operational report remains active. Any unrecruited units will be reassigned when the cycle timer reaches zero."
-             </p>
-          </div>
-        )}
       </div>
 
-      {/* CANDIDATE DOSSIER */}
       <Dialog open={!!selectedHero} onOpenChange={() => setSelectedHero(null)}>
         <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden shadow-2xl h-[90vh] flex flex-col">
           <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 relative shrink-0 text-center">
@@ -284,22 +307,24 @@ export default function ScoutingPage() {
               {selectedHero?.name}
             </DialogTitle>
             <div className="flex items-center justify-center gap-2 mt-2">
-              <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{selectedHero?.role}</Badge>
+              <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">
+                {selectedHero ? (rolesRu[selectedHero.role] || selectedHero.role) : ''}
+              </Badge>
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-8 scrollbar-hide">
             <section className="space-y-3">
               <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Info className="w-3.5 h-3.5" /> {t.stats}
+                <Info className="w-3.5 h-3.5" /> {t.intel}
               </h3>
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">Initial OVR</span>
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.ovr}</span>
                    <span className="text-sm font-headline font-bold text-accent">{selectedHero?.overallRating}</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">Potential</span>
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.potential}</span>
                    <div className="flex items-center">
                     {selectedHero && renderStars(Math.max(...Object.values(selectedHero.proTalents || {}).map(v => Number(v))))}
                    </div>
@@ -309,14 +334,16 @@ export default function ScoutingPage() {
 
             <section className="space-y-3">
               <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <Zap className="w-3.5 h-3.5" /> TALENT TELEMETRY
+                <Zap className="w-3.5 h-3.5" /> {t.telemetry}
               </h3>
               <div className="space-y-2">
                 {STAT_KEYS.map((key) => {
-                  const talentLimit = selectedHero ? (Number((selectedHero.proTalents as any)[key]) < 10 ? Number((selectedHero.proTalents as any)[key]) * 10 : Number((selectedHero.proTalents as any)[key])) : 0;
+                  const talentLimit = selectedHero ? normTalent((selectedHero.proTalents as any)[key]) : 0;
                   return (
                     <div key={key} className="p-3 bg-secondary/10 rounded-xl border border-white/5 flex justify-between items-center">
-                      <span className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest">{key.toUpperCase()}</span>
+                      <span className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest">
+                        {(t.proStatsLabels as any)[key] || key.toUpperCase()}
+                      </span>
                       <div className="flex items-center gap-3">
                          {renderStars(talentLimit)}
                          <span className="text-xs font-mono font-bold text-accent">{talentLimit}</span>
