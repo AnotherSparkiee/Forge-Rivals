@@ -1,4 +1,3 @@
-
 'use client';
 
 /**
@@ -9,7 +8,7 @@
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, Timestamp, updateDoc, setDoc } from 'firebase/firestore';
 import { 
   getStableGroupTeams, generateSeasonCalendar, 
   LEAGUES 
@@ -20,7 +19,7 @@ import { generatePyramidCup } from '@/app/actions/cup-engine';
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
-  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, allSeasonMatches, addCredits } = useGameState();
+  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, allSeasonMatches, addCredits, language } = useGameState();
   const db = useFirestore();
   const processingRef = useRef(false);
   const lastEconomicCheckRef = useRef<string | null>(null);
@@ -60,16 +59,16 @@ export function AutoMatchManager() {
         const sysData = sysStatusSnap.exists() ? sysStatusSnap.data() : {};
 
         // === ЭКОНОМИЧЕСКИЙ ЦИКЛ (Phase 2) ===
-        // Выплата спонсорских раз в сутки при входе
         if (lastEconomicCheckRef.current !== todayStr) {
-          const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', `${nextSeasonId}_league_${selectedLeagueId}_group_${groupId}`, 'teams', userId);
+          const seasonId = `season_${info.seasonNumber}`;
+          const currentPrefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
+          const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', currentPrefixedGroupId, 'teams', userId);
           const teamSnap = await getDoc(teamRef);
           
           if (teamSnap.exists()) {
             const teamData = teamSnap.data();
             if (teamData.lastSponsorPayoutDate !== todayStr) {
               const basePayout = 250000;
-              // Бонус от скилла менеджера
               const bonusMult = 1 + ((teamData.managerSkills?.sponsors || 0) * 0.1);
               const finalPayout = Math.round(basePayout * bonusMult);
               
@@ -79,7 +78,6 @@ export function AutoMatchManager() {
                 updatedAt: serverTimestamp()
               });
               
-              // Создаем уведомление
               const notifId = `sponsor_${userId}_${todayStr}`;
               await setDoc(doc(db, 'notifications_v7', notifId), {
                 userId,
@@ -97,7 +95,6 @@ export function AutoMatchManager() {
         }
 
         // === ГЕНЕРАЦИЯ (Phase 1 Final) ===
-        // День 15 цикла, после 16:00
         const isGenTime = info.dayOfCycle === 15 && mskNow.getHours() >= 16;
         
         if (isGenTime) {
