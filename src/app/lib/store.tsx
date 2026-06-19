@@ -1,15 +1,16 @@
+
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v40 (Absolute Sync). 
- * Полная синхронизация с реальным временем 2026 года.
+ * @fileOverview Глобальное хранилище v41 (Scouting Depth). 
+ * Добавлен функционал скаутинга молодежи и найма кандидатов.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
-import { Hero, StaffMember, StaffRole } from './moba-data';
+import { Hero, StaffMember, StaffRole, generateYouthHero } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getSeasonDateLabel, setServerTime } from './time-utils';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, arrayUnion, orderBy, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, arrayUnion, orderBy, getDoc, updateDoc } from 'firebase/firestore';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
@@ -29,6 +30,7 @@ interface GameState {
   displayName: string; id: string; isLoaded: boolean;
   lineup: Record<LineupSlot, string | null>;
   ownedHeroes: Hero[]; youthAcademyHeroes: Hero[];
+  scoutingCandidates: Hero[]; lastScoutDate: string | null;
   staff: Record<StaffRole, StaffMember | null>;
   strategy: string; lineSettings: any;
   rewardDay: number; lastRewardClaimDate: string | null;
@@ -75,6 +77,8 @@ interface GameState {
   startCapacityExpansion: (seats: number, cost: number) => boolean;
   accelerateConstruction: (type: string, id: string, multiplier: number, price: number) => boolean;
   checkConstructions: () => void;
+  scoutCandidates: () => void;
+  recruitCandidate: (heroId: string) => void;
 }
 
 export function getLevelThreshold(lvl: number) {
@@ -86,7 +90,7 @@ const DEFAULT_STATE: GameState = {
   leagueLevel: 9, groupId: 1, selectedLeagueId: null,
   displayName: 'Manager', id: '', isLoaded: false, 
   lineup: { carry: null, mid: null, offlane: null, support: null, full_support: null, sub1: null, sub2: null, res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null },
-  ownedHeroes: [], youthAcademyHeroes: [],
+  ownedHeroes: [], youthAcademyHeroes: [], scoutingCandidates: [], lastScoutDate: null,
   staff: { coach: null, analyst: null, scout: null, doctor: null, financier: null },
   strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' },
   rewardDay: 1, lastRewardClaimDate: null, matchHistory: [], lastSeenMatchDay: 0,
@@ -103,7 +107,8 @@ const DEFAULT_STATE: GameState = {
   markMatchAsSeen: () => {}, markMatchIdAsSeen: () => {}, upgradeManagerSkill: () => {},
   startArenaConstruction: () => false, startHQConstruction: () => false, startBootcampConstruction: () => false,
   startAcademyConstruction: () => false, startMedicalConstruction: () => false, startCapacityExpansion: () => false,
-  accelerateConstruction: () => false, checkConstructions: () => {}
+  accelerateConstruction: () => false, checkConstructions: () => {},
+  scoutCandidates: () => {}, recruitCandidate: () => {}
 };
 
 const GameStateContext = createContext<GameState | undefined>(undefined);
@@ -120,21 +125,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { stateRef.current = state; }, [state]);
 
-  // ГЛОБАЛЬНАЯ СЕТЕВАЯ СИНХРОНИЗАЦИЯ (NTP)
   useEffect(() => {
     if (!db) return;
-    
     const syncTime = async () => {
       try {
-        // Пробуем получить точное время через внешний API
         const response = await fetch('https://worldtimeapi.org/api/timezone/Europe/Moscow', { cache: 'no-store' }).catch(() => null);
         if (response && response.ok) {
           const data = await response.json();
-          // Это реальное UTC время сервера
           const serverMs = new Date(data.datetime).getTime();
           setServerTime(serverMs);
         } else {
-          // Если API недоступен — используем задержку до базы данных
           const start = Date.now();
           await getDoc(doc(db, 'system_v1', 'status'));
           const end = Date.now();
@@ -145,13 +145,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         console.warn("[TIME-SYNC] Network NTP failed, using local fallback.");
       }
     };
-    
     syncTime();
   }, [db]);
 
   useEffect(() => {
     if (isUserLoading || !user?.uid) return;
-
     try {
       const rootRef = doc(db, 'players_v10', user.uid);
       const unsubscribe = onSnapshot(rootRef, (snap) => {
@@ -177,7 +175,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }, (err) => {
         console.warn("Auth lag (profile):", err.message);
       });
-
       return () => unsubscribe();
     } catch (e) {
       console.error("Critical root sync error:", e);
@@ -186,7 +183,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.id || !state.selectedLeagueId) return;
-
     try {
       const s = state;
       const info = getGlobalSeasonInfo();
@@ -218,7 +214,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           activeLicenseTier: d.activeLicenseTier ?? 4,
           premiumUntil: d.premiumUntil ?? null,
           isPremium: d.premiumUntil ? new Date(d.premiumUntil) > new Date() : false,
-          rank: d.rank ?? 8
+          rank: d.rank ?? 8,
+          scoutingCandidates: d.scoutingCandidates || [],
+          lastScoutDate: d.lastScoutDate || null
         }));
       }, (err) => {
         console.debug("Auth lag (team):", err.message);
@@ -241,21 +239,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
-
     try {
       const s = state;
       const info = getGlobalSeasonInfo();
       const activeSN = Number(info.activeSeasonNumber);
       const seasonId = `season_${activeSN}`;
       const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
-
-      const q = query(
-        collection(db, 'matches_v1'),
-        where('groupId', '==', String(prefixedGroupId)),
-        where('seasonNumber', '==', activeSN),
-        where('version', '==', 32)
-      );
-
+      const q = query(collection(db, 'matches_v1'), where('groupId', '==', String(prefixedGroupId)), where('seasonNumber', '==', activeSN), where('version', '==', 32));
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const loaded = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
         const sorted = loaded.sort((a, b) => (Number(a.day) || 0) - (Number(b.day) || 0));
@@ -264,7 +254,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }, (err) => {
         console.debug("Auth lag (matches):", err.message);
       });
-
       return () => unsubscribe();
     } catch (e) {
       console.error("Matches sync error:", e);
@@ -274,21 +263,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const nextMatchInfo = useMemo(() => {
     if (!isMatchesReady || !user?.uid || allMatches.length === 0) return null;
     const mskNow = getMoscowTime().getTime();
-
-    const active = allMatches.find(m => 
-      (m.homeId === user.uid || m.awayId === user.uid) && 
-      !checkIsMatchFinished(m) && 
-      new Date(m.startTime).getTime() <= mskNow + 300000 
-    );
-
+    const active = allMatches.find(m => (m.homeId === user.uid || m.awayId === user.uid) && !checkIsMatchFinished(m) && new Date(m.startTime).getTime() <= mskNow + 300000);
     if (active) return { match: active, opponentName: active.homeId === user.uid ? active.awayName : active.homeName, day: Number(active.day), dateLabel: getSeasonDateLabel(active.day, active.seasonNumber), isHome: active.homeId === user.uid };
-
-    const future = allMatches
-      .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && !checkIsMatchFinished(m))
-      .sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
-    
+    const future = allMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid) && !checkIsMatchFinished(m)).sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
     if (future) return { match: future, opponentName: future.homeId === user.uid ? future.awayName : future.homeName, day: Number(future.day), dateLabel: getSeasonDateLabel(future.day, future.seasonNumber), isHome: future.homeId === user.uid };
-
     return null;
   }, [allMatches, isMatchesReady, user?.uid]);
 
@@ -299,9 +277,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const activeSN = Number(info.activeSeasonNumber);
     const seasonId = `season_${activeSN}`;
     const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
-    return {
-      team: doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid)
-    };
+    return { team: doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid) };
   }, [user?.uid, db]);
 
   const addCrystals = (amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { crystals: Math.max(0, stateRef.current.crystals + amount) }, { merge: true }); };
@@ -372,7 +348,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const startMedicalConstruction = (id: string, c: number) => startConstruction('medical', id, c, 4);
   const startCapacityExpansion = (s: number, c: number) => {
     const r = getRefs(); if (!r || stateRef.current.credits < c) return false;
-    setDoc(r.team, { credits: stateRef.current.credits - c, arena: { ...stateRef.current.arena, pendingSeats: Number(s), constructionStarts: { ...(stateRef.current.arena.constructionStarts || {}), capacity: new Date().toISOString() }, constructionFinishes: { ...(stateRef.current.arena.constructionStarts || {}), capacity: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString() }, isAccelerated: { ...(stateRef.current.arena.isAccelerated || {}), capacity: false } } }, { merge: true });
+    setDoc(r.team, { credits: stateRef.current.credits - c, arena: { ...stateRef.current.arena, pendingSeats: Number(s), constructionStarts: { ...(stateRef.current.arena.constructionStarts || {}), capacity: new Date().toISOString() }, constructionFinishes: { ...(stateRef.current.arena.constructionFinishes || {}), capacity: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString() }, isAccelerated: { ...(stateRef.current.arena.isAccelerated || {}), capacity: false } } }, { merge: true });
     return true;
   };
   const accelerateConstruction = (type: string, id: string, mult: number, pr: number) => {
@@ -383,6 +359,36 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setDoc(r.team, { crystals: stateRef.current.crystals - pr, [type]: { ...data, constructionFinishes: { ...data.constructionFinishes, [id]: newFin }, isAccelerated: { ...data.isAccelerated, [id]: true } } }, { merge: true });
     return true;
   };
+
+  const scoutCandidates = useCallback(() => {
+    const r = getRefs(); if (!r) return;
+    const s = stateRef.current;
+    
+    // Количество кандидатов зависит от HQ Scouts Level
+    const count = Math.min(6, 3 + Math.floor((s.hq.scoutsLevel || 0) / 10));
+    const candidates = Array.from({ length: count }).map((_, i) => generateYouthHero(i, `scout_${Date.now()}_${i}`));
+    
+    updateDoc(r.team, {
+      scoutingCandidates: JSON.parse(JSON.stringify(candidates)),
+      lastScoutDate: getMoscowDateString()
+    });
+  }, [getRefs]);
+
+  const recruitCandidate = useCallback((heroId: string) => {
+    const r = getRefs(); if (!r) return;
+    const s = stateRef.current;
+    const candidate = s.scoutingCandidates.find(c => c.id === heroId);
+    if (!candidate) return;
+
+    const remaining = s.scoutingCandidates.filter(c => c.id !== heroId);
+    
+    // Add hero to subcollection
+    const heroRef = doc(collection(r.team, 'heroes'), candidate.id);
+    setDoc(heroRef, { ...candidate, isYouth: true }, { merge: true });
+    
+    // Update team document
+    updateDoc(r.team, { scoutingCandidates: remaining });
+  }, [getRefs]);
 
   const checkConstructions = useCallback(() => {
     if (isCheckingConstructions.current) return;
@@ -417,8 +423,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const value = useMemo(() => ({
     ...state, isDataReady: isMatchesReady && state.isLoaded, allSeasonMatches: allMatches, nextMatch: nextMatchInfo, isMatchesLoading: !isMatchesReady,
     addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setLanguageDirect,
-    setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions
-  }), [state, isMatchesReady, state.isLoaded, allMatches, nextMatchInfo, addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setLanguageDirect, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions]);
+    setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions,
+    scoutCandidates, recruitCandidate
+  }), [state, isMatchesReady, state.isLoaded, allMatches, nextMatchInfo, addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setLanguageDirect, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, scoutCandidates, recruitCandidate]);
 
   return <GameStateContext.Provider value={value as any}>{children}</GameStateContext.Provider>;
 }
