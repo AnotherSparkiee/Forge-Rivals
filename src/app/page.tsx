@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -11,7 +12,7 @@ import {
   ArrowRight, Loader2, Check, UserPlus,
   ShoppingCart, GraduationCap, CalendarDays, Medal,
   ArrowRightLeft, Timer, RefreshCw, Home as HomeIcon, MapPin, Calendar, User as UserIcon,
-  Clock, Construction
+  Clock, Construction, LayoutGrid, Activity
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,8 +57,22 @@ export default function Home() {
     const timer = setInterval(() => {
       const info = getGlobalSeasonInfo();
       
+      // Логика отсчета до 20.06.2026 или до генерации 19.06.2026 16:00
+      const mskNow = getMoscowTime();
+      let targetTime: number;
+
       if (info.isOffseason) {
-        const diff = info.timeToStartMs || 0;
+        // Если это день генерации (19.06), показываем время до 16:00 или до старта 20.06
+        const genTime = new Date('2026-06-19T16:00:00+03:00').getTime();
+        const startTime = new Date('2026-06-20T00:00:00+03:00').getTime();
+        
+        if (mskNow.getTime() < genTime) {
+          targetTime = genTime;
+        } else {
+          targetTime = startTime;
+        }
+
+        const diff = targetTime - mskNow.getTime();
         const dd = Math.floor(diff / (1000 * 60 * 60 * 24));
         const hh = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const mm = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -69,16 +84,10 @@ export default function Home() {
            setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
         }
       } else if (nextMatch) {
-        const mskNow = getMoscowTime();
         const matchStartTime = new Date(nextMatch.match.startTime).getTime();
         
         if (mskNow.getTime() >= matchStartTime) {
           setCountdown('00:00:00');
-          if (!checkIsMatchFinished(nextMatch.match)) {
-            const seasonId = `season_${info.seasonNumber}`;
-            const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
-            forceResolveGroupMatches(selectedLeagueId!, Number(leagueLevel), prefixedGroupId);
-          }
         } else {
           const diff = matchStartTime - mskNow.getTime();
           const hh = Math.floor(diff / 3600000);
@@ -90,7 +99,7 @@ export default function Home() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [nextMatch, selectedLeagueId, leagueLevel, groupId]);
+  }, [nextMatch]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,12 +180,16 @@ export default function Home() {
     en: { 
       nextMatch: "Next Engagement", 
       offseason: "OFFSEASON", 
-      battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", sync: "CALENDAR SYNC", noMatches: "NO UPCOMING MATCHES", startsIn: "NEXT SEASON STARTS IN:" 
+      battleBtn: "BATTLE OVERVIEW", navTitle: "Command Terminals", sync: "CALENDAR SYNC", noMatches: "NO UPCOMING MATCHES", 
+      startsIn: getMoscowTime().getDate() === 19 ? "GENERATION STARTS IN:" : "SEASON 1 STARTS IN:",
+      phase: "PHASE: STABILIZATION"
     },
     ru: { 
       nextMatch: "Следующий матч", 
       offseason: "МЕЖСЕЗОНЬЕ", 
-      battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ", noMatches: "НЕТ БУДУЩИХ МАТЧЕЙ", startsIn: "СТАРТ СЛЕДУЮЩЕГО СЕЗОНА:" 
+      battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ", noMatches: "НЕТ БУДУЩИХ МАТЧЕЙ", 
+      startsIn: getMoscowTime().getDate() === 19 ? "ГЕНЕРАЦИЯ НАЧНЕТСЯ ЧЕРЕЗ:" : "СЕЗОН 1 НАЧНЕТСЯ ЧЕРЕЗ:",
+      phase: "ФАЗА: СТАБИЛИЗАЦИЯ"
     }
   }[language as 'en' | 'ru'];
 
@@ -196,16 +209,22 @@ export default function Home() {
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
-      <header className="mb-6">
-        <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
-          {seasonInfo.isOffseason ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
-          {seasonInfo.isOffseason ? tHub.offseason : (language === 'ru' ? `СЕЗОН ${seasonInfo.seasonNumber}` : `SEASON ${seasonInfo.seasonNumber}`)}
-        </h1>
+      <header className="mb-6 flex justify-between items-end">
+        <div>
+          <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
+            {seasonInfo.isOffseason ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
+            {seasonInfo.isOffseason ? tHub.offseason : (language === 'ru' ? `СЕЗОН ${seasonInfo.seasonNumber}` : `SEASON ${seasonInfo.seasonNumber}`)}
+          </h1>
+          <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mt-1 opacity-50">{tHub.phase}</p>
+        </div>
+        <div className="flex gap-1">
+          <Badge variant="outline" className="border-white/10 bg-secondary/20 text-[7px] font-black uppercase py-0.5">Build 1.0.32</Badge>
+        </div>
       </header>
 
       <section className="mb-8">
         <Card className={cn(
-          "glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden",
+          "glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden shadow-[0_0_40px_rgba(var(--primary),0.1)]",
           seasonInfo.isOffseason && "border-accent/30 from-accent/10"
         )}>
           <CardContent className="p-6">
@@ -213,18 +232,26 @@ export default function Home() {
               {seasonInfo.isOffseason ? (
                 <div className="py-4 space-y-6">
                   <div className="flex flex-col items-center gap-2">
-                    <div className="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center border border-accent/30">
-                      <Clock className="w-8 h-8 text-accent animate-pulse" />
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-accent/20 blur-xl rounded-full animate-pulse"></div>
+                      <div className="w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center border-2 border-accent relative z-10">
+                        <Activity className="w-8 h-8 text-accent animate-pulse" />
+                      </div>
                     </div>
                     <Badge variant="outline" className="bg-accent/10 border-accent/20 text-accent text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5">
-                      {seasonInfo.dayOfCycle === 15 ? (language === 'ru' ? 'ГЕНЕРАЦИЯ СЛЕДУЮЩЕГО СЕЗОНА' : 'GENERATING NEXT SEASON') : 'STANDBY'}
+                      {getMoscowTime().getDate() === 19 ? (language === 'ru' ? 'ОЖИДАНИЕ СИСТЕМНОГО ТРИГГЕРА' : 'AWAITING SYSTEM TRIGGER') : 'PRE-SEASON STANDBY'}
                     </Badge>
                   </div>
                   <div className="bg-background/60 py-5 rounded-2xl border border-white/5 shadow-inner">
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">{tHub.startsIn}</p>
-                    <p className="text-2xl font-headline font-bold tabular-nums tracking-tighter text-white">
+                    <p className="text-3xl font-headline font-bold tabular-nums tracking-tighter text-white">
                       {countdown || '--:--:--'}
                     </p>
+                  </div>
+                  <div className="flex items-center justify-center gap-4 text-[7px] font-black uppercase tracking-widest text-muted-foreground opacity-40">
+                     <span className="flex items-center gap-1"><Shield className="w-2.5 h-2.5" /> SECURE</span>
+                     <span className="flex items-center gap-1"><Zap className="w-2.5 h-2.5" /> SYNCED</span>
+                     <span className="flex items-center gap-1"><RefreshCw className="w-2.5 h-2.5" /> AUTO-V32</span>
                   </div>
                 </div>
               ) : (
@@ -281,7 +308,8 @@ export default function Home() {
 
       {!seasonInfo.isOffseason && (
         <Link href={checkIsMatchFinished(nextMatch?.match) ? `/match?id=${nextMatch.match.id}` : "/matches"} className="block relative mb-8">
-          <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1 transition-all active:scale-95">
+          <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-2xl blur opacity-25 animate-pulse"></div>
+          <Button className="w-full h-20 hero-gradient border-none shadow-xl flex flex-col gap-1 transition-all active:scale-95 relative z-10">
             <div className="flex items-center gap-2">
               {checkIsMatchFinished(nextMatch?.match) ? <Trophy className="w-6 h-6" /> : <Swords className="w-6 h-6" />}
               <span className="text-xl font-headline font-bold italic uppercase">
@@ -293,15 +321,18 @@ export default function Home() {
       )}
 
       <div className="space-y-4">
-        <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-accent px-1">{tHub.navTitle}</h2>
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-accent">{tHub.navTitle}</h2>
+          <LayoutGrid className="w-3 h-3 text-accent opacity-30" />
+        </div>
         <div className="grid grid-cols-1 gap-2">
           {menu.map((item) => (
             <Link key={item.label} href={item.href}>
-              <Card className="glass-card hover:bg-white/5 transition-colors border-white/5 group">
+              <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group hover:border-primary/20">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="p-2 rounded-lg bg-secondary/50 group-hover:bg-primary/20 transition-colors"><item.icon className="w-5 h-5 text-primary" /></div>
-                    <div><h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{item.label}</h3><p className="text-[10px] text-muted-foreground">{item.desc}</p></div>
+                    <div className="p-2.5 rounded-xl bg-secondary/50 group-hover:bg-primary/20 transition-colors border border-white/5"><item.icon className="w-5 h-5 text-primary" /></div>
+                    <div><h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{item.label}</h3><p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p></div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-all" />
                 </CardContent>

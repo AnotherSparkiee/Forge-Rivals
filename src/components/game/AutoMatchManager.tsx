@@ -1,8 +1,9 @@
+
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v32.3 (Traffic Optimization).
- * Реализован Jitter (случайная задержка) и Generation Lock для предотвращения шторма записей.
+ * @fileOverview Автономный менеджер синхронизации v32.4 (Phase 1 Roadmap).
+ * Реализован детальный мониторинг фаз Межсезонья и Генерации.
  */
 
 import { useEffect, useRef } from 'react';
@@ -42,9 +43,6 @@ export function AutoMatchManager() {
       if (processingRef.current) return;
       processingRef.current = true;
 
-      // JITTER: Случайная задержка до 15 сек, чтобы разнести записи разных клиентов
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 15000));
-
       try {
         const info = getGlobalSeasonInfo();
         const mskNow = getMoscowTime();
@@ -59,13 +57,17 @@ export function AutoMatchManager() {
         const sysStatusSnap = await getDoc(sysStatusRef);
         const sysData = sysStatusSnap.exists() ? sysStatusSnap.data() : {};
 
+        // ГЕНЕРАЦИЯ: День 15 цикла, после 16:00
         const isGenTime = info.dayOfCycle === 15 && mskNow.getHours() >= 16;
         
         if (isGenTime) {
+          console.log(`[ROADMAP-PHASE] Generation Day Detected. Target Season: ${nextSN}`);
+          
           const lastGenSeason = sysData.lastGeneratedSeason || 0;
           
+          // 1. Глобальная генерация Кубка (один раз на сезон)
           if (lastGenSeason < nextSN) {
-            console.log(`[AUTO-GEN] Global Lock: Generating Season ${nextSN}`);
+            console.log(`[AUTO-GEN] Initiating Global Cup Bracket for Season ${nextSN}`);
             await generatePyramidCup(nextSN);
             await updateDoc(sysStatusRef, { 
               lastGeneratedSeason: nextSN,
@@ -73,14 +75,14 @@ export function AutoMatchManager() {
             });
           }
 
+          // 2. Локальная генерация календаря группы
           const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', nextPrefixedGroupId);
           const groupSnap = await getDoc(groupRef);
           const groupData = groupSnap.exists() ? groupSnap.data() : {};
 
-          // LOCK: Только если статус еще не "ready_for_battle" и не в процессе генерации
           if (groupData.status !== 'ready_for_battle' && groupData.status !== 'generating') {
+            await new Promise(resolve => setTimeout(resolve, Math.random() * 5000)); // Jitter
             
-            // Занимаем блокировку группы
             await updateDoc(groupRef, { status: 'generating', updatedAt: serverTimestamp() });
 
             const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
@@ -119,15 +121,18 @@ export function AutoMatchManager() {
             });
 
             await batch.commit();
+            console.log(`[AUTO-GEN] Group Calendar established for Season ${nextSN}`);
           }
         }
 
+        // ПРОВЕРКА ПРОСРОЧЕННЫХ МАТЧЕЙ (в активной фазе)
         if (!info.isOffseason) {
           const seasonId = `season_${info.seasonNumber}`;
           const currentPrefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
           const overdue = allSeasonMatches.filter(m => isMatchOverdue(m.startTime) && !m.isFinished);
           
           if (overdue.length > 0) {
+            console.log(`[ROADMAP-PHASE] Active Season. Resolving ${overdue.length} overdue matches.`);
             await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), currentPrefixedGroupId);
           }
         }
@@ -139,7 +144,7 @@ export function AutoMatchManager() {
       }
     };
 
-    const interval = setInterval(heartbeat, 120000); // 2 минуты интервал
+    const interval = setInterval(heartbeat, 120000);
     heartbeat();
     return () => clearInterval(interval);
   }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches, isUserLoading, user?.uid]);
