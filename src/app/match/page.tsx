@@ -13,7 +13,7 @@ import {
   ShieldCheck, Zap, Target, FileText,
   Users, Trophy, Clock, Medal,
   ShieldAlert, User, MapPin, Info,
-  TrendingUp, Timer, ChevronRight, Loader2, Crown
+  TrendingUp, Timer, ChevronRight, Loader2, Crown, X
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -73,6 +73,7 @@ function MatchContent() {
   const currentResult = useMemo(() => {
     if (isGlobalLoading) return null;
     
+    // 1. Try from global DB (for league matches)
     if (globalMatchData && globalMatchData.status === 'finished') {
       const isHome = globalMatchData.homeId === user?.uid;
       return {
@@ -81,9 +82,9 @@ function MatchContent() {
         homeName: globalMatchData.homeName,
         awayName: globalMatchData.awayName,
         opponentName: isHome ? globalMatchData.awayName : globalMatchData.homeName,
-        scoreA: isHome ? globalMatchData.scoreA : globalMatchData.scoreB,
-        scoreB: isHome ? globalMatchData.scoreB : globalMatchData.scoreA,
-        type: globalMatchData.type,
+        scoreA: globalMatchData.scoreA,
+        scoreB: globalMatchData.scoreB,
+        type: globalMatchData.type || 'league',
         day: globalMatchData.day,
         playedAt: globalMatchData.finishedAt || globalMatchData.startTime,
         games: globalMatchData.simulation?.games || [globalMatchData.simulation],
@@ -92,25 +93,29 @@ function MatchContent() {
       };
     }
 
+    // 2. Try from local match history (for trials/friendlies)
     const fromHistory = matchHistory.find(m => m.id === matchIdFromUrl);
-    if (fromHistory) return { ...fromHistory, isHome: fromHistory.opponentName !== fromHistory.homeName };
+    if (fromHistory) {
+      return { 
+        ...fromHistory, 
+        isHome: fromHistory.homeName?.includes(profile?.displayName || 'XYZ') 
+      };
+    }
 
     return null;
-  }, [matchHistory, globalMatchData, isGlobalLoading, user?.uid]);
+  }, [matchHistory, globalMatchData, isGlobalLoading, user?.uid, profile?.displayName]);
 
   const attendance = useMemo(() => {
     if (!arena || !currentResult) return 0;
     const baseCap = arena.capacity || 5000;
-    
-    // PRO Bonus: Each PRO player in home squad increases attendance by 7%
     const proUnitsCount = ownedHeroes.filter(h => h.isPro).length;
     const proMultiplier = currentResult.isHome ? (1 + (proUnitsCount * 0.07)) : 1.0;
-
     if (!currentResult.isHome) return Math.floor(baseCap * 0.85); 
     const fillingFactor = (0.7 + (Math.random() * 0.3)) * proMultiplier;
     return Math.min(baseCap, Math.floor(baseCap * fillingFactor));
   }, [arena, currentResult, ownedHeroes]);
 
+  // Handle auto-scrolling events in LIVE mode
   useEffect(() => {
     if (step !== 'live' || !currentResult || !currentResult.games) return;
 
@@ -123,7 +128,10 @@ function MatchContent() {
       return;
     }
 
-    const totalRealTime = 120; 
+    // Clear previous if any
+    setVisibleEvents([]);
+
+    const totalRealTime = 20; // Fast-forward time for logs
     const intervalMs = (totalRealTime * 1000) / Math.max(1, events.length);
 
     let currentEvt = 0;
@@ -143,10 +151,10 @@ function MatchContent() {
               setActiveGameIdx(prev => prev + 1);
               setVisibleEvents([]);
               setIsTransitioning(false);
-            }, 10000); 
-          }, 3000);
+            }, 2000); 
+          }, 1500);
         } else {
-          setTimeout(() => setStep('stats'), 5000);
+          setTimeout(() => setStep('stats'), 2000);
         }
       }
     }, intervalMs);
@@ -154,18 +162,26 @@ function MatchContent() {
     return () => clearInterval(timer);
   }, [step, activeGameIdx, currentResult]);
 
-  if (isUserLoading || isGlobalLoading || !isLoaded || !user || !currentResult) return <LoadingScreen />;
-
   const handleAcknowledgeMatch = () => {
-    markMatchIdAsSeen(currentResult.id);
+    if (currentResult) markMatchIdAsSeen(currentResult.id);
     router.push('/');
   };
 
-  const handleNext = () => {
+  const handleNext = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation(); // Prevent double trigger
     if (step === 'preview') setStep('live');
     else if (step === 'live') setStep('stats'); 
     else handleAcknowledgeMatch();
   };
+
+  const handleGlobalClick = () => {
+    if (step === 'preview') setStep('live');
+    else if (step === 'live') setStep('stats');
+    // We don't advance from 'stats' automatically by clicking anywhere to avoid accidental exit
+  };
+
+  if (isUserLoading || isGlobalLoading || !isLoaded || !user) return <LoadingScreen />;
+  if (!currentResult) return <div className="p-20 text-center"><p className="text-muted-foreground uppercase text-[10px] font-black">Match data not found</p><Button className="mt-4" onClick={() => router.push('/')}>Return</Button></div>;
 
   const userCountry = COUNTRIES.find(c => c.name === profile?.country);
   const myFlag = userCountry?.flag || '🏳️';
@@ -173,10 +189,8 @@ function MatchContent() {
   const labels = {
     en: {
       reportTitle: "OFFICIAL MATCH DEBRIEF",
-      next: "INITIATE LIVE", accept: "FINALIZE", exit: "EXIT",
-      preview: "Strategic Preview", live: "Operational Feed", stats: "Final Dossier",
-      vs: "VS", winProb: "Win Probability", attendance: "Spectators",
-      timeline: "Tactical Log", scoreboard: "Unit Performance",
+      next: "INITIATE LIVE", skip: "SKIP TO STATS", accept: "FINALIZE", exit: "EXIT",
+      vs: "VS", attendance: "Spectators",
       duration: "Duration", mvp: "Combat MVP", home: "HOME", away: "AWAY",
       mapTransition: "Switching to next tactical map...",
       mapScore: "Series Standings",
@@ -185,10 +199,8 @@ function MatchContent() {
     },
     ru: {
       reportTitle: "ОФИЦИАЛЬНЫЙ ОТЧЕТ",
-      next: "В ЭФИР", accept: "ЗАВЕРШИТЬ", exit: "ВЫЙТИ",
-      preview: "Стратегический обзор", live: "Оперативная лента", stats: "Итоговое досье",
-      vs: "ПРОТИВ", winProb: "Вероятность победы", attendance: "Зрители",
-      timeline: "Лог операций", scoreboard: "Эффективность отряда",
+      next: "В ЭФИР", skip: "К СТАТИСТИКЕ", accept: "ЗАВЕРШИТЬ", exit: "ВЫЙТИ",
+      vs: "ПРОТИВ", attendance: "Зрители",
       duration: "Длительность", mvp: "MVP матча", home: "ДОМА", away: "В ГОСТЯХ",
       mapTransition: "Подготовка к следующей карте...",
       mapScore: "Счет в серии",
@@ -201,8 +213,8 @@ function MatchContent() {
 
   const renderStatsTable = (game: any) => {
     const scoreboard = game.scoreboard || [];
-    const hName = currentResult?.homeName;
-    const aName = currentResult?.awayName;
+    const hName = currentResult.homeName;
+    const aName = currentResult.awayName;
     
     const homeHeroes = scoreboard.filter((p: any) => p.team === hName);
     const awayHeroes = scoreboard.filter((p: any) => p.team === aName);
@@ -218,7 +230,7 @@ function MatchContent() {
             "w-10 h-10 rounded-lg overflow-hidden border border-white/10 bg-background flex items-center justify-center",
             p.isPro && "border-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.2)]"
           )}>
-            {p.name === game.mvp ? <Trophy className="w-5 h-5 text-yellow-500" /> : (p.isPro ? <Crown className="w-5 h-5 text-yellow-500" /> : <User className="w-5 h-5 text-muted-foreground" />)}
+            {p.name === game.mvp ? <Trophy className="w-5 h-5 text-yellow-500" /> : (p.isPro ? <Crown className="w-5 h-5 text-yellow-500" /> : <User className="w-4 h-4 text-muted-foreground" />)}
           </div>
           <Badge className={cn(
             "absolute -bottom-1 -right-1 bg-black/80 text-[6px] px-1 h-3 border-white/20",
@@ -241,20 +253,23 @@ function MatchContent() {
           <p className="text-[8px] font-black uppercase tracking-widest text-primary mb-2 flex items-center gap-2">
              <ShieldCheck className="w-3 h-3" /> {t.home}
           </p>
-          {homeHeroes.length > 0 ? homeHeroes.map(p => renderHeroRow(p, 'left')) : <p className="text-[8px] opacity-30 italic">No telemetry data</p>}
+          {homeHeroes.length > 0 ? homeHeroes.map(p => renderHeroRow(p, 'left')) : <p className="text-[8px] opacity-30 italic">No data</p>}
         </div>
         <div className="space-y-2">
           <p className="text-[8px] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2 justify-end">
              {t.away} <Swords className="w-3 h-3" />
           </p>
-          {awayHeroes.length > 0 ? awayHeroes.map(p => renderHeroRow(p, 'right')) : <p className="text-[8px] text-right opacity-30 italic">No telemetry data</p>}
+          {awayHeroes.length > 0 ? awayHeroes.map(p => renderHeroRow(p, 'right')) : <p className="text-[8px] text-right opacity-30 italic">No data</p>}
         </div>
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-32 select-none relative overflow-hidden">
+    <div 
+      className="min-h-screen bg-background text-foreground pb-32 select-none relative overflow-hidden"
+      onClick={handleGlobalClick}
+    >
       <div className="absolute inset-0 pointer-events-none opacity-5 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:30px_30px]" />
 
       <div className="max-w-md mx-auto relative z-10 px-4 pt-6">
@@ -269,9 +284,9 @@ function MatchContent() {
           </div>
           <h1 className="text-sm font-headline font-bold text-white uppercase tracking-tighter">{t.reportTitle}</h1>
           <div className="flex items-center justify-center gap-2 max-w-[240px] mx-auto">
-            <div className={cn("h-1 flex-1 rounded-full transition-all", step === 'preview' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
-            <div className={cn("h-1 flex-1 rounded-full transition-all", step === 'live' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
-            <div className={cn("h-1 flex-1 rounded-full transition-all", step === 'stats' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
+            <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'preview' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
+            <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'live' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
+            <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'stats' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
           </div>
         </header>
 
@@ -291,7 +306,7 @@ function MatchContent() {
                 <div className="p-6 flex flex-col items-center gap-3 text-center">
                   <div className="relative">
                     <div className="w-20 h-20 rounded-2xl bg-secondary/50 border-white/10 flex items-center justify-center shadow-xl text-4xl">
-                      {currentResult.awayName?.includes(profile?.displayName || 'XYZ') ? myFlag : '🏳️'}
+                      {!currentResult.homeName?.includes(profile?.displayName || 'XYZ') ? myFlag : '🏳️'}
                     </div>
                     <Badge variant="outline" className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-background border-white/20 text-muted-foreground text-[7px] font-black uppercase px-2 h-4">AWAY</Badge>
                   </div>
@@ -312,6 +327,8 @@ function MatchContent() {
                 <p className="text-lg font-headline font-bold text-white">{new Date(currentResult.playedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
               </div>
             </div>
+            
+            <p className="text-[8px] text-center text-muted-foreground uppercase font-black animate-pulse mt-8">{language === 'ru' ? 'НАЖМИТЕ ДЛЯ ПРОДОЛЖЕНИЯ' : 'CLICK ANYWHERE TO CONTINUE'}</p>
           </div>
         )}
 
@@ -351,6 +368,7 @@ function MatchContent() {
                 ))}
               </div>
             )}
+            <p className="text-[7px] text-center text-muted-foreground uppercase font-black opacity-40">{language === 'ru' ? 'КЛИКНИТЕ ДЛЯ ПРОПУСКА ЛОГОВ' : 'CLICK TO SKIP TO STATS'}</p>
           </div>
         )}
 
@@ -378,7 +396,7 @@ function MatchContent() {
               </TabsList>
               
               {currentResult.games.map((game: any, idx: number) => (
-                <TabsContent key={idx} value={`map${idx+1}`} className="space-y-6">
+                <TabsContent key={idx} value={`map${idx+1}`} className="space-y-6" onClick={(e) => e.stopPropagation()}>
                   <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl text-center">
                     <p className="text-[9px] text-primary/60 italic leading-relaxed">
                       "{game.matchSummary || 'Standard tactical protocol executed.'}"
@@ -387,7 +405,7 @@ function MatchContent() {
                   
                   <div className="space-y-4">
                     <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1 flex items-center gap-2">
-                       <FileText className="w-3.5 h-3.5" /> {t.scoreboard}
+                       <FileText className="w-3.5 h-3.5" /> Unit Performance
                     </h3>
                     {renderStatsTable(game)}
                   </div>
@@ -400,10 +418,10 @@ function MatchContent() {
 
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-t border-white/10 h-24 flex items-center px-6 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
         <div className="w-full max-md mx-auto flex gap-3">
-          <Button variant="outline" className="flex-1 h-12 uppercase font-black text-[10px] tracking-widest" onClick={() => router.back()}>{t.exit}</Button>
+          <Button variant="outline" className="flex-1 h-12 uppercase font-black text-[10px] tracking-widest border-white/10" onClick={(e) => { e.stopPropagation(); router.push('/'); }}>{t.exit}</Button>
           <Button className="flex-[2] h-12 hero-gradient border-none font-black text-[10px] uppercase shadow-lg shadow-primary/20" onClick={handleNext}>
             {step === 'stats' ? <Check className="w-4 h-4 mr-2" /> : <ArrowRight className="w-4 h-4 mr-2" />}
-            {step === 'preview' ? t.next : (step === 'live' ? 'SKIP TO STATS' : t.accept)}
+            {step === 'preview' ? t.next : (step === 'live' ? t.skip : t.accept)}
           </Button>
         </div>
       </div>
