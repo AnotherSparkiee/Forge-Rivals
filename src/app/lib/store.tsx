@@ -1,13 +1,12 @@
-
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v42 (Scouting Cycle). 
- * Реализован 4-дневный цикл скаутинга с 3 вариантами игроков.
+ * @fileOverview Глобальное хранилище v43 (Advanced Scouting Logic). 
+ * Реализован расчет талантов в зависимости от уровня скаутов.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
-import { Hero, StaffMember, StaffRole, generateYouthHero } from './moba-data';
+import { Hero, StaffMember, StaffRole, generateScoutedHero } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getSeasonDateLabel, setServerTime } from './time-utils';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, arrayUnion, orderBy, getDoc, updateDoc } from 'firebase/firestore';
@@ -365,13 +364,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const r = getRefs(); if (!r) return;
     const s = stateRef.current;
     
-    // Всегда 3 варианта, как просил пользователь
+    // Pass Scout Level to generator
+    const scoutLevel = Number(s.hq?.scoutsLevel || 0);
     const count = 3;
-    const candidates = Array.from({ length: count }).map((_, i) => generateYouthHero(i, `scout_${Date.now()}_${i}`));
+    const candidates = Array.from({ length: count }).map((_, i) => generateScoutedHero(i, scoutLevel, `scout_${Date.now()}_${i}`));
     
     updateDoc(r.team, {
       scoutingCandidates: JSON.parse(JSON.stringify(candidates)),
-      lastScoutDate: new Date().toISOString() // Используем ISO для точности цикла
+      lastScoutDate: new Date().toISOString()
     });
   }, [getRefs]);
 

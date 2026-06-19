@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Терминал скаутинга v3. 
- * Полная локализация на русский язык и поддержка 4-дневного цикла.
+ * @fileOverview Терминал скаутинга v4. 
+ * Внедрена зависимость талантов от уровня скаутов и временное отключение кулдауна.
  */
 
 import { useState, useEffect, useMemo } from 'react';
@@ -48,32 +48,8 @@ export default function ScoutingPage() {
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
-  const [now, setNow] = useState(getMoscowTime().getTime());
 
-  useEffect(() => {
-    const timer = setInterval(() => setNow(getMoscowTime().getTime()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const CYCLE_MS = 4 * 24 * 60 * 60 * 1000;
-  
-  const scoutingStatus = useMemo(() => {
-    if (!lastScoutDate) return { isExpired: true, timeLeft: 0 };
-    const lastDate = new Date(lastScoutDate).getTime();
-    const expiryDate = lastDate + CYCLE_MS;
-    const timeLeft = expiryDate - now;
-    return {
-      isExpired: timeLeft <= 0,
-      timeLeft: Math.max(0, timeLeft),
-      expiryDate
-    };
-  }, [lastScoutDate, now]);
-
-  useEffect(() => {
-    if (scoutingStatus.isExpired && scoutingCandidates.length > 0) {
-      clearScoutingReport();
-    }
-  }, [scoutingStatus.isExpired, scoutingCandidates.length, clearScoutingReport]);
+  const scoutLevel = Number(hq?.scoutsLevel || 0);
 
   const rolesRu: Record<string, string> = {
     'Carry': 'Керри',
@@ -86,12 +62,11 @@ export default function ScoutingPage() {
   const t = {
     en: {
       title: "SCOUTING TERMINAL",
-      subtitle: "Talent Discovery Cycle",
+      subtitle: "Talent Discovery Hub",
       find: "INITIATE SEARCH",
-      findDesc: "Assign scouts to find 3 gifted local cadets. Results valid for 4 days.",
+      findDesc: `Your current Scout Level (${scoutLevel}) determines talent quality.`,
       reportTitle: "Active Candidates",
-      expiresIn: "Expires in",
-      expired: "Report Expired",
+      expiresIn: "Cooldown Bypass Active",
       noCandidates: "Scouting sectors clear. Initiate search mission.",
       recruit: "SIGN TO ACADEMY",
       limitReached: "Academy at full capacity",
@@ -104,6 +79,7 @@ export default function ScoutingPage() {
       telemetry: "TALENT TELEMETRY",
       ovr: "Initial OVR",
       intel: "GENERAL INTEL",
+      scoutPower: "Scout Effectiveness",
       proStatsLabels: {
         lastHitting: "Last Hitting",
         mapAwareness: "Map Awareness",
@@ -119,12 +95,11 @@ export default function ScoutingPage() {
     },
     ru: {
       title: "ТЕРМИНАЛ СКАУТИНГА",
-      subtitle: "Цикл поиска талантов",
+      subtitle: "Центр поиска талантов",
       find: "НАЧАТЬ ПОИСК",
-      findDesc: "Найти 3 одаренных кадетов. Отчет актуален 4 дня.",
+      findDesc: `Уровень ваших скаутов (${scoutLevel}) влияет на качество находок.`,
       reportTitle: "Доступные кандидаты",
-      expiresIn: "Истекает через",
-      expired: "Отчет устарел",
+      expiresIn: "Bypass: Кулдаун временно отключен",
       noCandidates: "Сектора пусты. Запросите новый отчет скаутов.",
       recruit: "ЗАЧИСЛИТЬ В ШКОЛУ",
       limitReached: "Академия переполнена",
@@ -137,6 +112,7 @@ export default function ScoutingPage() {
       telemetry: "ТЕЛЕМЕТРИЯ ТАЛАНТА",
       ovr: "Начальный ОБЩ",
       intel: "ОБЩИЕ ДАННЫЕ",
+      scoutPower: "Эффективность скаутов",
       proStatsLabels: {
         lastHitting: "Добив крипов",
         mapAwareness: "Контроль карты",
@@ -152,14 +128,6 @@ export default function ScoutingPage() {
     }
   }[language as 'en' | 'ru'];
 
-  const formatTimeLeft = (ms: number) => {
-    const days = Math.floor(ms / (24 * 60 * 60 * 1000));
-    const hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-    const mins = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
-    const secs = Math.floor((ms % (60 * 1000)) / 1000);
-    return days > 0 ? `${days}д ${hours}ч` : `${hours}ч ${mins}м ${secs}с`;
-  };
-
   const academyLimit = 10 + (academy.youthBootcampLevel || 0);
 
   const handleScout = async () => {
@@ -168,7 +136,7 @@ export default function ScoutingPage() {
       scoutCandidates();
       setIsProcessing(false);
       toast({ title: language === 'ru' ? "Сектора просканированы!" : "Sectors Scanned!" });
-    }, 2000);
+    }, 1500);
   };
 
   const handleRecruit = (hero: Hero) => {
@@ -208,58 +176,46 @@ export default function ScoutingPage() {
                <p className="text-xl font-headline font-bold text-white italic">{youthAcademyHeroes.length} / {academyLimit}</p>
             </CardContent>
           </Card>
-          <Card className={cn(
-            "glass-card border-white/5 bg-secondary/10",
-            !scoutingStatus.isExpired && "border-accent/20 bg-accent/5"
-          )}>
+          <Card className="glass-card border-accent/20 bg-accent/5">
             <CardContent className="p-3 text-center">
-               <p className="text-[7px] font-black uppercase text-muted-foreground mb-1">
-                 {scoutingStatus.isExpired ? t.expired : t.expiresIn}
-               </p>
-               <p className={cn(
-                 "text-sm font-mono font-bold uppercase",
-                 scoutingStatus.isExpired ? "text-red-400" : "text-accent"
-               )}>
-                 {scoutingStatus.isExpired ? '--:--:--' : formatTimeLeft(scoutingStatus.timeLeft)}
-               </p>
+               <p className="text-[7px] font-black uppercase text-muted-foreground mb-1">{t.scoutPower}</p>
+               <p className="text-xl font-headline font-bold text-accent italic">Ур {scoutLevel}</p>
             </CardContent>
           </Card>
         </div>
 
-        {(scoutingStatus.isExpired || scoutingCandidates.length === 0) && (
-          <Card className={cn(
-            "glass-card border-dashed border-primary/30 transition-all",
-            isProcessing && "animate-pulse border-accent"
-          )}>
-            <CardContent className="p-6 text-center space-y-4">
-              <div className="w-16 h-16 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center mx-auto relative">
-                {isProcessing ? <Loader2 className="w-8 h-8 text-accent animate-spin" /> : <Radar className="w-8 h-8 text-primary" />}
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-sm font-bold uppercase text-white">{t.find}</h3>
-                <p className="text-[9px] text-muted-foreground uppercase leading-relaxed italic">{t.findDesc}</p>
-              </div>
-              <Button 
-                className="w-full h-12 hero-gradient font-black text-[10px] tracking-widest uppercase shadow-lg shadow-primary/20"
-                onClick={handleScout}
-                disabled={isProcessing}
-              >
-                {isProcessing ? (language === 'ru' ? 'СКАНИРОВАНИЕ...' : 'SCANNING SECTORS...') : t.find}
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+        <Card className={cn(
+          "glass-card border-dashed border-primary/30 transition-all",
+          isProcessing && "animate-pulse border-accent"
+        )}>
+          <CardContent className="p-6 text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center mx-auto relative">
+              {isProcessing ? <Loader2 className="w-8 h-8 text-accent animate-spin" /> : <Radar className="w-8 h-8 text-primary" />}
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold uppercase text-white">{t.find}</h3>
+              <p className="text-[9px] text-muted-foreground uppercase leading-relaxed italic">{t.findDesc}</p>
+            </div>
+            <Button 
+              className="w-full h-12 hero-gradient font-black text-[10px] tracking-widest uppercase shadow-lg shadow-primary/20"
+              onClick={handleScout}
+              disabled={isProcessing}
+            >
+              {isProcessing ? (language === 'ru' ? 'СКАНИРОВАНИЕ...' : 'SCANNING SECTORS...') : t.find}
+            </Button>
+          </CardContent>
+        </Card>
 
         <div className="space-y-3">
           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent flex items-center gap-2 px-1">
             <Search className="w-3.5 h-3.5" /> {t.reportTitle}
           </h2>
 
-          {scoutingCandidates.length > 0 && !scoutingStatus.isExpired ? (
+          {scoutingCandidates && scoutingCandidates.length > 0 ? (
             <div className="space-y-2">
               {scoutingCandidates.map((hero) => {
                 const talentsValues = Object.values(hero.proTalents || {}).map(v => Number(v));
-                const maxTalent = Math.max(...talentsValues);
+                const maxTalentValue = Math.max(...talentsValues);
                 
                 return (
                   <Card key={hero.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer" onClick={() => setSelectedHero(hero)}>
@@ -275,7 +231,7 @@ export default function ScoutingPage() {
                           </Badge>
                         </div>
                         <div className="flex items-center gap-3">
-                           {renderStars(maxTalent)}
+                           {renderStars(maxTalentValue)}
                            <span className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}: {hero.baseAge}</span>
                         </div>
                       </div>

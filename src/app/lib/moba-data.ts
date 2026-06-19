@@ -177,11 +177,11 @@ export function generateVtuneHero(seed?: string): Hero {
       reflexes: 55,
       tiltResistance: 54,
       versatility: 52,
-      mapAwareness: rng.range(18, 37),
-      manaManagement: rng.range(18, 37),
-      objectiveControl: rng.range(18, 37),
-      communication: rng.range(18, 37),
-      ganking: rng.range(18, 37)
+      mapAwareness: rng.range(50, 65),
+      manaManagement: rng.range(50, 65),
+      objectiveControl: rng.range(50, 65),
+      communication: rng.range(50, 65),
+      ganking: rng.range(50, 65)
     },
     xpStats: {},
     matchesPlayedToday: 0,
@@ -283,8 +283,87 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
 }
 
 /**
- * Generates a bot squad with OVR strictly in 20-25 range.
+ * Advanced Scout Generation Logic v4.
+ * Talents depend on HQ Scout level.
  */
+export function generateScoutedHero(index: number, scoutLevel: number, seed?: string): Hero {
+  const rng = new SeededRandom(seed || `scout_${Date.now()}_${index}`);
+  const roles: Role[] = ['Tank', 'Carry', 'Midlaner', 'Jungler', 'Support'];
+  const role = roles[rng.range(0, roles.length - 1)];
+  const hero = generateUniqueHero(role, index, false, seed);
+  
+  const startAge = getRandomStat(14, 17, rng);
+  hero.baseAge = startAge;
+  hero.age = startAge;
+  hero.hiredAt = new Date().toISOString();
+  hero.overallRating = getRandomStat(10, 20, rng);
+  hero.salary = getRandomStat(300, 1200, rng);
+
+  // Global Lucky Roll (Monthly Random Super Talent - simulation)
+  const isMonthlyLucky = Math.random() < 0.0005; // Very tiny chance for anyone
+
+  let minT = 5; 
+  let maxT = 35;
+  let luckyChance = 0.05;
+
+  if (scoutLevel <= 25) {
+    minT = 5; maxT = 35; luckyChance = 0.05; // Max 4 stars (40) rare
+  } else if (scoutLevel <= 50) {
+    minT = 5; maxT = 40; luckyChance = 0.02; // Max 5 stars (50) rare
+  } else if (scoutLevel <= 80) {
+    minT = 20; maxT = 45; luckyChance = 0.3; // High chance for 5 stars
+  } else if (scoutLevel <= 124) {
+    minT = 35; maxT = 50; luckyChance = 0.8; // Very high chance for 5 stars
+  } else {
+    // 125+
+    minT = 40; maxT = 50; luckyChance = 0.99; // Almost always 5 stars + <1% Elite
+  }
+
+  let finalTalent = rng.range(minT, maxT);
+
+  // Apply Lucky/Elite logic
+  if (scoutLevel > 125 && Math.random() < 0.01) {
+    finalTalent = rng.range(60, 75); // Elite 6-7 Stars
+  }
+
+  if (isMonthlyLucky) {
+    finalTalent = rng.range(60, 85); // Monthly Super Talent (5-8 Elite Stars)
+  }
+
+  // Cap top talent based on scoutLevel if not lucky
+  if (!isMonthlyLucky && finalTalent > 40 && scoutLevel <= 25) {
+    finalTalent = 40;
+  }
+
+  hero.proTalents = {
+    lastHitting: finalTalent,
+    mapAwareness: Math.max(5, finalTalent - rng.range(0, 15)),
+    positioning: finalTalent,
+    reflexes: finalTalent,
+    manaManagement: Math.max(5, finalTalent - rng.range(0, 15)),
+    objectiveControl: Math.max(5, finalTalent - rng.range(0, 15)),
+    communication: Math.max(5, finalTalent - rng.range(0, 15)),
+    tiltResistance: finalTalent,
+    versatility: Math.max(5, finalTalent - rng.range(0, 15)),
+    ganking: Math.max(5, finalTalent - rng.range(0, 15)),
+  };
+  
+  hero.proStats = {
+    lastHitting: getRandomStat(1, 4, rng),
+    mapAwareness: getRandomStat(1, 4, rng),
+    positioning: getRandomStat(1, 4, rng),
+    reflexes: getRandomStat(1, 4, rng),
+    manaManagement: getRandomStat(1, 4, rng),
+    objectiveControl: getRandomStat(1, 4, rng),
+    communication: getRandomStat(1, 4, rng),
+    tiltResistance: getRandomStat(1, 4, rng),
+    versatility: getRandomStat(1, 4, rng),
+    ganking: getRandomStat(1, 4, rng),
+  };
+
+  return hero;
+}
+
 export function generateBotSquad(targetOvr: number = 22): any[] {
   const roles: Role[] = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'];
   return roles.map((role) => {
