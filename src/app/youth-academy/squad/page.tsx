@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useGameState, LineupSlot } from '../../lib/store';
+import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,13 +21,6 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { renderStars, STAT_KEYS } from '@/app/transfers/quick-search/page';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 
 const normTalent = (val: any) => {
   const n = Number(val);
@@ -139,7 +132,7 @@ export default function YouthSquadPage() {
               <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{selectedHero.country?.flag}</span></div>
             </div>
             <div className="space-y-1">
-              <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{selectedHero.name}</DialogTitle>
+              <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{selectedHero.name}</h2>
               <div className="flex items-center justify-center gap-2 mt-2">
                 <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">
                   {rolesRu[selectedHero.role] || selectedHero.role}

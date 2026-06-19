@@ -121,7 +121,7 @@ export default function ContractsPage() {
               <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{profileHero.country?.flag}</span></div>
             </div>
             <div className="space-y-1">
-              <h1 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h1>
+              <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h2>
               <div className="flex items-center justify-center gap-2 mt-2">
                 <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
               </div>
