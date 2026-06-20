@@ -20,17 +20,17 @@ export function LoadingScreen() {
           <img 
             src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png" 
             alt="Lines of the Enmity Logo" 
-            className="w-48 h-48 md:w-64 md:h-64 object-contain animate-pulse"
+            className="w-36 h-36 md:w-44 md:h-44 object-contain animate-pulse"
             suppressHydrationWarning
           />
         </div>
 
         {/* Текст статуса */}
         <div className="text-center space-y-2">
-          <p className="text-sm md:text-base font-headline font-bold text-primary uppercase tracking-[0.4em] animate-pulse opacity-90">
+          <p className="text-[11px] font-headline font-bold text-primary uppercase tracking-[0.4em] animate-pulse opacity-80">
             Идет передача данных...
           </p>
-          <div className="w-32 h-0.5 bg-primary/20 mx-auto overflow-hidden rounded-full">
+          <div className="w-24 h-0.5 bg-primary/20 mx-auto overflow-hidden rounded-full">
             <div className="w-full h-full bg-primary animate-[shimmer_1.5s_infinite] origin-left"></div>
           </div>
         </div>
