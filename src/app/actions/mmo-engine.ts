@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview MMO-Двигатель v29 (Staff-Aware AI Resolver).
- * Выполняет полную симуляцию матча с учетом навыков персонала.
+ * @fileOverview MMO-Двигатель v32 (Server-Side Staff-Aware AI Resolver).
+ * Выполняет полную симуляцию матча и фиксирует результаты в глобальной коллекции.
  */
 
 import { 
@@ -22,6 +22,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
 
   const seasonNum = Number(seasonInfo.activeSeasonNumber);
 
+  // Ищем только незавершенные матчи в конкретной группе
   const q = query(
     collection(db, 'matches_v1'),
     where('groupId', '==', String(groupId)),
@@ -44,6 +45,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
 
         const [snapA, snapB] = await Promise.all([getDoc(teamARef), getDoc(teamBRef)]);
         
+        // Получаем составы и персонал
         const [heroesA, heroesB, staffA, staffB] = await Promise.all([
           getDocs(collection(teamARef, 'heroes')),
           getDocs(collection(teamBRef, 'heroes')),
@@ -54,14 +56,21 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
         const dataA = snapA.data() || {};
         const dataB = snapB.data() || {};
 
-        const squadA = heroesA.docs.map(d => ({ ...d.data(), id: d.id, isSub: dataA.lineup?.sub1 === d.id || dataA.lineup?.sub2 === d.id }));
-        const squadB = heroesB.docs.map(d => ({ ...d.data(), id: d.id, isSub: dataB.lineup?.sub1 === d.id || dataB.lineup?.sub2 === d.id }));
+        const squadA = heroesA.docs.map(d => ({ 
+          ...d.data(), id: d.id, 
+          isSub: dataA.lineup?.sub1 === d.id || dataA.lineup?.sub2 === d.id 
+        }));
+        const squadB = heroesB.docs.map(d => ({ 
+          ...d.data(), id: d.id, 
+          isSub: dataB.lineup?.sub1 === d.id || dataB.lineup?.sub2 === d.id 
+        }));
 
         const coachA = staffA.docs.find(d => d.data().role === 'coach')?.data();
         const analystA = staffA.docs.find(d => d.data().role === 'analyst')?.data();
         const coachB = staffB.docs.find(d => d.data().role === 'coach')?.data();
         const analystB = staffB.docs.find(d => d.data().role === 'analyst')?.data();
 
+        // Запуск обоснованной симуляции
         const simulation = await simulateMobaMatch({
           teamA: { 
             name: m.homeName, 
@@ -87,6 +96,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
         const sB = parseInt(seriesScoreParts[1]);
         const winnerId = sA > sB ? m.homeId : (sB > sA ? m.awayId : null);
 
+        // Атомарное обновление в транзакции
         await runTransaction(db, async (transaction) => {
           transaction.set(teamARef, {
             wins: (dataA.wins || 0) + (sA > sB ? 1 : 0),
@@ -117,7 +127,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
 
         resolvedCount++;
       } catch (e) {
-        console.error(`[V29 ENGINE] Failed to resolve match ${m.id}:`, e);
+        console.error(`[V32 ENGINE] Failed to resolve match ${m.id}:`, e);
       }
     }
   }

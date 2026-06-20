@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v40.
- * Оптимизирована генерация календарей и исправлены запросы разрешений.
+ * @fileOverview Автономный менеджер синхронизации v41.
+ * Гарантирует запись всех событий (Лига, Кубок) в БД и синхронизацию между игроками.
  */
 
 import { useEffect, useRef } from 'react';
@@ -10,7 +10,7 @@ import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, updateDoc, setDoc } from 'firebase/firestore';
 import { getStableGroupTeams, generateSeasonCalendar } from '@/app/lib/leagues-data';
-import { getGlobalSeasonInfo, isMatchOverdue, getMoscowTime, getMoscowDateString, toMskDate } from '@/app/lib/time-utils';
+import { getGlobalSeasonInfo, isMatchOverdue, getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
 import { forceResolveGroupMatches } from '@/app/actions/mmo-engine';
 import { generatePyramidCup } from '@/app/actions/cup-engine';
 
@@ -21,7 +21,7 @@ export function AutoMatchManager() {
   const processingRef = useRef(false);
   const lastEconomicCheckRef = useRef<string | null>(null);
 
-  // Используем упрощенный запрос для получения участников группы во избежание ошибок композитных индексов
+  // Запрос участников лиги для генерации календаря
   const leaguePlayersQuery = useMemoFirebase(() => {
     if (isUserLoading || !user?.uid || !selectedLeagueId) return null;
     return query(
@@ -47,7 +47,7 @@ export function AutoMatchManager() {
         const currentSN = info.seasonNumber;
         const currentSeasonId = `season_${currentSN}`;
 
-        // 1. ЭКОНОМИЧЕСКИЙ ЦИКЛ (Ежедневно в 00:00 MSK)
+        // 1. ЭКОНОМИЧЕСКИЙ ЦИКЛ (Выплаты спонсоров)
         if (lastEconomicCheckRef.current !== todayStr) {
           const currentPrefixedGroupId = `${currentSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
           const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', currentPrefixedGroupId, 'teams', userId);
@@ -78,7 +78,7 @@ export function AutoMatchManager() {
           lastEconomicCheckRef.current = todayStr;
         }
 
-        // 2. ГЕНЕРАЦИЯ КАЛЕНДАРЯ
+        // 2. ГЕНЕРАЦИЯ КАЛЕНДАРЯ И СОСТОЯНИЯ ГРУППЫ В БД
         const targetSN = info.seasonNumber; 
         const targetSeasonId = `season_${targetSN}`;
         const prefixedGroupId = `${targetSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
@@ -86,9 +86,9 @@ export function AutoMatchManager() {
         
         const groupSnap = await getDoc(groupRef);
         if (!groupSnap.exists()) {
-          console.log(`[SYNC] Initializing matches for ${targetSeasonId} Group ${groupId}...`);
+          console.log(`[PERSISTENCE] Initializing shared data for ${targetSeasonId} Group ${groupId}...`);
           
-          // Фильтруем игроков группы из общего списка лиги
+          // Собираем команды группы (игроки + боты)
           const groupPlayers = leaguePlayers.filter(p => Number(p.leagueLevel) === Number(leagueLevel) && Number(p.groupId) === Number(groupId));
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, groupPlayers);
           const calendar = generateSeasonCalendar(currentTeams, targetSN, selectedLeagueId);
@@ -102,6 +102,7 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp() 
           });
           
+          // Записываем каждый матч как отдельный документ в глобальную коллекцию
           calendar.forEach((m) => {
             const matchId = `m_${prefixedGroupId}_d${m.day}_${m.pairKey}`;
             batch.set(doc(db, 'matches_v1', matchId), { 
@@ -119,13 +120,13 @@ export function AutoMatchManager() {
           });
           await batch.commit();
 
-          // Инициализация Кубка для всей лиги (только один раз)
+          // Глобальная инициализация Кубка (один раз на сезон)
           if (targetSN === 1) {
             await generatePyramidCup(1);
           }
         }
 
-        // 3. РЕЗОЛВЕР ПРОСРОЧЕННЫХ МАТЧЕЙ
+        // 3. СИНХРОННЫЙ РЕЗОЛВЕР МАТЧЕЙ (AI Simulation)
         const overdue = allSeasonMatches.filter(m => isMatchOverdue(m.startTime) && !m.isFinished);
         if (overdue.length > 0) {
           const currentPrefixedGroupId = `${currentSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
@@ -133,7 +134,7 @@ export function AutoMatchManager() {
         }
 
       } catch (e: any) {
-        console.error("[AUTO-MANAGER SYNC ERROR]", e);
+        console.error("[GLOBAL SYNC ERROR]", e);
       } finally {
         processingRef.current = false;
       }

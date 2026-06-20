@@ -21,17 +21,20 @@ service cloud.firestore {
 
     // Pyramidal League Structure (V25+)
     match /leagues_v2/{document=**} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if isSignedIn(); 
     }
 
     // Global Matches (V25+)
     match /matches_v1/{document=**} {
-      allow read, write: if isSignedIn(); 
+      allow read: if isSignedIn();
+      allow write: if isSignedIn(); 
     }
 
     // Cup Matches (V25+)
     match /cup_matches/{document=**} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
 
     // System Status & Metadata
