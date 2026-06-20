@@ -1,7 +1,9 @@
 /**
- * @fileOverview Ядро лиг v18: Детерминированное расписание и абсолютные таймстемпы.
- * Синхронизировано с Глобальной Эпохой 01.01.2025.
+ * @fileOverview Ядро лиг v19: Детерминированное расписание и абсолютные таймстемпы.
+ * Синхронизировано с Глобальной Эпохой 22.06.2026.
  */
+
+import { GLOBAL_EPOCH_ISO } from './time-utils';
 
 export interface LeagueOption {
   id: string;
@@ -67,8 +69,8 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
   const league = LEAGUES.find(l => l.id === leagueId) || LEAGUES[0];
   const [hh, mm] = league.startTime.split(':').map(Number);
   
-  // Глобальная Эпоха: 01.01.2025 00:00 MSK (31.12.2024 21:00 UTC)
-  const epochUtc = new Date('2024-12-31T21:00:00Z');
+  // Глобальная Эпоха: 22.06.2026 00:00 MSK (21.06.2026 21:00 UTC)
+  const epochUtc = new Date(GLOBAL_EPOCH_ISO);
   const seasonStartMs = epochUtc.getTime() + (seasonNumber - 1) * 15 * 24 * 60 * 60 * 1000;
 
   for (let round = 0; round < roundsPerHalf; round++) {
@@ -81,7 +83,6 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
       const day2 = round + 1 + roundsPerHalf;
 
       const createEntry = (day: number, home: any, away: any) => {
-        // Добавляем смещение часов лиги
         const startTime = new Date(seasonStartMs + (day - 1) * 24 * 60 * 60 * 1000 + hh * 60 * 60 * 1000 + mm * 60 * 1000);
         return {
           day,

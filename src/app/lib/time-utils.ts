@@ -1,9 +1,9 @@
 /**
- * @fileOverview Ядро времени v70. Absolute Global Sync & Seasonal Engine.
+ * @fileOverview Ядро времени v80. Absolute Global Sync & Seasonal Engine (Epoch Reset).
  * 
  * Система обеспечивает полную синхронизацию времени между всеми клиентами.
  * Использует UTC+3 (Москва) как базовый стандарт для игровых циклов.
- * Точка отсчета (Эпоха): 01.01.2025 00:00 MSK.
+ * Точка отсчета (Эпоха): 22.06.2026 00:00 MSK (Начало Сезона 1).
  */
 
 let syncPoint = {
@@ -12,7 +12,8 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-export const GLOBAL_EPOCH_ISO = '2025-01-01T00:00:00Z'; // 00:00 MSK is 21:00 UTC previous day, but for logic we use MSK-relative
+// 22.06.2026 00:00 MSK в формате ISO UTC
+export const GLOBAL_EPOCH_ISO = '2026-06-21T21:00:00Z'; 
 
 /**
  * Устанавливает абсолютную точку отсчета серверного времени.
@@ -29,7 +30,7 @@ export function setServerTime(serverMs: number) {
       perfMs: 0
     };
   }
-  console.log(`[TIME-CORE v70] Global Sync Established: ${new Date(serverMs).toISOString()}`);
+  console.log(`[TIME-CORE v80] Global Sync Established: ${new Date(serverMs).toISOString()}`);
 }
 
 /**
@@ -99,25 +100,34 @@ export function getMoscowDateString(): string {
 
 /**
  * Рассчитывает состояние сезона на основе 15-дневного цикла.
- * Эпоха: 01.01.2025 00:00 MSK.
+ * Эпоха: 22.06.2026 00:00 MSK.
  */
 export function getGlobalSeasonInfo() {
   const utcNow = getMoscowTime();
-  // Эпоха в UTC: 31 декабря 2024, 21:00 (чтобы в МСК было 1 янв 00:00)
-  const epochUtc = new Date('2024-12-31T21:00:00Z');
+  const epochUtc = new Date(GLOBAL_EPOCH_ISO);
   
   const diffMs = utcNow.getTime() - epochUtc.getTime();
   const cycleDuration = 15; 
   const dayMs = 24 * 60 * 60 * 1000;
   const cycleMs = cycleDuration * dayMs;
 
+  // Если мы до эпохи - это подготовка к сезону 1
+  if (diffMs < 0) {
+    return {
+      seasonDay: 0,
+      dayOfCycle: 0,
+      seasonNumber: 1,
+      activeSeasonNumber: 1,
+      isOffseason: true,
+      isGenerationDay: false,
+      timeToStartMs: Math.abs(diffMs),
+      currentSeasonStart: epochUtc,
+      nextSeasonStart: epochUtc
+    };
+  }
+
   let seasonNumber = Math.floor(diffMs / cycleMs) + 1;
   let dayOfCycle = Math.floor((diffMs % cycleMs) / dayMs) + 1;
-
-  if (diffMs < 0) {
-    seasonNumber = 1;
-    dayOfCycle = 1;
-  }
 
   const isOffseason = dayOfCycle === 15;
   const isGenerationDay = dayOfCycle === 15;
@@ -158,7 +168,7 @@ export function isMatchLive(startTimeIso: string): boolean {
 }
 
 export function getSeasonDateLabel(dayOfSeason: number, seasonNumber: number = 1): string {
-  const epochUtc = new Date('2024-12-31T21:00:00Z');
+  const epochUtc = new Date(GLOBAL_EPOCH_ISO);
   const cycleDuration = 15;
   const targetMs = epochUtc.getTime() + (seasonNumber - 1) * cycleDuration * 24 * 60 * 60 * 1000 + (dayOfSeason - 1) * 24 * 60 * 60 * 1000;
   const targetDate = new Date(targetMs);

@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Скрипт-миграция для архивации старых матчей и инициации Сезона 1.
+ * @fileOverview Скрипт-миграция v2.0: Полный сброс к Сезону 1 на 22 июня 2026.
  */
 
 import { 
@@ -18,44 +18,40 @@ export async function runEmergencyMigration() {
   const { firestore: db } = initializeFirebase();
   const matchesRef = collection(db, 'matches_v1');
 
-  console.log("Starting Migration: Archiving old drafts and setting global status...");
+  console.log("Starting Migration v2.0: Resetting all timelines to Season 1 (June 2026)...");
   
-  // 1. Находим все матчи, не принадлежащие Сезону 1 или со старыми ботами
+  // 1. Архивируем абсолютно все старые матчи, так как временная шкала изменилась
   const snapshot = await getDocs(matchesRef);
   let batch = writeBatch(db);
   let count = 0;
 
   for (const d of snapshot.docs) {
-    const data = d.data();
-    const isOldBot = (data.homeName || "").includes("ELITE BOT") || (data.awayName || "").includes("ELITE BOT") || (data.homeName || "").includes("9.1.1");
-    const isWrongSeason = data.seasonId !== "season_1";
+    batch.update(d.ref, {
+      status: 'archived',
+      archivedAt: serverTimestamp(),
+      reason: 'epoch_reset'
+    });
+    count++;
 
-    if (isOldBot || isWrongSeason) {
-      batch.update(d.ref, {
-        status: 'archived',
-        archivedAt: serverTimestamp()
-      });
-      count++;
-
-      if (count % 400 === 0) {
-        await batch.commit();
-        batch = writeBatch(db);
-      }
+    if (count % 400 === 0) {
+      await batch.commit();
+      batch = writeBatch(db);
     }
   }
   await batch.commit();
-  console.log(`Archived ${count} old match documents.`);
+  console.log(`Archived ${count} legacy match documents.`);
 
-  // 2. Обновляем глобальный статус системы
+  // 2. Сбрасываем глобальный статус системы на Сезон 1
   const statusRef = doc(db, 'system_v1', 'status');
   await setDoc(statusRef, {
     currentSeasonNumber: 1,
     currentSeasonId: "season_1",
     status: "active",
+    epoch: "2026-06-22T00:00:00+03:00",
     updatedAt: serverTimestamp()
   }, { merge: true });
 
-  console.log("Global Status Updated: Season 1 is now ACTIVE.");
+  console.log("Global Status Reset: System is now set to Season 1.");
 
   return { success: true, archived: count };
 }

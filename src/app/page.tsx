@@ -83,7 +83,17 @@ export default function Home() {
     const timer = setInterval(() => {
       const info = getGlobalSeasonInfo();
       const mskNow = getMoscowTime();
-      if (info.isOffseason) {
+      
+      // Логика обратного отсчета до Сезона 1 или до следующего матча
+      if (mskNow < info.currentSeasonStart) {
+        const diff = info.currentSeasonStart.getTime() - mskNow.getTime();
+        const dd = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hh = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const mm = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const ss = Math.floor((diff % (1000 * 60)) / 1000);
+        setCountdown(`${dd}d ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
+        setIsMatchActive(false);
+      } else if (info.isOffseason) {
         const targetTime = info.nextSeasonStart.getTime();
         const diff = targetTime - mskNow.getTime();
         const hh = Math.floor(diff / 3600000);
@@ -181,39 +191,40 @@ export default function Home() {
     ru: { nextMatch: "Следующий матч", offseason: "МЕЖСЕЗОНЬЕ", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", startsIn: "СЕЗОН 1 ЧЕРЕЗ:", live: "В ЭФИРЕ: ИДЕТ СРАЖЕНИЕ" }
   }[language as 'en' | 'ru'];
 
-  const menu = [ 
-    { label: language === 'ru' ? 'СОСТАВ' : 'ROSTER', href: '/roster', icon: Users, desc: language === 'ru' ? 'Ваши игроки' : 'Squad management' }, 
-    { label: language === 'ru' ? 'ИНФРАСТРУКТУРА' : 'Infrastructure', href: '/training', icon: Zap, desc: language === 'ru' ? 'База клуба' : 'Facility growth' }, 
-    { label: language === 'ru' ? 'ТРАНСФЕРЫ' : 'Transfers', href: '/transfers', icon: ArrowRightLeft, desc: language === 'ru' ? 'Рынок игроков' : 'Asset market' }, 
-    { label: language === 'ru' ? 'МАГАЗИН' : 'Shop', icon: ShoppingCart, href: '/shop', desc: language === 'ru' ? 'Покупка ресурсов' : 'Resource acquisition' },
-    { label: language === 'ru' ? 'ЮНОШЕСКАЯ ШКОЛА' : 'Youth Academy', href: '/youth-academy', icon: GraduationCap, desc: language === 'ru' ? 'Центр талантов' : 'Rising stars' },
-    { label: language === 'ru' ? 'ТАБЛИЦЫ' : 'Rankings', href: '/rankings', icon: Trophy, desc: language === 'ru' ? 'Рейтинги' : 'Standings' }, 
-    { label: language === 'ru' ? 'МАТЧИ' : 'Matches', href: '/matches', icon: CalendarDays, desc: language === 'ru' ? 'Расписание' : 'Schedule' }, 
-    { label: language === 'ru' ? 'ТУРНИРЫ' : 'Tournaments', href: '/tournaments', icon: Medal, desc: language === 'ru' ? 'События' : 'Special events' }, 
-    { label: language === 'ru' ? 'ЧАТЫ' : 'Communications', href: '/chats', icon: MessageSquare, desc: language === 'ru' ? 'Связь' : 'Messaging' }, 
-    { label: language === 'ru' ? 'ПРОФИЛЬ' : 'Profile', href: '/profile', icon: UserCog, desc: language === 'ru' ? 'Настройки' : 'Dossier' } 
-  ];
+  const isPreSeason = getMoscowTime() < seasonInfo.currentSeasonStart;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6 flex flex-col gap-1">
-        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.37</span></div>
-        <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">{seasonInfo.isOffseason ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} {seasonInfo.isOffseason ? tHub.offseason : `SEASON ${seasonInfo.seasonNumber}`}</h1>
+        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.38</span></div>
+        <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
+          {(seasonInfo.isOffseason || isPreSeason) ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
+          {(seasonInfo.isOffseason || isPreSeason) ? tHub.offseason : `SEASON ${seasonInfo.seasonNumber}`}
+        </h1>
       </header>
 
       <section className="mb-8">
         <Card className={cn("glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden shadow-xl", isMatchActive && "border-red-500/40 bg-red-500/5")}>
           <CardContent className="p-6">
             <div className="text-center space-y-4">
-              <Badge variant="outline" className={cn("text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5", isMatchActive ? "bg-red-500/20 text-white animate-pulse" : "bg-primary/10 text-primary")}>{isMatchActive ? tHub.live : 'PRO LEAGUE'}</Badge>
-              {nextMatch ? (
+              <Badge variant="outline" className={cn("text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5", isMatchActive ? "bg-red-500/20 text-white animate-pulse" : "bg-primary/10 text-primary")}>
+                {isMatchActive ? tHub.live : (isPreSeason ? 'SYSTEM INITIALIZATION' : 'PRO LEAGUE')}
+              </Badge>
+              {nextMatch && !isPreSeason ? (
                 <div className="flex items-center justify-between gap-4 py-2">
                   <div className="flex-1 text-right truncate"><p className="text-[10px] font-headline font-bold uppercase italic text-white">{nextMatch.match.homeName}</p></div>
                   <div className="px-3 py-1 rounded-lg bg-background/60 border border-white/5"><Swords className={cn("w-4 h-4", isMatchActive ? "text-red-500 animate-bounce" : "text-accent")} /></div>
                   <div className="flex-1 text-left truncate"><p className="text-[10px] font-headline font-bold uppercase italic text-white">{nextMatch.match.awayName}</p></div>
                 </div>
-              ) : <div className="py-6 opacity-30 text-[10px] font-bold uppercase">{seasonInfo.isOffseason ? tHub.startsIn : 'NO MATCHES'}</div>}
-              <div className="bg-background/60 py-3 rounded-2xl border border-white/5"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">{isMatchActive ? 'ENGAGEMENT PHASE' : (seasonInfo.isOffseason ? 'SEASON RESET' : 'TIME TO ENGAGEMENT')}</p><p className={cn("text-xl font-headline font-bold tabular-nums tracking-tighter text-white", isMatchActive && "text-red-500 animate-pulse")}>{countdown || '00:00:00'}</p></div>
+              ) : <div className="py-6 opacity-30 text-[10px] font-bold uppercase">{tHub.startsIn}</div>}
+              <div className="bg-background/60 py-3 rounded-2xl border border-white/5">
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">
+                  {isMatchActive ? 'ENGAGEMENT PHASE' : (isPreSeason ? 'SEASON 1 LAUNCH' : 'TIME TO ENGAGEMENT')}
+                </p>
+                <p className={cn("text-xl font-headline font-bold tabular-nums tracking-tighter text-white", isMatchActive && "text-red-500 animate-pulse")}>
+                  {countdown || 'SYNCING...'}
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -239,7 +250,18 @@ export default function Home() {
       <div className="space-y-4">
         <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-accent px-1">{tHub.navTitle}</h2>
         <div className="grid grid-cols-1 gap-2">
-          {menu.map((item) => (
+          {[
+            { label: language === 'ru' ? 'СОСТАВ' : 'ROSTER', href: '/roster', icon: Users, desc: language === 'ru' ? 'Ваши игроки' : 'Squad management' }, 
+            { label: language === 'ru' ? 'ИНФРАСТРУКТУРА' : 'Infrastructure', href: '/training', icon: Zap, desc: language === 'ru' ? 'База клуба' : 'Facility growth' }, 
+            { label: language === 'ru' ? 'ТРАНСФЕРЫ' : 'Transfers', href: '/transfers', icon: ArrowRightLeft, desc: language === 'ru' ? 'Рынок игроков' : 'Asset market' }, 
+            { label: language === 'ru' ? 'МАГАЗИН' : 'Shop', icon: ShoppingCart, href: '/shop', desc: language === 'ru' ? 'Покупка ресурсов' : 'Resource acquisition' },
+            { label: language === 'ru' ? 'ЮНОШЕСКАЯ ШКОЛА' : 'Youth Academy', href: '/youth-academy', icon: GraduationCap, desc: language === 'ru' ? 'Центр талантов' : 'Rising stars' },
+            { label: language === 'ru' ? 'ТАБЛИЦЫ' : 'Rankings', href: '/rankings', icon: Trophy, desc: language === 'ru' ? 'Рейтинги' : 'Standings' }, 
+            { label: language === 'ru' ? 'МАТЧИ' : 'Matches', href: '/matches', icon: CalendarDays, desc: language === 'ru' ? 'Расписание' : 'Schedule' }, 
+            { label: language === 'ru' ? 'ТУРНИРЫ' : 'Tournaments', href: '/tournaments', icon: Medal, desc: language === 'ru' ? 'События' : 'Special events' }, 
+            { label: language === 'ru' ? 'ЧАТЫ' : 'Communications', href: '/chats', icon: MessageSquare, desc: language === 'ru' ? 'Связь' : 'Messaging' }, 
+            { label: language === 'ru' ? 'ПРОФИЛЬ' : 'Profile', href: '/profile', icon: UserCog, desc: language === 'ru' ? 'Настройки' : 'Dossier' } 
+          ].map((item) => (
             <Link key={item.label} href={item.href}>
               <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group"><CardContent className="p-4 flex items-center justify-between"><div className="flex items-center gap-4"><div className="p-2.5 rounded-xl bg-secondary/50 group-hover:bg-primary/20 transition-colors border border-white/5"><item.icon className="w-5 h-5 text-primary" /></div><div><h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{item.label}</h3><p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p></div></div><ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-all" /></CardContent></Card>
             </Link>
