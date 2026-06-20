@@ -22,7 +22,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
 
   const seasonNum = Number(seasonInfo.activeSeasonNumber);
 
-  // Ищем только незавершенные матчи в конкретной группе
+  // Ищем только незавершенные матчи в конкретной группе в глобальной коллекции
   const q = query(
     collection(db, 'matches_v1'),
     where('groupId', '==', String(groupId)),
@@ -38,14 +38,17 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
   for (const docSnap of snap.docs) {
     const m = docSnap.data();
     
+    // Проверяем, наступило ли время начала матча (с учетом окна в 35 минут)
     if (isMatchOverdue(m.startTime)) {
       try {
+        const seasonId = `season_${seasonNum}`;
+        // Пути к данным команд внутри иерархии лиг
         const teamARef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', m.homeId);
         const teamBRef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', m.awayId);
 
         const [snapA, snapB] = await Promise.all([getDoc(teamARef), getDoc(teamBRef)]);
         
-        // Получаем составы и персонал
+        // Получаем составы и персонал для обоснованной симуляции
         const [heroesA, heroesB, staffA, staffB] = await Promise.all([
           getDocs(collection(teamARef, 'heroes')),
           getDocs(collection(teamBRef, 'heroes')),
@@ -70,7 +73,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
         const coachB = staffB.docs.find(d => d.data().role === 'coach')?.data();
         const analystB = staffB.docs.find(d => d.data().role === 'analyst')?.data();
 
-        // Запуск обоснованной симуляции
+        // Запуск симуляции Match Engine v4.5
         const simulation = await simulateMobaMatch({
           teamA: { 
             name: m.homeName, 
@@ -96,8 +99,9 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
         const sB = parseInt(seriesScoreParts[1]);
         const winnerId = sA > sB ? m.homeId : (sB > sA ? m.awayId : null);
 
-        // Атомарное обновление в транзакции
+        // Атомарное обновление в транзакции: обновляем таблицу и сам документ матча
         await runTransaction(db, async (transaction) => {
+          // Обновляем статистику команды А
           transaction.set(teamARef, {
             wins: (dataA.wins || 0) + (sA > sB ? 1 : 0),
             draws: (dataA.draws || 0) + (sA === sB ? 1 : 0),
@@ -106,6 +110,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
             updatedAt: serverTimestamp()
           }, { merge: true });
 
+          // Обновляем статистику команды Б
           transaction.set(teamBRef, {
             wins: (dataB.wins || 0) + (sB > sA ? 1 : 0),
             draws: (dataB.draws || 0) + (sA === sB ? 1 : 0),
@@ -114,6 +119,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
             updatedAt: serverTimestamp()
           }, { merge: true });
 
+          // Фиксируем результат в глобальном матче
           transaction.update(docSnap.ref, {
             scoreA: sA, scoreB: sB,
             winnerId,

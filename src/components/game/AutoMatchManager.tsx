@@ -21,7 +21,7 @@ export function AutoMatchManager() {
   const processingRef = useRef(false);
   const lastEconomicCheckRef = useRef<string | null>(null);
 
-  // Запрос участников лиги для генерации календаря
+  // Запрос всех участников лиги для корректного посева групп и генерации календарей
   const leaguePlayersQuery = useMemoFirebase(() => {
     if (isUserLoading || !user?.uid || !selectedLeagueId) return null;
     return query(
@@ -47,7 +47,7 @@ export function AutoMatchManager() {
         const currentSN = info.seasonNumber;
         const currentSeasonId = `season_${currentSN}`;
 
-        // 1. ЭКОНОМИЧЕСКИЙ ЦИКЛ (Выплаты спонсоров)
+        // 1. ЭКОНОМИЧЕСКИЙ ЦИКЛ (Синхронные выплаты и зарплаты)
         if (lastEconomicCheckRef.current !== todayStr) {
           const currentPrefixedGroupId = `${currentSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
           const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', currentPrefixedGroupId, 'teams', userId);
@@ -59,11 +59,13 @@ export function AutoMatchManager() {
               const basePayout = 250000;
               const bonusMult = 1 + ((teamData.managerSkills?.sponsors || 0) * 0.1);
               const finalPayout = Math.round(basePayout * (teamData.isPremium ? 3.0 : 1.0) * bonusMult);
+              
               await updateDoc(teamRef, { 
                 credits: (teamData.credits || 0) + finalPayout, 
                 lastSponsorPayoutDate: todayStr, 
                 updatedAt: serverTimestamp() 
               });
+              
               await setDoc(doc(db, 'notifications_v7', `sponsor_${userId}_${todayStr}`), { 
                 userId, 
                 title: language === 'ru' ? "Выплата спонсоров" : "Sponsor Payout", 
@@ -73,12 +75,14 @@ export function AutoMatchManager() {
                 createdAt: utcNow.toISOString() 
               });
             }
+            // Зарплаты персонала списываются раз в сутки
             await payStaffSalaries();
           }
           lastEconomicCheckRef.current = todayStr;
         }
 
         // 2. ГЕНЕРАЦИЯ КАЛЕНДАРЯ И СОСТОЯНИЯ ГРУППЫ В БД
+        // Если группа еще не инициализирована в БД — создаем ее и все 14 дней матчей
         const targetSN = info.seasonNumber; 
         const targetSeasonId = `season_${targetSN}`;
         const prefixedGroupId = `${targetSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
@@ -86,11 +90,13 @@ export function AutoMatchManager() {
         
         const groupSnap = await getDoc(groupRef);
         if (!groupSnap.exists()) {
-          console.log(`[PERSISTENCE] Initializing shared data for ${targetSeasonId} Group ${groupId}...`);
+          console.log(`[GLOBAL PERSISTENCE] Generating calendar for ${selectedLeagueId} Group ${groupId}...`);
           
-          // Собираем команды группы (игроки + боты)
+          // Фильтруем игроков этой конкретной группы
           const groupPlayers = leaguePlayers.filter(p => Number(p.leagueLevel) === Number(leagueLevel) && Number(p.groupId) === Number(groupId));
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, groupPlayers);
+          
+          // Генерируем детерминированное расписание на 14 дней
           const calendar = generateSeasonCalendar(currentTeams, targetSN, selectedLeagueId);
           
           let batch = writeBatch(db);
@@ -102,7 +108,7 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp() 
           });
           
-          // Записываем каждый матч как отдельный документ в глобальную коллекцию
+          // Записываем каждый матч как отдельный документ в глобальную коллекцию matches_v1
           calendar.forEach((m) => {
             const matchId = `m_${prefixedGroupId}_d${m.day}_${m.pairKey}`;
             batch.set(doc(db, 'matches_v1', matchId), { 
@@ -127,6 +133,7 @@ export function AutoMatchManager() {
         }
 
         // 3. СИНХРОННЫЙ РЕЗОЛВЕР МАТЧЕЙ (AI Simulation)
+        // Ищем в загруженных матчах те, время которых прошло, но они не завершены
         const overdue = allSeasonMatches.filter(m => isMatchOverdue(m.startTime) && !m.isFinished);
         if (overdue.length > 0) {
           const currentPrefixedGroupId = `${currentSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
@@ -140,6 +147,7 @@ export function AutoMatchManager() {
       }
     };
 
+    // Интервал в 60 секунд для проверки экономических событий и старта матчей
     const interval = setInterval(heartbeat, 60000);
     heartbeat();
     return () => clearInterval(interval);

@@ -20,18 +20,19 @@ service cloud.firestore {
     }
 
     // Pyramidal League Structure (V25+)
+    // Позволяем всем игрокам читать таблицы и составы групп для синхронизации
     match /leagues_v2/{document=**} {
       allow read: if isSignedIn();
       allow write: if isSignedIn(); 
     }
 
-    // Global Matches (V25+)
+    // Global Matches (Shared collection for all leagues)
     match /matches_v1/{document=**} {
       allow read: if isSignedIn();
       allow write: if isSignedIn(); 
     }
 
-    // Cup Matches (V25+)
+    // Cup Matches (Global tournament bracket)
     match /cup_matches/{document=**} {
       allow read: if isSignedIn();
       allow write: if isSignedIn();

@@ -191,6 +191,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsubTeam(); playersUnsub(); staffUnsub(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
+  // Слушатель для всех матчей текущего сезона из глобальной коллекции matches_v1
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
     const info = getGlobalSeasonInfo();
@@ -284,7 +285,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const id = mId || `match_${Date.now()}`;
     const s = stateRef.current;
     
-    // TBD Technical Win Check
+    // Проверка технической победы над TBD
     const isTbdWin = opp === 'TBD' || opp === 'BYE';
     
     const participants = res.games[0].scoreboard.filter((p: any) => p.team === s.displayName);
@@ -338,7 +339,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       isTbdWin 
     };
 
-    // Manager XP Logic (Skip for TBD)
+    // Логика XP менеджера (отключена для TBD)
     let newLevel = s.managerLevel;
     let newSkillPoints = s.skillPoints;
     let bonusCrystals = 0;
@@ -371,6 +372,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const r = getRefs(); if (!r) return;
     const leagueMatch = allMatches.find(m => m.id === id);
     if (leagueMatch) {
+      // Обновляем последний просмотренный день в корневом профиле для синхронизации счетчика в Хабе
       updateDoc(r.root, { lastSeenMatchDay: Number(leagueMatch.day) });
     }
     const newHistory = stateRef.current.matchHistory.map(m => m.id === id ? { ...m, seen: true } : m);
