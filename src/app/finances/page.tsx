@@ -34,7 +34,7 @@ type FinanceTab =
   | 'match_reports';
 
 export default function FinancesPage() {
-  const { language, isLoaded, credits, ownedHeroes, arena, managerSkills, isPremium } = useGameState();
+  const { language, isLoaded, credits, ownedPlayers, arena, managerSkills, isPremium } = useGameState();
   const [activeTab, setActiveTab] = useState<FinanceTab>('menu');
 
   if (!isLoaded) return <LoadingScreen />;
@@ -283,7 +283,7 @@ export default function FinancesPage() {
         );
 
       case 'salaries':
-        const totalSalary = ownedHeroes.reduce((acc, h) => acc + (h.salary || 0), 0);
+        const totalSalary = ownedPlayers.reduce((acc, h) => acc + (h.salary || 0), 0);
         const leagueSubsidy = totalSalary * 0.45;
         const clubCost = totalSalary - leagueSubsidy;
 

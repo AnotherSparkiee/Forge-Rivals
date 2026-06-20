@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * Глобальное хранилище v58 (Renamed Heroes to Players). 
- * Исправлена логика исчезновения игроков и синхронизация матчей.
+ * Глобальное хранилище v59 (Standardized to Players). 
+ * Исправлены ошибки limit, nextMatchInfo и ReferenceError.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
 import { Player, StaffMember, StaffRole, generateScoutedPlayer } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, setServerTime } from './time-utils';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, arrayUnion, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, arrayUnion, getDoc, updateDoc, limit } from 'firebase/firestore';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
@@ -301,7 +301,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     updateDoc(r.team, { scoutingCandidates: stateRef.current.scoutingCandidates.filter(c => c.id !== playerId) });
   };
 
-  const clearScoutingReport = () => { const r = getRefs(); if (r) updateDoc(r.team, { scoutingCandidates: [], lastScoutDate: null }); };
+  const clearScoutingReport = () => {
+    const r = getRefs(); if (r) updateDoc(r.team, { scoutingCandidates: [], lastScoutDate: null });
+  };
   
   const payStaffSalaries = async () => {
     const r = getRefs(); if (!r) return;

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -23,7 +22,7 @@ import {
 } from "@/components/ui/select";
 
 export default function YouthTrainingPage() {
-  const { youthAcademyHeroes, language, isLoaded, startDailyHeroTraining, claimDailyHeroTraining } = useGameState();
+  const { youthAcademyPlayers, language, isLoaded, startDailyPlayerTraining, claimDailyPlayerTraining } = useGameState();
   const [now, setNow] = useState(Date.now());
   const [selectedSkills, setSelectedSkills] = useState<Record<string, string>>({});
 
@@ -101,13 +100,13 @@ export default function YouthTrainingPage() {
         </Card>
 
         <div className="space-y-3">
-          {youthAcademyHeroes.map((hero) => {
-            const isConstructing = !!hero.dailyTrainingFinishTime;
-            const isFinished = isConstructing && now >= new Date(hero.dailyTrainingFinishTime!).getTime();
-            const progress = isConstructing ? calculateProgress(hero.dailyTrainingFinishTime!) : 0;
+          {youthAcademyPlayers.map((player) => {
+            const isConstructing = !!player.dailyTrainingFinishTime;
+            const isFinished = isConstructing && now >= new Date(player.dailyTrainingFinishTime!).getTime();
+            const progress = isConstructing ? calculateProgress(player.dailyTrainingFinishTime!) : 0;
             
             return (
-              <Card key={hero.id} className={cn(
+              <Card key={player.id} className={cn(
                 "glass-card border-white/5 overflow-hidden transition-all",
                 isConstructing && !isFinished && "border-orange-500/20 bg-orange-500/5",
                 isFinished && "border-green-500/30 bg-green-500/10"
@@ -116,19 +115,19 @@ export default function YouthTrainingPage() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl border border-white/10 overflow-hidden bg-secondary/50">
-                        <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
+                        <img src={player.image} alt={player.name} className="w-full h-full object-cover" />
                       </div>
                       <div>
-                        <h3 className="text-sm font-bold uppercase truncate max-w-[120px]">{hero.name}</h3>
-                        <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
+                        <h3 className="text-sm font-bold uppercase truncate max-w-[120px]">{player.name}</h3>
+                        <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{player.role}</Badge>
                       </div>
                     </div>
 
                     {!isConstructing ? (
                       <div className="w-36">
                         <Select 
-                          value={selectedSkills[hero.id] || ""} 
-                          onValueChange={(val) => setSelectedSkills(prev => ({ ...prev, [hero.id]: val }))}
+                          value={selectedSkills[player.id] || ""} 
+                          onValueChange={(val) => setSelectedSkills(prev => ({ ...prev, [player.id]: val }))}
                         >
                           <SelectTrigger className="h-8 bg-secondary/50 border-white/5 text-[9px] font-bold uppercase tracking-tighter">
                             <SelectValue placeholder={t.noFocus} />
@@ -147,7 +146,7 @@ export default function YouthTrainingPage() {
                         ) : (
                           <div className="flex flex-col items-end">
                             <span className="text-[7px] text-muted-foreground uppercase font-black">{t.finishAt}</span>
-                            <span className="text-[10px] font-mono font-bold text-orange-400">{formatCountdown(hero.dailyTrainingFinishTime!)}</span>
+                            <span className="text-[10px] font-mono font-bold text-orange-400">{formatCountdown(player.dailyTrainingFinishTime!)}</span>
                           </div>
                         )}
                       </div>
@@ -158,7 +157,7 @@ export default function YouthTrainingPage() {
                     <div className="mb-4 space-y-1.5">
                       <div className="flex justify-between items-center text-[8px] font-bold uppercase">
                         <span className="text-accent flex items-center gap-1">
-                          <Target className="w-2.5 h-2.5" /> {t.skills[hero.dailyTrainingFocus as keyof typeof t.skills]}
+                          <Target className="w-2.5 h-2.5" /> {t.skills[player.dailyTrainingFocus as keyof typeof t.skills]}
                         </span>
                         <span className={cn(isFinished ? "text-green-400" : "text-orange-400")}>{Math.floor(progress)}%</span>
                       </div>
@@ -169,8 +168,8 @@ export default function YouthTrainingPage() {
                   {!isConstructing ? (
                     <Button 
                       className="w-full h-10 hero-gradient font-bold text-[10px] uppercase tracking-widest"
-                      disabled={!selectedSkills[hero.id]}
-                      onClick={() => startDailyHeroTraining(hero.id, selectedSkills[hero.id])}
+                      disabled={!selectedSkills[player.id]}
+                      onClick={() => startDailyPlayerTraining(player.id, selectedSkills[player.id])}
                     >
                       <Zap className="w-3 h-3 mr-2" /> {t.start}
                     </Button>
@@ -179,7 +178,7 @@ export default function YouthTrainingPage() {
                       variant={isFinished ? "default" : "outline"}
                       className={cn("w-full h-10 font-bold text-[10px] uppercase tracking-widest", isFinished ? "bg-green-600 shadow-lg" : "border-white/10 opacity-50")}
                       disabled={!isFinished}
-                      onClick={() => claimDailyHeroTraining(hero.id)}
+                      onClick={() => claimDailyPlayerTraining(player.id)}
                     >
                       {isFinished ? <><CheckCircle2 className="w-3 h-3 mr-2" /> {t.claim}</> : <><Loader2 className="w-3 h-3 mr-2 animate-spin" /> TRAINING...</>}
                     </Button>

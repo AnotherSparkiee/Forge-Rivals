@@ -15,7 +15,7 @@ import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 export function TransferResolver() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
-  const { isLoaded, updateHero, removeHero, addCredits, language, addHeroDirectly, addYouthHeroDirectly } = useGameState();
+  const { isLoaded, updatePlayer, removePlayer, addCredits, language, addPlayerDirectly, addYouthPlayerDirectly } = useGameState();
   
   // Лоты, которые я продаю
   const marketQuery = useMemoFirebase(() => {
@@ -64,7 +64,7 @@ export function TransferResolver() {
         
         if (mskNow > expiresAt && !processedIds.current.has(agent.id)) {
           processedIds.current.add(agent.id);
-          const heroId = agent.heroData.id;
+          const playerId = agent.heroData.id;
           
           try {
             if (agent.highestBidderId) {
@@ -74,13 +74,13 @@ export function TransferResolver() {
                 : `${agent.heroData.name} was sold to "${agent.highestBidderName}" for €${agent.currentBid.toLocaleString()}`;
               
               addCredits(agent.currentBid);
-              removeHero(heroId, 0);
+              removePlayer(playerId, 0);
               
               // Уведомление продавцу с уникальным ID сделки
               sendNotification(user.uid, sellerTitle, sellerDesc, `sale_done_${agent.id}`);
             } else {
               // Возврат в состав если не купили
-              updateHero(heroId, { onTransferUntil: null, transferMarketId: null });
+              updatePlayer(playerId, { onTransferUntil: null, transferMarketId: null });
               const title = language === 'ru' ? "Аукцион завершен" : "Auction Ended";
               const desc = language === 'ru' 
                 ? `${agent.heroData.name} остается в клубе (ставок нет).`
@@ -101,7 +101,7 @@ export function TransferResolver() {
     const interval = setInterval(resolveAuctions, 20000);
     resolveAuctions();
     return () => clearInterval(interval);
-  }, [isLoaded, isUserLoading, user, mySales, addCredits, removeHero, updateHero, language, db, sendNotification]);
+  }, [isLoaded, isUserLoading, user, mySales, addCredits, removePlayer, updatePlayer, language, db, sendNotification]);
 
   // Эффект разрешения покупок (я покупатель)
   useEffect(() => {
@@ -117,19 +117,19 @@ export function TransferResolver() {
           processedIds.current.add(agent.id);
           
           try {
-            const heroData = { ...agent.heroData, onTransferUntil: null, transferMarketId: null };
+            const playerData = { ...agent.heroData, onTransferUntil: null, transferMarketId: null };
             
-            // Добавляем героя
+            // Добавляем игрока
             if (agent.isYouth) {
-              addYouthHeroDirectly(heroData);
+              addYouthPlayerDirectly(playerData);
             } else {
-              addHeroDirectly(heroData);
+              addPlayerDirectly(playerData);
             }
 
-            const title = language === 'ru' ? "Пополнение в составе!" : "New Hero Joined!";
+            const title = language === 'ru' ? "Пополнение в составе!" : "New Player Joined!";
             const desc = language === 'ru' 
-              ? `${heroData.name} теперь в вашем распоряжении.` 
-              : `${heroData.name} is now under your command.`;
+              ? `${playerData.name} теперь в вашем распоряжении.` 
+              : `${playerData.name} is now under your command.`;
             
             // Уведомление покупателю с уникальным ID сделки
             sendNotification(user.uid, title, desc, `buy_done_${agent.id}`);
@@ -137,7 +137,7 @@ export function TransferResolver() {
             // Пытаемся удалить документ. 
             await deleteDoc(doc(db, 'market_v7', agent.id));
           } catch (e) {
-            console.error("Failed to claim purchased hero", e);
+            console.error("Failed to claim purchased player", e);
             processedIds.current.delete(agent.id);
           }
         }
@@ -147,7 +147,7 @@ export function TransferResolver() {
     const interval = setInterval(resolvePurchases, 20000);
     resolvePurchases();
     return () => clearInterval(interval);
-  }, [isLoaded, isUserLoading, user, myPurchases, addHeroDirectly, addYouthHeroDirectly, language, sendNotification, db]);
+  }, [isLoaded, isUserLoading, user, myPurchases, addPlayerDirectly, addYouthPlayerDirectly, language, sendNotification, db]);
 
   return null;
 }
