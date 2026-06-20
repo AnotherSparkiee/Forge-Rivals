@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Минималистичный экран загрузки.
- * Срабатывает мгновенно при навигации или используется как сплэш-экран.
+ * Минималистичный экран загрузки v2.0.
+ * Используется как основной компонент ожидания данных и при аутентификации.
  */
 export function LoadingScreen() {
   return (
@@ -20,7 +20,7 @@ export function LoadingScreen() {
           <img 
             src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png" 
             alt="Lines of the Enmity Logo" 
-            className="w-36 h-36 md:w-44 md:h-44 object-contain animate-pulse"
+            className="w-36 h-36 md:w-40 md:h-40 object-contain animate-pulse"
             suppressHydrationWarning
           />
         </div>
@@ -46,7 +46,7 @@ export function LoadingScreen() {
       {/* Копирайт */}
       <div className="absolute bottom-12 text-center opacity-30">
         <p className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-          ENMITY LEAGUE OPERATIONS &copy; 2024
+          ENMITY LEAGUE OPERATIONS &copy; 2026
         </p>
       </div>
     </div>
