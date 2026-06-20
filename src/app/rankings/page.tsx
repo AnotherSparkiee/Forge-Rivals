@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v30. 
- * Внедрен просмотр сетки Кубка Пирамиды.
+ * @fileOverview Страница рейтингов v31. 
+ * Улучшен просмотр сетки Кубка Пирамиды и навигация по лигам.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   Trophy, Medal, ChevronLeft, ChevronRight, 
-  Shield, Globe, Layers, Crown, Swords, Zap, Loader2, Calendar, User, ShoppingBasket
+  Shield, Globe, Layers, Crown, Swords, Zap, Loader2, Calendar, User, ShoppingBasket, AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -70,8 +70,8 @@ export default function RankingsPage() {
     return query(
       collection(db, 'cup_matches'),
       where('leagueId', '==', contextLeagueId),
-      where('round', '==', activeRound),
-      limit(100)
+      where('round', '==', Number(activeRound)),
+      limit(200)
     );
   }, [db, contextLeagueId, activeRound, activeTab]);
 
@@ -96,7 +96,7 @@ export default function RankingsPage() {
       pts: "PTS", winLoss: "W-D-L", back: "Back",
       selectDiv: "Select Division", selectGroup: "Select Group",
       cl: "CHAMPIONS LEAGUE", cup: "PYRAMID CUP",
-      waiting: "WAITING...",
+      waiting: "TBD",
       menu: [
         { id: 'my_league', label: 'My Current Table', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'champions_league', label: 'Champions League', desc: 'Elite Inter-Server Blitz', icon: Crown, color: 'text-yellow-500' },
@@ -110,7 +110,7 @@ export default function RankingsPage() {
       pts: "ОЧК", winLoss: "В-Н-П", back: "Назад",
       selectDiv: "Выберите дивизион", selectGroup: "Выберите группу",
       cl: "ЛИГА ЧЕМПИОНОВ", cup: "КУБОК ПИРАМИДЫ",
-      waiting: "ОЖИДАНИЕ...",
+      waiting: "TBD",
       menu: [
         { id: 'my_league', label: 'Своя таблица', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'champions_league', label: 'Лига Чемпионов', desc: 'Элитный межсерверный блиц', icon: Crown, color: 'text-yellow-500' },
@@ -162,15 +162,27 @@ export default function RankingsPage() {
           ))}
        </div>
        <div className="space-y-2">
-          {isCupLoading ? <div className="py-20 text-center opacity-50"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div> : cupMatches && cupMatches.length > 0 ? cupMatches.map(m => (
-            <Card key={m.id} className="glass-card border-white/5">
+          {isCupLoading ? (
+            <div className="py-20 text-center opacity-50 flex flex-col items-center gap-4">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <p className="text-[8px] font-black uppercase tracking-widest">Syncing Bracket...</p>
+            </div>
+          ) : cupMatches && cupMatches.length > 0 ? cupMatches.map(m => (
+            <Card key={m.id} className={cn("glass-card border-white/5", (m.homeTeamId === user?.uid || m.awayTeamId === user?.uid) && "border-primary/40 bg-primary/5")}>
                <CardContent className="p-3 flex items-center justify-between gap-4">
-                  <span className="flex-1 text-[10px] font-bold uppercase truncate text-right">{m.homeTeamId?.slice(0,8) || t.waiting}</span>
-                  <div className="px-3 py-1 bg-background/50 rounded border border-white/5 font-headline font-black text-accent">{m.isFinished ? `${m.scoreA}:${m.scoreB}` : "VS"}</div>
-                  <span className="flex-1 text-[10px] font-bold uppercase truncate text-left">{m.awayTeamId?.slice(0,8) || t.waiting}</span>
+                  <span className={cn("flex-1 text-[10px] font-bold uppercase truncate text-right", m.homeTeamId === user?.uid && "text-primary")}>{m.homeTeamName || t.waiting}</span>
+                  <div className="px-3 py-1 bg-background/50 rounded border border-white/5 font-headline font-black text-accent text-[10px]">
+                    {m.isFinished ? `${m.scoreA}:${m.scoreB}` : "VS"}
+                  </div>
+                  <span className={cn("flex-1 text-[10px] font-bold uppercase truncate text-left", m.awayTeamId === user?.uid && "text-primary")}>{m.awayTeamName || t.waiting}</span>
                </CardContent>
             </Card>
-          )) : <div className="py-20 text-center opacity-30 text-[10px] font-black uppercase tracking-widest">No matches generated for R{activeRound}</div>}
+          )) : (
+            <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
+              <AlertCircle className="w-12 h-12" />
+              <p className="text-[10px] font-black uppercase tracking-widest">No matches generated for Round {activeRound}</p>
+            </div>
+          )}
        </div>
     </div>
   );

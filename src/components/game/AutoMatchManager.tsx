@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v38.
- * Точное соблюдение временных окон Лиги и Кубка (Time Core v60).
+ * @fileOverview Автономный менеджер синхронизации v39.
+ * Исправлена генерация первого сезона и Кубка Пирамиды.
  */
 
 import { useEffect, useRef } from 'react';
@@ -82,34 +82,37 @@ export function AutoMatchManager() {
           lastEconomicCheckRef.current = todayStr;
         }
 
-        // 2. ГЕНЕРАЦИЯ СЛЕДУЮЩЕГО СЕЗОНА (В День 15 после 16:00 MSK)
-        if (info.dayOfCycle === 15 && mskNow.getUTCHours() >= 16) {
-          const nextPrefixedGroupId = `${nextSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
-          const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', nextPrefixedGroupId);
+        // 2. ГЕНЕРАЦИЯ КАЛЕНДАРЯ (Для текущего или следующего сезона)
+        const targetSN = info.isGenerationDay ? nextSN : currentSN;
+        const targetSeasonId = `season_${targetSN}`;
+        const prefixedGroupId = `${targetSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
+        const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId);
+        
+        // Проверка готовности сезона (если мы в предсезонье или в день генерации)
+        if (info.isPreSeason || (info.dayOfCycle === 15 && mskNow.getUTCHours() >= 16)) {
           const groupSnap = await getDoc(groupRef);
-
           if (!groupSnap.exists()) {
-            console.log(`[SYNC] Generating matches for ${nextSeasonId}...`);
+            console.log(`[SYNC] Generating matches for ${targetSeasonId} Group ${groupId}...`);
             const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, allGroupPlayers);
-            const calendar = generateSeasonCalendar(currentTeams, nextSN, selectedLeagueId);
+            const calendar = generateSeasonCalendar(currentTeams, targetSN, selectedLeagueId);
             
             let batch = writeBatch(db);
             batch.set(groupRef, { 
-              id: nextPrefixedGroupId, 
-              seasonId: nextSeasonId, 
-              seasonNumber: nextSN, 
+              id: prefixedGroupId, 
+              seasonId: targetSeasonId, 
+              seasonNumber: targetSN, 
               status: 'ready', 
               updatedAt: serverTimestamp() 
             });
             
             calendar.forEach((m) => {
-              const matchId = `m_${nextPrefixedGroupId}_d${m.day}_${m.pairKey}`;
+              const matchId = `m_${prefixedGroupId}_d${m.day}_${m.pairKey}`;
               batch.set(doc(db, 'matches_v1', matchId), { 
                 ...m, 
                 id: matchId, 
-                seasonId: nextSeasonId, 
-                seasonNumber: nextSN, 
-                groupId: nextPrefixedGroupId, 
+                seasonId: targetSeasonId, 
+                seasonNumber: targetSN, 
+                groupId: prefixedGroupId, 
                 leagueId: selectedLeagueId, 
                 status: 'scheduled', 
                 isFinished: false, 
@@ -117,6 +120,11 @@ export function AutoMatchManager() {
               });
             });
             await batch.commit();
+
+            // Также пытаемся инициировать Кубок если это Сезон 1
+            if (targetSN === 1) {
+              await generatePyramidCup(1);
+            }
           }
         }
 

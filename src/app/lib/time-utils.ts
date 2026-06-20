@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v80. Absolute Global Sync & Seasonal Engine (Epoch Reset).
+ * @fileOverview Ядро времени v85. Absolute Global Sync & Seasonal Engine (Epoch Reset).
  * 
  * Система обеспечивает полную синхронизацию времени между всеми клиентами.
  * Использует UTC+3 (Москва) как базовый стандарт для игровых циклов.
@@ -12,7 +12,7 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-// 22.06.2026 00:00 MSK в формате ISO UTC
+// 22.06.2026 00:00 MSK в формате ISO UTC (21.06 21:00 UTC)
 export const GLOBAL_EPOCH_ISO = '2026-06-21T21:00:00Z'; 
 
 /**
@@ -30,7 +30,7 @@ export function setServerTime(serverMs: number) {
       perfMs: 0
     };
   }
-  console.log(`[TIME-CORE v80] Global Sync Established: ${new Date(serverMs).toISOString()}`);
+  console.log(`[TIME-CORE v85] Global Sync Established: ${new Date(serverMs).toISOString()}`);
 }
 
 /**
@@ -119,7 +119,8 @@ export function getGlobalSeasonInfo() {
       seasonNumber: 1,
       activeSeasonNumber: 1,
       isOffseason: true,
-      isGenerationDay: false,
+      isPreSeason: true,
+      isGenerationDay: true,
       timeToStartMs: Math.abs(diffMs),
       currentSeasonStart: epochUtc,
       nextSeasonStart: epochUtc
@@ -141,6 +142,7 @@ export function getGlobalSeasonInfo() {
     seasonNumber,
     activeSeasonNumber: seasonNumber,
     isOffseason,
+    isPreSeason: false,
     isGenerationDay,
     timeToStartMs: Math.max(0, nextSeasonStart.getTime() - utcNow.getTime()),
     currentSeasonStart,
