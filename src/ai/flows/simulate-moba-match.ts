@@ -1,12 +1,11 @@
 'use server';
 /**
- * @fileOverview Ядро симуляции матчей Lines of Enmity v3.
+ * @fileOverview Ядро симуляции матчей Lines of Enmity v3.1.
  * 
  * Особенности:
- * 1. Расчет мощи на основе весов ролей (Carry/Mid/Tank и т.д.).
- * 2. Тактические модификаторы (Агрессия повышает риск и награду).
- * 3. Динамические события на основе дуэлей навыков.
- * 4. Реалистичное распределение счета (снижение частоты ничьих при разнице в силе).
+ * 1. Определение исхода на основе взвешенной мощи ролей.
+ * 2. Учет тактики как множителя вероятности победы.
+ * 3. Передача реальных числовых средних показателей навыков.
  */
 
 import {ai} from '@/ai/genkit';
@@ -103,16 +102,18 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
   let power = 0;
   const stats = { farm: 0, tactics: 0, teamwork: 0, reflexes: 0 };
 
+  if (activeHeroes.length === 0) return { power: 1, stats };
+
   activeHeroes.forEach(hero => {
     const weights = ROLE_WEIGHTS[hero.role] || ROLE_WEIGHTS['Midlaner'];
-    let heroPower = Number(hero.overallRating || 0) * 0.4;
+    let heroPower = Number(hero.overallRating || 0) * 0.5;
 
     Object.entries(hero.proStats).forEach(([key, val]) => {
       const weight = weights[key as keyof typeof weights] || 1.0;
       heroPower += Number(val || 0) * weight;
     });
 
-    if (hero.isPro) heroPower *= 1.1;
+    if (hero.isPro) heroPower *= 1.2;
     power += heroPower;
 
     stats.farm += (hero.proStats.lastHitting + hero.proStats.manaManagement) / 2;
@@ -121,14 +122,15 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
     stats.reflexes += (hero.proStats.reflexes + hero.proStats.ganking) / 2;
   });
 
-  stats.farm = Math.round(stats.farm / 5);
-  stats.tactics = Math.round(stats.tactics / 5);
-  stats.teamwork = Math.round(stats.teamwork / 5);
-  stats.reflexes = Math.round(stats.reflexes / 5);
+  stats.farm = Math.round(stats.farm / activeHeroes.length);
+  stats.tactics = Math.round(stats.tactics / activeHeroes.length);
+  stats.teamwork = Math.round(stats.teamwork / activeHeroes.length);
+  stats.reflexes = Math.round(stats.reflexes / activeHeroes.length);
 
   const strat = (team.strategy || "").toLowerCase();
-  if (strat.includes('агрессивный')) power *= 1.05;
-  if (strat.includes('сдержанный')) power *= 0.98;
+  if (strat.includes('агрессивный')) power *= 1.1;
+  if (strat.includes('сдержанный')) power *= 0.95;
+  if (strat.includes('пуш')) power *= 1.05;
 
   return { power, stats };
 }
@@ -143,10 +145,18 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
   if (forcedWinner === 'A') scoreA = 1;
   else if (forcedWinner === 'B') scoreB = 1;
   else {
-    if (Math.random() < winProbA) scoreA = 1; else scoreB = 1;
+    // Реалистичная кривая: если разница большая, шанс победы почти 100%
+    const diff = potA.power / potB.power;
+    let finalProb = winProbA;
+    if (diff > 1.3) finalProb = 0.85;
+    if (diff > 1.8) finalProb = 0.98;
+    if (diff < 0.7) finalProb = 0.15;
+    if (diff < 0.5) finalProb = 0.02;
+
+    if (Math.random() < finalProb) scoreA = 1; else scoreB = 1;
   }
 
-  const duration = 30 + Math.floor(Math.random() * 15);
+  const duration = 25 + Math.floor(Math.random() * 20);
   const timeline: any[] = [];
   const scoreboardMap = new Map<string, any>();
 
@@ -156,42 +166,68 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
   ];
 
   allPlayers.forEach(p => {
-    scoreboardMap.set(p.name, { name: p.name, team: p.team, role: p.role, image: p.image, kills: 0, deaths: 0, assists: 0, cs: 0, isPro: p.isPro });
+    scoreboardMap.set(p.name, { 
+      name: p.name, 
+      team: p.team, 
+      role: p.role, 
+      image: p.image, 
+      kills: 0, 
+      deaths: 0, 
+      assists: 0, 
+      cs: 0, 
+      isPro: p.isPro 
+    });
   });
 
   let killsA = 0, killsB = 0;
 
   for (let m = 1; m <= duration; m++) {
-    const activeTeam = Math.random() > 0.5 ? input.teamA : input.teamB;
+    const activeTeam = Math.random() < winProbA ? input.teamA : input.teamB;
     const opponentTeam = activeTeam.name === input.teamA.name ? input.teamB : input.teamA;
     
-    const actor = activeTeam.heroes.filter(h => !h.isSub)[Math.floor(Math.random() * 5)];
-    const target = opponentTeam.heroes.filter(h => !h.isSub)[Math.floor(Math.random() * 5)];
+    const activeHeroes = activeTeam.heroes.filter(h => !h.isSub);
+    const opponentHeroes = opponentTeam.heroes.filter(h => !h.isSub);
+
+    if (activeHeroes.length === 0 || opponentHeroes.length === 0) continue;
+
+    const actor = activeHeroes[Math.floor(Math.random() * activeHeroes.length)];
+    const target = opponentHeroes[Math.floor(Math.random() * opponentHeroes.length)];
     
     const roll = Math.random();
-    if (roll < 0.4) { // Farming
+    if (roll < 0.45) { // Farming phase
       const s = scoreboardMap.get(actor.name);
-      if (s) s.cs += Math.floor((actor.proStats.lastHitting / 10) + 2);
-    } else if (roll < 0.75) { // Engagement
+      if (s) s.cs += Math.floor((actor.proStats.lastHitting / 10) + 3);
+    } else if (roll < 0.8) { // Engagement phase
       const attackPower = actor.proStats.reflexes + actor.proStats.ganking;
       const defensePower = target.proStats.positioning + target.proStats.mapAwareness;
       
-      if (attackPower > defensePower * (0.8 + Math.random() * 0.4)) {
+      const successThreshold = defensePower * (0.85 + Math.random() * 0.4);
+      if (attackPower > successThreshold) {
         const s = scoreboardMap.get(actor.name);
         const st = scoreboardMap.get(target.name);
         if (s && st) {
           s.kills++; st.deaths++;
           if (activeTeam.name === input.teamA.name) killsA++; else killsB++;
-          timeline.push({ time: `${m}:00`, type: 'kill', event: `${actor.name} (${actor.role}) совершает убийство ${target.name}!`, score: `${killsA}:${killsB}` });
-          // Assists
-          activeTeam.heroes.filter(h => !h.isSub && h.name !== actor.name).slice(0, 2).forEach(ah => {
+          timeline.push({ 
+            time: `${m}:00`, 
+            type: 'kill', 
+            event: `${actor.name} (${actor.role}) ликвидирует ${target.name}!`, 
+            score: `${killsA}:${killsB}` 
+          });
+          // Assists for nearby allies
+          activeHeroes.filter(h => h.name !== actor.name).slice(0, 2).forEach(ah => {
             const sa = scoreboardMap.get(ah.name);
             if (sa) sa.assists++;
           });
         }
       }
-    } else if (m > 30 && roll > 0.9 && actor.proStats.tiltResistance < 35) {
-      timeline.push({ time: `${m}:00`, type: 'tilt', event: `Критическая ошибка! ${actor.name} теряет концентрацию под давлением.`, score: `${killsA}:${killsB}` });
+    } else if (m > 30 && roll > 0.85 && actor.proStats.tiltResistance < 30) {
+      timeline.push({ 
+        time: `${m}:00`, 
+        type: 'tilt', 
+        event: `Критическая ошибка! ${actor.name} теряет самообладание в решающий момент.`, 
+        score: `${killsA}:${killsB}` 
+      });
     }
   }
 
@@ -204,8 +240,8 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
 
   return {
     scoreA, scoreB, duration: `${duration}:00`, mvp,
-    matchSummary: scoreA > scoreB ? `Уверенная победа ${input.teamA.name}.` : `Победа ${input.teamB.name} в напряженной борьбе.`,
-    timeline: timeline.slice(0, 25),
+    matchSummary: scoreA > scoreB ? `Стратегическое превосходство ${input.teamA.name}.` : `Победа ${input.teamB.name} благодаря слаженной игре.`,
+    timeline: timeline.filter(e => !!e).slice(0, 30),
     scoreboard,
     teamComparison: {
       farm: [potA.stats.farm, potB.stats.farm],

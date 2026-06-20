@@ -193,16 +193,16 @@ function MatchContent() {
             <h3 className="text-[10px] font-black uppercase tracking-widest text-accent text-center">{t.comparison}</h3>
             <div className="space-y-4 bg-secondary/20 p-5 rounded-2xl border border-white/5">
               {[
-                { label: t.compFarm, key: 'farm', icon: Coins },
+                { label: t.compFarm, key: 'farm', icon: Zap },
                 { label: t.compTactics, key: 'tactics', icon: Target },
                 { label: t.compTeam, key: 'teamwork', icon: Users },
-                { label: t.compRef, key: 'reflexes', icon: Zap }
+                { label: t.compRef, key: 'reflexes', icon: ActivityIcon }
               ].map(stat => (
                 <div key={stat.key} className="space-y-1.5">
-                  <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-tighter">
-                    <span className="text-primary">TEAM A: {game.teamComparison[stat.key][0]}%</span>
-                    <span className="text-muted-foreground flex items-center gap-1"><stat.icon className="w-2.5 h-2.5" /> {stat.label}</span>
-                    <span className="text-accent">TEAM B: {game.teamComparison[stat.key][1]}%</span>
+                  <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-tighter">
+                    <span className="text-primary">{game.teamComparison[stat.key][0]}</span>
+                    <span className="text-muted-foreground flex items-center gap-1"><stat.icon className="w-3 h-3" /> {stat.label}</span>
+                    <span className="text-accent">{game.teamComparison[stat.key][1]}</span>
                   </div>
                   <div className="h-1.5 w-full bg-secondary/50 rounded-full flex overflow-hidden">
                     <div className="h-full bg-primary" style={{ width: `${(game.teamComparison[stat.key][0] / (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1])) * 100}%` }} />
@@ -216,10 +216,6 @@ function MatchContent() {
       </div>
     );
   };
-
-  const Coins = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18.06"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg>
-  );
 
   return (
     <div 
