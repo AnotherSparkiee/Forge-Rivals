@@ -1,27 +1,17 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v56 (Final Stable). 
- * Исправлены ошибки ReferenceError (nextMatchInfo) и реализованы все методы управления.
+ * @fileOverview Глобальное хранилище v57 (Final Stable). 
+ * Исправлены ошибки ReferenceError (removeHero, nextMatchInfo).
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
 import { Hero, StaffMember, StaffRole, generateScoutedHero } from './moba-data';
-import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getSeasonDateLabel, setServerTime } from './time-utils';
+import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, setServerTime } from './time-utils';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, arrayUnion, orderBy, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, arrayUnion, getDoc, updateDoc } from 'firebase/firestore';
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
-
-export const checkIsMatchFinished = (match: any) => {
-  if (!match) return false;
-  return (
-    (match.homeScore !== undefined && match.homeScore !== null) ||
-    (match.scoreA !== undefined && match.scoreA !== null) ||
-    match.status === 'finished' ||
-    match.isFinished === true
-  );
-};
 
 interface GameState {
   credits: number; crystals: number; experiencePoints: number; managerLevel: number;
@@ -230,7 +220,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded, isUserLoading, user?.uid]);
 
-  // NTP Time Sync - NTP Sync Point
   const getRefs = useCallback(() => {
     const s = stateRef.current;
     if (!user?.uid || !s.selectedLeagueId) return null;
@@ -256,8 +245,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const removeHero = useCallback((id: string, refund: number) => {
     const r = getRefs(); if (!r) return;
     deleteDoc(doc(collection(r.team, 'heroes'), id));
-    if (refund > 0) addCredits(refund);
-  }, [getRefs, addCredits]);
+    if (refund > 0) updateDoc(r.team, { credits: stateRef.current.credits + refund });
+  }, [getRefs]);
 
   const assignToRole = useCallback((role: LineupSlot, heroId: string | null) => { const r = getRefs(); if (r) updateDoc(r.team, { [`lineup.${role}`]: heroId }); }, [getRefs]);
   const updateTactics = useCallback((strategy: string, lineSettings: any) => { const r = getRefs(); if (r) updateDoc(r.team, { strategy, lineSettings }); }, [getRefs]);
@@ -329,10 +318,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const markMatchIdAsSeen = useCallback((id: string) => { 
     const r = getRefs(); if (!r) return;
-    // 1. Поиск в лиге
     const leagueMatch = allMatches.find(m => m.id === id);
     if (leagueMatch) updateDoc(r.root, { lastSeenMatchDay: Number(leagueMatch.day) });
-    // 2. Поиск в истории (локальные матчи)
     const historyEntry = stateRef.current.matchHistory.find(m => m.id === id);
     if (historyEntry) {
       const newHistory = stateRef.current.matchHistory.map(m => m.id === id ? { ...m, seen: true } : m);
@@ -393,11 +380,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, [getRefs, addCredits]);
 
-  const startArenaConstruction = useCallback((id: string, cost: number) => startConstruction('arena', id, cost), [getRefs, addCredits]);
-  const startHQConstruction = useCallback((id: string, cost: number) => startConstruction('hq', id, cost), [getRefs, addCredits]);
-  const startBootcampConstruction = useCallback((id: string, cost: number) => startConstruction('bootcamp', id, cost), [getRefs, addCredits]);
-  const startAcademyConstruction = useCallback((id: string, cost: number) => startConstruction('academy', id, cost), [getRefs, addCredits]);
-  const startMedicalConstruction = useCallback((id: string, cost: number) => startConstruction('medical', id, cost), [getRefs, addCredits]);
+  const startArenaConstruction = useCallback((id: string, cost: number) => startConstruction('arena', id, cost), [getRefs]);
+  const startHQConstruction = useCallback((id: string, cost: number) => startConstruction('hq', id, cost), [getRefs]);
+  const startBootcampConstruction = useCallback((id: string, cost: number) => startConstruction('bootcamp', id, cost), [getRefs]);
+  const startAcademyConstruction = useCallback((id: string, cost: number) => startConstruction('academy', id, cost), [getRefs]);
+  const startMedicalConstruction = useCallback((id: string, cost: number) => startConstruction('medical', id, cost), [getRefs]);
   
   const startCapacityExpansion = useCallback((seats: number, cost: number) => {
     const r = getRefs(); if (!r || stateRef.current.credits < cost) return false;
@@ -469,15 +456,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const nextMatchInfo = useMemo(() => {
     if (!user?.uid || !allMatches || allMatches.length === 0) return null;
-    const futureMatches = allMatches.filter(m => 
-      (m.homeId === user.uid || m.awayId === user.uid) && 
-      !m.isFinished &&
-      m.version === 32
-    );
+    const futureMatches = allMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid) && !m.isFinished && m.version === 32);
     if (futureMatches.length === 0) return null;
-    const sorted = [...futureMatches].sort((a, b) => 
-      new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-    );
+    const sorted = [...futureMatches].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
     const next = sorted[0];
     return {
       match: next,

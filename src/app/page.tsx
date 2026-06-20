@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useAuth, useFirestore } from '@/firebase';
-import { useGameState, checkIsMatchFinished } from './lib/store';
+import { useGameState } from './lib/store';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { 
   Users, Trophy, Zap, UserSearch, Swords, ChevronRight,
@@ -50,7 +50,6 @@ export default function Home() {
   const [isMatchActive, setIsMatchActive] = useState(false);
   
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
-  const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
 
   /**
    * УМНЫЙ СЧЕТЧИК ОБЗОРОВ
