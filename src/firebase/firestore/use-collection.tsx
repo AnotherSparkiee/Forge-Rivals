@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Query,
   onSnapshot,
@@ -21,7 +21,7 @@ export interface UseCollectionResult<T> {
 
 /**
  * Hook for subscribing to Firestore collections.
- * Simplified loading logic to prevent infinite hangs.
+ * Optimized with refs to prevent assertion failures during rapid re-renders.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
@@ -30,6 +30,7 @@ export function useCollection<T = any>(
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [fromCache, setFromCache] = useState<boolean>(true);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!memoizedTargetRefOrQuery) {
@@ -45,37 +46,42 @@ export function useCollection<T = any>(
 
     let active = true;
 
-    const unsubscribe = onSnapshot(
-      memoizedTargetRefOrQuery,
-      { includeMetadataChanges: true },
-      (snapshot: QuerySnapshot<DocumentData>) => {
-        if (!active) return;
-        
-        const results: WithId<T>[] = [];
-        snapshot.forEach((doc) => {
-          results.push({ ...(doc.data() as T), id: doc.id });
-        });
-        
-        const isFromCache = snapshot.metadata.fromCache;
+    const timer = setTimeout(() => {
+      if (!active) return;
 
-        setData(results);
-        setFromCache(isFromCache);
-        
-        // Resolve loading immediately upon first response (cache or server)
-        // to avoid infinite loader if network is slow but cache is empty.
-        setIsLoading(false);
-      },
-      (fError: FirestoreError) => {
-        if (!active) return;
-        console.warn("Firestore Collection Stream Error:", fError.code, fError.message);
-        setError(fError);
-        setIsLoading(false);
-      }
-    );
+      unsubscribeRef.current = onSnapshot(
+        memoizedTargetRefOrQuery,
+        { includeMetadataChanges: true },
+        (snapshot: QuerySnapshot<DocumentData>) => {
+          if (!active) return;
+          
+          const results: WithId<T>[] = [];
+          snapshot.forEach((doc) => {
+            results.push({ ...(doc.data() as T), id: doc.id });
+          });
+          
+          const isFromCache = snapshot.metadata.fromCache;
+
+          setData(results);
+          setFromCache(isFromCache);
+          setIsLoading(false);
+        },
+        (fError: FirestoreError) => {
+          if (!active) return;
+          console.warn("Firestore Collection Stream Error:", fError.code, fError.message);
+          setError(fError);
+          setIsLoading(false);
+        }
+      );
+    }, 20);
 
     return () => {
       active = false;
-      unsubscribe();
+      clearTimeout(timer);
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
     };
   }, [memoizedTargetRefOrQuery]);
 

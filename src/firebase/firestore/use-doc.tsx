@@ -1,6 +1,6 @@
 'use client';
     
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   DocumentReference,
   onSnapshot,
@@ -19,7 +19,7 @@ export interface UseDocResult<T> {
 
 /**
  * Hook for subscribing to a single Firestore document.
- * Refactored to decouple SDK reads from React re-renders to avoid ca9 assertion crashes.
+ * Refactored to use refs for cleanup and avoid SDK assertion crashes (ca9).
  */
 export function useDoc<T = any>(
   memoizedDocRef: DocumentReference<DocumentData> | null | undefined,
@@ -27,6 +27,7 @@ export function useDoc<T = any>(
   const [data, setData] = useState<WithId<T> | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!memoizedDocRef) {
@@ -40,13 +41,12 @@ export function useDoc<T = any>(
     setError(null);
 
     let active = true;
-    let unsubscribe: (() => void) | null = null;
 
     const timer = setTimeout(() => {
       try {
         if (!active) return;
 
-        unsubscribe = onSnapshot(
+        unsubscribeRef.current = onSnapshot(
           memoizedDocRef,
           (snapshot: DocumentSnapshot<DocumentData>) => {
             if (!active) return;
@@ -55,7 +55,7 @@ export function useDoc<T = any>(
               ? { ...(snapshot.data() as T), id: snapshot.id }
               : null;
 
-            // Decouple from snapshot processing loop using a safe delay
+            // Decouple from snapshot processing loop
             setTimeout(() => {
               if (active) {
                 setData(docData);
@@ -74,7 +74,6 @@ export function useDoc<T = any>(
         );
       } catch (e: any) {
         if (active) {
-          console.error("Critical doc hook setup error:", e.message);
           setError(e);
           setIsLoading(false);
         }
@@ -84,8 +83,9 @@ export function useDoc<T = any>(
     return () => {
       active = false;
       clearTimeout(timer);
-      if (unsubscribe) {
-        unsubscribe();
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
       }
     };
   }, [memoizedDocRef]);

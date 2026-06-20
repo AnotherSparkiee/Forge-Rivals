@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Глобальное хранилище v66 (Time Core v60 Integration). 
+ * Глобальное хранилище v67 (Assertion Stability Update). 
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -128,8 +128,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isUserLoading || !user?.uid) return;
     const rootRef = doc(db, 'players_v10', user.uid);
-    return onSnapshot(rootRef, (snap) => {
-      if (!snap.exists()) return;
+    let active = true;
+    const unsub = onSnapshot(rootRef, (snap) => {
+      if (!snap.exists() || !active) return;
       const data = snap.data();
       const info = getGlobalSeasonInfo();
       setState(s => ({
@@ -141,6 +142,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         seasonNumber: Number(info.seasonNumber), seasonDay: Number(info.seasonDay), isLoaded: true
       }));
     });
+    return () => { active = false; unsub(); };
   }, [user?.uid, isUserLoading, db]);
 
   useEffect(() => {
@@ -150,8 +152,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const prefixedGroupId = `${seasonId}_league_${state.selectedLeagueId}_group_${state.groupId}`;
     const teamRef = doc(db, 'leagues_v2', state.selectedLeagueId, 'divisions', String(state.leagueLevel), 'groups', prefixedGroupId, 'teams', state.id);
 
+    let active = true;
+
     const unsubTeam = onSnapshot(teamRef, (snap) => {
-      if (!snap.exists()) return;
+      if (!snap.exists() || !active) return;
       const d = snap.data();
       setState(prev => ({
         ...prev, credits: Number(d.credits || 0), crystals: Number(d.crystals || 0),
@@ -168,6 +172,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
 
     const playersUnsub = onSnapshot(collection(teamRef, 'heroes'), (hSnap) => {
+      if (!active) return;
       const all = hSnap.docs.map(d => ({ ...d.data(), id: d.id } as Player));
       setState(prev => ({ 
         ...prev, 
@@ -177,23 +182,27 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
 
     const staffUnsub = onSnapshot(collection(teamRef, 'staff'), (sSnap) => {
+      if (!active) return;
       const staffObj: any = { coach: null, analyst: null, scout: null, doctor: null, financier: null };
       sSnap.docs.forEach(doc => { const m = doc.data() as StaffMember; staffObj[m.role] = m; });
       setState(prev => ({ ...prev, staff: staffObj }));
     });
 
-    return () => { unsubTeam(); playersUnsub(); staffUnsub(); };
+    return () => { active = false; unsubTeam(); playersUnsub(); staffUnsub(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
     const info = getGlobalSeasonInfo();
     const q = query(collection(db, 'matches_v1'), where('seasonNumber', '==', info.activeSeasonNumber), limit(500));
-    return onSnapshot(q, (snapshot) => {
+    let active = true;
+    const unsub = onSnapshot(q, (snapshot) => {
+      if (!active) return;
       const loaded = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
       setAllMatches(loaded);
       setIsMatchesReady(true);
     });
+    return () => { active = false; unsub(); };
   }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded, isUserLoading, user?.uid]);
 
   const getRefs = useCallback(() => {
