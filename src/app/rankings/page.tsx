@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v34. 
- * Улучшена синхронизация имен и обработка пустых состояний.
+ * @fileOverview Страница рейтингов v35. 
+ * Полная синхронизация с иерархией leagues_v2.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -20,7 +20,6 @@ import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, limit } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { getGlobalSeasonInfo } from '../lib/time-utils';
 
 type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'pyramid_cup' | 'champions_league';
 
@@ -43,16 +42,14 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel);
   const contextGroup = Number(navGroup || groupId);
 
-  // Teams Query
+  // Teams Query - строгое соответствие пути в AutoMatchManager
   const teamsQuery = useMemoFirebase(() => {
     if (isUserLoading || !user || !contextLeagueId || !isLoaded) return null;
-    try {
-      const seasonId = `season_${activeSeasonNumber}`;
-      const prefixedGroupId = `${seasonId}_league_${contextLeagueId}_group_${contextGroup}`;
-      return collection(db, 'leagues_v2', contextLeagueId, 'divisions', String(contextLevel), 'groups', prefixedGroupId, 'teams');
-    } catch (e) {
-      return null;
-    }
+    const seasonId = `season_${activeSeasonNumber}`;
+    const prefixedGroupId = `${seasonId}_league_${contextLeagueId}_group_${contextGroup}`;
+    
+    // leagues_v2/{leagueId}/divisions/{divId}/groups/{prefixedGroupId}/teams
+    return collection(db, 'leagues_v2', contextLeagueId, 'divisions', String(contextLevel), 'groups', prefixedGroupId, 'teams');
   }, [db, contextLeagueId, contextLevel, contextGroup, activeSeasonNumber, isUserLoading, user, isLoaded]);
 
   const { data: rawTeams, isLoading: isTeamsLoading } = useCollection(teamsQuery);
@@ -159,7 +156,7 @@ export default function RankingsPage() {
       {activeTab === 'pyramid_cup' && (
         <div className="space-y-6 animate-in fade-in">
            <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4">
-              {[1,2,3,4,5,6,7,8].map(r => (
+              {[1,2,3,4,5,6,7,8,9,10,11,12].map(r => (
                 <Button key={r} variant={activeRound === r ? "default" : "outline"} size="sm" onClick={() => setActiveRound(r)} className={cn("h-8 rounded-lg px-4 text-[9px] font-black uppercase", activeRound === r && "hero-gradient border-none")}>R{r}</Button>
               ))}
            </div>

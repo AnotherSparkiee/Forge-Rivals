@@ -1,6 +1,6 @@
 /**
- * @fileOverview Ядро лиг v19: Детерминированное расписание и абсолютные таймстемпы.
- * Синхронизировано с Глобальной Эпохой 22.06.2026.
+ * @fileOverview Ядро лиг v20: Детерминированное расписание и уникальные ID ботов.
+ * Боты теперь привязаны к конкретной лиге и группе.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -34,18 +34,22 @@ export const LEAGUES: LeagueOption[] = [
   { id: 'PI', startTime: '23:00', description: 'Midnight operations.' },
 ];
 
+/**
+ * Создает список из 8 команд, гарантируя уникальность ботов для каждой лиги/группы.
+ */
 export function getStableGroupTeams(level: number, group: number, leagueId: string, allLeaguePlayers: any[] = []) {
   const leagueIdx = LEAGUES.findIndex(l => l.id === leagueId);
-  const leagueNum = (leagueIdx + 1).toString().padStart(2, '0');
-  const groupNum = group.toString().padStart(3, '0');
+  const leaguePrefix = (leagueIdx + 1).toString().padStart(2, '0');
+  const groupPrefix = group.toString().padStart(3, '0');
 
+  // Реальные игроки
   const groupPlayers = allLeaguePlayers.filter(p => 
     p.selectedLeagueId === leagueId && 
     Number(p.leagueLevel) === level && 
     Number(p.groupId) === group
   ).map(p => ({
     id: p.id,
-    name: p.displayName || "Unknown Commander",
+    name: p.displayName || `Manager_${p.id.slice(0, 4)}`,
     isBot: false
   }));
 
@@ -53,7 +57,9 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
   const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
   
   for (let i = 0; i < botsNeeded; i++) {
-    const botId = `bot${leagueNum}${level}${groupNum}${i + 1}`;
+    // Уникальный ID бота: bot + №Лиги + Уровень + №Группы + №Слота
+    // Пример: bot0190011 (Лига 1, Лвл 9, Группа 001, Слот 1)
+    const botId = `bot${leaguePrefix}${level}${groupPrefix}${i + 1}`;
     teams.push({ id: botId, name: botId, isBot: true });
   }
 
@@ -69,7 +75,6 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
   const league = LEAGUES.find(l => l.id === leagueId) || LEAGUES[0];
   const [hh, mm] = league.startTime.split(':').map(Number);
   
-  // Глобальная Эпоха: 22.06.2026 00:00 MSK (21.06.2026 21:00 UTC)
   const epochUtc = new Date(GLOBAL_EPOCH_ISO);
   const seasonStartMs = epochUtc.getTime() + (seasonNumber - 1) * 15 * 24 * 60 * 60 * 1000;
 

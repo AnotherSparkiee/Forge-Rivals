@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v47.
- * Исправлена инициализация имен (Unknown -> Real Name) и гарантированная генерация ботов.
+ * @fileOverview Автономный менеджер синхронизации v48.
+ * Обеспечивает атомарную запись календаря и всех 8 команд в БД.
  */
 
 import { useEffect, useRef } from 'react';
@@ -40,9 +40,7 @@ export function AutoMatchManager() {
 
       try {
         const info = getGlobalSeasonInfo();
-        const mskNow = getMoscowTime();
         const todayStr = getMoscowDateString();
-        
         const currentSN = info.seasonNumber;
         const currentSeasonId = `season_${currentSN}`;
 
@@ -71,7 +69,7 @@ export function AutoMatchManager() {
                 description: language === 'ru' ? `Получено €${finalPayout.toLocaleString()}` : `Received €${finalPayout.toLocaleString()}`, 
                 type: 'league', 
                 read: false, 
-                createdAt: mskNow.toISOString() 
+                createdAt: getMoscowTime().toISOString() 
               });
             }
             await payStaffSalaries();
@@ -79,42 +77,37 @@ export function AutoMatchManager() {
           lastEconomicCheckRef.current = todayStr;
         }
 
-        // 2. LEAGUE INITIALIZATION (CALENDAR + STANDINGS)
-        const targetSN = info.seasonNumber; 
-        const targetSeasonId = `season_${targetSN}`;
-        const prefixedGroupId = `${targetSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
+        // 2. LEAGUE INITIALIZATION
+        const prefixedGroupId = `${currentSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
         const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId);
         
         const groupSnap = await getDoc(groupRef);
         if (!groupSnap.exists()) {
-          console.log(`[SYNC ENGINE] Initializing group ${prefixedGroupId} for Season ${targetSN}`);
+          console.log(`[SYNC ENGINE] Creating Group Records for ${prefixedGroupId}`);
           
           const groupPlayers = leaguePlayers.filter(p => Number(p.leagueLevel) === Number(leagueLevel) && Number(p.groupId) === Number(groupId));
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, groupPlayers);
-          const calendar = generateSeasonCalendar(currentTeams, targetSN, selectedLeagueId);
+          const calendar = generateSeasonCalendar(currentTeams, currentSN, selectedLeagueId);
           
           const batch = writeBatch(db);
           batch.set(groupRef, { 
             id: prefixedGroupId, 
-            seasonId: targetSeasonId, 
-            seasonNumber: targetSN, 
+            seasonId: currentSeasonId, 
+            seasonNumber: currentSN, 
             status: 'ready', 
-            updatedAt: serverTimestamp() 
+            updatedAt: serverTimestamp(),
+            version: 32
           });
           
           currentTeams.forEach(team => {
             const teamTableRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', team.id);
-            // Прямая синхронизация имени из стора для текущего игрока, чтобы не было Unknown
             const finalName = team.id === userId ? (storeName || team.name) : team.name;
 
             batch.set(teamTableRef, {
               id: team.id,
               name: finalName,
               displayName: finalName,
-              wins: 0, 
-              draws: 0, 
-              losses: 0, 
-              points: 0,
+              wins: 0, draws: 0, losses: 0, points: 0,
               credits: team.isBot ? 0 : 1000000,
               crystals: team.isBot ? 0 : 50,
               updatedAt: serverTimestamp(),
@@ -127,8 +120,8 @@ export function AutoMatchManager() {
             batch.set(doc(db, 'matches_v1', matchId), { 
               ...m, 
               id: matchId, 
-              seasonId: targetSeasonId, 
-              seasonNumber: targetSN, 
+              seasonId: currentSeasonId, 
+              seasonNumber: currentSN, 
               groupId: prefixedGroupId, 
               leagueId: selectedLeagueId, 
               divisionId: Number(leagueLevel),
@@ -138,16 +131,13 @@ export function AutoMatchManager() {
             });
           });
           await batch.commit();
-
-          // Генерируем Кубок сразу после создания календаря
-          await generatePyramidCup(targetSN);
+          await generatePyramidCup(currentSN);
         }
 
         // 3. MATCH RESOLVER
         const overdue = allSeasonMatches.filter(m => isMatchOverdue(m.startTime) && !m.isFinished && m.version === 32);
         if (overdue.length > 0) {
-          const currentPrefixedGroupId = `${targetSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
-          await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), currentPrefixedGroupId);
+          await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
         }
 
       } catch (e: any) {
