@@ -2,7 +2,7 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v4.2.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v4.3.
  * Отображает обоснованную статистику, детальные рейтинги и последствия матча для игроков.
  */
 
@@ -35,7 +35,7 @@ function MatchContent() {
   const db = useFirestore();
   const { 
     language, isLoaded, markMatchIdAsSeen,
-    matchHistory
+    matchHistory, displayName
   } = useGameState();
 
   const matchIdFromUrl = searchParams.get('id');
@@ -57,11 +57,13 @@ function MatchContent() {
       try {
         const snap = await getDoc(doc(db, 'matches_v1', matchIdFromUrl));
         if (snap.exists()) {
-          setMatchData(snap.data());
+          setMatchData({ ...snap.data(), id: snap.id });
         } else {
           const hist = matchHistory.find(m => m.id === matchIdFromUrl);
           if (hist) setMatchData(hist);
         }
+      } catch (e) {
+        console.error("Match fetch failed", e);
       } finally { setIsDataLoading(false); }
     };
     fetchMatch();
@@ -103,7 +105,7 @@ function MatchContent() {
           setTimeout(() => setStep('stats'), 1500); 
         }
       }
-    }, 800); // Accelerated replay
+    }, 800); 
     return () => clearInterval(timer);
   }, [step, activeGameIdx, currentSimulation]);
 

@@ -2,7 +2,7 @@
 'use client';
 
 /**
- * Глобальное хранилище v61 (Full Progression & Consequences). 
+ * Глобальное хранилище v62 (Full Progression, Economics & Sync Fixes). 
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -277,7 +277,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const r = getRefs(); if (!r) return; 
     const id = mId || `match_${Date.now()}`;
     
-    // PROGRESSION LOGIC
     const participants = res.games[0].scoreboard.filter((p: any) => p.team === stateRef.current.displayName);
     const consequences: any[] = [];
     
@@ -295,11 +294,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           isPro: realHero.isPro
         });
 
-        // Increase fatigue
         const fatigueInc = 15 + Math.floor(Math.random() * 8);
         const newFatigue = Math.min(100, (realHero.fatigue || 0) + fatigueInc);
         
-        // Random Injury chance based on fatigue
         let injuryUntil = null;
         if (newFatigue > 70 && Math.random() < (newFatigue / 400)) {
           const hours = 12 + Math.floor(Math.random() * 24);
@@ -315,7 +312,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           isInjured: !!injuryUntil,
           injuredUntil: injuryUntil,
           proStats: { ...realHero.proStats, [focus]: newStat },
-          overallRating: Math.floor(newStat * 0.8 + 10) // Simplified OVR sync
+          overallRating: Math.floor(newStat * 0.8 + 10)
         });
 
         consequences.push({ name: hero.name, xp: xpGain, fatigue: fatigueInc, injured: !!injuryUntil });
@@ -334,7 +331,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const markMatchIdAsSeen = (id: string) => { 
     const r = getRefs(); if (!r) return;
     const leagueMatch = allMatches.find(m => m.id === id);
-    if (leagueMatch) updateDoc(r.root, { lastSeenMatchDay: Number(leagueMatch.day) });
+    if (leagueMatch) {
+      updateDoc(r.root, { lastSeenMatchDay: Number(leagueMatch.day) });
+    }
     const newHistory = stateRef.current.matchHistory.map(m => m.id === id ? { ...m, seen: true } : m);
     updateDoc(r.team, { matchHistory: newHistory });
   };

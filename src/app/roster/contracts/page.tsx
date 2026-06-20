@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -34,6 +35,7 @@ export default function ContractsPage() {
   const db = useFirestore();
   const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [isTransferring, setIsTransferring] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -100,10 +102,55 @@ export default function ContractsPage() {
     }
   };
 
+  const handleTransferListing = async () => {
+    if (!profilePlayer || !user || !profile || isTransferring) return;
+    setIsTransferring(true);
+    try {
+      const today = getMoscowDateString();
+      const mskNow = getMoscowTime();
+      const expiryTime = new Date(mskNow.getTime() + 12 * 60 * 60 * 1000); 
+      const startPrice = Math.floor((profilePlayer.overallRating * 15000) + 100000);
+      
+      const agentId = `p_${user.uid}_${Date.now()}`;
+      const agentData = {
+        id: agentId,
+        heroData: JSON.parse(JSON.stringify(profilePlayer)),
+        currentBid: startPrice,
+        startingPrice: startPrice,
+        highestBidderId: null,
+        highestBidderName: null,
+        bidders: [],
+        sellerId: user.uid,
+        sellerName: profile.displayName || "Manager",
+        expiresAt: expiryTime.toISOString(),
+        dropDate: today,
+        createdAt: serverTimestamp(),
+        isYouth: profilePlayer.isYouth || false,
+        isPro: profilePlayer.isPro || false,
+        currency: 'credits'
+      };
+
+      await setDoc(doc(db, 'market_v7', agentId), agentData);
+      updatePlayer(profilePlayer.id, { 
+        onTransferUntil: expiryTime.toISOString(),
+        transferMarketId: agentId 
+      });
+
+      toast({ title: language === 'ru' ? "Игрок выставлен на аукцион!" : "Player listed on auction!" });
+      setProfilePlayer(null);
+    } catch (e: any) {
+      console.error(e);
+      toast({ variant: "destructive", title: "Action Failed", description: e.message });
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
   if (profilePlayer) {
     const liveAge = calculateLiveAge(profilePlayer.baseAge, profilePlayer.hiredAt);
     const talentsValues = Object.values(profilePlayer.proTalents || {}).map(v => normTalent(v));
     const maxTalentValue = Math.max(...talentsValues);
+    const isOnMarket = profilePlayer.onTransferUntil && new Date(profilePlayer.onTransferUntil).getTime() > now;
 
     return (
       <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-300">
@@ -138,7 +185,7 @@ export default function ContractsPage() {
                   <div className="flex items-center gap-2">
                     <Timer className="w-3 h-3 text-accent animate-pulse" />
                     <p className="text-[10px] font-mono font-bold text-accent">
-                      {profilePlayer.onTransferUntil ? new Date(profilePlayer.onTransferUntil).toLocaleTimeString() : 'OFF MARKET'}
+                      {isOnMarket ? new Date(profilePlayer.onTransferUntil!).toLocaleTimeString() : 'OFF MARKET'}
                     </p>
                   </div>
                 </div>
@@ -171,7 +218,7 @@ export default function ContractsPage() {
               </section>
 
               <section className="space-y-3">
-                <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Scroll className="w-3.5 h-3.5" /> CONTRACT ACTIONS</h3>
+                <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Scroll className="w-3.5 h-3.5" /> {language === 'ru' ? 'КОНТРАКТНЫЕ ДЕЙСТВИЯ' : 'CONTRACT ACTIONS'}</h3>
                 <div className="grid grid-cols-1 gap-2">
                   <Button variant="outline" className="justify-start h-12 border-white/5 bg-secondary/20" onClick={() => handleAction('recoverEuro')}><Coins className="w-4 h-4 mr-3 text-yellow-500" /><div className="text-left"><p className="text-[9px] font-bold uppercase">{t.recoverEuro}</p><p className="text-[8px] text-muted-foreground">-25% Fatigue | 5,000 €</p></div></Button>
                   <Button variant="outline" className="justify-start h-12 border-white/5 bg-secondary/20" onClick={() => handleAction('boostForm')}><ActivityIcon className="w-4 h-4 mr-3 text-primary" /><div className="text-left"><p className="text-[9px] font-bold uppercase">{t.boostForm}</p><p className="text-[8px] text-muted-foreground">+15% Form | 10,000 €</p></div></Button>
@@ -239,12 +286,22 @@ export default function ContractsPage() {
                   <Gem className="w-3.5 h-3.5" /> {t.priceTitle}
                 </h3>
                 <div className="bg-secondary/30 p-4 rounded-xl border border-white/5">
-                   <p className="text-[8px] font-black text-muted-foreground uppercase">ESTIMATED VALUE</p>
+                   <p className="text-[8px] font-black text-muted-foreground uppercase">ESTIMATED MARKET VALUE</p>
                    <p className="text-xl font-headline font-bold text-white italic">€ {(profilePlayer.overallRating * 15000 + 100000).toLocaleString()}</p>
                 </div>
               </section>
               
-              <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfilePlayer(null)}>{t.close}</Button>
+              <div className="pt-4 flex flex-col gap-2">
+                <Button 
+                  className="w-full h-14 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl"
+                  onClick={handleTransferListing}
+                  disabled={isTransferring || isOnMarket}
+                >
+                  {isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
+                  {isOnMarket ? (language === 'ru' ? 'УЖЕ НА РЫНКЕ' : 'ALREADY LISTED') : (language === 'ru' ? 'ВЫСТАВИТЬ НА ТРАНСФЕР' : 'LIST ON TRANSFER MARKET')}
+                </Button>
+                <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfilePlayer(null)}>{t.close}</Button>
+              </div>
           </div>
         </div>
       </div>
@@ -259,7 +316,7 @@ export default function ContractsPage() {
       </header>
       <div className="space-y-1.5">
         {ownedPlayers.map((player) => {
-          const onAuction = player.onTransferUntil && new Date(player.onTransferUntil) > new Date();
+          const onAuction = player.onTransferUntil && new Date(player.onTransferUntil).getTime() > now;
           const talentsValues = Object.values(player.proTalents || {}).map(v => normTalent(v));
           const maxTalent = Math.max(...talentsValues);
           return (
