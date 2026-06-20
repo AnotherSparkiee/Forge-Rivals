@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v3.6.
- * Исправлена ошибка Users is not defined. Добавлена кнопка завершения и клик-навигация.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v4.0.
+ * Отображает обоснованную статистику и детальные рейтинги игроков.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -142,76 +142,76 @@ function MatchContent() {
     const awayHeroes = scoreboard.filter((p: any) => p.team === matchData.awayName);
 
     const renderHeroRow = (p: any, side: 'left' | 'right') => (
-      <div key={p.name} className={cn("flex flex-col gap-1 p-2 rounded-xl border border-white/5 bg-secondary/10", side === 'right' ? "items-end text-right" : "items-start text-left")}>
+      <div key={p.name} className={cn("flex flex-col gap-1.5 p-3 rounded-2xl border border-white/5 bg-secondary/10 shadow-sm", side === 'right' ? "items-end text-right" : "items-start text-left")}>
         <div className={cn("flex items-center gap-3 w-full", side === 'right' && "flex-row-reverse")}>
           <div className="relative shrink-0">
-            <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/10 bg-background flex items-center justify-center shadow-lg">
-              {p.image ? <img src={p.image} alt="" className="w-full h-full object-cover" /> : <User className="w-6 h-6 text-muted-foreground" />}
+            <div className="w-14 h-14 rounded-2xl overflow-hidden border border-white/10 bg-background flex items-center justify-center shadow-xl">
+              {p.image ? <img src={p.image} alt="" className="w-full h-full object-cover" /> : <User className="w-7 h-7 text-muted-foreground" />}
             </div>
-            {p.name === game.mvp && <Trophy className="absolute -top-1.5 -right-1.5 w-5 h-5 text-yellow-500 fill-yellow-500 drop-shadow-[0_0_5px_rgba(234,179,8,0.5)]" />}
-            <div className="absolute -bottom-1 -left-1 bg-black/80 rounded-md px-1.5 border border-white/10 shadow-xl">
-              <span className="text-[8px] font-black text-accent">{p.matchRating?.toFixed(1) || '6.0'}</span>
+            {p.name === game.mvp && <Trophy className="absolute -top-1.5 -right-1.5 w-6 h-6 text-yellow-500 fill-yellow-500 drop-shadow-[0_0_8px_rgba(234,179,8,0.6)]" />}
+            <div className="absolute -bottom-1 -left-1 bg-black/90 rounded-lg px-2 py-0.5 border border-white/10 shadow-2xl">
+              <span className="text-[10px] font-black text-accent">{p.matchRating?.toFixed(1) || '6.0'}</span>
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-black uppercase truncate text-white leading-none">{p.name}</p>
-            <div className={cn("flex items-center gap-1.5 mt-1", side === 'right' && "justify-end")}>
-               <Badge variant="outline" className="text-[6px] h-3.5 px-1 border-white/10 opacity-60 uppercase">{p.role}</Badge>
-               <span className="text-[9px] font-mono font-bold text-primary">{p.kills}/{p.deaths}/{p.assists}</span>
+            <p className="text-[12px] font-black uppercase truncate text-white leading-none mb-1">{p.name}</p>
+            <div className={cn("flex items-center gap-2", side === 'right' && "justify-end")}>
+               <Badge variant="outline" className="text-[7px] h-4 px-1.5 border-white/10 opacity-70 uppercase font-black">{p.role}</Badge>
+               <span className="text-[10px] font-mono font-bold text-primary">{p.kills}/{p.deaths}/{p.assists}</span>
             </div>
           </div>
         </div>
         
-        {/* Artifacts/Items Stubs */}
-        <div className={cn("flex gap-1 mt-1", side === 'right' && "justify-end")}>
-           <div className="w-4 h-4 rounded bg-background/60 border border-white/5 flex items-center justify-center"><Package className="w-2 h-2 text-muted-foreground/40" /></div>
-           <div className="w-4 h-4 rounded bg-background/60 border border-white/5 flex items-center justify-center"><Zap className="w-2 h-2 text-primary/40" /></div>
-           <div className="w-4 h-4 rounded bg-background/60 border border-white/5 flex items-center justify-center"><Sparkles className="w-2 h-2 text-accent/40" /></div>
-           <span className="text-[7px] font-black text-muted-foreground/30 ml-1 uppercase flex items-center">{p.cs || 0} CS</span>
+        <div className={cn("flex items-center gap-2 mt-1 w-full", side === 'right' && "justify-end")}>
+           <div className="flex gap-1 opacity-40">
+             <div className="w-5 h-5 rounded-md bg-background border border-white/5 flex items-center justify-center"><Package className="w-3 h-3" /></div>
+             <div className="w-5 h-5 rounded-md bg-background border border-white/5 flex items-center justify-center"><Zap className="w-3 h-3" /></div>
+           </div>
+           <span className="text-[8px] font-black text-muted-foreground/40 uppercase font-mono">{p.cs || 0} CS</span>
         </div>
       </div>
     );
 
     return (
       <div className="space-y-8">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <p className="text-[8px] font-black uppercase tracking-widest text-primary mb-2 flex items-center gap-2 px-1"><ShieldCheck className="w-3 h-3" /> {t.home}</p>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2.5">
+            <p className="text-[9px] font-black uppercase tracking-widest text-primary mb-3 flex items-center gap-2 px-1 border-l-2 border-primary pl-2"><ShieldCheck className="w-3.5 h-3.5" /> {t.home}</p>
             {homeHeroes.map(p => renderHeroRow(p, 'left'))}
           </div>
-          <div className="space-y-2">
-            <p className="text-[8px] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2 justify-end px-1">{t.away} <Swords className="w-3 h-3" /></p>
+          <div className="space-y-2.5">
+            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2 justify-end px-1 border-r-2 border-white/10 pr-2">{t.away} <Swords className="w-3.5 h-3.5" /></p>
             {awayHeroes.map(p => renderHeroRow(p, 'right'))}
           </div>
         </div>
 
         {game.teamComparison && (
-          <section className="space-y-4">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-accent text-center flex items-center justify-center gap-2">
-              <ActivityIcon className="w-3 h-3" /> {t.comparison}
+          <section className="space-y-4 pt-4">
+            <h3 className="text-[11px] font-black uppercase tracking-widest text-accent text-center flex items-center justify-center gap-2 bg-accent/5 py-2 rounded-xl">
+              <ActivityIcon className="w-4 h-4" /> {t.comparison}
             </h3>
-            <div className="space-y-5 bg-secondary/20 p-5 rounded-2xl border border-white/5">
+            <div className="space-y-6 bg-secondary/20 p-6 rounded-3xl border border-white/5 shadow-inner">
               {[
-                { label: t.compFarm, key: 'farm', icon: Zap },
-                { label: t.compTactics, key: 'tactics', icon: Target },
-                { label: t.compTeam, key: 'teamwork', icon: Users },
-                { label: t.compRef, key: 'reflexes', icon: ActivityIcon }
+                { label: t.compFarm, key: 'farm', icon: Zap, color: 'text-yellow-500' },
+                { label: t.compTactics, key: 'tactics', icon: Target, color: 'text-blue-500' },
+                { label: t.compTeam, key: 'teamwork', icon: Users, color: 'text-green-500' },
+                { label: t.compRef, key: 'reflexes', icon: ActivityIcon, color: 'text-red-500' }
               ].map(stat => (
-                <div key={stat.key} className="space-y-2">
-                  <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-tighter">
-                    <div className="flex items-center gap-2 min-w-[30px]">
-                      <span className="text-primary text-sm">{game.teamComparison[stat.key][0]}</span>
+                <div key={stat.key} className="space-y-2.5">
+                  <div className="flex justify-between items-center text-[11px] font-black uppercase tracking-tighter">
+                    <div className="flex items-center gap-2 min-w-[40px]">
+                      <span className="text-primary text-base font-headline">{game.teamComparison[stat.key][0]}</span>
                     </div>
-                    <span className="text-muted-foreground flex items-center gap-1.5 opacity-60">
-                      <stat.icon className="w-3 h-3" /> {stat.label}
+                    <span className="text-muted-foreground flex items-center gap-2 opacity-80 text-[10px]">
+                      <stat.icon className={cn("w-4 h-4", stat.color)} /> {stat.label}
                     </span>
-                    <div className="flex items-center gap-2 min-w-[30px] justify-end">
-                      <span className="text-accent text-sm">{game.teamComparison[stat.key][1]}</span>
+                    <div className="flex items-center gap-2 min-w-[40px] justify-end">
+                      <span className="text-accent text-base font-headline">{game.teamComparison[stat.key][1]}</span>
                     </div>
                   </div>
-                  <div className="h-1.5 w-full bg-background/50 rounded-full flex overflow-hidden border border-white/5">
-                    <div className="h-full bg-primary shadow-[0_0_8px_rgba(var(--primary),0.4)]" style={{ width: `${(game.teamComparison[stat.key][0] / (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1])) * 100}%` }} />
-                    <div className="h-full bg-accent shadow-[0_0_8px_rgba(var(--accent),0.4)]" style={{ width: `${(game.teamComparison[stat.key][1] / (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1])) * 100}%` }} />
+                  <div className="h-2 w-full bg-background/50 rounded-full flex overflow-hidden border border-white/5 shadow-inner">
+                    <div className="h-full bg-primary shadow-[0_0_12px_rgba(var(--primary),0.5)] transition-all duration-1000" style={{ width: `${(game.teamComparison[stat.key][0] / (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1])) * 100}%` }} />
+                    <div className="h-full bg-accent shadow-[0_0_12px_rgba(var(--accent),0.5)] transition-all duration-1000" style={{ width: `${(game.teamComparison[stat.key][1] / (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1])) * 100}%` }} />
                   </div>
                 </div>
               ))}
@@ -313,22 +313,22 @@ function MatchContent() {
             </div>
             
             <Tabs defaultValue="map1" className="w-full">
-              <TabsList className="bg-secondary/30 w-full grid grid-cols-2 h-12 p-1.5 rounded-2xl mb-6">
+              <TabsList className="bg-secondary/30 w-full grid grid-cols-2 h-12 p-1.5 rounded-2xl mb-6 shadow-lg">
                 <TabsTrigger value="map1" className="text-[10px] font-black uppercase rounded-xl">MAP 1</TabsTrigger>
                 <TabsTrigger value="map2" disabled={currentSimulation.games.length < 2} className="text-[10px] font-black uppercase rounded-xl">MAP 2</TabsTrigger>
               </TabsList>
               {currentSimulation.games.map((game: any, idx: number) => (
-                <TabsContent key={idx} value={`map${idx+1}`} className="space-y-6" onClick={(e) => e.stopPropagation()}>
+                <TabsContent key={idx} value={`map${idx+1}`} className="space-y-6 animate-in fade-in slide-in-from-bottom-2" onClick={(e) => e.stopPropagation()}>
                   <div className="grid grid-cols-2 gap-3">
-                     <div className="bg-background/40 p-3 rounded-xl border border-white/5 flex flex-col items-center">
-                        <Castle className="w-4 h-4 text-yellow-500 mb-1" />
-                        <span className="text-[7px] font-black text-muted-foreground uppercase">Towers</span>
-                        <span className="text-sm font-headline font-bold text-white">{game.towersA} : {game.towersB}</span>
+                     <div className="bg-background/40 p-4 rounded-2xl border border-white/5 flex flex-col items-center shadow-inner">
+                        <Castle className="w-5 h-5 text-yellow-500 mb-1" />
+                        <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Destroyed Towers</span>
+                        <span className="text-xl font-headline font-bold text-white">{game.towersA} : {game.towersB}</span>
                      </div>
-                     <div className="bg-background/40 p-3 rounded-xl border border-white/5 flex flex-col items-center">
-                        <Activity className="w-4 h-4 text-accent mb-1" />
-                        <span className="text-[7px] font-black text-muted-foreground uppercase">Objectives</span>
-                        <span className="text-sm font-headline font-bold text-white">{game.objectivesA} : {game.objectivesB}</span>
+                     <div className="bg-background/40 p-4 rounded-2xl border border-white/5 flex flex-col items-center shadow-inner">
+                        <Activity className="w-5 h-5 text-accent mb-1" />
+                        <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Forest Objectives</span>
+                        <span className="text-xl font-headline font-bold text-white">{game.objectivesA} : {game.objectivesB}</span>
                      </div>
                   </div>
                   {renderStatsTable(game)}
@@ -337,7 +337,7 @@ function MatchContent() {
             </Tabs>
 
             <div className="pt-10">
-               <Button className="w-full h-16 hero-gradient font-black text-sm tracking-widest uppercase shadow-2xl active:scale-95 transition-all" onClick={handleNext}>
+               <Button className="w-full h-16 hero-gradient font-black text-sm tracking-widest uppercase shadow-2xl active:scale-95 transition-all rounded-2xl" onClick={handleNext}>
                  <Check className="w-5 h-5 mr-2" /> {t.accept}
                </Button>
             </div>
@@ -347,8 +347,8 @@ function MatchContent() {
 
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-t border-white/10 h-24 flex items-center px-6">
         <div className="w-full max-md mx-auto flex gap-3">
-          <Button variant="outline" className="flex-1 h-12 uppercase font-black text-[10px] border-white/10" onClick={(e) => { e.stopPropagation(); router.push('/'); }}>{t.exit}</Button>
-          <Button className="flex-[2] h-12 hero-gradient font-black text-[10px] uppercase shadow-xl" onClick={handleNext}>
+          <Button variant="outline" className="flex-1 h-12 uppercase font-black text-[10px] border-white/10 rounded-xl" onClick={(e) => { e.stopPropagation(); router.push('/'); }}>{t.exit}</Button>
+          <Button className="flex-[2] h-12 hero-gradient font-black text-[10px] uppercase shadow-xl rounded-xl" onClick={handleNext}>
             {step === 'stats' ? <Check className="w-4 h-4 mr-2" /> : <ArrowRight className="w-4 h-4 mr-2" />}
             {step === 'preview' ? t.next : (step === 'live' ? t.skip : t.accept)}
           </Button>
