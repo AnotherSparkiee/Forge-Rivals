@@ -39,7 +39,7 @@ export default function Home() {
   const { toast } = useToast();
   const { 
     language, setLanguage, isLoaded, selectedLeagueId,
-    nextMatch, allSeasonMatches, lastSeenMatchDay
+    nextMatch, allSeasonMatches, lastSeenMatchDay, matchHistory
   } = useGameState();
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -52,15 +52,30 @@ export default function Home() {
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
 
-  // Считаем количество непросмотренных завершенных матчей лиги
+  /**
+   * УМНЫЙ СЧЕТЧИК ОБЗОРОВ
+   * Объединяет непросмотренные матчи лиги и локальные матчи из истории.
+   */
   const unreadMatches = useMemo(() => {
-    if (!allSeasonMatches || !user) return [];
-    return allSeasonMatches.filter(m => 
+    if (!user || !isLoaded) return [];
+    
+    // 1. Непросмотренные матчи Лиги
+    const leagueUnread = (allSeasonMatches || []).filter(m => 
       (m.homeId === user.uid || m.awayId === user.uid) && 
       m.isFinished && 
       Number(m.day) > (lastSeenMatchDay || 0)
-    ).sort((a, b) => Number(a.day) - Number(b.day));
-  }, [allSeasonMatches, user, lastSeenMatchDay]);
+    );
+
+    // 2. Непросмотренные матчи из локальной истории (Trial, Friendly)
+    const historyUnread = (matchHistory || []).filter(m => m.seen === false);
+
+    // Объединяем и сортируем по дате (сначала старые)
+    return [...leagueUnread, ...historyUnread].sort((a, b) => {
+      const timeA = a.day ? Number(a.day) : new Date(a.playedAt || 0).getTime();
+      const timeB = b.day ? Number(b.day) : new Date(b.playedAt || 0).getTime();
+      return timeA - timeB;
+    });
+  }, [allSeasonMatches, user, lastSeenMatchDay, matchHistory, isLoaded]);
 
   const latestUnreadId = unreadMatches[0]?.id;
 
@@ -171,7 +186,7 @@ export default function Home() {
   if (!isLoaded) return <LoadingScreen />;
 
   const tHub = {
-    en: { nextMatch: "Next Engagement", offseason: "OFFSEASON", battleBtn: "BATTLE OVERVIEW", resultBtn: "MATCH OVERVIEW", navTitle: "Command Terminals", startsIn: "SEASON 1 STARTS IN:", live: "LIVE: ENGAGEMENT IN PROGRESS" },
+    en: { nextMatch: "Next Engagement", offseason: "OFFSEASON", battleBtn: "MATCH OVERVIEW", resultBtn: "MATCH OVERVIEW", navTitle: "Command Terminals", startsIn: "SEASON 1 STARTS IN:", live: "LIVE: ENGAGEMENT IN PROGRESS" },
     ru: { nextMatch: "Следующий матч", offseason: "МЕЖСЕЗОНЬЕ", battleBtn: "ОБЗОР МАТЧЕЙ", resultBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", startsIn: "СЕЗОН 1 НАЧНЕТСЯ ЧЕРЕЗ:", live: "В ЭФИРЕ: ИДЕТ СРАЖЕНИЕ" }
   }[language as 'en' | 'ru'];
 
@@ -223,11 +238,21 @@ export default function Home() {
         </Card>
       </section>
 
+      {/* УНИВЕРСАЛЬНАЯ КНОПКА ОБЗОРА МАТЧЕЙ */}
       {unreadMatches.length > 0 && latestUnreadId && (
         <Link href={`/match?id=${latestUnreadId}`} className="block relative mb-8 animate-in slide-in-from-bottom-2">
           <div className="absolute -inset-1 bg-gradient-to-r from-accent to-primary rounded-2xl blur opacity-30 animate-pulse"></div>
           <Button className="w-full h-20 bg-accent text-accent-foreground border-none shadow-xl flex items-center justify-center gap-3 relative z-10">
-            <Swords className="w-6 h-6" /><span className="text-xl font-headline font-bold italic uppercase">{tHub.resultBtn} ({unreadMatches.length})</span>
+            <Swords className="w-6 h-6" />
+            <div className="flex flex-col items-start">
+              <span className="text-xl font-headline font-bold italic uppercase leading-none">{tHub.battleBtn}</span>
+              <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-80 mt-1">
+                {language === 'ru' ? 'НЕПРОСМОТРЕННЫХ:' : 'UNVIEWED:'} {unreadMatches.length}
+              </span>
+            </div>
+            <div className="ml-auto w-8 h-8 rounded-full bg-black/20 flex items-center justify-center border border-white/10">
+              <span className="text-sm font-headline font-bold">{unreadMatches.length}</span>
+            </div>
           </Button>
         </Link>
       )}

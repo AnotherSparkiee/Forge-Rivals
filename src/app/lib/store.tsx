@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v53 (Complete & Fixed). 
- * Реализованы ВСЕ методы интерфейса GameState для корректной работы систем игры.
+ * @fileOverview Глобальное хранилище v56 (Final Stable). 
+ * Исправлены ошибки ReferenceError (nextMatchInfo) и реализованы все методы управления.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -230,14 +230,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded, isUserLoading, user?.uid]);
 
-  // Memoized Helpers
-  const nextMatchInfo = useMemo(() => {
-    if (!isMatchesReady || !user?.uid || allMatches.length === 0) return null;
-    const future = allMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid) && !checkIsMatchFinished(m)).sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
-    if (future) return { match: future, opponentName: future.homeId === user.uid ? future.awayName : future.homeName, day: Number(future.day), dateLabel: getSeasonDateLabel(future.day, future.seasonNumber), isHome: future.homeId === user.uid };
-    return null;
-  }, [allMatches, isMatchesReady, user?.uid]);
-
+  // NTP Time Sync - NTP Sync Point
   const getRefs = useCallback(() => {
     const s = stateRef.current;
     if (!user?.uid || !s.selectedLeagueId) return null;
@@ -251,46 +244,55 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [user?.uid, db]);
 
   // IMPLEMENTATIONS
-  const addCrystals = (amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { crystals: Math.max(0, stateRef.current.crystals + amount) }, { merge: true }); };
-  const addCredits = (amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { credits: Math.max(0, stateRef.current.credits + amount) }, { merge: true }); };
+  const addCrystals = useCallback((amount: number) => { const r = getRefs(); if (r) updateDoc(r.team, { crystals: Math.max(0, stateRef.current.crystals + amount) }); }, [getRefs]);
+  const addCredits = useCallback((amount: number) => { const r = getRefs(); if (r) updateDoc(r.team, { credits: Math.max(0, stateRef.current.credits + amount) }); }, [getRefs]);
   
-  const updateHero = (id: string, data: Partial<Hero>, creditsCost = 0, crystalsCost = 0) => {
+  const updateHero = useCallback((id: string, data: Partial<Hero>, creditsCost = 0, crystalsCost = 0) => {
     const r = getRefs(); if (!r) return;
-    setDoc(doc(collection(r.team, 'heroes'), id), data, { merge: true });
-    if (creditsCost || crystalsCost) setDoc(r.team, { credits: stateRef.current.credits - creditsCost, crystals: stateRef.current.crystals - crystalsCost }, { merge: true });
-  };
+    updateDoc(doc(collection(r.team, 'heroes'), id), data);
+    if (creditsCost || crystalsCost) updateDoc(r.team, { credits: stateRef.current.credits - creditsCost, crystals: stateRef.current.crystals - crystalsCost });
+  }, [getRefs]);
 
-  const removeHero = (id: string, refund: number) => {
+  const removeHero = useCallback((id: string, refund: number) => {
     const r = getRefs(); if (!r) return;
     deleteDoc(doc(collection(r.team, 'heroes'), id));
-    if (refund) addCredits(refund);
-  };
+    if (refund > 0) addCredits(refund);
+  }, [getRefs, addCredits]);
 
-  const assignToRole = (role: LineupSlot, heroId: string | null) => { const r = getRefs(); if (r) setDoc(r.team, { lineup: { ...stateRef.current.lineup, [role]: heroId } }, { merge: true }); };
-  const updateTactics = (strategy: string, lineSettings: any) => { const r = getRefs(); if (r) setDoc(r.team, { strategy, lineSettings }, { merge: true }); };
-  const claimReward = (cr: number, cry: number) => { const r = getRefs(); if (r) setDoc(r.team, { credits: stateRef.current.credits + cr, crystals: stateRef.current.crystals + (stateRef.current.isPremium ? cry + 50 : cry), lastRewardClaimDate: getMoscowDateString(), rewardDay: (stateRef.current.rewardDay % 30) + 1 }, { merge: true }); };
+  const assignToRole = useCallback((role: LineupSlot, heroId: string | null) => { const r = getRefs(); if (r) updateDoc(r.team, { [`lineup.${role}`]: heroId }); }, [getRefs]);
+  const updateTactics = useCallback((strategy: string, lineSettings: any) => { const r = getRefs(); if (r) updateDoc(r.team, { strategy, lineSettings }); }, [getRefs]);
   
-  const purchaseLicense = (t: number, c: number) => { const r = getRefs(); if (!r || stateRef.current.crystals < c) return false; setDoc(r.team, { crystals: stateRef.current.crystals - c, activeLicenseTier: t }, { merge: true }); return true; };
-  const purchasePremium = () => { const r = getRefs(); if (!r || stateRef.current.crystals < 5000) return false; const exp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); setDoc(r.team, { crystals: stateRef.current.crystals - 5000, premiumUntil: exp.toISOString() }, { merge: true }); return true; };
+  const claimReward = useCallback((cr: number, cry: number) => { 
+    const r = getRefs(); 
+    if (r) updateDoc(r.team, { 
+      credits: stateRef.current.credits + cr, 
+      crystals: stateRef.current.crystals + (stateRef.current.isPremium ? cry + 50 : cry), 
+      lastRewardClaimDate: getMoscowDateString(), 
+      rewardDay: (stateRef.current.rewardDay % 30) + 1 
+    }); 
+  }, [getRefs]);
+  
+  const purchaseLicense = useCallback((t: number, c: number) => { const r = getRefs(); if (!r || stateRef.current.crystals < c) return false; updateDoc(r.team, { crystals: stateRef.current.crystals - c, activeLicenseTier: t }); return true; }, [getRefs]);
+  const purchasePremium = useCallback(() => { const r = getRefs(); if (!r || stateRef.current.crystals < 5000) return false; const exp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); updateDoc(r.team, { crystals: stateRef.current.crystals - 5000, premiumUntil: exp.toISOString() }); return true; }, [getRefs]);
   
   const setLanguage = (lang: string) => setState(s => ({ ...s, language: lang }));
   const setLanguageDirect = (lang: string) => setState(s => ({ ...s, language: lang }));
 
-  const setTrainingFocus = (heroId: string, focus: string | null) => {
+  const setTrainingFocus = useCallback((heroId: string, focus: string | null) => {
     updateHero(heroId, { trainingFocus: focus });
-  };
+  }, [updateHero]);
 
-  const startDailyHeroTraining = (id: string, f: string) => updateHero(id, { dailyTrainingFocus: f, dailyTrainingFinishTime: new Date(Date.now() + 86400000).toISOString() });
+  const startDailyHeroTraining = useCallback((id: string, f: string) => updateHero(id, { dailyTrainingFocus: f, dailyTrainingFinishTime: new Date(Date.now() + 86400000).toISOString() }), [updateHero]);
   
-  const claimDailyHeroTraining = (id: string) => {
+  const claimDailyHeroTraining = useCallback((id: string) => {
     const h = stateRef.current.ownedHeroes.find(x => x.id === id) || stateRef.current.youthAcademyHeroes.find(x => x.id === id);
     if (h?.dailyTrainingFocus) {
       const cur = (h.proStats as any)[h.dailyTrainingFocus] || 0;
       updateHero(id, { proStats: { ...h.proStats, [h.dailyTrainingFocus]: Math.min(100, cur + 1) }, dailyTrainingFocus: null, dailyTrainingFinishTime: null });
     }
-  };
+  }, [updateHero]);
 
-  const recoverAllFatigue = (type: 'credits' | 'crystals') => {
+  const recoverAllFatigue = useCallback((type: 'credits' | 'crystals') => {
     const cost = type === 'credits' ? 75000 : 150;
     if (type === 'credits' && stateRef.current.credits < cost) return false;
     if (type === 'crystals' && stateRef.current.crystals < cost) return false;
@@ -298,38 +300,45 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const r = getRefs(); if (!r) return false;
     stateRef.current.ownedHeroes.forEach(h => updateHero(h.id, { fatigue: 0 }));
     return true;
-  };
+  }, [getRefs, addCredits, addCrystals, updateHero]);
 
-  const hireStaffMember = (m: StaffMember) => { const r = getRefs(); if (r) { setDoc(doc(collection(r.team, 'staff'), m.id), m); addCredits(-(m.salary / 2)); } };
+  const hireStaffMember = useCallback((m: StaffMember) => { const r = getRefs(); if (r) { setDoc(doc(collection(r.team, 'staff'), m.id), m); addCredits(-(m.salary / 2)); } }, [getRefs, addCredits]);
   
-  const trainStaffSkill = (role: StaffRole, skillKey: 'primary' | 'secondary', cost: number) => {
+  const trainStaffSkill = useCallback((role: StaffRole, skillKey: 'primary' | 'secondary', cost: number) => {
     const r = getRefs(); if (!r || stateRef.current.crystals < cost) return false;
     const member = stateRef.current.staff[role]; if (!member) return false;
     addCrystals(-cost);
     const newSkills = { ...member.skills, [skillKey]: Math.min(99, member.skills[skillKey] + 1) };
-    setDoc(doc(collection(r.team, 'staff'), member.id), { skills: newSkills }, { merge: true });
+    updateDoc(doc(collection(r.team, 'staff'), member.id), { skills: newSkills });
     return true;
-  };
+  }, [getRefs, addCrystals]);
 
-  const addHeroDirectly = (h: Hero) => { const r = getRefs(); if (r) setDoc(doc(collection(r.team, 'heroes'), h.id), h); };
-  const addYouthHeroDirectly = (h: Hero) => { const r = getRefs(); if (r) setDoc(doc(collection(r.team, 'heroes'), h.id), { ...h, isYouth: true }); };
-  const promoteYouthPlayer = (id: string) => updateHero(id, { isYouth: false });
+  const addHeroDirectly = useCallback((h: Hero) => { const r = getRefs(); if (r) setDoc(doc(collection(r.team, 'heroes'), h.id), h); }, [getRefs]);
+  const addYouthHeroDirectly = useCallback((h: Hero) => { const r = getRefs(); if (r) setDoc(doc(collection(r.team, 'heroes'), h.id), { ...h, isYouth: true }); }, [getRefs]);
+  const promoteYouthPlayer = useCallback((id: string) => updateHero(id, { isYouth: false }), [updateHero]);
   
-  const updateProfileName = (n: string) => { if (!user?.uid) return; setDoc(doc(db, 'players_v10', user.uid), { displayName: n }, { merge: true }); const r = getRefs(); if (r) setDoc(r.team, { displayName: n }, { merge: true }); };
-  const updateProfileCountry = (c: string) => { if (user?.uid) setDoc(doc(db, 'players_v10', user.uid), { country: c }, { merge: true }); };
+  const updateProfileName = useCallback((n: string) => { if (!user?.uid) return; const r = getRefs(); if (r) { updateDoc(r.root, { displayName: n }); updateDoc(r.team, { displayName: n }); } }, [user?.uid, getRefs]);
+  const updateProfileCountry = useCallback((c: string) => { if (user?.uid) { const r = getRefs(); if (r) updateDoc(r.root, { country: c }); } }, [user?.uid, getRefs]);
   
-  const recordMatch = (w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string) => {
+  const recordMatch = useCallback((w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string) => {
     const r = getRefs(); if (!r) return; 
     const id = mId || `match_${Date.now()}`;
     const entry = { id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, opponentName: opp, type: t, playedAt: p, reward: rew, simulation: res, seen: false };
     updateDoc(r.team, { credits: stateRef.current.credits + rew, matchHistory: arrayUnion(entry) });
-  };
+  }, [getRefs]);
 
-  const markMatchIdAsSeen = (id: string) => { 
+  const markMatchIdAsSeen = useCallback((id: string) => { 
     const r = getRefs(); if (!r) return;
-    const match = allMatches.find(m => m.id === id);
-    if (match) updateDoc(r.root, { lastSeenMatchDay: Number(match.day) });
-  };
+    // 1. Поиск в лиге
+    const leagueMatch = allMatches.find(m => m.id === id);
+    if (leagueMatch) updateDoc(r.root, { lastSeenMatchDay: Number(leagueMatch.day) });
+    // 2. Поиск в истории (локальные матчи)
+    const historyEntry = stateRef.current.matchHistory.find(m => m.id === id);
+    if (historyEntry) {
+      const newHistory = stateRef.current.matchHistory.map(m => m.id === id ? { ...m, seen: true } : m);
+      updateDoc(r.team, { matchHistory: newHistory });
+    }
+  }, [getRefs, allMatches]);
 
   const scoutCandidates = useCallback(() => {
     const r = getRefs(); if (!r) return;
@@ -345,7 +354,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     updateDoc(r.team, { scoutingCandidates: stateRef.current.scoutingCandidates.filter(c => c.id !== heroId) });
   }, [getRefs]);
 
-  const clearScoutingReport = () => { const r = getRefs(); if (r) updateDoc(r.team, { scoutingCandidates: [], lastScoutDate: null }); };
+  const clearScoutingReport = useCallback(() => { const r = getRefs(); if (r) updateDoc(r.team, { scoutingCandidates: [], lastScoutDate: null }); }, [getRefs]);
   
   const payStaffSalaries = useCallback(async () => {
     const r = getRefs(); if (!r) return;
@@ -359,54 +368,62 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }, [getRefs, db]);
 
-  const upgradeManagerSkill = (skillKey: keyof GameState['managerSkills']) => {
+  const upgradeManagerSkill = useCallback((skillKey: keyof GameState['managerSkills']) => {
     const r = getRefs(); if (!r || stateRef.current.skillPoints <= 0) return;
     const newSkills = { ...stateRef.current.managerSkills, [skillKey]: stateRef.current.managerSkills[skillKey] + 1 };
-    setDoc(r.team, { managerSkills: newSkills, skillPoints: stateRef.current.skillPoints - 1 }, { merge: true });
-  };
+    updateDoc(r.team, { managerSkills: newSkills, skillPoints: stateRef.current.skillPoints - 1 });
+  }, [getRefs]);
 
-  const healHero = (heroId: string, type: 'credits' | 'crystals', cost: number) => {
+  const healHero = useCallback((heroId: string, type: 'credits' | 'crystals', cost: number) => {
     if (type === 'credits') addCredits(-cost); else addCrystals(-cost);
     updateHero(heroId, { isInjured: false, injuredUntil: null });
-  };
+  }, [addCredits, addCrystals, updateHero]);
 
-  const launchFanCampaign = (type: string, cost: number, fans: number, loyalty: number) => {
+  const launchFanCampaign = useCallback((type: string, cost: number, fans: number, loyalty: number) => {
     const r = getRefs(); if (!r) return;
     addCredits(-cost);
     const today = getMoscowDateString();
-    setDoc(r.team, { 
+    const currentFanData = stateRef.current.arena?.fanclub || { fanCount: 5000, loyalty: 30 };
+    updateDoc(r.team, { 
       fanclub: { 
-        fanCount: (stateRef.current.arena?.fanCount || 5000) + fans,
-        loyalty: Math.min(100, (stateRef.current.arena?.loyalty || 30) + loyalty),
+        fanCount: (currentFanData.fanCount || 5000) + fans,
+        loyalty: Math.min(100, (currentFanData.loyalty || 30) + loyalty),
         lastCampaignDate: today 
       } 
-    }, { merge: true });
-  };
+    });
+  }, [getRefs, addCredits]);
 
-  const startArenaConstruction = (id: string, cost: number) => startConstruction('arena', id, cost);
-  const startHQConstruction = (id: string, cost: number) => startConstruction('hq', id, cost);
-  const startBootcampConstruction = (id: string, cost: number) => startConstruction('bootcamp', id, cost);
-  const startAcademyConstruction = (id: string, cost: number) => startConstruction('academy', id, cost);
-  const startMedicalConstruction = (id: string, cost: number) => startConstruction('medical', id, cost);
+  const startArenaConstruction = useCallback((id: string, cost: number) => startConstruction('arena', id, cost), [getRefs, addCredits]);
+  const startHQConstruction = useCallback((id: string, cost: number) => startConstruction('hq', id, cost), [getRefs, addCredits]);
+  const startBootcampConstruction = useCallback((id: string, cost: number) => startConstruction('bootcamp', id, cost), [getRefs, addCredits]);
+  const startAcademyConstruction = useCallback((id: string, cost: number) => startConstruction('academy', id, cost), [getRefs, addCredits]);
+  const startMedicalConstruction = useCallback((id: string, cost: number) => startConstruction('medical', id, cost), [getRefs, addCredits]);
   
-  const startCapacityExpansion = (seats: number, cost: number) => {
+  const startCapacityExpansion = useCallback((seats: number, cost: number) => {
     const r = getRefs(); if (!r || stateRef.current.credits < cost) return false;
     addCredits(-cost);
     const finish = new Date(Date.now() + 12 * 3600000);
-    setDoc(r.team, { arena: { ...stateRef.current.arena, constructionStarts: { ...stateRef.current.arena?.constructionStarts, capacity: new Date().toISOString() }, constructionFinishes: { ...stateRef.current.arena?.constructionFinishes, capacity: finish.toISOString() }, pendingCapacity: seats } }, { merge: true });
+    updateDoc(r.team, { 
+      'arena.constructionStarts.capacity': new Date().toISOString(),
+      'arena.constructionFinishes.capacity': finish.toISOString(),
+      'arena.pendingCapacity': seats
+    });
     return true;
-  };
+  }, [getRefs, addCredits]);
 
-  const startConstruction = (category: string, id: string, cost: number) => {
+  const startConstruction = useCallback((category: string, id: string, cost: number) => {
     const r = getRefs(); if (!r || stateRef.current.credits < cost) return false;
     const level = (stateRef.current as any)[category][id] || 0;
     const finish = new Date(Date.now() + (4 * (level + 1)) * 3600000);
     addCredits(-cost);
-    setDoc(r.team, { [category]: { ...stateRef.current[category], constructionStarts: { ...stateRef.current[category]?.constructionStarts, [id]: new Date().toISOString() }, constructionFinishes: { ...stateRef.current[category]?.constructionFinishes, [id]: finish.toISOString() } } }, { merge: true });
+    updateDoc(r.team, {
+      [`${category}.constructionStarts.${id}`]: new Date().toISOString(),
+      [`${category}.constructionFinishes.${id}`]: finish.toISOString()
+    });
     return true;
-  };
+  }, [getRefs, addCredits]);
 
-  const accelerateConstruction = (type: string, id: string, multiplier: number, price: number) => {
+  const accelerateConstruction = useCallback((type: string, id: string, multiplier: number, price: number) => {
     const r = getRefs(); if (!r || stateRef.current.crystals < price) return false;
     const data = (stateRef.current as any)[type];
     if (data.isAccelerated?.[id]) return false;
@@ -414,9 +431,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const remaining = finish.getTime() - Date.now();
     const newFinish = new Date(Date.now() + (remaining / multiplier));
     addCrystals(-price);
-    setDoc(r.team, { [type]: { ...data, constructionFinishes: { ...data.constructionFinishes, [id]: newFinish.toISOString() }, isAccelerated: { ...data.isAccelerated, [id]: true } } }, { merge: true });
+    updateDoc(r.team, {
+      [`${type}.constructionFinishes.${id}`]: newFinish.toISOString(),
+      [`${type}.isAccelerated.${id}`]: true
+    });
     return true;
-  };
+  }, [getRefs, addCrystals]);
 
   const checkConstructions = useCallback(() => {
     if (isCheckingConstructions.current) return;
@@ -429,18 +449,42 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       if (data?.constructionFinishes) {
         Object.entries(data.constructionFinishes).forEach(([id, finishIso]: [string, any]) => {
           if (new Date() >= new Date(finishIso)) {
-            updateFound = true; if (!newTeamData[cat]) newTeamData[cat] = { ...data };
-            if (id === 'capacity') { newTeamData[cat].capacity = (newTeamData[cat].capacity || 5000) + (data.pendingCapacity || 500); delete newTeamData[cat].pendingCapacity; }
-            else { newTeamData[cat][id] = (newTeamData[cat][id] || 0) + 1; }
-            delete newTeamData[cat].constructionFinishes[id]; delete newTeamData[cat].constructionStarts[id];
-            if (newTeamData[cat].isAccelerated) delete newTeamData[cat].isAccelerated[id];
+            updateFound = true; 
+            if (id === 'capacity') {
+              newTeamData[`${cat}.capacity`] = (data.capacity || 5000) + (data.pendingCapacity || 500);
+              newTeamData[`${cat}.pendingCapacity`] = null;
+            } else {
+              newTeamData[`${cat}.${id}`] = (data[id] || 0) + 1;
+            }
+            newTeamData[`${cat}.constructionFinishes.${id}`] = null;
+            newTeamData[`${cat}.constructionStarts.${id}`] = null;
+            if (data.isAccelerated?.[id]) newTeamData[`${cat}.isAccelerated.${id}`] = null;
           }
         });
       }
     });
-    if (updateFound) setDoc(r.team, newTeamData, { merge: true });
+    if (updateFound) updateDoc(r.team, newTeamData);
     isCheckingConstructions.current = false;
   }, [getRefs]);
+
+  const nextMatchInfo = useMemo(() => {
+    if (!user?.uid || !allMatches || allMatches.length === 0) return null;
+    const futureMatches = allMatches.filter(m => 
+      (m.homeId === user.uid || m.awayId === user.uid) && 
+      !m.isFinished &&
+      m.version === 32
+    );
+    if (futureMatches.length === 0) return null;
+    const sorted = [...futureMatches].sort((a, b) => 
+      new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+    );
+    const next = sorted[0];
+    return {
+      match: next,
+      opponentName: next.homeId === user.uid ? next.awayName : next.homeName,
+      isHome: next.homeId === user.uid
+    };
+  }, [allMatches, user?.uid]);
 
   const value = useMemo(() => ({
     ...state, isDataReady: isMatchesReady && state.isLoaded, allSeasonMatches: allMatches, nextMatch: nextMatchInfo, isMatchesLoading: !isMatchesReady,
