@@ -212,8 +212,8 @@ export default function Home() {
                   <div className="px-3 py-1 rounded-lg bg-background/60 border border-white/5"><Swords className={cn("w-4 h-4", isMatchActive ? "text-red-500 animate-bounce" : "text-accent")} /></div>
                   <div className="flex-1 text-left truncate"><p className="text-[10px] font-headline font-bold uppercase italic text-white">{nextMatch.match.awayName}</p></div>
                 </div>
-              ) : <div className="py-6 opacity-30 text-[10px] font-bold uppercase">NO MATCHES</div>}
-              <div className="bg-background/60 py-3 rounded-2xl border border-white/5"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">{isMatchActive ? 'ENGAGEMENT PHASE' : 'TIME TO ENGAGEMENT'}</p><p className={cn("text-xl font-headline font-bold tabular-nums tracking-tighter text-white", isMatchActive && "text-red-500 animate-pulse")}>{countdown || '00:00:00'}</p></div>
+              ) : <div className="py-6 opacity-30 text-[10px] font-bold uppercase">{seasonInfo.isOffseason ? tHub.startsIn : 'NO MATCHES'}</div>}
+              <div className="bg-background/60 py-3 rounded-2xl border border-white/5"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">{isMatchActive ? 'ENGAGEMENT PHASE' : (seasonInfo.isOffseason ? 'SEASON RESET' : 'TIME TO ENGAGEMENT')}</p><p className={cn("text-xl font-headline font-bold tabular-nums tracking-tighter text-white", isMatchActive && "text-red-500 animate-pulse")}>{countdown || '00:00:00'}</p></div>
             </div>
           </CardContent>
         </Card>

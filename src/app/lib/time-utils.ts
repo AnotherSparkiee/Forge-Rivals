@@ -1,8 +1,9 @@
 /**
- * @fileOverview Ядро времени v60. Absolute Global Sync & Seasonal Engine.
+ * @fileOverview Ядро времени v70. Absolute Global Sync & Seasonal Engine.
  * 
  * Система обеспечивает полную синхронизацию времени между всеми клиентами.
  * Использует UTC+3 (Москва) как базовый стандарт для игровых циклов.
+ * Точка отсчета (Эпоха): 01.01.2025 00:00 MSK.
  */
 
 let syncPoint = {
@@ -11,6 +12,7 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
+export const GLOBAL_EPOCH_ISO = '2025-01-01T00:00:00Z'; // 00:00 MSK is 21:00 UTC previous day, but for logic we use MSK-relative
 
 /**
  * Устанавливает абсолютную точку отсчета серверного времени.
@@ -27,7 +29,7 @@ export function setServerTime(serverMs: number) {
       perfMs: 0
     };
   }
-  console.log(`[TIME-CORE v60] Global Sync Established: ${new Date(serverMs).toISOString()}`);
+  console.log(`[TIME-CORE v70] Global Sync Established: ${new Date(serverMs).toISOString()}`);
 }
 
 /**
@@ -47,7 +49,6 @@ export function getMoscowTime(): Date {
 
 /**
  * Возвращает объект Date, сдвинутый на MSK (UTC+3) для удобства доступа к компонентам дня/часа.
- * Используйте getUTCHours(), getUTCDate() и т.д. на полученном объекте.
  */
 export function toMskDate(date: Date): Date {
   return new Date(date.getTime() + MSK_OFFSET);
@@ -98,13 +99,14 @@ export function getMoscowDateString(): string {
 
 /**
  * Рассчитывает состояние сезона на основе 15-дневного цикла.
- * Эпоха (S1 Day 1): 01.01.2025 00:00 MSK
+ * Эпоха: 01.01.2025 00:00 MSK.
  */
 export function getGlobalSeasonInfo() {
-  const mskNow = toMskDate(getMoscowTime());
-  const epoch = new Date('2025-01-01T00:00:00Z'); // MSK 00:00 in our shifted logic
+  const utcNow = getMoscowTime();
+  // Эпоха в UTC: 31 декабря 2024, 21:00 (чтобы в МСК было 1 янв 00:00)
+  const epochUtc = new Date('2024-12-31T21:00:00Z');
   
-  const diffMs = mskNow.getTime() - epoch.getTime();
+  const diffMs = utcNow.getTime() - epochUtc.getTime();
   const cycleDuration = 15; 
   const dayMs = 24 * 60 * 60 * 1000;
   const cycleMs = cycleDuration * dayMs;
@@ -120,8 +122,8 @@ export function getGlobalSeasonInfo() {
   const isOffseason = dayOfCycle === 15;
   const isGenerationDay = dayOfCycle === 15;
   
-  const currentSeasonStart = new Date(epoch.getTime() + (seasonNumber - 1) * cycleMs);
-  const nextSeasonStart = new Date(epoch.getTime() + seasonNumber * cycleMs);
+  const currentSeasonStart = new Date(epochUtc.getTime() + (seasonNumber - 1) * cycleMs);
+  const nextSeasonStart = new Date(epochUtc.getTime() + seasonNumber * cycleMs);
 
   return {
     seasonDay: isOffseason ? 0 : dayOfCycle,
@@ -130,14 +132,14 @@ export function getGlobalSeasonInfo() {
     activeSeasonNumber: seasonNumber,
     isOffseason,
     isGenerationDay,
-    timeToStartMs: Math.max(0, nextSeasonStart.getTime() - mskNow.getTime()),
+    timeToStartMs: Math.max(0, nextSeasonStart.getTime() - utcNow.getTime()),
     currentSeasonStart,
     nextSeasonStart
   };
 }
 
 /**
- * Проверяет, просрочен ли матч более чем на 35 минут (длительность симуляции).
+ * Проверяет, просрочен ли матч более чем на 35 минут.
  */
 export function isMatchOverdue(startTimeIso: string): boolean {
   const utcNow = getMoscowTime();
@@ -146,7 +148,7 @@ export function isMatchOverdue(startTimeIso: string): boolean {
 }
 
 /**
- * Проверяет, идет ли матч прямо сейчас (окно 35 минут).
+ * Проверяет, идет ли матч прямо сейчас.
  */
 export function isMatchLive(startTimeIso: string): boolean {
   const utcNow = getMoscowTime();
@@ -156,12 +158,13 @@ export function isMatchLive(startTimeIso: string): boolean {
 }
 
 export function getSeasonDateLabel(dayOfSeason: number, seasonNumber: number = 1): string {
-  const epoch = new Date('2025-01-01T00:00:00Z');
+  const epochUtc = new Date('2024-12-31T21:00:00Z');
   const cycleDuration = 15;
-  const targetMs = epoch.getTime() + (seasonNumber - 1) * cycleDuration * 24 * 60 * 60 * 1000 + (dayOfSeason - 1) * 24 * 60 * 60 * 1000;
+  const targetMs = epochUtc.getTime() + (seasonNumber - 1) * cycleDuration * 24 * 60 * 60 * 1000 + (dayOfSeason - 1) * 24 * 60 * 60 * 1000;
   const targetDate = new Date(targetMs);
   
-  const d = String(targetDate.getUTCDate()).padStart(2, '0');
-  const m = String(targetDate.getUTCMonth() + 1).padStart(2, '0');
-  return `${d}.${m}.${targetDate.getUTCFullYear()}`;
+  const msk = toMskDate(targetDate);
+  const d = String(msk.getUTCDate()).padStart(2, '0');
+  const m = String(msk.getUTCMonth() + 1).padStart(2, '0');
+  return `${d}.${m}.${msk.getUTCFullYear()}`;
 }
