@@ -1,13 +1,14 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v50 (Injury & Fanclub Logic). 
- * Интегрирована система лечения травм и запуск кампаний фан-клуба.
+ * @fileOverview Глобальное хранилище v50.1 (Dynamic Progression). 
+ * Интегрирована система оценки игроков и автоматического роста навыков после матчей.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
 import { Hero, StaffMember, StaffRole, generateScoutedHero } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getSeasonDateLabel, setServerTime } from './time-utils';
+import { calculateXpGain, calculateHeroOVR } from './xp-utils';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, arrayUnion, orderBy, getDoc, updateDoc } from 'firebase/firestore';
 
@@ -138,15 +139,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           const data = await response.json();
           const serverMs = new Date(data.datetime).getTime();
           setServerTime(serverMs);
-        } else {
-          const start = Date.now();
-          await getDoc(doc(db, 'system_v1', 'status'));
-          const end = Date.now();
-          const rtt = end - start;
-          setServerTime(Date.now() - (rtt / 2));
         }
       } catch (e) {
-        console.warn("[TIME-SYNC] Network NTP failed, using local fallback.");
+        console.warn("[TIME-SYNC] Network NTP failed.");
       }
     };
     syncTime();
@@ -229,7 +224,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const heroesUnsub = onSnapshot(collection(teamRef, 'heroes'), (hSnap) => {
         const all = hSnap.docs.map(d => ({ ...d.data(), id: d.id } as Hero));
         
-        // AUTO-HEAL CHECK
         const mskNow = getMoscowTime().getTime();
         all.forEach(h => {
           if (h.isInjured && h.injuredUntil && mskNow >= new Date(h.injuredUntil).getTime()) {
@@ -285,8 +279,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const nextMatchInfo = useMemo(() => {
     if (!isMatchesReady || !user?.uid || allMatches.length === 0) return null;
     const mskNow = getMoscowTime().getTime();
-    const active = allMatches.find(m => (m.homeId === user.uid || m.awayId === user.uid) && !checkIsMatchFinished(m) && new Date(m.startTime).getTime() <= mskNow + 300000);
-    if (active) return { match: active, opponentName: active.homeId === user.uid ? active.awayName : active.homeName, day: Number(active.day), dateLabel: getSeasonDateLabel(active.day, active.seasonNumber), isHome: active.homeId === user.uid };
     const future = allMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid) && !checkIsMatchFinished(m)).sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
     if (future) return { match: future, opponentName: future.homeId === user.uid ? future.awayName : future.homeName, day: Number(future.day), dateLabel: getSeasonDateLabel(future.day, future.seasonNumber), isHome: future.homeId === user.uid };
     return null;
@@ -304,11 +296,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const addCrystals = (amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { crystals: Math.max(0, stateRef.current.crystals + amount) }, { merge: true }); };
   const addCredits = (amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { credits: Math.max(0, stateRef.current.credits + amount) }, { merge: true }); };
+  
   const updateHero = (id: string, data: Partial<Hero>, creditsCost = 0, crystalsCost = 0) => {
     const r = getRefs(); if (!r) return;
     setDoc(doc(collection(r.team, 'heroes'), id), data, { merge: true });
     if (creditsCost || crystalsCost) setDoc(r.team, { credits: stateRef.current.credits - creditsCost, crystals: stateRef.current.crystals - crystalsCost }, { merge: true });
   };
+
   const removeHero = (id: string, refund: number) => { const r = getRefs(); if (!r) return; deleteDoc(doc(collection(r.team, 'heroes'), id)); if (refund > 0) addCredits(refund); };
   const assignToRole = (role: LineupSlot, heroId: string | null) => { const r = getRefs(); if (r) setDoc(r.team, { lineup: { ...stateRef.current.lineup, [role]: heroId } }, { merge: true }); };
   const updateTactics = (strategy: string, lineSettings: any) => { const r = getRefs(); if (r) setDoc(r.team, { strategy, lineSettings }, { merge: true }); };
@@ -318,7 +312,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const setLanguageDirect = (lang: string) => setState(s => ({ ...s, language: lang }));
   const setLanguage = (lang: string) => setState(s => ({ ...s, language: lang }));
   const setTrainingFocus = (id: string, f: string | null) => updateHero(id, { trainingFocus: f });
+  
   const startDailyHeroTraining = (id: string, f: string) => updateHero(id, { dailyTrainingFocus: f, dailyTrainingFinishTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() });
+  
   const claimDailyHeroTraining = (id: string) => {
     const h = stateRef.current.ownedHeroes.find(x => x.id === id) || stateRef.current.youthAcademyHeroes.find(x => x.id === id);
     if (h?.dailyTrainingFocus) {
@@ -326,6 +322,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       updateHero(id, { proStats: { ...h.proStats, [h.dailyTrainingFocus]: Math.min(100, cur + 1) }, dailyTrainingFocus: null, dailyTrainingFinishTime: null });
     }
   };
+
   const recoverAllFatigue = (type: 'credits' | 'crystals') => {
     const s = stateRef.current; const r = getRefs(); if (!r) return false;
     const cost = type === 'credits' ? 75000 : 150; const bal = type === 'credits' ? s.credits : s.crystals;
@@ -334,6 +331,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setDoc(r.team, { [type]: bal - cost }, { merge: true });
     return true;
   };
+
   const hireStaffMember = (m: StaffMember) => { const r = getRefs(); if (r) { setDoc(doc(collection(r.team, 'staff'), m.id), m); addCredits(-(m.salary / 2)); } };
   const trainStaffSkill = (role: StaffRole, k: 'primary' | 'secondary', cost: number) => {
     const s = stateRef.current; const m = s.staff[role]; if (!m || s.crystals < cost) return false;
@@ -341,6 +339,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setDoc(doc(collection(r.team, 'staff'), m.id), { skills: { ...m.skills, [k]: Math.min(99, m.skills[k] + 1) } }, { merge: true });
     addCrystals(-cost); return true;
   };
+
   const addHeroDirectly = (h: Hero) => { const r = getRefs(); if (r) setDoc(doc(collection(r.team, 'heroes'), h.id), h); };
   const addYouthHeroDirectly = (h: Hero) => { const r = getRefs(); if (r) setDoc(doc(collection(r.team, 'heroes'), h.id), { ...h, isYouth: true }); };
   const promoteYouthPlayer = (id: string) => updateHero(id, { isYouth: false });
@@ -353,14 +352,44 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const id = mId || `match_${Date.now()}`;
     if (s.matchHistory.some(m => m.id === id)) return;
 
-    // APPLY INJURIES FROM SIMULATION
+    // UPDATE HEROES XP & STATS (v3.4)
     res.scoreboard?.forEach((p: any) => {
-      if (p.injured && p.id) {
+      if (p.id) {
         const h = s.ownedHeroes.find(x => x.id === p.id);
         if (h) {
           const mskNow = getMoscowTime();
-          const injuredUntil = new Date(mskNow.getTime() + (p.injuryDays || 2) * 24 * 60 * 60 * 1000).toISOString();
-          updateHero(h.id, { isInjured: true, injuredUntil });
+          const xpGain = calculateXpGain({
+            activity: 'match_reward',
+            currentValue: h.overallRating,
+            talentValue: Math.max(...Object.values(h.proTalents).map(v => Number(v))),
+            infra: { bootcamp: s.bootcamp.bootcampLevel || 0, research: s.bootcamp.researchLevel || 0, psychologist: s.medical.psychologistLevel || 0 },
+            matchResult: { win: w === s.displayName, mvp: p.name === res.mvp, matchRating: p.matchRating },
+            matchesToday: (h.matchesPlayedToday || 0) + 1,
+            isPro: h.isPro
+          });
+
+          // Dynamic Stat Growth (Pick a random core skill to improve slightly)
+          const coreSkills = (ROLE_CORE_SKILLS as any)[h.role] || [];
+          const randomSkill = coreSkills[Math.floor(Math.random() * coreSkills.length)];
+          const currentSkillVal = (h.proStats as any)[randomSkill] || 10;
+          const skillLimit = (h.proTalents as any)[randomSkill] || 50;
+
+          const updatedStats = { ...h.proStats };
+          if (currentSkillVal < skillLimit && Math.random() < 0.3) {
+            (updatedStats as any)[randomSkill] = currentSkillVal + 0.1;
+          }
+
+          const injuryUpdate = p.injured ? { 
+            isInjured: true, 
+            injuredUntil: new Date(mskNow.getTime() + (p.injuryDays || 2) * 24 * 60 * 60 * 1000).toISOString() 
+          } : {};
+
+          updateHero(h.id, { 
+            ...injuryUpdate,
+            totalMatchesPlayed: (h.totalMatchesPlayed || 0) + 1,
+            proStats: updatedStats,
+            overallRating: calculateHeroOVR(h.role, updatedStats, (h.totalMatchesPlayed || 0) + 1, h.moral, h.titles, h.isPro, h.proTalents)
+          });
         }
       }
     });
@@ -374,7 +403,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       mvp: res.mvp || "None", duration: res.duration || "30:00", 
       games: res.games || [res],
       homeName: res.homeName || s.displayName,
-      awayName: res.awayName || opp
+      awayName: res.awayName || opp,
+      towersA: res.towersA || 0,
+      towersB: res.towersB || 0
     };
 
     updateDoc(r.team, { credits: s.credits + rew, matchHistory: arrayUnion(entry) });

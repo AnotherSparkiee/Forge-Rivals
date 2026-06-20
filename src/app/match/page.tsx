@@ -13,7 +13,7 @@ import {
   Users, Trophy, Clock, Medal,
   ShieldAlert, User, MapPin, Info,
   TrendingUp, Timer, ChevronRight, Loader2, Crown, X,
-  Skull, Activity as ActivityIcon
+  Skull, Activity as ActivityIcon, Castle
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -77,7 +77,9 @@ function MatchContent() {
         day: globalMatchData.day,
         playedAt: globalMatchData.finishedAt || globalMatchData.startTime,
         games: globalMatchData.simulation?.games || [globalMatchData.simulation],
-        seriesScore: globalMatchData.simulation?.seriesScore || `${globalMatchData.scoreA}-${globalMatchData.scoreB}`
+        seriesScore: globalMatchData.simulation?.seriesScore || `${globalMatchData.scoreA}-${globalMatchData.scoreB}`,
+        towersA: globalMatchData.simulation?.games?.[0]?.towersA || 0,
+        towersB: globalMatchData.simulation?.games?.[0]?.towersB || 0,
       };
     }
     const fromHistory = matchHistory.find(m => m.id === matchIdFromUrl);
@@ -164,12 +166,14 @@ function MatchContent() {
             {p.image ? <img src={p.image} alt="" className="w-full h-full object-cover" /> : <User className="w-5 h-5 text-muted-foreground" />}
           </div>
           {p.name === game.mvp && <Trophy className="absolute -top-1 -right-1 w-4 h-4 text-yellow-500 fill-yellow-500" />}
+          <div className="absolute -bottom-1 -left-1 bg-black/60 rounded px-1 flex items-center gap-0.5">
+             <span className="text-[7px] font-black text-accent">{p.matchRating?.toFixed(1) || '6.0'}</span>
+          </div>
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[10px] font-black uppercase truncate text-white">{p.name}</p>
           <div className={cn("flex items-center gap-2 mt-0.5", side === 'right' && "justify-end")}>
             <span className="text-[9px] font-mono font-bold text-primary">{p.kills}/{p.deaths}/{p.assists}</span>
-            <span className="text-[8px] text-muted-foreground font-black">{p.cs} CS</span>
           </div>
         </div>
       </div>
@@ -217,6 +221,17 @@ function MatchContent() {
     );
   };
 
+  const getEventIcon = (type: string) => {
+    switch (type) {
+      case 'kill': return <Skull className="w-4 h-4 text-red-500" />;
+      case 'save': return <ShieldCheck className="w-4 h-4 text-green-400" />;
+      case 'objective': return <ActivityIcon className="w-4 h-4 text-accent" />;
+      case 'tower': return <Castle className="w-4 h-4 text-yellow-500" />;
+      case 'injury': return <ShieldAlert className="w-4 h-4 text-red-600 animate-pulse" />;
+      default: return <Info className="w-4 h-4 text-muted-foreground" />;
+    }
+  };
+
   return (
     <div 
       className="min-h-screen bg-background text-foreground pb-32 relative overflow-hidden" 
@@ -248,9 +263,9 @@ function MatchContent() {
             </Card>
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 text-center">
-                <Clock className="w-5 h-5 text-primary mx-auto mb-2" />
-                <p className="text-[8px] font-black text-muted-foreground uppercase">PLAYED AT</p>
-                <p className="text-lg font-headline font-bold text-white">{new Date(currentResult.playedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                <Castle className="w-5 h-5 text-yellow-500 mx-auto mb-2" />
+                <p className="text-[8px] font-black text-muted-foreground uppercase">TOWER CONTROL</p>
+                <p className="text-lg font-headline font-bold text-white">{currentResult.towersA} : {currentResult.towersB}</p>
               </div>
               <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 text-center">
                 <Target className="w-5 h-5 text-accent mx-auto mb-2" />
@@ -273,6 +288,7 @@ function MatchContent() {
                 <Card key={i} className="glass-card border-white/5 bg-secondary/10 animate-in fade-in slide-in-from-bottom-1">
                   <CardContent className="p-3 flex gap-4">
                     <div className="w-12 shrink-0 flex flex-col items-center justify-center border-r border-white/5 pr-2">
+                      <div className="mb-1">{getEventIcon(event?.type)}</div>
                       <span className="text-[9px] font-mono font-bold text-accent">{event?.time}</span>
                     </div>
                     <div className="flex-1 space-y-2">
@@ -304,6 +320,18 @@ function MatchContent() {
               </TabsList>
               {currentResult.games.map((game: any, idx: number) => (
                 <TabsContent key={idx} value={`map${idx+1}`} className="space-y-6" onClick={(e) => e.stopPropagation()}>
+                  <div className="grid grid-cols-2 gap-3">
+                     <div className="bg-background/40 p-3 rounded-xl border border-white/5 flex flex-col items-center">
+                        <Castle className="w-4 h-4 text-yellow-500 mb-1" />
+                        <span className="text-[7px] font-black text-muted-foreground uppercase">Towers</span>
+                        <span className="text-sm font-headline font-bold text-white">{game.towersA} : {game.towersB}</span>
+                     </div>
+                     <div className="bg-background/40 p-3 rounded-xl border border-white/5 flex flex-col items-center">
+                        <Activity className="w-4 h-4 text-accent mb-1" />
+                        <span className="text-[7px] font-black text-muted-foreground uppercase">Objectives</span>
+                        <span className="text-sm font-headline font-bold text-white">{game.objectivesA} : {game.objectivesB}</span>
+                     </div>
+                  </div>
                   <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl text-center">
                     <p className="text-[9px] text-primary/60 italic leading-relaxed">"{game.matchSummary}"</p>
                   </div>
