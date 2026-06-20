@@ -90,10 +90,10 @@ const COUNTRY_PHOTOS: Record<string, { flag: string, name: string, url: string }
   'DE': { flag: '🇩🇪', name: 'Германия', url: 'https://i.postimg.cc/PPS3QFFM/de-1.jpg' },
   'CN': { flag: '🇨🇳', name: 'Китай', url: 'https://i.postimg.cc/wvzKxSYS/1755011442109.jpg' },
   'RU': { flag: '🇷🇺', name: 'Россия', url: 'https://i.postimg.cc/mg3yfqj5/rus-2.jpg' },
-  'UA': { flag: 'Украина', name: 'Украина', url: 'https://i.postimg.cc/X7fs4pYn/ua-1.jpg' },
+  'UA': { flag: '🇺🇦', name: 'Украина', url: 'https://i.postimg.cc/X7fs4pYn/ua-1.jpg' },
   'KR': { flag: '🇰🇷', name: 'Южная Корея', url: 'https://i.postimg.cc/43mv7dsH/kr-1.jpg' },
   'BR': { flag: '🇧🇷', name: 'Бразилия', url: 'https://i.postimg.cc/Z5906yvS/br-1.jpg' },
-  'TR': { flag: 'Турция', name: 'Турция', url: 'https://i.postimg.cc/MHvbRpyd/tr-1.jpg' }
+  'TR': { flag: '🇹🇷', name: 'Турция', url: 'https://i.postimg.cc/MHvbRpyd/tr-1.jpg' }
 };
 
 const PLAYER_NAMES = [
@@ -258,6 +258,7 @@ export function generateBotSquad(targetOvr: number = 22): any[] {
       name: `${role} Unit`,
       role: role,
       overallRating: val,
+      image: `https://picsum.photos/seed/${role}${val}/200/200`,
       proStats: { lastHitting: val, mapAwareness: val, positioning: val, reflexes: val, manaManagement: val, objectiveControl: val, communication: val, tiltResistance: val, versatility: val, ganking: val },
       isSub: false
     };

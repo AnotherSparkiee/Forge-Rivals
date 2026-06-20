@@ -1,11 +1,11 @@
 'use server';
 /**
- * @fileOverview Ядро симуляции матчей Lines of Enmity v4.1 (Mathematical Core).
+ * @fileOverview Ядро симуляции матчей Lines of Enmity v4.2 (Mathematical Core + Visual Portraits).
  * 
  * Особенности:
  * 1. Взвешенная оценка ролей (Carry, Mid, Tank, Jungler, Support).
  * 2. Динамический расчет потенциала команды с учетом инфраструктуры и синергии.
- * 3. Логически обоснованная генерация Scoreboard на основе характеристик игроков.
+ * 3. Логически обоснованная генерация Scoreboard с поддержкой фотографий игроков.
  */
 
 import {ai} from '@/ai/genkit';
