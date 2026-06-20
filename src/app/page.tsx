@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { getMoscowTime, getGlobalSeasonInfo } from './lib/time-utils';
+import { getMoscowTime, getGlobalSeasonInfo, isMatchLive } from './lib/time-utils';
 import { LEAGUES } from './lib/leagues-data';
 import {
   DropdownMenu,
@@ -47,11 +47,11 @@ export default function Home() {
   const [password, setPassword] = useState('');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [countdown, setCountdown] = useState('');
+  const [isMatchActive, setIsMatchActive] = useState(false);
   
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
   const league = useMemo(() => LEAGUES.find(l => l.id === selectedLeagueId) || LEAGUES[0], [selectedLeagueId]);
 
-  // НАХОДИМ НЕПРОСМОТРЕННЫЕ МАТЧИ
   const unreadMatches = useMemo(() => {
     if (!matchHistory) return [];
     return matchHistory.filter(m => m.seen === false);
@@ -82,15 +82,24 @@ export default function Home() {
         
         if (dd > 0) setCountdown(`${dd}д ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
         else setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
+        setIsMatchActive(false);
       } else if (nextMatch) {
-        const matchStartTime = new Date(nextMatch.match.startTime).getTime();
-        if (mskNow.getTime() >= matchStartTime) setCountdown('00:00:00');
-        else {
-          const diff = matchStartTime - mskNow.getTime();
-          const hh = Math.floor(diff / 3600000);
-          const mm = Math.floor((diff % 3600000) / 60000);
-          const ss = Math.floor((diff % 60000) / 1000);
-          setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
+        const startTimeStr = nextMatch.match.startTime;
+        const live = isMatchLive(startTimeStr);
+        setIsMatchActive(live);
+
+        if (live) {
+          setCountdown('LIVE');
+        } else {
+          const matchStartTime = new Date(startTimeStr).getTime();
+          if (mskNow.getTime() >= matchStartTime) setCountdown('00:00:00');
+          else {
+            const diff = matchStartTime - mskNow.getTime();
+            const hh = Math.floor(diff / 3600000);
+            const mm = Math.floor((diff % 3600000) / 60000);
+            const ss = Math.floor((diff % 60000) / 1000);
+            setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
+          }
         }
       }
     }, 1000);
@@ -147,7 +156,7 @@ export default function Home() {
                 <CardHeader><CardTitle className="font-headline text-center uppercase tracking-widest text-accent text-lg">{tAuth.title}</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2"><Label>{tAuth.userLabel}</Label><Input value={identifier} onChange={e => setIdentifier(e.target.value)} required className="bg-secondary/50 h-12" /></div>
-                  <div className="space-y-2"><Label>{tAuth.passLabel}</Label><Input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50 h-12" /></div>
+                  <div className="space-y-2"><Label>{tAuth.passLabel}</Label><Input type="password" password={true} value={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50 h-12" /></div>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-4">
                   <Button type="submit" className="w-full h-14 hero-gradient font-black text-xs uppercase" disabled={isAuthLoading}>{isAuthLoading ? <Loader2 className="animate-spin" /> : tAuth.submit}</Button>
@@ -178,7 +187,8 @@ export default function Home() {
       resultBtn: "MATCH OVERVIEW",
       navTitle: "Command Terminals", sync: "CALENDAR SYNC", noMatches: "NO UPCOMING MATCHES", 
       startsIn: getMoscowTime().getDate() === 19 ? "GENERATION STARTS IN:" : "SEASON 1 STARTS IN:",
-      phase: "PHASE: STABILIZATION"
+      phase: "PHASE: DEPTH",
+      live: "LIVE: ENGAGEMENT IN PROGRESS"
     },
     ru: { 
       nextMatch: "Следующий матч", 
@@ -187,7 +197,8 @@ export default function Home() {
       resultBtn: "ОБЗОР МАТЧЕЙ",
       navTitle: "Командные Терминалы", sync: "СИНХРОНИЗАЦИЯ", noMatches: "НЕТ БУДУЩИХ МАТЧЕЙ", 
       startsIn: getMoscowTime().getDate() === 19 ? "ГЕНЕРАЦИЯ НАЧНЕТСЯ ЧЕРЕЗ:" : "СЕЗОН 1 НАЧНЕТСЯ ЧЕРЕЗ:",
-      phase: "ФАЗА: СТАБИЛИЗАЦИЯ"
+      phase: "ФАЗА: ГЛУБИНА",
+      live: "В ЭФИРЕ: ИДЕТ СРАЖЕНИЕ"
     }
   }[language as 'en' | 'ru'];
 
@@ -211,7 +222,7 @@ export default function Home() {
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <Radio className="w-3 h-3 text-red-500 animate-pulse" />
-            <span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.35</span>
+            <span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.36</span>
           </div>
           <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
             {seasonInfo.isOffseason ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
@@ -224,7 +235,8 @@ export default function Home() {
       <section className="mb-8">
         <Card className={cn(
           "glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden shadow-[0_0_40px_rgba(var(--primary),0.1)]",
-          seasonInfo.isOffseason && "border-accent/30 from-accent/10"
+          seasonInfo.isOffseason && "border-accent/30 from-accent/10",
+          isMatchActive && "border-red-500/40 bg-red-500/5 ring-1 ring-red-500/20"
         )}>
           <CardContent className="p-6">
             <div className="text-center space-y-4">
@@ -251,13 +263,18 @@ export default function Home() {
               ) : (
                 <div className="space-y-4">
                   <div className="flex flex-col items-center gap-1">
-                    <Badge variant="outline" className="bg-primary/10 border-primary/20 text-primary text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5">
-                      {nextMatch ? (language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE') : tHub.sync}
+                    <Badge variant="outline" className={cn(
+                      "text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5",
+                      isMatchActive ? "bg-red-500/20 border-red-500/50 text-white animate-pulse" : "bg-primary/10 border-primary/20 text-primary"
+                    )}>
+                      {isMatchActive ? tHub.live : (nextMatch ? (language === 'ru' ? 'ПРОФ. ЛИГА' : 'PRO LEAGUE') : tHub.sync)}
                     </Badge>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Calendar className="w-3 h-3" />
-                      <span className="text-[10px] font-mono font-bold">{nextMatch?.dateLabel || '--.--.--'} {league.startTime || '--:--'}</span>
-                    </div>
+                    {!isMatchActive && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Calendar className="w-3 h-3" />
+                        <span className="text-[10px] font-mono font-bold">{nextMatch?.dateLabel || '--.--.--'} {league.startTime || '--:--'}</span>
+                      </div>
+                    )}
                   </div>
 
                   {nextMatch ? (
@@ -267,7 +284,7 @@ export default function Home() {
                         <p className="text-sm font-headline font-bold uppercase truncate italic">{nextMatch.match.homeName}</p>
                       </div>
                       <div className="px-3 py-1 rounded-lg bg-background/60 border border-white/5 flex flex-col items-center">
-                        <Swords className="w-4 h-4 text-accent" />
+                        <Swords className={cn("w-4 h-4", isMatchActive ? "text-red-500 animate-bounce" : "text-accent")} />
                         <span className="text-[8px] font-black text-accent mt-1">VS</span>
                       </div>
                       <div className={cn("flex-1 text-left", !nextMatch.isHome && "text-primary")}>
@@ -285,9 +302,12 @@ export default function Home() {
                     <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">
                       {checkIsMatchFinished(nextMatch?.match) 
                         ? (language === 'ru' ? 'ОПЕРАЦИЯ ЗАВЕРШЕНА' : 'OPERATION CONCLUDED')
-                        : 'TIME TO ENGAGEMENT'}
+                        : (isMatchActive ? (language === 'ru' ? 'АКТИВНАЯ ФАЗА' : 'ENGAGEMENT PHASE') : 'TIME TO ENGAGEMENT')}
                     </p>
-                    <p className="text-xl font-headline font-bold tabular-nums tracking-tighter text-white">
+                    <p className={cn(
+                      "text-xl font-headline font-bold tabular-nums tracking-tighter text-white",
+                      isMatchActive && "text-red-500 animate-pulse"
+                    )}>
                       {checkIsMatchFinished(nextMatch?.match) 
                         ? `${nextMatch?.match.homeScore ?? 0}:${nextMatch?.match.awayScore ?? 0}`
                         : (countdown || '00:00:00')}
@@ -300,7 +320,6 @@ export default function Home() {
         </Card>
       </section>
 
-      {/* УНИВЕРСАЛЬНАЯ КНОПКА ОБЗОРА МАТЧЕЙ СО СЧЕТЧИКОМ */}
       {latestUnreadResult ? (
         <Link href={`/match?id=${latestUnreadResult.id}`} className="block relative mb-8">
           <div className="absolute -inset-1 bg-gradient-to-r from-accent to-primary rounded-2xl blur opacity-30 animate-pulse"></div>
@@ -315,12 +334,18 @@ export default function Home() {
           </Button>
         </Link>
       ) : !seasonInfo.isOffseason ? (
-        <Link href={checkIsMatchFinished(nextMatch?.match) ? `/match?id=${nextMatch.match.id}` : "/matches"} className="block relative mb-8">
-          <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-2xl blur opacity-25 animate-pulse"></div>
-          <Button className="w-full h-20 hero-gradient border-none shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 relative z-10">
-            {checkIsMatchFinished(nextMatch?.match) ? <Trophy className="w-6 h-6" /> : <Swords className="w-6 h-6" />}
+        <Link href={checkIsMatchFinished(nextMatch?.match) || isMatchActive ? (isMatchActive ? "/match?id=" + nextMatch?.match.id : "/match?id=" + nextMatch?.match.id) : "/matches"} className="block relative mb-8">
+          <div className={cn(
+            "absolute -inset-1 rounded-2xl blur opacity-25 animate-pulse",
+            isMatchActive ? "bg-red-500" : "bg-gradient-to-r from-primary to-accent"
+          )}></div>
+          <Button className={cn(
+            "w-full h-20 border-none shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 relative z-10",
+            isMatchActive ? "bg-red-600 text-white" : "hero-gradient"
+          )}>
+            {isMatchActive ? <Radio className="w-6 h-6 animate-pulse" /> : (checkIsMatchFinished(nextMatch?.match) ? <Trophy className="w-6 h-6" /> : <Swords className="w-6 h-6" />)}
             <span className="text-xl font-headline font-bold italic uppercase">
-              {checkIsMatchFinished(nextMatch?.match) ? tHub.resultBtn : tHub.battleBtn}
+              {isMatchActive ? (language === 'ru' ? 'СМОТРЕТЬ LIVE' : 'VIEW LIVE') : (checkIsMatchFinished(nextMatch?.match) ? tHub.resultBtn : tHub.battleBtn)}
             </span>
           </Button>
         </Link>

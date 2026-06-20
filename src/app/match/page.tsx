@@ -13,13 +13,14 @@ import {
   Users, Trophy, Clock, Medal,
   ShieldAlert, User, MapPin, Info,
   TrendingUp, Timer, ChevronRight, Loader2, Crown, X,
-  Skull, Activity as ActivityIcon, Castle
+  Skull, Activity as ActivityIcon, Castle, Radio
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { doc, getDoc } from 'firebase/firestore';
 import { Progress } from '@/components/ui/progress';
+import { getMoscowTime, isMatchLive } from '../lib/time-utils';
 
 type MatchStep = 'preview' | 'live' | 'stats';
 
@@ -56,7 +57,15 @@ function MatchContent() {
       try {
         const matchRef = doc(db, 'matches_v1', matchIdFromUrl);
         const snap = await getDoc(matchRef);
-        if (snap.exists()) setGlobalMatchData(snap.data());
+        if (snap.exists()) {
+          const data = snap.data();
+          setGlobalMatchData(data);
+          
+          // АВТОМАТИЧЕСКИЙ ПЕРЕХОД В LIVE ЕСЛИ МАТЧ ИДЕТ СЕЙЧАС
+          if (isMatchLive(data.startTime) && !data.isFinished) {
+            setStep('live');
+          }
+        }
       } finally { setIsGlobalLoading(false); }
     };
     fetchMatch();
@@ -64,20 +73,21 @@ function MatchContent() {
 
   const currentResult = useMemo(() => {
     if (isGlobalLoading) return null;
-    if (globalMatchData && globalMatchData.status === 'finished') {
+    if (globalMatchData && (globalMatchData.status === 'finished' || isMatchLive(globalMatchData.startTime))) {
       const isHome = globalMatchData.homeId === user?.uid;
+      // Если матч еще не финиширован, но Live — используем симуляцию из документа
       return {
         id: globalMatchData.id,
         isHome,
         homeName: globalMatchData.homeName,
         awayName: globalMatchData.awayName,
-        scoreA: globalMatchData.scoreA,
-        scoreB: globalMatchData.scoreB,
+        scoreA: globalMatchData.scoreA || 0,
+        scoreB: globalMatchData.scoreB || 0,
         type: globalMatchData.type || 'league',
         day: globalMatchData.day,
         playedAt: globalMatchData.finishedAt || globalMatchData.startTime,
-        games: globalMatchData.simulation?.games || [globalMatchData.simulation],
-        seriesScore: globalMatchData.simulation?.seriesScore || `${globalMatchData.scoreA}-${globalMatchData.scoreB}`,
+        games: globalMatchData.simulation?.games || globalMatchData.games || [],
+        seriesScore: globalMatchData.simulation?.seriesScore || `${globalMatchData.scoreA || 0}-${globalMatchData.scoreB || 0}`,
         towersA: globalMatchData.simulation?.games?.[0]?.towersA || 0,
         towersB: globalMatchData.simulation?.games?.[0]?.towersB || 0,
       };
@@ -90,13 +100,20 @@ function MatchContent() {
   useEffect(() => {
     if (step !== 'live' || !currentResult || !currentResult.games) return;
     const game = currentResult.games[activeGameIdx];
-    if (!game) return;
+    if (!game) { 
+      // Если это реальный Live, а данных симуляции еще нет
+      if (!isMatchLive(globalMatchData?.startTime)) setStep('stats');
+      return; 
+    }
     const events = (game.timeline || []).filter((e: any) => !!e);
     if (events.length === 0) { setStep('stats'); return; }
     
     setVisibleEvents([]);
     let currentEvt = 0;
-    const intervalMs = 15000 / Math.max(1, events.length);
+    
+    // Если матч уже завершен в прошлом, прокручиваем быстрее. Если Live — медленнее.
+    const isActuallyLive = isMatchLive(globalMatchData?.startTime);
+    const intervalMs = isActuallyLive ? 3000 : (15000 / Math.max(1, events.length));
     
     const timer = setInterval(() => {
       if (currentEvt < events.length) {
@@ -120,7 +137,7 @@ function MatchContent() {
       }
     }, intervalMs);
     return () => clearInterval(timer);
-  }, [step, activeGameIdx, currentResult]);
+  }, [step, activeGameIdx, currentResult, globalMatchData]);
 
   const handleNext = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation(); 
@@ -133,18 +150,20 @@ function MatchContent() {
   };
 
   if (isUserLoading || isGlobalLoading || !isLoaded || !user) return <LoadingScreen />;
-  if (!currentResult) return <div className="p-20 text-center"><p className="text-muted-foreground uppercase text-[10px] font-black">Data error</p></div>;
+  if (!currentResult) return <div className="p-20 text-center"><p className="text-muted-foreground uppercase text-[10px] font-black">Data sync error</p></div>;
+
+  const isActuallyLive = isMatchLive(globalMatchData?.startTime);
 
   const t = {
     en: {
-      reportTitle: "OFFICIAL MATCH DEBRIEF",
-      next: "INITIATE LIVE", skip: "SKIP TO STATS", accept: "FINALIZE REVIEW", exit: "EXIT",
+      reportTitle: isActuallyLive ? "LIVE ENGAGEMENT BROADCAST" : "OFFICIAL MATCH DEBRIEF",
+      next: "INITIATE BROADCAST", skip: "SKIP TO STATS", accept: "FINALIZE REVIEW", exit: "EXIT",
       home: "HOME", away: "AWAY", vs: "VS",
       comparison: "TEAM SKILL ANALYSIS",
       compFarm: "Resource Acquisition", compTactics: "Tactical Execution", compTeam: "Strategic Synergy", compRef: "Combat Reflexes"
     },
     ru: {
-      reportTitle: "ОФИЦИАЛЬНЫЙ ОТЧЕТ",
+      reportTitle: isActuallyLive ? "ПРЯМАЯ ТРАНСЛЯЦИЯ БОЯ" : "ОФИЦИАЛЬНЫЙ ОТЧЕТ",
       next: "В ЭФИР", skip: "К СТАТИСТИКЕ", accept: "ЗАВЕРШИТЬ ПРОСМОТР", exit: "ВЫЙТИ",
       home: "ДОМА", away: "В ГОСТЯХ", vs: "ПРОТИВ",
       comparison: "АНАЛИЗ НАВЫКОВ КОМАНД",
@@ -239,7 +258,10 @@ function MatchContent() {
     >
       <div className="max-w-md mx-auto relative z-10 px-4 pt-6">
         <header className="text-center space-y-4 mb-8">
-          <h1 className="text-sm font-headline font-bold text-white uppercase tracking-tighter">{t.reportTitle}</h1>
+          <div className="flex items-center justify-center gap-2">
+            {isActuallyLive && <Radio className="w-4 h-4 text-red-500 animate-pulse" />}
+            <h1 className="text-sm font-headline font-bold text-white uppercase tracking-tighter">{t.reportTitle}</h1>
+          </div>
           <div className="flex items-center justify-center gap-2 max-w-[240px] mx-auto">
             <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'preview' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
             <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'live' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
@@ -280,7 +302,9 @@ function MatchContent() {
         {step === 'live' && (
           <div className="space-y-4 animate-in slide-in-from-right-4 h-[60vh] flex flex-col duration-500">
             <div className="flex justify-between items-center px-1 mb-2">
-               <Badge className="bg-red-600 text-white animate-pulse text-[8px] font-black uppercase px-3">LIVE: MAP {activeGameIdx + 1}</Badge>
+               <Badge className="bg-red-600 text-white animate-pulse text-[8px] font-black uppercase px-3">
+                 {isActuallyLive ? 'REAL-TIME BROADCAST' : 'LIVE REPLAY'}
+               </Badge>
                <span className="text-[10px] font-mono font-bold text-primary">{currentResult.seriesScore}</span>
             </div>
             <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-hide" ref={scrollRef}>
@@ -296,8 +320,7 @@ function MatchContent() {
                       {event?.score && <div className="flex justify-end"><Badge className="bg-black/40 text-[8px] font-mono font-bold text-white border-white/10">{event.score}</Badge></div>}
                     </div>
                   </CardContent>
-                </Card>
-              ))}
+                ))}
             </div>
           </div>
         )}

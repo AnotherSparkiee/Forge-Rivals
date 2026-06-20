@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v40. Absolute Real-Time Sync.
+ * @fileOverview Ядро времени v41. Absolute Real-Time Sync & NTP Bypass.
  * 
  * Система полностью переведена на реальное время без искусственных смещений.
  * Использует UTC+3 (Москва) как базовый стандарт для всех онлайн-событий.
@@ -27,7 +27,7 @@ export function setServerTime(serverMs: number) {
       perfMs: 0
     };
   }
-  console.log(`[TIME-CORE] Absolute server sync established: ${new Date(serverMs).toISOString()}`);
+  console.log(`[TIME-CORE] Online Sync Established: ${new Date(serverMs).toISOString()}`);
 }
 
 /**
@@ -57,9 +57,6 @@ export function getMoscowTime(): Date {
  * Форматирует время для нижнего терминала: "18.06 22:44:01"
  */
 export function formatTerminalTime(date: Date): string {
-  // Нам нужно отобразить дату как 18.06 ЧЧ:ММ:СС. 
-  // Так как мы уже в МСК через getMoscowTime, используем UTC методы объекта даты, 
-  // чтобы избежать повторного наложения локального часового пояса браузера.
   const day = String(date.getUTCDate()).padStart(2, '0');
   const month = String(date.getUTCMonth() + 1).padStart(2, '0');
   const hours = String(date.getUTCHours()).padStart(2, '0');
@@ -85,7 +82,6 @@ export function getGlobalSeasonInfo() {
   const mskNow = getMoscowTime();
   const epoch = new Date('2026-06-20T00:00:00+03:00');
   
-  // Разница в миллисекундах между "сейчас" и стартом Сезона 1
   const diffMs = mskNow.getTime() - epoch.getTime();
   const totalDaysPassed = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   
@@ -95,11 +91,7 @@ export function getGlobalSeasonInfo() {
   let dayOfCycle: number;
 
   if (diffMs < 0) {
-    // Период до старта самого первого сезона (Offseason S1)
     seasonNumber = 1;
-    // Корректный маппинг дней до эпохи: 
-    // Если сегодня 19.06 (diff ~ -1 день) -> Day 15 (Gen)
-    // Если сегодня 18.06 (diff ~ -2 дня) -> Day 14
     dayOfCycle = 15 + ((totalDaysPassed + 1) % 15);
     if (dayOfCycle === 0) dayOfCycle = 15;
   } else {
@@ -132,10 +124,23 @@ export function getGlobalSeasonInfo() {
   };
 }
 
+/**
+ * Проверяет, просрочен ли матч более чем на 35 минут (длительность симуляции).
+ */
 export function isMatchOverdue(startTimeIso: string): boolean {
   const mskNow = getMoscowTime();
   const start = new Date(startTimeIso);
-  return mskNow.getTime() > (start.getTime() + 2000);
+  return mskNow.getTime() > (start.getTime() + (35 * 60 * 1000));
+}
+
+/**
+ * Проверяет, идет ли матч прямо сейчас (окно 35 минут).
+ */
+export function isMatchLive(startTimeIso: string): boolean {
+  const mskNow = getMoscowTime();
+  const start = new Date(startTimeIso);
+  const end = new Date(start.getTime() + (35 * 60 * 1000));
+  return mskNow.getTime() >= start.getTime() && mskNow.getTime() <= end.getTime();
 }
 
 export function getSeasonDateLabel(dayOfSeason: number, seasonNumber: number = 1): string {

@@ -3,7 +3,7 @@
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { doc, collection, query, where, limit } from 'firebase/firestore';
-import { Gem, Mail, Home, Radio, Bell } from 'lucide-react';
+import { Gem, Mail, Home, Radio, Bell, RefreshCw } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -11,8 +11,8 @@ import { COUNTRIES } from '@/app/lib/countries-data';
 import Link from 'next/link';
 
 /**
- * Верхняя панель v26.
- * Добавлены гарды авторизации для предотвращения Permission Denied.
+ * Верхняя панель v27.
+ * Добавлен индикатор Online-синхронизации.
  */
 export function TopBar() {
   const pathname = usePathname();
@@ -102,7 +102,10 @@ export function TopBar() {
               </div>
             </div>
           </div>
-          {isSyncing && <Radio className="w-3.5 h-3.5 text-accent shrink-0 animate-pulse" />}
+          <div className="flex items-center gap-1">
+             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
+             <RefreshCw className="w-3 h-3 text-muted-foreground animate-spin [animation-duration:3s]" />
+          </div>
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
