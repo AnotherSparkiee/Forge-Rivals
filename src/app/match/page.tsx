@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { useGameState, checkIsMatchFinished } from '../lib/store';
+import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -19,7 +19,6 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { doc, getDoc } from 'firebase/firestore';
-import { COUNTRIES } from '../lib/countries-data';
 import { Progress } from '@/components/ui/progress';
 
 type MatchStep = 'preview' | 'live' | 'stats';
@@ -31,7 +30,7 @@ function MatchContent() {
   const db = useFirestore();
   const { 
     language, isLoaded, markMatchIdAsSeen,
-    matchHistory, arena, ownedHeroes
+    matchHistory
   } = useGameState();
 
   const matchIdFromUrl = searchParams.get('id');
@@ -92,9 +91,11 @@ function MatchContent() {
     if (!game) return;
     const events = (game.timeline || []).filter((e: any) => !!e);
     if (events.length === 0) { setStep('stats'); return; }
+    
     setVisibleEvents([]);
-    const intervalMs = 15000 / Math.max(1, events.length);
     let currentEvt = 0;
+    const intervalMs = 15000 / Math.max(1, events.length);
+    
     const timer = setInterval(() => {
       if (currentEvt < events.length) {
         setVisibleEvents(prev => [...prev, events[currentEvt]]);
@@ -103,8 +104,17 @@ function MatchContent() {
       } else {
         clearInterval(timer);
         if (activeGameIdx < currentResult.games.length - 1) {
-          setTimeout(() => { setIsTransitioning(true); setTimeout(() => { setActiveGameIdx(prev => prev + 1); setVisibleEvents([]); setIsTransitioning(false); }, 1500); }, 1000);
-        } else { setTimeout(() => setStep('stats'), 1500); }
+          setTimeout(() => { 
+            setIsTransitioning(true); 
+            setTimeout(() => { 
+              setActiveGameIdx(prev => prev + 1); 
+              setVisibleEvents([]); 
+              setIsTransitioning(false); 
+            }, 1000); 
+          }, 1000);
+        } else { 
+          setTimeout(() => setStep('stats'), 1500); 
+        }
       }
     }, intervalMs);
     return () => clearInterval(timer);
@@ -114,10 +124,11 @@ function MatchContent() {
     if (e) e.stopPropagation(); 
     if (step === 'preview') setStep('live');
     else if (step === 'live') setStep('stats'); 
-    else { if (currentResult) markMatchIdAsSeen(currentResult.id); router.push('/'); }
+    else { 
+      if (currentResult) markMatchIdAsSeen(currentResult.id); 
+      router.push('/'); 
+    }
   };
-
-  const handleGlobalClick = () => { if (step !== 'stats') handleNext(); };
 
   if (isUserLoading || isGlobalLoading || !isLoaded || !user) return <LoadingScreen />;
   if (!currentResult) return <div className="p-20 text-center"><p className="text-muted-foreground uppercase text-[10px] font-black">Data error</p></div>;
@@ -147,7 +158,7 @@ function MatchContent() {
     const awayHeroes = scoreboard.filter((p: any) => p.team === aName);
 
     const renderHeroRow = (p: any, side: 'left' | 'right') => (
-      <div key={p.name} className={cn("flex items-center gap-3 p-2.5 rounded-lg border border-white/5 bg-secondary/10", p.isPro && "border-yellow-500/30", side === 'right' ? "flex-row-reverse text-right" : "text-left")}>
+      <div key={p.name} className={cn("flex items-center gap-3 p-2.5 rounded-lg border border-white/5 bg-secondary/10", p.isPro && "border-yellow-500/30 shadow-[0_0_10px_rgba(234,179,8,0.1)]", side === 'right' ? "flex-row-reverse text-right" : "text-left")}>
         <div className="relative shrink-0">
           <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10 bg-background flex items-center justify-center">
             {p.image ? <img src={p.image} alt="" className="w-full h-full object-cover" /> : <User className="w-5 h-5 text-muted-foreground" />}
@@ -168,11 +179,11 @@ function MatchContent() {
       <div className="space-y-8">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <p className="text-[8px] font-black uppercase tracking-widest text-primary mb-2 flex items-center gap-2"><ShieldCheck className="w-3 h-3" /> {t.home}</p>
+            <p className="text-[8px] font-black uppercase tracking-widest text-primary mb-2 flex items-center gap-2 px-1"><ShieldCheck className="w-3 h-3" /> {t.home}</p>
             {homeHeroes.map(p => renderHeroRow(p, 'left'))}
           </div>
           <div className="space-y-2">
-            <p className="text-[8px] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2 justify-end">{t.away} <Swords className="w-3 h-3" /></p>
+            <p className="text-[8px] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2 justify-end px-1">{t.away} <Swords className="w-3 h-3" /></p>
             {awayHeroes.map(p => renderHeroRow(p, 'right'))}
           </div>
         </div>
@@ -180,17 +191,17 @@ function MatchContent() {
         {game.teamComparison && (
           <section className="space-y-4">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-accent text-center">{t.comparison}</h3>
-            <div className="space-y-3 bg-secondary/20 p-4 rounded-2xl border border-white/5">
+            <div className="space-y-4 bg-secondary/20 p-5 rounded-2xl border border-white/5">
               {[
-                { label: t.compFarm, key: 'farm' },
-                { label: t.compTactics, key: 'tactics' },
-                { label: t.compTeam, key: 'teamwork' },
-                { label: t.compRef, key: 'reflexes' }
+                { label: t.compFarm, key: 'farm', icon: Coins },
+                { label: t.compTactics, key: 'tactics', icon: Target },
+                { label: t.compTeam, key: 'teamwork', icon: Users },
+                { label: t.compRef, key: 'reflexes', icon: Zap }
               ].map(stat => (
                 <div key={stat.key} className="space-y-1.5">
                   <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-tighter">
                     <span className="text-primary">TEAM A: {game.teamComparison[stat.key][0]}%</span>
-                    <span className="text-muted-foreground">{stat.label}</span>
+                    <span className="text-muted-foreground flex items-center gap-1"><stat.icon className="w-2.5 h-2.5" /> {stat.label}</span>
                     <span className="text-accent">TEAM B: {game.teamComparison[stat.key][1]}%</span>
                   </div>
                   <div className="h-1.5 w-full bg-secondary/50 rounded-full flex overflow-hidden">
@@ -206,20 +217,27 @@ function MatchContent() {
     );
   };
 
+  const Coins = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18.06"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg>
+  );
+
   return (
-    <div className="min-h-screen bg-background text-foreground pb-32 relative overflow-hidden" onClick={handleGlobalClick}>
+    <div 
+      className="min-h-screen bg-background text-foreground pb-32 relative overflow-hidden" 
+      onClick={() => { if (step !== 'stats') handleNext(); }}
+    >
       <div className="max-w-md mx-auto relative z-10 px-4 pt-6">
         <header className="text-center space-y-4 mb-8">
           <h1 className="text-sm font-headline font-bold text-white uppercase tracking-tighter">{t.reportTitle}</h1>
           <div className="flex items-center justify-center gap-2 max-w-[240px] mx-auto">
-            <div className={cn("h-1 flex-1 rounded-full", step === 'preview' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
-            <div className={cn("h-1 flex-1 rounded-full", step === 'live' ? "bg-primary" : "bg-primary/20")} />
-            <div className={cn("h-1 flex-1 rounded-full", step === 'stats' ? "bg-primary" : "bg-primary/20")} />
+            <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'preview' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
+            <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'live' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
+            <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'stats' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
           </div>
         </header>
 
         {step === 'preview' && (
-          <div className="space-y-6 animate-in fade-in zoom-in-95">
+          <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
             <Card className="glass-card border-white/10 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden">
               <div className="grid grid-cols-2 divide-x divide-white/5">
                 <div className="p-6 flex flex-col items-center gap-3 text-center">
@@ -244,24 +262,26 @@ function MatchContent() {
                 <p className="text-lg font-headline font-bold text-white uppercase">{currentResult.type}</p>
               </div>
             </div>
-            <p className="text-[8px] text-center text-muted-foreground uppercase font-black animate-pulse pt-8">CLICK ANYWHERE TO CONTINUE</p>
+            <p className="text-[8px] text-center text-muted-foreground uppercase font-black animate-pulse pt-8 tracking-[0.3em]">CLICK ANYWHERE TO CONTINUE</p>
           </div>
         )}
 
         {step === 'live' && (
-          <div className="space-y-4 animate-in slide-in-from-right-4 h-[60vh] flex flex-col">
+          <div className="space-y-4 animate-in slide-in-from-right-4 h-[60vh] flex flex-col duration-500">
             <div className="flex justify-between items-center px-1 mb-2">
-               <Badge className="bg-red-600 text-white animate-pulse text-[8px] font-black uppercase">LIVE: MAP {activeGameIdx + 1}</Badge>
+               <Badge className="bg-red-600 text-white animate-pulse text-[8px] font-black uppercase px-3">LIVE: MAP {activeGameIdx + 1}</Badge>
                <span className="text-[10px] font-mono font-bold text-primary">{currentResult.seriesScore}</span>
             </div>
             <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-hide" ref={scrollRef}>
               {visibleEvents.map((event, i) => (
-                <Card key={i} className="glass-card border-white/5 bg-secondary/10">
+                <Card key={i} className="glass-card border-white/5 bg-secondary/10 animate-in fade-in slide-in-from-bottom-1">
                   <CardContent className="p-3 flex gap-4">
-                    <div className="w-12 shrink-0 flex flex-col items-center justify-center border-r border-white/5 pr-2"><span className="text-[9px] font-mono font-bold text-accent">{event.time}</span></div>
+                    <div className="w-12 shrink-0 flex flex-col items-center justify-center border-r border-white/5 pr-2">
+                      <span className="text-[9px] font-mono font-bold text-accent">{event?.time}</span>
+                    </div>
                     <div className="flex-1 space-y-2">
-                      <p className="text-xs leading-relaxed text-muted-foreground">{event.event}</p>
-                      {event.score && <div className="flex justify-end"><Badge className="bg-black/40 text-[8px] font-mono font-bold text-white border-white/10">{event.score}</Badge></div>}
+                      <p className="text-xs leading-relaxed text-muted-foreground italic">"{event?.event}"</p>
+                      {event?.score && <div className="flex justify-end"><Badge className="bg-black/40 text-[8px] font-mono font-bold text-white border-white/10">{event.score}</Badge></div>}
                     </div>
                   </CardContent>
                 </Card>
@@ -271,7 +291,7 @@ function MatchContent() {
         )}
 
         {step === 'stats' && (
-          <div className="space-y-6 animate-in slide-in-from-right-4 pb-12">
+          <div className="space-y-6 animate-in slide-in-from-right-4 pb-20 duration-500">
             <div className="text-center py-4">
               <div className="text-5xl font-headline font-black italic tracking-tighter flex items-center justify-center gap-4 text-white">
                 <span className={cn(currentResult.scoreA > currentResult.scoreB && "text-primary")}>{currentResult.scoreA}</span>
@@ -289,12 +309,22 @@ function MatchContent() {
               {currentResult.games.map((game: any, idx: number) => (
                 <TabsContent key={idx} value={`map${idx+1}`} className="space-y-6" onClick={(e) => e.stopPropagation()}>
                   <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl text-center">
-                    <p className="text-[9px] text-primary/60 italic">"{game.matchSummary}"</p>
+                    <p className="text-[9px] text-primary/60 italic leading-relaxed">"{game.matchSummary}"</p>
                   </div>
                   {renderStatsTable(game)}
                 </TabsContent>
               ))}
             </Tabs>
+
+            <div className="pt-10">
+               <Button 
+                className="w-full h-14 hero-gradient font-black text-xs tracking-widest uppercase shadow-2xl active:scale-95 transition-all"
+                onClick={handleNext}
+               >
+                 <Check className="w-4 h-4 mr-2" />
+                 {t.accept}
+               </Button>
+            </div>
           </div>
         )}
       </div>
