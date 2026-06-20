@@ -1,10 +1,8 @@
-
 'use client';
 
 /**
- * Слушатель товарищеских и пробных матчей v9.
- * Исправлено: теперь подтягивает реальный состав соперника-человека.
- * Ускорена обработка для улучшения UX.
+ * @fileOverview Слушатель товарищеских и пробных матчей v10.
+ * Реализован глубокий сбор данных соперника (состав, тактика, бонусы).
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -23,8 +21,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import { getMatchResult } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const FRIENDLY_DURATION_MS = 60 * 1000; // 1 минута для товарищеских
-const TRIAL_DURATION_MS = 1000; // Мгновенно для пробных
+const FRIENDLY_DURATION_MS = 60 * 1000; 
+const TRIAL_DURATION_MS = 1000;
 
 function sanitizeForFirestore(obj: any) {
   if (!obj) return null;
@@ -158,27 +156,34 @@ export function FriendlyMatchListener() {
     try {
       const lobbyRef = doc(db, 'friendly_lobbies_v3', activeLobby.id);
       if (accept) {
-        // 1. Get Host Squad
+        // 1. Host Data (Core Squad & Bonuses)
         const squadA = ownedPlayers.filter(p => Object.values(lineup).includes(p.id)).map(p => ({
           name: p.name, role: p.role, overallRating: p.overallRating, proStats: p.proStats,
           isSub: p.id === lineup.sub1 || p.id === lineup.sub2
         }));
 
         if (squadA.length < 5) {
-          toast({ title: language === 'ru' ? "Недостаточно игроков" : "Incomplete Squad", variant: "destructive" });
+          toast({ title: language === 'ru' ? "Недостаточно игроков в основе" : "Incomplete Core Squad", variant: "destructive" });
           setIsActionLoading(false);
           setShowChallengeModal(false);
           return;
         }
 
+        const infraBonusA = (bootcamp?.bootcampLevel || 0) + (bootcamp?.tacticsHallLevel || 0);
+        const staffBonusA = (staff?.coach?.skills?.primary || 0);
+
         let squadB: any[] = [];
         let strategyB = "Balanced Play";
+        let infraBonusB = 0;
+        let staffBonusB = 0;
 
-        // 2. Get Challenger Squad
+        // 2. Challenger Data
         if (activeLobby.isTrial) {
           squadB = generateBotSquad(25);
+          infraBonusB = 5;
+          staffBonusB = 5;
         } else {
-          // Fetch real squad from challenger
+          // Fetch real stats from opponent's team record
           const challengerProfileSnap = await getDoc(doc(db, 'players_v10', activeLobby.challengerId));
           if (challengerProfileSnap.exists()) {
             const cp = challengerProfileSnap.data();
@@ -193,9 +198,12 @@ export function FriendlyMatchListener() {
             ]);
 
             if (teamSnap.exists()) {
-              const teamData = teamSnap.data();
-              strategyB = teamData.strategy || "Balanced Play";
-              const cLineup = teamData.lineup || {};
+              const td = teamSnap.data();
+              strategyB = td.strategy || "Balanced Play";
+              infraBonusB = (td.bootcamp?.bootcampLevel || 0) + (td.bootcamp?.tacticsHallLevel || 0);
+              staffBonusB = (td.staff?.coach?.skills?.primary || 0);
+              
+              const cLineup = td.lineup || {};
               const allHeroes = heroesSnap.docs.map(d => ({ ...d.data(), id: d.id }));
               squadB = allHeroes.filter(h => Object.values(cLineup).includes(h.id)).map((h: any) => ({
                 name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
@@ -205,17 +213,14 @@ export function FriendlyMatchListener() {
           }
         }
 
-        // Fallback for B if empty
+        // Fallback if squad B is still empty
         if (squadB.length < 5) squadB = generateBotSquad(20);
 
-        const infraBonus = (bootcamp?.bootcampLevel || 0) + (bootcamp?.tacticsHallLevel || 0);
-        const staffBonus = (staff?.coach?.skills?.primary || 0) + (staff?.analyst?.skills?.secondary || 0);
-        
         const [sA, sB] = getMatchResult(activeLobby.hostId, activeLobby.challengerId || "bot", 0, 1);
 
         const result = await simulateMobaMatch({
-          teamA: { name: activeLobby.hostName, strategy, heroes: squadA, infraBonus, staffBonus },
-          teamB: { name: activeLobby.challengerName || "AI Trainer", strategy: strategyB, heroes: squadB, infraBonus: 10, staffBonus: 10 },
+          teamA: { name: activeLobby.hostName, strategy, heroes: squadA, infraBonus: infraBonusA, staffBonus: staffBonusA },
+          teamB: { name: activeLobby.challengerName || "Rival", strategy: strategyB, heroes: squadB, infraBonus: infraBonusB, staffBonus: staffBonusB },
           isBo2: true, scoreA: sA, scoreB: sB
         });
         
@@ -233,8 +238,8 @@ export function FriendlyMatchListener() {
         await updateDoc(lobbyRef, { status: 'rejected', updatedAt: serverTimestamp() });
       }
     } catch (e) {
-      console.error("Failed to start friendly match", e);
-      toast({ variant: "destructive", title: "Match Initialization Failed" });
+      console.error("Friendly Match Engine failed", e);
+      toast({ variant: "destructive", title: "Match Sync Failed" });
     } finally { 
       setIsActionLoading(false); 
       setShowChallengeModal(false); 
@@ -243,7 +248,7 @@ export function FriendlyMatchListener() {
 
   const t = {
     hostTitle: language === 'ru' ? "ПОЛУЧЕН ВЫЗОВ" : "CHALLENGE RECEIVED",
-    hostDesc: language === 'ru' ? `Менеджер ${activeLobby?.challengerName} хочет провести матч.` : `Manager ${activeLobby?.challengerName} wants a match.`,
+    hostDesc: language === 'ru' ? `Менеджер ${activeLobby?.challengerName} запрашивает тактическую проверку.` : `Manager ${activeLobby?.challengerName} requests tactical verification.`,
     accept: language === 'ru' ? "ПРИНЯТЬ" : "ACCEPT", decline: language === 'ru' ? "ОТКЛОНИТЬ" : "DECLINE",
   };
 

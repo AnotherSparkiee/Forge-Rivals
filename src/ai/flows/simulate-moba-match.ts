@@ -1,12 +1,12 @@
 'use server';
 /**
- * @fileOverview Ядро симуляции матчей Lines of Enmity v3.4.
+ * @fileOverview Ядро симуляции матчей Lines of Enmity v3.5.
  * 
  * Особенности:
- * 1. Учет контроля объектов (Башни, Рошан/Лорд).
- * 2. Индивидуальные рейтинги игроков за матч (1.0 - 10.0).
- * 3. Логика влияния синергии состава.
- * 4. Расширенная генерация событий с привязкой к ролям.
+ * 1. Учет характеристик реальных игроков основы (Carry, Mid, Tank, Jungler, Support).
+ * 2. Влияние стратегии команды на агрессию и фарм.
+ * 3. Расчет потенциала с учетом бонусов инфраструктуры и персонала.
+ * 4. Генерация детального Scoreboard с индивидуальными рейтингами за матч.
  */
 
 import {ai} from '@/ai/genkit';
@@ -39,10 +39,10 @@ const HeroStatsSchema = z.object({
 const TeamSchema = z.object({
   name: z.string(),
   heroes: z.array(HeroStatsSchema),
-  strategy: z.string().describe('Агрессивный, Сбалансированный, Сдержанный, Быстрый_Пуш, Контр-атака'),
-  infraBonus: z.number().optional().describe('Бонус от уровня Буткемпа и Зала Тактики'),
-  staffBonus: z.number().optional().describe('Бонус от навыков Тренера и Аналитика'),
-  synergy: z.number().optional().describe('Уровень сыгранности состава (0-100)'),
+  strategy: z.string().describe('Aggressive, Balanced, Defensive, Fast_Push, Counter-attack'),
+  infraBonus: z.number().optional().describe('Bonus from Bootcamp/Tactics Hall'),
+  staffBonus: z.number().optional().describe('Bonus from Coach/Analyst skills'),
+  synergy: z.number().optional().describe('Team cohesion level (0-100)'),
 });
 
 const SimulateMobaMatchInputSchema = z.object({
@@ -84,8 +84,6 @@ const GameStatsSchema = z.object({
     matchRating: z.number(),
     kdaRatio: z.string(),
     isPro: z.boolean().optional(),
-    injured: z.boolean().optional(),
-    injuryDays: z.number().optional(),
   })),
   teamComparison: z.object({
     farm: z.array(z.number()),
@@ -147,9 +145,9 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
   power *= (infraMultiplier * staffMultiplier * synergyMultiplier);
 
   const strat = (team.strategy || "").toLowerCase();
-  if (strat.includes('агрессивный')) power *= 1.08;
-  if (strat.includes('сдержанный')) power *= 0.98;
-  if (strat.includes('пуш')) power *= 1.05;
+  if (strat.includes('aggressive')) power *= 1.08;
+  if (strat.includes('defensive')) power *= 0.98;
+  if (strat.includes('push')) power *= 1.05;
 
   return { power, stats };
 }
@@ -179,7 +177,7 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
   allPlayers.forEach(p => {
     scoreboardMap.set(p.name, { 
       id: p.id, name: p.name, team: p.team, role: p.role, image: p.image, 
-      kills: 0, deaths: 0, assists: 0, cs: 0, isPro: p.isPro, injured: false, injuryDays: 0,
+      kills: 0, deaths: 0, assists: 0, cs: 0, isPro: p.isPro,
       matchRating: 6.0
     });
   });
@@ -205,7 +203,7 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
     
     const roll = Math.random();
     
-    // ФАРМ ФАЗА
+    // FARM PHASE
     if (isEarly && roll < 0.7) {
       const s = scoreboardMap.get(actor.name);
       if (s) {
@@ -213,7 +211,7 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
         s.matchRating += 0.05;
       }
     } 
-    // ОБЪЕКТЫ / ВЫШКИ
+    // OBJECTIVES / TOWERS
     else if (roll > 0.9) {
       const isA = activeTeam.name === input.teamA.name;
       const type = Math.random() > 0.4 ? 'tower' : 'objective';
@@ -235,7 +233,7 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
       const s = scoreboardMap.get(actor.name);
       if (s) s.matchRating += 0.5;
     }
-    // БОЙ
+    // COMBAT
     else {
       const attackPower = actor.proStats.reflexes + actor.proStats.ganking;
       const defensePower = target.proStats.positioning + target.proStats.mapAwareness;
@@ -260,22 +258,11 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
             st.matchRating -= 0.5;
             if (activeTeam.name === input.teamA.name) killsA++; else killsB++;
             
-            const injuryChance = 0.015 + (activeTeam.strategy.toLowerCase().includes('агрессив') ? 0.02 : 0);
-            if (Math.random() < injuryChance) {
-              st.injured = true;
-              st.injuryDays = 2 + Math.floor(Math.random() * 4);
-              timeline.push({ 
-                time: `${m}:00`, type: 'injury', 
-                event: `ОПАСНЫЙ МОМЕНТ! ${target.name} получает повреждение и покидает арену.`, 
-                score: `${killsA}:${killsB}` 
-              });
-            } else {
-              timeline.push({ 
-                time: `${m}:00`, type: 'kill', 
-                event: `${actor.name} исполняет точный маневр и ликвидирует ${target.name}!`, 
-                score: `${killsA}:${killsB}` 
-              });
-            }
+            timeline.push({ 
+              time: `${m}:00`, type: 'kill', 
+              event: `${actor.name} исполняет точный маневр и ликвидирует ${target.name}!`, 
+              score: `${killsA}:${killsB}` 
+            });
 
             activeHeroes.filter(h => h.name !== actor.name).slice(0, 2).forEach(ah => {
               const sa = scoreboardMap.get(ah.name);

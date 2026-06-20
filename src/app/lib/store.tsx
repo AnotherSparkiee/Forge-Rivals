@@ -1,8 +1,7 @@
 'use client';
 
 /**
- * Глобальное хранилище v59 (Standardized to Players). 
- * Исправлены ошибки limit, nextMatchInfo и ReferenceError.
+ * Глобальное хранилище v60 (Improved recordMatch logic). 
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
