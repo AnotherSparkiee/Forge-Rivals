@@ -1,8 +1,9 @@
+
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v4.1.
- * Отображает обоснованную статистику и детальные рейтинги игроков.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v4.2.
+ * Отображает обоснованную статистику, детальные рейтинги и последствия матча для игроков.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -18,7 +19,7 @@ import {
   User, ShieldAlert, Info, Users,
   Timer, ChevronRight, Crown,
   Skull, Activity as ActivityIcon, Castle, Radio,
-  Package, Sparkles, Flame
+  Package, Sparkles, Flame, HeartPulse, GraduationCap
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -102,7 +103,7 @@ function MatchContent() {
           setTimeout(() => setStep('stats'), 1500); 
         }
       }
-    }, 1200);
+    }, 800); // Accelerated replay
     return () => clearInterval(timer);
   }, [step, activeGameIdx, currentSimulation]);
 
@@ -125,6 +126,7 @@ function MatchContent() {
       next: "WATCH TRANSCRIPTION", skip: "SKIP TO STATS", accept: "FINALIZE REVIEW", exit: "EXIT",
       home: "HOME", away: "AWAY", vs: "VS",
       comparison: "TEAM SKILL ANALYSIS",
+      progression: "POST-MATCH IMPACT",
       compFarm: "Resource Acquisition", compTactics: "Tactical Execution", compTeam: "Strategic Synergy", compRef: "Combat Reflexes"
     },
     ru: {
@@ -132,6 +134,7 @@ function MatchContent() {
       next: "СМОТРЕТЬ ПОВТОР", skip: "К СТАТИСТИКЕ", accept: "ЗАВЕРШИТЬ ПРОСМОТР", exit: "ВЫЙТИ",
       home: "ДОМА", away: "В ГОСТЯХ", vs: "ПРОТИВ",
       comparison: "АНАЛИЗ НАВЫКОВ КОМАНД",
+      progression: "ПОСЛЕМАТЧЕВЫЙ ОТЧЕТ",
       compFarm: "Сбор ресурсов", compTactics: "Тактическая точность", compTeam: "Командная синергия", compRef: "Боевые рефлексы"
     }
   }[language as 'en' | 'ru'] || { reportTitle: "Report" };
@@ -218,6 +221,34 @@ function MatchContent() {
             </div>
           </section>
         )}
+
+        {matchData.consequences && matchData.consequences.length > 0 && (
+          <section className="space-y-4 pt-4">
+             <h3 className="text-[11px] font-black uppercase tracking-widest text-primary text-center flex items-center justify-center gap-2 bg-primary/5 py-2 rounded-xl">
+               <GraduationCap className="w-4 h-4" /> {t.progression}
+             </h3>
+             <div className="grid gap-2">
+               {matchData.consequences.map((cons: any, idx: number) => (
+                 <div key={idx} className="bg-secondary/30 p-3 rounded-2xl border border-white/5 flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase text-white">{cons.name}</span>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1">
+                        <Zap className="w-3 h-3 text-primary" />
+                        <span className="text-[10px] font-black text-primary">+{cons.xp} XP</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <HeartPulse className="w-3 h-3 text-accent" />
+                        <span className="text-[10px] font-black text-accent">+{cons.fatigue}%</span>
+                      </div>
+                      {cons.injured && (
+                        <Badge className="bg-red-600 text-white text-[7px] font-black uppercase px-2 animate-pulse">INJURED</Badge>
+                      )}
+                    </div>
+                 </div>
+               ))}
+             </div>
+          </section>
+        )}
       </div>
     );
   };
@@ -264,7 +295,7 @@ function MatchContent() {
               <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 text-center">
                 <Castle className="w-5 h-5 text-yellow-500 mx-auto mb-2" />
                 <p className="text-[8px] font-black text-muted-foreground uppercase">TOWER CONTROL</p>
-                <p className="text-lg font-headline font-bold text-white">{matchData.towersA || 0} : {matchData.towersB || 0}</p>
+                <p className="text-lg font-headline font-bold text-white">{matchData.scoreA || 0} : {matchData.scoreB || 0}</p>
               </div>
               <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 text-center">
                 <Target className="w-5 h-5 text-accent mx-auto mb-2" />

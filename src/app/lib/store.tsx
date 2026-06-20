@@ -1,12 +1,14 @@
+
 'use client';
 
 /**
- * Глобальное хранилище v60 (Improved recordMatch logic). 
+ * Глобальное хранилище v61 (Full Progression & Consequences). 
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
 import { Player, StaffMember, StaffRole, generateScoutedPlayer } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, setServerTime } from './time-utils';
+import { calculateXpGain } from './xp-utils';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, arrayUnion, getDoc, updateDoc, limit } from 'firebase/firestore';
 
@@ -215,7 +217,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const updatePlayer = (id: string, data: Partial<Player>, cr = 0, cy = 0) => {
     const r = getRefs(); if (!r) return;
     updateDoc(doc(collection(r.team, 'heroes'), id), data);
-    if (cr || cy) updateDoc(r.team, { credits: stateRef.current.credits - cr, crystals: stateRef.current.crystals - cy });
+    if (cr || cy) updateDoc(r.team, { credits: Math.max(0, stateRef.current.credits - cr), crystals: Math.max(0, stateRef.current.crystals - cy) });
   };
 
   const removePlayer = (id: string, refund: number) => {
@@ -274,7 +276,58 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const recordMatch = (w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string) => {
     const r = getRefs(); if (!r) return; 
     const id = mId || `match_${Date.now()}`;
-    const entry = { id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, opponentName: opp, type: t, playedAt: p, reward: rew, simulation: res, seen: false };
+    
+    // PROGRESSION LOGIC
+    const participants = res.games[0].scoreboard.filter((p: any) => p.team === stateRef.current.displayName);
+    const consequences: any[] = [];
+    
+    participants.forEach((hero: any) => {
+      const realHero = stateRef.current.ownedPlayers.find(h => h.name === hero.name);
+      if (realHero) {
+        const rating = hero.matchRating || 6.0;
+        const xpGain = calculateXpGain({
+          activity: t as any,
+          currentValue: realHero.overallRating,
+          talentValue: Math.max(...Object.values(realHero.proTalents).map(v => Number(v))),
+          infra: { bootcamp: stateRef.current.bootcamp?.bootcampLevel || 0, research: 0, psychologist: 0 },
+          matchResult: { win: w === stateRef.current.displayName, mvp: res.games[0].mvp === hero.name, matchRating: rating },
+          matchesToday: (realHero.matchesPlayedToday || 0) + 1,
+          isPro: realHero.isPro
+        });
+
+        // Increase fatigue
+        const fatigueInc = 15 + Math.floor(Math.random() * 8);
+        const newFatigue = Math.min(100, (realHero.fatigue || 0) + fatigueInc);
+        
+        // Random Injury chance based on fatigue
+        let injuryUntil = null;
+        if (newFatigue > 70 && Math.random() < (newFatigue / 400)) {
+          const hours = 12 + Math.floor(Math.random() * 24);
+          injuryUntil = new Date(Date.now() + hours * 3600000).toISOString();
+        }
+
+        const focus = realHero.trainingFocus || 'lastHitting';
+        const currentStat = (realHero.proStats as any)[focus] || 50;
+        const newStat = Math.min(100, currentStat + (xpGain / 200));
+
+        updatePlayer(realHero.id, { 
+          fatigue: newFatigue,
+          isInjured: !!injuryUntil,
+          injuredUntil: injuryUntil,
+          proStats: { ...realHero.proStats, [focus]: newStat },
+          overallRating: Math.floor(newStat * 0.8 + 10) // Simplified OVR sync
+        });
+
+        consequences.push({ name: hero.name, xp: xpGain, fatigue: fatigueInc, injured: !!injuryUntil });
+      }
+    });
+
+    const entry = { 
+      id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, 
+      opponentName: opp, type: t, playedAt: p, reward: rew, 
+      simulation: res, seen: false, consequences 
+    };
+
     updateDoc(r.team, { credits: stateRef.current.credits + rew, matchHistory: arrayUnion(entry) });
   };
 

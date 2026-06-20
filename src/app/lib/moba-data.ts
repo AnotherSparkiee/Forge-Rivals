@@ -1,3 +1,4 @@
+
 export type Role = 'Tank' | 'Carry' | 'Support' | 'Midlaner' | 'Jungler';
 
 export interface Player {
@@ -105,6 +106,11 @@ const PLAYER_NAMES = [
 
 const FIRST_NAMES = ["James", "Robert", "John", "Michael", "David", "William", "Richard", "Joseph", "Thomas", "Charles", "Viktor", "Dmitry", "Hans", "Lee", "Chen", "Artyom"];
 const LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Ivanov", "Petrov", "Schmidt", "Wang", "Kim", "Park", "Sokolov"];
+
+const BOT_TEAM_NAMES = [
+  "Neon Phantoms", "Cyber Guard", "Iron Titans", "Global Blitz", "Static Wraiths",
+  "Delta Force", "Apex Hunters", "Void Walkers", "Cyber Synapse", "Rogue Unit"
+];
 
 class SeededRandom {
   private seed: number;
@@ -263,6 +269,10 @@ export function generateBotSquad(targetOvr: number = 22): any[] {
       isSub: false
     };
   });
+}
+
+export function getRandomBotTeamName(): string {
+  return BOT_TEAM_NAMES[Math.floor(Math.random() * BOT_TEAM_NAMES.length)];
 }
 
 export function getRandomStartingSquad(): Player[] {
