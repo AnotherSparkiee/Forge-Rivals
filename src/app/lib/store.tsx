@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * Глобальное хранилище v67 (Assertion Stability Update). 
+ * Глобальное хранилище v68 (Performance & Reactivity Update). 
+ * Оптимизировано для мгновенного отклика интерфейса.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -101,23 +102,24 @@ const DEFAULT_STATE: GameState = {
   payStaffSalaries: async () => {}, healPlayer: () => {}, launchFanCampaign: () => {}
 };
 
-const GameStateContext = createContext<GameState | undefined>(undefined);
+const GameStateContext = createContext<GameState | undefined>(DEFAULT_STATE);
 
 export function GameStateProvider({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
-  const [isMatchesReady, setIsMatchesReady] = useState(false);
   const [allMatches, setAllMatches] = useState<any[]>([]);
+  const [isMatchesReady, setIsMatchesReady] = useState(false);
   
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
+  // Unified Time Sync
   useEffect(() => {
     if (!db) return;
     const syncTime = async () => {
       const response = await fetch('https://worldtimeapi.org/api/timezone/Europe/Moscow', { cache: 'no-store' }).catch(() => null);
-      if (response && response.ok) {
+      if (response?.ok) {
         const data = await response.json();
         setServerTime(new Date(data.datetime).getTime());
       }
@@ -125,6 +127,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     syncTime();
   }, [db]);
 
+  // Profile Listener
   useEffect(() => {
     if (isUserLoading || !user?.uid) return;
     const rootRef = doc(db, 'players_v10', user.uid);
@@ -145,6 +148,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsub(); };
   }, [user?.uid, isUserLoading, db]);
 
+  // Team Details Listener
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.id || !state.selectedLeagueId) return;
     const info = getGlobalSeasonInfo();
@@ -191,7 +195,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsubTeam(); playersUnsub(); staffUnsub(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
-  // Слушатель для всех матчей текущего сезона из глобальной коллекции matches_v1
+  // Global Matches Listener
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
     const info = getGlobalSeasonInfo();
@@ -206,6 +210,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsub(); };
   }, [db, state.id, state.selectedLeagueId, state.groupId, state.isLoaded, isUserLoading, user?.uid]);
 
+  // Ref-based helper to get stable paths
   const getRefs = useCallback(() => {
     const s = stateRef.current;
     if (!user?.uid || !s.selectedLeagueId) return null;
@@ -218,76 +223,74 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     };
   }, [user?.uid, db]);
 
-  const addCrystals = (amount: number) => { const r = getRefs(); if (r) updateDoc(r.team, { crystals: Math.max(0, stateRef.current.crystals + amount) }); };
-  const addCredits = (amount: number) => { const r = getRefs(); if (r) updateDoc(r.team, { credits: Math.max(0, stateRef.current.credits + amount) }); };
+  // Stabilized Action Functions
+  const addCrystals = useCallback((amount: number) => { const r = getRefs(); if (r) updateDoc(r.team, { crystals: Math.max(0, stateRef.current.crystals + amount) }); }, [getRefs]);
+  const addCredits = useCallback((amount: number) => { const r = getRefs(); if (r) updateDoc(r.team, { credits: Math.max(0, stateRef.current.credits + amount) }); }, [getRefs]);
   
-  const updatePlayer = (id: string, data: Partial<Player>, cr = 0, cy = 0) => {
+  const updatePlayer = useCallback((id: string, data: Partial<Player>, cr = 0, cy = 0) => {
     const r = getRefs(); if (!r) return;
     updateDoc(doc(collection(r.team, 'heroes'), id), data);
     if (cr || cy) updateDoc(r.team, { credits: Math.max(0, stateRef.current.credits - cr), crystals: Math.max(0, stateRef.current.crystals - cy) });
-  };
+  }, [getRefs]);
 
-  const removePlayer = (id: string, refund: number) => {
+  const removePlayer = useCallback((id: string, refund: number) => {
     const r = getRefs(); if (!r) return;
     deleteDoc(doc(collection(r.team, 'heroes'), id));
     if (refund > 0) updateDoc(r.team, { credits: stateRef.current.credits + refund });
-  };
+  }, [getRefs]);
 
-  const assignToRole = (role: LineupSlot, playerId: string | null) => { const r = getRefs(); if (r) updateDoc(r.team, { [`lineup.${role}`]: playerId }); };
-  const updateTactics = (strategy: string, lineSettings: any) => { const r = getRefs(); if (r) updateDoc(r.team, { strategy, lineSettings }); };
+  const assignToRole = useCallback((role: LineupSlot, playerId: string | null) => { const r = getRefs(); if (r) updateDoc(r.team, { [`lineup.${role}`]: playerId }); }, [getRefs]);
+  const updateTactics = useCallback((strategy: string, lineSettings: any) => { const r = getRefs(); if (r) updateDoc(r.team, { strategy, lineSettings }); }, [getRefs]);
   
-  const claimReward = (cr: number, cry: number) => { 
+  const claimReward = useCallback((cr: number, cry: number) => { 
     const r = getRefs(); if (r) updateDoc(r.team, { credits: stateRef.current.credits + cr, crystals: stateRef.current.crystals + (stateRef.current.isPremium ? cry + 50 : cry), lastRewardClaimDate: getMoscowDateString(), rewardDay: (stateRef.current.rewardDay % 30) + 1 }); 
-  };
+  }, [getRefs]);
   
-  const purchaseLicense = (t: number, c: number) => { const r = getRefs(); if (!r || stateRef.current.crystals < c) return false; updateDoc(r.team, { crystals: stateRef.current.crystals - c, activeLicenseTier: t }); return true; };
-  const purchasePremium = () => { const r = getRefs(); if (!r || stateRef.current.crystals < 5000) return false; const exp = new Date(getMoscowTime().getTime() + 30 * 24 * 60 * 60 * 1000); updateDoc(r.team, { crystals: stateRef.current.crystals - 5000, premiumUntil: exp.toISOString() }); return true; };
+  const setLanguage = useCallback((lang: string) => setState(s => ({ ...s, language: lang })), []);
   
-  const setLanguage = (lang: string) => setState(s => ({ ...s, language: lang }));
+  const purchaseLicense = useCallback((t: number, c: number) => { const r = getRefs(); if (!r || stateRef.current.crystals < c) return false; updateDoc(r.team, { crystals: stateRef.current.crystals - c, activeLicenseTier: t }); return true; }, [getRefs]);
+  const purchasePremium = useCallback(() => { const r = getRefs(); if (!r || stateRef.current.crystals < 5000) return false; const exp = new Date(getMoscowTime().getTime() + 30 * 24 * 60 * 60 * 1000); updateDoc(r.team, { crystals: stateRef.current.crystals - 5000, premiumUntil: exp.toISOString() }); return true; }, [getRefs]);
 
-  const setTrainingFocus = (playerId: string, focus: string | null) => updatePlayer(playerId, { trainingFocus: focus });
-  const startDailyPlayerTraining = (id: string, f: string) => updatePlayer(id, { dailyTrainingFocus: f, dailyTrainingFinishTime: new Date(getMoscowTime().getTime() + 86400000).toISOString() });
+  const setTrainingFocus = useCallback((playerId: string, focus: string | null) => updatePlayer(playerId, { trainingFocus: focus }), [updatePlayer]);
+  const startDailyPlayerTraining = useCallback((id: string, f: string) => updatePlayer(id, { dailyTrainingFocus: f, dailyTrainingFinishTime: new Date(getMoscowTime().getTime() + 86400000).toISOString() }), [updatePlayer]);
   
-  const claimDailyPlayerTraining = (id: string) => {
+  const claimDailyPlayerTraining = useCallback((id: string) => {
     const p = stateRef.current.ownedPlayers.find(x => x.id === id) || stateRef.current.youthAcademyPlayers.find(x => x.id === id);
     if (p?.dailyTrainingFocus) {
       const cur = (p.proStats as any)[p.dailyTrainingFocus] || 0;
       updatePlayer(id, { proStats: { ...p.proStats, [p.dailyTrainingFocus]: Math.min(100, cur + 1) }, dailyTrainingFocus: null, dailyTrainingFinishTime: null });
     }
-  };
+  }, [updatePlayer]);
 
-  const recoverAllFatigue = (type: 'credits' | 'crystals') => {
+  const recoverAllFatigue = useCallback((type: 'credits' | 'crystals') => {
     const cost = type === 'credits' ? 75000 : 150;
     if (stateRef.current[type] < cost) return false;
     if (type === 'credits') addCredits(-cost); else addCrystals(-cost);
     stateRef.current.ownedPlayers.forEach(p => updatePlayer(p.id, { fatigue: 0 }));
     return true;
-  };
+  }, [addCredits, addCrystals, updatePlayer]);
 
-  const hireStaffMember = (m: StaffMember) => { const r = getRefs(); if (r) { setDoc(doc(collection(r.team, 'staff'), m.id), m); addCredits(-(m.salary / 2)); } };
-  const trainStaffSkill = (role: StaffRole, key: 'primary' | 'secondary', cost: number) => {
+  const hireStaffMember = useCallback((m: StaffMember) => { const r = getRefs(); if (r) { setDoc(doc(collection(r.team, 'staff'), m.id), m); addCredits(-(m.salary / 2)); } }, [getRefs, addCredits]);
+  const trainStaffSkill = useCallback((role: StaffRole, key: 'primary' | 'secondary', cost: number) => {
     const r = getRefs(); if (!r || stateRef.current.crystals < cost) return false;
     const member = stateRef.current.staff[role]; if (!member) return false;
     addCrystals(-cost);
     updateDoc(doc(collection(r.team, 'staff'), member.id), { [`skills.${key}`]: Math.min(99, member.skills[key] + 1) });
     return true;
-  };
+  }, [getRefs, addCrystals]);
 
-  const addPlayerDirectly = (p: Player) => { const r = getRefs(); if (r) setDoc(doc(collection(r.team, 'heroes'), p.id), { ...p, isYouth: false }); };
-  const addYouthPlayerDirectly = (p: Player) => { const r = getRefs(); if (r) setDoc(doc(collection(r.team, 'heroes'), p.id), { ...p, isYouth: true }); };
-  const promoteYouthPlayer = (id: string) => updatePlayer(id, { isYouth: false });
+  const addPlayerDirectly = useCallback((p: Player) => { const r = getRefs(); if (r) setDoc(doc(collection(r.team, 'heroes'), p.id), { ...p, isYouth: false }); }, [getRefs]);
+  const addYouthPlayerDirectly = useCallback((p: Player) => { const r = getRefs(); if (r) setDoc(doc(collection(r.team, 'heroes'), p.id), { ...p, isYouth: true }); }, [getRefs]);
+  const promoteYouthPlayer = useCallback((id: string) => updatePlayer(id, { isYouth: false }), [updatePlayer]);
   
-  const updateProfileName = (n: string) => { const r = getRefs(); if (r) { updateDoc(r.root, { displayName: n }); updateDoc(r.team, { displayName: n }); } };
-  const updateProfileCountry = (c: string) => { const r = getRefs(); if (r) updateDoc(r.root, { country: c }); };
+  const updateProfileName = useCallback((n: string) => { const r = getRefs(); if (r) { updateDoc(r.root, { displayName: n }); updateDoc(r.team, { displayName: n }); } }, [getRefs]);
+  const updateProfileCountry = useCallback((c: string) => { const r = getRefs(); if (r) updateDoc(r.root, { country: c }); }, [getRefs]);
   
-  const recordMatch = (w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string) => {
+  const recordMatch = useCallback((w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string) => {
     const r = getRefs(); if (!r) return; 
     const id = mId || `match_${Date.now()}`;
     const s = stateRef.current;
-    
-    // Проверка технической победы над TBD
     const isTbdWin = opp === 'TBD' || opp === 'BYE';
-    
     const participants = res.games[0].scoreboard.filter((p: any) => p.team === s.displayName);
     const consequences: any[] = [];
     
@@ -297,49 +300,31 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         if (realHero) {
           const rating = hero.matchRating || 6.0;
           const xpGain = calculateXpGain({
-            activity: t as any,
-            currentValue: realHero.overallRating,
+            activity: t as any, currentValue: realHero.overallRating,
             talentValue: Math.max(...Object.values(realHero.proTalents).map(v => Number(v))),
             infra: { bootcamp: s.bootcamp?.bootcampLevel || 0, research: 0, psychologist: 0 },
             matchResult: { win: w === s.displayName, mvp: res.games[0].mvp === hero.name, matchRating: rating },
-            matchesToday: (realHero.matchesPlayedToday || 0) + 1,
-            isPro: realHero.isPro
+            matchesToday: (realHero.matchesPlayedToday || 0) + 1, isPro: realHero.isPro
           });
-
           const fatigueInc = 15 + Math.floor(Math.random() * 8);
           const newFatigue = Math.min(100, (realHero.fatigue || 0) + fatigueInc);
-          
           let injuryUntil = null;
           if (newFatigue > 70 && Math.random() < (newFatigue / 400)) {
             const hours = 12 + Math.floor(Math.random() * 24);
             injuryUntil = new Date(getMoscowTime().getTime() + hours * 3600000).toISOString();
           }
-
           const focus = realHero.trainingFocus || 'lastHitting';
           const currentStat = (realHero.proStats as any)[focus] || 50;
           const newStat = Math.min(100, currentStat + (xpGain / 200));
-
           updatePlayer(realHero.id, { 
-            fatigue: newFatigue,
-            isInjured: !!injuryUntil,
-            injuredUntil: injuryUntil,
-            proStats: { ...realHero.proStats, [focus]: newStat },
-            overallRating: Math.floor(newStat * 0.8 + 10)
+            fatigue: newFatigue, isInjured: !!injuryUntil, injuredUntil: injuryUntil,
+            proStats: { ...realHero.proStats, [focus]: newStat }, overallRating: Math.floor(newStat * 0.8 + 10)
           });
-
           consequences.push({ name: hero.name, xp: xpGain, fatigue: fatigueInc, injured: !!injuryUntil });
         }
       });
     }
 
-    const entry = { 
-      id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, 
-      opponentName: opp, type: t, playedAt: p, reward: rew, 
-      simulation: res, seen: false, consequences,
-      isTbdWin 
-    };
-
-    // Логика XP менеджера (отключена для TBD)
     let newLevel = s.managerLevel;
     let newSkillPoints = s.skillPoints;
     let bonusCrystals = 0;
@@ -349,55 +334,42 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       const managerXpGain = t === 'league' ? 200 : (t === 'tournament' ? 250 : 50);
       newTotalXp += managerXpGain;
       const threshold = getLevelThreshold(s.managerLevel);
-      
       if (newTotalXp >= threshold) {
-        newLevel++;
-        newSkillPoints += 2;
-        bonusCrystals = 50;
-        setDoc(doc(db, 'notifications_v7', `lvl_${s.id}_${newLevel}`), { userId: s.id, title: "Level Up!", description: `Congratulations! You reached level ${newLevel}. Earned 2 Skill Points and 50 Gems.`, type: 'league', read: false, createdAt: getMoscowTime().toISOString() });
+        newLevel++; newSkillPoints += 2; bonusCrystals = 50;
+        setDoc(doc(db, 'notifications_v7', `lvl_${s.id}_${newLevel}`), { userId: s.id, title: "Level Up!", description: `Reached level ${newLevel}`, type: 'league', read: false, createdAt: getMoscowTime().toISOString() });
       }
     }
 
     updateDoc(r.team, { 
-      credits: s.credits + rew, 
-      crystals: s.crystals + bonusCrystals,
-      experiencePoints: newTotalXp,
-      managerLevel: newLevel,
-      skillPoints: newSkillPoints,
-      matchHistory: arrayUnion(entry) 
+      credits: s.credits + rew, crystals: s.crystals + bonusCrystals, experiencePoints: newTotalXp,
+      managerLevel: newLevel, skillPoints: newSkillPoints, matchHistory: arrayUnion({ id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, opponentName: opp, type: t, playedAt: p, simulation: res, seen: false, consequences, isTbdWin }) 
     });
-  };
+  }, [getRefs, updatePlayer, db]);
 
-  const markMatchIdAsSeen = (id: string) => { 
+  const markMatchIdAsSeen = useCallback((id: string) => { 
     const r = getRefs(); if (!r) return;
     const leagueMatch = allMatches.find(m => m.id === id);
-    if (leagueMatch) {
-      // Обновляем последний просмотренный день в корневом профиле для синхронизации счетчика в Хабе
-      updateDoc(r.root, { lastSeenMatchDay: Number(leagueMatch.day) });
-    }
+    if (leagueMatch) updateDoc(r.root, { lastSeenMatchDay: Number(leagueMatch.day) });
     const newHistory = stateRef.current.matchHistory.map(m => m.id === id ? { ...m, seen: true } : m);
     updateDoc(r.team, { matchHistory: newHistory });
-  };
+  }, [getRefs, allMatches]);
 
-  const scoutCandidates = () => {
+  const scoutCandidates = useCallback(() => {
     const r = getRefs(); if (!r) return;
     const candidates = Array.from({ length: 3 }).map((_, i) => generateScoutedPlayer(i, Number(stateRef.current.academy?.scoutsLevel || 0), `scout_${getMoscowTime().getTime()}_${i}`));
     updateDoc(r.team, { scoutingCandidates: JSON.parse(JSON.stringify(candidates)), lastScoutDate: getMoscowTime().toISOString() });
-  };
+  }, [getRefs]);
 
-  const recruitCandidate = (playerId: string) => {
+  const recruitCandidate = useCallback((playerId: string) => {
     const r = getRefs(); if (!r) return;
     const candidate = stateRef.current.scoutingCandidates.find(c => c.id === playerId);
     if (!candidate) return;
     setDoc(doc(collection(r.team, 'heroes'), candidate.id), { ...candidate, isYouth: true });
     updateDoc(r.team, { scoutingCandidates: stateRef.current.scoutingCandidates.filter(c => c.id !== playerId) });
-  };
+  }, [getRefs]);
 
-  const clearScoutingReport = () => {
-    const r = getRefs(); if (r) updateDoc(r.team, { scoutingCandidates: [], lastScoutDate: null });
-  };
-  
-  const payStaffSalaries = async () => {
+  const clearScoutingReport = useCallback(() => { const r = getRefs(); if (r) updateDoc(r.team, { scoutingCandidates: [], lastScoutDate: null }); }, [getRefs]);
+  const payStaffSalaries = useCallback(async () => {
     const r = getRefs(); if (!r) return;
     const today = getMoscowDateString();
     const teamSnap = await getDoc(r.team);
@@ -407,48 +379,48 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       await updateDoc(r.team, { credits: Math.max(0, stateRef.current.credits - total), lastStaffSalaryPaymentDate: today });
       await setDoc(doc(db, 'notifications_v7', `staff_${stateRef.current.id}_${today}`), { userId: stateRef.current.id, title: "Staff Salaries", description: `Deducted €${total.toLocaleString()}`, type: 'league', read: false, createdAt: getMoscowTime().toISOString() });
     }
-  };
+  }, [getRefs, db]);
 
-  const upgradeManagerSkill = (key: keyof GameState['managerSkills']) => {
+  const upgradeManagerSkill = useCallback((key: keyof GameState['managerSkills']) => {
     const r = getRefs(); if (!r || stateRef.current.skillPoints <= 0) return;
     updateDoc(r.team, { [`managerSkills.${key}`]: stateRef.current.managerSkills[key] + 1, skillPoints: stateRef.current.skillPoints - 1 });
-  };
+  }, [getRefs]);
 
-  const healPlayer = (playerId: string, type: 'credits' | 'crystals', cost: number) => {
+  const healPlayer = useCallback((playerId: string, type: 'credits' | 'crystals', cost: number) => {
     if (type === 'credits') addCredits(-cost); else addCrystals(-cost);
     updatePlayer(playerId, { isInjured: false, injuredUntil: null });
-  };
+  }, [addCredits, addCrystals, updatePlayer]);
 
-  const launchFanCampaign = (type: string, cost: number, fans: number, loyalty: number) => {
+  const launchFanCampaign = useCallback((type: string, cost: number, fans: number, loyalty: number) => {
     const r = getRefs(); if (!r) return;
     addCredits(-cost);
     const today = getMoscowDateString();
     const currentFanData = stateRef.current.arena?.fanclub || { fanCount: 5000, loyalty: 30 };
     updateDoc(r.team, { fanclub: { fanCount: (currentFanData.fanCount || 5000) + fans, loyalty: Math.min(100, (currentFanData.loyalty || 30) + loyalty), lastCampaignDate: today } });
-  };
+  }, [getRefs, addCredits]);
 
-  const startArenaConstruction = (id: string, cost: number) => startConstruction('arena', id, cost);
-  const startHQConstruction = (id: string, cost: number) => startConstruction('hq', id, cost);
-  const startBootcampConstruction = (id: string, cost: number) => startConstruction('bootcamp', id, cost);
-  const startAcademyConstruction = (id: string, cost: number) => startConstruction('academy', id, cost);
-  const startMedicalConstruction = (id: string, cost: number) => startConstruction('medical', id, cost);
+  const startArenaConstruction = useCallback((id: string, cost: number) => startConstruction('arena', id, cost), [addCredits, getRefs]);
+  const startHQConstruction = useCallback((id: string, cost: number) => startConstruction('hq', id, cost), [addCredits, getRefs]);
+  const startBootcampConstruction = useCallback((id: string, cost: number) => startConstruction('bootcamp', id, cost), [addCredits, getRefs]);
+  const startAcademyConstruction = useCallback((id: string, cost: number) => startConstruction('academy', id, cost), [addCredits, getRefs]);
+  const startMedicalConstruction = useCallback((id: string, cost: number) => startConstruction('medical', id, cost), [addCredits, getRefs]);
   
-  const startCapacityExpansion = (seats: number, cost: number) => {
+  const startCapacityExpansion = useCallback((seats: number, cost: number) => {
     const r = getRefs(); if (!r || stateRef.current.credits < cost) return false;
     addCredits(-cost);
     updateDoc(r.team, { 'arena.constructionStarts.capacity': getMoscowTime().toISOString(), 'arena.constructionFinishes.capacity': new Date(getMoscowTime().getTime() + 12 * 3600000).toISOString(), 'arena.pendingCapacity': seats });
     return true;
-  };
+  }, [getRefs, addCredits]);
 
-  const startConstruction = (cat: string, id: string, cost: number) => {
+  const startConstruction = useCallback((cat: string, id: string, cost: number) => {
     const r = getRefs(); if (!r || stateRef.current.credits < cost) return false;
     const level = (stateRef.current as any)[cat][id] || 0;
     addCredits(-cost);
     updateDoc(r.team, { [`${cat}.constructionStarts.${id}`]: getMoscowTime().toISOString(), [`${cat}.constructionFinishes.${id}`]: new Date(getMoscowTime().getTime() + (4 * (level + 1)) * 3600000).toISOString() });
     return true;
-  };
+  }, [getRefs, addCredits]);
 
-  const accelerateConstruction = (type: string, id: string, mult: number, price: number) => {
+  const accelerateConstruction = useCallback((type: string, id: string, mult: number, price: number) => {
     const r = getRefs(); if (!r || stateRef.current.crystals < price) return false;
     const data = (stateRef.current as any)[type];
     if (data.isAccelerated?.[id]) return false;
@@ -456,7 +428,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     addCrystals(-price);
     updateDoc(r.team, { [`${type}.constructionFinishes.${id}`]: new Date(getMoscowTime().getTime() + (remaining / mult)).toISOString(), [`${type}.isAccelerated.${id}`]: true });
     return true;
-  };
+  }, [getRefs, addCrystals]);
 
   const checkConstructions = useCallback(() => {
     const r = getRefs(); if (!r) return;
@@ -495,9 +467,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     ...state, isDataReady: isMatchesReady && state.isLoaded, allSeasonMatches: allMatches, nextMatch: nextMatchInfo, isMatchesLoading: !isMatchesReady,
     addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage,
     setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, scoutCandidates, recruitCandidate, clearScoutingReport, payStaffSalaries, healPlayer, launchFanCampaign
-  }), [state, isMatchesReady, state.isLoaded, allMatches, nextMatchInfo]);
+  }), [state, isMatchesReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, scoutCandidates, recruitCandidate, clearScoutingReport, payStaffSalaries, healPlayer, launchFanCampaign]);
 
-  return <GameStateContext.Provider value={value as any}>{children}</GameStateContext.Provider>;
+  return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
 }
 
 export function useGameState() {

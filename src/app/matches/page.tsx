@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
@@ -67,21 +67,16 @@ export default function MatchesPage() {
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
-  if (isUserLoading || !isLoaded || !isDataReady) return <LoadingScreen />;
-
-  const myMatches = allSeasonMatches.filter(m => m.homeId === user?.uid || m.awayId === user?.uid);
-  const leagueMatches = allSeasonMatches.filter(m => m.homeId !== user?.uid && m.awayId !== user?.uid);
-
-  const getCountdown = (startTimeIso: string) => {
+  const getCountdown = useCallback((startTimeIso: string) => {
     const diff = new Date(startTimeIso).getTime() - now.getTime();
     if (diff <= 0) return '00:00:00';
     const hh = Math.floor(diff / 3600000);
     const mm = Math.floor((diff % 3600000) / 60000);
     const ss = Math.floor((diff % 60000) / 1000);
     return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
-  };
+  }, [now]);
 
-  const renderMatchCard = (m: any) => {
+  const renderMatchCard = useCallback((m: any) => {
     const isLive = isMatchLive(m.startTime);
     const isFinished = m.isFinished;
     const isMeHome = m.homeId === user?.uid;
@@ -129,14 +124,14 @@ export default function MatchesPage() {
         </CardContent>
       </Card>
     );
-  };
+  }, [user?.uid]);
 
   const renderContent = () => {
     switch(view) {
       case 'next':
         const currentNextMatch = nextMatch?.match;
         return (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="animate-in fade-in duration-200">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary">
               <ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}
             </Button>
@@ -172,9 +167,9 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_future':
-        const myFuture = myMatches.filter(m => !m.isFinished).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+        const myFuture = allSeasonMatches.filter(m => (m.homeId === user?.uid || m.awayId === user?.uid) && !m.isFinished).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         return (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="animate-in fade-in duration-200">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary">
               <ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}
             </Button>
@@ -182,9 +177,9 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_history':
-        const myHistory = myMatches.filter(m => m.isFinished).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+        const myHistory = allSeasonMatches.filter(m => (m.homeId === user?.uid || m.awayId === user?.uid) && m.isFinished).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
         return (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="animate-in fade-in duration-200">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary">
               <ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}
             </Button>
@@ -192,9 +187,9 @@ export default function MatchesPage() {
           </div>
         );
       case 'league_future':
-        const leagueFuture = leagueMatches.filter(m => !m.isFinished).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+        const leagueFuture = allSeasonMatches.filter(m => m.homeId !== user?.uid && m.awayId !== user?.uid && !m.isFinished).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         return (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="animate-in fade-in duration-200">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary">
               <ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}
             </Button>
@@ -202,9 +197,9 @@ export default function MatchesPage() {
           </div>
         );
       case 'league_history':
-        const leagueHistory = leagueMatches.filter(m => m.isFinished).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+        const leagueHistory = allSeasonMatches.filter(m => m.homeId !== user?.uid && m.awayId !== user?.uid && m.isFinished).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
         return (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="animate-in fade-in duration-200">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary">
               <ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}
             </Button>
@@ -213,11 +208,14 @@ export default function MatchesPage() {
         );
       default:
         return (
-          <div className="space-y-2 animate-in fade-in duration-500">
+          <div className="space-y-2 animate-in fade-in duration-200">
             {t.menu.map((item) => (
               <Card 
                 key={item.id}
-                className="glass-card border-white/5 transition-all group hover:bg-white/5 cursor-pointer overflow-hidden"
+                className={cn(
+                  "glass-card border-white/5 transition-all group hover:bg-white/5 cursor-pointer overflow-hidden",
+                  "active:scale-[0.98]"
+                )}
                 onClick={() => setView(item.id as MatchView)}
               >
                 <CardContent className="p-4 flex items-center justify-between">
@@ -238,6 +236,8 @@ export default function MatchesPage() {
         );
     }
   };
+
+  if (isUserLoading || !isLoaded || !isDataReady) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
