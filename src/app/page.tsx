@@ -51,9 +51,6 @@ export default function Home() {
   
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  /**
-   * СЧЕТЧИК НЕПРОСМОТРЕННЫХ МАТЧЕЙ
-   */
   const unreadMatches = useMemo(() => {
     if (!user || !isLoaded) return [];
     
@@ -76,7 +73,6 @@ export default function Home() {
 
   const latestUnreadId = unreadMatches[0]?.id;
 
-  // Находим ID последнего сыгранного матча вообще
   const lastPlayedId = useMemo(() => {
     if (matchHistory && matchHistory.length > 0) {
       return matchHistory[matchHistory.length - 1].id;

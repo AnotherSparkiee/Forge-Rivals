@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v3.5.
- * Воспроизводит заранее рассчитанную симуляцию из базы данных.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v3.6.
+ * Исправлена ошибка Users is not defined. Добавлена кнопка завершения и клик-навигация.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,15 +15,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   ChevronLeft, Check, Swords, Activity, ArrowRight, 
   ShieldCheck, Zap, Target, Trophy, 
-  User, ShieldAlert, Info,
+  User, ShieldAlert, Info, Users,
   Timer, ChevronRight, Crown,
-  Skull, Activity as ActivityIcon, Castle, Radio
+  Skull, Activity as ActivityIcon, Castle, Radio,
+  Package, Sparkles, Flame
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { doc, getDoc } from 'firebase/firestore';
-import { Progress } from '@/components/ui/progress';
 
 type MatchStep = 'preview' | 'live' | 'stats';
 
@@ -34,7 +34,7 @@ function MatchContent() {
   const db = useFirestore();
   const { 
     language, isLoaded, markMatchIdAsSeen,
-    matchHistory, displayName: myDisplayName
+    matchHistory
   } = useGameState();
 
   const matchIdFromUrl = searchParams.get('id');
@@ -58,7 +58,6 @@ function MatchContent() {
         if (snap.exists()) {
           setMatchData(snap.data());
         } else {
-          // Если не нашли в глобальных матчах, ищем в локальной истории
           const hist = matchHistory.find(m => m.id === matchIdFromUrl);
           if (hist) setMatchData(hist);
         }
@@ -69,7 +68,6 @@ function MatchContent() {
 
   const currentSimulation = useMemo(() => {
     if (!matchData) return null;
-    // Используем сохраненную симуляцию или формируем её из истории
     return matchData.simulation || { 
       games: matchData.games || [matchData],
       seriesScore: matchData.seriesScore || `${matchData.scoreA}-${matchData.scoreB}`,
@@ -77,7 +75,6 @@ function MatchContent() {
     };
   }, [matchData]);
 
-  // Логика прокрутки трансляции
   useEffect(() => {
     if (step !== 'live' || !currentSimulation || !currentSimulation.games) return;
     const game = currentSimulation.games[activeGameIdx];
@@ -89,7 +86,6 @@ function MatchContent() {
     setVisibleEvents([]);
     let currentEvt = 0;
     
-    // Воспроизводим лог быстро (1.5 сек на событие)
     const timer = setInterval(() => {
       if (currentEvt < events.length) {
         setVisibleEvents(prev => [...prev, events[currentEvt]]);
@@ -106,7 +102,7 @@ function MatchContent() {
           setTimeout(() => setStep('stats'), 1500); 
         }
       }
-    }, 1500);
+    }, 1200);
     return () => clearInterval(timer);
   }, [step, activeGameIdx, currentSimulation]);
 
@@ -146,24 +142,39 @@ function MatchContent() {
     const awayHeroes = scoreboard.filter((p: any) => p.team === matchData.awayName);
 
     const renderHeroRow = (p: any, side: 'left' | 'right') => (
-      <div key={p.name} className={cn("flex items-center gap-3 p-2.5 rounded-lg border border-white/5 bg-secondary/10", side === 'right' ? "flex-row-reverse text-right" : "text-left")}>
-        <div className="relative shrink-0">
-          <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10 bg-background flex items-center justify-center">
-            {p.image ? <img src={p.image} alt="" className="w-full h-full object-cover" /> : <User className="w-5 h-5 text-muted-foreground" />}
+      <div key={p.name} className={cn("flex flex-col gap-1 p-2 rounded-xl border border-white/5 bg-secondary/10", side === 'right' ? "items-end text-right" : "items-start text-left")}>
+        <div className={cn("flex items-center gap-3 w-full", side === 'right' && "flex-row-reverse")}>
+          <div className="relative shrink-0">
+            <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/10 bg-background flex items-center justify-center shadow-lg">
+              {p.image ? <img src={p.image} alt="" className="w-full h-full object-cover" /> : <User className="w-6 h-6 text-muted-foreground" />}
+            </div>
+            {p.name === game.mvp && <Trophy className="absolute -top-1.5 -right-1.5 w-5 h-5 text-yellow-500 fill-yellow-500 drop-shadow-[0_0_5px_rgba(234,179,8,0.5)]" />}
+            <div className="absolute -bottom-1 -left-1 bg-black/80 rounded-md px-1.5 border border-white/10 shadow-xl">
+              <span className="text-[8px] font-black text-accent">{p.matchRating?.toFixed(1) || '6.0'}</span>
+            </div>
           </div>
-          {p.name === game.mvp && <Trophy className="absolute -top-1 -right-1 w-4 h-4 text-yellow-500 fill-yellow-500" />}
-          <div className="absolute -bottom-1 -left-1 bg-black/60 rounded px-1"><span className="text-[7px] font-black text-accent">{p.matchRating?.toFixed(1) || '6.0'}</span></div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-black uppercase truncate text-white leading-none">{p.name}</p>
+            <div className={cn("flex items-center gap-1.5 mt-1", side === 'right' && "justify-end")}>
+               <Badge variant="outline" className="text-[6px] h-3.5 px-1 border-white/10 opacity-60 uppercase">{p.role}</Badge>
+               <span className="text-[9px] font-mono font-bold text-primary">{p.kills}/{p.deaths}/{p.assists}</span>
+            </div>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-black uppercase truncate text-white">{p.name}</p>
-          <p className="text-[9px] font-mono font-bold text-primary">{p.kills}/{p.deaths}/{p.assists}</p>
+        
+        {/* Artifacts/Items Stubs */}
+        <div className={cn("flex gap-1 mt-1", side === 'right' && "justify-end")}>
+           <div className="w-4 h-4 rounded bg-background/60 border border-white/5 flex items-center justify-center"><Package className="w-2 h-2 text-muted-foreground/40" /></div>
+           <div className="w-4 h-4 rounded bg-background/60 border border-white/5 flex items-center justify-center"><Zap className="w-2 h-2 text-primary/40" /></div>
+           <div className="w-4 h-4 rounded bg-background/60 border border-white/5 flex items-center justify-center"><Sparkles className="w-2 h-2 text-accent/40" /></div>
+           <span className="text-[7px] font-black text-muted-foreground/30 ml-1 uppercase flex items-center">{p.cs || 0} CS</span>
         </div>
       </div>
     );
 
     return (
       <div className="space-y-8">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
             <p className="text-[8px] font-black uppercase tracking-widest text-primary mb-2 flex items-center gap-2 px-1"><ShieldCheck className="w-3 h-3" /> {t.home}</p>
             {homeHeroes.map(p => renderHeroRow(p, 'left'))}
@@ -176,23 +187,31 @@ function MatchContent() {
 
         {game.teamComparison && (
           <section className="space-y-4">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-accent text-center">{t.comparison}</h3>
-            <div className="space-y-4 bg-secondary/20 p-5 rounded-2xl border border-white/5">
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-accent text-center flex items-center justify-center gap-2">
+              <ActivityIcon className="w-3 h-3" /> {t.comparison}
+            </h3>
+            <div className="space-y-5 bg-secondary/20 p-5 rounded-2xl border border-white/5">
               {[
                 { label: t.compFarm, key: 'farm', icon: Zap },
                 { label: t.compTactics, key: 'tactics', icon: Target },
                 { label: t.compTeam, key: 'teamwork', icon: Users },
                 { label: t.compRef, key: 'reflexes', icon: ActivityIcon }
               ].map(stat => (
-                <div key={stat.key} className="space-y-1.5">
-                  <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-tighter">
-                    <span className="text-primary">{game.teamComparison[stat.key][0]}</span>
-                    <span className="text-muted-foreground flex items-center gap-1"><stat.icon className="w-3 h-3" /> {stat.label}</span>
-                    <span className="text-accent">{game.teamComparison[stat.key][1]}</span>
+                <div key={stat.key} className="space-y-2">
+                  <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-tighter">
+                    <div className="flex items-center gap-2 min-w-[30px]">
+                      <span className="text-primary text-sm">{game.teamComparison[stat.key][0]}</span>
+                    </div>
+                    <span className="text-muted-foreground flex items-center gap-1.5 opacity-60">
+                      <stat.icon className="w-3 h-3" /> {stat.label}
+                    </span>
+                    <div className="flex items-center gap-2 min-w-[30px] justify-end">
+                      <span className="text-accent text-sm">{game.teamComparison[stat.key][1]}</span>
+                    </div>
                   </div>
-                  <div className="h-1.5 w-full bg-secondary/50 rounded-full flex overflow-hidden">
-                    <div className="h-full bg-primary" style={{ width: `${(game.teamComparison[stat.key][0] / (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1])) * 100}%` }} />
-                    <div className="h-full bg-accent" style={{ width: `${(game.teamComparison[stat.key][1] / (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1])) * 100}%` }} />
+                  <div className="h-1.5 w-full bg-background/50 rounded-full flex overflow-hidden border border-white/5">
+                    <div className="h-full bg-primary shadow-[0_0_8px_rgba(var(--primary),0.4)]" style={{ width: `${(game.teamComparison[stat.key][0] / (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1])) * 100}%` }} />
+                    <div className="h-full bg-accent shadow-[0_0_8px_rgba(var(--accent),0.4)]" style={{ width: `${(game.teamComparison[stat.key][1] / (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1])) * 100}%` }} />
                   </div>
                 </div>
               ))}
@@ -210,19 +229,20 @@ function MatchContent() {
       case 'objective': return <ActivityIcon className="w-4 h-4 text-accent" />;
       case 'tower': return <Castle className="w-4 h-4 text-yellow-500" />;
       case 'injury': return <ShieldAlert className="w-4 h-4 text-red-600 animate-pulse" />;
+      case 'tilt': return <Flame className="w-4 h-4 text-orange-500" />;
       default: return <Info className="w-4 h-4 text-muted-foreground" />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-32 relative overflow-hidden" onClick={() => step !== 'stats' && handleNext()}>
+    <div className="min-h-screen bg-background text-foreground pb-32 relative overflow-hidden" onClick={() => handleNext()}>
       <div className="max-w-md mx-auto relative z-10 px-4 pt-6">
         <header className="text-center space-y-4 mb-8">
           <h1 className="text-sm font-headline font-bold text-white uppercase tracking-tighter">{t.reportTitle}</h1>
           <div className="flex items-center justify-center gap-2 max-w-[240px] mx-auto">
-            <div className={cn("h-1 flex-1 rounded-full", step === 'preview' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
-            <div className={cn("h-1 flex-1 rounded-full", step === 'live' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
-            <div className={cn("h-1 flex-1 rounded-full", step === 'stats' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
+            <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'preview' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
+            <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'live' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
+            <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'stats' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
           </div>
         </header>
 
@@ -317,8 +337,8 @@ function MatchContent() {
             </Tabs>
 
             <div className="pt-10">
-               <Button className="w-full h-14 hero-gradient font-black text-xs tracking-widest uppercase shadow-2xl" onClick={handleNext}>
-                 <Check className="w-4 h-4 mr-2" /> {t.accept}
+               <Button className="w-full h-16 hero-gradient font-black text-sm tracking-widest uppercase shadow-2xl active:scale-95 transition-all" onClick={handleNext}>
+                 <Check className="w-5 h-5 mr-2" /> {t.accept}
                </Button>
             </div>
           </div>
