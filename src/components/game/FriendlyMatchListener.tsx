@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Слушатель товарищеских и пробных матчей v11.
- * Резолвит бои на основе реальных характеристик без предварительного форсирования результата.
+ * @fileOverview Слушатель товарищеских и пробных матчей v12.
+ * Внедрен учет навыков персонала (Coach, Analyst) в реальном времени.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -17,7 +17,7 @@ import { Swords, Loader2, XCircle, ShieldCheck } from 'lucide-react';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 const FRIENDLY_DURATION_MS = 60 * 1000; 
@@ -167,18 +167,21 @@ export function FriendlyMatchListener() {
           return;
         }
 
+        const coachA = staff?.coach;
+        const analystA = staff?.analyst;
         const infraBonusA = (bootcamp?.bootcampLevel || 0) + (bootcamp?.tacticsHallLevel || 0);
-        const staffBonusA = (staff?.coach?.skills?.primary || 0);
 
         let squadB: any[] = [];
         let strategyB = "Balanced Play";
         let infraBonusB = 0;
         let staffBonusB = 0;
+        let analystBonusB = 0;
 
         if (activeLobby.isTrial) {
           squadB = generateBotSquad(28);
           infraBonusB = 5;
           staffBonusB = 5;
+          analystBonusB = 5;
         } else {
           const challengerProfileSnap = await getDoc(doc(db, 'players_v10', activeLobby.challengerId));
           if (challengerProfileSnap.exists()) {
@@ -188,17 +191,21 @@ export function FriendlyMatchListener() {
             const prefixedGroupId = `${seasonId}_league_${cp.selectedLeagueId}_group_${cp.groupId}`;
             const challengerTeamRef = doc(db, 'leagues_v2', cp.selectedLeagueId, 'divisions', String(cp.leagueLevel), 'groups', prefixedGroupId, 'teams', activeLobby.challengerId);
             
-            const [teamSnap, heroesSnap] = await Promise.all([
+            const [teamSnap, heroesSnap, staffSnap] = await Promise.all([
               getDoc(challengerTeamRef),
-              getDocs(collection(challengerTeamRef, 'heroes'))
+              getDocs(collection(challengerTeamRef, 'heroes')),
+              getDocs(collection(challengerTeamRef, 'staff'))
             ]);
 
             if (teamSnap.exists()) {
               const td = teamSnap.data();
               strategyB = td.strategy || "Balanced Play";
               infraBonusB = (td.bootcamp?.bootcampLevel || 0) + (td.bootcamp?.tacticsHallLevel || 0);
-              staffBonusB = (td.staff?.coach?.skills?.primary || 0);
               
+              const staffDocs = staffSnap.docs.map(d => d.data());
+              staffBonusB = staffDocs.find(s => s.role === 'coach')?.skills?.primary || 0;
+              analystBonusB = staffDocs.find(s => s.role === 'analyst')?.skills?.primary || 0;
+
               const cLineup = td.lineup || {};
               const allHeroes = heroesSnap.docs.map(d => ({ ...d.data(), id: d.id }));
               squadB = allHeroes.filter(h => Object.values(cLineup).includes(h.id)).map((h: any) => ({
@@ -211,10 +218,19 @@ export function FriendlyMatchListener() {
 
         if (squadB.length < 5) squadB = generateBotSquad(22);
 
-        // НЕ форсируем результат, позволяем симулятору рассчитать честный итог
         const result = await simulateMobaMatch({
-          teamA: { name: activeLobby.hostName, strategy, heroes: squadA, infraBonus: infraBonusA, staffBonus: staffBonusA },
-          teamB: { name: activeLobby.challengerName || "Rival", strategy: strategyB, heroes: squadB, infraBonus: infraBonusB, staffBonus: staffBonusB },
+          teamA: { 
+            name: activeLobby.hostName, strategy, heroes: squadA, 
+            infraBonus: infraBonusA, 
+            staffBonus: coachA?.skills?.primary || 0,
+            analystBonus: analystA?.skills?.primary || 0
+          },
+          teamB: { 
+            name: activeLobby.challengerName || "Rival", strategy: strategyB, heroes: squadB, 
+            infraBonus: infraBonusB, 
+            staffBonus: staffBonusB,
+            analystBonus: analystBonusB
+          },
           isBo2: true
         });
         

@@ -1,11 +1,11 @@
 'use server';
 /**
- * @fileOverview Ядро симуляции матчей Lines of Enmity v4.2 (Mathematical Core + Visual Portraits).
+ * @fileOverview Ядро симуляции матчей Lines of Enmity v4.4 (Staff Integration + Tactics).
  * 
  * Особенности:
  * 1. Взвешенная оценка ролей (Carry, Mid, Tank, Jungler, Support).
- * 2. Динамический расчет потенциала команды с учетом инфраструктуры и синергии.
- * 3. Логически обоснованная генерация Scoreboard с поддержкой фотографий игроков.
+ * 2. Учет навыков персонала (Coach, Analyst) в реальном времени.
+ * 3. Логически обоснованная генерация Scoreboard и MVP.
  */
 
 import {ai} from '@/ai/genkit';
@@ -24,7 +24,7 @@ const ProStatsSchema = z.object({
   ganking: z.number(),
 });
 
-const HeroStatsSchema = z.object({
+const PlayerStatsSchema = z.object({
   id: z.string().optional(),
   name: z.string(),
   role: z.string(),
@@ -37,10 +37,11 @@ const HeroStatsSchema = z.object({
 
 const TeamSchema = z.object({
   name: z.string(),
-  heroes: z.array(HeroStatsSchema),
+  heroes: z.array(PlayerStatsSchema), // Keeps internal field name 'heroes' for backward compatibility in input
   strategy: z.string().describe('Aggressive, Balanced, Defensive, Fast_Push, Counter-attack'),
   infraBonus: z.number().optional().describe('Bonus from Bootcamp/Tactics Hall'),
-  staffBonus: z.number().optional().describe('Bonus from Coach/Analyst skills'),
+  staffBonus: z.number().optional().describe('Bonus from Coach skills'),
+  analystBonus: z.number().optional().describe('Bonus from Analyst skills'),
   synergy: z.number().optional().describe('Team cohesion level (0-100)'),
 });
 
@@ -99,9 +100,6 @@ const SimulateMobaMatchOutputSchema = z.object({
 });
 export type SimulateMobaMatchOutput = z.infer<typeof SimulateMobaMatchOutputSchema>;
 
-/**
- * ВЕСА РОЛЕЙ: На какие навыки система обращает внимание при расчете мощи.
- */
 const ROLE_WEIGHTS: Record<string, Record<keyof z.infer<typeof ProStatsSchema>, number>> = {
   'Carry': { lastHitting: 3.5, positioning: 2.2, reflexes: 1.8, tiltResistance: 1.5, manaManagement: 1.0, mapAwareness: 0.5, objectiveControl: 0.8, communication: 0.5, versatility: 0.7, ganking: 0.3 },
   'Midlaner': { reflexes: 2.8, ganking: 2.5, lastHitting: 1.8, manaManagement: 1.5, versatility: 1.5, mapAwareness: 1.2, positioning: 1.2, objectiveControl: 1.0, communication: 0.8, tiltResistance: 1.2 },
@@ -141,11 +139,18 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
   stats.teamwork = Math.round(stats.teamwork / count);
   stats.reflexes = Math.round(stats.reflexes / count);
 
+  // Apply Staff Bonuses
+  const coachBonus = Number(team.staffBonus || 0) * 0.5;
+  const analystBonus = Number(team.analystBonus || 0) * 0.5;
+  
+  stats.teamwork += coachBonus;
+  stats.tactics += analystBonus;
+
   const infraMultiplier = 1 + (Number(team.infraBonus || 0) * 0.03);
-  const staffMultiplier = 1 + (Number(team.staffBonus || 0) * 0.015);
   const synergyMultiplier = 1 + (Number(team.synergy || 0) * 0.003);
   
-  power *= (infraMultiplier * staffMultiplier * synergyMultiplier);
+  power *= (infraMultiplier * synergyMultiplier);
+  power += (coachBonus * 10) + (analystBonus * 10);
 
   const strat = (team.strategy || "").toLowerCase();
   if (strat.includes('aggressive')) power *= 1.12; 
@@ -215,7 +220,7 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
         s.matchRating += 0.05;
       }
     } 
-    else if (roll > 0.93) {
+    else if (roll > 0.92) {
       const type = Math.random() > 0.35 ? 'tower' : 'objective';
       if (type === 'tower') {
         if (isAActive) towersA++; else towersB++;
@@ -235,7 +240,7 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
       const s = scoreboardMap.get(actor.name);
       if (s) s.matchRating += 0.45;
     }
-    else if (roll > 0.72) {
+    else if (roll > 0.70) {
       const atkPower = actor.proStats.reflexes + actor.proStats.ganking;
       const defPower = target.proStats.positioning + target.proStats.mapAwareness;
       

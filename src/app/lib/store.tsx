@@ -1,8 +1,7 @@
-
 'use client';
 
 /**
- * Глобальное хранилище v62 (Full Progression, Economics & Sync Fixes). 
+ * Глобальное хранилище v63 (Staff Engine, Level Up Rewards & Auto-Sponsor). 
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -276,20 +275,21 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const recordMatch = (w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string) => {
     const r = getRefs(); if (!r) return; 
     const id = mId || `match_${Date.now()}`;
+    const s = stateRef.current;
     
-    const participants = res.games[0].scoreboard.filter((p: any) => p.team === stateRef.current.displayName);
+    const participants = res.games[0].scoreboard.filter((p: any) => p.team === s.displayName);
     const consequences: any[] = [];
     
     participants.forEach((hero: any) => {
-      const realHero = stateRef.current.ownedPlayers.find(h => h.name === hero.name);
+      const realHero = s.ownedPlayers.find(h => h.name === hero.name);
       if (realHero) {
         const rating = hero.matchRating || 6.0;
         const xpGain = calculateXpGain({
           activity: t as any,
           currentValue: realHero.overallRating,
           talentValue: Math.max(...Object.values(realHero.proTalents).map(v => Number(v))),
-          infra: { bootcamp: stateRef.current.bootcamp?.bootcampLevel || 0, research: 0, psychologist: 0 },
-          matchResult: { win: w === stateRef.current.displayName, mvp: res.games[0].mvp === hero.name, matchRating: rating },
+          infra: { bootcamp: s.bootcamp?.bootcampLevel || 0, research: 0, psychologist: 0 },
+          matchResult: { win: w === s.displayName, mvp: res.games[0].mvp === hero.name, matchRating: rating },
           matchesToday: (realHero.matchesPlayedToday || 0) + 1,
           isPro: realHero.isPro
         });
@@ -325,7 +325,30 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       simulation: res, seen: false, consequences 
     };
 
-    updateDoc(r.team, { credits: stateRef.current.credits + rew, matchHistory: arrayUnion(entry) });
+    // Manager XP Logic
+    const managerXpGain = t === 'league' ? 200 : (t === 'tournament' ? 250 : 50);
+    const newTotalXp = s.experiencePoints + managerXpGain;
+    const threshold = getLevelThreshold(s.managerLevel);
+    
+    let newLevel = s.managerLevel;
+    let newSkillPoints = s.skillPoints;
+    let bonusCrystals = 0;
+
+    if (newTotalXp >= threshold) {
+      newLevel++;
+      newSkillPoints += 2;
+      bonusCrystals = 50;
+      setDoc(doc(db, 'notifications_v7', `lvl_${s.id}_${newLevel}`), { userId: s.id, title: "Level Up!", description: `Congratulations! You reached level ${newLevel}. Earned 2 Skill Points and 50 Gems.`, type: 'league', read: false, createdAt: new Date().toISOString() });
+    }
+
+    updateDoc(r.team, { 
+      credits: s.credits + rew, 
+      crystals: s.crystals + bonusCrystals,
+      experiencePoints: newTotalXp,
+      managerLevel: newLevel,
+      skillPoints: newSkillPoints,
+      matchHistory: arrayUnion(entry) 
+    });
   };
 
   const markMatchIdAsSeen = (id: string) => { 

@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview MMO-Двигатель v28 (Autonomous AI Resolver).
- * Выполняет полную симуляцию матча и сохраняет результат в БД.
+ * @fileOverview MMO-Двигатель v29 (Staff-Aware AI Resolver).
+ * Выполняет полную симуляцию матча с учетом навыков персонала.
  */
 
 import { 
@@ -14,10 +14,6 @@ import { initializeFirebase } from '@/firebase';
 import { isMatchOverdue, getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 
-/**
- * ГЛАВНЫЙ СЕРВЕРНЫЙ РЕЗОЛВЕР (v28):
- * Выполняет расчет матча на основе реальных данных команд и сохраняет результат симуляции.
- */
 export async function forceResolveGroupMatches(leagueId: string, divisionId: number, groupId: string) {
   const { firestore: db } = initializeFirebase();
   const seasonInfo = getGlobalSeasonInfo();
@@ -26,7 +22,6 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
 
   const seasonNum = Number(seasonInfo.activeSeasonNumber);
 
-  // Ищем матчи текущего сезона, которые еще не завершены
   const q = query(
     collection(db, 'matches_v1'),
     where('groupId', '==', String(groupId)),
@@ -42,42 +37,47 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
   for (const docSnap of snap.docs) {
     const m = docSnap.data();
     
-    // Если время матча прошло (+35 мин окно) и он еще не рассчитан
     if (isMatchOverdue(m.startTime)) {
       try {
-        // 1. Собираем данные команд для симулятора
         const teamARef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', m.homeId);
         const teamBRef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', m.awayId);
 
         const [snapA, snapB] = await Promise.all([getDoc(teamARef), getDoc(teamBRef)]);
         
-        // Получаем героев команд
-        const [heroesA, heroesB] = await Promise.all([
+        const [heroesA, heroesB, staffA, staffB] = await Promise.all([
           getDocs(collection(teamARef, 'heroes')),
-          getDocs(collection(teamBRef, 'heroes'))
+          getDocs(collection(teamBRef, 'heroes')),
+          getDocs(collection(teamARef, 'staff')),
+          getDocs(collection(teamBRef, 'staff'))
         ]);
-
-        const squadA = heroesA.docs.map(d => ({ ...d.data(), id: d.id, isSub: snapA.data()?.lineup?.sub1 === d.id || snapA.data()?.lineup?.sub2 === d.id }));
-        const squadB = heroesB.docs.map(d => ({ ...d.data(), id: d.id, isSub: snapB.data()?.lineup?.sub1 === d.id || snapB.data()?.lineup?.sub2 === d.id }));
 
         const dataA = snapA.data() || {};
         const dataB = snapB.data() || {};
 
-        // 2. ЗАПУСКАЕМ ИИ-СИМУЛЯТОР
+        const squadA = heroesA.docs.map(d => ({ ...d.data(), id: d.id, isSub: dataA.lineup?.sub1 === d.id || dataA.lineup?.sub2 === d.id }));
+        const squadB = heroesB.docs.map(d => ({ ...d.data(), id: d.id, isSub: dataB.lineup?.sub1 === d.id || dataB.lineup?.sub2 === d.id }));
+
+        const coachA = staffA.docs.find(d => d.data().role === 'coach')?.data();
+        const analystA = staffA.docs.find(d => d.data().role === 'analyst')?.data();
+        const coachB = staffB.docs.find(d => d.data().role === 'coach')?.data();
+        const analystB = staffB.docs.find(d => d.data().role === 'analyst')?.data();
+
         const simulation = await simulateMobaMatch({
           teamA: { 
             name: m.homeName, 
             strategy: dataA.strategy || 'Balanced Play', 
             heroes: squadA as any,
             infraBonus: (dataA.bootcamp?.bootcampLevel || 0) + (dataA.bootcamp?.tacticsHallLevel || 0),
-            staffBonus: (dataA.staff?.coach?.skills?.primary || 0)
+            staffBonus: coachA?.skills?.primary || 0,
+            analystBonus: analystA?.skills?.primary || 0
           },
           teamB: { 
             name: m.awayName, 
             strategy: dataB.strategy || 'Balanced Play', 
             heroes: squadB as any,
             infraBonus: (dataB.bootcamp?.bootcampLevel || 0) + (dataB.bootcamp?.tacticsHallLevel || 0),
-            staffBonus: (dataB.staff?.coach?.skills?.primary || 0)
+            staffBonus: coachB?.skills?.primary || 0,
+            analystBonus: analystB?.skills?.primary || 0
           },
           isBo2: true
         });
@@ -87,7 +87,6 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
         const sB = parseInt(seriesScoreParts[1]);
         const winnerId = sA > sB ? m.homeId : (sB > sA ? m.awayId : null);
 
-        // 3. Сохраняем результат транзакцией
         await runTransaction(db, async (transaction) => {
           transaction.set(teamARef, {
             wins: (dataA.wins || 0) + (sA > sB ? 1 : 0),
@@ -110,7 +109,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
             winnerId,
             status: 'finished',
             isFinished: true,
-            simulation, // Сохраняем ВЕСЬ объект симуляции для просмотра
+            simulation,
             finishedAt: serverTimestamp(),
             version: 32
           });
@@ -118,7 +117,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
 
         resolvedCount++;
       } catch (e) {
-        console.error(`[V28 ENGINE] Failed to resolve match ${m.id}:`, e);
+        console.error(`[V29 ENGINE] Failed to resolve match ${m.id}:`, e);
       }
     }
   }

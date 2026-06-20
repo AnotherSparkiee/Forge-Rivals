@@ -1,8 +1,7 @@
-
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v4.3.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v4.4.
  * Отображает обоснованную статистику, детальные рейтинги и последствия матча для игроков.
  */
 
@@ -19,7 +18,8 @@ import {
   User, ShieldAlert, Info, Users,
   Timer, ChevronRight, Crown,
   Skull, Activity as ActivityIcon, Castle, Radio,
-  Package, Sparkles, Flame, HeartPulse, GraduationCap
+  Package, Sparkles, Flame, HeartPulse, GraduationCap,
+  Microscope
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -129,6 +129,7 @@ function MatchContent() {
       home: "HOME", away: "AWAY", vs: "VS",
       comparison: "TEAM SKILL ANALYSIS",
       progression: "POST-MATCH IMPACT",
+      staffInfluence: "STAFF PERFORMANCE CONTRIBUTION",
       compFarm: "Resource Acquisition", compTactics: "Tactical Execution", compTeam: "Strategic Synergy", compRef: "Combat Reflexes"
     },
     ru: {
@@ -137,6 +138,7 @@ function MatchContent() {
       home: "ДОМА", away: "В ГОСТЯХ", vs: "ПРОТИВ",
       comparison: "АНАЛИЗ НАВЫКОВ КОМАНД",
       progression: "ПОСЛЕМАТЧЕВЫЙ ОТЧЕТ",
+      staffInfluence: "ВКЛАД ПЕРСОНАЛА КЛУБА",
       compFarm: "Сбор ресурсов", compTactics: "Тактическая точность", compTeam: "Командная синергия", compRef: "Боевые рефлексы"
     }
   }[language as 'en' | 'ru'] || { reportTitle: "Report" };
@@ -224,33 +226,56 @@ function MatchContent() {
           </section>
         )}
 
-        {matchData.consequences && matchData.consequences.length > 0 && (
-          <section className="space-y-4 pt-4">
-             <h3 className="text-[11px] font-black uppercase tracking-widest text-primary text-center flex items-center justify-center gap-2 bg-primary/5 py-2 rounded-xl">
-               <GraduationCap className="w-4 h-4" /> {t.progression}
-             </h3>
-             <div className="grid gap-2">
-               {matchData.consequences.map((cons: any, idx: number) => (
-                 <div key={idx} className="bg-secondary/30 p-3 rounded-2xl border border-white/5 flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase text-white">{cons.name}</span>
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-1">
-                        <Zap className="w-3 h-3 text-primary" />
-                        <span className="text-[10px] font-black text-primary">+{cons.xp} XP</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <HeartPulse className="w-3 h-3 text-accent" />
-                        <span className="text-[10px] font-black text-accent">+{cons.fatigue}%</span>
-                      </div>
-                      {cons.injured && (
-                        <Badge className="bg-red-600 text-white text-[7px] font-black uppercase px-2 animate-pulse">INJURED</Badge>
-                      )}
+        <section className="space-y-4 pt-4">
+           <h3 className="text-[11px] font-black uppercase tracking-widest text-primary text-center flex items-center justify-center gap-2 bg-primary/5 py-2 rounded-xl">
+             <GraduationCap className="w-4 h-4" /> {t.progression}
+           </h3>
+           <div className="grid gap-2">
+             {matchData.consequences && matchData.consequences.length > 0 ? matchData.consequences.map((cons: any, idx: number) => (
+               <div key={idx} className="bg-secondary/30 p-3 rounded-2xl border border-white/5 flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase text-white">{cons.name}</span>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-primary" />
+                      <span className="text-[10px] font-black text-primary">+{cons.xp} XP</span>
                     </div>
+                    <div className="flex items-center gap-1">
+                      <HeartPulse className="w-3 h-3 text-accent" />
+                      <span className="text-[10px] font-black text-accent">+{cons.fatigue}%</span>
+                    </div>
+                    {cons.injured && (
+                      <Badge className="bg-red-600 text-white text-[7px] font-black uppercase px-2 animate-pulse">INJURED</Badge>
+                    )}
+                  </div>
+               </div>
+             )) : <div className="py-8 text-center opacity-30 text-[8px] font-black uppercase tracking-widest">No individual progression data</div>}
+           </div>
+        </section>
+
+        {/* STAFF INTEL BLOCK */}
+        <section className="space-y-4 pt-4">
+           <h3 className="text-[11px] font-black uppercase tracking-widest text-yellow-500 text-center flex items-center justify-center gap-2 bg-yellow-500/5 py-2 rounded-xl">
+             <Microscope className="w-4 h-4" /> {t.staffInfluence}
+           </h3>
+           <Card className="glass-card border-white/5 bg-secondary/10">
+              <CardContent className="p-4 space-y-3">
+                 <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                       <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+                       <span className="text-[9px] font-bold text-muted-foreground uppercase">Coach Strategy Bonus</span>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold text-blue-400">+ ACTIVE</span>
                  </div>
-               ))}
-             </div>
-          </section>
-        )}
+                 <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                       <Target className="w-3.5 h-3.5 text-accent" />
+                       <span className="text-[9px] font-bold text-muted-foreground uppercase">Analyst Tactical Data</span>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold text-accent">+ ACTIVE</span>
+                 </div>
+              </CardContent>
+           </Card>
+        </section>
       </div>
     );
   };
