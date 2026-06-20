@@ -52,8 +52,7 @@ export default function Home() {
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
   /**
-   * УМНЫЙ СЧЕТЧИК ОБЗОРОВ
-   * Объединяет непросмотренные матчи лиги и локальные матчи из истории.
+   * СЧЕТЧИК НЕПРОСМОТРЕННЫХ МАТЧЕЙ
    */
   const unreadMatches = useMemo(() => {
     if (!user || !isLoaded) return [];
@@ -65,10 +64,9 @@ export default function Home() {
       Number(m.day) > (lastSeenMatchDay || 0)
     );
 
-    // 2. Непросмотренные матчи из локальной истории (Trial, Friendly)
+    // 2. Непросмотренные матчи из локальной истории
     const historyUnread = (matchHistory || []).filter(m => m.seen === false);
 
-    // Объединяем и сортируем по дате (сначала старые)
     return [...leagueUnread, ...historyUnread].sort((a, b) => {
       const timeA = a.day ? Number(a.day) : new Date(a.playedAt || 0).getTime();
       const timeB = b.day ? Number(b.day) : new Date(b.playedAt || 0).getTime();
@@ -77,6 +75,18 @@ export default function Home() {
   }, [allSeasonMatches, user, lastSeenMatchDay, matchHistory, isLoaded]);
 
   const latestUnreadId = unreadMatches[0]?.id;
+
+  // Находим ID последнего сыгранного матча вообще
+  const lastPlayedId = useMemo(() => {
+    if (matchHistory && matchHistory.length > 0) {
+      return matchHistory[matchHistory.length - 1].id;
+    }
+    const finishedLeague = (allSeasonMatches || []).filter(m => 
+      (m.homeId === user?.uid || m.awayId === user?.uid) && m.isFinished
+    ).sort((a, b) => Number(b.day) - Number(a.day));
+    
+    return finishedLeague[0]?.id || null;
+  }, [matchHistory, allSeasonMatches, user?.uid]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -185,8 +195,8 @@ export default function Home() {
   if (!isLoaded) return <LoadingScreen />;
 
   const tHub = {
-    en: { nextMatch: "Next Engagement", offseason: "OFFSEASON", battleBtn: "MATCH OVERVIEW", resultBtn: "MATCH OVERVIEW", navTitle: "Command Terminals", startsIn: "SEASON 1 STARTS IN:", live: "LIVE: ENGAGEMENT IN PROGRESS" },
-    ru: { nextMatch: "Следующий матч", offseason: "МЕЖСЕЗОНЬЕ", battleBtn: "ОБЗОР МАТЧЕЙ", resultBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", startsIn: "СЕЗОН 1 НАЧНЕТСЯ ЧЕРЕЗ:", live: "В ЭФИРЕ: ИДЕТ СРАЖЕНИЕ" }
+    en: { nextMatch: "Next Engagement", offseason: "OFFSEASON", battleBtn: "MATCH OVERVIEW", navTitle: "Command Terminals", startsIn: "SEASON 1 STARTS IN:", live: "LIVE: ENGAGEMENT IN PROGRESS" },
+    ru: { nextMatch: "Следующий матч", offseason: "МЕЖСЕЗОНЬЕ", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", startsIn: "СЕЗОН 1 НАЧНЕТСЯ ЧЕРЕЗ:", live: "В ЭФИРЕ: ИДЕТ СРАЖЕНИЕ" }
   }[language as 'en' | 'ru'];
 
   const menu = [ 
@@ -237,24 +247,36 @@ export default function Home() {
         </Card>
       </section>
 
-      {/* УНИВЕРСАЛЬНАЯ КНОПКА ОБЗОРА МАТЧЕЙ */}
-      {unreadMatches.length > 0 && latestUnreadId && (
-        <Link href={`/match?id=${latestUnreadId}`} className="block relative mb-8 animate-in slide-in-from-bottom-2">
-          <div className="absolute -inset-1 bg-gradient-to-r from-accent to-primary rounded-2xl blur opacity-30 animate-pulse"></div>
-          <Button className="w-full h-20 bg-accent text-accent-foreground border-none shadow-xl flex items-center justify-center gap-3 relative z-10">
-            <Swords className="w-6 h-6" />
-            <div className="flex flex-col items-start">
-              <span className="text-xl font-headline font-bold italic uppercase leading-none">{tHub.battleBtn}</span>
-              <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-80 mt-1">
-                {language === 'ru' ? 'НЕПРОСМОТРЕННЫХ:' : 'UNVIEWED:'} {unreadMatches.length}
-              </span>
+      {/* КНОПКА ОБЗОРА МАТЧЕЙ (ВСЕГДА ВИДИМА) */}
+      <Link 
+        href={latestUnreadId ? `/match?id=${latestUnreadId}` : (lastPlayedId ? `/match?id=${lastPlayedId}` : '/matches')} 
+        className="block relative mb-8 animate-in slide-in-from-bottom-2"
+      >
+        <div className={cn(
+          "absolute -inset-1 bg-gradient-to-r from-accent to-primary rounded-2xl blur opacity-30",
+          unreadMatches.length > 0 && "animate-pulse"
+        )}></div>
+        <Button className="w-full h-20 bg-accent text-accent-foreground border-none shadow-xl flex items-center justify-center gap-3 relative z-10 group overflow-hidden">
+          <Swords className={cn("w-6 h-6", unreadMatches.length > 0 && "animate-bounce")} />
+          <div className="flex flex-col items-start">
+            <span className="text-xl font-headline font-bold italic uppercase leading-none">{tHub.battleBtn}</span>
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-80 mt-1">
+              {unreadMatches.length > 0 
+                ? (language === 'ru' ? 'ЕСТЬ НОВЫЕ РЕЗУЛЬТАТЫ' : 'NEW RESULTS AVAILABLE')
+                : (language === 'ru' ? 'АРХИВ ТРАНСЛЯЦИЙ' : 'MATCH ARCHIVE')
+              }
+            </span>
+          </div>
+          
+          {unreadMatches.length > 0 ? (
+            <div className="ml-auto w-10 h-10 rounded-full bg-red-600 flex items-center justify-center border-2 border-white shadow-[0_0_15px_rgba(220,38,38,0.5)]">
+              <span className="text-sm font-headline font-bold text-white">{unreadMatches.length}</span>
             </div>
-            <div className="ml-auto w-8 h-8 rounded-full bg-black/20 flex items-center justify-center border border-white/10">
-              <span className="text-sm font-headline font-bold">{unreadMatches.length}</span>
-            </div>
-          </Button>
-        </Link>
-      )}
+          ) : (
+            <ChevronRight className="ml-auto w-5 h-5 opacity-40 group-hover:translate-x-1 transition-transform" />
+          )}
+        </Button>
+      </Link>
 
       <div className="space-y-4">
         <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-accent px-1">{tHub.navTitle}</h2>
