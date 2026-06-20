@@ -1,34 +1,32 @@
 'use server';
 
 /**
- * @fileOverview MMO-Двигатель v27 (Strict Types Resolution).
- * Исключает использование строковых дат и undefined в запросах.
+ * @fileOverview MMO-Двигатель v28 (Autonomous AI Resolver).
+ * Выполняет полную симуляцию матча и сохраняет результат в БД.
  */
 
 import { 
   collection, doc, getDocs, 
   query, where, serverTimestamp, 
-  runTransaction
+  runTransaction, getDoc
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { isMatchOverdue, getGlobalSeasonInfo } from '@/app/lib/time-utils';
-import { getMatchResult } from '@/app/lib/leagues-data';
+import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 
 /**
- * ГЛАВНЫЙ СЕРВЕРНЫЙ РЕЗОЛВЕР (v27):
- * Рассчитывает матчи группы и ОДНОВРЕМЕННО обновляет турнирную таблицу.
- * Работает строго с числами для предотвращения Permission Denied.
+ * ГЛАВНЫЙ СЕРВЕРНЫЙ РЕЗОЛВЕР (v28):
+ * Выполняет расчет матча на основе реальных данных команд и сохраняет результат симуляции.
  */
 export async function forceResolveGroupMatches(leagueId: string, divisionId: number, groupId: string) {
   const { firestore: db } = initializeFirebase();
   const seasonInfo = getGlobalSeasonInfo();
   
-  // ГАРД: Проверяем валидность входных данных
   if (!leagueId || !groupId) return { success: false, error: "Invalid parameters" };
 
   const seasonNum = Number(seasonInfo.activeSeasonNumber);
 
-  // Query only matches for the CURRENT season that aren't finished
+  // Ищем матчи текущего сезона, которые еще не завершены
   const q = query(
     collection(db, 'matches_v1'),
     where('groupId', '==', String(groupId)),
@@ -37,66 +35,90 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
   );
 
   const snap = await getDocs(q);
-  if (snap.empty) {
-    return { success: true, count: 0 };
-  }
+  if (snap.empty) return { success: true, count: 0 };
 
   let resolvedCount = 0;
 
   for (const docSnap of snap.docs) {
     const m = docSnap.data();
-    const overdue = isMatchOverdue(m.startTime);
-    const hasAnyScore = m.homeScore !== undefined || m.scoreA !== undefined || m.status === 'finished';
-
-    if (overdue && !hasAnyScore) {
-      const [sA, sB] = getMatchResult(m.homeId, m.awayId, m.day, seasonNum);
-      const winnerId = sA > sB ? m.homeId : (sB > sA ? m.awayId : null);
-
+    
+    // Если время матча прошло (+35 мин окно) и он еще не рассчитан
+    if (isMatchOverdue(m.startTime)) {
       try {
+        // 1. Собираем данные команд для симулятора
+        const teamARef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', m.homeId);
+        const teamBRef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', m.awayId);
+
+        const [snapA, snapB] = await Promise.all([getDoc(teamARef), getDoc(teamBRef)]);
+        
+        // Получаем героев команд
+        const [heroesA, heroesB] = await Promise.all([
+          getDocs(collection(teamARef, 'heroes')),
+          getDocs(collection(teamBRef, 'heroes'))
+        ]);
+
+        const squadA = heroesA.docs.map(d => ({ ...d.data(), id: d.id, isSub: snapA.data()?.lineup?.sub1 === d.id || snapA.data()?.lineup?.sub2 === d.id }));
+        const squadB = heroesB.docs.map(d => ({ ...d.data(), id: d.id, isSub: snapB.data()?.lineup?.sub1 === d.id || snapB.data()?.lineup?.sub2 === d.id }));
+
+        const dataA = snapA.data() || {};
+        const dataB = snapB.data() || {};
+
+        // 2. ЗАПУСКАЕМ ИИ-СИМУЛЯТОР
+        const simulation = await simulateMobaMatch({
+          teamA: { 
+            name: m.homeName, 
+            strategy: dataA.strategy || 'Balanced Play', 
+            heroes: squadA as any,
+            infraBonus: (dataA.bootcamp?.bootcampLevel || 0) + (dataA.bootcamp?.tacticsHallLevel || 0),
+            staffBonus: (dataA.staff?.coach?.skills?.primary || 0)
+          },
+          teamB: { 
+            name: m.awayName, 
+            strategy: dataB.strategy || 'Balanced Play', 
+            heroes: squadB as any,
+            infraBonus: (dataB.bootcamp?.bootcampLevel || 0) + (dataB.bootcamp?.tacticsHallLevel || 0),
+            staffBonus: (dataB.staff?.coach?.skills?.primary || 0)
+          },
+          isBo2: true
+        });
+
+        const seriesScoreParts = simulation.seriesScore.split('-');
+        const sA = parseInt(seriesScoreParts[0]);
+        const sB = parseInt(seriesScoreParts[1]);
+        const winnerId = sA > sB ? m.homeId : (sB > sA ? m.awayId : null);
+
+        // 3. Сохраняем результат транзакцией
         await runTransaction(db, async (transaction) => {
-          // Path: leagues_v2 -> {leagueId} -> divisions -> {divId} -> groups -> {groupId} -> teams -> {userId}
-          const teamARef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', m.homeId);
-          const teamBRef = doc(db, 'leagues_v2', leagueId, 'divisions', String(divisionId), 'groups', groupId, 'teams', m.awayId);
-
-          const snapA = await transaction.get(teamARef);
-          const snapB = await transaction.get(teamBRef);
-
-          const dataA = snapA.exists() ? snapA.data() : { wins: 0, draws: 0, losses: 0, points: 0, name: m.homeName };
-          const dataB = snapB.exists() ? snapB.data() : { wins: 0, draws: 0, losses: 0, points: 0, name: m.awayName };
-
           transaction.set(teamARef, {
-            ...dataA,
             wins: (dataA.wins || 0) + (sA > sB ? 1 : 0),
             draws: (dataA.draws || 0) + (sA === sB ? 1 : 0),
             losses: (dataA.losses || 0) + (sB > sA ? 1 : 0),
             points: (dataA.points || 0) + (sA > sB ? 3 : (sA === sB ? 1 : 0)),
-            lastMatchDay: Number(m.day),
             updatedAt: serverTimestamp()
           }, { merge: true });
 
           transaction.set(teamBRef, {
-            ...dataB,
             wins: (dataB.wins || 0) + (sB > sA ? 1 : 0),
             draws: (dataB.draws || 0) + (sA === sB ? 1 : 0),
             losses: (dataB.losses || 0) + (sA > sB ? 1 : 0),
             points: (dataB.points || 0) + (sB > sA ? 3 : (sA === sB ? 1 : 0)),
-            lastMatchDay: Number(m.day),
             updatedAt: serverTimestamp()
           }, { merge: true });
 
           transaction.update(docSnap.ref, {
-            homeScore: sA, awayScore: sB,
             scoreA: sA, scoreB: sB,
             winnerId,
             status: 'finished',
             isFinished: true,
+            simulation, // Сохраняем ВЕСЬ объект симуляции для просмотра
             finishedAt: serverTimestamp(),
-            version: 27
+            version: 32
           });
         });
+
         resolvedCount++;
       } catch (e) {
-        console.error(`[V27 ENGINE] Transaction failed:`, e);
+        console.error(`[V28 ENGINE] Failed to resolve match ${m.id}:`, e);
       }
     }
   }

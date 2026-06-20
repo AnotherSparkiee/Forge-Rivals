@@ -1,5 +1,10 @@
 'use client';
 
+/**
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v3.5.
+ * Воспроизводит заранее рассчитанную симуляцию из базы данных.
+ */
+
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -9,10 +14,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   ChevronLeft, Check, Swords, Activity, ArrowRight, 
-  ShieldCheck, Zap, Target, FileText,
-  Users, Trophy, Clock, Medal,
-  ShieldAlert, User, MapPin, Info,
-  TrendingUp, Timer, ChevronRight, Loader2, Crown, X,
+  ShieldCheck, Zap, Target, Trophy, 
+  User, ShieldAlert, Info,
+  Timer, ChevronRight, Crown,
   Skull, Activity as ActivityIcon, Castle, Radio
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -20,7 +24,6 @@ import { cn } from '@/lib/utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { doc, getDoc } from 'firebase/firestore';
 import { Progress } from '@/components/ui/progress';
-import { getMoscowTime, isMatchLive } from '../lib/time-utils';
 
 type MatchStep = 'preview' | 'live' | 'stats';
 
@@ -31,90 +34,62 @@ function MatchContent() {
   const db = useFirestore();
   const { 
     language, isLoaded, markMatchIdAsSeen,
-    matchHistory
+    matchHistory, displayName: myDisplayName
   } = useGameState();
 
   const matchIdFromUrl = searchParams.get('id');
   const [step, setStep] = useState<MatchStep>('preview');
-  const [globalMatchData, setGlobalMatchData] = useState<any | null>(null);
-  const [isGlobalLoading, setIsGlobalLoading] = useState(true);
+  const [matchData, setMatchData] = useState<any | null>(null);
+  const [isDataLoading, setIsDataLoading] = useState(true);
   
   const [activeGameIdx, setActiveGameIdx] = useState(0);
   const [visibleEvents, setVisibleEvents] = useState<any[]>([]);
-  const [isTransitioning, setIsTransitioning] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
-  const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
     if (!matchIdFromUrl) {
-      setIsGlobalLoading(false);
+      setIsDataLoading(false);
       return;
     }
     const fetchMatch = async () => {
-      setIsGlobalLoading(true);
+      setIsDataLoading(true);
       try {
-        const matchRef = doc(db, 'matches_v1', matchIdFromUrl);
-        const snap = await getDoc(matchRef);
+        const snap = await getDoc(doc(db, 'matches_v1', matchIdFromUrl));
         if (snap.exists()) {
-          const data = snap.data();
-          setGlobalMatchData(data);
-          
-          // АВТОМАТИЧЕСКИЙ ПЕРЕХОД В LIVE ЕСЛИ МАТЧ ИДЕТ СЕЙЧАС
-          if (isMatchLive(data.startTime) && !data.isFinished) {
-            setStep('live');
-          }
+          setMatchData(snap.data());
+        } else {
+          // Если не нашли в глобальных матчах, ищем в локальной истории
+          const hist = matchHistory.find(m => m.id === matchIdFromUrl);
+          if (hist) setMatchData(hist);
         }
-      } finally { setIsGlobalLoading(false); }
+      } finally { setIsDataLoading(false); }
     };
     fetchMatch();
-  }, [matchIdFromUrl, db]);
+  }, [matchIdFromUrl, db, matchHistory]);
 
-  const currentResult = useMemo(() => {
-    if (isGlobalLoading) return null;
-    if (globalMatchData && (globalMatchData.status === 'finished' || isMatchLive(globalMatchData.startTime))) {
-      const isHome = globalMatchData.homeId === user?.uid;
-      // Если матч еще не финиширован, но Live — используем симуляцию из документа
-      return {
-        id: globalMatchData.id,
-        isHome,
-        homeName: globalMatchData.homeName,
-        awayName: globalMatchData.awayName,
-        scoreA: globalMatchData.scoreA || 0,
-        scoreB: globalMatchData.scoreB || 0,
-        type: globalMatchData.type || 'league',
-        day: globalMatchData.day,
-        playedAt: globalMatchData.finishedAt || globalMatchData.startTime,
-        games: globalMatchData.simulation?.games || globalMatchData.games || [],
-        seriesScore: globalMatchData.simulation?.seriesScore || `${globalMatchData.scoreA || 0}-${globalMatchData.scoreB || 0}`,
-        towersA: globalMatchData.simulation?.games?.[0]?.towersA || 0,
-        towersB: globalMatchData.simulation?.games?.[0]?.towersB || 0,
-      };
-    }
-    const fromHistory = matchHistory.find(m => m.id === matchIdFromUrl);
-    if (fromHistory) return { ...fromHistory, isHome: fromHistory.homeName?.includes(profile?.displayName || 'XYZ') };
-    return null;
-  }, [matchHistory, globalMatchData, isGlobalLoading, user?.uid, profile?.displayName]);
+  const currentSimulation = useMemo(() => {
+    if (!matchData) return null;
+    // Используем сохраненную симуляцию или формируем её из истории
+    return matchData.simulation || { 
+      games: matchData.games || [matchData],
+      seriesScore: matchData.seriesScore || `${matchData.scoreA}-${matchData.scoreB}`,
+      winner: matchData.winner
+    };
+  }, [matchData]);
 
+  // Логика прокрутки трансляции
   useEffect(() => {
-    if (step !== 'live' || !currentResult || !currentResult.games) return;
-    const game = currentResult.games[activeGameIdx];
-    if (!game) { 
-      // Если это реальный Live, а данных симуляции еще нет
-      if (!isMatchLive(globalMatchData?.startTime)) setStep('stats');
-      return; 
-    }
+    if (step !== 'live' || !currentSimulation || !currentSimulation.games) return;
+    const game = currentSimulation.games[activeGameIdx];
+    if (!game) { setStep('stats'); return; }
+    
     const events = (game.timeline || []).filter((e: any) => !!e);
     if (events.length === 0) { setStep('stats'); return; }
     
     setVisibleEvents([]);
     let currentEvt = 0;
     
-    // Если матч уже завершен в прошлом, прокручиваем быстрее. Если Live — медленнее.
-    const isActuallyLive = isMatchLive(globalMatchData?.startTime);
-    const intervalMs = isActuallyLive ? 3000 : (15000 / Math.max(1, events.length));
-    
+    // Воспроизводим лог быстро (1.5 сек на событие)
     const timer = setInterval(() => {
       if (currentEvt < events.length) {
         setVisibleEvents(prev => [...prev, events[currentEvt]]);
@@ -122,49 +97,43 @@ function MatchContent() {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       } else {
         clearInterval(timer);
-        if (activeGameIdx < currentResult.games.length - 1) {
+        if (activeGameIdx < currentSimulation.games.length - 1) {
           setTimeout(() => { 
-            setIsTransitioning(true); 
-            setTimeout(() => { 
-              setActiveGameIdx(prev => prev + 1); 
-              setVisibleEvents([]); 
-              setIsTransitioning(false); 
-            }, 1000); 
-          }, 1000);
+            setActiveGameIdx(prev => prev + 1); 
+            setVisibleEvents([]); 
+          }, 1000); 
         } else { 
           setTimeout(() => setStep('stats'), 1500); 
         }
       }
-    }, intervalMs);
+    }, 1500);
     return () => clearInterval(timer);
-  }, [step, activeGameIdx, currentResult, globalMatchData]);
+  }, [step, activeGameIdx, currentSimulation]);
 
   const handleNext = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation(); 
     if (step === 'preview') setStep('live');
     else if (step === 'live') setStep('stats'); 
     else { 
-      if (currentResult) markMatchIdAsSeen(currentResult.id); 
+      if (matchIdFromUrl) markMatchIdAsSeen(matchIdFromUrl); 
       router.push('/'); 
     }
   };
 
-  if (isUserLoading || isGlobalLoading || !isLoaded || !user) return <LoadingScreen />;
-  if (!currentResult) return <div className="p-20 text-center"><p className="text-muted-foreground uppercase text-[10px] font-black">Data sync error</p></div>;
-
-  const isActuallyLive = isMatchLive(globalMatchData?.startTime);
+  if (isUserLoading || isDataLoading || !isLoaded || !user) return <LoadingScreen />;
+  if (!matchData || !currentSimulation) return <div className="p-20 text-center"><p className="text-muted-foreground uppercase text-[10px] font-black">Match data not found</p></div>;
 
   const t = {
     en: {
-      reportTitle: isActuallyLive ? "LIVE ENGAGEMENT BROADCAST" : "OFFICIAL MATCH DEBRIEF",
-      next: "INITIATE BROADCAST", skip: "SKIP TO STATS", accept: "FINALIZE REVIEW", exit: "EXIT",
+      reportTitle: "OFFICIAL MATCH DEBRIEF",
+      next: "WATCH TRANSCRIPTION", skip: "SKIP TO STATS", accept: "FINALIZE REVIEW", exit: "EXIT",
       home: "HOME", away: "AWAY", vs: "VS",
       comparison: "TEAM SKILL ANALYSIS",
       compFarm: "Resource Acquisition", compTactics: "Tactical Execution", compTeam: "Strategic Synergy", compRef: "Combat Reflexes"
     },
     ru: {
-      reportTitle: isActuallyLive ? "ПРЯМАЯ ТРАНСЛЯЦИЯ БОЯ" : "ОФИЦИАЛЬНЫЙ ОТЧЕТ",
-      next: "В ЭФИР", skip: "К СТАТИСТИКЕ", accept: "ЗАВЕРШИТЬ ПРОСМОТР", exit: "ВЫЙТИ",
+      reportTitle: "ОФИЦИАЛЬНЫЙ ОТЧЕТ БОЯ",
+      next: "СМОТРЕТЬ ПОВТОР", skip: "К СТАТИСТИКЕ", accept: "ЗАВЕРШИТЬ ПРОСМОТР", exit: "ВЫЙТИ",
       home: "ДОМА", away: "В ГОСТЯХ", vs: "ПРОТИВ",
       comparison: "АНАЛИЗ НАВЫКОВ КОМАНД",
       compFarm: "Сбор ресурсов", compTactics: "Тактическая точность", compTeam: "Командная синергия", compRef: "Боевые рефлексы"
@@ -173,27 +142,21 @@ function MatchContent() {
 
   const renderStatsTable = (game: any) => {
     const scoreboard = game.scoreboard || [];
-    const hName = currentResult.homeName;
-    const aName = currentResult.awayName;
-    const homeHeroes = scoreboard.filter((p: any) => p.team === hName);
-    const awayHeroes = scoreboard.filter((p: any) => p.team === aName);
+    const homeHeroes = scoreboard.filter((p: any) => p.team === matchData.homeName);
+    const awayHeroes = scoreboard.filter((p: any) => p.team === matchData.awayName);
 
     const renderHeroRow = (p: any, side: 'left' | 'right') => (
-      <div key={p.name} className={cn("flex items-center gap-3 p-2.5 rounded-lg border border-white/5 bg-secondary/10", p.isPro && "border-yellow-500/30 shadow-[0_0_10px_rgba(234,179,8,0.1)]", side === 'right' ? "flex-row-reverse text-right" : "text-left")}>
+      <div key={p.name} className={cn("flex items-center gap-3 p-2.5 rounded-lg border border-white/5 bg-secondary/10", side === 'right' ? "flex-row-reverse text-right" : "text-left")}>
         <div className="relative shrink-0">
           <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10 bg-background flex items-center justify-center">
             {p.image ? <img src={p.image} alt="" className="w-full h-full object-cover" /> : <User className="w-5 h-5 text-muted-foreground" />}
           </div>
           {p.name === game.mvp && <Trophy className="absolute -top-1 -right-1 w-4 h-4 text-yellow-500 fill-yellow-500" />}
-          <div className="absolute -bottom-1 -left-1 bg-black/60 rounded px-1 flex items-center gap-0.5">
-             <span className="text-[7px] font-black text-accent">{p.matchRating?.toFixed(1) || '6.0'}</span>
-          </div>
+          <div className="absolute -bottom-1 -left-1 bg-black/60 rounded px-1"><span className="text-[7px] font-black text-accent">{p.matchRating?.toFixed(1) || '6.0'}</span></div>
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[10px] font-black uppercase truncate text-white">{p.name}</p>
-          <div className={cn("flex items-center gap-2 mt-0.5", side === 'right' && "justify-end")}>
-            <span className="text-[9px] font-mono font-bold text-primary">{p.kills}/{p.deaths}/{p.assists}</span>
-          </div>
+          <p className="text-[9px] font-mono font-bold text-primary">{p.kills}/{p.deaths}/{p.assists}</p>
         </div>
       </div>
     );
@@ -252,34 +215,28 @@ function MatchContent() {
   };
 
   return (
-    <div 
-      className="min-h-screen bg-background text-foreground pb-32 relative overflow-hidden" 
-      onClick={() => { if (step !== 'stats') handleNext(); }}
-    >
+    <div className="min-h-screen bg-background text-foreground pb-32 relative overflow-hidden" onClick={() => step !== 'stats' && handleNext()}>
       <div className="max-w-md mx-auto relative z-10 px-4 pt-6">
         <header className="text-center space-y-4 mb-8">
-          <div className="flex items-center justify-center gap-2">
-            {isActuallyLive && <Radio className="w-4 h-4 text-red-500 animate-pulse" />}
-            <h1 className="text-sm font-headline font-bold text-white uppercase tracking-tighter">{t.reportTitle}</h1>
-          </div>
+          <h1 className="text-sm font-headline font-bold text-white uppercase tracking-tighter">{t.reportTitle}</h1>
           <div className="flex items-center justify-center gap-2 max-w-[240px] mx-auto">
-            <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'preview' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
-            <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'live' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
-            <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'stats' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
+            <div className={cn("h-1 flex-1 rounded-full", step === 'preview' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
+            <div className={cn("h-1 flex-1 rounded-full", step === 'live' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
+            <div className={cn("h-1 flex-1 rounded-full", step === 'stats' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
           </div>
         </header>
 
         {step === 'preview' && (
-          <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
+          <div className="space-y-6 animate-in fade-in zoom-in-95">
             <Card className="glass-card border-white/10 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden">
               <div className="grid grid-cols-2 divide-x divide-white/5">
                 <div className="p-6 flex flex-col items-center gap-3 text-center">
                   <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-primary/30 flex items-center justify-center shadow-xl text-3xl">🛡️</div>
-                  <h3 className="text-[10px] font-headline font-bold uppercase truncate text-white">{currentResult.homeName}</h3>
+                  <h3 className="text-[10px] font-headline font-bold uppercase truncate text-white">{matchData.homeName}</h3>
                 </div>
                 <div className="p-6 flex flex-col items-center gap-3 text-center">
                   <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center shadow-xl text-3xl">⚔️</div>
-                  <h3 className="text-[10px] font-headline font-bold uppercase truncate text-white">{currentResult.awayName}</h3>
+                  <h3 className="text-[10px] font-headline font-bold uppercase truncate text-white">{matchData.awayName}</h3>
                 </div>
               </div>
             </Card>
@@ -287,29 +244,27 @@ function MatchContent() {
               <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 text-center">
                 <Castle className="w-5 h-5 text-yellow-500 mx-auto mb-2" />
                 <p className="text-[8px] font-black text-muted-foreground uppercase">TOWER CONTROL</p>
-                <p className="text-lg font-headline font-bold text-white">{currentResult.towersA} : {currentResult.towersB}</p>
+                <p className="text-lg font-headline font-bold text-white">{matchData.towersA || 0} : {matchData.towersB || 0}</p>
               </div>
               <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 text-center">
                 <Target className="w-5 h-5 text-accent mx-auto mb-2" />
                 <p className="text-[8px] font-black text-muted-foreground uppercase">TOURNAMENT</p>
-                <p className="text-lg font-headline font-bold text-white uppercase">{currentResult.type}</p>
+                <p className="text-lg font-headline font-bold text-white uppercase">{matchData.type || 'league'}</p>
               </div>
             </div>
-            <p className="text-[8px] text-center text-muted-foreground uppercase font-black animate-pulse pt-8 tracking-[0.3em]">CLICK ANYWHERE TO CONTINUE</p>
+            <p className="text-[8px] text-center text-muted-foreground uppercase font-black animate-pulse pt-8 tracking-[0.3em]">CLICK ANYWHERE TO START REPLAY</p>
           </div>
         )}
 
         {step === 'live' && (
-          <div className="space-y-4 animate-in slide-in-from-right-4 h-[60vh] flex flex-col duration-500">
+          <div className="space-y-4 animate-in slide-in-from-right-4 h-[60vh] flex flex-col">
             <div className="flex justify-between items-center px-1 mb-2">
-               <Badge className="bg-red-600 text-white animate-pulse text-[8px] font-black uppercase px-3">
-                 {isActuallyLive ? 'REAL-TIME BROADCAST' : 'LIVE REPLAY'}
-               </Badge>
-               <span className="text-[10px] font-mono font-bold text-primary">{currentResult.seriesScore}</span>
+               <Badge className="bg-blue-600 text-white text-[8px] font-black uppercase px-3">RECORDED STREAM</Badge>
+               <span className="text-[10px] font-mono font-bold text-primary">{currentSimulation.seriesScore}</span>
             </div>
             <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-hide" ref={scrollRef}>
               {visibleEvents.map((event, i) => (
-                <Card key={i} className="glass-card border-white/5 bg-secondary/10 animate-in fade-in slide-in-from-bottom-1">
+                <Card key={i} className="glass-card border-white/5 bg-secondary/10">
                   <CardContent className="p-3 flex gap-4">
                     <div className="w-12 shrink-0 flex flex-col items-center justify-center border-r border-white/5 pr-2">
                       <div className="mb-1">{getEventIcon(event?.type)}</div>
@@ -320,18 +275,19 @@ function MatchContent() {
                       {event?.score && <div className="flex justify-end"><Badge className="bg-black/40 text-[8px] font-mono font-bold text-white border-white/10">{event.score}</Badge></div>}
                     </div>
                   </CardContent>
-                ))}
+                </Card>
+              ))}
             </div>
           </div>
         )}
 
         {step === 'stats' && (
-          <div className="space-y-6 animate-in slide-in-from-right-4 pb-20 duration-500">
+          <div className="space-y-6 animate-in slide-in-from-right-4 pb-20">
             <div className="text-center py-4">
               <div className="text-5xl font-headline font-black italic tracking-tighter flex items-center justify-center gap-4 text-white">
-                <span className={cn(currentResult.scoreA > currentResult.scoreB && "text-primary")}>{currentResult.scoreA}</span>
+                <span className={cn(matchData.scoreA > matchData.scoreB && "text-primary")}>{matchData.scoreA}</span>
                 <span className="opacity-20 text-3xl">:</span>
-                <span className={cn(currentResult.scoreB > currentResult.scoreA && "text-primary")}>{currentResult.scoreB}</span>
+                <span className={cn(matchData.scoreB > matchData.scoreA && "text-primary")}>{matchData.scoreB}</span>
               </div>
               <Badge className="mt-4 text-[10px] font-black px-8 py-1 uppercase tracking-widest bg-primary/20 text-primary border-none">BATTLE CONCLUDED</Badge>
             </div>
@@ -339,9 +295,9 @@ function MatchContent() {
             <Tabs defaultValue="map1" className="w-full">
               <TabsList className="bg-secondary/30 w-full grid grid-cols-2 h-12 p-1.5 rounded-2xl mb-6">
                 <TabsTrigger value="map1" className="text-[10px] font-black uppercase rounded-xl">MAP 1</TabsTrigger>
-                <TabsTrigger value="map2" disabled={currentResult.games.length < 2} className="text-[10px] font-black uppercase rounded-xl">MAP 2</TabsTrigger>
+                <TabsTrigger value="map2" disabled={currentSimulation.games.length < 2} className="text-[10px] font-black uppercase rounded-xl">MAP 2</TabsTrigger>
               </TabsList>
-              {currentResult.games.map((game: any, idx: number) => (
+              {currentSimulation.games.map((game: any, idx: number) => (
                 <TabsContent key={idx} value={`map${idx+1}`} className="space-y-6" onClick={(e) => e.stopPropagation()}>
                   <div className="grid grid-cols-2 gap-3">
                      <div className="bg-background/40 p-3 rounded-xl border border-white/5 flex flex-col items-center">
@@ -355,21 +311,14 @@ function MatchContent() {
                         <span className="text-sm font-headline font-bold text-white">{game.objectivesA} : {game.objectivesB}</span>
                      </div>
                   </div>
-                  <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl text-center">
-                    <p className="text-[9px] text-primary/60 italic leading-relaxed">"{game.matchSummary}"</p>
-                  </div>
                   {renderStatsTable(game)}
                 </TabsContent>
               ))}
             </Tabs>
 
             <div className="pt-10">
-               <Button 
-                className="w-full h-14 hero-gradient font-black text-xs tracking-widest uppercase shadow-2xl active:scale-95 transition-all"
-                onClick={handleNext}
-               >
-                 <Check className="w-4 h-4 mr-2" />
-                 {t.accept}
+               <Button className="w-full h-14 hero-gradient font-black text-xs tracking-widest uppercase shadow-2xl" onClick={handleNext}>
+                 <Check className="w-4 h-4 mr-2" /> {t.accept}
                </Button>
             </div>
           </div>
