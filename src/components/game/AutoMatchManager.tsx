@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v41.
- * Гарантирует запись всех событий (Лига, Кубок) в БД и синхронизацию между игроками.
+ * @fileOverview Автономный менеджер синхронизации v42.
+ * Гарантирует запись всех событий (Лига, Кубок) в БД и инициализацию таблиц.
  */
 
 import { useEffect, useRef } from 'react';
@@ -47,7 +47,7 @@ export function AutoMatchManager() {
         const currentSN = info.seasonNumber;
         const currentSeasonId = `season_${currentSN}`;
 
-        // 1. ЭКОНОМИЧЕСКИЙ ЦИКЛ (Синхронные выплаты и зарплаты)
+        // 1. ЭКОНОМИЧЕСКИЙ ЦИКЛ
         if (lastEconomicCheckRef.current !== todayStr) {
           const currentPrefixedGroupId = `${currentSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
           const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', currentPrefixedGroupId, 'teams', userId);
@@ -75,14 +75,12 @@ export function AutoMatchManager() {
                 createdAt: utcNow.toISOString() 
               });
             }
-            // Зарплаты персонала списываются раз в сутки
             await payStaffSalaries();
           }
           lastEconomicCheckRef.current = todayStr;
         }
 
-        // 2. ГЕНЕРАЦИЯ КАЛЕНДАРЯ И СОСТОЯНИЯ ГРУППЫ В БД
-        // Если группа еще не инициализирована в БД — создаем ее и все 14 дней матчей
+        // 2. ГЕНЕРАЦИЯ КАЛЕНДАРЯ И ИНИЦИАЛИЗАЦИЯ ТАБЛИЦ
         const targetSN = info.seasonNumber; 
         const targetSeasonId = `season_${targetSN}`;
         const prefixedGroupId = `${targetSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
@@ -90,13 +88,10 @@ export function AutoMatchManager() {
         
         const groupSnap = await getDoc(groupRef);
         if (!groupSnap.exists()) {
-          console.log(`[GLOBAL PERSISTENCE] Generating calendar for ${selectedLeagueId} Group ${groupId}...`);
+          console.log(`[GLOBAL INITIALIZATION] Initializing group ${prefixedGroupId}...`);
           
-          // Фильтруем игроков этой конкретной группы
           const groupPlayers = leaguePlayers.filter(p => Number(p.leagueLevel) === Number(leagueLevel) && Number(p.groupId) === Number(groupId));
           const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, groupPlayers);
-          
-          // Генерируем детерминированное расписание на 14 дней
           const calendar = generateSeasonCalendar(currentTeams, targetSN, selectedLeagueId);
           
           let batch = writeBatch(db);
@@ -108,7 +103,18 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp() 
           });
           
-          // Записываем каждый матч как отдельный документ в глобальную коллекцию matches_v1
+          // Инициализируем документы команд в таблице (Standings)
+          currentTeams.forEach(team => {
+            const teamTableRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', team.id);
+            batch.set(teamTableRef, {
+              id: team.id,
+              name: team.name,
+              wins: 0, draws: 0, losses: 0, points: 0,
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+          });
+          
+          // Записываем матчи
           calendar.forEach((m) => {
             const matchId = `m_${prefixedGroupId}_d${m.day}_${m.pairKey}`;
             batch.set(doc(db, 'matches_v1', matchId), { 
@@ -126,14 +132,12 @@ export function AutoMatchManager() {
           });
           await batch.commit();
 
-          // Глобальная инициализация Кубка (один раз на сезон)
           if (targetSN === 1) {
             await generatePyramidCup(1);
           }
         }
 
-        // 3. СИНХРОННЫЙ РЕЗОЛВЕР МАТЧЕЙ (AI Simulation)
-        // Ищем в загруженных матчах те, время которых прошло, но они не завершены
+        // 3. СИНХРОННЫЙ РЕЗОЛВЕР МАТЧЕЙ
         const overdue = allSeasonMatches.filter(m => isMatchOverdue(m.startTime) && !m.isFinished);
         if (overdue.length > 0) {
           const currentPrefixedGroupId = `${currentSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
@@ -147,7 +151,6 @@ export function AutoMatchManager() {
       }
     };
 
-    // Интервал в 60 секунд для проверки экономических событий и старта матчей
     const interval = setInterval(heartbeat, 60000);
     heartbeat();
     return () => clearInterval(interval);

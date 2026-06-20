@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, CalendarClock, History, Calendar, CheckSquare, 
-  ChevronRight, Clock, Swords, Loader2, Trophy, Target, ShieldCheck
+  ChevronRight, Clock, Swords, Loader2, Trophy, Target, ShieldCheck,
+  LayoutList, ListChecks
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -35,9 +36,11 @@ export default function MatchesPage() {
   const t = {
     title: language === 'ru' ? "РАСПИСАНИЕ" : "SCHEDULE",
     back: language === 'ru' ? "Назад" : "Back",
-    nextMatch: language === 'ru' ? "БЛИЖАЙШИЙ БОЙ" : "NEXT ENGAGEMENT",
-    future: language === 'ru' ? "ПРЕДСТОЯЩИЕ СРАЖЕНИЯ" : "FUTURE SCHEDULE",
-    history: language === 'ru' ? "ИСТОРИЯ ОПЕРАЦИЙ" : "MATCH HISTORY",
+    nextMatch: language === 'ru' ? "СЛЕДУЮЩИЙ СОПЕРНИК" : "NEXT ENGAGEMENT",
+    myFuture: language === 'ru' ? "МОИ БУДУЩИЕ" : "MY FUTURE MATCHES",
+    myHistory: language === 'ru' ? "МОИ СЫГРАННЫЕ" : "MY OPERATION HISTORY",
+    leagueFuture: language === 'ru' ? "КАЛЕНДАРЬ ЛИГИ" : "LEAGUE CALENDAR",
+    leagueHistory: language === 'ru' ? "СЫГРАННЫЕ В ЛИГЕ" : "LEAGUE RESULTS",
     empty: language === 'ru' ? "МАТЧЕЙ НЕ ОБНАРУЖЕНО" : "NO MATCHES DETECTED",
     status: { scheduled: "ОЖИДАНИЕ", finished: "ЗАВЕРШЕНО", live: "В ЭФИРЕ" }
   };
@@ -53,22 +56,27 @@ export default function MatchesPage() {
 
   if (isUserLoading || !isLoaded || !isDataReady) return <LoadingScreen />;
 
-  const myMatches = allSeasonMatches
-    .filter(m => m.seasonNumber === activeSeasonNumber && (m.homeId === user?.uid || m.awayId === user?.uid))
-    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  // Filter logic
+  const myMatches = allSeasonMatches.filter(m => m.homeId === user?.uid || m.awayId === user?.uid);
+  const leagueMatches = allSeasonMatches.filter(m => m.homeId !== user?.uid && m.awayId !== user?.uid);
 
-  const finishedMatches = myMatches.filter(m => m.isFinished).reverse();
-  const futureMatches = myMatches.filter(m => !m.isFinished);
+  const myFuture = myMatches.filter(m => !m.isFinished).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  const myHistory = myMatches.filter(m => m.isFinished).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+  const leagueFuture = leagueMatches.filter(m => !m.isFinished).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  const leagueHistory = leagueMatches.filter(m => m.isFinished).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+
   const currentNextMatch = nextMatch?.match;
 
   const renderMatchCard = (m: any) => {
     const isLive = isMatchLive(m.startTime);
     const isFinished = m.isFinished;
+    const isMeHome = m.homeId === user?.uid;
+    const isMeAway = m.awayId === user?.uid;
     
     return (
       <Card key={m.id} className={cn(
         "glass-card border-white/5 transition-all overflow-hidden mb-2",
-        isLive && "border-primary/40 bg-primary/5 ring-1 ring-primary/20 shadow-[0_0_15px_rgba(var(--primary),0.1)]"
+        isLive && "border-primary/40 bg-primary/5 ring-1 ring-primary/20"
       )}>
         <CardContent className="p-3">
           <div className="flex justify-between items-center mb-2">
@@ -83,7 +91,7 @@ export default function MatchesPage() {
 
           <div className="grid grid-cols-[1fr_40px_1fr] items-center gap-2">
             <div className="text-right truncate">
-              <p className={cn("text-[10px] font-bold uppercase", m.homeId === user?.uid ? "text-primary" : "text-white")}>{m.homeName}</p>
+              <p className={cn("text-[10px] font-bold uppercase", isMeHome ? "text-primary" : "text-white")}>{m.homeName}</p>
             </div>
             <div className="flex justify-center">
               {isFinished ? (
@@ -93,7 +101,7 @@ export default function MatchesPage() {
               )}
             </div>
             <div className="text-left truncate">
-              <p className={cn("text-[10px] font-bold uppercase", m.awayId === user?.uid ? "text-primary" : "text-white")}>{m.awayName}</p>
+              <p className={cn("text-[10px] font-bold uppercase", isMeAway ? "text-primary" : "text-white")}>{m.awayName}</p>
             </div>
           </div>
           
@@ -117,18 +125,18 @@ export default function MatchesPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50">Season {activeSeasonNumber} Operational Node</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50">Season {activeSeasonNumber} Node</p>
         </div>
       </header>
 
-      <div className="space-y-8">
-        {/* NEXT MATCH SECTION */}
+      <div className="space-y-10">
+        {/* 1. NEXT MATCH */}
         {currentNextMatch && (
           <section className="space-y-3">
             <h2 className="text-[9px] font-black uppercase tracking-[0.2em] text-primary flex items-center gap-2 px-1">
               <Target className="w-3.5 h-3.5" /> {t.nextMatch}
             </h2>
-            <Card className="glass-card border-primary/30 bg-primary/5 shadow-xl shadow-primary/10 overflow-hidden">
+            <Card className="glass-card border-primary/30 bg-primary/5 shadow-xl shadow-primary/10">
                <CardContent className="p-6">
                  <div className="flex justify-between items-center mb-6">
                    <Badge className="bg-primary text-primary-foreground font-black text-[9px] uppercase tracking-widest">ДЕНЬ {currentNextMatch.day}</Badge>
@@ -137,63 +145,66 @@ export default function MatchesPage() {
                      <span className="text-xs font-mono font-bold tabular-nums">{getCountdown(currentNextMatch.startTime)}</span>
                    </div>
                  </div>
-
                  <div className="grid grid-cols-[1fr_50px_1fr] items-center gap-4">
                     <div className="text-center space-y-2">
-                       <div className="w-12 h-12 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center mx-auto shadow-lg text-2xl">🛡️</div>
+                       <div className="w-12 h-12 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center mx-auto text-2xl">🛡️</div>
                        <p className="text-xs font-headline font-bold uppercase italic text-white truncate">{currentNextMatch.homeName}</p>
                     </div>
-                    <div className="flex items-center justify-center">
-                       <div className="w-10 h-10 rounded-full bg-background border border-primary/20 flex items-center justify-center shadow-inner">
-                         <Swords className="w-5 h-5 text-accent" />
-                       </div>
-                    </div>
+                    <div className="flex items-center justify-center"><Swords className="w-6 h-6 text-accent" /></div>
                     <div className="text-center space-y-2">
-                       <div className="w-12 h-12 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center mx-auto shadow-lg text-2xl">⚔️</div>
+                       <div className="w-12 h-12 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center mx-auto text-2xl">⚔️</div>
                        <p className="text-xs font-headline font-bold uppercase italic text-white truncate">{currentNextMatch.awayName}</p>
                     </div>
-                 </div>
-
-                 <div className="mt-6 pt-4 border-t border-white/5 text-center">
-                    <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">DEPLOYMENT SECTOR</p>
-                    <p className="text-[10px] font-bold text-white mt-1 uppercase">{currentNextMatch.startTime ? new Date(currentNextMatch.startTime).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '---'}</p>
                  </div>
                </CardContent>
             </Card>
           </section>
         )}
 
-        {/* FUTURE MATCHES */}
-        {futureMatches.length > 0 && (
+        {/* 2. MY FUTURE */}
+        {myFuture.length > 0 && (
           <section className="space-y-3">
             <h2 className="text-[9px] font-black uppercase tracking-[0.2em] text-accent flex items-center gap-2 px-1">
-              <CalendarClock className="w-3.5 h-3.5" /> {t.future}
+              <CalendarClock className="w-3.5 h-3.5" /> {t.myFuture}
             </h2>
-            <div className="max-h-[300px] overflow-y-auto scrollbar-hide pr-1">
-              {futureMatches.map(renderMatchCard)}
-            </div>
+            <div>{myFuture.map(renderMatchCard)}</div>
           </section>
         )}
 
-        {/* HISTORY */}
-        {finishedMatches.length > 0 && (
+        {/* 3. MY HISTORY */}
+        {myHistory.length > 0 && (
           <section className="space-y-3">
             <h2 className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2 px-1">
-              <History className="w-3.5 h-3.5" /> {t.history}
+              <History className="w-3.5 h-3.5" /> {t.myHistory}
             </h2>
-            <div className="space-y-2">
-              {finishedMatches.map(renderMatchCard)}
-            </div>
+            <div>{myHistory.map(renderMatchCard)}</div>
           </section>
         )}
 
-        {myMatches.length === 0 && (
-          <div className="py-20 text-center animate-in fade-in duration-700">
-             <div className="w-20 h-20 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center mx-auto mb-6">
-                <ShieldCheck className="w-10 h-10 text-muted-foreground opacity-20" />
-             </div>
-             <h2 className="text-xl font-headline font-bold uppercase text-white tracking-tight">{t.empty}</h2>
-             <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mt-2">Operational network is currently silent.</p>
+        {/* 4. LEAGUE FUTURE */}
+        {leagueFuture.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-400 flex items-center gap-2 px-1">
+              <LayoutList className="w-3.5 h-3.5" /> {t.leagueFuture}
+            </h2>
+            <div className="opacity-80">{leagueFuture.slice(0, 10).map(renderMatchCard)}</div>
+          </section>
+        )}
+
+        {/* 5. LEAGUE HISTORY */}
+        {leagueHistory.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-[9px] font-black uppercase tracking-[0.2em] text-green-400 flex items-center gap-2 px-1">
+              <ListChecks className="w-3.5 h-3.5" /> {t.leagueHistory}
+            </h2>
+            <div className="opacity-70">{leagueHistory.slice(0, 10).map(renderMatchCard)}</div>
+          </section>
+        )}
+
+        {allSeasonMatches.length === 0 && (
+          <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
+            <ShieldCheck className="w-16 h-16" />
+            <p className="text-xs uppercase font-bold tracking-widest">{t.empty}</p>
           </div>
         )}
       </div>
