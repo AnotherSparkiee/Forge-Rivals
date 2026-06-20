@@ -1,11 +1,12 @@
 'use server';
 /**
- * @fileOverview Ядро симуляции матчей Lines of Enmity v3.2.
+ * @fileOverview Ядро симуляции матчей Lines of Enmity v3.3.
  * 
  * Особенности:
  * 1. Учет уровней инфраструктуры (Буткемп, Зал тактики).
  * 2. Учет навыков персонала (Тренер, Аналитик).
  * 3. Расширенная лента событий (Support Save, Objective Control).
+ * 4. Логика травматизма (Injuries) во время боя.
  */
 
 import {ai} from '@/ai/genkit';
@@ -25,6 +26,7 @@ const ProStatsSchema = z.object({
 });
 
 const HeroStatsSchema = z.object({
+  id: z.string().optional(),
   name: z.string(),
   role: z.string(),
   overallRating: z.number(),
@@ -65,6 +67,7 @@ const GameStatsSchema = z.object({
     score: z.string().optional(),
   })),
   scoreboard: z.array(z.object({
+    id: z.string().optional(),
     name: z.string(),
     team: z.string(),
     role: z.string().optional(),
@@ -75,6 +78,8 @@ const GameStatsSchema = z.object({
     cs: z.number(),
     kdaRatio: z.string(),
     isPro: z.boolean().optional(),
+    injured: z.boolean().optional(),
+    injuryDays: z.number().optional(),
   })),
   teamComparison: z.object({
     farm: z.array(z.number()),
@@ -129,7 +134,6 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
   stats.teamwork = Math.round(stats.teamwork / activeHeroes.length);
   stats.reflexes = Math.round(stats.reflexes / activeHeroes.length);
 
-  // ПРИМЕНЕНИЕ БОНУСОВ ИНФРАСТРУКТУРЫ И ПЕРСОНАЛА
   const infraMultiplier = 1 + (Number(team.infraBonus || 0) * 0.02);
   const staffMultiplier = 1 + (Number(team.staffBonus || 0) * 0.005);
   power *= (infraMultiplier * staffMultiplier);
@@ -173,8 +177,8 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
 
   allPlayers.forEach(p => {
     scoreboardMap.set(p.name, { 
-      name: p.name, team: p.team, role: p.role, image: p.image, 
-      kills: 0, deaths: 0, assists: 0, cs: 0, isPro: p.isPro 
+      id: p.id, name: p.name, team: p.team, role: p.role, image: p.image, 
+      kills: 0, deaths: 0, assists: 0, cs: 0, isPro: p.isPro, injured: false, injuryDays: 0
     });
   });
 
@@ -194,12 +198,10 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
     
     const roll = Math.random();
     
-    // Phase 1: Farming (Early game focus)
     if (m < 15 && roll < 0.6) {
       const s = scoreboardMap.get(actor.name);
       if (s) s.cs += Math.floor((actor.proStats.lastHitting / 8) + 4);
     } 
-    // Phase 2: Objectives
     else if (roll > 0.85) {
       const teamObjPower = activeHeroes.reduce((acc, h) => acc + h.proStats.objectiveControl, 0) / 5;
       const oppObjPower = opponentHeroes.reduce((acc, h) => acc + h.proStats.objectiveControl, 0) / 5;
@@ -212,7 +214,6 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
         });
       }
     }
-    // Phase 3: Engagements
     else {
       const attackPower = actor.proStats.reflexes + actor.proStats.ganking;
       const defensePower = target.proStats.positioning + target.proStats.mapAwareness;
@@ -220,7 +221,6 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
       const successThreshold = defensePower * (0.9 + Math.random() * 0.5);
       
       if (attackPower > successThreshold) {
-        // Проверка на "Сейв" от саппорта
         const support = activeHeroes.find(h => h.role === 'Support' || h.role === 'Support_Full');
         if (support && Math.random() < (support.proStats.communication / 150)) {
            timeline.push({ 
@@ -234,11 +234,25 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
           if (s && st) {
             s.kills++; st.deaths++;
             if (activeTeam.name === input.teamA.name) killsA++; else killsB++;
-            timeline.push({ 
-              time: `${m}:00`, type: 'kill', 
-              event: `${actor.name} (${actor.role}) совершает точный выпад и ликвидирует ${target.name}!`, 
-              score: `${killsA}:${killsB}` 
-            });
+            
+            // ЛОГИКА ТРАВМЫ (v3.3)
+            const injuryChance = 0.02 + (activeTeam.strategy.toLowerCase().includes('агрессив') ? 0.03 : 0);
+            if (Math.random() < injuryChance) {
+              st.injured = true;
+              st.injuryDays = 2 + Math.floor(Math.random() * 5);
+              timeline.push({ 
+                time: `${m}:00`, type: 'injury', 
+                event: `КРИТИЧЕСКИЙ МОМЕНТ! ${target.name} получает травму в столкновении и вынужден покинуть поле!`, 
+                score: `${killsA}:${killsB}` 
+              });
+            } else {
+              timeline.push({ 
+                time: `${m}:00`, type: 'kill', 
+                event: `${actor.name} (${actor.role}) совершает точный выпад и ликвидирует ${target.name}!`, 
+                score: `${killsA}:${killsB}` 
+              });
+            }
+
             activeHeroes.filter(h => h.name !== actor.name).slice(0, 2).forEach(ah => {
               const sa = scoreboardMap.get(ah.name);
               if (sa) sa.assists++;
@@ -248,7 +262,6 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
       }
     }
 
-    // Critical Tilt check
     if (m > 35 && roll > 0.9 && actor.proStats.tiltResistance < 25) {
       timeline.push({ 
         time: `${m}:00`, type: 'tilt', 
@@ -268,7 +281,7 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
   return {
     scoreA, scoreB, duration: `${duration}:00`, mvp,
     matchSummary: scoreA > scoreB ? `Стратегическая победа ${input.teamA.name}.` : `Команда ${input.teamB.name} оказалась сильнее тактически.`,
-    timeline: timeline.filter(e => !!e).slice(0, 35),
+    timeline: timeline.filter(e => !!e).slice(0, 45),
     scoreboard,
     teamComparison: {
       farm: [potA.stats.farm, potB.stats.farm],

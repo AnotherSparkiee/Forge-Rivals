@@ -24,8 +24,9 @@ export interface Hero {
   fatigue: number; 
   country: { code: string; name: string; flag: string };
   isInjured: boolean;
+  injuredUntil?: string | null; 
   isPro?: boolean; 
-  careerEndAge?: number; // Age when player retires (30-36)
+  careerEndAge?: number; 
   trainingFocus?: string | null;
   dailyTrainingFocus?: string | null;
   dailyTrainingFinishTime?: string | null;
@@ -280,7 +281,6 @@ export function generateUniqueHero(role: Role, index: number, isStarter: boolean
     fatigue: 0,
     country: { code: code, name: country.name, flag: country.flag },
     isInjured: false,
-    isPro: isPro,
     trainingFocus: null,
     dailyTrainingFocus: null,
     dailyTrainingFinishTime: null,

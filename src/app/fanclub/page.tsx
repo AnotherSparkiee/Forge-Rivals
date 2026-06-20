@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -8,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, ChevronRight, Heart, Users, Ticket, 
   BusFront, Signature, Info, Star, ShieldCheck, 
-  TrendingUp, Zap, Sparkles, Loader2
+  TrendingUp, Zap, Sparkles, Loader2, Coins
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -16,6 +15,8 @@ import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
+import { getMoscowDateString } from '../lib/time-utils';
 
 type FanclubTab = 
   | 'menu'
@@ -25,17 +26,22 @@ type FanclubTab =
   | 'autograph';
 
 export default function FanclubPage() {
-  const { language, isLoaded, selectedLeagueId, leagueLevel, groupId } = useGameState();
+  const { language, isLoaded, selectedLeagueId, leagueLevel, groupId, launchFanCampaign, credits } = useGameState();
   const { user } = useUser();
   const db = useFirestore();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<FanclubTab>('menu');
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const fanclubRef = useMemoFirebase(() => {
+  const teamRef = useMemoFirebase(() => {
     if (!user || !selectedLeagueId) return null;
-    return doc(db, 'leagues', selectedLeagueId, 'divisions', leagueLevel.toString(), 'groups', groupId.toString(), 'teams', user.uid, 'fanclub', 'stats');
+    const seasonId = `season_1`; // Simplified for now
+    const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
+    return doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid);
   }, [db, user, selectedLeagueId, leagueLevel, groupId]);
 
-  const { data: fanData, isLoading: isFanLoading } = useDoc(fanclubRef);
+  const { data: teamData, isLoading: isFanLoading } = useDoc(teamRef);
+  const fanData = teamData?.fanclub || { fanCount: 5000, loyalty: 30 };
 
   if (!isLoaded || isFanLoading) return <LoadingScreen />;
 
@@ -44,6 +50,9 @@ export default function FanclubPage() {
       title: "FANCLUB TERMINAL",
       subtitle: "Supporter Management & Loyalty Protocols",
       back: "Back to Hub",
+      insufficient: "Insufficient Credits",
+      cooldown: "Campaign Limit Reached",
+      success: "Campaign Launched!",
       tabs: {
         groups: { label: "Fan Groups", desc: "Manage organized supporter organizations", icon: Users, color: "text-blue-400" },
         free_entry: { label: "Free Entry", desc: "Promotional ticketing for matchday hype", icon: Ticket, color: "text-green-400" },
@@ -58,13 +67,18 @@ export default function FanclubPage() {
       },
       promoInfo: {
         title: "PROMOTIONAL DEPLOYMENT",
-        desc: "Offering free entry to local cadet schools increases stadium occupancy but reduces immediate revenue."
+        desc: "Offering free entry to local cadet schools increases stadium occupancy but reduces immediate revenue.",
+        cost: "Cost: 25,000 €",
+        launch: "Launch 'Cadet Day' Promo"
       }
     },
     ru: {
       title: "ТЕРМИНАЛ ФАНКЛУБА",
       subtitle: "Управление болельщиками и лояльностью",
       back: "В меню терминала",
+      insufficient: "Недостаточно средств",
+      cooldown: "Лимит кампаний исчерпан",
+      success: "Кампания запущена!",
       tabs: {
         groups: { label: "Фан-группы", desc: "Управление организациями болельщиков", icon: Users, color: "text-blue-400" },
         free_entry: { label: "Свободный вход", desc: "Промо-акции для заполнения трибун", icon: Ticket, color: "text-green-400" },
@@ -79,12 +93,34 @@ export default function FanclubPage() {
       },
       promoInfo: {
         title: "ПРОМО-КАМПАНИИ",
-        desc: "Предоставление свободного входа для местных школ повышает заполняемость стадиона в долгосрочной перспективе."
+        desc: "Предоставление свободного входа для местных школ повышает заполняемость стадиона в долгосрочной перспективе.",
+        cost: "Стоимость: 25,000 €",
+        launch: "Запустить 'День кадета'"
       }
     }
   };
 
   const t = translations[language as keyof typeof translations] || translations.ru;
+
+  const handleLaunch = (type: string, cost: number, fans: number, loyalty: number) => {
+    if (credits < cost) {
+      toast({ title: t.insufficient, variant: "destructive" });
+      return;
+    }
+    const today = getMoscowDateString();
+    if (fanData.lastCampaignDate === today) {
+      toast({ title: t.cooldown, variant: "destructive" });
+      return;
+    }
+
+    setIsProcessing(true);
+    setTimeout(() => {
+      launchFanCampaign(type as any, cost, fans, loyalty);
+      toast({ title: t.success });
+      setIsProcessing(false);
+      setActiveTab('menu');
+    }, 1500);
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -135,24 +171,46 @@ export default function FanclubPage() {
             </Card>
 
             <div className="space-y-3">
-              <Button className="w-full h-14 bg-green-600/10 border border-green-500/20 text-green-400 font-black uppercase text-[10px] tracking-widest hover:bg-green-600/20">
-                <Sparkles className="w-4 h-4 mr-2" /> Launch "Cadet Day" Promo
+              <Button 
+                className="w-full h-14 bg-green-600/10 border border-green-500/20 text-green-400 font-black uppercase text-[10px] tracking-widest hover:bg-green-600/20"
+                disabled={isProcessing}
+                onClick={() => handleLaunch('open_day', 25000, 100, 2)}
+              >
+                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />} 
+                {t.promoInfo.launch}
               </Button>
-              <p className="text-[8px] text-center text-muted-foreground uppercase font-bold">Cost: 25,000 € | Duration: 1 Match</p>
+              <p className="text-[8px] text-center text-muted-foreground uppercase font-bold">{t.promoInfo.cost} | Duration: 1 Match</p>
             </div>
           </div>
         );
 
-      default: return (
-        <div className="py-20 text-center opacity-30 animate-in fade-in duration-500">
-          <div className="w-16 h-16 rounded-full border-2 border-dashed border-muted-foreground mx-auto mb-4 flex items-center justify-center">
-            <Info className="w-8 h-8" />
+      case 'autograph':
+        return (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            <Card className="glass-card border-accent/20 bg-accent/5">
+              <CardContent className="p-6 text-center space-y-4">
+                <div className="w-20 h-20 rounded-full bg-accent/20 border-2 border-accent flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(var(--accent),0.3)]">
+                  <Signature className="w-10 h-10 text-accent" />
+                </div>
+                <h3 className="text-xl font-headline font-bold uppercase text-white">Media Exposure</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed italic px-4">
+                  "Invite fans to the base for a direct meet with heroes. Increases loyalty significantly."
+                </p>
+              </CardContent>
+            </Card>
+            <Button 
+              className="w-full h-14 hero-gradient font-black uppercase text-[10px] tracking-widest"
+              disabled={isProcessing}
+              onClick={() => handleLaunch('autograph', 50000, 50, 8)}
+            >
+              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Signature className="w-4 h-4 mr-2" />} 
+              Launch Autograph Session
+            </Button>
+            <p className="text-[8px] text-center text-muted-foreground uppercase font-bold">Cost: 50,000 € | Loyalty +8%</p>
           </div>
-          <p className="text-xs font-black uppercase tracking-widest leading-relaxed">
-            Module data offline.<br/>Establishing uplink...
-          </p>
-        </div>
-      );
+        );
+
+      default: return null;
     }
   };
 
@@ -178,13 +236,13 @@ export default function FanclubPage() {
            <Card className="glass-card bg-primary/5 border-primary/20">
              <CardContent className="p-4 text-center">
                 <p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Fan Count</p>
-                <p className="text-xl font-headline font-black italic text-primary">{(fanData?.fanCount || 0).toLocaleString()}</p>
+                <p className="text-xl font-headline font-black italic text-primary">{(fanData?.fanCount || 5000).toLocaleString()}</p>
              </CardContent>
            </Card>
            <Card className="glass-card bg-accent/5 border-accent/20">
              <CardContent className="p-4 text-center">
                 <p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Loyalty</p>
-                <p className="text-xl font-headline font-black italic text-accent">{fanData?.loyalty || 0}%</p>
+                <p className="text-xl font-headline font-black italic text-accent">{fanData?.loyalty || 30}%</p>
              </CardContent>
            </Card>
         </div>

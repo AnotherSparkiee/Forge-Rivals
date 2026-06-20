@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v49 (Bugfix: clearScoutingReport). 
- * Исправлена ошибка ReferenceError за счет реализации недостающей функции.
+ * @fileOverview Глобальное хранилище v50 (Injury & Fanclub Logic). 
+ * Интегрирована система лечения травм и запуск кампаний фан-клуба.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -80,6 +80,8 @@ interface GameState {
   recruitCandidate: (heroId: string) => void;
   clearScoutingReport: () => void;
   payStaffSalaries: () => Promise<void>;
+  healHero: (heroId: string, type: 'credits' | 'crystals', cost: number) => void;
+  launchFanCampaign: (type: 'open_day' | 'autograph' | 'ultras_trip', cost: number, fans: number, loyalty: number) => void;
 }
 
 export function getLevelThreshold(lvl: number) {
@@ -110,7 +112,7 @@ const DEFAULT_STATE: GameState = {
   startAcademyConstruction: () => false, startMedicalConstruction: () => false, startCapacityExpansion: () => false,
   accelerateConstruction: () => false, checkConstructions: () => {},
   scoutCandidates: () => {}, recruitCandidate: () => {}, clearScoutingReport: () => {},
-  payStaffSalaries: async () => {}
+  payStaffSalaries: async () => {}, healHero: () => {}, launchFanCampaign: () => {}
 };
 
 const GameStateContext = createContext<GameState | undefined>(undefined);
@@ -226,6 +228,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
       const heroesUnsub = onSnapshot(collection(teamRef, 'heroes'), (hSnap) => {
         const all = hSnap.docs.map(d => ({ ...d.data(), id: d.id } as Hero));
+        
+        // AUTO-HEAL CHECK
+        const mskNow = getMoscowTime().getTime();
+        all.forEach(h => {
+          if (h.isInjured && h.injuredUntil && mskNow >= new Date(h.injuredUntil).getTime()) {
+            setDoc(doc(collection(teamRef, 'heroes'), h.id), { isInjured: false, injuredUntil: null }, { merge: true });
+          }
+        });
+
         setState(prev => ({
           ...prev,
           ownedHeroes: all.filter(h => !h.isYouth),
@@ -342,6 +353,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const id = mId || `match_${Date.now()}`;
     if (s.matchHistory.some(m => m.id === id)) return;
 
+    // APPLY INJURIES FROM SIMULATION
+    res.scoreboard?.forEach((p: any) => {
+      if (p.injured && p.id) {
+        const h = s.ownedHeroes.find(x => x.id === p.id);
+        if (h) {
+          const mskNow = getMoscowTime();
+          const injuredUntil = new Date(mskNow.getTime() + (p.injuryDays || 2) * 24 * 60 * 60 * 1000).toISOString();
+          updateHero(h.id, { isInjured: true, injuredUntil });
+        }
+      }
+    });
+
     const entry = { 
       id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, 
       matchSummary: res.matchSummary || "Combat concluded.", 
@@ -451,7 +474,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const s = stateRef.current;
     const today = getMoscowDateString();
     
-    // Only pay if not already paid today
     const teamSnap = await getDoc(r.team);
     if (teamSnap.exists() && teamSnap.data().lastStaffSalaryPaymentDate === today) return;
 
@@ -479,12 +501,41 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }, [getRefs, db]);
 
+  const healHero = (id: string, type: 'credits' | 'crystals', cost: number) => {
+    const r = getRefs(); if (!r) return;
+    const s = stateRef.current;
+    const h = s.ownedHeroes.find(x => x.id === id);
+    if (!h) return;
+
+    if (type === 'credits' && s.credits < cost) return;
+    if (type === 'crystals' && s.crystals < cost) return;
+
+    const data: Partial<Hero> = { isInjured: false, injuredUntil: null };
+    setDoc(doc(collection(r.team, 'heroes'), id), data, { merge: true });
+    setDoc(r.team, { [type]: (s as any)[type] - cost }, { merge: true });
+  };
+
+  const launchFanCampaign = (type: string, cost: number, fans: number, loyalty: number) => {
+    const r = getRefs(); if (!r) return;
+    const s = stateRef.current;
+    if (s.credits < cost) return;
+
+    const fanData = s.medical?.fanclub || { fanCount: 5000, loyalty: 30 };
+    const updatedFans = (fanData.fanCount || 5000) + fans;
+    const updatedLoyalty = Math.min(100, (fanData.loyalty || 30) + loyalty);
+
+    setDoc(r.team, { 
+      credits: s.credits - cost,
+      fanclub: { fanCount: updatedFans, loyalty: updatedLoyalty, lastCampaignDate: getMoscowDateString() }
+    }, { merge: true });
+  };
+
   const value = useMemo(() => ({
     ...state, isDataReady: isMatchesReady && state.isLoaded, allSeasonMatches: allMatches, nextMatch: nextMatchInfo, isMatchesLoading: !isMatchesReady,
     addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setLanguageDirect,
     setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions,
-    scoutCandidates, recruitCandidate, clearScoutingReport, payStaffSalaries
-  }), [state, isMatchesReady, state.isLoaded, allMatches, nextMatchInfo, addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setLanguageDirect, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, scoutCandidates, recruitCandidate, clearScoutingReport, payStaffSalaries]);
+    scoutCandidates, recruitCandidate, clearScoutingReport, payStaffSalaries, healHero, launchFanCampaign
+  }), [state, isMatchesReady, state.isLoaded, allMatches, nextMatchInfo, addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setLanguageDirect, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, scoutCandidates, recruitCandidate, clearScoutingReport, payStaffSalaries, healHero, launchFanCampaign]);
 
   return <GameStateContext.Provider value={value as any}>{children}</GameStateContext.Provider>;
 }
