@@ -40,7 +40,8 @@ export function getGlobalCupParticipants(realPlayers: any[], seasonNumber: numbe
       const botsNeeded = Math.max(0, 8 - groupTeams.length);
       for (let i = 0; i < botsNeeded; i++) {
         const botIdNum = (lvl * 1000) + (g * 10) + i + 1000;
-        groupTeams.push({ id: `bot_cup_${botIdNum}`, name: `Bot ${botIdNum}`, isPlayer: false, level: lvl });
+        // Убрали "Bot " и пробел, оставили только botID формат
+        groupTeams.push({ id: `bot${botIdNum}`, name: `bot${botIdNum}`, isPlayer: false, level: lvl });
       }
       allTeams.push(...groupTeams.slice(0, 8));
     }
