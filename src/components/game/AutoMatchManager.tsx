@@ -2,15 +2,14 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v45.
- * Гарантирует запись всех событий (Лига, Кубок) в БД и инициализацию таблиц.
- * Добавлена очистка устаревших данных (версии ниже 32).
+ * @fileOverview Автономный менеджер синхронизации v46.
+ * Исправлена инициализация подколлекций teams для корректного отображения таблиц.
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, updateDoc, setDoc, getDocs, limit } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, updateDoc, setDoc } from 'firebase/firestore';
 import { getStableGroupTeams, generateSeasonCalendar } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo, isMatchOverdue, getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
 import { forceResolveGroupMatches } from '@/app/actions/mmo-engine';
@@ -110,11 +109,14 @@ export function AutoMatchManager() {
               id: team.id,
               name: team.name,
               displayName: team.name,
-              wins: 0, draws: 0, losses: 0, points: 0,
+              wins: 0, 
+              draws: 0, 
+              losses: 0, 
+              points: 0,
               credits: team.isBot ? 0 : 1000000,
               crystals: team.isBot ? 0 : 50,
               updatedAt: serverTimestamp(),
-              version: 1 
+              version: 32 
             }, { merge: true });
           });
           

@@ -2,8 +2,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v32. 
- * Исправлена синхронизация данных из leagues_v2 и визуализация таблицы.
+ * @fileOverview Страница рейтингов v33. 
+ * Внедрена клиентская сортировка для гарантированного отображения данных без индексов Firestore.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   Trophy, Medal, ChevronLeft, ChevronRight, 
-  Shield, Globe, Layers, Crown, Swords, Zap, Loader2, Calendar, User, ShoppingBasket, AlertCircle
+  Shield, Globe, Layers, Crown, Swords, Zap, Loader2, Calendar, User, AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { LEAGUES, MAX_LEVELS } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, limit } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { getGlobalSeasonInfo } from '../lib/time-utils';
 
@@ -47,45 +47,26 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel);
   const contextGroup = Number(navGroup || groupId);
 
-  // Standings Query: season_1_league_ALPHA_group_1 format
+  // Teams Query: Fetching without complex orderBy to avoid index issues
   const teamsQuery = useMemoFirebase(() => {
     if (isUserLoading || !user || !contextLeagueId) return null;
     try {
       const seasonId = `season_${activeSeasonNumber}`;
       const prefixedGroupId = `${seasonId}_league_${contextLeagueId}_group_${contextGroup}`;
       
-      // Standard path: leagues_v2/{leagueId}/divisions/{divId}/groups/{groupId}/teams
-      return query(
-        collection(db, 'leagues_v2', contextLeagueId, 'divisions', String(contextLevel), 'groups', prefixedGroupId, 'teams'),
-        orderBy('points', 'desc'),
-        orderBy('wins', 'desc'),
-        limit(10)
-      );
+      // We fetch all teams in the sub-collection and sort locally
+      return collection(db, 'leagues_v2', contextLeagueId, 'divisions', String(contextLevel), 'groups', prefixedGroupId, 'teams');
     } catch (e) {
       console.error("Teams query error", e);
       return null;
     }
   }, [db, contextLeagueId, contextLevel, contextGroup, activeSeasonNumber, isUserLoading, user]);
 
-  const { data: teamsData, isLoading: isTeamsLoading } = useCollection(teamsQuery);
-
-  // Cup Query
-  const cupQuery = useMemoFirebase(() => {
-    if (activeTab !== 'pyramid_cup' || !contextLeagueId) return null;
-    return query(
-      collection(db, 'cup_matches'),
-      where('leagueId', '==', contextLeagueId),
-      where('seasonNumber', '==', activeSeasonNumber),
-      where('round', '==', Number(activeRound)),
-      limit(200)
-    );
-  }, [db, contextLeagueId, activeRound, activeTab, activeSeasonNumber]);
-
-  const { data: cupMatches, isLoading: isCupLoading } = useCollection(cupQuery);
+  const { data: rawTeams, isLoading: isTeamsLoading } = useCollection(teamsQuery);
 
   const standings = useMemo(() => {
-    if (!teamsData) return [];
-    return teamsData.map(t => ({
+    if (!rawTeams) return [];
+    return rawTeams.map(t => ({
       id: t.id,
       name: t.displayName || t.name || "Unknown",
       wins: Number(t.wins || 0),
@@ -93,8 +74,22 @@ export default function RankingsPage() {
       losses: Number(t.losses || 0),
       points: Number(t.points || 0),
       played: Number(t.wins || 0) + Number(t.draws || 0) + Number(t.losses || 0)
-    }));
-  }, [teamsData]);
+    })).sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name));
+  }, [rawTeams]);
+
+  // Cup Query: Ensure types match
+  const cupQuery = useMemoFirebase(() => {
+    if (activeTab !== 'pyramid_cup' || !contextLeagueId) return null;
+    return query(
+      collection(db, 'cup_matches'),
+      where('leagueId', '==', String(contextLeagueId)),
+      where('seasonNumber', '==', Number(activeSeasonNumber)),
+      where('round', '==', Number(activeRound)),
+      limit(100)
+    );
+  }, [db, contextLeagueId, activeRound, activeTab, activeSeasonNumber]);
+
+  const { data: cupMatches, isLoading: isCupLoading } = useCollection(cupQuery);
 
   const t = {
     en: {
@@ -156,7 +151,12 @@ export default function RankingsPage() {
               <div className="text-center font-mono text-[10px] text-muted-foreground">{entry.wins}-{entry.draws}-{entry.losses}</div>
               <div className="text-right font-headline font-black text-primary italic">{entry.points}</div>
             </div>
-          )) : <div className="py-20 text-center opacity-30 uppercase text-[8px] font-black tracking-widest border-2 border-dashed border-white/5 rounded-3xl">Awaiting group initialization...</div>}
+          )) : (
+            <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4 border-2 border-dashed border-white/5 rounded-3xl p-10">
+              <AlertCircle className="w-12 h-12" />
+              <p className="text-[10px] uppercase font-black tracking-widest">No ranking data found for this group.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
