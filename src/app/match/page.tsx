@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v4.4.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v4.5.
  * Отображает обоснованную статистику, детальные рейтинги и последствия матча для игроков.
+ * Добавлена поддержка Technical Win (TBD) и завершение кликом.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -19,7 +20,7 @@ import {
   Timer, ChevronRight, Crown,
   Skull, Activity as ActivityIcon, Castle, Radio,
   Package, Sparkles, Flame, HeartPulse, GraduationCap,
-  Microscope
+  Microscope, X
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -35,7 +36,7 @@ function MatchContent() {
   const db = useFirestore();
   const { 
     language, isLoaded, markMatchIdAsSeen,
-    matchHistory, displayName
+    matchHistory
   } = useGameState();
 
   const matchIdFromUrl = searchParams.get('id');
@@ -59,7 +60,7 @@ function MatchContent() {
         if (snap.exists()) {
           setMatchData({ ...snap.data(), id: snap.id });
         } else {
-          const hist = matchHistory.find(m => m.id === matchIdFromUrl);
+          const hist = (matchHistory || []).find(m => m.id === matchIdFromUrl);
           if (hist) setMatchData(hist);
         }
       } catch (e) {
@@ -74,12 +75,20 @@ function MatchContent() {
     return matchData.simulation || { 
       games: matchData.games || [matchData],
       seriesScore: matchData.seriesScore || `${matchData.scoreA}-${matchData.scoreB}`,
-      winner: matchData.winner
+      winner: matchData.winner,
+      isTbdWin: matchData.isTbdWin
     };
   }, [matchData]);
 
   useEffect(() => {
     if (step !== 'live' || !currentSimulation || !currentSimulation.games) return;
+    
+    // Если это техническая победа TBD - сразу на стадию статистики
+    if (currentSimulation.isTbdWin) {
+      setStep('stats');
+      return;
+    }
+
     const game = currentSimulation.games[activeGameIdx];
     if (!game) { setStep('stats'); return; }
     
@@ -105,13 +114,16 @@ function MatchContent() {
           setTimeout(() => setStep('stats'), 1500); 
         }
       }
-    }, 800); 
+    }, 400); 
     return () => clearInterval(timer);
   }, [step, activeGameIdx, currentSimulation]);
 
   const handleNext = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation(); 
-    if (step === 'preview') setStep('live');
+    if (step === 'preview') {
+      if (currentSimulation?.isTbdWin) setStep('stats');
+      else setStep('live');
+    }
     else if (step === 'live') setStep('stats'); 
     else { 
       if (matchIdFromUrl) markMatchIdAsSeen(matchIdFromUrl); 
@@ -130,7 +142,9 @@ function MatchContent() {
       comparison: "TEAM SKILL ANALYSIS",
       progression: "POST-MATCH IMPACT",
       staffInfluence: "STAFF PERFORMANCE CONTRIBUTION",
-      compFarm: "Resource Acquisition", compTactics: "Tactical Execution", compTeam: "Strategic Synergy", compRef: "Combat Reflexes"
+      compFarm: "Resource Acquisition", compTactics: "Tactical Execution", compTeam: "Strategic Synergy", compRef: "Combat Reflexes",
+      tbdTitle: "TECHNICAL WIN SECURED",
+      tbdDesc: "Opponent (TBD) failed to deploy for tactical engagement. Result officially recorded as 2:0."
     },
     ru: {
       reportTitle: "ОФИЦИАЛЬНЫЙ ОТЧЕТ БОЯ",
@@ -139,11 +153,23 @@ function MatchContent() {
       comparison: "АНАЛИЗ НАВЫКОВ КОМАНД",
       progression: "ПОСЛЕМАТЧЕВЫЙ ОТЧЕТ",
       staffInfluence: "ВКЛАД ПЕРСОНАЛА КЛУБА",
-      compFarm: "Сбор ресурсов", compTactics: "Тактическая точность", compTeam: "Командная синергия", compRef: "Боевые рефлексы"
+      compFarm: "Сбор ресурсов", compTactics: "Тактическая точность", compTeam: "Командная синергия", compRef: "Боевые рефлексы",
+      tbdTitle: "ТЕХНИЧЕСКАЯ ПОБЕДА",
+      tbdDesc: "Соперник (TBD) не явился на поле боя. Результат официально зафиксирован как 2:0."
     }
   }[language as 'en' | 'ru'] || { reportTitle: "Report" };
 
   const renderStatsTable = (game: any) => {
+    if (currentSimulation.isTbdWin) {
+      return (
+        <div className="py-12 text-center animate-in zoom-in duration-700">
+           <ShieldCheck className="w-20 h-20 text-green-500 mx-auto mb-6 drop-shadow-[0_0_15px_rgba(34,197,94,0.4)]" />
+           <h2 className="text-2xl font-headline font-bold text-white uppercase mb-2">{t.tbdTitle}</h2>
+           <p className="text-xs text-muted-foreground px-10 italic">"{t.tbdDesc}"</p>
+        </div>
+      );
+    }
+
     const scoreboard = game.scoreboard || [];
     const homeHeroes = scoreboard.filter((p: any) => p.team === matchData.homeName);
     const awayHeroes = scoreboard.filter((p: any) => p.team === matchData.awayName);
@@ -157,7 +183,7 @@ function MatchContent() {
             </div>
             {p.name === game.mvp && <Trophy className="absolute -top-1.5 -right-1.5 w-6 h-6 text-yellow-500 fill-yellow-500 drop-shadow-[0_0_8px_rgba(234,179,8,0.6)]" />}
             <div className="absolute -bottom-1 -left-1 bg-black/90 rounded-lg px-2 py-0.5 border border-white/10 shadow-2xl">
-              <span className="text-[10px] font-black text-accent">{p.matchRating?.toFixed(1) || '6.0'}</span>
+              <span className="text-[10px] font-black text-accent">{Number(p.matchRating || 6.0).toFixed(1)}</span>
             </div>
           </div>
           <div className="flex-1 min-w-0">
@@ -252,7 +278,6 @@ function MatchContent() {
            </div>
         </section>
 
-        {/* STAFF INTEL BLOCK */}
         <section className="space-y-4 pt-4">
            <h3 className="text-[11px] font-black uppercase tracking-widest text-yellow-500 text-center flex items-center justify-center gap-2 bg-yellow-500/5 py-2 rounded-xl">
              <Microscope className="w-4 h-4" /> {t.staffInfluence}
@@ -330,7 +355,9 @@ function MatchContent() {
                 <p className="text-lg font-headline font-bold text-white uppercase">{matchData.type || 'league'}</p>
               </div>
             </div>
-            <p className="text-[8px] text-center text-muted-foreground uppercase font-black animate-pulse pt-8 tracking-[0.3em]">CLICK ANYWHERE TO START REPLAY</p>
+            <p className="text-[8px] text-center text-muted-foreground uppercase font-black animate-pulse pt-8 tracking-[0.3em]">
+              {currentSimulation.isTbdWin ? 'TECHNICAL WIN - CLICK TO ACKNOWLEDGE' : 'CLICK ANYWHERE TO START REPLAY'}
+            </p>
           </div>
         )}
 
@@ -367,32 +394,42 @@ function MatchContent() {
                 <span className="opacity-20 text-3xl">:</span>
                 <span className={cn(matchData.scoreB > matchData.scoreA && "text-primary")}>{matchData.scoreB}</span>
               </div>
-              <Badge className="mt-4 text-[10px] font-black px-8 py-1 uppercase tracking-widest bg-primary/20 text-primary border-none">BATTLE CONCLUDED</Badge>
+              <Badge className={cn("mt-4 text-[10px] font-black px-8 py-1 uppercase tracking-widest border-none", currentSimulation.isTbdWin ? "bg-green-500/20 text-green-400" : "bg-primary/20 text-primary")}>
+                {currentSimulation.isTbdWin ? 'TECHNICAL VICTORY' : 'BATTLE CONCLUDED'}
+              </Badge>
             </div>
             
-            <Tabs defaultValue="map1" className="w-full">
-              <TabsList className="bg-secondary/30 w-full grid grid-cols-2 h-12 p-1.5 rounded-2xl mb-6 shadow-lg">
-                <TabsTrigger value="map1" className="text-[10px] font-black uppercase rounded-xl">MAP 1</TabsTrigger>
-                <TabsTrigger value="map2" disabled={currentSimulation.games.length < 2} className="text-[10px] font-black uppercase rounded-xl">MAP 2</TabsTrigger>
-              </TabsList>
-              {currentSimulation.games.map((game: any, idx: number) => (
-                <TabsContent key={idx} value={`map${idx+1}`} className="space-y-6 animate-in fade-in slide-in-from-bottom-2" onClick={(e) => e.stopPropagation()}>
-                  <div className="grid grid-cols-2 gap-3">
-                     <div className="bg-background/40 p-4 rounded-2xl border border-white/5 flex flex-col items-center shadow-inner">
-                        <Castle className="w-5 h-5 text-yellow-500 mb-1" />
-                        <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Destroyed Towers</span>
-                        <span className="text-xl font-headline font-bold text-white">{game.towersA} : {game.towersB}</span>
-                     </div>
-                     <div className="bg-background/40 p-4 rounded-2xl border border-white/5 flex flex-col items-center shadow-inner">
-                        <Activity className="w-5 h-5 text-accent mb-1" />
-                        <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Forest Objectives</span>
-                        <span className="text-xl font-headline font-bold text-white">{game.objectivesA} : {game.objectivesB}</span>
-                     </div>
-                  </div>
-                  {renderStatsTable(game)}
-                </TabsContent>
-              ))}
-            </Tabs>
+            {!currentSimulation.isTbdWin && (
+              <Tabs defaultValue="map1" className="w-full">
+                <TabsList className="bg-secondary/30 w-full grid grid-cols-2 h-12 p-1.5 rounded-2xl mb-6 shadow-lg">
+                  <TabsTrigger value="map1" className="text-[10px] font-black uppercase rounded-xl">MAP 1</TabsTrigger>
+                  <TabsTrigger value="map2" disabled={currentSimulation.games.length < 2} className="text-[10px] font-black uppercase rounded-xl">MAP 2</TabsTrigger>
+                </TabsList>
+                {currentSimulation.games.map((game: any, idx: number) => (
+                  <TabsContent key={idx} value={`map${idx+1}`} className="space-y-6 animate-in fade-in slide-in-from-bottom-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="grid grid-cols-2 gap-3">
+                       <div className="bg-background/40 p-4 rounded-2xl border border-white/5 flex flex-col items-center shadow-inner">
+                          <Castle className="w-5 h-5 text-yellow-500 mb-1" />
+                          <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Destroyed Towers</span>
+                          <span className="text-xl font-headline font-bold text-white">{game.towersA} : {game.towersB}</span>
+                       </div>
+                       <div className="bg-background/40 p-4 rounded-2xl border border-white/5 flex flex-col items-center shadow-inner">
+                          <Activity className="w-5 h-5 text-accent mb-1" />
+                          <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Forest Objectives</span>
+                          <span className="text-xl font-headline font-bold text-white">{game.objectivesA} : {game.objectivesB}</span>
+                       </div>
+                    </div>
+                    {renderStatsTable(game)}
+                  </TabsContent>
+                ))}
+              </Tabs>
+            )}
+
+            {currentSimulation.isTbdWin && (
+               <div className="mt-8">
+                 {renderStatsTable({})}
+               </div>
+            )}
 
             <div className="pt-10">
                <Button className="w-full h-16 hero-gradient font-black text-sm tracking-widest uppercase shadow-2xl active:scale-95 transition-all rounded-2xl" onClick={handleNext}>

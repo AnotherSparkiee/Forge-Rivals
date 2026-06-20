@@ -38,7 +38,7 @@ const PlayerStatsSchema = z.object({
 
 const TeamSchema = z.object({
   name: z.string(),
-  heroes: z.array(PlayerStatsSchema), // Keeps internal field name 'heroes' for backward compatibility in input
+  heroes: z.array(PlayerStatsSchema), 
   strategy: z.string().describe('Aggressive, Balanced, Defensive, Fast_Push, Counter-attack'),
   infraBonus: z.number().optional().describe('Bonus from Bootcamp/Tactics Hall'),
   staffBonus: z.number().optional().describe('Bonus from Coach skills'),
@@ -66,6 +66,7 @@ const GameStatsSchema = z.object({
   towersB: z.number(),
   objectivesA: z.number(),
   objectivesB: z.number(),
+  isTechnical: z.boolean().optional(),
   timeline: z.array(z.object({
     time: z.string(),
     event: z.string(),
@@ -97,6 +98,7 @@ const GameStatsSchema = z.object({
 const SimulateMobaMatchOutputSchema = z.object({
   winner: z.string(),
   seriesScore: z.string(),
+  isTbdWin: z.boolean().optional(),
   games: z.array(GameStatsSchema),
 });
 export type SimulateMobaMatchOutput = z.infer<typeof SimulateMobaMatchOutputSchema>;
@@ -110,7 +112,7 @@ const ROLE_WEIGHTS: Record<string, Record<keyof z.infer<typeof ProStatsSchema>, 
 };
 
 function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
-  const activeHeroes = team.heroes.filter(h => !h.isSub).slice(0, 5);
+  const activeHeroes = (team.heroes || []).filter(h => !h.isSub).slice(0, 5);
   let power = 0;
   const stats = { farm: 0, tactics: 0, teamwork: 0, reflexes: 0 };
 
@@ -120,18 +122,20 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
     const weights = ROLE_WEIGHTS[hero.role] || ROLE_WEIGHTS['Midlaner'];
     let heroContribution = Number(hero.overallRating || 0) * 2.0;
 
-    Object.entries(hero.proStats).forEach(([key, val]) => {
-      const weight = weights[key as keyof typeof weights] || 1.0;
-      heroContribution += Number(val || 0) * weight;
-    });
+    if (hero.proStats) {
+      Object.entries(hero.proStats).forEach(([key, val]) => {
+        const weight = weights[key as keyof typeof weights] || 1.0;
+        heroContribution += Number(val || 0) * weight;
+      });
+      
+      stats.farm += (hero.proStats.lastHitting + hero.proStats.manaManagement) / 2;
+      stats.tactics += (hero.proStats.mapAwareness + hero.proStats.objectiveControl) / 2;
+      stats.teamwork += (hero.proStats.communication + hero.proStats.versatility) / 2;
+      stats.reflexes += (hero.proStats.reflexes + hero.proStats.ganking) / 2;
+    }
 
     if (hero.isPro) heroContribution *= 1.25;
     power += heroContribution;
-
-    stats.farm += (hero.proStats.lastHitting + hero.proStats.manaManagement) / 2;
-    stats.tactics += (hero.proStats.mapAwareness + hero.proStats.objectiveControl) / 2;
-    stats.teamwork += (hero.proStats.communication + hero.proStats.versatility) / 2;
-    stats.reflexes += (hero.proStats.reflexes + hero.proStats.ganking) / 2;
   });
 
   const count = activeHeroes.length;
@@ -162,12 +166,14 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
 }
 
 function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'): z.infer<typeof GameStatsSchema> {
-  // TBD Technical Win
-  if (input.teamB.name === 'TBD') {
+  const isTBDAway = input.teamB.name === 'TBD' || input.teamB.name === 'BYE';
+  
+  if (isTBDAway) {
     return {
       scoreA: 1, scoreB: 0, duration: "00:00", mvp: input.teamA.heroes[0]?.name || "None",
       matchSummary: "Техническая победа (TBD).",
       towersA: 11, towersB: 0, objectivesA: 5, objectivesB: 0,
+      isTechnical: true,
       timeline: [], scoreboard: [], teamComparison: { farm: [100, 0], tactics: [100, 0], teamwork: [100, 0], reflexes: [100, 0] }
     };
   }
@@ -188,10 +194,9 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
   const timeline: any[] = [];
   const scoreboardMap = new Map<string, any>();
 
-  const allPlayers = [
-    ...input.teamA.heroes.filter(h => !h.isSub).map(h => ({ ...h, team: input.teamA.name })),
-    ...input.teamB.heroes.filter(h => !h.isSub).map(h => ({ ...h, team: input.teamB.name }))
-  ];
+  const heroesA = (input.teamA.heroes || []).filter(h => !h.isSub).map(h => ({ ...h, team: input.teamA.name }));
+  const heroesB = (input.teamB.heroes || []).filter(h => !h.isSub).map(h => ({ ...h, team: input.teamB.name }));
+  const allPlayers = [...heroesA, ...heroesB];
 
   allPlayers.forEach(p => {
     scoreboardMap.set(p.name, { 
@@ -214,8 +219,8 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
     const opponentTeam = activeTeam.name === input.teamA.name ? input.teamB : input.teamA;
     const isAActive = activeTeam.name === input.teamA.name;
     
-    const heroes = activeTeam.heroes.filter(h => !h.isSub);
-    const targets = opponentTeam.heroes.filter(h => !h.isSub);
+    const heroes = (activeTeam.heroes || []).filter(h => !h.isSub);
+    const targets = (opponentTeam.heroes || []).filter(h => !h.isSub);
 
     if (heroes.length === 0 || targets.length === 0) continue;
 
@@ -223,7 +228,7 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
     const target = targets[Math.floor(Math.random() * targets.length)];
     const roll = Math.random();
 
-    if (isEarly && roll < 0.55) {
+    if (isEarly && roll < 0.55 && actor.proStats) {
       const s = scoreboardMap.get(actor.name);
       if (s) {
         const gain = Math.floor((actor.proStats.lastHitting / 12) + 7);
@@ -251,7 +256,7 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
       const s = scoreboardMap.get(actor.name);
       if (s) s.matchRating += 0.45;
     }
-    else if (roll > 0.70) {
+    else if (roll > 0.70 && actor.proStats && target.proStats) {
       const atkPower = actor.proStats.reflexes + actor.proStats.ganking;
       const defPower = target.proStats.positioning + target.proStats.mapAwareness;
       
@@ -260,7 +265,7 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
 
       if (Math.random() < successChance) {
         const support = heroes.find(h => h.role === 'Support');
-        if (support && Math.random() < (support.proStats.communication / 220)) {
+        if (support && support.proStats && Math.random() < (support.proStats.communication / 220)) {
            timeline.push({ 
              time: `${m}:00`, type: 'save', 
              event: `Невероятный сейв! ${support.name} вытаскивает ${actor.name} из-под удара.`,
@@ -292,7 +297,7 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
       }
     }
 
-    if (isLate && roll > 0.94 && actor.proStats.tiltResistance < 45) {
+    if (isLate && roll > 0.94 && actor.proStats && actor.proStats.tiltResistance < 45) {
       timeline.push({ 
         time: `${m}:00`, type: 'tilt', 
         event: `Ошибка концентрации! ${actor.name} теряет позицию из-за усталости.`, 
@@ -333,11 +338,13 @@ export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<
   const numGames = input.isBo3 ? 3 : (input.isBo2 ? 2 : 1);
   
   // TBD Technical Win
-  if (input.teamB.name === 'TBD') {
+  const isTBDAway = input.teamB.name === 'TBD' || input.teamB.name === 'BYE';
+  if (isTBDAway) {
     const tbdGame = runSingleGame(input);
     return {
       winner: input.teamA.name,
       seriesScore: "2-0",
+      isTbdWin: true,
       games: [tbdGame, tbdGame]
     };
   }
