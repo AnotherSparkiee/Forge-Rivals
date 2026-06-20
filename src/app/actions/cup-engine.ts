@@ -1,13 +1,8 @@
-
 'use server';
 
 /**
- * @fileOverview Ультимативный антикризисный двигатель Кубка v11 (TBD & Multi-League Support).
- * 
- * Особенности:
- * 1. Генерация Раунда 1 для всех 16 лиг.
- * 2. Использование TBD для пустых слотов.
- * 3. Детерминированный посев на основе силы и ID.
+ * @fileOverview Ультимативный антикризисный двигатель Кубка v12.
+ * Исправлена логика генерации при малом количестве игроков и типы данных.
  */
 
 import { 
@@ -43,20 +38,21 @@ class FirestoreBatcher {
 }
 
 /**
- * ЭКСТРЕННАЯ ГЕНЕРАЦИЯ: Раунд 1 для всех 16 лиг на указанный сезон.
+ * ГЕНЕРАЦИЯ: Раунд 1 для всех 16 лиг.
+ * Теперь генерирует сетку даже если в лиге 1 игрок.
  */
 export async function generatePyramidCup(targetSeasonNumber?: number) {
   const { firestore: db } = initializeFirebase();
   
-  const SEASON_NUM = targetSeasonNumber || 1;
+  const SEASON_NUM = Number(targetSeasonNumber || 1);
   const SEASON_ID = String(SEASON_NUM);
   const TIMESTAMP_NOW = Timestamp.now();
 
-  console.log(`[CUP ENGINE v11] Initializing Season ${SEASON_ID} Brackets...`);
+  console.log(`[CUP ENGINE v12] Initializing Season ${SEASON_ID} Brackets...`);
 
-  // Сбор всех игроков один раз для оптимизации
+  // Сбор всех игроков
   const playersSnap = await getDocs(collection(db, 'players_v10'));
-  const allGlobalPlayers = playersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const allGlobalPlayers = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
 
   for (let i = 0; i < LEAGUES.length; i++) {
     const league = LEAGUES[i];
@@ -66,21 +62,18 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
     // Фильтрация игроков данной лиги
     const leagueTeams = allGlobalPlayers.filter((p: any) => p.selectedLeagueId === league.id).map((p: any) => ({
       id: p.id,
-      name: p.displayName || "Manager",
+      name: p.displayName || `Manager_${p.id.slice(0,4)}`,
       power: (Number(p.leagueLevel || 9) * 100) + Number(p.rank || 8),
     }));
 
-    if (leagueTeams.length === 0) continue;
-
-    // Находим ближайшую степень двойки для сетки (минимум 16)
+    // Находим ближайшую степень двойки для сетки (минимум 16 для визуальной красоты)
     let bracketSize = 16;
     while (bracketSize < leagueTeams.length) {
       bracketSize *= 2;
     }
 
-    leagueTeams.sort((a, b) => b.power - a.power); // Сильные против слабых
+    leagueTeams.sort((a, b) => b.power - a.power); 
 
-    // Массив слотов (реальные команды + null для TBD)
     const slots = new Array(bracketSize).fill(null);
     leagueTeams.forEach((team, idx) => {
       slots[idx] = team;
@@ -94,11 +87,8 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
       const home = slots[left];
       const away = slots[right];
 
-      // Если в матче нет ни одной реальной команды - не создаем документ
-      if (!home && !away) {
-        left++; right--; matchNum++;
-        continue;
-      }
+      // Если в лиге нет ни одного реального игрока - пропускаем лигу целиком
+      if (leagueTeams.length === 0) break;
 
       const cupMatchId = `season_${SEASON_ID}_league_${league.id}_round_1_match_${matchNum}`;
 
@@ -107,7 +97,7 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
         seasonId: SEASON_ID,
         seasonId_num: SEASON_NUM,
         seasonNumber: SEASON_NUM,
-        leagueId: league.id,
+        leagueId: String(league.id),
         leagueId_num: leagueNum,
         round: 1,
         date: new Date().toISOString(),
@@ -120,7 +110,7 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
         isFinished: false,
         winnerId: null,
         createdAt: serverTimestamp(),
-        version: 11
+        version: 12
       });
 
       left++;
@@ -129,7 +119,6 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
     }
 
     await batcher.commit();
-    console.log(`[CUP ENGINE] Generated ${matchNum - 1} matches for League ${league.id}`);
   }
   
   return { success: true };

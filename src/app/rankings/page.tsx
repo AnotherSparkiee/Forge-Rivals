@@ -1,9 +1,8 @@
-
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v33. 
- * Внедрена клиентская сортировка для гарантированного отображения данных без индексов Firestore.
+ * @fileOverview Страница рейтингов v34. 
+ * Улучшена синхронизация имен и обработка пустых состояний.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -30,7 +29,7 @@ export default function RankingsPage() {
   const router = useRouter();
   const { 
     leagueLevel, groupId, isLoaded, language, 
-    selectedLeagueId
+    selectedLeagueId, activeSeasonNumber
   } = useGameState();
   const db = useFirestore();
   
@@ -40,27 +39,21 @@ export default function RankingsPage() {
   const [navGroup, setNavGroup] = useState<number | null>(null);
   const [activeRound, setActiveRound] = useState(1);
 
-  const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
-  const activeSeasonNumber = Number(seasonInfo.activeSeasonNumber);
-
   const contextLeagueId = navLeague || selectedLeagueId || "ALPHA";
   const contextLevel = Number(navLevel || leagueLevel);
   const contextGroup = Number(navGroup || groupId);
 
-  // Teams Query: Fetching without complex orderBy to avoid index issues
+  // Teams Query
   const teamsQuery = useMemoFirebase(() => {
-    if (isUserLoading || !user || !contextLeagueId) return null;
+    if (isUserLoading || !user || !contextLeagueId || !isLoaded) return null;
     try {
       const seasonId = `season_${activeSeasonNumber}`;
       const prefixedGroupId = `${seasonId}_league_${contextLeagueId}_group_${contextGroup}`;
-      
-      // We fetch all teams in the sub-collection and sort locally
       return collection(db, 'leagues_v2', contextLeagueId, 'divisions', String(contextLevel), 'groups', prefixedGroupId, 'teams');
     } catch (e) {
-      console.error("Teams query error", e);
       return null;
     }
-  }, [db, contextLeagueId, contextLevel, contextGroup, activeSeasonNumber, isUserLoading, user]);
+  }, [db, contextLeagueId, contextLevel, contextGroup, activeSeasonNumber, isUserLoading, user, isLoaded]);
 
   const { data: rawTeams, isLoading: isTeamsLoading } = useCollection(teamsQuery);
 
@@ -68,7 +61,7 @@ export default function RankingsPage() {
     if (!rawTeams) return [];
     return rawTeams.map(t => ({
       id: t.id,
-      name: t.displayName || t.name || "Unknown",
+      name: t.displayName || t.name || "Manager",
       wins: Number(t.wins || 0),
       draws: Number(t.draws || 0),
       losses: Number(t.losses || 0),
@@ -77,17 +70,16 @@ export default function RankingsPage() {
     })).sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name));
   }, [rawTeams]);
 
-  // Cup Query: Ensure types match
   const cupQuery = useMemoFirebase(() => {
-    if (activeTab !== 'pyramid_cup' || !contextLeagueId) return null;
+    if (activeTab !== 'pyramid_cup' || !contextLeagueId || !isLoaded) return null;
     return query(
       collection(db, 'cup_matches'),
       where('leagueId', '==', String(contextLeagueId)),
       where('seasonNumber', '==', Number(activeSeasonNumber)),
       where('round', '==', Number(activeRound)),
-      limit(100)
+      limit(200)
     );
-  }, [db, contextLeagueId, activeRound, activeTab, activeSeasonNumber]);
+  }, [db, contextLeagueId, activeRound, activeTab, activeSeasonNumber, isLoaded]);
 
   const { data: cupMatches, isLoading: isCupLoading } = useCollection(cupQuery);
 
@@ -128,73 +120,6 @@ export default function RankingsPage() {
 
   if (isUserLoading || !isLoaded || !user) return <LoadingScreen />;
 
-  const renderStandings = () => (
-    <div className="space-y-4 animate-in fade-in duration-500">
-      <div className="flex items-center gap-2 px-1 mb-4 bg-secondary/10 p-2 rounded-xl border border-white/5 overflow-x-auto scrollbar-hide">
-        <Button variant="ghost" size="sm" className="h-7 text-[8px] font-black uppercase text-accent" onClick={() => setNavGroup(null)}>DIV {contextLevel}</Button>
-        <ChevronRight className="w-3 h-3 text-muted-foreground opacity-30" />
-        <Badge className="bg-primary text-primary-foreground text-[8px] font-black uppercase h-6 px-3">GROUP {contextGroup}</Badge>
-      </div>
-      <div className="space-y-1">
-        <div className="grid grid-cols-[30px_1fr_75px_40px] px-4 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
-          <span>#</span><span>Team</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
-        </div>
-        <div className="space-y-1 mt-2">
-          {isTeamsLoading ? (
-             <div className="py-10 text-center opacity-30"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" /> <p className="text-[8px] uppercase">Retrieving Data...</p></div>
-          ) : standings.length > 0 ? standings.map((entry, i) => (
-            <div key={entry.id} className={cn("grid grid-cols-[30px_1fr_75px_40px] items-center p-3 rounded-xl border", entry.id === user?.uid ? "bg-primary/20 border-primary/40" : "bg-secondary/20 border-white/5")}>
-              <div className="text-xs font-black italic text-muted-foreground">{i + 1}</div>
-              <div className="flex items-center gap-2 truncate">
-                <span className={cn("text-[11px] font-bold uppercase truncate text-white", entry.id === user?.uid && "text-primary")}>{entry.name}</span>
-              </div>
-              <div className="text-center font-mono text-[10px] text-muted-foreground">{entry.wins}-{entry.draws}-{entry.losses}</div>
-              <div className="text-right font-headline font-black text-primary italic">{entry.points}</div>
-            </div>
-          )) : (
-            <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4 border-2 border-dashed border-white/5 rounded-3xl p-10">
-              <AlertCircle className="w-12 h-12" />
-              <p className="text-[10px] uppercase font-black tracking-widest">No ranking data found for this group.</p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderCupBracket = () => (
-    <div className="space-y-6 animate-in fade-in">
-       <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4">
-          {[1,2,3,4,5,6,7,8].map(r => (
-            <Button key={r} variant={activeRound === r ? "default" : "outline"} size="sm" onClick={() => setActiveRound(r)} className={cn("h-8 rounded-lg px-4 text-[9px] font-black uppercase", activeRound === r && "hero-gradient border-none")}>R{r}</Button>
-          ))}
-       </div>
-       <div className="space-y-2">
-          {isCupLoading ? (
-            <div className="py-20 text-center opacity-50 flex flex-col items-center gap-4">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              <p className="text-[8px] font-black uppercase tracking-widest">Syncing Bracket...</p>
-            </div>
-          ) : cupMatches && cupMatches.length > 0 ? cupMatches.map(m => (
-            <Card key={m.id} className={cn("glass-card border-white/5", (m.homeTeamId === user?.uid || m.awayTeamId === user?.uid) && "border-primary/40 bg-primary/5")}>
-               <CardContent className="p-3 flex items-center justify-between gap-4">
-                  <span className={cn("flex-1 text-[10px] font-bold uppercase truncate text-right", m.homeTeamId === user?.uid && "text-primary")}>{m.homeTeamName || t.waiting}</span>
-                  <div className="px-3 py-1 bg-background/50 rounded border border-white/5 font-headline font-black text-accent text-[10px]">
-                    {m.isFinished ? `${m.scoreA}:${m.scoreB}` : "VS"}
-                  </div>
-                  <span className={cn("flex-1 text-[10px] font-bold uppercase truncate text-left", m.awayTeamId === user?.uid && "text-primary")}>{m.awayTeamName || t.waiting}</span>
-               </CardContent>
-            </Card>
-          )) : (
-            <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4 border-2 border-dashed border-white/5 rounded-3xl p-10">
-              <AlertCircle className="w-12 h-12" />
-              <p className="text-[10px] font-black uppercase tracking-widest">No matches generated for Round {activeRound}</p>
-            </div>
-          )}
-       </div>
-    </div>
-  );
-
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
       <header className="mb-8 flex items-center gap-4">
@@ -231,12 +156,76 @@ export default function RankingsPage() {
         </div>
       )}
 
-      {activeTab === 'pyramid_cup' && renderCupBracket()}
+      {activeTab === 'pyramid_cup' && (
+        <div className="space-y-6 animate-in fade-in">
+           <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4">
+              {[1,2,3,4,5,6,7,8].map(r => (
+                <Button key={r} variant={activeRound === r ? "default" : "outline"} size="sm" onClick={() => setActiveRound(r)} className={cn("h-8 rounded-lg px-4 text-[9px] font-black uppercase", activeRound === r && "hero-gradient border-none")}>R{r}</Button>
+              ))}
+           </div>
+           <div className="space-y-2">
+              {isCupLoading ? (
+                <div className="py-20 text-center opacity-50 flex flex-col items-center gap-4">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <p className="text-[8px] font-black uppercase tracking-widest">Syncing Bracket...</p>
+                </div>
+              ) : cupMatches && cupMatches.length > 0 ? cupMatches.map(m => (
+                <Card key={m.id} className={cn("glass-card border-white/5", (m.homeTeamId === user?.uid || m.awayTeamId === user?.uid) && "border-primary/40 bg-primary/5")}>
+                   <CardContent className="p-3 flex items-center justify-between gap-4">
+                      <span className={cn("flex-1 text-[10px] font-bold uppercase truncate text-right", m.homeTeamId === user?.uid && "text-primary")}>{m.homeTeamName || t.waiting}</span>
+                      <div className="px-3 py-1 bg-background/50 rounded border border-white/5 font-headline font-black text-accent text-[10px]">
+                        {m.isFinished ? `${m.scoreA}:${m.scoreB}` : "VS"}
+                      </div>
+                      <span className={cn("flex-1 text-[10px] font-bold uppercase truncate text-left", m.awayTeamId === user?.uid && "text-primary")}>{m.awayTeamName || t.waiting}</span>
+                   </CardContent>
+                </Card>
+              )) : (
+                <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4 border-2 border-dashed border-white/5 rounded-3xl p-10">
+                  <AlertCircle className="w-12 h-12" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">No matches generated for Round {activeRound}</p>
+                </div>
+              )}
+           </div>
+        </div>
+      )}
+
       {activeTab === 'champions_league' && <div className="py-20 text-center opacity-40"><Crown className="w-16 h-16 mx-auto mb-4" /><p className="text-[10px] font-black uppercase tracking-widest">Season 1 Start In Progress</p></div>}
       {activeTab === 'all_pyramids' && !navLeague && (<div className="grid grid-cols-2 gap-2">{LEAGUES.map(l => (<Card key={l.id} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => setNavLeague(l.id)}><CardContent className="p-4 text-center"><p className="text-sm font-headline font-bold text-white italic">{l.id}</p></CardContent></Card>))}</div>)}
       {(activeTab === 'my_pyramid' || (activeTab === 'all_pyramids' && navLeague)) && !navLevel && (<div className="space-y-2">{Array.from({ length: MAX_LEVELS }, (_, i) => i + 1).map(lvl => (<Card key={lvl} className="glass-card border-white/5 cursor-pointer" onClick={() => setNavLevel(lvl)}><CardContent className="p-4 flex justify-between items-center"><span className="text-sm font-bold uppercase">Division {lvl}</span><ChevronRight className="w-4 h-4 text-muted-foreground" /></CardContent></Card>))}</div>)}
       {navLevel && !navGroup && (<div className="grid grid-cols-4 gap-2">{Array.from({ length: Math.pow(2, navLevel - 1) }, (_, i) => i + 1).slice(0, 64).map(g => (<Button key={g} variant="outline" className="h-10 border-white/5 bg-secondary/20 font-bold" onClick={() => setNavGroup(g)}>{g}</Button>))}</div>)}
-      {navGroup && renderStandings()}
+      {navGroup && (
+        <div className="space-y-4 animate-in fade-in duration-500">
+          <div className="flex items-center gap-2 px-1 mb-4 bg-secondary/10 p-2 rounded-xl border border-white/5 overflow-x-auto scrollbar-hide">
+            <Button variant="ghost" size="sm" className="h-7 text-[8px] font-black uppercase text-accent" onClick={() => setNavGroup(null)}>DIV {contextLevel}</Button>
+            <ChevronRight className="w-3 h-3 text-muted-foreground opacity-30" />
+            <Badge className="bg-primary text-primary-foreground text-[8px] font-black uppercase h-6 px-3">GROUP {contextGroup}</Badge>
+          </div>
+          <div className="space-y-1">
+            <div className="grid grid-cols-[30px_1fr_75px_40px] px-4 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
+              <span>#</span><span>Team</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
+            </div>
+            <div className="space-y-1 mt-2">
+              {isTeamsLoading ? (
+                 <div className="py-10 text-center opacity-30"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" /> <p className="text-[8px] uppercase">Retrieving Data...</p></div>
+              ) : standings.length > 0 ? standings.map((entry, i) => (
+                <div key={entry.id} className={cn("grid grid-cols-[30px_1fr_75px_40px] items-center p-3 rounded-xl border", entry.id === user?.uid ? "bg-primary/20 border-primary/40" : "bg-secondary/20 border-white/5")}>
+                  <div className="text-xs font-black italic text-muted-foreground">{i + 1}</div>
+                  <div className="flex items-center gap-2 truncate">
+                    <span className={cn("text-[11px] font-bold uppercase truncate text-white", entry.id === user?.uid && "text-primary")}>{entry.name}</span>
+                  </div>
+                  <div className="text-center font-mono text-[10px] text-muted-foreground">{entry.wins}-{entry.draws}-{entry.losses}</div>
+                  <div className="text-right font-headline font-black text-primary italic">{entry.points}</div>
+                </div>
+              )) : (
+                <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4 border-2 border-dashed border-white/5 rounded-3xl p-10">
+                  <AlertCircle className="w-12 h-12" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">No ranking data found for this group.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

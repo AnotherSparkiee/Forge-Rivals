@@ -1,9 +1,8 @@
-
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v46.
- * Исправлена инициализация подколлекций teams для корректного отображения таблиц.
+ * @fileOverview Автономный менеджер синхронизации v47.
+ * Исправлена инициализация имен (Unknown -> Real Name) и гарантированная генерация ботов.
  */
 
 import { useEffect, useRef } from 'react';
@@ -17,7 +16,7 @@ import { generatePyramidCup } from '@/app/actions/cup-engine';
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
-  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, allSeasonMatches, language, payStaffSalaries } = useGameState();
+  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, allSeasonMatches, language, payStaffSalaries, displayName: storeName } = useGameState();
   const db = useFirestore();
   const processingRef = useRef(false);
   const lastEconomicCheckRef = useRef<string | null>(null);
@@ -105,10 +104,13 @@ export function AutoMatchManager() {
           
           currentTeams.forEach(team => {
             const teamTableRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', team.id);
+            // Прямая синхронизация имени из стора для текущего игрока, чтобы не было Unknown
+            const finalName = team.id === userId ? (storeName || team.name) : team.name;
+
             batch.set(teamTableRef, {
               id: team.id,
-              name: team.name,
-              displayName: team.name,
+              name: finalName,
+              displayName: finalName,
               wins: 0, 
               draws: 0, 
               losses: 0, 
@@ -137,7 +139,7 @@ export function AutoMatchManager() {
           });
           await batch.commit();
 
-          // Generate Cup for the whole League once
+          // Генерируем Кубок сразу после создания календаря
           await generatePyramidCup(targetSN);
         }
 
@@ -158,7 +160,7 @@ export function AutoMatchManager() {
     const interval = setInterval(heartbeat, 60000);
     heartbeat();
     return () => clearInterval(interval);
-  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, leaguePlayers, db, allSeasonMatches, isUserLoading, user?.uid, language, payStaffSalaries]);
+  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, leaguePlayers, db, allSeasonMatches, isUserLoading, user?.uid, language, payStaffSalaries, storeName]);
 
   return null;
 }
