@@ -1,11 +1,10 @@
 /**
- * @fileOverview Ядро лиг: детерминированное расписание, уникальные боты и круговая система.
- * Внедрены 7-значные уникальные ID для исключения путаницы между лигами.
+ * @fileOverview Ядро лиг v17: Детерминированное расписание и абсолютные таймстемпы.
  */
 
 export interface LeagueOption {
   id: string;
-  startTime: string;
+  startTime: string; // Формат "HH:mm" в MSK
   description: string;
 }
 
@@ -32,9 +31,6 @@ export const LEAGUES: LeagueOption[] = [
   { id: 'PI', startTime: '23:00', description: 'Midnight operations.' },
 ];
 
-/**
- * Генерирует стабильный список из 8 команд.
- */
 export function getStableGroupTeams(level: number, group: number, leagueId: string, allLeaguePlayers: any[] = []) {
   const leagueIdx = LEAGUES.findIndex(l => l.id === leagueId);
   const leagueNum = (leagueIdx + 1).toString().padStart(2, '0');
@@ -61,102 +57,49 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
   return teams.sort((a, b) => a.id.localeCompare(b.id));
 }
 
-/**
- * Алгоритм круговой системы.
- */
-export function generateSeasonCalendar(teams: any[]) {
+export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagueId: string) {
   const n = teams.length;
   const roundsPerHalf = n - 1; 
   const matches = [];
   const indices = Array.from({ length: n }, (_, i) => i);
+  
+  const league = LEAGUES.find(l => l.id === leagueId) || LEAGUES[0];
+  const [hh, mm] = league.startTime.split(':').map(Number);
+  
+  const epoch = new Date('2026-06-20T00:00:00+03:00');
+  const seasonStartMs = epoch.getTime() + (seasonNumber - 1) * 15 * 24 * 60 * 60 * 1000;
 
   for (let round = 0; round < roundsPerHalf; round++) {
     for (let i = 0; i < n / 2; i++) {
       let hIdx = indices[i];
       let aIdx = indices[n - 1 - i];
-      if ((i + round) % 2 === 1) {
-        [hIdx, aIdx] = [aIdx, hIdx];
-      }
-      const pairKey = [teams[hIdx].id, teams[aIdx].id].sort().join('_vs_');
-      matches.push({
-        day: round + 1,
-        homeId: teams[hIdx].id,
-        homeName: teams[hIdx].name,
-        awayId: teams[aIdx].id,
-        awayName: teams[aIdx].name,
-        pairKey
-      });
-      matches.push({
-        day: round + 1 + roundsPerHalf,
-        homeId: teams[aIdx].id,
-        homeName: teams[aIdx].name,
-        awayId: teams[hIdx].id,
-        awayName: teams[hIdx].name,
-        pairKey
-      });
+      if ((i + round) % 2 === 1) [hIdx, aIdx] = [aIdx, hIdx];
+      
+      const day1 = round + 1;
+      const day2 = round + 1 + roundsPerHalf;
+
+      const createEntry = (day: number, home: any, away: any) => {
+        const startTime = new Date(seasonStartMs + (day - 1) * 24 * 60 * 60 * 1000 + hh * 60 * 60 * 1000 + mm * 60 * 1000);
+        return {
+          day,
+          homeId: home.id,
+          homeName: home.name,
+          awayId: away.id,
+          awayName: away.name,
+          startTime: startTime.toISOString(),
+          pairKey: [home.id, away.id].sort().join('_vs_')
+        };
+      };
+
+      matches.push(createEntry(day1, teams[hIdx], teams[aIdx]));
+      matches.push(createEntry(day2, teams[aIdx], teams[hIdx]));
     }
     const last = indices.pop()!;
     indices.splice(1, 0, last);
   }
-  return matches;
+  return matches.sort((a, b) => a.day - b.day);
 }
 
-/**
- * Расчет турнирной таблицы группы.
- * УЛУЧШЕНО V16: Использует абсолютную проверку завершения.
- */
-export function getGroupStandings(
-  level: number,
-  group: number,
-  leagueId: string,
-  season: number,
-  allGroupPlayers: any[],
-  allGroupMatches: any[]
-) {
-  const teams = getStableGroupTeams(level, group, leagueId, allGroupPlayers);
-  const standings = teams.map(t => ({
-    id: t.id,
-    name: t.name,
-    wins: 0,
-    draws: 0,
-    losses: 0,
-    points: 0,
-    played: 0
-  }));
-
-  allGroupMatches.forEach(m => {
-    // АБСОЛЮТНАЯ ПРОВЕРКА V16 (Матч завершен, если есть ЛЮБОЙ счет)
-    const isFinished = 
-      m.homeScore !== undefined && m.homeScore !== null ||
-      m.scoreA !== undefined && m.scoreA !== null ||
-      m.status === 'finished' || 
-      m.isFinished === true;
-
-    if (isFinished) {
-      const home = standings.find(s => s.id === m.homeId);
-      const away = standings.find(s => s.id === m.awayId);
-      if (home && away) {
-        home.played++;
-        away.played++;
-        const sA = m.homeScore ?? m.scoreA ?? 0;
-        const sB = m.awayScore ?? m.scoreB ?? 0;
-        if (sA > sB) {
-          home.wins++; home.points += 3; away.losses++;
-        } else if (sB > sA) {
-          away.wins++; away.points += 3; home.losses++;
-        } else {
-          home.draws++; home.points += 1; away.draws++; away.points += 1;
-        }
-      }
-    }
-  });
-
-  return standings.sort((a, b) => b.points - a.points || b.wins - a.wins || a.id.localeCompare(b.id));
-}
-
-/**
- * Детерминированный результат матча Bo2.
- */
 export function getMatchResult(homeId: string, awayId: string, day: number, season: number): [number, number] {
   const seedStr = `${homeId}_${awayId}_s${season}_d${day}`;
   let hash = 0;
