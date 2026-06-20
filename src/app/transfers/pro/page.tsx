@@ -21,7 +21,7 @@ import {
 } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
-import { generateVtuneHero } from '@/app/lib/moba-data';
+import { generateVtunePlayer } from '@/app/lib/moba-data';
 import { getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
 import { TransferHeroCard } from '../quick-search/page';
 import Link from 'next/link';
@@ -68,7 +68,7 @@ export default function ProTransfersPage() {
 
         const vtuneSnap = await getDoc(vtuneRef);
         if (!vtuneSnap.exists()) {
-          const hero = generateVtuneHero(today);
+          const player = generateVtunePlayer(today);
           const mskNow = getMoscowTime();
           
           const expiry = new Date(mskNow);
@@ -77,7 +77,7 @@ export default function ProTransfersPage() {
 
           await setDoc(vtuneRef, {
             id: vtuneId,
-            heroData: JSON.parse(JSON.stringify(hero)),
+            heroData: JSON.parse(JSON.stringify(player)),
             currentBid: 2000,
             startingPrice: 2000,
             highestBidderId: null,

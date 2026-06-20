@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -24,7 +23,7 @@ import {
 import { renderStars } from '@/app/transfers/quick-search/page';
 
 export default function TrainingPage() {
-  const { ownedHeroes, language, isLoaded, setTrainingFocus } = useGameState();
+  const { ownedPlayers, language, isLoaded, setTrainingFocus } = useGameState();
 
   const t = {
     title: language === 'ru' ? "ТРЕНИРОВКИ" : "PLAYER TRAINING",
@@ -80,30 +79,30 @@ export default function TrainingPage() {
         </Card>
 
         <div className="space-y-3">
-          {ownedHeroes.map((hero) => {
-            const currentFocus = hero.trainingFocus;
-            const focusSkillValue = currentFocus ? Math.round(Number((hero.proStats as any)[currentFocus])) : 0;
-            const focusSkillTalent = (currentFocus && hero.proTalents) ? Math.round(Number((hero.proTalents as any)[currentFocus])) : (currentFocus ? 30 : 0);
+          {ownedPlayers.map((player) => {
+            const currentFocus = player.trainingFocus;
+            const focusSkillValue = currentFocus ? Math.round(Number((player.proStats as any)[currentFocus])) : 0;
+            const focusSkillTalent = (currentFocus && player.proTalents) ? Math.round(Number((player.proTalents as any)[currentFocus])) : (currentFocus ? 30 : 0);
             const isAtLimit = currentFocus && focusSkillValue >= focusSkillTalent;
 
             return (
-              <Card key={hero.id} className="glass-card border-white/5 overflow-hidden">
+              <Card key={player.id} className="glass-card border-white/5 overflow-hidden">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl border border-white/10 overflow-hidden bg-secondary/50">
-                        <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />
+                        <img src={player.image} alt={player.name} className="w-full h-full object-cover" />
                       </div>
                       <div>
-                        <h3 className="text-sm font-bold uppercase truncate max-w-[120px]">{hero.name}</h3>
-                        <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
+                        <h3 className="text-sm font-bold uppercase truncate max-w-[120px]">{player.name}</h3>
+                        <Badge variant="outline" className="text-[7px] h-3 px-1 border-white/10 uppercase opacity-60">{player.role}</Badge>
                       </div>
                     </div>
                     
                     <div className="w-36">
                       <Select 
                         value={currentFocus || "none"} 
-                        onValueChange={(val) => setTrainingFocus(hero.id, val === "none" ? null : val)}
+                        onValueChange={(val) => setTrainingFocus(player.id, val === "none" ? null : val)}
                       >
                         <SelectTrigger className="h-8 bg-secondary/50 border-white/5 text-[9px] font-bold uppercase tracking-tighter">
                           <SelectValue placeholder={t.selectFocus} />
@@ -166,4 +165,3 @@ export default function TrainingPage() {
     </div>
   );
 }
-

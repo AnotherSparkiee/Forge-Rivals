@@ -527,7 +527,7 @@ export default function YouthTransfersPage() {
                 <span className="text-[10px] font-black text-muted-foreground uppercase px-4">
                   {language === 'ru' ? 'Стр' : 'Page'} {page + 1} / {totalPages}
                 </span>
-                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)} className="h-8 w-8"><ChevronRightIcon className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 w-8"><ChevronRightIcon className="h-4 w-4" /></Button>
               </div>
             )}
           </>

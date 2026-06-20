@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
-import { Hero } from '../../lib/moba-data';
+import { Player } from '../../lib/moba-data';
 import { calculateLiveAge, getMoscowTime } from '@/app/lib/time-utils';
 import { renderStars, STAT_KEYS } from '@/app/transfers/quick-search/page';
 import { useToast } from '@/hooks/use-toast';
@@ -43,12 +43,12 @@ export default function ScoutingPage() {
   const { 
     language, isLoaded, scoutingCandidates, lastScoutDate, 
     scoutCandidates, recruitCandidate, clearScoutingReport,
-    hq, academy, youthAcademyHeroes
+    hq, academy, youthAcademyPlayers
   } = useGameState();
   
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
 
   // Use Academy Scouts Level
   const scoutLevel = Number(academy?.scoutsLevel || 0);
@@ -141,14 +141,14 @@ export default function ScoutingPage() {
     }, 1500);
   };
 
-  const handleRecruit = (hero: Hero) => {
-    if (youthAcademyHeroes.length >= academyLimit) {
+  const handleRecruit = (player: Player) => {
+    if (youthAcademyPlayers.length >= academyLimit) {
       toast({ title: t.limitReached, variant: "destructive" });
       return;
     }
-    recruitCandidate(hero.id);
+    recruitCandidate(player.id);
     toast({ title: t.success, description: t.successDesc });
-    setSelectedHero(null);
+    setSelectedPlayer(null);
   };
 
   if (!isLoaded) return <LoadingScreen />;
@@ -175,7 +175,7 @@ export default function ScoutingPage() {
           <Card className="glass-card border-white/5 bg-secondary/10">
             <CardContent className="p-3 text-center">
                <p className="text-[7px] font-black uppercase text-muted-foreground mb-1">{t.capacity}</p>
-               <p className="text-xl font-headline font-bold text-white italic">{youthAcademyHeroes.length} / {academyLimit}</p>
+               <p className="text-xl font-headline font-bold text-white italic">{youthAcademyPlayers.length} / {academyLimit}</p>
             </CardContent>
           </Card>
           <Card className="glass-card border-accent/20 bg-accent/5">
@@ -215,26 +215,26 @@ export default function ScoutingPage() {
 
           {scoutingCandidates && scoutingCandidates.length > 0 ? (
             <div className="space-y-2">
-              {scoutingCandidates.map((hero) => {
-                const talentsValues = Object.values(hero.proTalents || {}).map(v => normTalent(v));
+              {scoutingCandidates.map((player) => {
+                const talentsValues = Object.values(player.proTalents || {}).map(v => normTalent(v));
                 const maxTalentValue = Math.max(...talentsValues);
                 
                 return (
-                  <Card key={hero.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer" onClick={() => setSelectedHero(hero)}>
+                  <Card key={player.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer" onClick={() => setSelectedPlayer(player)}>
                     <CardContent className="p-3 flex items-center gap-4">
                       <div className="w-12 h-12 rounded-lg overflow-hidden border border-white/10 bg-secondary/50 shrink-0">
-                        <img src={hero.image} alt="" className="w-full h-full object-cover" />
+                        <img src={player.image} alt="" className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <h4 className="text-xs font-bold uppercase truncate text-white">{hero.name}</h4>
+                          <h4 className="text-xs font-bold uppercase truncate text-white">{player.name}</h4>
                           <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase opacity-60">
-                            {rolesRu[hero.role] || hero.role}
+                            {rolesRu[player.role] || player.role}
                           </Badge>
                         </div>
                         <div className="flex items-center gap-3">
                            {renderStars(maxTalentValue)}
-                           <span className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}: {hero.baseAge}</span>
+                           <span className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ВОЗРАСТ' : 'AGE'}: {player.baseAge}</span>
                         </div>
                       </div>
                       <ChevronRight className="w-4 h-4 text-muted-foreground/30" />
@@ -254,24 +254,24 @@ export default function ScoutingPage() {
         </div>
       </div>
 
-      <Dialog open={!!selectedHero} onOpenChange={() => setSelectedHero(null)}>
+      <Dialog open={!!selectedPlayer} onOpenChange={() => setSelectedPlayer(null)}>
         <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden shadow-2xl h-[90vh] flex flex-col">
           <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 relative shrink-0 text-center">
-            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setSelectedHero(null)}><X className="w-5 h-5" /></Button>
+            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setSelectedPlayer(null)}><X className="w-5 h-5" /></Button>
             <div className="relative mx-auto w-24 h-24 mb-4">
               <div className="w-full h-full rounded-2xl overflow-hidden border-2 border-primary/50 shadow-2xl bg-secondary/50">
-                <img src={selectedHero?.image} alt="" className="w-full h-full object-cover" />
+                <img src={selectedPlayer?.image} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-background border border-white/10 flex items-center justify-center shadow-xl">
-                <span className="text-xl">{selectedHero?.country?.flag}</span>
+                <span className="text-xl">{selectedPlayer?.country?.flag}</span>
               </div>
             </div>
             <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white leading-none">
-              {selectedHero?.name}
+              {selectedPlayer?.name}
             </DialogTitle>
             <div className="flex items-center justify-center gap-2 mt-2">
               <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">
-                {selectedHero ? (rolesRu[selectedHero.role] || selectedHero.role) : ''}
+                {selectedPlayer ? (rolesRu[selectedPlayer.role] || selectedPlayer.role) : ''}
               </Badge>
             </div>
           </div>
@@ -284,12 +284,12 @@ export default function ScoutingPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.ovr}</span>
-                   <span className="text-sm font-headline font-bold text-accent">{selectedHero?.overallRating}</span>
+                   <span className="text-sm font-headline font-bold text-accent">{selectedPlayer?.overallRating}</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5">
                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.potential}</span>
                    <div className="flex items-center">
-                    {selectedHero && renderStars(Math.max(...Object.values(selectedHero.proTalents || {}).map(v => Number(v))))}
+                    {selectedPlayer && renderStars(Math.max(...Object.values(selectedPlayer.proTalents || {}).map(v => Number(v))))}
                    </div>
                 </div>
               </div>
@@ -301,7 +301,7 @@ export default function ScoutingPage() {
               </h3>
               <div className="space-y-2">
                 {STAT_KEYS.map((key) => {
-                  const talentLimit = selectedHero ? normTalent((selectedHero.proTalents as any)[key]) : 0;
+                  const talentLimit = selectedPlayer ? normTalent((selectedPlayer.proTalents as any)[key]) : 0;
                   return (
                     <div key={key} className="p-3 bg-secondary/10 rounded-xl border border-white/5 flex justify-between items-center">
                       <span className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest">
@@ -321,7 +321,7 @@ export default function ScoutingPage() {
           <div className="p-4 bg-secondary/20 border-t border-white/5 shrink-0">
              <Button 
                className="w-full h-14 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all" 
-               onClick={() => selectedHero && handleRecruit(selectedHero)}
+               onClick={() => selectedPlayer && handleRecruit(selectedPlayer)}
              >
                <UserPlus className="w-4 h-4 mr-2" />
                {t.recruit}

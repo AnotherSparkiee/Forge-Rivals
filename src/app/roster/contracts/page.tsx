@@ -15,7 +15,7 @@ import {
 import { cn, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { Hero } from '../../lib/moba-data';
+import { Player } from '../../lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -29,10 +29,10 @@ const normTalent = (val: any) => {
 };
 
 export default function ContractsPage() {
-  const { ownedHeroes, language, isLoaded, credits, crystals, updateHero, removeHero, managerSkills, displayName } = useGameState();
+  const { ownedPlayers, language, isLoaded, credits, crystals, updatePlayer, removePlayer, managerSkills, displayName } = useGameState();
   const { user } = useUser();
   const db = useFirestore();
-  const [profileHero, setProfileHero] = useState<Hero | null>(null);
+  const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
   const [now, setNow] = useState(Date.now());
   const { toast } = useToast();
 
@@ -83,47 +83,43 @@ export default function ContractsPage() {
   };
 
   const handleAction = async (action: string) => {
-    if (!profileHero) return;
+    if (!profilePlayer) return;
     switch (action) {
       case 'recoverEuro':
         if (credits >= 5000) {
-          updateHero(profileHero.id, { fatigue: Math.max(0, profileHero.fatigue - 25) }, 5000, 0);
-          setProfileHero(prev => prev ? { ...prev, fatigue: Math.max(0, prev.fatigue - 25) } : null);
+          updatePlayer(profilePlayer.id, { fatigue: Math.max(0, profilePlayer.fatigue - 25) }, 5000, 0);
+          setProfilePlayer(prev => prev ? { ...prev, fatigue: Math.max(0, prev.fatigue - 25) } : null);
         } else toast({ title: t.insufficient, variant: "destructive" });
         break;
       case 'boostForm':
         if (credits >= 10000) {
-          updateHero(profileHero.id, { form: Math.min(100 + managerSkills.medical, profileHero.form + 15) }, 10000, 0);
-          setProfileHero(prev => prev ? { ...prev, form: Math.min(100 + managerSkills.medical, prev.form + 15) } : null);
+          updatePlayer(profilePlayer.id, { form: Math.min(100 + managerSkills.medical, profilePlayer.form + 15) }, 10000, 0);
+          setProfilePlayer(prev => prev ? { ...prev, form: Math.min(100 + managerSkills.medical, prev.form + 15) } : null);
         } else toast({ title: t.insufficient, variant: "destructive" });
         break;
     }
   };
 
-  const setSelectedHero = (hero: Hero | null) => {
-    setProfileHero(hero);
-  };
-
-  if (profileHero) {
-    const liveAge = calculateLiveAge(profileHero.baseAge, profileHero.hiredAt);
-    const talentsValues = Object.values(profileHero.proTalents || {}).map(v => normTalent(v));
+  if (profilePlayer) {
+    const liveAge = calculateLiveAge(profilePlayer.baseAge, profilePlayer.hiredAt);
+    const talentsValues = Object.values(profilePlayer.proTalents || {}).map(v => normTalent(v));
     const maxTalentValue = Math.max(...talentsValues);
 
     return (
       <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-300">
         <div className="max-w-md mx-auto min-h-screen flex flex-col pb-10">
           <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
-            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setSelectedHero(null)}><X className="w-5 h-5" /></Button>
+            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setProfilePlayer(null)}><X className="w-5 h-5" /></Button>
             <div className="relative mx-auto w-24 h-24 mb-4">
-              <div className={cn("w-full h-full rounded-2xl overflow-hidden border-2 shadow-2xl bg-secondary/50", profileHero.isPro ? "border-yellow-500" : "border-primary/50")}>
-                <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
+              <div className={cn("w-full h-full rounded-2xl overflow-hidden border-2 shadow-2xl bg-secondary/50", profilePlayer.isPro ? "border-yellow-500" : "border-primary/50")}>
+                <img src={profilePlayer.image} alt={profilePlayer.name} className="w-full h-full object-cover" />
               </div>
-              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{profileHero.country?.flag}</span></div>
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{profilePlayer.country?.flag}</span></div>
             </div>
             <div className="space-y-1">
-              <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h2>
+              <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profilePlayer.name}</h2>
               <div className="flex items-center justify-center gap-2 mt-2">
-                <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
+                <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profilePlayer.role}</Badge>
               </div>
             </div>
           </div>
@@ -142,7 +138,7 @@ export default function ContractsPage() {
                   <div className="flex items-center gap-2">
                     <Timer className="w-3 h-3 text-accent animate-pulse" />
                     <p className="text-[10px] font-mono font-bold text-accent">
-                      {profileHero.onTransferUntil ? new Date(profileHero.onTransferUntil).toLocaleTimeString() : 'OFF MARKET'}
+                      {profilePlayer.onTransferUntil ? new Date(profilePlayer.onTransferUntil).toLocaleTimeString() : 'OFF MARKET'}
                     </p>
                   </div>
                 </div>
@@ -165,11 +161,11 @@ export default function ContractsPage() {
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.salary}</span>
-                     <span className="text-[10px] font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</span>
+                     <span className="text-[10px] font-bold text-primary">€{(profilePlayer.salary || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
-                     <span className="text-[10px] font-bold uppercase">{profileHero.role}</span>
+                     <span className="text-[10px] font-bold uppercase">{profilePlayer.role}</span>
                   </div>
                 </div>
               </section>
@@ -189,8 +185,8 @@ export default function ContractsPage() {
                 <div className="space-y-3">
                   {STAT_KEYS.map((key) => { 
                     const Icon = icons[key] || Info;
-                    const displayValue = Math.round(Number((profileHero.proStats as any)[key]));
-                    const talentLimit = normTalent((profileHero.proTalents as any)[key] || 10);
+                    const displayValue = Math.round(Number((profilePlayer.proStats as any)[key]));
+                    const talentLimit = normTalent((profilePlayer.proTalents as any)[key] || 10);
 
                     return (
                       <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
@@ -218,7 +214,7 @@ export default function ContractsPage() {
                 </h3>
                 <div className="space-y-2">
                   {STAT_KEYS.map((key) => {
-                    const talentLimit = normTalent((profileHero.proTalents as any)[key]);
+                    const talentLimit = normTalent((profilePlayer.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
                       <div key={`talent-${key}`} className="p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[48px] flex flex-col justify-center">
@@ -244,11 +240,11 @@ export default function ContractsPage() {
                 </h3>
                 <div className="bg-secondary/30 p-4 rounded-xl border border-white/5">
                    <p className="text-[8px] font-black text-muted-foreground uppercase">ESTIMATED VALUE</p>
-                   <p className="text-xl font-headline font-bold text-white italic">€ {(profileHero.overallRating * 15000 + 100000).toLocaleString()}</p>
+                   <p className="text-xl font-headline font-bold text-white italic">€ {(profilePlayer.overallRating * 15000 + 100000).toLocaleString()}</p>
                 </div>
               </section>
               
-              <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setSelectedHero(null)}>{t.close}</Button>
+              <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfilePlayer(null)}>{t.close}</Button>
           </div>
         </div>
       </div>
@@ -262,28 +258,28 @@ export default function ContractsPage() {
         <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2 text-primary"><Scroll className="w-6 h-6 text-primary" /> {t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p></div>
       </header>
       <div className="space-y-1.5">
-        {ownedHeroes.map((hero) => {
-          const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil) > new Date();
-          const talentsValues = Object.values(hero.proTalents || {}).map(v => normTalent(v));
+        {ownedPlayers.map((player) => {
+          const onAuction = player.onTransferUntil && new Date(player.onTransferUntil) > new Date();
+          const talentsValues = Object.values(player.proTalents || {}).map(v => normTalent(v));
           const maxTalent = Math.max(...talentsValues);
           return (
-            <Card key={hero.id} className={cn("glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all", onAuction && "border-yellow-500/30 bg-yellow-500/5")} onClick={() => setSelectedHero(hero)}>
+            <Card key={player.id} className={cn("glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all", onAuction && "border-yellow-500/30 bg-yellow-500/5")} onClick={() => setProfilePlayer(player)}>
               <CardContent className="p-2 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg overflow-hidden bg-secondary/50 border border-white/10 shrink-0"><img src={hero.image} alt={hero.name} className="w-full h-full object-cover" /></div>
+                <div className="w-10 h-10 rounded-lg overflow-hidden bg-secondary/50 border border-white/10 shrink-0"><img src={player.image} alt={player.name} className="w-full h-full object-cover" /></div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-[11px] font-bold truncate uppercase">{hero.name}</h3>
-                    <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase opacity-60">{hero.role}</Badge>
+                    <h3 className="text-[11px] font-bold truncate uppercase">{player.name}</h3>
+                    <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase opacity-60">{player.role}</Badge>
                     {onAuction && <Badge className="bg-yellow-500 text-black text-[6px] h-3 px-1 font-black animate-pulse uppercase">Auction</Badge>}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     {renderStars(maxTalent)}
-                    <p className="text-[7px] text-muted-foreground font-black uppercase tracking-widest">Age: {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.yrs}</p>
+                    <p className="text-[7px] text-muted-foreground font-black uppercase tracking-widest">Age: {calculateLiveAge(player.baseAge, player.hiredAt).display} {t.yrs}</p>
                   </div>
                 </div>
                 <div className="flex flex-col items-center justify-center min-w-[35px] border-l border-white/5 pl-2">
                   <p className="text-[6px] font-black text-primary uppercase tracking-tighter leading-none mb-0.5">ОБЩ</p>
-                  <span className="text-lg font-headline font-bold text-accent italic leading-none">{hero.overallRating}</span>
+                  <span className="text-lg font-headline font-bold text-accent italic leading-none">{player.overallRating}</span>
                 </div>
               </CardContent>
             </Card>

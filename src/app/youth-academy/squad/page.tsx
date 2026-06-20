@@ -13,7 +13,7 @@ import {
   ShieldCheck, Clock, Users, Activity, User, ShieldAlert, X, Gem, Timer, Activity as ActivityIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Hero } from '../../lib/moba-data';
+import { Player } from '../../lib/moba-data';
 import Link from 'next/link';
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
@@ -29,12 +29,12 @@ const normTalent = (val: any) => {
 };
 
 export default function YouthSquadPage() {
-  const { youthAcademyHeroes, language, isLoaded, promoteYouthPlayer, updateHero, displayName } = useGameState();
+  const { youthAcademyPlayers, language, isLoaded, promoteYouthPlayer, updatePlayer, displayName } = useGameState();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
   
-  const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [isTransferring, setIsTransferring] = useState(false);
   const [now, setNow] = useState(Date.now());
 
@@ -88,26 +88,26 @@ export default function YouthSquadPage() {
     tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
   };
 
-  const handlePromote = (heroId: string) => {
-    promoteYouthPlayer(heroId);
+  const handlePromote = (playerId: string) => {
+    promoteYouthPlayer(playerId);
     toast({ title: language === 'ru' ? "Игрок переведен!" : "Player Promoted!" });
-    setSelectedHero(null);
+    setSelectedPlayer(null);
   };
 
   const handleTransfer = async () => {
-    if (!selectedHero || !user || !profile || isTransferring) return;
+    if (!selectedPlayer || !user || !profile || isTransferring) return;
     setIsTransferring(true);
     try {
       const today = getMoscowDateString();
       const mskNow = getMoscowTime();
       const expiryTime = new Date(mskNow.getTime() + 12 * 60 * 60 * 1000); 
-      const startPrice = Math.floor((selectedHero.overallRating * 5000) + 25000);
+      const startPrice = Math.floor((selectedPlayer.overallRating * 5000) + 25000);
       const agentId = `youth_${user.uid}_${Date.now()}`;
-      const agentData = { id: agentId, heroData: JSON.parse(JSON.stringify(selectedHero)), currentBid: startPrice, startingPrice: startPrice, highestBidderId: null, highestBidderName: null, bidders: [], sellerId: user.uid, sellerName: profile.displayName || "Manager", expiresAt: expiryTime.toISOString(), dropDate: today, dropTime: mskNow.toISOString(), isYouth: true };
+      const agentData = { id: agentId, heroData: JSON.parse(JSON.stringify(selectedPlayer)), currentBid: startPrice, startingPrice: startPrice, highestBidderId: null, highestBidderName: null, bidders: [], sellerId: user.uid, sellerName: profile.displayName || "Manager", expiresAt: expiryTime.toISOString(), dropDate: today, dropTime: mskNow.toISOString(), isYouth: true };
       await setDoc(doc(db, 'market_v7', agentId), agentData);
-      updateHero(selectedHero.id, { onTransferUntil: expiryTime.toISOString(), transferMarketId: agentId });
+      updatePlayer(selectedPlayer.id, { onTransferUntil: expiryTime.toISOString(), transferMarketId: agentId });
       toast({ title: language === 'ru' ? "Выставлен на рынок" : "Listed on Market" });
-      setSelectedHero(null);
+      setSelectedPlayer(null);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Action Failed", description: e.message });
     } finally { setIsTransferring(false); }
@@ -115,27 +115,27 @@ export default function YouthSquadPage() {
 
   if (!isLoaded || isUserLoading) return <LoadingScreen />;
 
-  if (selectedHero) {
-    const liveAge = calculateLiveAge(selectedHero.baseAge, selectedHero.hiredAt);
-    const talentsValues = Object.values(selectedHero.proTalents || {}).map(v => normTalent(v));
+  if (selectedPlayer) {
+    const liveAge = calculateLiveAge(selectedPlayer.baseAge, selectedPlayer.hiredAt);
+    const talentsValues = Object.values(selectedPlayer.proTalents || {}).map(v => normTalent(v));
     const maxTalentValue = Math.max(...talentsValues);
 
     return (
       <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-300">
         <div className="max-w-md mx-auto min-h-screen flex flex-col pb-10">
           <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
-            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setSelectedHero(null)}><X className="w-5 h-5" /></Button>
+            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setSelectedPlayer(null)}><X className="w-5 h-5" /></Button>
             <div className="relative mx-auto w-24 h-24 mb-4">
               <div className={cn("w-full h-full rounded-2xl overflow-hidden border border-primary/50 shadow-2xl bg-secondary/50")}>
-                <img src={selectedHero.image} alt={selectedHero.name} className="w-full h-full object-cover" />
+                <img src={selectedPlayer.image} alt={selectedPlayer.name} className="w-full h-full object-cover" />
               </div>
-              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{selectedHero.country?.flag}</span></div>
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{selectedPlayer.country?.flag}</span></div>
             </div>
             <div className="space-y-1">
-              <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{selectedHero.name}</h2>
+              <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{selectedPlayer.name}</h2>
               <div className="flex items-center justify-center gap-2 mt-2">
                 <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">
-                  {rolesRu[selectedHero.role] || selectedHero.role}
+                  {rolesRu[selectedPlayer.role] || selectedPlayer.role}
                 </Badge>
               </div>
             </div>
@@ -154,7 +154,7 @@ export default function YouthSquadPage() {
                   <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.sale}</p>
                   <div className="flex items-center gap-2">
                     <Timer className="w-3 h-3 text-accent animate-pulse" />
-                    <p className="text-[10px] font-mono font-bold text-accent">{selectedHero.onTransferUntil ? new Date(selectedHero.onTransferUntil).toLocaleTimeString() : 'OFF MARKET'}</p>
+                    <p className="text-[10px] font-mono font-bold text-accent">{selectedPlayer.onTransferUntil ? new Date(selectedPlayer.onTransferUntil).toLocaleTimeString() : 'OFF MARKET'}</p>
                   </div>
                 </div>
               </section>
@@ -176,11 +176,11 @@ export default function YouthSquadPage() {
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.salary}</span>
-                     <span className="text-[10px] font-bold text-primary">€{(selectedHero.salary || 0).toLocaleString()}</span>
+                     <span className="text-[10px] font-bold text-primary">€{(selectedPlayer.salary || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
-                     <span className="text-[10px] font-bold uppercase">{rolesRu[selectedHero.role] || selectedHero.role}</span>
+                     <span className="text-[10px] font-bold uppercase">{rolesRu[selectedPlayer.role] || selectedPlayer.role}</span>
                   </div>
                 </div>
               </section>
@@ -192,8 +192,8 @@ export default function YouthSquadPage() {
                 <div className="space-y-3">
                   {STAT_KEYS.map((key) => {
                     const Icon = icons[key] || Info;
-                    const displayValue = Math.round(Number((selectedHero.proStats as any)[key]));
-                    const talentLimit = normTalent((selectedHero.proTalents as any)[key] || 10);
+                    const displayValue = Math.round(Number((selectedPlayer.proStats as any)[key]));
+                    const talentLimit = normTalent((selectedPlayer.proTalents as any)[key] || 10);
 
                     return (
                       <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
@@ -221,7 +221,7 @@ export default function YouthSquadPage() {
                 </h3>
                 <div className="space-y-2">
                   {STAT_KEYS.map((key) => {
-                    const talentLimit = normTalent((selectedHero.proTalents as any)[key]);
+                    const talentLimit = normTalent((selectedPlayer.proTalents as any)[key]);
                     const Icon = icons[key] || Info;
                     return (
                       <div key={`talent-${key}`} className="p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[48px] flex flex-col justify-center">
@@ -247,18 +247,18 @@ export default function YouthSquadPage() {
                 </h3>
                 <div className="bg-secondary/30 p-4 rounded-xl border border-white/5">
                    <p className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ОЦЕНОЧНАЯ СТОИМОСТЬ' : 'ESTIMATED VALUE'}</p>
-                   <p className="text-xl font-headline font-bold text-white italic">€ {(selectedHero.overallRating * 5000 + 25000).toLocaleString()}</p>
+                   <p className="text-xl font-headline font-bold text-white italic">€ {(selectedPlayer.overallRating * 5000 + 25000).toLocaleString()}</p>
                 </div>
               </section>
 
               <div className="pt-4 pb-12 flex flex-col gap-2">
                 <div className="grid grid-cols-2 gap-2">
-                  <Button variant="outline" className="h-14 border-primary/20 bg-primary/10 text-primary font-bold uppercase text-[10px]" onClick={handleTransfer} disabled={isTransferring || (selectedHero.onTransferUntil && new Date(selectedHero.onTransferUntil) > now)}>{isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {language === 'ru' ? 'РЫНОК' : 'MARKET'}</Button>
-                  <Button className="h-14 hero-gradient font-black uppercase text-[10px] shadow-xl" onClick={() => handlePromote(selectedHero.id)} disabled={liveAge.numeric < 18}>
+                  <Button variant="outline" className="h-14 border-primary/20 bg-primary/10 text-primary font-bold uppercase text-[10px]" onClick={handleTransfer} disabled={isTransferring || (selectedPlayer.onTransferUntil && new Date(selectedPlayer.onTransferUntil) > now)}>{isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {language === 'ru' ? 'РЫНОК' : 'MARKET'}</Button>
+                  <Button className="h-14 hero-gradient font-black uppercase text-[10px] shadow-xl" onClick={() => handlePromote(selectedPlayer.id)} disabled={liveAge.numeric < 18}>
                     <ArrowUpCircle className="w-4 h-4 mr-2" /> {liveAge.numeric < 18 ? t.notReady : (language === 'ru' ? 'В ОСНОВУ' : 'PROMOTE')}
                   </Button>
                 </div>
-                <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setSelectedHero(null)}>{t.close}</Button>
+                <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setSelectedPlayer(null)}>{t.close}</Button>
               </div>
           </div>
         </div>
@@ -273,31 +273,31 @@ export default function YouthSquadPage() {
         <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-primary">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">{language === 'ru' ? 'Будущие активы клуба' : 'Future tactical assets'}</p></div>
       </header>
       <div className="space-y-1.5">
-        {youthAcademyHeroes.length > 0 ? youthAcademyHeroes.map((hero) => {
-          const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
-          const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil).getTime() > now;
-          const talentsValues = Object.values(hero.proTalents || {}).map(v => normTalent(v));
+        {youthAcademyPlayers.length > 0 ? youthAcademyPlayers.map((player) => {
+          const liveAge = calculateLiveAge(player.baseAge, player.hiredAt);
+          const onAuction = player.onTransferUntil && new Date(player.onTransferUntil).getTime() > now;
+          const talentsValues = Object.values(player.proTalents || {}).map(v => normTalent(v));
           const maxTalent = Math.max(...talentsValues);
           return (
-            <Card key={hero.id} className={cn("glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all", onAuction && "border-yellow-500/30 bg-yellow-500/5")} onClick={() => setSelectedHero(hero)}>
+            <Card key={player.id} className={cn("glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all", onAuction && "border-yellow-500/30 bg-yellow-500/5")} onClick={() => setSelectedPlayer(player)}>
               <CardContent className="p-2 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg overflow-hidden bg-secondary/50 border border-white/10 shrink-0"><img src={hero.image} alt={hero.name} className="w-full h-full object-cover" /></div>
+                <div className="w-10 h-10 rounded-lg overflow-hidden bg-secondary/50 border border-white/10 shrink-0"><img src={player.image} alt={player.name} className="w-full h-full object-cover" /></div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-[11px] font-bold truncate uppercase">{hero.name}</h3>
+                    <h3 className="text-[11px] font-bold truncate uppercase">{player.name}</h3>
                     <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase opacity-60">
-                      {rolesRu[hero.role] || hero.role}
+                      {rolesRu[player.role] || player.role}
                     </Badge>
                     {onAuction && <Badge className="bg-yellow-500 text-black text-[6px] h-3 px-1 font-black animate-pulse uppercase">Auction</Badge>}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     {renderStars(maxTalent)}
-                    <p className="text-[7px] text-muted-foreground font-black uppercase tracking-widest">{language === 'ru' ? 'Возраст' : 'Age'}: {calculateLiveAge(hero.baseAge, hero.hiredAt).display} {t.years}</p>
+                    <p className="text-[7px] text-muted-foreground font-black uppercase tracking-widest">{language === 'ru' ? 'Возраст' : 'Age'}: {calculateLiveAge(player.baseAge, player.hiredAt).display} {t.years}</p>
                   </div>
                 </div>
                 <div className="text-right border-l border-white/5 pl-2 min-w-[35px]">
                   <p className="text-[6px] font-black text-primary uppercase tracking-tighter leading-none mb-0.5">ОБЩ</p>
-                  <span className="text-lg font-headline font-bold text-accent italic">{hero.overallRating}</span>
+                  <span className="text-lg font-headline font-bold text-accent italic">{player.overallRating}</span>
                 </div>
               </CardContent>
             </Card>

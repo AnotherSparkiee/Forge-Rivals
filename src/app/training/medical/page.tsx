@@ -16,13 +16,13 @@ import { Progress } from '@/components/ui/progress';
 import { 
   ChevronLeft, Activity, HeartPulse, Brain, FlaskConical, 
   UserCircle, Hammer, Clock, Loader2, Gem, Zap, 
-  ShieldAlert, User, ShieldCheck, Stethoscope
+  ShieldAlert, User, ShieldCheck, Stethoscope, ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { Hero } from '../../lib/moba-data';
+import { Player } from '../../lib/moba-data';
 
 const ACCEL_CREWS = [
   { id: 1, multiplier: 2, price: 100, labelRu: 'Малая бригада (2x)', labelEn: 'Small Crew (2x)' },
@@ -33,14 +33,14 @@ const ACCEL_CREWS = [
 export default function MedicalPage() {
   const { 
     medical, credits, crystals, startMedicalConstruction, accelerateConstruction, 
-    checkConstructions, language, isLoaded, ownedHeroes, healHero 
+    checkConstructions, language, isLoaded, ownedPlayers, healPlayer 
   } = useGameState();
   const { toast } = useToast();
   
   const [activeTab, setActiveTab] = useState<'facilities' | 'patients'>('patients');
   const [selectedFacility, setSelectedFacility] = useState<string | null>(null);
   const [acceleratingFacility, setAcceleratingFacility] = useState<string | null>(null);
-  const [selectedPatient, setSelectedPatient] = useState<Hero | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<Player | null>(null);
   const [isHealing, setIsHealing] = useState(false);
   const [now, setNow] = useState(Date.now());
 
@@ -54,9 +54,9 @@ export default function MedicalPage() {
     }
   }, [isLoaded, checkConstructions]);
 
-  const injuredHeroes = useMemo(() => {
-    return ownedHeroes.filter(h => h.isInjured);
-  }, [ownedHeroes]);
+  const injuredPlayers = useMemo(() => {
+    return ownedPlayers.filter(h => h.isInjured);
+  }, [ownedPlayers]);
 
   const labels = {
     en: {
@@ -140,7 +140,7 @@ export default function MedicalPage() {
 
     setIsHealing(true);
     setTimeout(() => {
-      healHero(selectedPatient.id, type, cost);
+      healPlayer(selectedPatient.id, type, cost);
       toast({ title: language === 'ru' ? "Игрок здоров!" : "Player Recovered!" });
       setIsHealing(false);
       setSelectedPatient(null);
@@ -166,11 +166,11 @@ export default function MedicalPage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2">
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter flex items-center gap-2 text-primary">
             <Stethoscope className="w-6 h-6 text-primary" />
             {t.title}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50">{t.subtitle}</p>
         </div>
       </header>
 
@@ -181,7 +181,7 @@ export default function MedicalPage() {
           onClick={() => setActiveTab('patients')}
           className={cn("h-10 text-[10px] font-black uppercase tracking-widest", activeTab === 'patients' ? "bg-white/10 text-primary" : "text-muted-foreground")}
         >
-          {t.patientsTab} ({injuredHeroes.length})
+          {t.patientsTab} ({injuredPlayers.length})
         </Button>
         <Button 
           variant="ghost" 
@@ -195,17 +195,17 @@ export default function MedicalPage() {
 
       {activeTab === 'patients' && (
         <div className="space-y-3 animate-in fade-in duration-500">
-          {injuredHeroes.length > 0 ? injuredHeroes.map((hero) => (
-            <Card key={hero.id} className="glass-card border-red-500/20 bg-red-500/5 cursor-pointer hover:bg-red-500/10 transition-all" onClick={() => setSelectedPatient(hero)}>
+          {injuredPlayers.length > 0 ? injuredPlayers.map((player) => (
+            <Card key={player.id} className="glass-card border-red-500/20 bg-red-500/5 cursor-pointer hover:bg-red-500/10 transition-all" onClick={() => setSelectedPatient(player)}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl border border-red-500/30 overflow-hidden bg-secondary/50 relative">
-                     <img src={hero.image} alt={hero.name} className="w-full h-full object-cover opacity-50 grayscale" />
+                     <img src={player.image} alt={player.name} className="w-full h-full object-cover opacity-50 grayscale" />
                      <ShieldAlert className="absolute inset-0 m-auto w-6 h-6 text-red-500 animate-pulse" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold uppercase text-white">{hero.name}</h3>
-                    <p className="text-[10px] text-red-400 font-bold uppercase mt-1">Травмирован до: {new Date(hero.injuredUntil!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                    <h3 className="text-sm font-bold uppercase text-white">{player.name}</h3>
+                    <p className="text-[10px] text-red-400 font-bold uppercase mt-1">Травмирован до: {new Date(player.injuredUntil!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-red-400" />
