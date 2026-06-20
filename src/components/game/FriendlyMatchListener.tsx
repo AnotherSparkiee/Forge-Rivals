@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Слушатель товарищеских и пробных матчей v10.
- * Реализован глубокий сбор данных соперника (состав, тактика, бонусы).
+ * @fileOverview Слушатель товарищеских и пробных матчей v11.
+ * Резолвит бои на основе реальных характеристик без предварительного форсирования результата.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -18,7 +18,6 @@ import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter, usePathname } from 'next/navigation';
-import { getMatchResult } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 const FRIENDLY_DURATION_MS = 60 * 1000; 
@@ -156,7 +155,6 @@ export function FriendlyMatchListener() {
     try {
       const lobbyRef = doc(db, 'friendly_lobbies_v3', activeLobby.id);
       if (accept) {
-        // 1. Host Data (Core Squad & Bonuses)
         const squadA = ownedPlayers.filter(p => Object.values(lineup).includes(p.id)).map(p => ({
           name: p.name, role: p.role, overallRating: p.overallRating, proStats: p.proStats,
           isSub: p.id === lineup.sub1 || p.id === lineup.sub2
@@ -177,13 +175,11 @@ export function FriendlyMatchListener() {
         let infraBonusB = 0;
         let staffBonusB = 0;
 
-        // 2. Challenger Data
         if (activeLobby.isTrial) {
-          squadB = generateBotSquad(25);
+          squadB = generateBotSquad(28);
           infraBonusB = 5;
           staffBonusB = 5;
         } else {
-          // Fetch real stats from opponent's team record
           const challengerProfileSnap = await getDoc(doc(db, 'players_v10', activeLobby.challengerId));
           if (challengerProfileSnap.exists()) {
             const cp = challengerProfileSnap.data();
@@ -213,15 +209,13 @@ export function FriendlyMatchListener() {
           }
         }
 
-        // Fallback if squad B is still empty
-        if (squadB.length < 5) squadB = generateBotSquad(20);
+        if (squadB.length < 5) squadB = generateBotSquad(22);
 
-        const [sA, sB] = getMatchResult(activeLobby.hostId, activeLobby.challengerId || "bot", 0, 1);
-
+        // НЕ форсируем результат, позволяем симулятору рассчитать честный итог
         const result = await simulateMobaMatch({
           teamA: { name: activeLobby.hostName, strategy, heroes: squadA, infraBonus: infraBonusA, staffBonus: staffBonusA },
           teamB: { name: activeLobby.challengerName || "Rival", strategy: strategyB, heroes: squadB, infraBonus: infraBonusB, staffBonus: staffBonusB },
-          isBo2: true, scoreA: sA, scoreB: sB
+          isBo2: true
         });
         
         await updateDoc(lobbyRef, { 
