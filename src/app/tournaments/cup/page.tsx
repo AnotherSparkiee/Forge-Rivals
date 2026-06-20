@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -25,28 +26,28 @@ export default function PyramidCupPage() {
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
-  const { language, isLoaded, selectedLeagueId } = useGameState();
+  const { language, isLoaded, selectedLeagueId, activeSeasonNumber } = useGameState();
   
   const [activeRound, setActiveRound] = useState(1);
   const [isInitializing, setIsInitializing] = useState(false);
 
-  // ГИБКИЙ ЗАПРОС: Ищем по leagueId и раунду.
+  // ГИБКИЙ ЗАПРОС: Ищем по leagueId, раунду и текущему сезону.
   const cupQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
       collection(db, 'cup_matches'),
       where('leagueId', '==', selectedLeagueId),
       where('round', '==', Number(activeRound)),
+      where('seasonNumber', '==', Number(activeSeasonNumber)),
       limit(200)
     );
-  }, [db, selectedLeagueId, activeRound]);
+  }, [db, selectedLeagueId, activeRound, activeSeasonNumber]);
 
   const { data: rawMatches, isLoading: isMatchesLoading } = useCollection(cupQuery);
 
-  // Фильтрация: Показываем матчи текущего сезона
   const matches = useMemo(() => {
     if (!rawMatches) return [];
-    return rawMatches.sort((a, b) => {
+    return [...rawMatches].sort((a, b) => {
       const numA = parseInt(a.cupMatchId?.split('match_')[1] || '0');
       const numB = parseInt(b.cupMatchId?.split('match_')[1] || '0');
       return numA - numB;
@@ -62,7 +63,7 @@ export default function PyramidCupPage() {
   const handleInitialize = async () => {
     setIsInitializing(true);
     try {
-      await generatePyramidCup();
+      await generatePyramidCup(activeSeasonNumber);
       toast({ title: language === 'ru' ? "Сетка сгенерирована!" : "Bracket Generated!" });
     } catch (e) {
       console.error(e);
@@ -87,7 +88,7 @@ export default function PyramidCupPage() {
       initialize: "INITIALIZE TOURNAMENT BRACKET",
       loading: "Scanning Frequencies...",
       empty: "Tournament bracket not detected.",
-      formatInfo: "Universal Data Sync v10. TBD Auto-win mode active."
+      formatInfo: "Universal Data Sync v11. TBD Auto-win mode active."
     },
     ru: {
       title: "КУБОК ПИРАМИДЫ",
@@ -99,7 +100,7 @@ export default function PyramidCupPage() {
       initialize: "ПРИНУДИТЕЛЬНО СОЗДАТЬ СЕТКУ",
       loading: "Сканирование эфира...",
       empty: "Сетка турнира не обнаружена.",
-      formatInfo: "Синхронизация v10. Режим авто-победы TBD включен."
+      formatInfo: "Синхронизация v11. Режим авто-победы TBD включен."
     }
   }[language as 'en' | 'ru'];
 

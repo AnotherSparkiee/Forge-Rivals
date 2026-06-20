@@ -2,14 +2,15 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v43.
+ * @fileOverview Автономный менеджер синхронизации v45.
  * Гарантирует запись всех событий (Лига, Кубок) в БД и инициализацию таблиц.
+ * Добавлена очистка устаревших данных (версии ниже 32).
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, updateDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, updateDoc, setDoc, getDocs, limit } from 'firebase/firestore';
 import { getStableGroupTeams, generateSeasonCalendar } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo, isMatchOverdue, getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
 import { forceResolveGroupMatches } from '@/app/actions/mmo-engine';
@@ -103,7 +104,6 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp() 
           });
           
-          // Create 8 team documents in the standings table
           currentTeams.forEach(team => {
             const teamTableRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', team.id);
             batch.set(teamTableRef, {
@@ -114,11 +114,10 @@ export function AutoMatchManager() {
               credits: team.isBot ? 0 : 1000000,
               crystals: team.isBot ? 0 : 50,
               updatedAt: serverTimestamp(),
-              version: 1 // Init version
+              version: 1 
             }, { merge: true });
           });
           
-          // Create season matches
           calendar.forEach((m) => {
             const matchId = `m_${prefixedGroupId}_d${m.day}_${m.pairKey}`;
             batch.set(doc(db, 'matches_v1', matchId), { 
@@ -136,14 +135,12 @@ export function AutoMatchManager() {
           });
           await batch.commit();
 
-          // Generate Cup if it's Season 1
-          if (targetSN === 1) {
-            await generatePyramidCup(1);
-          }
+          // Generate Cup for the whole League once
+          await generatePyramidCup(targetSN);
         }
 
         // 3. MATCH RESOLVER
-        const overdue = allSeasonMatches.filter(m => isMatchOverdue(m.startTime) && !m.isFinished);
+        const overdue = allSeasonMatches.filter(m => isMatchOverdue(m.startTime) && !m.isFinished && m.version === 32);
         if (overdue.length > 0) {
           const currentPrefixedGroupId = `${targetSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
           await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), currentPrefixedGroupId);

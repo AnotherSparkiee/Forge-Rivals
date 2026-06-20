@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -35,6 +36,11 @@ export default function MatchesPage() {
     const timer = setInterval(() => setNow(getMoscowTime()), 1000);
     return () => clearInterval(timer);
   }, [user, isUserLoading, router]);
+
+  // Фильтруем только матчи актуальной версии v32 и текущего сезона
+  const validMatches = useMemo(() => {
+    return (allSeasonMatches || []).filter(m => m.version === 32 && m.seasonNumber === activeSeasonNumber);
+  }, [allSeasonMatches, activeSeasonNumber]);
 
   const t = {
     ru: {
@@ -167,7 +173,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_future':
-        const myFuture = allSeasonMatches.filter(m => (m.homeId === user?.uid || m.awayId === user?.uid) && !m.isFinished).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+        const myFuture = validMatches.filter(m => (m.homeId === user?.uid || m.awayId === user?.uid) && !m.isFinished).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         return (
           <div className="animate-in fade-in duration-200">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary">
@@ -177,7 +183,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_history':
-        const myHistory = allSeasonMatches.filter(m => (m.homeId === user?.uid || m.awayId === user?.uid) && m.isFinished).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+        const myHistory = validMatches.filter(m => (m.homeId === user?.uid || m.awayId === user?.uid) && m.isFinished).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
         return (
           <div className="animate-in fade-in duration-200">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary">
@@ -187,7 +193,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'league_future':
-        const leagueFuture = allSeasonMatches.filter(m => m.homeId !== user?.uid && m.awayId !== user?.uid && !m.isFinished).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+        const leagueFuture = validMatches.filter(m => m.homeId !== user?.uid && m.awayId !== user?.uid && !m.isFinished).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         return (
           <div className="animate-in fade-in duration-200">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary">
@@ -197,7 +203,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'league_history':
-        const leagueHistory = allSeasonMatches.filter(m => m.homeId !== user?.uid && m.awayId !== user?.uid && m.isFinished).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+        const leagueHistory = validMatches.filter(m => m.homeId !== user?.uid && m.awayId !== user?.uid && m.isFinished).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
         return (
           <div className="animate-in fade-in duration-200">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary">
