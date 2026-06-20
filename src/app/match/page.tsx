@@ -1,10 +1,9 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { useGameState } from '../lib/store';
+import { useGameState, checkIsMatchFinished } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -122,7 +121,7 @@ function MatchContent() {
     const game = currentResult.games[activeGameIdx];
     if (!game) return;
 
-    const events = game.timeline || [];
+    const events = (game.timeline || []).filter((e: any) => e && typeof e === 'object');
     if (events.length === 0) {
       setTimeout(() => setStep('stats'), 1000);
       return;
@@ -131,13 +130,16 @@ function MatchContent() {
     // Clear previous if any
     setVisibleEvents([]);
 
-    const totalRealTime = 20; // Fast-forward time for logs
+    const totalRealTime = 15; // Faster simulation logs
     const intervalMs = (totalRealTime * 1000) / Math.max(1, events.length);
 
     let currentEvt = 0;
     const timer = setInterval(() => {
       if (currentEvt < events.length) {
-        setVisibleEvents(prev => [...prev, events[currentEvt]]);
+        const eventToAdd = events[currentEvt];
+        if (eventToAdd) {
+          setVisibleEvents(prev => [...prev, eventToAdd]);
+        }
         currentEvt++;
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -151,10 +153,10 @@ function MatchContent() {
               setActiveGameIdx(prev => prev + 1);
               setVisibleEvents([]);
               setIsTransitioning(false);
-            }, 2000); 
-          }, 1500);
+            }, 1500); 
+          }, 1000);
         } else {
-          setTimeout(() => setStep('stats'), 2000);
+          setTimeout(() => setStep('stats'), 1500);
         }
       }
     }, intervalMs);
@@ -168,7 +170,7 @@ function MatchContent() {
   };
 
   const handleNext = (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation(); // Prevent double trigger
+    if (e) e.stopPropagation(); 
     if (step === 'preview') setStep('live');
     else if (step === 'live') setStep('stats'); 
     else handleAcknowledgeMatch();
@@ -177,7 +179,6 @@ function MatchContent() {
   const handleGlobalClick = () => {
     if (step === 'preview') setStep('live');
     else if (step === 'live') setStep('stats');
-    // We don't advance from 'stats' automatically by clicking anywhere to avoid accidental exit
   };
 
   if (isUserLoading || isGlobalLoading || !isLoaded || !user) return <LoadingScreen />;
@@ -349,23 +350,26 @@ function MatchContent() {
               </div>
             ) : (
               <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-hide" ref={scrollRef}>
-                {visibleEvents.map((event, i) => (
-                  <Card key={i} className="glass-card border-white/5 bg-secondary/10 animate-in slide-in-from-bottom-2">
-                    <CardContent className="p-3 flex gap-4">
-                      <div className="w-12 shrink-0 flex flex-col items-center justify-center border-r border-white/5 pr-2">
-                        <span className="text-[9px] font-mono font-bold text-accent">{event.time}</span>
-                      </div>
-                      <div className="flex-1 space-y-2">
-                        <p className="text-xs leading-relaxed text-muted-foreground">{event.event}</p>
-                        {event.score && (
-                          <div className="flex justify-end">
-                             <Badge className="bg-black/40 text-[8px] font-mono font-bold text-white border-white/10">{event.score}</Badge>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                {visibleEvents.map((event, i) => {
+                  if (!event) return null;
+                  return (
+                    <Card key={`event-${i}`} className="glass-card border-white/5 bg-secondary/10 animate-in slide-in-from-bottom-2">
+                      <CardContent className="p-3 flex gap-4">
+                        <div className="w-12 shrink-0 flex flex-col items-center justify-center border-r border-white/5 pr-2">
+                          <span className="text-[9px] font-mono font-bold text-accent">{event.time || '--:--'}</span>
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <p className="text-xs leading-relaxed text-muted-foreground">{event.event || 'Unknown tactical activity.'}</p>
+                          {event.score && (
+                            <div className="flex justify-end">
+                               <Badge className="bg-black/40 text-[8px] font-mono font-bold text-white border-white/10">{event.score}</Badge>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
             <p className="text-[7px] text-center text-muted-foreground uppercase font-black opacity-40">{language === 'ru' ? 'КЛИКНИТЕ ДЛЯ ПРОПУСКА ЛОГОВ' : 'CLICK TO SKIP TO STATS'}</p>
@@ -396,7 +400,7 @@ function MatchContent() {
               </TabsList>
               
               {currentResult.games.map((game: any, idx: number) => (
-                <TabsContent key={idx} value={`map${idx+1}`} className="space-y-6" onClick={(e) => e.stopPropagation()}>
+                <TabsContent key={`game-stats-${idx}`} value={`map${idx+1}`} className="space-y-6" onClick={(e) => e.stopPropagation()}>
                   <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl text-center">
                     <p className="text-[9px] text-primary/60 italic leading-relaxed">
                       "{game.matchSummary || 'Standard tactical protocol executed.'}"

@@ -3,9 +3,9 @@
  * @fileOverview Ядро симуляции матчей Lines of Enmity v3.
  * 
  * Логика:
- * 1. Расчет базовой мощи команды на основе весов ролей (Керри нужен Добив, Танку - Позиционка).
- * 2. Применение тактических модификаторов (Агрессия, Защита и т.д.).
- * 3. Симуляция событий на основе дуэлей характеристик (Ганкинг против Рефлексов).
+ * 1. Расчет базовой мощи команды на основе весов ролей.
+ * 2. Применение тактических модификаторов.
+ * 3. Симуляция событий на основе дуэлей характеристик.
  * 4. Учет "Тильта" в поздней игре.
  */
 
@@ -82,7 +82,6 @@ const SimulateMobaMatchOutputSchema = z.object({
 });
 export type SimulateMobaMatchOutput = z.infer<typeof SimulateMobaMatchOutputSchema>;
 
-// Веса навыков для каждой роли
 const ROLE_WEIGHTS: Record<string, Record<keyof z.infer<typeof ProStatsSchema>, number>> = {
   'Carry': { lastHitting: 1.5, positioning: 1.2, reflexes: 1.0, manaManagement: 0.8, mapAwareness: 0.7, objectiveControl: 0.5, communication: 0.5, tiltResistance: 1.2, versatility: 0.8, ganking: 0.5 },
   'Midlaner': { lastHitting: 1.1, ganking: 1.4, reflexes: 1.3, manaManagement: 1.1, mapAwareness: 1.0, positioning: 1.0, objectiveControl: 0.7, communication: 0.8, tiltResistance: 1.0, versatility: 1.2 },
@@ -99,9 +98,8 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
 
   activeHeroes.forEach(hero => {
     const weights = ROLE_WEIGHTS[hero.role] || ROLE_WEIGHTS['Midlaner'];
-    let heroPower = Number(hero.overallRating || 0) * 0.5; // База от OVR
+    let heroPower = Number(hero.overallRating || 0) * 0.5;
 
-    // Вклад навыков с учетом ролевых весов
     if (hero.proStats) {
       Object.entries(hero.proStats).forEach(([key, val]) => {
         const weight = weights[key as keyof typeof weights] || 1.0;
@@ -109,11 +107,10 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
       });
     }
 
-    if (hero.isPro) heroPower += 20; // Бонус профессионала
+    if (hero.isPro) heroPower += 20;
     power += heroPower;
   });
 
-  // Модификаторы тактики
   const strategy = (team.strategy || "").toLowerCase();
   let offenseMod = 1.0;
   let defenseMod = 1.0;
@@ -130,7 +127,6 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
   const potA = calculateTeamPotential(teamA);
   const potB = calculateTeamPotential(teamB);
 
-  // Шанс победы команды А
   const totalPower = potA.power + potB.power;
   const winChanceA = (potA.power / totalPower) * 100;
   
@@ -175,7 +171,6 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
     const currentHeroes = activeTeam.heroes.filter(h => !h.isSub);
     const oppHeroes = opponentTeam.heroes.filter(h => !h.isSub);
     
-    // Safety check for empty squads
     if (currentHeroes.length === 0 || oppHeroes.length === 0) continue;
 
     const hero = currentHeroes[Math.floor(Math.random() * currentHeroes.length)];
@@ -185,7 +180,6 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
 
     const roll = Math.random();
 
-    // 1. Фарм (Early/Mid)
     if (roll < 0.4) {
       const ps = playerStats.get(hero.name);
       if (ps) {
@@ -196,7 +190,6 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
         }
       }
     }
-    // 2. Ганк / Сражение
     else if (roll < 0.7) {
       const gankPower = (Number(hero.proStats.ganking || 0) * activePot.offenseMod) + (hero.isPro ? 15 : 0);
       const escapePower = (Number(oppHero.proStats.mapAwareness || 0) + Number(oppHero.proStats.reflexes || 0)) * oppPot.defenseMod;
@@ -212,7 +205,6 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
           ps.kills++; ops.deaths++;
           if (side === 'A') killsA++; else killsB++;
           timeline.push({ time, type: 'kill', event: `${hero.name} совершает убийство! ${oppHero.name} не успел среагировать.`, score: `${killsA}:${killsB}` });
-          // Ассисты
           currentHeroes.filter(h => h.name !== hero.name).slice(0, 2).forEach(ah => {
             const aps = playerStats.get(ah.name);
             if (aps) aps.assists++;
@@ -220,20 +212,17 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
         }
       }
     }
-    // 3. Объекты (Башни/Рошан)
     else if (roll < 0.85) {
       if (m % 12 === 0) {
         timeline.push({ time, type: 'objective', event: `${hero.name} координирует захват объекта.`, score: `${killsA}:${killsB}` });
       }
     }
-    // 4. Тимфайты (Late Game)
     else if (phase === 'late') {
       if (m % 15 === 0) {
         timeline.push({ time, type: 'teamfight', event: `Масштабная битва! Команда ${activeTeam.name} доминирует.`, score: `${killsA}:${killsB}` });
       }
     }
 
-    // ТИЛЬТ (После 35 минуты)
     if (m > 35 && Math.random() > 0.85) {
       const tiltHero = Math.random() > 0.5 ? hero : oppHero;
       if (Number(tiltHero.proStats.tiltResistance || 0) < 25) {
@@ -254,7 +243,8 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
     scoreA: finalScoreA, scoreB: finalScoreB, duration: `${durationMin}:00`,
     mvp,
     matchSummary: `Матч завершился победой ${finalScoreA > finalScoreB ? teamA.name : teamB.name}. Решающим фактором стала ${phase === 'early' ? 'доминация на линиях' : 'командная тактика в лейт-гейме'}.`,
-    timeline: timeline.slice(0, 30), scoreboard
+    timeline: timeline.filter(e => e !== null && e !== undefined).slice(0, 30), 
+    scoreboard
   };
 }
 
@@ -263,7 +253,6 @@ export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<
   const games: any[] = [];
   let winsA = 0, winsB = 0;
 
-  // Validate teams
   if (!input.teamA.heroes || input.teamA.heroes.length === 0) {
     return { winner: input.teamB.name, seriesScore: "0-2", games: [] };
   }
@@ -289,7 +278,6 @@ export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<
       if (input.isBo3 && (winsA === 2 || winsB === 2)) break;
     } catch (e) {
       console.error("Simulation internal error", e);
-      // Fallback game state
       games.push({
         scoreA: forced === 'A' ? 1 : 0,
         scoreB: forced === 'B' ? 1 : 0,
