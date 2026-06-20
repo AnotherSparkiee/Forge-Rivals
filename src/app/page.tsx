@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -51,21 +52,34 @@ export default function Home() {
 
   const unreadMatches = useMemo(() => {
     if (!user || !isLoaded) return [];
+    
+    // 1. Лига (непросмотренные дни)
     const leagueUnread = (allSeasonMatches || []).filter(m => 
-      (m.homeId === user.uid || m.awayId === user.uid) && m.isFinished && Number(m.day) > (lastSeenMatchDay || 0)
+      (m.homeId === user.uid || m.awayId === user.uid) && 
+      m.isFinished && 
+      Number(m.day) > (lastSeenMatchDay || 0) &&
+      m.version === 32
     );
+
+    // 2. Другие (seen: false)
     const historyUnread = (matchHistory || []).filter(m => m.seen === false);
+    
+    // Объединяем и сортируем по дате (старые первыми)
     return [...leagueUnread, ...historyUnread].sort((a, b) => {
-      const timeA = a.day ? Number(a.day) : new Date(a.playedAt || 0).getTime();
-      const timeB = b.day ? Number(b.day) : new Date(b.playedAt || 0).getTime();
+      const timeA = new Date(a.playedAt || a.startTime || 0).getTime();
+      const timeB = new Date(b.playedAt || b.startTime || 0).getTime();
       return timeA - timeB;
     });
   }, [allSeasonMatches, user, lastSeenMatchDay, matchHistory, isLoaded]);
 
   const latestUnreadId = unreadMatches[0]?.id;
+  
   const lastPlayedId = useMemo(() => {
     if (matchHistory && matchHistory.length > 0) return matchHistory[matchHistory.length - 1].id;
-    const finishedLeague = (allSeasonMatches || []).filter(m => (m.homeId === user?.uid || m.awayId === user?.uid) && m.isFinished).sort((a, b) => Number(b.day) - Number(a.day));
+    const finishedLeague = (allSeasonMatches || []).filter(m => 
+      (m.homeId === user?.uid || m.awayId === user?.uid) && 
+      m.isFinished
+    ).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
     return finishedLeague[0]?.id || null;
   }, [matchHistory, allSeasonMatches, user?.uid]);
 
@@ -74,7 +88,7 @@ export default function Home() {
       const info = getGlobalSeasonInfo();
       const mskNow = getMoscowTime();
       if (info.isOffseason) {
-        const targetTime = new Date('2026-06-20T00:00:00+03:00').getTime();
+        const targetTime = info.nextSeasonStart.getTime();
         const diff = targetTime - mskNow.getTime();
         const hh = Math.floor(diff / 3600000);
         const mm = Math.floor((diff % 3600000) / 60000);
@@ -144,7 +158,7 @@ export default function Home() {
                 <CardHeader><CardTitle className="font-headline text-center uppercase tracking-widest text-accent text-lg">{tAuth.title}</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2"><Label>{tAuth.userLabel}</Label><Input value={identifier} onChange={e => setIdentifier(e.target.value)} required className="bg-secondary/50 h-12" /></div>
-                  <div className="space-y-2"><Label>{tAuth.passLabel}</Label><Input type="password" password={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50 h-12" /></div>
+                  <div className="space-y-2"><Label>{tAuth.passLabel}</Label><Input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50 h-12" /></div>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-4">
                   <Button type="submit" className="w-full h-14 hero-gradient font-black text-xs uppercase" disabled={isAuthLoading}>{isAuthLoading ? <Loader2 className="animate-spin" /> : tAuth.submit}</Button>

@@ -1,14 +1,16 @@
+
 'use client';
 
 /**
- * Слушатель товарищеских и пробных матчей v8.
- * Товарищеские матчи теперь сохраняются в общую коллекцию matches_v1.
+ * Слушатель товарищеских и пробных матчей v9.
+ * Исправлено: теперь подтягивает реальный состав соперника-человека.
+ * Ускорена обработка для улучшения UX.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { doc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, collection, query, where, setDoc } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, collection, query, where, setDoc, getDoc, getDocs } from 'firebase/firestore';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription 
 } from '@/components/ui/dialog';
@@ -19,9 +21,10 @@ import { generateBotSquad } from '@/app/lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter, usePathname } from 'next/navigation';
 import { getMatchResult } from '@/app/lib/leagues-data';
+import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const MATCH_DURATION_MS = 15 * 60 * 1000; 
-const TRIAL_DURATION_MS = 1000; 
+const FRIENDLY_DURATION_MS = 60 * 1000; // 1 минута для товарищеских
+const TRIAL_DURATION_MS = 1000; // Мгновенно для пробных
 
 function sanitizeForFirestore(obj: any) {
   if (!obj) return null;
@@ -38,7 +41,7 @@ export function FriendlyMatchListener() {
   const pathname = usePathname();
   const { 
     language, strategy, recordMatch, ownedPlayers, lineup, 
-    matchHistory, displayName, bootcamp, staff 
+    matchHistory, bootcamp, staff 
   } = useGameState();
   const { toast } = useToast();
 
@@ -97,7 +100,7 @@ export function FriendlyMatchListener() {
       const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); 
       const matchType = data.isTrial ? 'trial' : 'friendly';
       const matchUniqueId = `${matchType}_${data.id}_${acceptedAt}`;
-      const duration = data.isTrial ? TRIAL_DURATION_MS : MATCH_DURATION_MS;
+      const duration = data.isTrial ? TRIAL_DURATION_MS : FRIENDLY_DURATION_MS;
       const finishTime = acceptedAt + duration;
       
       const checkAndComplete = async () => {
@@ -120,12 +123,12 @@ export function FriendlyMatchListener() {
             const myName = isHost ? data.hostName : data.challengerName;
             
             const matchRecord = {
+              id: matchUniqueId,
               scoreA: myScoreA, scoreB: myScoreB, status: 'finished', isFinished: true,
               homeName: data.hostName, awayName: data.challengerName, simulation: result,
               type: matchType, playedAt: new Date().toISOString(), version: 32
             };
 
-            // Non-local storage: Save to global matches collection
             await setDoc(doc(db, 'matches_v1', matchUniqueId), matchRecord, { merge: true });
 
             recordMatch(
@@ -136,10 +139,15 @@ export function FriendlyMatchListener() {
             
             toast({ title: language === 'ru' ? "Матч завершен" : "Match Finished" });
             if (isHost) await deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
-          } catch (e) { console.error(e); } finally { isSimulatingRef.current = false; }
+          } catch (e) { 
+            console.error("Match resolution failed", e); 
+          } finally { 
+            isSimulatingRef.current = false; 
+          }
         }
       };
-      const timer = setInterval(checkAndComplete, 1000);
+      const timer = setInterval(checkAndComplete, 2000);
+      checkAndComplete();
       return () => clearInterval(timer);
     }
   }, [activeLobby, challengeResult, user, language, recordMatch, db, toast, matchHistory]);
@@ -150,37 +158,87 @@ export function FriendlyMatchListener() {
     try {
       const lobbyRef = doc(db, 'friendly_lobbies_v3', activeLobby.id);
       if (accept) {
-        const squad = ownedPlayers.filter(p => Object.values(lineup).includes(p.id)).map(p => ({
+        // 1. Get Host Squad
+        const squadA = ownedPlayers.filter(p => Object.values(lineup).includes(p.id)).map(p => ({
           name: p.name, role: p.role, overallRating: p.overallRating, proStats: p.proStats,
           isSub: p.id === lineup.sub1 || p.id === lineup.sub2
         }));
 
-        if (squad.length < 5) {
+        if (squadA.length < 5) {
           toast({ title: language === 'ru' ? "Недостаточно игроков" : "Incomplete Squad", variant: "destructive" });
           setIsActionLoading(false);
           setShowChallengeModal(false);
           return;
         }
 
+        let squadB: any[] = [];
+        let strategyB = "Balanced Play";
+
+        // 2. Get Challenger Squad
+        if (activeLobby.isTrial) {
+          squadB = generateBotSquad(25);
+        } else {
+          // Fetch real squad from challenger
+          const challengerProfileSnap = await getDoc(doc(db, 'players_v10', activeLobby.challengerId));
+          if (challengerProfileSnap.exists()) {
+            const cp = challengerProfileSnap.data();
+            const info = getGlobalSeasonInfo();
+            const seasonId = `season_${info.activeSeasonNumber}`;
+            const prefixedGroupId = `${seasonId}_league_${cp.selectedLeagueId}_group_${cp.groupId}`;
+            const challengerTeamRef = doc(db, 'leagues_v2', cp.selectedLeagueId, 'divisions', String(cp.leagueLevel), 'groups', prefixedGroupId, 'teams', activeLobby.challengerId);
+            
+            const [teamSnap, heroesSnap] = await Promise.all([
+              getDoc(challengerTeamRef),
+              getDocs(collection(challengerTeamRef, 'heroes'))
+            ]);
+
+            if (teamSnap.exists()) {
+              const teamData = teamSnap.data();
+              strategyB = teamData.strategy || "Balanced Play";
+              const cLineup = teamData.lineup || {};
+              const allHeroes = heroesSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+              squadB = allHeroes.filter(h => Object.values(cLineup).includes(h.id)).map((h: any) => ({
+                name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
+                isSub: h.id === cLineup.sub1 || h.id === cLineup.sub2
+              }));
+            }
+          }
+        }
+
+        // Fallback for B if empty
+        if (squadB.length < 5) squadB = generateBotSquad(20);
+
         const infraBonus = (bootcamp?.bootcampLevel || 0) + (bootcamp?.tacticsHallLevel || 0);
         const staffBonus = (staff?.coach?.skills?.primary || 0) + (staff?.analyst?.skills?.secondary || 0);
-        const botSquad = generateBotSquad(25);
+        
         const [sA, sB] = getMatchResult(activeLobby.hostId, activeLobby.challengerId || "bot", 0, 1);
 
         const result = await simulateMobaMatch({
-          teamA: { name: activeLobby.hostName, strategy, heroes: squad, infraBonus, staffBonus },
-          teamB: { name: activeLobby.challengerName || "AI Trainer", strategy: "Balanced Play", heroes: botSquad, infraBonus: 10, staffBonus: 10 },
+          teamA: { name: activeLobby.hostName, strategy, heroes: squadA, infraBonus, staffBonus },
+          teamB: { name: activeLobby.challengerName || "AI Trainer", strategy: strategyB, heroes: squadB, infraBonus: 10, staffBonus: 10 },
           isBo2: true, scoreA: sA, scoreB: sB
         });
         
-        await updateDoc(lobbyRef, { status: 'accepted', matchResult: sanitizeForFirestore(result), acceptedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+        await updateDoc(lobbyRef, { 
+          status: 'accepted', 
+          matchResult: sanitizeForFirestore(result), 
+          acceptedAt: serverTimestamp(), 
+          updatedAt: serverTimestamp() 
+        });
+
         if (activeLobby.challengerId && !activeLobby.challengerId.startsWith('sys_')) {
           sendNotification(activeLobby.challengerId, language === 'ru' ? "Вызов принят!" : "Challenge Accepted!", `${activeLobby.hostName} готов к бою.`);
         }
       } else {
         await updateDoc(lobbyRef, { status: 'rejected', updatedAt: serverTimestamp() });
       }
-    } finally { setIsActionLoading(false); setShowChallengeModal(false); }
+    } catch (e) {
+      console.error("Failed to start friendly match", e);
+      toast({ variant: "destructive", title: "Match Initialization Failed" });
+    } finally { 
+      setIsActionLoading(false); 
+      setShowChallengeModal(false); 
+    }
   };
 
   const t = {
