@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -9,7 +8,7 @@ import Link from 'next/link';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, where, doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { TransferHeroCard } from '../quick-search/page';
+import { TransferPlayerCard } from '../quick-search/page';
 import { getMoscowTime } from '@/app/lib/time-utils';
 
 export default function MySalesPage() {
@@ -58,7 +57,7 @@ export default function MySalesPage() {
       <div className="space-y-3 animate-in fade-in duration-500">
         {activeSales.length > 0 ? (
           activeSales.map((agent) => (
-            <TransferHeroCard 
+            <TransferPlayerCard 
               key={agent.id} 
               agent={agent} 
               user={user} 

@@ -9,7 +9,7 @@ import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@
 import { collection, query, where, doc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { TransferHeroCard } from '../quick-search/page';
+import { TransferPlayerCard } from '../quick-search/page';
 import { useToast } from '@/hooks/use-toast';
 import { getMoscowTime } from '@/app/lib/time-utils';
 
@@ -105,7 +105,7 @@ export default function MyBidsPage() {
       <div className="space-y-3 animate-in fade-in duration-500">
         {activeBids.length > 0 ? (
           activeBids.map((agent) => (
-            <TransferHeroCard 
+            <TransferPlayerCard 
               key={agent.id} 
               agent={agent} 
               user={user} 

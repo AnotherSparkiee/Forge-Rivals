@@ -15,7 +15,7 @@ import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@
 import { collection, query, doc, arrayUnion, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { TransferHeroCard } from '../quick-search/page';
+import { TransferPlayerCard } from '../quick-search/page';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import {
   Select,
@@ -239,7 +239,7 @@ export default function AdvancedSearchPage() {
         {paginatedAgents.length > 0 ? (
           <>
             {paginatedAgents.map((agent) => (
-              <TransferHeroCard key={agent.id} agent={agent} user={user} profile={profile} onBid={handleGlobalBid} now={now} language={language} />
+              <TransferPlayerCard key={agent.id} agent={agent} user={user} profile={profile} onBid={handleGlobalBid} now={now} language={language} />
             ))}
 
             {totalPages > 1 && (

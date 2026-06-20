@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -29,7 +28,7 @@ export function CWBasketListener() {
   const { user } = useUser();
   const db = useFirestore();
   const pathname = usePathname();
-  const { language, strategy, recordMatch, ownedHeroes, lineup, matchHistory } = useGameState();
+  const { language, strategy, recordMatch, ownedPlayers, lineup, matchHistory } = useGameState();
   const { toast } = useToast();
 
   const [showModal, setShowModal] = useState(false);
@@ -71,7 +70,7 @@ export function CWBasketListener() {
 
         isSimulatingRef.current = true;
         try {
-          const squad = ownedHeroes.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
+          const squad = ownedPlayers.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
             ...h,
             isSub: h.id === lineup.sub1 || h.id === lineup.sub2
           }));
@@ -131,7 +130,7 @@ export function CWBasketListener() {
     const timer = setInterval(checkAndSimulate, 10000);
     checkAndSimulate();
     return () => clearInterval(timer);
-  }, [user, myEntry, pathname, strategy, recordMatch, language, db, toast, matchHistory, ownedHeroes, lineup]);
+  }, [user, myEntry, pathname, strategy, recordMatch, language, db, toast, matchHistory, ownedPlayers, lineup]);
 
   const handleAcknowledge = () => {
     setShowModal(false);

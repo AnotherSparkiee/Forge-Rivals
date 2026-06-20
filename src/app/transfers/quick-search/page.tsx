@@ -79,7 +79,7 @@ export const renderStars = (talent: number) => {
   );
 };
 
-export const TransferHeroCard = memo(({ 
+export const TransferPlayerCard = memo(({ 
   agent, 
   user, 
   profile, 
@@ -446,7 +446,7 @@ export const TransferHeroCard = memo(({
   );
 });
 
-TransferHeroCard.displayName = 'TransferHeroCard';
+TransferPlayerCard.displayName = 'TransferPlayerCard';
 
 export default function QuickSearchPage() {
   const { language, isLoaded: isStoreLoaded, credits, addCredits } = useGameState();
@@ -530,7 +530,7 @@ export default function QuickSearchPage() {
       <div className="space-y-3">
         {paginatedAgents.length > 0 ? (
           <>
-            {paginatedAgents.map((agent) => (<TransferHeroCard key={agent.id} agent={agent} user={user} profile={profile} onBid={handleGlobalBid} now={now} language={language} />))}
+            {paginatedAgents.map((agent) => (<TransferPlayerCard key={agent.id} agent={agent} user={user} profile={profile} onBid={handleGlobalBid} now={now} language={language} />))}
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-2 pt-6">
                 <Button variant="ghost" size="icon" disabled={page === 0} onClick={() => setPage(0)} className="h-8 w-8"><ChevronsLeft className="w-4 h-4" /></Button>

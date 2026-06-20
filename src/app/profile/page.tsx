@@ -28,7 +28,7 @@ type ProfileTab = 'menu' | 'team' | 'daily';
 
 export default function ProfilePage() {
   const { 
-    ownedHeroes, language, isLoaded: isStoreLoaded, 
+    ownedPlayers, language, isLoaded: isStoreLoaded, 
     credits, crystals, leagueLevel, 
     experiencePoints, activeLicenseTier, hq, managerLevel,
     skillPoints, managerSkills, upgradeManagerSkill, arena, bootcamp, academy, medical,
@@ -183,11 +183,11 @@ export default function ProfilePage() {
           <div className="grid grid-cols-1 gap-2">
             <div className="flex items-center justify-between p-3 bg-background/40 rounded-xl border border-white/5">
               <span className="text-[9px] font-bold text-muted-foreground uppercase">Squad Valuation</span>
-              <span className="text-xs font-mono font-bold text-white">€ {(ownedHeroes.length * 250000).toLocaleString()}</span>
+              <span className="text-xs font-mono font-bold text-white">€ {(ownedPlayers.length * 250000).toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-background/40 rounded-xl border border-white/5">
               <span className="text-[9px] font-bold text-muted-foreground uppercase">Squad Size</span>
-              <span className="text-xs font-mono font-bold text-white">{ownedHeroes.length} / {isPremium ? 15 : (activeLicenseTier === 1 ? 12 : (activeLicenseTier === 2 ? 10 : (activeLicenseTier === 3 ? 8 : 7)))}</span>
+              <span className="text-xs font-mono font-bold text-white">{ownedPlayers.length} / {isPremium ? 15 : (activeLicenseTier === 1 ? 12 : (activeLicenseTier === 2 ? 10 : (activeLicenseTier === 3 ? 8 : 7)))}</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-background/40 rounded-xl border border-white/5">
               <span className="text-[9px] font-bold text-muted-foreground uppercase">Arena Capacity</span>

@@ -23,7 +23,7 @@ import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { generateVtunePlayer } from '@/app/lib/moba-data';
 import { getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
-import { TransferHeroCard } from '../quick-search/page';
+import { TransferPlayerCard } from '../quick-search/page';
 import Link from 'next/link';
 
 export default function ProTransfersPage() {
@@ -222,7 +222,7 @@ export default function ProTransfersPage() {
             proAgents.map((agent) => (
               <div key={agent.id} className="relative group">
                 <div className="absolute -inset-0.5 bg-gradient-to-r from-yellow-500/30 to-accent/30 rounded-2xl blur opacity-30 group-hover:opacity-60 transition duration-500"></div>
-                <TransferHeroCard 
+                <TransferPlayerCard 
                   agent={agent} 
                   user={user} 
                   profile={profile} 

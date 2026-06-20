@@ -44,6 +44,28 @@ export function getMoscowTime(): Date {
   return new Date(currentUtcMs + MSK_OFFSET);
 }
 
+/**
+ * Рассчитывает возраст игрока в реальном времени.
+ * @param baseAge Базовый возраст (число)
+ * @param hiredAtIso Дата найма (ISO строка)
+ */
+export function calculateLiveAge(baseAge: number, hiredAtIso: string) {
+  const hiredAt = new Date(hiredAtIso).getTime();
+  const mskNow = getMoscowTime().getTime();
+  const diffMs = mskNow - hiredAt;
+  
+  // 1 год = 365.25 дней для учета високосных лет
+  const yearInMs = 365.25 * 24 * 60 * 60 * 1000;
+  const yearsPassed = diffMs / yearInMs;
+  
+  const currentAge = baseAge + yearsPassed;
+  
+  return {
+    display: currentAge.toFixed(1),
+    numeric: currentAge
+  };
+}
+
 export function formatTerminalTime(date: Date): string {
   const day = String(date.getUTCDate()).padStart(2, '0');
   const month = String(date.getUTCMonth() + 1).padStart(2, '0');
