@@ -90,7 +90,7 @@ const COUNTRY_PHOTOS: Record<string, { flag: string, name: string, url: string }
   'DE': { flag: '🇩🇪', name: 'Германия', url: 'https://i.postimg.cc/PPS3QFFM/de-1.jpg' },
   'CN': { flag: '🇨🇳', name: 'Китай', url: 'https://i.postimg.cc/wvzKxSYS/1755011442109.jpg' },
   'RU': { flag: '🇷🇺', name: 'Россия', url: 'https://i.postimg.cc/mg3yfqj5/rus-2.jpg' },
-  'UA': { flag: '🇺🇦', name: 'Украина', url: 'https://i.postimg.cc/X7fs4pYn/ua-1.jpg' },
+  'UA': { flag: 'Украина', name: 'Украина', url: 'https://i.postimg.cc/X7fs4pYn/ua-1.jpg' },
   'KR': { flag: '🇰🇷', name: 'Южная Корея', url: 'https://i.postimg.cc/43mv7dsH/kr-1.jpg' },
   'BR': { flag: '🇧🇷', name: 'Бразилия', url: 'https://i.postimg.cc/Z5906yvS/br-1.jpg' },
   'TR': { flag: 'Турция', name: 'Турция', url: 'https://i.postimg.cc/MHvbRpyd/tr-1.jpg' }
@@ -229,6 +229,25 @@ export function generateScoutedPlayer(index: number, scoutLevel: number, seed?: 
   player.age = player.baseAge;
   player.isYouth = true;
   return player;
+}
+
+export function generateStaffMember(role: StaffRole): StaffMember {
+  const first = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
+  const last = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
+  return {
+    id: `staff_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+    firstName: first,
+    lastName: last,
+    role,
+    baseAge: Math.floor(Math.random() * 30) + 25,
+    hiredAt: new Date().toISOString(),
+    salary: 5000 + Math.floor(Math.random() * 10000),
+    image: `https://picsum.photos/seed/${Math.random()}/200/200`,
+    skills: {
+      primary: 10 + Math.floor(Math.random() * 20),
+      secondary: 10 + Math.floor(Math.random() * 20)
+    }
+  };
 }
 
 export function generateBotSquad(targetOvr: number = 22): any[] {

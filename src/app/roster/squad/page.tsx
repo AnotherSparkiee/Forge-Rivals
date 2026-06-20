@@ -11,7 +11,8 @@ import {
   ChevronLeft, UserPlus, X,
   ShieldCheck, Zap, HeartPulse,
   Box, Undo2, Info, ShoppingCart, Loader2,
-  Users, Target, Eye, Map, Star, Activity, User, ShieldAlert, Gem, Timer, Activity as ActivityIcon
+  Users, Target, Eye, Map, Star, Activity, User, ShieldAlert, Gem, Timer, 
+  Activity as ActivityIcon, Brain, TrendingUp, Crosshair
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Player } from '../../lib/moba-data';

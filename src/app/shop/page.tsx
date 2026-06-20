@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -19,7 +18,7 @@ import Link from 'next/link';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { useToast } from '@/hooks/use-toast';
 import { COUNTRIES } from '../lib/countries-data';
-import { Hero, Role } from '../lib/moba-data';
+import { Player, Role } from '../lib/moba-data';
 import {
   Select,
   SelectContent,
@@ -43,7 +42,7 @@ type ShopTab =
 export default function ShopPage() {
   const { 
     language, isLoaded, credits, crystals, 
-    addCrystals, addCredits, addYouthHeroDirectly, addHeroDirectly,
+    addCrystals, addCredits, addYouthPlayerDirectly, addPlayerDirectly,
     updateProfileName, updateProfileCountry, purchaseLicense, purchasePremium,
     activeLicenseTier, country: currentCountry, isPremium, premiumUntil
   } = useGameState();
@@ -264,7 +263,7 @@ export default function ShopPage() {
       const ageNum = parseInt(heroAge);
       const isAdult = ageNum >= 18;
       
-      const newHero: Hero = { 
+      const newPlayer: Player = { 
         id: `custom_${Date.now()}`, 
         name: heroNickname.trim(), 
         role: heroRole, 
@@ -288,9 +287,9 @@ export default function ShopPage() {
       };
       
       if (isAdult) {
-        addHeroDirectly(newHero);
+        addPlayerDirectly(newPlayer);
       } else {
-        addYouthHeroDirectly(newHero);
+        addYouthPlayerDirectly(newPlayer);
       }
       
       addCrystals(-creationCost);
