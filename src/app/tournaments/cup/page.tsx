@@ -30,7 +30,7 @@ export default function PyramidCupPage() {
   const [activeRound, setActiveRound] = useState(1);
   const [isInitializing, setIsInitializing] = useState(false);
 
-  // ГИБКИЙ ЗАПРОС: Ищем по leagueId и раунду. Поддержка Сезона 2 и дублирующих типов.
+  // ГИБКИЙ ЗАПРОС: Ищем по leagueId и раунду.
   const cupQuery = useMemoFirebase(() => {
     if (!selectedLeagueId) return null;
     return query(
@@ -43,12 +43,10 @@ export default function PyramidCupPage() {
 
   const { data: rawMatches, isLoading: isMatchesLoading } = useCollection(cupQuery);
 
-  // Фильтрация: Показываем матчи Сезона 2 (или 1 для совместимости)
+  // Фильтрация: Показываем матчи текущего сезона
   const matches = useMemo(() => {
     if (!rawMatches) return [];
-    return rawMatches.filter(m => 
-      m.seasonId === "2" || m.seasonId_num === 2 || m.seasonId === "1" || m.seasonId_num === 1
-    ).sort((a, b) => {
+    return rawMatches.sort((a, b) => {
       const numA = parseInt(a.cupMatchId?.split('match_')[1] || '0');
       const numB = parseInt(b.cupMatchId?.split('match_')[1] || '0');
       return numA - numB;
@@ -84,24 +82,24 @@ export default function PyramidCupPage() {
       subtitle: "Dynamic National Knockout Stage",
       round: "Round",
       final: "Final",
-      waiting: "WAITING...",
+      waiting: "TBD",
       yourMatch: "YOUR ENGAGEMENT",
-      initialize: "INITIALIZE SEASON 2 BRACKET",
+      initialize: "INITIALIZE TOURNAMENT BRACKET",
       loading: "Scanning Frequencies...",
       empty: "Tournament bracket not detected.",
-      formatInfo: "Universal Data Sync v7. Emergency bypass active."
+      formatInfo: "Universal Data Sync v10. TBD Auto-win mode active."
     },
     ru: {
       title: "КУБОК ПИРАМИДЫ",
       subtitle: "Динамический национальный турнир",
       round: "Раунд",
       final: "Финал",
-      waiting: "ОЖИДАНИЕ...",
+      waiting: "TBD",
       yourMatch: "ВАШ МАТЧ",
-      initialize: "ПРИНУДИТЕЛЬНО СОЗДАТЬ СЕТКУ СЕЗОНА 2",
+      initialize: "ПРИНУДИТЕЛЬНО СОЗДАТЬ СЕТКУ",
       loading: "Сканирование эфира...",
       empty: "Сетка турнира не обнаружена.",
-      formatInfo: "Синхронизация v7. Экстренный режим обхода фильтров."
+      formatInfo: "Синхронизация v10. Режим авто-победы TBD включен."
     }
   }[language as 'en' | 'ru'];
 
@@ -159,6 +157,8 @@ export default function PyramidCupPage() {
             {matches.map((m) => {
               const isMyMatch = m.homeTeamId === user?.uid || m.awayTeamId === user?.uid;
               const isFinished = m.status === 'finished' || m.isFinished;
+              const homeName = m.homeTeamName || m.homeTeamId?.slice(0, 8) || t.waiting;
+              const awayName = m.awayTeamName || m.awayTeamId?.slice(0, 8) || t.waiting;
               
               return (
                 <Card 
@@ -174,7 +174,7 @@ export default function PyramidCupPage() {
                     <div className="grid grid-cols-[1fr_50px_1fr] items-center">
                       <div className="text-right">
                         <p className={cn("text-[10px] font-bold uppercase truncate", m.homeTeamId === user?.uid ? "text-primary" : "text-white")}>
-                          {m.homeTeamId ? `ID:${m.homeTeamId.slice(0, 8)}` : t.waiting}
+                          {homeName}
                         </p>
                         <span className="text-[7px] text-muted-foreground uppercase font-black">HOME</span>
                       </div>
@@ -187,7 +187,7 @@ export default function PyramidCupPage() {
                       </div>
                       <div className="text-left">
                         <p className={cn("text-[10px] font-bold uppercase truncate", m.awayTeamId === user?.uid ? "text-primary" : "text-white")}>
-                          {m.awayTeamId ? `ID:${m.awayTeamId.slice(0, 8)}` : t.waiting}
+                          {awayName}
                         </p>
                         <span className="text-[7px] text-muted-foreground uppercase font-black">AWAY</span>
                       </div>

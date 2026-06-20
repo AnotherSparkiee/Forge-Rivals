@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Глобальное хранилище v63 (Staff Engine, Level Up Rewards & Auto-Sponsor). 
+ * Глобальное хранилище v64 (Staff Engine, Level Up Rewards & TBD Victory Handling). 
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -277,68 +277,77 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const id = mId || `match_${Date.now()}`;
     const s = stateRef.current;
     
+    // TBD Technical Win Check
+    const isTbdWin = opp === 'TBD' || opp === 'BYE';
+    
     const participants = res.games[0].scoreboard.filter((p: any) => p.team === s.displayName);
     const consequences: any[] = [];
     
-    participants.forEach((hero: any) => {
-      const realHero = s.ownedPlayers.find(h => h.name === hero.name);
-      if (realHero) {
-        const rating = hero.matchRating || 6.0;
-        const xpGain = calculateXpGain({
-          activity: t as any,
-          currentValue: realHero.overallRating,
-          talentValue: Math.max(...Object.values(realHero.proTalents).map(v => Number(v))),
-          infra: { bootcamp: s.bootcamp?.bootcampLevel || 0, research: 0, psychologist: 0 },
-          matchResult: { win: w === s.displayName, mvp: res.games[0].mvp === hero.name, matchRating: rating },
-          matchesToday: (realHero.matchesPlayedToday || 0) + 1,
-          isPro: realHero.isPro
-        });
+    if (!isTbdWin) {
+      participants.forEach((hero: any) => {
+        const realHero = s.ownedPlayers.find(h => h.name === hero.name);
+        if (realHero) {
+          const rating = hero.matchRating || 6.0;
+          const xpGain = calculateXpGain({
+            activity: t as any,
+            currentValue: realHero.overallRating,
+            talentValue: Math.max(...Object.values(realHero.proTalents).map(v => Number(v))),
+            infra: { bootcamp: s.bootcamp?.bootcampLevel || 0, research: 0, psychologist: 0 },
+            matchResult: { win: w === s.displayName, mvp: res.games[0].mvp === hero.name, matchRating: rating },
+            matchesToday: (realHero.matchesPlayedToday || 0) + 1,
+            isPro: realHero.isPro
+          });
 
-        const fatigueInc = 15 + Math.floor(Math.random() * 8);
-        const newFatigue = Math.min(100, (realHero.fatigue || 0) + fatigueInc);
-        
-        let injuryUntil = null;
-        if (newFatigue > 70 && Math.random() < (newFatigue / 400)) {
-          const hours = 12 + Math.floor(Math.random() * 24);
-          injuryUntil = new Date(Date.now() + hours * 3600000).toISOString();
+          const fatigueInc = 15 + Math.floor(Math.random() * 8);
+          const newFatigue = Math.min(100, (realHero.fatigue || 0) + fatigueInc);
+          
+          let injuryUntil = null;
+          if (newFatigue > 70 && Math.random() < (newFatigue / 400)) {
+            const hours = 12 + Math.floor(Math.random() * 24);
+            injuryUntil = new Date(Date.now() + hours * 3600000).toISOString();
+          }
+
+          const focus = realHero.trainingFocus || 'lastHitting';
+          const currentStat = (realHero.proStats as any)[focus] || 50;
+          const newStat = Math.min(100, currentStat + (xpGain / 200));
+
+          updatePlayer(realHero.id, { 
+            fatigue: newFatigue,
+            isInjured: !!injuryUntil,
+            injuredUntil: injuryUntil,
+            proStats: { ...realHero.proStats, [focus]: newStat },
+            overallRating: Math.floor(newStat * 0.8 + 10)
+          });
+
+          consequences.push({ name: hero.name, xp: xpGain, fatigue: fatigueInc, injured: !!injuryUntil });
         }
-
-        const focus = realHero.trainingFocus || 'lastHitting';
-        const currentStat = (realHero.proStats as any)[focus] || 50;
-        const newStat = Math.min(100, currentStat + (xpGain / 200));
-
-        updatePlayer(realHero.id, { 
-          fatigue: newFatigue,
-          isInjured: !!injuryUntil,
-          injuredUntil: injuryUntil,
-          proStats: { ...realHero.proStats, [focus]: newStat },
-          overallRating: Math.floor(newStat * 0.8 + 10)
-        });
-
-        consequences.push({ name: hero.name, xp: xpGain, fatigue: fatigueInc, injured: !!injuryUntil });
-      }
-    });
+      });
+    }
 
     const entry = { 
       id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, 
       opponentName: opp, type: t, playedAt: p, reward: rew, 
-      simulation: res, seen: false, consequences 
+      simulation: res, seen: false, consequences,
+      isTbdWin 
     };
 
-    // Manager XP Logic
-    const managerXpGain = t === 'league' ? 200 : (t === 'tournament' ? 250 : 50);
-    const newTotalXp = s.experiencePoints + managerXpGain;
-    const threshold = getLevelThreshold(s.managerLevel);
-    
+    // Manager XP Logic (Skip for TBD)
     let newLevel = s.managerLevel;
     let newSkillPoints = s.skillPoints;
     let bonusCrystals = 0;
+    let newTotalXp = s.experiencePoints;
 
-    if (newTotalXp >= threshold) {
-      newLevel++;
-      newSkillPoints += 2;
-      bonusCrystals = 50;
-      setDoc(doc(db, 'notifications_v7', `lvl_${s.id}_${newLevel}`), { userId: s.id, title: "Level Up!", description: `Congratulations! You reached level ${newLevel}. Earned 2 Skill Points and 50 Gems.`, type: 'league', read: false, createdAt: new Date().toISOString() });
+    if (!isTbdWin) {
+      const managerXpGain = t === 'league' ? 200 : (t === 'tournament' ? 250 : 50);
+      newTotalXp += managerXpGain;
+      const threshold = getLevelThreshold(s.managerLevel);
+      
+      if (newTotalXp >= threshold) {
+        newLevel++;
+        newSkillPoints += 2;
+        bonusCrystals = 50;
+        setDoc(doc(db, 'notifications_v7', `lvl_${s.id}_${newLevel}`), { userId: s.id, title: "Level Up!", description: `Congratulations! You reached level ${newLevel}. Earned 2 Skill Points and 50 Gems.`, type: 'league', read: false, createdAt: new Date().toISOString() });
+      }
     }
 
     updateDoc(r.team, { 

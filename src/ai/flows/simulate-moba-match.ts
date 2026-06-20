@@ -1,11 +1,12 @@
 'use server';
 /**
- * @fileOverview Ядро симуляции матчей Lines of Enmity v4.4 (Staff Integration + Tactics).
+ * @fileOverview Ядро симуляции матчей Lines of Enmity v4.5 (Staff Integration + TBD Handling).
  * 
  * Особенности:
  * 1. Взвешенная оценка ролей (Carry, Mid, Tank, Jungler, Support).
  * 2. Учет навыков персонала (Coach, Analyst) в реальном времени.
  * 3. Логически обоснованная генерация Scoreboard и MVP.
+ * 4. Автоматическая победа над TBD (без наград прогрессии).
  */
 
 import {ai} from '@/ai/genkit';
@@ -161,6 +162,16 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
 }
 
 function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'): z.infer<typeof GameStatsSchema> {
+  // TBD Technical Win
+  if (input.teamB.name === 'TBD') {
+    return {
+      scoreA: 1, scoreB: 0, duration: "00:00", mvp: input.teamA.heroes[0]?.name || "None",
+      matchSummary: "Техническая победа (TBD).",
+      towersA: 11, towersB: 0, objectivesA: 5, objectivesB: 0,
+      timeline: [], scoreboard: [], teamComparison: { farm: [100, 0], tactics: [100, 0], teamwork: [100, 0], reflexes: [100, 0] }
+    };
+  }
+
   const potA = calculateTeamPotential(input.teamA);
   const potB = calculateTeamPotential(input.teamB);
 
@@ -321,6 +332,16 @@ export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<
   const games: any[] = [];
   const numGames = input.isBo3 ? 3 : (input.isBo2 ? 2 : 1);
   
+  // TBD Technical Win
+  if (input.teamB.name === 'TBD') {
+    const tbdGame = runSingleGame(input);
+    return {
+      winner: input.teamA.name,
+      seriesScore: "2-0",
+      games: [tbdGame, tbdGame]
+    };
+  }
+
   let winsA = 0, winsB = 0;
   for (let i = 0; i < numGames; i++) {
     let forced: 'A' | 'B' | undefined = undefined;

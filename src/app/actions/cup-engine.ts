@@ -1,11 +1,12 @@
 'use server';
 
 /**
- * @fileOverview Ультимативный антикризисный двигатель Кубка v9.
+ * @fileOverview Ультимативный антикризисный двигатель Кубка v10 (TBD & Power-of-2 Support).
  * 
  * Особенности:
- * 1. Поддержка любого номера сезона для планирования.
- * 2. Генерация Раунда 1 для всех 16 лиг.
+ * 1. Генерация Раунда 1 для всех 16 лиг.
+ * 2. Использование TBD для пустых слотов.
+ * 3. Автоматическое распределение BYE-побед.
  */
 
 import { 
@@ -46,14 +47,11 @@ class FirestoreBatcher {
 export async function generatePyramidCup(targetSeasonNumber?: number) {
   const { firestore: db } = initializeFirebase();
   
-  // Если сезон не указан, берем 1-й
   const SEASON_NUM = targetSeasonNumber || 1;
   const SEASON_ID = String(SEASON_NUM);
-
-  // Опорная дата начала сезона (упрощенно для кубка, будет синхронизировано через time-utils)
   const TIMESTAMP_NOW = Timestamp.now();
 
-  console.log(`[CUP ENGINE v9] Initializing Season ${SEASON_ID}...`);
+  console.log(`[CUP ENGINE v10] Initializing Season ${SEASON_ID}...`);
 
   for (let i = 0; i < LEAGUES.length; i++) {
     const league = LEAGUES[i];
@@ -76,26 +74,33 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
       };
     });
 
-    // Дозаполнение ботами до 16 или четного
-    const minTeams = Math.max(16, allTeams.length + (allTeams.length % 2));
-    while (allTeams.length < minTeams) {
-      const botId = `sys_bot_cup_${league.id}_s${SEASON_ID}_${allTeams.length}`;
-      allTeams.push({
-        id: botId,
-        name: `Elite Bot ${allTeams.length + 1}`,
-        power: 1000 + allTeams.length,
-      });
+    // Находим ближайшую степень двойки для сетки (минимум 16)
+    let bracketSize = 16;
+    while (bracketSize < allTeams.length) {
+      bracketSize *= 2;
     }
 
     allTeams.sort((a, b) => b.power - a.power); // Сильные против слабых
 
     let left = 0;
-    let right = allTeams.length - 1;
+    let right = bracketSize - 1;
     let matchNum = 1;
 
+    // Массив слотов (реальные команды + null для TBD)
+    const slots = new Array(bracketSize).fill(null);
+    allTeams.forEach((team, idx) => {
+      slots[idx] = team;
+    });
+
     while (left < right) {
-      const strongTeam = allTeams[left];
-      const weakTeam = allTeams[right];
+      const home = slots[left];
+      const away = slots[right];
+
+      // Если в матче нет ни одной реальной команды - пропускаем постройку
+      if (!home && !away) {
+        left++; right--; matchNum++;
+        continue;
+      }
 
       const cupMatchId = `season_${SEASON_ID}_league_${league.id}_round_1_match_${matchNum}`;
 
@@ -110,8 +115,10 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
         round_str: "1",
         date: new Date().toISOString(),
         timestamp: TIMESTAMP_NOW,
-        homeTeamId: weakTeam.id,
-        awayTeamId: strongTeam.id,
+        homeTeamId: home?.id || 'TBD',
+        homeTeamName: home?.name || 'TBD',
+        awayTeamId: away?.id || 'TBD',
+        awayTeamName: away?.name || 'TBD',
         status: 'scheduled',
         matchStatus: 'scheduled',
         isFinished: false,
