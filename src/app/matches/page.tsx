@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -181,7 +182,7 @@ export default function MatchesPage() {
           </section>
         )}
 
-        {/* 4. LEAGUE FUTURE */}
+        {/* 4. LEAGUE CALENDAR */}
         {leagueFuture.length > 0 && (
           <section className="space-y-3">
             <h2 className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-400 flex items-center gap-2 px-1">
@@ -191,7 +192,7 @@ export default function MatchesPage() {
           </section>
         )}
 
-        {/* 5. LEAGUE HISTORY */}
+        {/* 5. LEAGUE RESULTS */}
         {leagueHistory.length > 0 && (
           <section className="space-y-3">
             <h2 className="text-[9px] font-black uppercase tracking-[0.2em] text-green-400 flex items-center gap-2 px-1">

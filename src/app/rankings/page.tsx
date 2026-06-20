@@ -1,8 +1,9 @@
+
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v31. 
- * Улучшен просмотр сетки Кубка Пирамиды и навигация по лигам.
+ * @fileOverview Страница рейтингов v32. 
+ * Исправлена синхронизация данных из leagues_v2 и визуализация таблицы.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -46,18 +47,22 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel);
   const contextGroup = Number(navGroup || groupId);
 
-  // Standings Query
+  // Standings Query: season_1_league_ALPHA_group_1 format
   const teamsQuery = useMemoFirebase(() => {
     if (isUserLoading || !user || !contextLeagueId) return null;
     try {
       const seasonId = `season_${activeSeasonNumber}`;
       const prefixedGroupId = `${seasonId}_league_${contextLeagueId}_group_${contextGroup}`;
+      
+      // Standard path: leagues_v2/{leagueId}/divisions/{divId}/groups/{groupId}/teams
       return query(
         collection(db, 'leagues_v2', contextLeagueId, 'divisions', String(contextLevel), 'groups', prefixedGroupId, 'teams'),
         orderBy('points', 'desc'),
-        orderBy('wins', 'desc')
+        orderBy('wins', 'desc'),
+        limit(10)
       );
     } catch (e) {
+      console.error("Teams query error", e);
       return null;
     }
   }, [db, contextLeagueId, contextLevel, contextGroup, activeSeasonNumber, isUserLoading, user]);
@@ -70,10 +75,11 @@ export default function RankingsPage() {
     return query(
       collection(db, 'cup_matches'),
       where('leagueId', '==', contextLeagueId),
+      where('seasonNumber', '==', activeSeasonNumber),
       where('round', '==', Number(activeRound)),
       limit(200)
     );
-  }, [db, contextLeagueId, activeRound, activeTab]);
+  }, [db, contextLeagueId, activeRound, activeTab, activeSeasonNumber]);
 
   const { data: cupMatches, isLoading: isCupLoading } = useCollection(cupQuery);
 
@@ -139,16 +145,18 @@ export default function RankingsPage() {
           <span>#</span><span>Team</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
         </div>
         <div className="space-y-1 mt-2">
-          {standings.length > 0 ? standings.map((entry, i) => (
+          {isTeamsLoading ? (
+             <div className="py-10 text-center opacity-30"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" /> <p className="text-[8px] uppercase">Retrieving Data...</p></div>
+          ) : standings.length > 0 ? standings.map((entry, i) => (
             <div key={entry.id} className={cn("grid grid-cols-[30px_1fr_75px_40px] items-center p-3 rounded-xl border", entry.id === user?.uid ? "bg-primary/20 border-primary/40" : "bg-secondary/20 border-white/5")}>
               <div className="text-xs font-black italic text-muted-foreground">{i + 1}</div>
               <div className="flex items-center gap-2 truncate">
-                <span className="text-[11px] font-bold uppercase truncate text-white">{entry.name}</span>
+                <span className={cn("text-[11px] font-bold uppercase truncate text-white", entry.id === user?.uid && "text-primary")}>{entry.name}</span>
               </div>
               <div className="text-center font-mono text-[10px] text-muted-foreground">{entry.wins}-{entry.draws}-{entry.losses}</div>
               <div className="text-right font-headline font-black text-primary italic">{entry.points}</div>
             </div>
-          )) : <div className="py-20 text-center opacity-30 uppercase text-[8px] font-black tracking-widest">Awaiting participants...</div>}
+          )) : <div className="py-20 text-center opacity-30 uppercase text-[8px] font-black tracking-widest border-2 border-dashed border-white/5 rounded-3xl">Awaiting group initialization...</div>}
         </div>
       </div>
     </div>
@@ -178,7 +186,7 @@ export default function RankingsPage() {
                </CardContent>
             </Card>
           )) : (
-            <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
+            <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4 border-2 border-dashed border-white/5 rounded-3xl p-10">
               <AlertCircle className="w-12 h-12" />
               <p className="text-[10px] font-black uppercase tracking-widest">No matches generated for Round {activeRound}</p>
             </div>
