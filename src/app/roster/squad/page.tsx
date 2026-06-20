@@ -11,11 +11,10 @@ import {
   ChevronLeft, UserPlus, X,
   ShieldCheck, Zap, HeartPulse,
   Box, Undo2, Info, ShoppingCart, Loader2,
-  Award, Clock, Users, Brain, TrendingUp, Crosshair, 
-  Target, Eye, Map, Star, Activity, User, ShieldAlert, Gem, Timer, Activity as ActivityIcon
+  Users, Target, Eye, Map, Star, Activity, User, ShieldAlert, Gem, Timer, Activity as ActivityIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Hero } from '../../lib/moba-data';
+import { Player } from '../../lib/moba-data';
 import Link from 'next/link';
 import { calculateLiveAge, getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { useToast } from '@/hooks/use-toast';
@@ -31,23 +30,22 @@ const normTalent = (val: any) => {
 
 export default function SquadPage() {
   const { 
-    ownedHeroes, youthAcademyHeroes, lineup, assignToRole, isLoaded, 
-    language, updateHero, isPremium, activeLicenseTier, displayName 
+    ownedPlayers, youthAcademyPlayers, lineup, assignToRole, isLoaded, 
+    language, updatePlayer, isPremium, activeLicenseTier, displayName 
   } = useGameState();
   const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
   const [selectingSlot, setSelectingSlot] = useState<LineupSlot | null>(null);
-  const [profileHero, setProfileHero] = useState<Hero | null>(null);
+  const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
   const [isTransferring, setIsTransferring] = useState(false);
   const [now, setNow] = useState(Date.now());
   
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // Объединяем всех героев для поиска
-  const allAvailableHeroes = useMemo(() => {
-    return [...ownedHeroes, ...youthAcademyHeroes];
-  }, [ownedHeroes, youthAcademyHeroes]);
+  const allAvailablePlayers = useMemo(() => {
+    return [...ownedPlayers, ...youthAcademyPlayers];
+  }, [ownedPlayers, youthAcademyPlayers]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -60,44 +58,37 @@ export default function SquadPage() {
   const squadLimit = useMemo(() => {
     if (isPremium) return 15;
     const tier = activeLicenseTier || 4;
-    if (tier === 4) return 7;
-    if (tier === 3) return 8;
-    if (tier === 2) return 10;
     if (tier === 1) return 12;
+    if (tier === 2) return 10;
+    if (tier === 3) return 8;
     return 7;
   }, [isPremium, activeLicenseTier]);
 
   const t = {
-    title: language === 'ru' ? "АКТИВНЫЙ СОСТАВ" : "ACTIVE LINEUP",
-    subtitle: language === 'ru' ? "Прямое управление ростером" : "Direct roster management",
+    title: language === 'ru' ? "СОСТАВ ИГРОКОВ" : "PLAYER ROSTER",
+    subtitle: language === 'ru' ? "Управление активным ростером" : "Direct roster management",
     activeLabel: language === 'ru' ? "Основа (5)" : "Core (5)",
-    subsLabel: language === 'ru' ? "Замены (2)" : "Subs (2)",
+    subsLabel: language === 'ru' ? "Запас (2)" : "Subs (2)",
     reservesLabel: language === 'ru' ? `Резерв (${squadLimit - 7})` : `Reserves (${squadLimit - 7})`,
     emptySlot: language === 'ru' ? "Назначить" : "Assign",
-    overall: language === 'ru' ? "ОБЩ" : "OVR",
     teamOverall: language === 'ru' ? "ОБЩ" : "OVR",
-    selectHero: language === 'ru' ? "Выберите игрока" : "Select player",
-    availableHeroes: language === 'ru' ? "Подходящие герои" : "Compatible Heroes",
+    selectPlayer: language === 'ru' ? "Выберите игрока" : "Select player",
+    availablePlayers: language === 'ru' ? "Подходящие игроки" : "Compatible Players",
     assigned: language === 'ru' ? "ЗАНЯТ" : "ASSIGNED",
     cancel: language === 'ru' ? "ОТМЕНА" : "CANCEL",
-    tooYoung: language === 'ru' ? "Игрок в Академии! Нужно 18 лет и перевод в основу." : "In Academy! Needs age 18 and promotion.",
+    tooYoung: language === 'ru' ? "Игрок в Академии! Нужно 18 лет." : "In Academy! Needs age 18.",
     onAuction: language === 'ru' ? "ИГРОК НА АУКЦИОНЕ" : "PLAYER ON AUCTION",
     putOnTransfer: language === 'ru' ? "ВЫСТАВИТЬ НА ТРАНСФЕР" : "PUT ON TRANSFER",
     profile: {
       title: language === 'ru' ? "ДОСЬЕ ИГРОКА" : "PLAYER DOSSIER",
       age: language === 'ru' ? "Возраст" : "Age",
       talent: language === 'ru' ? "Талант" : "Talent",
-      salary: language === 'ru' ? "Зарплата" : "Salary",
-      status: language === 'ru' ? "Статус" : "Status",
-      healthy: language === 'ru' ? "Здоров" : "Healthy",
-      injured: language === 'ru' ? "Травмирован" : "Injured",
-      skills: language === 'ru' ? "НАВЫКИ" : "SKILLS",
-      talents: language === 'ru' ? "ТАЛАНТЫ" : "TALENTS",
       years: language === 'ru' ? "лет" : "yrs",
       close: language === 'ru' ? "ВЕРНУТЬСЯ" : "BACK",
       owner: language === 'ru' ? "ВЛАДЕЛЕЦ" : "OWNER",
       sale: language === 'ru' ? "ПРОДАЖА" : "SALE",
-      priceTitle: language === 'ru' ? "ЦЕНА ИГРОКА" : "UNIT PRICE"
+      priceTitle: language === 'ru' ? "ЦЕНА ИГРОКА" : "UNIT PRICE",
+      skills: language === 'ru' ? "НАВЫКИ" : "SKILLS"
     },
     roles: {
       carry: { label: language === 'ru' ? "Керри" : "Carry", icon: Sword, color: "text-red-400" },
@@ -107,9 +98,9 @@ export default function SquadPage() {
       full_support: { label: language === 'ru' ? "Пятерка" : "Full Support", icon: HeartPulse, color: "text-green-400" },
       sub1: { label: language === 'ru' ? "Запасной 1" : "Sub 1", icon: UserPlus, color: "text-muted-foreground" },
       sub2: { label: language === 'ru' ? "Запасной 2" : "Sub 2", icon: UserPlus, color: "text-muted-foreground" },
-      res1: { label: language === 'ru' ? "Резерв 1" : "Res 1", icon: Users, color: "text-muted-foreground/50" },
-      res2: { label: language === 'ru' ? "Резерв 2" : "Res 2", icon: Users, color: "text-muted-foreground/50" },
-      res3: { label: language === 'ru' ? "Резерв 3" : "Res 3", icon: Users, color: "text-muted-foreground/50" },
+      res1: { label: "Res 1", icon: Users, color: "text-muted-foreground/50" },
+      res2: { label: "Res 2", icon: Users, color: "text-muted-foreground/50" },
+      res3: { label: "Res 3", icon: Users, color: "text-muted-foreground/50" },
       res4: { label: "Res 4", icon: Users, color: "text-muted-foreground/40" },
       res5: { label: "Res 5", icon: Users, color: "text-muted-foreground/40" },
       res6: { label: "Res 6", icon: Users, color: "text-muted-foreground/40" },
@@ -144,230 +135,73 @@ export default function SquadPage() {
     tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
   };
 
-  const getHeroById = (id: string | null) => allAvailableHeroes.find(h => h.id === id);
+  const getPlayerById = (id: string | null) => allAvailablePlayers.find(p => p.id === id);
 
   const teamOvr = useMemo(() => {
     const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
-    const activeHeroes = activeSlots.map(slot => getHeroById(lineup[slot])).filter(Boolean) as Hero[];
-    if (activeHeroes.length === 0) return 0;
-    const sum = activeHeroes.reduce((acc, h) => acc + h.overallRating, 0);
-    return Math.round(sum / activeHeroes.length);
-  }, [lineup, allAvailableHeroes]);
+    const activePlayers = activeSlots.map(slot => getPlayerById(lineup[slot])).filter(Boolean) as Player[];
+    if (activePlayers.length === 0) return 0;
+    return Math.round(activePlayers.reduce((acc, p) => acc + p.overallRating, 0) / activePlayers.length);
+  }, [lineup, allAvailablePlayers]);
 
-  const handleStartPress = (hero: Hero | undefined) => {
-    if (!hero) return;
-    longPressTimer.current = setTimeout(() => {
-      setSelectedHero(hero);
-    }, 600);
+  const handleStartPress = (player: Player | undefined) => {
+    if (!player) return;
+    longPressTimer.current = setTimeout(() => setProfilePlayer(player), 600);
   };
 
-  const handleCancelPress = () => {
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-  };
+  const handleCancelPress = () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); };
 
-  const handleHeroAssign = (hero: Hero) => {
+  const handlePlayerAssign = (player: Player) => {
     if (!selectingSlot) return;
-    if (hero.onTransferUntil && new Date(hero.onTransferUntil) > new Date()) {
-      toast({ variant: "destructive", title: t.onAuction });
-      return;
+    if (player.onTransferUntil && new Date(player.onTransferUntil) > new Date()) {
+      toast({ variant: "destructive", title: t.onAuction }); return;
     }
-    if (hero.isYouth) {
-      toast({ variant: "destructive", title: t.tooYoung });
-      return;
+    if (player.isYouth) {
+      toast({ variant: "destructive", title: t.tooYoung }); return;
     }
-    assignToRole(selectingSlot, hero.id);
+    assignToRole(selectingSlot, player.id);
     setSelectingSlot(null);
   };
 
-  const handlePutOnTransfer = async () => {
-    if (!profileHero || !user || !profile || isTransferring) return;
-    if (profileHero.isYouth) {
-       toast({ variant: "destructive", title: t.tooYoung });
-       return;
-    }
-    setIsTransferring(true);
-    try {
-      const today = getMoscowDateString();
-      const mskNow = getMoscowTime();
-      const expiryTime = new Date(mskNow.getTime() + 12 * 60 * 60 * 1000);
-      const startPrice = (profileHero.overallRating * 15000) + 100000;
-      const agentId = `user_${user.uid}_${Date.now()}`;
-      const agentData = { id: agentId, heroData: JSON.parse(JSON.stringify(profileHero)), currentBid: startPrice, startingPrice: startPrice, highestBidderId: null, highestBidderName: null, bidders: [], sellerId: user.uid, sellerName: profile.displayName || "Manager", expiresAt: expiryTime.toISOString(), dropDate: today, dropTime: mskNow.toISOString() };
-      await setDoc(doc(db, 'market_v7', agentId), agentData);
-      updateHero(profileHero.id, { onTransferUntil: expiryTime.toISOString(), transferMarketId: agentId });
-      toast({ title: language === 'ru' ? "Выставлен на аукцион!" : "Listed for Auction!" });
-      setProfileHero(null);
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Transfer Failed", description: e.message });
-    } finally {
-      setIsTransferring(false);
-    }
-  };
-
-  const setSelectedHero = (hero: Hero | null) => {
-    setProfileHero(hero);
-  };
-
   const renderSlot = (slotKey: LineupSlot) => {
-    const hero = getHeroById(lineup[slotKey]);
+    const player = getPlayerById(lineup[slotKey]);
     const isSelected = selectingSlot === slotKey;
     const roleInfo = (t.roles as any)[slotKey];
 
     return (
       <Card 
         key={slotKey}
-        onMouseDown={() => handleStartPress(hero)}
+        onMouseDown={() => handleStartPress(player)}
         onMouseUp={handleCancelPress}
-        onTouchStart={() => handleStartPress(hero)}
+        onTouchStart={() => handleStartPress(player)}
         onTouchEnd={handleCancelPress}
-        onClick={() => !profileHero && setSelectingSlot(prev => prev === slotKey ? null : slotKey)}
-        className={cn(
-          "glass-card border-white/5 overflow-hidden transition-all cursor-pointer select-none",
-          hero ? "bg-primary/5 border-primary/10" : "hover:bg-white/5",
-          isSelected && "ring-2 ring-primary border-primary bg-primary/20 scale-[1.02] z-10"
-        )}
+        onClick={() => !profilePlayer && setSelectingSlot(prev => prev === slotKey ? null : slotKey)}
+        className={cn("glass-card border-white/5 overflow-hidden transition-all cursor-pointer select-none", player ? "bg-primary/5" : "hover:bg-white/5", isSelected && "ring-2 ring-primary bg-primary/20 scale-[1.02] z-10")}
       >
         <CardContent className="p-2 flex items-center gap-3 relative">
           <div className="relative shrink-0">
-            <div className={cn("w-10 h-10 rounded-lg border flex items-center justify-center bg-secondary/50 overflow-hidden", hero ? "border-primary/50" : "border-dashed border-muted")}>
-              {hero ? <img src={hero.image} alt="" className="w-full h-full object-cover" /> : <roleInfo.icon className={cn("w-4 h-4", roleInfo.color)} />}
+            <div className={cn("w-10 h-10 rounded-lg border flex items-center justify-center bg-secondary/50 overflow-hidden", player ? "border-primary/50" : "border-dashed border-muted")}>
+              {player ? <img src={player.image} alt="" className="w-full h-full object-cover" /> : <roleInfo.icon className={cn("w-4 h-4", roleInfo.color)} />}
             </div>
-            {hero && <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-0.5 border border-white/10 shadow-lg"><roleInfo.icon className={cn("w-2 h-2", roleInfo.color)} /></div>}
+            {player && <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-0.5 border border-white/10 shadow-lg"><roleInfo.icon className={cn("w-2 h-2", roleInfo.color)} /></div>}
           </div>
           <div className="flex-1 min-w-0">
             <p className={cn("text-[7px] uppercase font-black tracking-widest", isSelected ? "text-primary" : "text-muted-foreground")}>{roleInfo.label}</p>
-            <h3 className="text-[11px] font-bold leading-tight truncate">{hero ? hero.name : (isSelected ? t.selectHero : t.emptySlot)}</h3>
+            <h3 className="text-[11px] font-bold leading-tight truncate">{player ? player.name : (isSelected ? t.selectPlayer : t.emptySlot)}</h3>
           </div>
-          <div className="flex items-center gap-2">
-            {hero ? <div className="flex flex-col items-center justify-center min-w-[35px] border-l border-white/5 pl-2">
-              <p className="text-[6px] font-black text-primary uppercase tracking-widest mb-0.5">ОБЩ</p>
-              <span className="text-lg font-headline font-bold text-accent italic leading-none">{hero.overallRating}</span>
-            </div> : <div className="w-6 h-6 rounded-lg flex items-center justify-center bg-primary/10 border border-primary/20 text-primary"><Plus className="w-3 h-3" /></div>}
-          </div>
+          {player && <div className="flex flex-col items-center justify-center min-w-[35px] border-l border-white/5 pl-2">
+            <p className="text-[6px] font-black text-primary uppercase tracking-widest mb-0.5">ОБЩ</p>
+            <span className="text-lg font-headline font-bold text-accent italic leading-none">{player.overallRating}</span>
+          </div>}
         </CardContent>
       </Card>
     );
   };
 
-  if (!isLoaded) return <LoadingScreen />;
-
-  if (profileHero) {
-    const liveAge = calculateLiveAge(profileHero.baseAge, profileHero.hiredAt);
-    const talentsValues = Object.values(profileHero.proTalents || {}).map(v => normTalent(v));
-    const maxTalentValue = Math.max(...talentsValues);
-
-    return (
-      <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-300">
-        <div className="max-w-md mx-auto min-h-screen flex flex-col pb-10">
-          <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 relative shrink-0 text-center">
-            <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setSelectedHero(null)}><X className="w-5 h-5" /></Button>
-            <div className="relative mx-auto w-24 h-24 mb-4">
-              <div className={cn("w-full h-full rounded-2xl overflow-hidden border-2 border-primary/50 shadow-2xl bg-secondary/50", profileHero.isPro && "border-yellow-500")}>
-                <img src={profileHero.image} alt={profileHero.name} className="w-full h-full object-cover" />
-              </div>
-              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{profileHero.country?.flag}</span></div>
-            </div>
-            <div className="space-y-1">
-              <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profileHero.name}</h2>
-              <div className="flex items-center justify-center gap-2 mt-2">
-                <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profileHero.role}</Badge>
-                {profileHero.isYouth && <Badge className="bg-accent text-accent-foreground text-[10px] font-black uppercase px-2 h-5">ACADEMY</Badge>}
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-4 space-y-8">
-              <section className="grid grid-cols-2 gap-3">
-                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
-                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.owner}</p>
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-3 h-3 text-primary" />
-                    <p className="text-[10px] font-bold uppercase truncate">{displayName || "Manager"}</p>
-                  </div>
-                </div>
-                <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
-                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.profile.sale}</p>
-                  <div className="flex items-center gap-2">
-                    <Timer className="w-3 h-3 text-accent animate-pulse" />
-                    <p className="text-[10px] font-mono font-bold text-accent">{profileHero.onTransferUntil ? new Date(profileHero.onTransferUntil).toLocaleTimeString() : 'OFF MARKET'}</p>
-                  </div>
-                </div>
-              </section>
-
-              <section className="space-y-3">
-                <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
-                </h3>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.profile.age}</span>
-                     <span className="text-[10px] font-bold">{liveAge.display} {t.profile.years}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{t.profile.talent}</span>
-                     <div className="flex items-center">
-                       {renderStars(maxTalentValue)}
-                     </div>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.profile.salary}</span>
-                     <span className="text-[10px] font-bold text-primary">€{(profileHero.salary || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
-                     <span className="text-[10px] font-bold uppercase">{profileHero.role}</span>
-                  </div>
-                </div>
-              </section>
-
-              <section>
-                <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <ActivityIcon className="w-3.5 h-3.5" /> {t.profile.skills}
-                </h3>
-                <div className="space-y-3">
-                  {STAT_KEYS.map((key) => { 
-                    const Icon = icons[key] || Info;
-                    const displayValue = Math.round(Number((profileHero.proStats as any)[key]));
-                    const talentLimit = normTalent((profileHero.proTalents as any)[key] || 10);
-
-                    return (
-                      <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
-                        <div className="flex justify-between items-center px-0.5">
-                          <div className="flex items-center gap-2">
-                            <Icon className="w-4 h-4 text-muted-foreground/60" />
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-mono font-bold text-white">{displayValue}</span>
-                            <span className="text-[10px] text-muted-foreground/50">/</span>
-                            <span className="text-xs font-mono font-bold text-primary/70">{talentLimit}</span>
-                          </div>
-                        </div>
-                        <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
-                      </div>
-                    ); 
-                  })}
-                </div>
-              </section>
-
-              <div className="pt-4 pb-12 flex flex-col gap-2">
-                <Button className="w-full h-14 bg-orange-600 hover:bg-orange-700 text-white font-black text-[11px] tracking-widest uppercase shadow-xl" onClick={handlePutOnTransfer} disabled={isTransferring || (profileHero.onTransferUntil && new Date(profileHero.onTransferUntil) > now)}>
-                  {isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
-                  {(profileHero.onTransferUntil && new Date(profileHero.onTransferUntil) > now) ? (language === 'ru' ? "НА АУКЦИОНЕ" : "ON AUCTION") : t.putOnTransfer}
-                </Button>
-                <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setSelectedHero(null)}>{t.profile.close}</Button>
-              </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const reserveSlots: LineupSlot[] = [];
-  const maxReserves = squadLimit - 7;
-  for (let i = 1; i <= maxReserves; i++) {
-    reserveSlots.push(`res${i}` as LineupSlot);
-  }
+  for (let i = 1; i <= squadLimit - 7; i++) { reserveSlots.push(`res${i}` as LineupSlot); }
+
+  if (!isLoaded) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-6">
@@ -380,7 +214,7 @@ export default function SquadPage() {
           </div>
         </div>
         <div className="flex flex-col items-center justify-center min-w-[60px] shrink-0">
-          <p className="text-[9px] font-black text-primary tracking-widest uppercase mb-1">ОБЩ</p>
+          <p className="text-[9px] font-black text-primary tracking-widest uppercase mb-1">{t.teamOverall}</p>
           <div className="relative flex items-center justify-center"><Shield className="w-10 h-10 text-primary fill-primary/10" strokeWidth={2} /><span className="absolute inset-0 flex items-center justify-center text-lg font-headline font-bold text-accent italic pt-0.5">{teamOvr}</span></div>
         </div>
       </header>
@@ -401,37 +235,26 @@ export default function SquadPage() {
 
         {selectingSlot && (
           <section className="space-y-3 pt-6 border-t border-primary/20 animate-in slide-in-from-bottom-4">
-            <div className="flex items-center justify-between px-1"><div className="flex items-center gap-2"><Box className="w-4 h-4 text-primary" /><h2 className="text-sm font-bold uppercase tracking-tight text-primary">{t.availableHeroes}</h2></div><Button variant="ghost" size="sm" onClick={() => setSelectingSlot(null)} className="h-7 text-[10px] font-bold text-muted-foreground"><Undo2 className="w-3 h-3 mr-1" /> {t.cancel}</Button></div>
+            <div className="flex items-center justify-between px-1"><div className="flex items-center gap-2"><Box className="w-4 h-4 text-primary" /><h2 className="text-sm font-bold uppercase tracking-tight text-primary">{t.availablePlayers}</h2></div><Button variant="ghost" size="sm" onClick={() => setSelectingSlot(null)} className="h-7 text-[10px] font-bold text-muted-foreground"><Undo2 className="w-3 h-3 mr-1" /> {t.cancel}</Button></div>
             <div className="grid grid-cols-1 gap-1.5">
-              {allAvailableHeroes.filter(h => roleMapping[selectingSlot].includes(h.role)).map((hero) => {
-                const liveAge = calculateLiveAge(hero.baseAge, hero.hiredAt);
-                const onAuction = hero.onTransferUntil && new Date(hero.onTransferUntil).getTime() > now;
-                const isTooYoung = hero.isYouth;
-                
+              {allAvailablePlayers.filter(p => roleMapping[selectingSlot].includes(p.role)).map((player) => {
+                const liveAge = calculateLiveAge(player.baseAge, player.hiredAt);
+                const onAuction = player.onTransferUntil && new Date(player.onTransferUntil).getTime() > now;
                 return (
-                  <Card key={hero.id} className={cn("glass-card border-white/10 overflow-hidden cursor-pointer", (isTooYoung || onAuction) && "opacity-60 grayscale cursor-not-allowed")} onClick={() => (onAuction || isTooYoung) ? null : handleHeroAssign(hero)}>
+                  <Card key={player.id} className={cn("glass-card border-white/10 overflow-hidden cursor-pointer", (player.isYouth || onAuction) && "opacity-60 grayscale")} onClick={() => (onAuction || player.isYouth) ? null : handlePlayerAssign(player)}>
                     <CardContent className="p-2 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted">
-                        <img src={hero.image} alt="" className="w-full h-full object-cover" />
-                      </div>
+                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted"><img src={player.image} alt="" className="w-full h-full object-cover" /></div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-[11px] truncate">{hero.name}</h4>
-                          <span className="text-[7px] text-muted-foreground font-black uppercase">{hero.role}</span>
+                          <h4 className="font-bold text-[11px] truncate">{player.name}</h4>
+                          <span className="text-[7px] text-muted-foreground font-black uppercase">{player.role}</span>
                         </div>
                         <div className="flex items-center gap-3 mt-0.5">
-                          <span className="text-[9px] font-bold text-accent flex items-center gap-1"><Star className="w-2.5 h-2.5 fill-accent/20" /> {hero.overallRating}</span>
-                          <span className={cn("text-[8px] font-black uppercase tracking-tighter", isTooYoung ? "text-red-400" : "text-muted-foreground")}>{liveAge.display} {t.profile.years}</span>
-                          {hero.isYouth && <Badge className="text-[6px] h-3 px-1 border-none bg-orange-500/20 text-orange-400">В АКАДЕМИИ</Badge>}
+                          <span className="text-[9px] font-bold text-accent flex items-center gap-1"><Star className="w-2.5 h-2.5 fill-accent/20" /> {player.overallRating}</span>
+                          <span className="text-[8px] font-black uppercase text-muted-foreground">{liveAge.display} {t.profile.years}</span>
+                          {player.isYouth && <Badge className="text-[6px] h-3 px-1 border-none bg-orange-500/20 text-orange-400">В АКАДЕМИИ</Badge>}
                         </div>
                       </div>
-                      {!isTooYoung && !onAuction ? (
-                        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary/10 border border-primary/20 text-primary">
-                          <Plus className="w-3 h-3" />
-                        </div>
-                      ) : (
-                        <Lock className="w-4 h-4 text-muted-foreground/30" />
-                      )}
                     </CardContent>
                   </Card>
                 );
@@ -443,7 +266,3 @@ export default function SquadPage() {
     </div>
   );
 }
-
-const Lock = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-);
