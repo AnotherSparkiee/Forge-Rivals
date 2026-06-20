@@ -13,7 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { useUser } from '@/firebase';
-import { getMoscowTime, getGlobalSeasonInfo } from '../lib/time-utils';
+import { getMoscowTime, getGlobalSeasonInfo, isMatchLive } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function MatchesPage() {
@@ -68,7 +68,7 @@ export default function MatchesPage() {
 
       <div className="space-y-3">
         {filteredMatches.length > 0 ? filteredMatches.map((m) => {
-          const isLive = now >= new Date(m.startTime) && now < new Date(new Date(m.startTime).getTime() + 35 * 60000);
+          const isLive = isMatchLive(m.startTime);
           const isFinished = m.isFinished;
           
           return (

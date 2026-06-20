@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useGameState } from '@/app/lib/store';
-import { getMoscowDateString } from '@/app/lib/time-utils';
+import { getMoscowDateString, getMoscowTime } from '@/app/lib/time-utils';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from '@/components/ui/dialog';
@@ -19,6 +19,7 @@ export function DailyRewardManager() {
   useEffect(() => {
     if (isLoaded && pathname === '/' && !!selectedLeagueId) {
       const today = getMoscowDateString();
+      // Если дата получения награды не совпадает с текущим днем МСК
       if (lastRewardClaimDate !== today) {
         const timer = setTimeout(() => setShowReward(true), 1500);
         return () => clearTimeout(timer);

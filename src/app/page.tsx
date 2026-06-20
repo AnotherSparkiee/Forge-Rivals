@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -48,12 +47,11 @@ export default function Home() {
   const [countdown, setCountdown] = useState('');
   const [isMatchActive, setIsMatchActive] = useState(false);
   
-  const seasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
+  const seasonInfo = useMemo(() => getGlobalSeasonInfo(), [isLoaded]);
 
   const unreadMatches = useMemo(() => {
     if (!user || !isLoaded) return [];
     
-    // 1. Лига (непросмотренные дни)
     const leagueUnread = (allSeasonMatches || []).filter(m => 
       (m.homeId === user.uid || m.awayId === user.uid) && 
       m.isFinished && 
@@ -61,10 +59,8 @@ export default function Home() {
       m.version === 32
     );
 
-    // 2. Другие (seen: false)
     const historyUnread = (matchHistory || []).filter(m => m.seen === false);
     
-    // Объединяем и сортируем по дате (старые первыми)
     return [...leagueUnread, ...historyUnread].sort((a, b) => {
       const timeA = new Date(a.playedAt || a.startTime || 0).getTime();
       const timeB = new Date(b.playedAt || b.startTime || 0).getTime();
@@ -201,7 +197,7 @@ export default function Home() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6 flex flex-col gap-1">
-        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.36</span></div>
+        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.37</span></div>
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">{seasonInfo.isOffseason ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} {seasonInfo.isOffseason ? tHub.offseason : `SEASON ${seasonInfo.seasonNumber}`}</h1>
       </header>
 

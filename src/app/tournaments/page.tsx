@@ -1,9 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ТУРНИРНЫЙ ХАБ v1.5.
- * Добавлена интеграция ежедневных турниров Iron Globe и Iron Brick.
- * Улучшена обработка ошибок "Оперативного конфликта" и добавлен экстренный сброс.
+ * @fileOverview ТУРНИРНЫЙ ХАБ v1.6.
+ * Исправлена синхронизация времени через toMskDate.
  */
 
 import { useEffect, useState, useMemo } from 'react';
@@ -24,7 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { getMoscowTime } from '../lib/time-utils';
+import { getMoscowTime, toMskDate } from '../lib/time-utils';
 
 export default function TournamentsPage() {
   const { user, isUserLoading } = useUser();
@@ -163,7 +162,8 @@ export default function TournamentsPage() {
   };
 
   const getDailyStatus = (sh: number, sm: number) => {
-    const totalNow = now.getHours() * 60 + now.getMinutes();
+    const mskNow = toMskDate(now);
+    const totalNow = mskNow.getUTCHours() * 60 + mskNow.getUTCMinutes();
     const totalStart = sh * 60 + sm;
     if (totalNow < totalStart - 30) return "OPEN";
     if (totalNow < totalStart) return "REG_CLOSED";

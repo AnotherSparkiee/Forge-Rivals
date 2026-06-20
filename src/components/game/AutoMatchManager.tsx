@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v36.
- * Точное соблюдение временных окон Лиги и Кубка.
+ * @fileOverview Автономный менеджер синхронизации v38.
+ * Точное соблюдение временных окон Лиги и Кубка (Time Core v60).
  */
 
 import { useEffect, useRef } from 'react';
@@ -10,7 +10,7 @@ import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, updateDoc, setDoc } from 'firebase/firestore';
 import { getStableGroupTeams, generateSeasonCalendar, LEAGUES } from '@/app/lib/leagues-data';
-import { getGlobalSeasonInfo, isMatchOverdue, getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
+import { getGlobalSeasonInfo, isMatchOverdue, getMoscowTime, getMoscowDateString, toMskDate } from '@/app/lib/time-utils';
 import { forceResolveGroupMatches } from '@/app/actions/mmo-engine';
 import { generatePyramidCup } from '@/app/actions/cup-engine';
 
@@ -42,15 +42,14 @@ export function AutoMatchManager() {
 
       try {
         const info = getGlobalSeasonInfo();
-        const mskNow = getMoscowTime();
+        const utcNow = getMoscowTime();
+        const mskNow = toMskDate(utcNow);
         const todayStr = getMoscowDateString();
         
         const currentSN = info.seasonNumber;
         const currentSeasonId = `season_${currentSN}`;
         const nextSN = currentSN + 1;
         const nextSeasonId = `season_${nextSN}`;
-        
-        const sysStatusRef = doc(db, 'system_v1', 'status');
 
         // 1. ЭКОНОМИЧЕСКИЙ ЦИКЛ (Ежедневно в 00:00 MSK)
         if (lastEconomicCheckRef.current !== todayStr) {
@@ -64,8 +63,19 @@ export function AutoMatchManager() {
               const basePayout = 250000;
               const bonusMult = 1 + ((teamData.managerSkills?.sponsors || 0) * 0.1);
               const finalPayout = Math.round(basePayout * (teamData.isPremium ? 3.0 : 1.0) * bonusMult);
-              await updateDoc(teamRef, { credits: (teamData.credits || 0) + finalPayout, lastSponsorPayoutDate: todayStr, updatedAt: serverTimestamp() });
-              await setDoc(doc(db, 'notifications_v7', `sponsor_${userId}_${todayStr}`), { userId, title: language === 'ru' ? "Выплата спонсоров" : "Sponsor Payout", description: language === 'ru' ? `Получено €${finalPayout.toLocaleString()}` : `Received €${finalPayout.toLocaleString()}`, type: 'league', read: false, createdAt: new Date().toISOString() });
+              await updateDoc(teamRef, { 
+                credits: (teamData.credits || 0) + finalPayout, 
+                lastSponsorPayoutDate: todayStr, 
+                updatedAt: serverTimestamp() 
+              });
+              await setDoc(doc(db, 'notifications_v7', `sponsor_${userId}_${todayStr}`), { 
+                userId, 
+                title: language === 'ru' ? "Выплата спонсоров" : "Sponsor Payout", 
+                description: language === 'ru' ? `Получено €${finalPayout.toLocaleString()}` : `Received €${finalPayout.toLocaleString()}`, 
+                type: 'league', 
+                read: false, 
+                createdAt: utcNow.toISOString() 
+              });
             }
             await payStaffSalaries();
           }
@@ -73,7 +83,7 @@ export function AutoMatchManager() {
         }
 
         // 2. ГЕНЕРАЦИЯ СЛЕДУЮЩЕГО СЕЗОНА (В День 15 после 16:00 MSK)
-        if (info.dayOfCycle === 15 && mskNow.getHours() >= 16) {
+        if (info.dayOfCycle === 15 && mskNow.getUTCHours() >= 16) {
           const nextPrefixedGroupId = `${nextSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
           const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', nextPrefixedGroupId);
           const groupSnap = await getDoc(groupRef);
@@ -84,17 +94,33 @@ export function AutoMatchManager() {
             const calendar = generateSeasonCalendar(currentTeams, nextSN, selectedLeagueId);
             
             let batch = writeBatch(db);
-            batch.set(groupRef, { id: nextPrefixedGroupId, seasonId: nextSeasonId, seasonNumber: nextSN, status: 'ready', updatedAt: serverTimestamp() });
+            batch.set(groupRef, { 
+              id: nextPrefixedGroupId, 
+              seasonId: nextSeasonId, 
+              seasonNumber: nextSN, 
+              status: 'ready', 
+              updatedAt: serverTimestamp() 
+            });
             
             calendar.forEach((m) => {
               const matchId = `m_${nextPrefixedGroupId}_d${m.day}_${m.pairKey}`;
-              batch.set(doc(db, 'matches_v1', matchId), { ...m, id: matchId, seasonId: nextSeasonId, seasonNumber: nextSN, groupId: nextPrefixedGroupId, leagueId: selectedLeagueId, status: 'scheduled', isFinished: false, version: 32 });
+              batch.set(doc(db, 'matches_v1', matchId), { 
+                ...m, 
+                id: matchId, 
+                seasonId: nextSeasonId, 
+                seasonNumber: nextSN, 
+                groupId: nextPrefixedGroupId, 
+                leagueId: selectedLeagueId, 
+                status: 'scheduled', 
+                isFinished: false, 
+                version: 32 
+              });
             });
             await batch.commit();
           }
         }
 
-        // 3. РЕЗОЛВЕР ПРОСРОЧЕННЫХ МАТЧЕЙ (Проверка каждые 60 сек)
+        // 3. РЕЗОЛВЕР ПРОСРОЧЕННЫХ МАТЧЕЙ
         const overdue = allSeasonMatches.filter(m => isMatchOverdue(m.startTime) && !m.isFinished);
         if (overdue.length > 0) {
           const currentPrefixedGroupId = `${currentSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
