@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v33 (Phase 2 Start).
- * Реализован мониторинг фаз Межсезонья, Генерации и Экономического цикла.
+ * @fileOverview Автономный менеджер синхронизации v34 (Economy Phase 2).
+ * Реализован мониторинг фаз Межсезонья, Генерации и Экономического цикла (Зарплаты персонала и Спонсоры).
  */
 
 import { useEffect, useRef } from 'react';
@@ -19,7 +19,7 @@ import { generatePyramidCup } from '@/app/actions/cup-engine';
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
-  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, allSeasonMatches, addCredits, language } = useGameState();
+  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, allSeasonMatches, addCredits, language, payStaffSalaries } = useGameState();
   const db = useFirestore();
   const processingRef = useRef(false);
   const lastEconomicCheckRef = useRef<string | null>(null);
@@ -67,6 +67,8 @@ export function AutoMatchManager() {
           
           if (teamSnap.exists()) {
             const teamData = teamSnap.data();
+            
+            // 1. Sponsor Payouts
             if (teamData.lastSponsorPayoutDate !== todayStr) {
               const basePayout = 250000;
               const bonusMult = 1 + ((teamData.managerSkills?.sponsors || 0) * 0.1);
@@ -87,9 +89,10 @@ export function AutoMatchManager() {
                 read: false,
                 createdAt: new Date().toISOString()
               });
-
-              console.log(`[ECONOMY] Granted sponsor payout to ${userId}: ${finalPayout}`);
             }
+
+            // 2. Staff Salaries (Phase 2 Addition)
+            await payStaffSalaries();
           }
           lastEconomicCheckRef.current = todayStr;
         }
@@ -176,7 +179,7 @@ export function AutoMatchManager() {
     const interval = setInterval(heartbeat, 60000);
     heartbeat();
     return () => clearInterval(interval);
-  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches, isUserLoading, user?.uid, language]);
+  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGroupPlayers, db, allSeasonMatches, isUserLoading, user?.uid, language, payStaffSalaries]);
 
   return null;
 }

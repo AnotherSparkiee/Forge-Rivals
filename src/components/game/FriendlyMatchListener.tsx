@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Слушатель товарищеских и пробных матчей v6 (Review Logic Fixed).
- * Гарантирует появление результатов пробных матчей на главном экране Хаба.
+ * @fileOverview Слушатель товарищеских и пробных матчей v7 (Staff & Infra Integration).
+ * Передает бонусы зданий и персонала в симулятор.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -37,7 +37,10 @@ export function FriendlyMatchListener() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const router = useRouter();
-  const { language, strategy, recordMatch, ownedHeroes, lineup, matchHistory, displayName } = useGameState();
+  const { 
+    language, strategy, recordMatch, ownedHeroes, lineup, 
+    matchHistory, displayName, bootcamp, staff 
+  } = useGameState();
   const { toast } = useToast();
 
   const [activeLobby, setActiveLobby] = useState<any | null>(null);
@@ -141,7 +144,6 @@ export function FriendlyMatchListener() {
         const now = Date.now();
 
         if (now >= finishTime) {
-          // ПРОВЕРКА ДУБЛЯ В ЛОКАЛЬНОМ STATE
           const alreadyRecorded = matchHistory.some(m => m.id === matchUniqueId);
           if (alreadyRecorded) {
             if (isHost) await deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
@@ -161,7 +163,6 @@ export function FriendlyMatchListener() {
             const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
             const myName = isHost ? data.hostName : data.challengerName;
             
-            // ЗАПИСЬ С seen: false ДЛЯ ТРИГГЕРА В page.tsx
             recordMatch(
               myScoreA > myScoreB ? myName : (myScoreA === myScoreB ? "Draw" : opponentName), 
               { 
@@ -185,7 +186,6 @@ export function FriendlyMatchListener() {
               description: language === 'ru' ? `Отчет боя против ${opponentName} доступен на главной.` : `Battle report vs ${opponentName} ready on hub.`,
             });
 
-            // УДАЛЕНИЕ ЛОББИ ТОЛЬКО ПОСЛЕ ЗАПИСИ
             if (isHost) {
               await deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
             }
@@ -230,15 +230,27 @@ export function FriendlyMatchListener() {
           return;
         }
 
+        // РАСЧЕТ БОНУСОВ
+        const infraBonus = (bootcamp?.bootcampLevel || 0) + (bootcamp?.tacticsHallLevel || 0);
+        const staffBonus = (staff?.coach?.skills?.primary || 0) + (staff?.analyst?.skills?.secondary || 0);
+
         const botSquad = generateBotSquad(25);
         const [finalScoreA, finalScoreB] = getMatchResult(activeLobby.hostId, activeLobby.challengerId || "bot", 0, 1);
 
         const result = await simulateMobaMatch({
-          teamA: { name: activeLobby.hostName, strategy: strategy, heroes: squad },
+          teamA: { 
+            name: activeLobby.hostName, 
+            strategy: strategy, 
+            heroes: squad,
+            infraBonus,
+            staffBonus
+          },
           teamB: { 
             name: activeLobby.challengerName || "AI Trainer", 
             strategy: "Balanced Play", 
-            heroes: botSquad
+            heroes: botSquad,
+            infraBonus: 10,
+            staffBonus: 10
           },
           isBo2: true,
           scoreA: finalScoreA,

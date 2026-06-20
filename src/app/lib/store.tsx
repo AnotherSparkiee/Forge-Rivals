@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Глобальное хранилище v47 (Fixed Match Recording). 
- * Исправлена логика записи и отображения результатов для всех типов матчей.
+ * @fileOverview Глобальное хранилище v49 (Bugfix: clearScoutingReport). 
+ * Исправлена ошибка ReferenceError за счет реализации недостающей функции.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -79,6 +79,7 @@ interface GameState {
   scoutCandidates: () => void;
   recruitCandidate: (heroId: string) => void;
   clearScoutingReport: () => void;
+  payStaffSalaries: () => Promise<void>;
 }
 
 export function getLevelThreshold(lvl: number) {
@@ -108,7 +109,8 @@ const DEFAULT_STATE: GameState = {
   startArenaConstruction: () => false, startHQConstruction: () => false, startBootcampConstruction: () => false,
   startAcademyConstruction: () => false, startMedicalConstruction: () => false, startCapacityExpansion: () => false,
   accelerateConstruction: () => false, checkConstructions: () => {},
-  scoutCandidates: () => {}, recruitCandidate: () => {}, clearScoutingReport: () => {}
+  scoutCandidates: () => {}, recruitCandidate: () => {}, clearScoutingReport: () => {},
+  payStaffSalaries: async () => {}
 };
 
 const GameStateContext = createContext<GameState | undefined>(undefined);
@@ -231,7 +233,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         }));
       });
 
-      return () => { unsubTeam(); heroesUnsub(); };
+      const staffUnsub = onSnapshot(collection(teamRef, 'staff'), (sSnap) => {
+        const staffObj: any = { coach: null, analyst: null, scout: null, doctor: null, financier: null };
+        sSnap.docs.forEach(doc => {
+          const m = doc.data() as StaffMember;
+          staffObj[m.role] = m;
+        });
+        setState(prev => ({ ...prev, staff: staffObj }));
+      });
+
+      return () => { unsubTeam(); heroesUnsub(); staffUnsub(); };
     } catch (e) {
       console.error("Team sync error:", e);
     }
@@ -329,41 +340,24 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const r = getRefs(); if (!r) return; 
     const s = stateRef.current; 
     const id = mId || `match_${Date.now()}`;
-    
-    // ПРЕДОТВРАЩЕНИЕ ДУБЛЕЙ
     if (s.matchHistory.some(m => m.id === id)) return;
 
-    // ФОРМИРОВАНИЕ ЗАПИСИ (seen: false для появления на главной)
     const entry = { 
-      id, 
-      winner: w, 
-      scoreA: res.scoreA, 
-      scoreB: res.scoreB, 
+      id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, 
       matchSummary: res.matchSummary || "Combat concluded.", 
-      opponentName: opp, 
-      type: t, 
-      playedAt: p, 
-      reward: rew, 
-      seen: false, 
-      day: Number(s.seasonDay), 
-      seasonNumber: Number(s.seasonNumber), 
-      timeline: res.timeline || [], 
-      scoreboard: res.scoreboard || [], 
-      mvp: res.mvp || "None", 
-      duration: res.duration || "30:00", 
+      opponentName: opp, type: t, playedAt: p, reward: rew, seen: false, 
+      day: Number(s.seasonDay), seasonNumber: Number(s.seasonNumber), 
+      timeline: res.timeline || [], scoreboard: res.scoreboard || [], 
+      mvp: res.mvp || "None", duration: res.duration || "30:00", 
       games: res.games || [res],
       homeName: res.homeName || s.displayName,
       awayName: res.awayName || opp
     };
 
-    updateDoc(r.team, { 
-      credits: s.credits + rew, 
-      matchHistory: arrayUnion(entry) 
-    });
+    updateDoc(r.team, { credits: s.credits + rew, matchHistory: arrayUnion(entry) });
   };
 
   const markMatchAsSeen = (d: number) => { const r = getRefs(); if (r) setDoc(r.team, { lastSeenMatchDay: Number(d) }, { merge: true }); };
-  
   const markMatchIdAsSeen = (id: string) => { 
     const r = getRefs(); if (!r) return; 
     const s = stateRef.current;
@@ -403,14 +397,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const r = getRefs(); if (!r) return;
     const s = stateRef.current;
     const scoutLevel = Number(s.academy?.scoutsLevel || 0);
-    const count = 3;
-    const candidates = Array.from({ length: count }).map((_, i) => generateScoutedHero(i, scoutLevel, `scout_${Date.now()}_${i}`));
+    const candidates = Array.from({ length: 3 }).map((_, i) => generateScoutedHero(i, scoutLevel, `scout_${Date.now()}_${i}`));
     updateDoc(r.team, { scoutingCandidates: JSON.parse(JSON.stringify(candidates)), lastScoutDate: new Date().toISOString() });
-  }, [getRefs]);
-
-  const clearScoutingReport = useCallback(() => {
-    const r = getRefs(); if (!r) return;
-    updateDoc(r.team, { scoutingCandidates: [] });
   }, [getRefs]);
 
   const recruitCandidate = useCallback((heroId: string) => {
@@ -422,6 +410,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const heroRef = doc(collection(r.team, 'heroes'), candidate.id);
     setDoc(heroRef, { ...candidate, isYouth: true }, { merge: true });
     updateDoc(r.team, { scoutingCandidates: remaining });
+  }, [getRefs]);
+
+  const clearScoutingReport = useCallback(() => {
+    const r = getRefs();
+    if (!r) return;
+    updateDoc(r.team, {
+      scoutingCandidates: [],
+      lastScoutDate: null
+    });
   }, [getRefs]);
 
   const checkConstructions = useCallback(() => {
@@ -449,12 +446,45 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }, [db, getRefs]);
 
+  const payStaffSalaries = useCallback(async () => {
+    const r = getRefs(); if (!r) return;
+    const s = stateRef.current;
+    const today = getMoscowDateString();
+    
+    // Only pay if not already paid today
+    const teamSnap = await getDoc(r.team);
+    if (teamSnap.exists() && teamSnap.data().lastStaffSalaryPaymentDate === today) return;
+
+    let totalStaffSalary = 0;
+    Object.values(s.staff).forEach(m => {
+      if (m) totalStaffSalary += m.salary;
+    });
+
+    if (totalStaffSalary > 0) {
+      await updateDoc(r.team, {
+        credits: Math.max(0, s.credits - totalStaffSalary),
+        lastStaffSalaryPaymentDate: today,
+        updatedAt: serverTimestamp()
+      });
+
+      const notifId = `staff_salary_${s.id}_${today}`;
+      await setDoc(doc(db, 'notifications_v7', notifId), {
+        userId: s.id,
+        title: s.language === 'ru' ? "Выплата зарплат персоналу" : "Staff Salary Payment",
+        description: s.language === 'ru' ? `Списано €${totalStaffSalary.toLocaleString()} на содержание штаба специалистов.` : `Deducted €${totalStaffSalary.toLocaleString()} for specialist staff maintenance.`,
+        type: 'league',
+        read: false,
+        createdAt: new Date().toISOString()
+      });
+    }
+  }, [getRefs, db]);
+
   const value = useMemo(() => ({
     ...state, isDataReady: isMatchesReady && state.isLoaded, allSeasonMatches: allMatches, nextMatch: nextMatchInfo, isMatchesLoading: !isMatchesReady,
     addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setLanguageDirect,
     setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions,
-    scoutCandidates, recruitCandidate, clearScoutingReport
-  }), [state, isMatchesReady, state.isLoaded, allMatches, nextMatchInfo, addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setLanguageDirect, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, scoutCandidates, recruitCandidate, clearScoutingReport]);
+    scoutCandidates, recruitCandidate, clearScoutingReport, payStaffSalaries
+  }), [state, isMatchesReady, state.isLoaded, allMatches, nextMatchInfo, addCrystals, addCredits, updateHero, removeHero, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setLanguageDirect, setTrainingFocus, startDailyHeroTraining, claimDailyHeroTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addHeroDirectly, addYouthHeroDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, recordMatch, markMatchAsSeen, markMatchIdAsSeen, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, scoutCandidates, recruitCandidate, clearScoutingReport, payStaffSalaries]);
 
   return <GameStateContext.Provider value={value as any}>{children}</GameStateContext.Provider>;
 }
