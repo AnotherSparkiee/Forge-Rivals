@@ -41,7 +41,7 @@ export function AutoMatchManager() {
       
       try {
         const tableRef = doc(db, 'league_tables_v1', tableId);
-        const tableSnap = await getDoc(tableRef);
+        let tableSnap = await getDoc(tableRef);
         const myName = String(displayName);
 
         // 1. Инициализация абсолютно новой группы
@@ -135,6 +135,15 @@ export function AutoMatchManager() {
           
           await batch.commit();
           console.log(`[WORLD-SYNC] Group ${tableId} successfully initialized.`);
+          
+          // ВЕРИФИКАЦИЯ: Ждем до секунды, чтобыFirestore подтвердил запись
+          let retry = 0;
+          while (retry < 5) {
+            const verifySnap = await getDoc(tableRef);
+            if (verifySnap.exists() && verifySnap.data()?.teamData?.length > 0) break;
+            await new Promise(r => setTimeout(r, 500));
+            retry++;
+          }
         } 
         
         // 2. MMO-Замена бота в существующей группе
