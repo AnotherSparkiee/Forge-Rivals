@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v40.
- * Исправлены ошибки импортов и мерцание данных.
+ * @fileOverview Страница рейтингов v40.2.
+ * Исправлено мерцание данных и добавлен импорт AlertTriangle.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
@@ -42,9 +42,7 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel || 9);
   const contextGroup = Number(navGroup || groupId || 1);
 
-  // Формат ID v40: s1_lALPHA_t9_g1
   const tableId = `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
-
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
@@ -147,7 +145,7 @@ export default function RankingsPage() {
                <span>#</span><span>Team</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
              </div>
              
-             {isTableLoading ? (
+             {isTableLoading && !tableData ? (
                <div className="py-20 text-center opacity-30"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>
              ) : standings.length > 0 ? standings.map((entry: any, i: number) => (
                <div key={entry.id} className={cn("grid grid-cols-[30px_1fr_80px_40px] items-center p-3 rounded-xl border mb-1", entry.id === user?.uid ? "bg-primary/20 border-primary/40" : "bg-secondary/20 border-white/5")}>
