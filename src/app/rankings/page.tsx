@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v40.5.
- * Реализовано прямое отображение Кубка без промежуточных кнопок.
+ * @fileOverview Страница рейтингов v40.6.
+ * Исправлены ошибки импорта и рендеринга Кубка без промежуточных окон.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -204,7 +204,7 @@ export default function RankingsPage() {
                        <CardContent className="p-3">
                          <div className="grid grid-cols-[1fr_40px_1fr] items-center text-[10px] font-bold uppercase">
                            <div className="text-right truncate"><span className={m.home?.id === user.uid ? "text-primary" : "text-white"}>{m.home?.name || t.waiting}</span></div>
-                           <div className="text-center">{m.scoreA !== null ? `${m.scoreA}:${m.scoreB}` : <Swords className="w-3 h-3 mx-auto opacity-30" />}</div>
+                           <div className="text-center">{m.scoreA !== null ? `${m.scoreA}:${m.scoreB}` : <Swords className="w-3.5 h-3.5 text-accent/40 mx-auto" />}</div>
                            <div className="text-left truncate"><span className={m.away?.id === user.uid ? "text-primary" : "text-white"}>{m.away?.name || t.waiting}</span></div>
                          </div>
                        </CardContent>

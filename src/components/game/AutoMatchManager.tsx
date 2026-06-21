@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v40.5 (Atomic Preload Edition).
- * Интегрировано с экраном загрузки для гарантированной готовности мира.
+ * @fileOverview Ядро MMO-синхронизации v40.6 (Resilient Preload Edition).
+ * Решает проблему "вечного прелоадера" через гарантированный Callback.
  */
 
 import { useEffect, useRef } from 'react';
@@ -23,8 +23,8 @@ export function AutoMatchManager() {
   const checkingRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Ждем полной загрузки профиля
-    if (isUserLoading || !user?.uid || !isLoaded || !userId || !selectedLeagueId || !displayName || displayName === 'Manager') return;
+    // Ждем базовой загрузки профиля в store
+    if (isUserLoading || !user?.uid || !isLoaded || !selectedLeagueId) return;
 
     const syncSharedWorld = async () => {
       const info = getGlobalSeasonInfo();
@@ -35,26 +35,29 @@ export function AutoMatchManager() {
       
       const tableId = `s${sNum}_l${lId}_t${tier}_g${grp}`;
       
-      if (initializedRef.current.has(tableId) || checkingRef.current === tableId) {
+      // Если уже проверено в этой сессии - выходим
+      if (initializedRef.current.has(tableId)) {
         setWorldReady(true);
         return;
       }
       
+      if (checkingRef.current === tableId) return;
       checkingRef.current = tableId;
-      const tableRef = doc(db, 'league_tables_v1', tableId);
+
+      console.log(`[WORLD-SYNC v40.6] Checking synchronization for ${tableId}...`);
       
       try {
+        const tableRef = doc(db, 'league_tables_v1', tableId);
         const tableSnap = await getDoc(tableRef);
-        const myName = displayName;
+        const myName = displayName || "Manager";
 
         // 1. Инициализация абсолютно новой группы
         if (!tableSnap.exists()) {
-          console.log(`[WORLD-SYNC v40.5] Initializing NEW Shared Group: ${tableId}`);
           const batch = writeBatch(db);
 
           const teams = [{ id: userId, name: myName, isBot: false }];
           for (let i = 1; i <= 7; i++) {
-            const botNum = 1000 + (tier * 100) + (grp * 10) + i;
+            const botNum = (tier * 1000) + (grp * 10) + i;
             const botId = `bot${botNum}`;
             teams.push({ id: botId, name: botId, isBot: true });
           }
@@ -79,17 +82,13 @@ export function AutoMatchManager() {
           const cupSnap = await getDoc(cupRef);
           
           if (!cupSnap.exists()) {
-            const cupParticipants = [...teams];
-            while (cupParticipants.length < 32) {
-              const bNum = 5000 + cupParticipants.length;
-              const bId = `bot${bNum}`;
-              cupParticipants.push({ id: bId, name: bId, isBot: true });
-            }
             const r1 = [];
             for (let i = 0; i < 32; i += 2) {
+              const b1 = 5000 + i;
+              const b2 = 5001 + i;
               r1.push({
-                home: { id: cupParticipants[i].id, name: cupParticipants[i].name },
-                away: { id: cupParticipants[i+1].id, name: cupParticipants[i+1].name },
+                home: { id: `bot${b1}`, name: `bot${b1}` },
+                away: { id: `bot${b2}`, name: `bot${b2}` },
                 scoreA: null, scoreB: null
               });
             }
@@ -101,7 +100,7 @@ export function AutoMatchManager() {
             });
           }
 
-          // Календарь на 14 туров
+          // Календарь
           const leagueInfo = LEAGUES.find(l => l.id === lId) || LEAGUES[0];
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
           const seasonStartMs = new Date('2026-06-21T21:00:00Z').getTime() + (sNum - 1) * 15 * 24 * 3600000;
@@ -115,9 +114,11 @@ export function AutoMatchManager() {
               let hIdx = i;
               let aIdx = n - 1 - i;
               if (r % 2 === 1) [hIdx, aIdx] = [aIdx, hIdx];
-              
               const hId = tempIds[hIdx];
               const aId = tempIds[aIdx];
+
+              const day1 = r + 1;
+              const day2 = r + 1 + rounds;
 
               const createMatch = (day: number, h: string, a: string) => {
                 const startTime = new Date(seasonStartMs + (day - 1) * 24 * 3600000 + hh * 3600000 + mm * 60000);
@@ -130,23 +131,20 @@ export function AutoMatchManager() {
                   isFinished: false, version: 40, createdAt: serverTimestamp()
                 });
               };
-              createMatch(r + 1, hId, aId);
-              createMatch(r + 1 + rounds, aId, hId);
+              createMatch(day1, hId, aId);
+              createMatch(day2, aId, hId);
             }
             const last = tempIds.pop()!;
             tempIds.splice(1, 0, last);
           }
           
           await batch.commit();
-          console.log(`[WORLD-SYNC v40.5] Group ${tableId} created.`);
         } 
         
-        // 2. MMO-Замена бота
+        // 2. MMO-Замена бота в существующей группе
         else {
           const tableData = tableSnap.data();
           if (tableData && tableData.version === 40 && !tableData.teams.includes(userId)) {
-            console.log(`[WORLD-SYNC v40.5] Replacing bot with player ${userId}`);
-            
             const teamData = [...(tableData.teamData || [])];
             const botIdx = teamData.findIndex((t: any) => t.isBot || t.id.startsWith('bot'));
             
@@ -160,13 +158,10 @@ export function AutoMatchManager() {
               newStats[userId] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
 
               await updateDoc(tableRef, {
-                teams: newTeams,
-                teamData: teamData,
-                stats: newStats,
-                updatedAt: serverTimestamp()
+                teams: newTeams, teamData: teamData, stats: newStats, updatedAt: serverTimestamp()
               });
 
-              // Обновляем матчи
+              // Обновляем матчи Лиги
               const matchesQuery = query(
                 collection(db, 'matches_v1'),
                 where('tableId', '==', tableId),
@@ -177,18 +172,8 @@ export function AutoMatchManager() {
 
               matchesSnap.docs.forEach(mDoc => {
                 const m = mDoc.data();
-                const update: any = {};
-                if (m.homeId === botIdToRemove) {
-                  update.homeId = userId;
-                  update.homeName = myName;
-                }
-                if (m.awayId === botIdToRemove) {
-                  update.awayId = userId;
-                  update.awayName = myName;
-                }
-                if (Object.keys(update).length > 0) {
-                  matchBatch.update(mDoc.ref, update);
-                }
+                if (m.homeId === botIdToRemove) matchBatch.update(mDoc.ref, { homeId: userId, homeName: myName });
+                if (m.awayId === botIdToRemove) matchBatch.update(mDoc.ref, { awayId: userId, awayName: myName });
               });
 
               await matchBatch.commit();
@@ -196,11 +181,12 @@ export function AutoMatchManager() {
           }
         }
         
-        // Мир готов!
         initializedRef.current.add(tableId);
         setWorldReady(true);
       } catch (e) {
         console.error("[WORLD-SYNC ERROR]", e);
+        // Fail-safe: всё равно пускаем в игру через 5 секунд, если API упало
+        setTimeout(() => setWorldReady(true), 5000);
       } finally {
         checkingRef.current = null;
       }

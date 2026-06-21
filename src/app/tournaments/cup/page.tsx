@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Терминал Кубка v40.5.
- * Удален промежуточный экран, раунды отображаются сразу.
+ * @fileOverview Терминал Кубка v40.6.
+ * Прямое отображение сетки раундов без промежуточных экранов.
  */
 
 import { useState, useEffect } from 'react';
@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { 
-  ChevronLeft, Trophy, Swords, Loader2, AlertTriangle
+  ChevronLeft, Trophy, Swords, Loader2, AlertTriangle, Medal
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -108,7 +108,7 @@ export default function PyramidCupPage() {
                   <CardContent className="p-3">
                     <div className="grid grid-cols-[1fr_40px_1fr] items-center">
                       <div className="text-right truncate"><p className={cn("text-[10px] font-bold uppercase", m.home?.id === user.uid ? "text-primary" : "text-white")}>{m.home?.name || t.waiting}</p></div>
-                      <div className="flex justify-center">{m.scoreA !== null ? <span className="text-sm font-headline font-black">{m.scoreA}:{m.scoreB}</span> : <Swords className="w-3.5 h-3.5 text-accent/40" />}</div>
+                      <div className="flex justify-center">{m.scoreA !== null ? <span className="text-sm font-headline font-black">{m.scoreA}:{m.scoreB}</span> : <Swords className="w-3.5 h-3.5 text-accent/40 mx-auto" />}</div>
                       <div className="text-left truncate"><p className={cn("text-[10px] font-bold uppercase", m.away?.id === user.uid ? "text-primary" : "text-white")}>{m.away?.name || t.waiting}</p></div>
                     </div>
                   </CardContent>

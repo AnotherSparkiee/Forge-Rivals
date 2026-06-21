@@ -17,6 +17,7 @@ import { Suspense } from 'react';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { usePathname } from 'next/navigation';
 import { useUser } from '@/firebase';
+import { cn } from '@/lib/utils';
 
 function GameInterface({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -25,41 +26,44 @@ function GameInterface({ children }: { children: React.ReactNode }) {
   
   const isAuthOrSetup = pathname?.startsWith('/auth') || pathname === '/setup';
 
-  // Показываем прелоадер если:
-  // 1. Грузится юзер
-  // 2. Юзер есть, это не Setup, но мир еще не синхронизирован (isDataReady === false)
-  const showPreloader = isUserLoading || (!!user && !isAuthOrSetup && !isDataReady);
+  // Рендерим менеджер синхронизации ВСЕГДА, если юзер залогинен и это не страница входа/настройки.
+  // Это позволит ему работать "под" прелоадером.
+  const needsWorldSync = !!user && !isAuthOrSetup;
 
-  if (showPreloader) return <LoadingScreen />;
-
-  const shouldRenderBars = !!user && isLoaded && isDataReady && !isAuthOrSetup;
+  // Показываем прелоадер только если:
+  // 1. Грузится Firebase-юзер
+  // 2. Юзер есть, но мир еще не синхронизирован (isDataReady === false)
+  const showPreloader = isUserLoading || (needsWorldSync && !isDataReady);
 
   return (
     <>
-      {shouldRenderBars && <TopBar />}
-      {shouldRenderBars && (
+      {needsWorldSync && <AutoMatchManager />}
+      
+      {showPreloader ? (
+        <LoadingScreen />
+      ) : (
         <>
-          <AutoMatchManager />
-          <FriendlyMatchListener />
-          <CWBasketListener />
-          <DailyRewardManager />
-          <TransferResolver />
+          {!isAuthOrSetup && isDataReady && <TopBar />}
+          {!isAuthOrSetup && isDataReady && (
+            <>
+              <FriendlyMatchListener />
+              <CWBasketListener />
+              <DailyRewardManager />
+              <TransferResolver />
+            </>
+          )}
+          
+          <Suspense fallback={<LoadingScreen />}>
+            <main className={cn(!isAuthOrSetup && isDataReady ? "pt-14 pb-20" : "")}>
+              {children}
+            </main>
+          </Suspense>
+
+          {!isAuthOrSetup && isDataReady && <BottomNav />}
         </>
       )}
-      
-      <Suspense fallback={<LoadingScreen />}>
-        <main className={cn(shouldRenderBars ? "pt-14 pb-20" : "")}>
-          {children}
-        </main>
-      </Suspense>
-
-      {shouldRenderBars && <BottomNav />}
     </>
   );
-}
-
-function cn(...classes: any[]) {
-  return classes.filter(Boolean).join(' ');
 }
 
 export default function RootLayout({
