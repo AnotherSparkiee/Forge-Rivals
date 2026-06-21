@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview МАТЧ-ЦЕНТР v2.0. 
- * Реализован порядок: Следующий -> Мои Будущие -> Мои Сыгранные -> Лига Будущие -> Лига Сыгранные.
+ * @fileOverview МАТЧ-ЦЕНТР v2.1. 
+ * Обновлена версия фильтрации до v35.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -41,9 +41,9 @@ export default function MatchesPage() {
     return () => clearInterval(timer);
   }, [user, isUserLoading, router]);
 
-  // Фильтруем матчи актуальной версии v32
+  // Фильтруем матчи актуальной версии v35
   const validMatches = useMemo(() => {
-    return (allSeasonMatches || []).filter(m => m.version === 32 && m.season === activeSeasonNumber);
+    return (allSeasonMatches || []).filter(m => m.version === 35 && m.season === activeSeasonNumber);
   }, [allSeasonMatches, activeSeasonNumber]);
 
   const t = {
@@ -166,7 +166,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'league_future':
-        const leagueFuture = validMatches.filter(m => m.homeId !== user?.uid && m.awayId !== user?.uid && !m.isFinished).sort((a, b) => a.tour - b.tour);
+        const leagueFuture = validMatches.filter(m => !m.isFinished).sort((a, b) => a.tour - b.tour);
         return (
           <div className="animate-in fade-in">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>
@@ -174,7 +174,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'league_history':
-        const leagueHistory = validMatches.filter(m => m.homeId !== user?.uid && m.awayId !== user?.uid && m.isFinished).sort((a, b) => b.tour - a.tour);
+        const leagueHistory = validMatches.filter(m => m.isFinished).sort((a, b) => b.tour - a.tour);
         return (
           <div className="animate-in fade-in">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>

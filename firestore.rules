@@ -19,16 +19,16 @@ service cloud.firestore {
       allow write: if isOwner(userId);
     }
 
-    // Atomic Season Structure
-    match /league_tables/{tableId} {
+    // Atomic Season Structure v1
+    match /league_tables_v1/{tableId} {
       allow read, write: if isSignedIn();
     }
 
-    match /cup_pyramid/{cupId} {
+    match /cup_pyramid_v1/{cupId} {
       allow read, write: if isSignedIn();
     }
 
-    match /matches/{matchId} {
+    match /matches_v1/{matchId} {
       allow read, write: if isSignedIn();
     }
 

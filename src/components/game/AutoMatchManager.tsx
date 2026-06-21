@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v56.
- * Исправлено: использование коллекции v1 и атомарная инициализация v35.
+ * @fileOverview Автономный менеджер синхронизации v57.
+ * Оптимизация: загрузка всех игроков лиги без индекса и клиентская фильтрация.
  */
 
 import { useEffect, useRef } from 'react';
@@ -18,19 +18,17 @@ export function AutoMatchManager() {
   const db = useFirestore();
   const processingRef = useRef(false);
 
-  // Облегченный запрос: только по LeagueId, чтобы избежать композитных индексов
-  const leaguePlayersQuery = useMemoFirebase(() => {
-    if (isUserLoading || !user?.uid || !selectedLeagueId) return null;
-    return query(
-      collection(db, 'players_v10'), 
-      where('selectedLeagueId', '==', String(selectedLeagueId))
-    );
-  }, [db, selectedLeagueId, isUserLoading, user?.uid]);
+  // Оптимизация: убираем 'where', чтобы запрос работал без ручного создания индекса в Firebase
+  // Для прототипа это самый надежный способ гарантировать появление данных.
+  const allPlayersQuery = useMemoFirebase(() => {
+    if (isUserLoading || !user?.uid) return null;
+    return collection(db, 'players_v10');
+  }, [db, isUserLoading, user?.uid]);
 
-  const { data: allLeaguePlayers } = useCollection(leaguePlayersQuery);
+  const { data: allGlobalPlayers } = useCollection(allPlayersQuery);
 
   useEffect(() => {
-    if (isUserLoading || !user?.uid || !isLoaded || !userId || !selectedLeagueId || !allLeaguePlayers) return;
+    if (isUserLoading || !user?.uid || !isLoaded || !userId || !selectedLeagueId || !allGlobalPlayers) return;
 
     const heartbeat = async () => {
       if (processingRef.current) return;
@@ -50,8 +48,9 @@ export function AutoMatchManager() {
         if (needsInit) {
           console.log(`[ATOMIC SYNC v3.5] Initializing Season ${currentSN} for league ${selectedLeagueId} Group ${groupId}`);
           
-          // Фильтруем игроков этой конкретной группы на клиенте
-          const groupPlayers = allLeaguePlayers.filter(p => 
+          // Фильтруем игроков этой конкретной группы на клиенте (MAX reliability)
+          const groupPlayers = allGlobalPlayers.filter(p => 
+            p.selectedLeagueId === String(selectedLeagueId) &&
             Number(p.leagueLevel) === Number(leagueLevel) && 
             Number(p.groupId) === Number(groupId)
           );
@@ -86,10 +85,10 @@ export function AutoMatchManager() {
       }
     };
 
-    const interval = setInterval(heartbeat, 30000);
+    const interval = setInterval(heartbeat, 15000);
     heartbeat();
     return () => clearInterval(interval);
-  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allLeaguePlayers, db, isUserLoading, user?.uid, displayName]);
+  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGlobalPlayers, db, isUserLoading, user?.uid, displayName]);
 
   return null;
 }
