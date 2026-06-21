@@ -1,8 +1,9 @@
+
 'use client';
 
 /**
- * @fileOverview МАТЧ-ЦЕНТР v40.
- * Восстановлен порядок кнопок и синхронизация версий.
+ * @fileOverview МАТЧ-ЦЕНТР v41.
+ * Использование унифицированной фильтрации по версии v41.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -41,7 +42,7 @@ export default function MatchesPage() {
   }, [user, isUserLoading, router]);
 
   const validMatches = useMemo(() => {
-    return (allSeasonMatches || []).filter(m => m.version === 40 && m.season === activeSeasonNumber);
+    return (allSeasonMatches || []).filter(m => (m.version === 41 || m.version === 40) && m.season === activeSeasonNumber);
   }, [allSeasonMatches, activeSeasonNumber]);
 
   const t = {

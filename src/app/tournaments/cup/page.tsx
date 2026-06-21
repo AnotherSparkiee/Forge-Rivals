@@ -2,8 +2,7 @@
 'use client';
 
 /**
- * @fileOverview Терминал Кубка v40.12.
- * Прямое отображение сетки раундов 1/16 финала.
+ * @fileOverview Терминал Кубка v41. Прямое отображение сетки.
  */
 
 import { useState, useEffect } from 'react';
@@ -24,7 +23,7 @@ export default function PyramidCupPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const db = useFirestore();
-  const { language, isLoaded, selectedLeagueId, activeSeasonNumber } = useGameState();
+  const { language, isLoaded, selectedLeagueId, activeSeasonNumber, isDataReady } = useGameState();
   
   const [activeRound, setActiveRound] = useState('r1');
 
@@ -36,7 +35,7 @@ export default function PyramidCupPage() {
     if (!isUserLoading && !user) router.push('/auth/login');
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || !isLoaded || !user) return <LoadingScreen />;
+  if (isUserLoading || !isLoaded || !user || !isDataReady) return <LoadingScreen />;
 
   const t = {
     en: {
@@ -46,7 +45,7 @@ export default function PyramidCupPage() {
       final: "Final",
       waiting: "TBD",
       noGrid: "Bracket Pending",
-      noGridDesc: "Syncing data with league server...",
+      noGridDesc: "Syncing data with league server v41...",
     },
     ru: {
       title: "КУБОК ПИРАМИДЫ",
@@ -55,7 +54,7 @@ export default function PyramidCupPage() {
       final: "Финал",
       waiting: "TBD",
       noGrid: "Сетка формируется",
-      noGridDesc: "Синхронизация данных с сервером лиги...",
+      noGridDesc: "Синхронизация данных с сервером лиги v41...",
     }
   }[language as 'en' | 'ru'] || { title: "Cup" };
 

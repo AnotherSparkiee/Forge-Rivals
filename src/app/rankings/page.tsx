@@ -2,9 +2,7 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v40.12.
- * Исправлена кнопка Назад и мерцание.
- * У вкладок "Своя таблица" и "Глобальная структура" теперь независимая логика.
+ * @fileOverview Страница рейтингов v41. Унифицированный ID и исправленная навигация.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -36,16 +34,16 @@ export default function RankingsPage() {
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
   
-  // Browsing state (только для вкладок "Все пирамиды")
+  // Browsing state (для вкладки "Все пирамиды")
   const [navLeague, setNavLeague] = useState<string | null>(null);
   const [navLevel, setNavLevel] = useState<number | null>(null);
   const [navGroup, setNavGroup] = useState<number | null>(null);
 
-  // Определение контекста таблицы
+  // Определение контекста (v41 строгое приведение)
   const isMyLeagueTab = activeTab === 'my_league';
-  const contextLeagueId = isMyLeagueTab ? (selectedLeagueId || "ALPHA") : (navLeague || selectedLeagueId || "ALPHA");
-  const contextLevel = isMyLeagueTab ? Number(leagueLevel || 9) : Number(navLevel || leagueLevel || 9);
-  const contextGroup = isMyLeagueTab ? Number(groupId || 1) : Number(navGroup || groupId || 1);
+  const contextLeagueId = isMyLeagueTab ? String(selectedLeagueId || "ALPHA") : String(navLeague || selectedLeagueId || "ALPHA");
+  const contextLevel = isMyLeagueTab ? String(leagueLevel || 9) : String(navLevel || leagueLevel || 9);
+  const contextGroup = isMyLeagueTab ? String(groupId || 1) : String(navGroup || groupId || 1);
 
   const tableId = `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
@@ -106,27 +104,22 @@ export default function RankingsPage() {
   }[language === 'ru' ? 'ru' : 'en'];
 
   const handleBack = () => {
+    // Вкладка "Своя таблица" и "Кубок" ведут сразу в меню хаба
+    if (activeTab === 'my_league' || activeTab === 'pyramid_cup' || activeTab === 'my_pyramid') {
+      setActiveTab('menu');
+      return;
+    }
+
     if (activeTab === 'menu') {
       router.push('/');
       return;
     }
 
-    // Если мы во вкладке "Своя таблица" или "Кубок" - сразу в меню
-    if (activeTab === 'my_league' || activeTab === 'pyramid_cup') {
-      setActiveTab('menu');
-      return;
-    }
-
-    // Логика возврата по слоям для "Все пирамиды" и "Моя пирамида"
-    if (navGroup) {
-      setNavGroup(null);
-    } else if (navLevel) {
-      setNavLevel(null);
-    } else if (navLeague) {
-      setNavLeague(null);
-    } else {
-      setActiveTab('menu');
-    }
+    // Послойная навигация для "Все пирамиды"
+    if (navGroup) setNavGroup(null);
+    else if (navLevel) setNavLevel(null);
+    else if (navLeague) setNavLeague(null);
+    else setActiveTab('menu');
   };
 
   if (isUserLoading || !isLoaded || !user || !isDataReady) return <LoadingScreen />;
@@ -134,7 +127,7 @@ export default function RankingsPage() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
       <header className="mb-8 flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="rounded-full border border-white/5" onClick={handleBack}>
+        <Button variant="ghost" size="icon" className="rounded-full border border-white/5 bg-secondary/50" onClick={handleBack}>
           <ChevronLeft className="w-6 h-6" />
         </Button>
         <div>
@@ -187,8 +180,8 @@ export default function RankingsPage() {
              )) : (
                <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10 mt-4 flex flex-col items-center">
                  <AlertTriangle className="w-12 h-12 mb-4" />
-                 <p className="text-[10px] font-black uppercase">World Sync Pending</p>
-                 <p className="text-[8px] text-muted-foreground mt-2">Checking match coordinates...</p>
+                 <p className="text-[10px] font-black uppercase">Syncing Terminal...</p>
+                 <p className="text-[8px] text-muted-foreground mt-2 italic">Awaiting connection to league server v41</p>
                </div>
              )}
            </div>

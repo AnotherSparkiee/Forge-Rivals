@@ -1,7 +1,8 @@
+
 'use client';
 
 /**
- * Глобальное хранилище v75 (Atomic Season Support & Preload Logic). 
+ * Глобальное хранилище v41 (Atomic Season Support & Preload Logic). 
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -178,16 +179,19 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsubTeam(); playersUnsub(); staffUnsub(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
-  // Global Matches Listener (v40 Support)
+  // Global Matches Listener (v41 Support)
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
     const info = getGlobalSeasonInfo();
-    const tableId = `s${info.activeSeasonNumber}_l${state.selectedLeagueId}_t${state.leagueLevel}_g${state.groupId}`;
+    const lId = String(state.selectedLeagueId);
+    const tier = String(state.leagueLevel);
+    const grp = String(state.groupId);
+    const tableId = `s${info.activeSeasonNumber}_l${lId}_t${tier}_g${grp}`;
     
     const q = query(
       collection(db, 'matches_v1'), 
       where('tableId', '==', tableId),
-      where('version', '==', 40)
+      where('version', '==', 41)
     );
 
     let active = true;
@@ -464,4 +468,3 @@ export function useGameState() {
   if (context === undefined) throw new Error('useGameState must be used within a GameStateProvider');
   return context;
 }
-
