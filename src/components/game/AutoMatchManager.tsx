@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * @fileOverview Ядро синхронизации игрового мира v40.
- * Атомарно создает Таблицу, Календарь и Кубок при первом входе игрока.
+ * @fileOverview Ядро синхронизации MMO-мира v40.
+ * Поддерживает общие группы: добавляет игроков в существующие таблицы, заменяя ботов.
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore } from '@/firebase';
 import { 
-  doc, getDoc, writeBatch, serverTimestamp
+  doc, getDoc, writeBatch, serverTimestamp, collection, query, where, getDocs, updateDoc
 } from 'firebase/firestore';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -23,7 +23,7 @@ export function AutoMatchManager() {
   useEffect(() => {
     if (isUserLoading || !user?.uid || !isLoaded || !userId || !selectedLeagueId) return;
 
-    const initializeWorld = async () => {
+    const syncSharedWorld = async () => {
       if (processingRef.current) return;
       processingRef.current = true;
 
@@ -38,13 +38,14 @@ export function AutoMatchManager() {
         const tableRef = doc(db, 'league_tables_v1', tableId);
         const tableSnap = await getDoc(tableRef);
 
-        // Если таблицы v40 нет — создаем весь мир атомарно
+        const myName = displayName || "Manager";
+
+        // СЦЕНАРИЙ 1: Таблицы нет — создаем новую
         if (!tableSnap.exists() || tableSnap.data()?.version !== 40) {
-          console.log(`[WORLD-SYNC v40] Deploying Season Infrastructure: ${tableId}`);
+          console.log(`[WORLD-SYNC v40] Initializing Shared Group: ${tableId}`);
           const batch = writeBatch(db);
 
-          // 1. Формируем участников (Вы + 7 Классических Ботов)
-          const teams = [{ id: userId, name: displayName || "Manager", isBot: false }];
+          const teams = [{ id: userId, name: myName, isBot: false }];
           for (let i = 1; i <= 7; i++) {
             const botNum = 1000 + (tier * 100) + (grp * 10) + i;
             const botId = `bot${botNum}`;
@@ -56,7 +57,6 @@ export function AutoMatchManager() {
             stats[t.id] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
           });
 
-          // 2. Создаем Таблицу
           batch.set(tableRef, {
             id: tableId, season: sNum, leagueId: lId, tier, group: grp,
             teams: teams.map(t => t.id),
@@ -66,14 +66,12 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           });
 
-          // 3. Создаем Кубок Лиги (если нет)
+          // Кубок
           const cupId = `cup_s${sNum}_l${lId}`;
           const cupRef = doc(db, 'cup_pyramid_v1', cupId);
           const cupSnap = await getDoc(cupRef);
-
           if (!cupSnap.exists() || cupSnap.data()?.version !== 40) {
             const cupParticipants = [...teams];
-            // Дополняем до 32 участников для сетки
             while (cupParticipants.length < 32) {
               const bNum = 5000 + cupParticipants.length;
               const bId = `bot${bNum}`;
@@ -95,10 +93,9 @@ export function AutoMatchManager() {
             });
           }
 
-          // 4. Генерируем 14 туров календаря (Round-robin)
+          // Календарь
           const leagueInfo = LEAGUES.find(l => l.id === lId) || LEAGUES[0];
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
-          // Эпоха v40: 22.06.2026
           const seasonStartMs = new Date('2026-06-21T21:00:00Z').getTime() + (sNum - 1) * 15 * 24 * 3600000;
 
           const n = 8;
@@ -109,12 +106,9 @@ export function AutoMatchManager() {
             for (let i = 0; i < n / 2; i++) {
               let hIdx = i;
               let aIdx = n - 1 - i;
-              
               if (r % 2 === 1) [hIdx, aIdx] = [aIdx, hIdx];
-
               const hId = tempIds[hIdx];
               const aId = tempIds[aIdx];
-              
               const createMatch = (day: number, h: string, a: string) => {
                 const startTime = new Date(seasonStartMs + (day - 1) * 24 * 3600000 + hh * 3600000 + mm * 60000);
                 const mId = `m_${tableId}_d${day}_h${h}`;
@@ -126,17 +120,72 @@ export function AutoMatchManager() {
                   isFinished: false, version: 40, createdAt: serverTimestamp()
                 });
               };
-
-              createMatch(r + 1, hId, aId); // Круг 1
-              createMatch(r + 1 + rounds, aId, hId); // Круг 2
+              createMatch(r + 1, hId, aId);
+              createMatch(r + 1 + rounds, aId, hId);
             }
-            // Циклический сдвиг для Round-robin
             const last = tempIds.pop()!;
             tempIds.splice(1, 0, last);
           }
-
           await batch.commit();
-          console.log("[WORLD-SYNC v40] Deployment complete.");
+        } 
+        
+        // СЦЕНАРИЙ 2: Таблица есть, но игрока в ней нет — занимаем слот бота
+        else {
+          const tableData = tableSnap.data()!;
+          if (!tableData.teams.includes(userId)) {
+            console.log(`[WORLD-SYNC v40] Joining Existing Group: Replacing bot with ${userId}`);
+            
+            const teamData = [...(tableData.teamData || [])];
+            const botIdx = teamData.findIndex(t => t.isBot);
+            
+            if (botIdx !== -1) {
+              const botIdToRemove = teamData[botIdx].id;
+              const botNameToRemove = teamData[botIdx].name;
+
+              teamData[botIdx] = { id: userId, name: myName, isBot: false };
+              
+              const newTeams = teamData.map(t => t.id);
+              const newStats = { ...(tableData.stats || {}) };
+              delete newStats[botIdToRemove];
+              newStats[userId] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
+
+              // Обновляем таблицу
+              await updateDoc(tableRef, {
+                teams: newTeams,
+                teamData: teamData,
+                stats: newStats,
+                updatedAt: serverTimestamp()
+              });
+
+              // Обновляем все 14 матчей в этой группе, заменяя бота на игрока
+              const matchesQuery = query(
+                collection(db, 'matches_v1'),
+                where('tableId', '==', tableId),
+                where('version', '==', 40)
+              );
+              const matchesSnap = await getDocs(matchesQuery);
+              const matchBatch = writeBatch(db);
+
+              matchesSnap.docs.forEach(mDoc => {
+                const m = mDoc.data();
+                const update: any = {};
+                if (m.homeId === botIdToRemove) {
+                  update.homeId = userId;
+                  update.homeName = myName;
+                }
+                if (m.awayId === botIdToRemove) {
+                  update.awayId = userId;
+                  update.awayName = myName;
+                }
+                if (Object.keys(update).length > 0) {
+                  matchBatch.update(mDoc.ref, update);
+                }
+              });
+
+              await matchBatch.commit();
+              console.log(`[WORLD-SYNC v40] Bot ${botIdToRemove} replaced successfully.`);
+            }
+          }
         }
       } catch (e) {
         console.error("[WORLD-SYNC ERROR]", e);
@@ -145,8 +194,8 @@ export function AutoMatchManager() {
       }
     };
 
-    initializeWorld();
-    const interval = setInterval(initializeWorld, 60000);
+    syncSharedWorld();
+    const interval = setInterval(syncSharedWorld, 60000);
     return () => clearInterval(interval);
   }, [isLoaded, userId, displayName, selectedLeagueId, leagueLevel, groupId, isUserLoading, user, db]);
 

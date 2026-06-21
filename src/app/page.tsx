@@ -10,7 +10,7 @@ import {
   Loader2, Check, UserPlus,
   GraduationCap, CalendarDays, Medal,
   ArrowRightLeft, 
-  Clock, Radio
+  Clock, Radio, Shield
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,7 +56,7 @@ export default function Home() {
       (m.homeId === user.uid || m.awayId === user.uid) && 
       m.isFinished && 
       Number(m.day) > (lastSeenMatchDay || 0) &&
-      m.version === 32
+      m.version === 40
     );
 
     const historyUnread = (matchHistory || []).filter(m => m.seen === false);
@@ -84,7 +84,6 @@ export default function Home() {
       const info = getGlobalSeasonInfo();
       const mskNow = getMoscowTime();
       
-      // Логика обратного отсчета до Сезона 1 или до следующего матча
       if (mskNow < info.currentSeasonStart) {
         const diff = info.currentSeasonStart.getTime() - mskNow.getTime();
         const dd = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -196,7 +195,7 @@ export default function Home() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6 flex flex-col gap-1">
-        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.38</span></div>
+        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.40</span></div>
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
           {(seasonInfo.isOffseason || isPreSeason) ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
           {(seasonInfo.isOffseason || isPreSeason) ? tHub.offseason : `SEASON ${seasonInfo.seasonNumber}`}
@@ -254,6 +253,8 @@ export default function Home() {
             { label: language === 'ru' ? 'СОСТАВ' : 'ROSTER', href: '/roster', icon: Users, desc: language === 'ru' ? 'Ваши игроки' : 'Squad management' }, 
             { label: language === 'ru' ? 'ИНФРАСТРУКТУРА' : 'Infrastructure', href: '/training', icon: Zap, desc: language === 'ru' ? 'База клуба' : 'Facility growth' }, 
             { label: language === 'ru' ? 'ТРАНСФЕРЫ' : 'Transfers', href: '/transfers', icon: ArrowRightLeft, desc: language === 'ru' ? 'Рынок игроков' : 'Asset market' }, 
+            { label: language === 'ru' ? 'АССОЦИАЦИИ' : 'Associations', href: '/associations', icon: Shield, desc: language === 'ru' ? 'Альянсы клубов' : 'Strategic alliances' },
+            { label: language === 'ru' ? 'МЕНЕДЖЕРЫ' : 'Managers', href: '/managers', icon: UserSearch, desc: language === 'ru' ? 'Поиск коллег' : 'Personnel network' },
             { label: language === 'ru' ? 'МАГАЗИН' : 'Shop', icon: ShoppingCart, href: '/shop', desc: language === 'ru' ? 'Покупка ресурсов' : 'Resource acquisition' },
             { label: language === 'ru' ? 'ЮНОШЕСКАЯ ШКОЛА' : 'Youth Academy', href: '/youth-academy', icon: GraduationCap, desc: language === 'ru' ? 'Центр талантов' : 'Rising stars' },
             { label: language === 'ru' ? 'ТАБЛИЦЫ' : 'Rankings', href: '/rankings', icon: Trophy, desc: language === 'ru' ? 'Рейтинги' : 'Standings' }, 
