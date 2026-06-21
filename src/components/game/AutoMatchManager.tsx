@@ -1,17 +1,15 @@
-
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v70.
- * Выполняет инициализацию игрового мира НА КЛИЕНТЕ для прохождения правил безопасности.
+ * @fileOverview Ядро синхронизации игрового мира v40.
+ * Атомарно создает Таблицу, Календарь и Кубок при первом входе игрока.
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore } from '@/firebase';
 import { 
-  doc, getDoc, writeBatch, collection, 
-  serverTimestamp, query, where, getDocs, limit 
+  doc, getDoc, writeBatch, serverTimestamp
 } from 'firebase/firestore';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -25,121 +23,122 @@ export function AutoMatchManager() {
   useEffect(() => {
     if (isUserLoading || !user?.uid || !isLoaded || !userId || !selectedLeagueId) return;
 
-    const checkAndInit = async () => {
+    const initializeWorld = async () => {
       if (processingRef.current) return;
       processingRef.current = true;
 
       try {
         const info = getGlobalSeasonInfo();
-        const currentSN = Number(info.seasonNumber);
-        const sStr = String(currentSN);
-        const lStr = String(selectedLeagueId);
+        const sNum = Number(info.seasonNumber);
+        const lId = String(selectedLeagueId);
+        const tier = Number(leagueLevel);
+        const grp = Number(groupId);
         
-        const tableId = `season_${sStr}_tier_${leagueLevel}_group_${groupId}_league_${lStr}`;
+        const tableId = `s${sNum}_l${lId}_t${tier}_g${grp}`;
         const tableRef = doc(db, 'league_tables_v1', tableId);
-        
         const tableSnap = await getDoc(tableRef);
-        
-        if (!tableSnap.exists()) {
-          console.log(`[WORLD-SYNC v70] Initializing World Node: ${tableId}`);
+
+        // Если таблицы v40 нет — создаем весь мир атомарно
+        if (!tableSnap.exists() || tableSnap.data()?.version !== 40) {
+          console.log(`[WORLD-SYNC v40] Deploying Season Infrastructure: ${tableId}`);
           const batch = writeBatch(db);
 
-          // 1. Формируем список участников (Вы + 7 Ботов)
+          // 1. Формируем участников (Вы + 7 Ботов)
           const teams = [{ id: userId, name: displayName || "Manager", isBot: false }];
-          const leagueIdx = LEAGUES.findIndex(l => l.id === lStr);
-          const lPref = (leagueIdx + 1).toString().padStart(2, '0');
-
           for (let i = 1; i <= 7; i++) {
-            const botId = `bot${lPref}${leagueLevel}${groupId}${i}`;
+            const botId = `bot_${lId}_${tier}_${grp}_${i}`;
             teams.push({ id: botId, name: botId, isBot: true });
           }
 
-          const teamIds = teams.map(t => t.id);
           const stats: any = {};
           teams.forEach(t => {
-            stats[t.id] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0, goalsScored: 0, goalsConceded: 0 };
+            stats[t.id] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
           });
 
-          // 2. Создаем таблицу
+          // 2. Создаем Таблицу
           batch.set(tableRef, {
-            id: tableId, season: currentSN, tier: Number(leagueLevel), group: Number(groupId), leagueId: lStr,
-            teams: teamIds, teamData: teams, stats, updatedAt: serverTimestamp(), version: 35
+            id: tableId, season: sNum, leagueId: lId, tier, group: grp,
+            teams: teams.map(t => t.id),
+            teamData: teams,
+            stats,
+            version: 40,
+            updatedAt: serverTimestamp()
           });
 
-          // 3. Создаем Кубок (если его нет)
-          const cupDocId = `season_${sStr}_league_${lStr}`;
-          const cupRef = doc(db, 'cup_pyramid_v1', cupDocId);
+          // 3. Создаем Кубок Лиги (если нет)
+          const cupId = `cup_s${sNum}_l${lId}`;
+          const cupRef = doc(db, 'cup_pyramid_v1', cupId);
           const cupSnap = await getDoc(cupRef);
 
-          if (!cupSnap.exists()) {
+          if (!cupSnap.exists() || cupSnap.data()?.version !== 40) {
             const participants = [...teams];
             while (participants.length < 32) {
-              const bid = `bot_cup_${lStr}_${participants.length + 1}`;
-              participants.push({ id: bid, name: bid, isBot: true });
+              const bId = `bot_cup_${lId}_${participants.length + 1}`;
+              participants.push({ id: bId, name: bId, isBot: true });
             }
             const r1 = [];
             for (let i = 0; i < 32; i += 2) {
               r1.push({
                 home: { id: participants[i].id, name: participants[i].name },
                 away: { id: participants[i+1].id, name: participants[i+1].name },
-                scoreA: null, scoreB: null, winnerId: null
+                scoreA: null, scoreB: null
               });
             }
             batch.set(cupRef, {
-              season: currentSN, leagueId: lStr,
+              id: cupId, season: sNum, leagueId: lId,
               rounds: { r1, r2: [], r3: [], r4: [], r5: [] },
-              updatedAt: serverTimestamp(), version: 35
+              version: 40,
+              updatedAt: serverTimestamp()
             });
           }
 
-          // 4. Генерируем 14 туров календаря
-          const n = teamIds.length;
-          const rounds = n - 1;
-          const players = [...teamIds];
-          const leagueInfo = LEAGUES.find(l => l.id === lStr) || LEAGUES[0];
+          // 4. Генерируем 14 туров календаря (Round-robin)
+          const leagueInfo = LEAGUES.find(l => l.id === lId) || LEAGUES[0];
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
-          const seasonStart = new Date('2026-06-22T00:00:00+03:00');
-          const startMs = seasonStart.getTime() + (currentSN - 1) * 15 * 24 * 60 * 60 * 1000;
+          const seasonStartMs = new Date('2026-06-22T00:00:00+03:00').getTime() + (sNum - 1) * 15 * 24 * 3600000;
+
+          const n = 8;
+          const rounds = n - 1;
+          const teamIds = teams.map(t => t.id);
+          const tempIds = [...teamIds];
 
           for (let r = 0; r < rounds; r++) {
             for (let i = 0; i < n / 2; i++) {
-              const hId = players[i];
-              const aId = players[n - 1 - i];
+              const home = tempIds[i];
+              const away = tempIds[n - 1 - i];
               
-              const createMatch = (day: number, home: string, away: string) => {
-                const matchTime = new Date(startMs + (day - 1) * 24 * 60 * 60 * 1000 + hh * 3600000 + mm * 60000);
-                const matchId = `m_${tableId}_d${day}_h${home}`;
-                const hName = teams.find(t => t.id === home)?.name || home;
-                const aName = teams.find(t => t.id === away)?.name || away;
-                
-                batch.set(doc(db, 'matches_v1', matchId), {
-                  id: matchId, tableId, season: currentSN, tour: day, day, leagueId: lStr, tier: Number(leagueLevel), groupId: String(groupId),
-                  homeId: home, homeName: hName, awayId: away, awayName: aName,
-                  startTime: matchTime.toISOString(), status: "scheduled", isFinished: false,
-                  createdAt: serverTimestamp(), version: 35
+              const createMatch = (day: number, h: string, a: string) => {
+                const startTime = new Date(seasonStartMs + (day - 1) * 24 * 3600000 + hh * 3600000 + mm * 60000);
+                const mId = `m_${tableId}_d${day}_h${h}`;
+                batch.set(doc(db, 'matches_v1', mId), {
+                  id: mId, tableId, season: sNum, tour: day, day,
+                  homeId: h, homeName: teams.find(t => t.id === h)?.name || h,
+                  awayId: a, awayName: teams.find(t => t.id === a)?.name || a,
+                  startTime: startTime.toISOString(),
+                  isFinished: false, version: 40, createdAt: serverTimestamp()
                 });
               };
 
-              createMatch(r + 1, hId, aId);
-              createMatch(r + 1 + rounds, aId, hId);
+              createMatch(r + 1, home, away); // Круг 1
+              createMatch(r + 1 + rounds, away, home); // Круг 2
             }
-            players.splice(1, 0, players.pop()!);
+            tempIds.splice(1, 0, tempIds.pop()!);
           }
 
           await batch.commit();
-          console.log("[WORLD-SYNC] Successfully deployed Group and Cup nodes.");
+          console.log("[WORLD-SYNC v40] Season 1 fully initialized.");
         }
-      } catch (e: any) {
+      } catch (e) {
         console.error("[WORLD-SYNC ERROR]", e);
       } finally {
         processingRef.current = false;
       }
     };
 
-    const interval = setInterval(checkAndInit, 30000);
-    checkAndInit();
+    initializeWorld();
+    const interval = setInterval(initializeWorld, 60000);
     return () => clearInterval(interval);
-  }, [isLoaded, userId, displayName, selectedLeagueId, leagueLevel, groupId, isUserLoading, user?.uid, db]);
+  }, [isLoaded, userId, displayName, selectedLeagueId, leagueLevel, groupId, isUserLoading, user, db]);
 
   return null;
 }

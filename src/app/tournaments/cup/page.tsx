@@ -1,20 +1,19 @@
 'use client';
 
 /**
- * @fileOverview Терминал Кубка v16. 
- * Прямое чтение из /cup_pyramid_v1. Добавлена версия v35.
+ * @fileOverview Терминал Кубка v40.
+ * Прямое чтение из /cup_pyramid_v1.
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { 
-  ChevronLeft, Trophy, Swords, Loader2, Info, AlertTriangle
+  ChevronLeft, Trophy, Swords, Loader2, AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -28,8 +27,8 @@ export default function PyramidCupPage() {
   
   const [activeRound, setActiveRound] = useState('r1');
 
-  // Читаем сетку из единого документа v1
-  const cupDocId = `season_${activeSeasonNumber}_league_${selectedLeagueId}`;
+  // Формат ID v40: cup_s1_lALPHA
+  const cupDocId = `cup_s${activeSeasonNumber}_l${selectedLeagueId}`;
   const cupRef = useMemoFirebase(() => selectedLeagueId ? doc(db, 'cup_pyramid_v1', cupDocId) : null, [db, cupDocId, selectedLeagueId]);
   const { data: cupData, isLoading: isCupLoading } = useDoc(cupRef);
 
@@ -48,7 +47,6 @@ export default function PyramidCupPage() {
       waiting: "TBD",
       noGrid: "Bracket Not Initialized",
       noGridDesc: "Syncing data with league server...",
-      loading: "Scanning Frequencies..."
     },
     ru: {
       title: "КУБОК ПИРАМИДЫ",
@@ -58,7 +56,6 @@ export default function PyramidCupPage() {
       waiting: "TBD",
       noGrid: "Сетка не создана",
       noGridDesc: "Синхронизация данных с сервером лиги...",
-      loading: "Сканирование эфира..."
     }
   }[language as 'en' | 'ru'] || { title: "Cup" };
 

@@ -1,9 +1,8 @@
-
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v65. 
- * Оптимизирована для работы с teamData для исключения пустых строк.
+ * @fileOverview Страница рейтингов v40.
+ * Отображает участников напрямую из массива teamData таблицы.
  */
 
 import { useState, useMemo } from 'react';
@@ -43,18 +42,17 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel || 9);
   const contextGroup = Number(navGroup || groupId || 1);
 
-  const tableId = useMemo(() => {
-    return `season_${activeSeasonNumber}_tier_${contextLevel}_group_${contextGroup}_league_${contextLeagueId}`;
-  }, [activeSeasonNumber, contextLevel, contextGroup, contextLeagueId]);
+  // Формат ID v40: s1_lALPHA_t9_g1
+  const tableId = `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
 
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
   const standings = useMemo(() => {
-    if (!tableData || !tableData.stats || !tableData.teamData) return [];
+    if (!tableData || !tableData.teamData) return [];
     
     const list = tableData.teamData.map((t: any) => {
-      const s = tableData.stats[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
+      const s = tableData.stats?.[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
       return {
         id: t.id,
         name: t.name,

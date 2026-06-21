@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview МАТЧ-ЦЕНТР v2.1. 
- * Обновлена версия фильтрации до v35.
+ * @fileOverview МАТЧ-ЦЕНТР v40.
+ * Восстановлен порядок кнопок и синхронизация версий.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -10,8 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, CalendarClock, History, Swords, 
-  ChevronRight, Clock, Target, ShieldCheck,
-  LayoutList, ListChecks
+  ChevronRight, Clock, Target, LayoutList, ListChecks
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -41,30 +40,27 @@ export default function MatchesPage() {
     return () => clearInterval(timer);
   }, [user, isUserLoading, router]);
 
-  // Фильтруем матчи актуальной версии v35
   const validMatches = useMemo(() => {
-    return (allSeasonMatches || []).filter(m => m.version === 35 && m.season === activeSeasonNumber);
+    return (allSeasonMatches || []).filter(m => m.version === 40 && m.season === activeSeasonNumber);
   }, [allSeasonMatches, activeSeasonNumber]);
 
   const t = {
     ru: {
       title: "МАТЧ-ЦЕНТР",
       subtitle: "Оперативные сводки и расписания",
-      back: "Назад",
       backToMenu: "В меню матчей",
       empty: "МАТЧЕЙ НЕ ОБНАРУЖЕНО",
       menu: [
-        { id: 'next', label: 'Следующий соперник', desc: 'Ближайшее тактическое столкновение', icon: Target, color: 'text-primary' },
-        { id: 'my_future', label: 'Мои будущие матчи', desc: 'Ваш личный календарь на сезон', icon: CalendarClock, color: 'text-accent' },
-        { id: 'my_history', label: 'Мои сыгранные матчи', desc: 'Архив ваших официальных игр', icon: History, color: 'text-green-400' },
-        { id: 'league_future', label: 'Календарь лиги', desc: 'Расписание всех команд группы', icon: LayoutList, color: 'text-blue-400' },
-        { id: 'league_history', label: 'Результаты лиги', desc: 'Итоги всех сражений в группе', icon: ListChecks, color: 'text-yellow-500' },
+        { id: 'next', label: 'Следующий соперник', desc: 'Ближайшее сражение', icon: Target, color: 'text-primary' },
+        { id: 'my_future', label: 'Мои будущие матчи', desc: 'Личный календарь на сезон', icon: CalendarClock, color: 'text-accent' },
+        { id: 'my_history', label: 'Мои сыгранные матчи', desc: 'Архив ваших игр', icon: History, color: 'text-green-400' },
+        { id: 'league_future', label: 'Календарь лиги', desc: 'Расписание всей группы', icon: LayoutList, color: 'text-blue-400' },
+        { id: 'league_history', label: 'Результаты лиги', desc: 'Итоги всех сражений', icon: ListChecks, color: 'text-yellow-500' },
       ]
     },
     en: {
       title: "MATCH CENTER",
-      subtitle: "Operational briefings and schedules",
-      back: "Back",
+      subtitle: "Operational briefings",
       backToMenu: "Back to menu",
       empty: "NO MATCHES DETECTED",
       menu: [
@@ -99,18 +95,16 @@ export default function MatchesPage() {
       )}>
         <CardContent className="p-3">
           <div className="flex justify-between items-center mb-2">
-            <Badge variant="outline" className="text-[7px] font-black uppercase h-4">TOUR {m.tour}</Badge>
+            <Badge variant="outline" className="text-[7px] font-black h-4">TOUR {m.tour}</Badge>
             <span className="text-[8px] font-mono font-bold text-muted-foreground">
               {new Date(m.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} MSK
             </span>
           </div>
-
           <div className="grid grid-cols-[1fr_40px_1fr] items-center gap-2">
             <div className="text-right truncate"><p className={cn("text-[10px] font-bold uppercase", isMeHome ? "text-primary" : "text-white")}>{m.homeName}</p></div>
-            <div className="flex justify-center">{isFinished ? <span className="text-sm font-headline font-black italic">{m.scoreA}:{m.scoreB}</span> : <Swords className="w-3.5 h-3.5 text-accent/40" />}</div>
+            <div className="flex justify-center">{isFinished ? <span className="text-sm font-headline font-black">{m.scoreA}:{m.scoreB}</span> : <Swords className="w-3.5 h-3.5 text-accent/40" />}</div>
             <div className="text-left truncate"><p className={cn("text-[10px] font-bold uppercase", isMeAway ? "text-primary" : "text-white")}>{m.awayName}</p></div>
           </div>
-          
           {isFinished && (
             <Link href={`/match?id=${m.id}`} className="block mt-2">
               <Button variant="outline" className="w-full h-7 text-[7px] font-black uppercase border-white/10">ОБЗОР <ChevronRight className="w-3 h-3 ml-1" /></Button>
@@ -127,24 +121,14 @@ export default function MatchesPage() {
         const currentNextMatch = nextMatch?.match;
         return (
           <div className="animate-in fade-in">
-            <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary">
-              <ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}
-            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>
             {currentNextMatch ? (
-              <Card className="glass-card border-primary/30 bg-primary/5 overflow-hidden">
-                 <div className="bg-primary/10 px-6 py-2 border-b border-primary/20 flex justify-between items-center">
-                   <Badge className="bg-primary text-primary-foreground font-black text-[8px] uppercase">ROUND {currentNextMatch.tour}</Badge>
-                   <div className="flex items-center gap-2 text-primary font-mono text-[10px] font-bold uppercase">
-                     <Clock className="w-3 h-3" /> {getCountdown(currentNextMatch.startTime)}
-                   </div>
+              <Card className="glass-card border-primary/30 bg-primary/5 p-8">
+                 <div className="grid grid-cols-[1fr_60px_1fr] items-center gap-4">
+                    <div className="text-center space-y-3"><div className="w-16 h-16 rounded-2xl bg-secondary/50 flex items-center justify-center mx-auto text-3xl">🛡️</div><p className="text-[10px] font-bold uppercase text-white truncate">{currentNextMatch.homeName}</p></div>
+                    <div className="text-center"><Swords className="w-8 h-8 text-accent opacity-50 mx-auto" /><p className="text-[10px] font-mono font-bold text-primary mt-2">{getCountdown(currentNextMatch.startTime)}</p></div>
+                    <div className="text-center space-y-3"><div className="w-16 h-16 rounded-2xl bg-secondary/50 flex items-center justify-center mx-auto text-3xl">⚔️</div><p className="text-[10px] font-bold uppercase text-white truncate">{currentNextMatch.awayName}</p></div>
                  </div>
-                 <CardContent className="p-8">
-                   <div className="grid grid-cols-[1fr_60px_1fr] items-center gap-4">
-                      <div className="text-center space-y-3"><div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center mx-auto text-3xl">🛡️</div><p className="text-[10px] font-bold uppercase text-white truncate">{currentNextMatch.homeName}</p></div>
-                      <div className="flex items-center justify-center flex-col gap-2"><Swords className="w-8 h-8 text-accent opacity-50" /><span className="text-[8px] font-black text-accent uppercase">VS</span></div>
-                      <div className="text-center space-y-3"><div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center mx-auto text-3xl">⚔️</div><p className="text-[10px] font-bold uppercase text-white truncate">{currentNextMatch.awayName}</p></div>
-                   </div>
-                 </CardContent>
               </Card>
             ) : <div className="py-20 text-center opacity-30 uppercase font-black text-[10px]">{t.empty}</div>}
           </div>
@@ -158,7 +142,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_history':
-        const myHistory = validMatches.filter(m => (m.homeId === user?.uid || m.awayId === user?.uid) && m.isFinished).sort((a, b) => b.tour - a.tour);
+        const myHistory = validMatches.filter(m => (m.homeId === user?.uid || m.awayId === user?.uid) && m.isFinished).sort((a, b) => a.tour - a.tour);
         return (
           <div className="animate-in fade-in">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>
@@ -174,7 +158,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'league_history':
-        const leagueHistory = validMatches.filter(m => m.isFinished).sort((a, b) => b.tour - a.tour);
+        const leagueHistory = validMatches.filter(m => m.isFinished).sort((a, b) => a.tour - a.tour);
         return (
           <div className="animate-in fade-in">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>
@@ -183,19 +167,15 @@ export default function MatchesPage() {
         );
       default:
         return (
-          <div className="space-y-2 animate-in fade-in duration-200">
+          <div className="space-y-2 animate-in fade-in">
             {t.menu.map((item) => (
-              <Card 
-                key={item.id}
-                className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98]"
-                onClick={() => setView(item.id as MatchView)}
-              >
+              <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98]" onClick={() => setView(item.id as MatchView)}>
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className={cn("p-2.5 rounded-xl bg-secondary/50", item.color)}><item.icon className="w-5 h-5" /></div>
-                    <div><h3 className="text-sm font-bold uppercase group-hover:text-white">{item.label}</h3><p className="text-[10px] text-muted-foreground">{item.desc}</p></div>
+                    <div><h3 className="text-sm font-bold uppercase">{item.label}</h3><p className="text-[10px] text-muted-foreground">{item.desc}</p></div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 </CardContent>
               </Card>
             ))}
@@ -210,10 +190,7 @@ export default function MatchesPage() {
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center gap-4">
         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => view === 'menu' ? router.push('/') : setView('menu')}><ChevronLeft className="w-6 h-6" /></Button>
-        <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">Season {activeSeasonNumber}</p>
-        </div>
+        <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">Season {activeSeasonNumber}</p></div>
       </header>
       {renderContent()}
     </div>
