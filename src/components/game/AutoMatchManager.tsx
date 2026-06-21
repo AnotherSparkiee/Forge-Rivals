@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Ядро синхронизации MMO-мира v40.1.
- * Исправлена проблема мерцания данных и стабильность генерации.
+ * @fileOverview Ядро синхронизации MMO-мира v40.2 (Antiflicker Edition).
+ * Исправлена проблема мерцания и исчезновения таблиц за счет перехода на атомарные обновления.
  */
 
 import { useEffect, useRef } from 'react';
@@ -18,14 +18,14 @@ export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
   const { isLoaded, id: userId, displayName, selectedLeagueId, leagueLevel, groupId } = useGameState();
   const db = useFirestore();
-  const processingRef = useRef(false);
+  
+  const processingRef = useRef<string | null>(null);
+  const initializedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (isUserLoading || !user?.uid || !isLoaded || !userId || !selectedLeagueId || !displayName || displayName === 'Manager') return;
 
     const syncSharedWorld = async () => {
-      if (processingRef.current) return;
-      
       const info = getGlobalSeasonInfo();
       const sNum = Number(info.seasonNumber);
       const lId = String(selectedLeagueId);
@@ -33,16 +33,20 @@ export function AutoMatchManager() {
       const grp = Number(groupId);
       
       const tableId = `s${sNum}_l${lId}_t${tier}_g${grp}`;
+      
+      // Предотвращаем повторную обработку в рамках сессии
+      if (initializedRef.current.has(tableId) || processingRef.current === tableId) return;
+      
+      processingRef.current = tableId;
       const tableRef = doc(db, 'league_tables_v1', tableId);
       
       try {
         const tableSnap = await getDoc(tableRef);
         const myName = displayName;
 
-        // 1. Инициализация новой группы
+        // 1. Инициализация абсолютно новой группы
         if (!tableSnap.exists()) {
-          processingRef.current = true;
-          console.log(`[WORLD-SYNC v40.1] Creating Shared Group: ${tableId}`);
+          console.log(`[WORLD-SYNC v40.2] Initializing NEW Shared Group: ${tableId}`);
           const batch = writeBatch(db);
 
           const teams = [{ id: userId, name: myName, isBot: false }];
@@ -66,7 +70,7 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           });
 
-          // Кубок (создаем один на всю лигу если нет)
+          // Кубок лиги
           const cupId = `cup_s${sNum}_l${lId}`;
           const cupRef = doc(db, 'cup_pyramid_v1', cupId);
           const cupSnap = await getDoc(cupRef);
@@ -94,7 +98,7 @@ export function AutoMatchManager() {
             });
           }
 
-          // Календарь
+          // Календарь на 14 туров
           const leagueInfo = LEAGUES.find(l => l.id === lId) || LEAGUES[0];
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
           const seasonStartMs = new Date('2026-06-21T21:00:00Z').getTime() + (sNum - 1) * 15 * 24 * 3600000;
@@ -108,8 +112,10 @@ export function AutoMatchManager() {
               let hIdx = i;
               let aIdx = n - 1 - i;
               if (r % 2 === 1) [hIdx, aIdx] = [aIdx, hIdx];
+              
               const hId = tempIds[hIdx];
               const aId = tempIds[aIdx];
+
               const createMatch = (day: number, h: string, a: string) => {
                 const startTime = new Date(seasonStartMs + (day - 1) * 24 * 3600000 + hh * 3600000 + mm * 60000);
                 const mId = `m_${tableId}_d${day}_h${h}`;
@@ -128,18 +134,18 @@ export function AutoMatchManager() {
             tempIds.splice(1, 0, last);
           }
           await batch.commit();
-          console.log(`[WORLD-SYNC v40.1] Group fully initialized.`);
+          initializedRef.current.add(tableId);
+          console.log(`[WORLD-SYNC v40.2] Group ${tableId} fully created.`);
         } 
         
-        // 2. Вход в существующую группу (Bot Swap)
+        // 2. Вход в существующую группу (MMO Bot-Swap)
         else {
           const tableData = tableSnap.data();
-          if (tableData && !tableData.teams.includes(userId)) {
-            processingRef.current = true;
-            console.log(`[WORLD-SYNC v40.1] Joining Existing: Replacing bot with ${userId}`);
+          if (tableData && tableData.version === 40 && !tableData.teams.includes(userId)) {
+            console.log(`[WORLD-SYNC v40.2] Joining Existing Group: Replacing bot with ${userId}`);
             
             const teamData = [...(tableData.teamData || [])];
-            const botIdx = teamData.findIndex((t: any) => t.isBot);
+            const botIdx = teamData.findIndex((t: any) => t.isBot || t.id.startsWith('bot'));
             
             if (botIdx !== -1) {
               const botIdToRemove = teamData[botIdx].id;
@@ -150,6 +156,7 @@ export function AutoMatchManager() {
               delete newStats[botIdToRemove];
               newStats[userId] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
 
+              // Атомарное обновление таблицы
               await updateDoc(tableRef, {
                 teams: newTeams,
                 teamData: teamData,
@@ -157,7 +164,7 @@ export function AutoMatchManager() {
                 updatedAt: serverTimestamp()
               });
 
-              // Обновляем матчи атомарно
+              // Обновляем матчи этой группы
               const matchesQuery = query(
                 collection(db, 'matches_v1'),
                 where('tableId', '==', tableId),
@@ -183,20 +190,22 @@ export function AutoMatchManager() {
               });
 
               await matchBatch.commit();
-              console.log(`[WORLD-SYNC v40.1] Bot replaced successfully.`);
+              initializedRef.current.add(tableId);
+              console.log(`[WORLD-SYNC v40.2] Bot replacement in ${tableId} completed.`);
             }
+          } else if (tableData?.version === 40) {
+            // Если мы уже в таблице, просто помечаем её как готовую
+            initializedRef.current.add(tableId);
           }
         }
       } catch (e) {
         console.error("[WORLD-SYNC ERROR]", e);
       } finally {
-        processingRef.current = false;
+        processingRef.current = null;
       }
     };
 
     syncSharedWorld();
-    const interval = setInterval(syncSharedWorld, 60000);
-    return () => clearInterval(interval);
   }, [isLoaded, userId, displayName, selectedLeagueId, leagueLevel, groupId, isUserLoading, user, db]);
 
   return null;

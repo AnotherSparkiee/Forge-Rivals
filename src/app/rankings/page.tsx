@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v40.2.
- * Исправлено мерцание данных и добавлен импорт AlertTriangle.
+ * @fileOverview Страница рейтингов v40.3.
+ * Исправлено мерцание за счет использования teamData и корректных импортов.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -145,7 +145,7 @@ export default function RankingsPage() {
                <span>#</span><span>Team</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
              </div>
              
-             {isTableLoading && !tableData ? (
+             {isTableLoading ? (
                <div className="py-20 text-center opacity-30"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>
              ) : standings.length > 0 ? standings.map((entry: any, i: number) => (
                <div key={entry.id} className={cn("grid grid-cols-[30px_1fr_80px_40px] items-center p-3 rounded-xl border mb-1", entry.id === user?.uid ? "bg-primary/20 border-primary/40" : "bg-secondary/20 border-white/5")}>
@@ -186,8 +186,8 @@ export default function RankingsPage() {
       )}
 
       {navLevel && !navGroup && (
-        <div className="grid grid-cols-4 gap-2">
-          {Array.from({ length: Math.pow(2, navLevel - 1) }, (_, i) => i + 1).slice(0, 64).map(g => (
+        <div className="grid grid-cols-4 gap-2 max-h-[60vh] overflow-y-auto scrollbar-hide">
+          {Array.from({ length: Math.pow(2, navLevel - 1) }, (_, i) => i + 1).slice(0, 128).map(g => (
             <Button key={g} variant="outline" className="h-10 border-white/5 bg-secondary/20 font-bold" onClick={() => setNavGroup(g)}>{g}</Button>
           ))}
         </div>
