@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v40.8 (Reliable Session Sync).
- * Исправлена проблема вечного прелоадера и мерцания таблиц.
+ * @fileOverview Ядро MMO-синхронизации v40.9 (Atomic World Initialization).
+ * Блокирует прелоадер до полной готовности Лиги и Кубка.
  */
 
 import { useEffect, useRef } from 'react';
@@ -19,12 +19,11 @@ export function AutoMatchManager() {
   const { isLoaded, id: userId, displayName, selectedLeagueId, leagueLevel, groupId, setWorldReady } = useGameState();
   const db = useFirestore();
   
-  const initializedRef = useRef<Set<string>>(new Set());
-  const checkingRef = useRef<string | null>(null);
+  const syncInProgressRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Ждем базовой загрузки профиля в store
-    if (isUserLoading || !user?.uid || !isLoaded || !selectedLeagueId) return;
+    // Ждем базовой загрузки профиля и выбора лиги
+    if (isUserLoading || !user?.uid || !isLoaded || !selectedLeagueId || !displayName) return;
 
     const syncSharedWorld = async () => {
       const info = getGlobalSeasonInfo();
@@ -35,24 +34,19 @@ export function AutoMatchManager() {
       
       const tableId = `s${sNum}_l${lId}_t${tier}_g${grp}`;
       
-      // Если уже проверено в этой сессии - подтверждаем готовность и выходим
-      if (initializedRef.current.has(tableId)) {
-        setWorldReady(true);
-        return;
-      }
-      
-      if (checkingRef.current === tableId) return;
-      checkingRef.current = tableId;
+      if (syncInProgressRef.current === tableId) return;
+      syncInProgressRef.current = tableId;
 
-      console.log(`[WORLD-SYNC v40.8] Synchronizing ${tableId}...`);
+      console.log(`[WORLD-SYNC v40.9] Starting synchronization for ${tableId}...`);
       
       try {
         const tableRef = doc(db, 'league_tables_v1', tableId);
         const tableSnap = await getDoc(tableRef);
-        const myName = displayName || "Manager";
+        const myName = String(displayName);
 
         // 1. Инициализация абсолютно новой группы
         if (!tableSnap.exists()) {
+          console.log(`[WORLD-SYNC] Creating new group ${tableId}...`);
           const batch = writeBatch(db);
 
           const teams = [{ id: userId, name: myName, isBot: false }];
@@ -67,6 +61,7 @@ export function AutoMatchManager() {
             stats[t.id] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
           });
 
+          // Создаем таблицу
           batch.set(tableRef, {
             id: tableId, season: sNum, leagueId: lId, tier, group: grp,
             teams: teams.map(t => t.id),
@@ -76,7 +71,7 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           });
 
-          // Кубок лиги (на 32 команды)
+          // Инициализируем Кубок для этой лиги (на 32 команды = 1/16 финала)
           const cupId = `cup_s${sNum}_l${lId}`;
           const cupRef = doc(db, 'cup_pyramid_v1', cupId);
           const cupSnap = await getDoc(cupRef);
@@ -100,7 +95,7 @@ export function AutoMatchManager() {
             });
           }
 
-          // Календарь (14 туров)
+          // Генерируем Календарь (14 туров)
           const leagueInfo = LEAGUES.find(l => l.id === lId) || LEAGUES[0];
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
           const seasonStartMs = new Date('2026-06-21T21:00:00Z').getTime() + (sNum - 1) * 15 * 24 * 3600000;
@@ -139,14 +134,15 @@ export function AutoMatchManager() {
           }
           
           await batch.commit();
+          console.log(`[WORLD-SYNC] Group ${tableId} successfully initialized.`);
         } 
         
         // 2. MMO-Замена бота в существующей группе
         else {
           const tableData = tableSnap.data();
           if (tableData && tableData.version === 40) {
-            // Если меня еще нет в этой таблице
             if (!tableData.teams.includes(userId)) {
+              console.log(`[WORLD-SYNC] Slot acquisition: swapping bot for user ${userId}...`);
               const teamData = [...(tableData.teamData || [])];
               const botIdx = teamData.findIndex((t: any) => t.isBot || t.id.startsWith('bot'));
               
@@ -179,19 +175,18 @@ export function AutoMatchManager() {
                 });
 
                 await matchBatch.commit();
+                console.log(`[WORLD-SYNC] Bot-swap completed for ${userId}.`);
               }
             }
           }
         }
         
-        initializedRef.current.add(tableId);
+        // Только теперь разрешаем приложению убрать прелоадер
         setWorldReady(true);
       } catch (e) {
         console.error("[WORLD-SYNC ERROR]", e);
-        // Fail-safe: всё равно пускаем в игру через 5 секунд, если API упало
-        setTimeout(() => setWorldReady(true), 5000);
-      } finally {
-        checkingRef.current = null;
+        // Fail-safe: пускаем в игру через таймаут
+        setTimeout(() => setWorldReady(true), 3000);
       }
     };
 

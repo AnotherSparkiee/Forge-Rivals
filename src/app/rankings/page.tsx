@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v40.8.
- * Исправлена логика отображения своей таблицы, навигации и кнопки Назад.
+ * @fileOverview Страница рейтингов v40.9.
+ * Исправлена навигация, импорты и отображение турнирной таблицы.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -34,14 +34,13 @@ export default function RankingsPage() {
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
   
-  // Browsing state (only for 'all_pyramids' and 'my_pyramid')
+  // Browsing state
   const [navLeague, setNavLeague] = useState<string | null>(null);
   const [navLevel, setNavLevel] = useState<number | null>(null);
   const [navGroup, setNavGroup] = useState<number | null>(null);
 
-  // Determine current viewing context
+  // Context logic
   const isMyLeagueTab = activeTab === 'my_league';
-  
   const contextLeagueId = isMyLeagueTab ? (selectedLeagueId || "ALPHA") : (navLeague || selectedLeagueId || "ALPHA");
   const contextLevel = isMyLeagueTab ? Number(leagueLevel || 9) : Number(navLevel || leagueLevel || 9);
   const contextGroup = isMyLeagueTab ? Number(groupId || 1) : Number(navGroup || groupId || 1);
@@ -109,22 +108,14 @@ export default function RankingsPage() {
       router.push('/');
       return;
     }
-
-    if (activeTab === 'my_league' || activeTab === 'pyramid_cup') {
+    if (activeTab === 'my_league' || activeTab === 'pyramid_cup' || (activeTab === 'my_pyramid' && !navLevel) || (activeTab === 'all_pyramids' && !navLeague)) {
       setActiveTab('menu');
       return;
     }
 
-    // Advanced navigation back
-    if (navGroup) {
-      setNavGroup(null);
-    } else if (navLevel) {
-      setNavLevel(null);
-    } else if (navLeague) {
-      setNavLeague(null);
-    } else {
-      setActiveTab('menu');
-    }
+    if (navGroup) setNavGroup(null);
+    else if (navLevel) setNavLevel(null);
+    else if (navLeague) setNavLeague(null);
   };
 
   if (isUserLoading || !isLoaded || !user) return <LoadingScreen />;
@@ -137,10 +128,10 @@ export default function RankingsPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
-            {activeTab === 'menu' ? t.title : (activeTab === 'pyramid_cup' ? "PYRAMID CUP" : t.menu.find(m => m.id === activeTab)?.label)}
+            {activeTab === 'menu' ? t.title : t.menu.find(m => m.id === activeTab)?.label}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest">
-            {contextLeagueId} {navLevel || navGroup ? `DIV ${contextLevel}` : ''} {navGroup ? `GRP ${contextGroup}` : ''}
+            {contextLeagueId} {navLevel ? `DIV ${navLevel}` : (isMyLeagueTab ? `DIV ${leagueLevel}` : '')}
           </p>
         </div>
       </header>
@@ -148,9 +139,7 @@ export default function RankingsPage() {
       {activeTab === 'menu' && (
         <div className="space-y-2">
           {t.menu.map(item => (
-            <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => { 
-              setActiveTab(item.id as RankingTab); 
-            }}>
+            <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => setActiveTab(item.id as RankingTab)}>
               <CardContent className="p-4 flex justify-between items-center">
                 <div className="flex items-center gap-4">
                   <div className={cn("p-2.5 rounded-xl bg-secondary/50", item.color)}><item.icon className="w-5 h-5" /></div>
@@ -163,7 +152,6 @@ export default function RankingsPage() {
         </div>
       )}
 
-      {/* TABLE VIEW (For My League or specifically selected group) */}
       {(activeTab === 'my_league' || navGroup) && (
         <div className="space-y-4 animate-in fade-in">
            <div className="flex items-center justify-between px-1">
@@ -188,8 +176,7 @@ export default function RankingsPage() {
              )) : (
                <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10 mt-4">
                  <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
-                 <p className="text-[10px] font-black uppercase">Syncing Arena...</p>
-                 <p className="text-[8px] text-muted-foreground mt-2">Initializing tactical coordinates</p>
+                 <p className="text-[10px] font-black uppercase">Initializing League Data...</p>
                </div>
              )}
            </div>
@@ -204,42 +191,29 @@ export default function RankingsPage() {
              <>
                <div className="flex gap-1 overflow-x-auto scrollbar-hide pb-2">
                  {['r1', 'r2', 'r3', 'r4', 'r5'].map((r, i) => (
-                   <Button
-                     key={r}
-                     variant={activeRound === r ? "default" : "outline"}
-                     size="sm"
-                     onClick={() => setActiveRound(r)}
-                     className={cn(
-                       "h-8 px-4 rounded-lg font-black text-[8px] uppercase",
-                       activeRound === r ? "hero-gradient border-none" : "bg-secondary/20 border-white/5"
-                     )}
-                   >
+                   <Button key={r} variant={activeRound === r ? "default" : "outline"} size="sm" onClick={() => setActiveRound(r)} className={cn("h-8 px-4 rounded-lg font-black text-[8px] uppercase", activeRound === r ? "hero-gradient border-none" : "bg-secondary/20 border-white/5")}>
                      {i === 4 ? t.final : `${t.round} ${i + 1}`}
                    </Button>
                  ))}
                </div>
-
                <div className="space-y-2">
-                 {(cupData.rounds?.[activeRound] || []).map((m: any, idx: number) => {
-                   const isMe = m.home?.id === user.uid || m.away?.id === user.uid;
-                   return (
-                     <Card key={idx} className={cn("glass-card border-white/5", isMe && "border-primary/50 bg-primary/10")}>
-                       <CardContent className="p-3">
-                         <div className="grid grid-cols-[1fr_40px_1fr] items-center text-[10px] font-bold uppercase">
-                           <div className="text-right truncate"><span className={m.home?.id === user.uid ? "text-primary" : "text-white"}>{m.home?.name || t.waiting}</span></div>
-                           <div className="text-center">{m.scoreA !== null ? `${m.scoreA}:${m.scoreB}` : <Swords className="w-3.5 h-3.5 text-accent/40 mx-auto" />}</div>
-                           <div className="text-left truncate"><span className={m.away?.id === user.uid ? "text-primary" : "text-white"}>{m.away?.name || t.waiting}</span></div>
-                         </div>
-                       </CardContent>
-                     </Card>
-                   );
-                 })}
+                 {(cupData.rounds?.[activeRound] || []).map((m: any, idx: number) => (
+                   <Card key={idx} className="glass-card border-white/5">
+                     <CardContent className="p-3">
+                       <div className="grid grid-cols-[1fr_40px_1fr] items-center text-[10px] font-bold uppercase">
+                         <div className="text-right truncate"><span className={m.home?.id === user.uid ? "text-primary" : "text-white"}>{m.home?.name || t.waiting}</span></div>
+                         <div className="text-center">{m.scoreA !== null ? `${m.scoreA}:${m.scoreB}` : <Swords className="w-3.5 h-3.5 text-accent/40 mx-auto" />}</div>
+                         <div className="text-left truncate"><span className={m.away?.id === user.uid ? "text-primary" : "text-white"}>{m.away?.name || t.waiting}</span></div>
+                       </div>
+                     </CardContent>
+                   </Card>
+                 ))}
                </div>
              </>
            ) : (
              <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10">
                <Medal className="w-12 h-12 mx-auto mb-4" />
-               <p className="text-[10px] font-black uppercase">Bracket Initializing...</p>
+               <p className="text-[10px] font-black uppercase">Bracket Pending...</p>
              </div>
            )}
         </div>
