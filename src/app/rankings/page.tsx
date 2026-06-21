@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v60. 
+ * @fileOverview Страница рейтингов v61. 
  * Читает из /league_tables_v1 с использованием мгновенного массива teamData.
+ * Исправлен импорт AlertTriangle и добавлена обработка Link.
  */
 
 import { useState, useMemo } from 'react';
@@ -10,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
-  Shield, Globe, Layers, Medal, Loader2, AlertCircle
+  Shield, Globe, Layers, Medal, Loader2, AlertCircle, AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -205,3 +206,4 @@ export default function RankingsPage() {
     </div>
   );
 }
+
