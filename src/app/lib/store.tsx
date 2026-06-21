@@ -1,14 +1,14 @@
 'use client';
 
 /**
- * Глобальное хранилище v72 (Atomic Season Support). 
+ * Глобальное хранилище v75 (Atomic Season Support & Preload Logic). 
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
 import { Player, StaffMember, StaffRole, generateScoutedPlayer } from './moba-data';
-import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, setServerTime, getLevelThreshold } from './time-utils';
+import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getLevelThreshold } from './time-utils';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, arrayUnion, getDoc, updateDoc, getDocs, limit } from 'firebase/firestore';
+import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, arrayUnion, getDoc, updateDoc } from 'firebase/firestore';
 
 export { getLevelThreshold };
 
@@ -71,6 +71,7 @@ interface GameState {
   payStaffSalaries: () => Promise<void>;
   healPlayer: (playerId: string, type: 'credits' | 'crystals', cost: number) => void;
   launchFanCampaign: (type: 'open_day' | 'autograph' | 'ultras_trip', cost: number, fans: number, loyalty: number) => void;
+  setWorldReady: (isReady: boolean) => void;
 }
 
 const DEFAULT_STATE: GameState = {
@@ -97,7 +98,8 @@ const DEFAULT_STATE: GameState = {
   startAcademyConstruction: () => false, startMedicalConstruction: () => false, startCapacityExpansion: () => false,
   accelerateConstruction: () => false, checkConstructions: () => {},
   scoutCandidates: () => {}, recruitCandidate: () => {}, clearScoutingReport: () => {},
-  payStaffSalaries: async () => {}, healPlayer: () => {}, launchFanCampaign: () => {}
+  payStaffSalaries: async () => {}, healPlayer: () => {}, launchFanCampaign: () => {},
+  setWorldReady: () => {}
 };
 
 const GameStateContext = createContext<GameState | undefined>(DEFAULT_STATE);
@@ -107,7 +109,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const db = useFirestore();
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const [allMatches, setAllMatches] = useState<any[]>([]);
-  const [isMatchesReady, setIsMatchesReady] = useState(false);
+  const [isWorldReady, setIsWorldReady] = useState(false);
   
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
@@ -193,7 +195,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       if (!active) return;
       const loaded = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
       setAllMatches(loaded);
-      setIsMatchesReady(true);
     });
     return () => { active = false; unsub(); };
   }, [db, state.id, state.selectedLeagueId, state.groupId, state.leagueLevel, state.isLoaded, isUserLoading, user?.uid]);
@@ -428,6 +429,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (updateFound) updateDoc(r.team, newTeamData);
   }, [getRefs]);
 
+  const setWorldReady = useCallback((ready: boolean) => {
+    setIsWorldReady(ready);
+  }, []);
+
   const nextMatchInfo = useMemo(() => {
     if (!user?.uid || !allMatches || allMatches.length === 0) return null;
     const futureMatches = allMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid) && !m.isFinished);
@@ -438,13 +443,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [allMatches, user?.uid]);
 
   const value = useMemo(() => ({
-    ...state, isDataReady: isMatchesReady && state.isLoaded, allSeasonMatches: allMatches, nextMatch: nextMatchInfo, isMatchesLoading: !isMatchesReady,
+    ...state, 
+    isDataReady: isWorldReady && state.isLoaded, 
+    allSeasonMatches: allMatches, 
+    nextMatch: nextMatchInfo, 
+    isMatchesLoading: !isWorldReady,
     addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage,
     setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, 
     addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries,
     scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, 
-    startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen
-  }), [state, isMatchesReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen]);
+    startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen,
+    setWorldReady
+  }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, setWorldReady]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
 }
@@ -454,3 +464,4 @@ export function useGameState() {
   if (context === undefined) throw new Error('useGameState must be used within a GameStateProvider');
   return context;
 }
+

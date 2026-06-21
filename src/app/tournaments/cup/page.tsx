@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Терминал Кубка v40.
- * Исправлена стабильность отображения и чтения раундов.
+ * @fileOverview Терминал Кубка v40.5.
+ * Удален промежуточный экран, раунды отображаются сразу.
  */
 
 import { useState, useEffect } from 'react';
@@ -27,7 +27,6 @@ export default function PyramidCupPage() {
   
   const [activeRound, setActiveRound] = useState('r1');
 
-  // Формат ID v40: cup_s1_lALPHA
   const cupDocId = `cup_s${activeSeasonNumber}_l${selectedLeagueId}`;
   const cupRef = useMemoFirebase(() => selectedLeagueId ? doc(db, 'cup_pyramid_v1', cupDocId) : null, [db, cupDocId, selectedLeagueId]);
   const { data: cupData, isLoading: isCupLoading } = useDoc(cupRef);
@@ -82,7 +81,7 @@ export default function PyramidCupPage() {
         <div className="py-20 text-center opacity-50"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
       ) : cupData ? (
         <>
-          <div className="mb-8 overflow-x-auto scrollbar-hide -mx-4 px-4">
+          <div className="mb-6 overflow-x-auto scrollbar-hide -mx-4 px-4">
             <div className="flex gap-2 min-w-max">
               {['r1', 'r2', 'r3', 'r4', 'r5'].map((r, i) => (
                 <Button
@@ -101,13 +100,12 @@ export default function PyramidCupPage() {
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             {matches.length > 0 ? matches.map((m: any, idx: number) => {
-              if (!m) return null;
               const isMyMatch = m.home?.id === user.uid || m.away?.id === user.uid;
               return (
-                <Card key={idx} className={cn("glass-card border-white/5", isMyMatch && "border-primary/50 bg-primary/5 ring-1 ring-primary/20")}>
-                  <CardContent className="p-4">
+                <Card key={idx} className={cn("glass-card border-white/5", isMyMatch && "border-primary/50 bg-primary/10")}>
+                  <CardContent className="p-3">
                     <div className="grid grid-cols-[1fr_40px_1fr] items-center">
                       <div className="text-right truncate"><p className={cn("text-[10px] font-bold uppercase", m.home?.id === user.uid ? "text-primary" : "text-white")}>{m.home?.name || t.waiting}</p></div>
                       <div className="flex justify-center">{m.scoreA !== null ? <span className="text-sm font-headline font-black">{m.scoreA}:{m.scoreB}</span> : <Swords className="w-3.5 h-3.5 text-accent/40" />}</div>
@@ -118,14 +116,15 @@ export default function PyramidCupPage() {
               );
             }) : (
               <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10">
-                <p className="text-[10px] uppercase font-black">No matches recorded in this round</p>
+                <Medal className="w-12 h-12 mx-auto mb-4" />
+                <p className="text-[10px] uppercase font-black">Round records not found</p>
               </div>
             )}
           </div>
         </>
       ) : (
         <div className="py-20 text-center animate-in fade-in duration-700 flex flex-col items-center">
-          <AlertTriangle className="w-12 h-12 text-orange-500 mb-4 opacity-50" />
+          <Medal className="w-12 h-12 text-orange-500 mb-4 opacity-50" />
           <h2 className="text-lg font-headline font-bold uppercase text-white mb-2">{t.noGrid}</h2>
           <p className="text-[10px] text-muted-foreground uppercase px-10">{t.noGridDesc}</p>
         </div>

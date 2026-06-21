@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v40.3.
- * Исправлено мерцание за счет использования teamData и корректных импортов.
+ * @fileOverview Страница рейтингов v40.5.
+ * Реализовано прямое отображение Кубка без промежуточных кнопок.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
-  Shield, Globe, Layers, Medal, Loader2, AlertTriangle
+  Shield, Globe, Layers, Medal, Loader2, AlertTriangle, Swords
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,12 @@ export default function RankingsPage() {
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
+  // Кубок
+  const [activeRound, setActiveRound] = useState('r1');
+  const cupDocId = `cup_s${activeSeasonNumber}_l${contextLeagueId}`;
+  const cupRef = useMemoFirebase(() => doc(db, 'cup_pyramid_v1', cupDocId), [db, cupDocId]);
+  const { data: cupData, isLoading: isCupLoading } = useDoc(cupRef);
+
   const standings = useMemo(() => {
     if (!tableData || !tableData.teamData) return [];
     
@@ -73,6 +79,7 @@ export default function RankingsPage() {
     en: {
       title: "RANKINGS HUB", subtitle: "Global Competitive Terminals",
       pts: "PTS", winLoss: "W-D-L", back: "Back",
+      waiting: "TBD", round: "Round", final: "Final",
       menu: [
         { id: 'my_league', label: 'My Current Table', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'My Pyramid', desc: `Explore ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
@@ -83,6 +90,7 @@ export default function RankingsPage() {
     ru: {
       title: "ТАБЛИЦЫ РЕЙТИНГА", subtitle: "Терминалы глобальных соревнований",
       pts: "ОЧК", winLoss: "В-Н-П", back: "Назад",
+      waiting: "TBD", round: "Раунд", final: "Финал",
       menu: [
         { id: 'my_league', label: 'Своя таблица', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'Своя пирамида', desc: `Изучить лигу ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
@@ -117,7 +125,7 @@ export default function RankingsPage() {
       {activeTab === 'menu' && (
         <div className="space-y-2">
           {t.menu.map(item => (
-            <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer group" onClick={() => { 
+            <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => { 
               setActiveTab(item.id as RankingTab); 
               if (item.id === 'my_league') { setNavLeague(selectedLeagueId); setNavLevel(leagueLevel); setNavGroup(groupId); }
             }}>
@@ -165,6 +173,55 @@ export default function RankingsPage() {
         </div>
       )}
 
+      {activeTab === 'pyramid_cup' && (
+        <div className="space-y-6 animate-in fade-in">
+           {isCupLoading ? (
+             <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
+           ) : cupData ? (
+             <>
+               <div className="flex gap-1 overflow-x-auto scrollbar-hide pb-2">
+                 {['r1', 'r2', 'r3', 'r4', 'r5'].map((r, i) => (
+                   <Button
+                     key={r}
+                     variant={activeRound === r ? "default" : "outline"}
+                     size="sm"
+                     onClick={() => setActiveRound(r)}
+                     className={cn(
+                       "h-8 px-4 rounded-lg font-black text-[8px] uppercase",
+                       activeRound === r ? "hero-gradient border-none" : "bg-secondary/20 border-white/5"
+                     )}
+                   >
+                     {i === 4 ? t.final : `${t.round} ${i + 1}`}
+                   </Button>
+                 ))}
+               </div>
+
+               <div className="space-y-2">
+                 {(cupData.rounds?.[activeRound] || []).map((m: any, idx: number) => {
+                   const isMe = m.home?.id === user.uid || m.away?.id === user.uid;
+                   return (
+                     <Card key={idx} className={cn("glass-card border-white/5", isMe && "border-primary/50 bg-primary/10")}>
+                       <CardContent className="p-3">
+                         <div className="grid grid-cols-[1fr_40px_1fr] items-center text-[10px] font-bold uppercase">
+                           <div className="text-right truncate"><span className={m.home?.id === user.uid ? "text-primary" : "text-white"}>{m.home?.name || t.waiting}</span></div>
+                           <div className="text-center">{m.scoreA !== null ? `${m.scoreA}:${m.scoreB}` : <Swords className="w-3 h-3 mx-auto opacity-30" />}</div>
+                           <div className="text-left truncate"><span className={m.away?.id === user.uid ? "text-primary" : "text-white"}>{m.away?.name || t.waiting}</span></div>
+                         </div>
+                       </CardContent>
+                     </Card>
+                   );
+                 })}
+               </div>
+             </>
+           ) : (
+             <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10">
+               <Medal className="w-12 h-12 mx-auto mb-4" />
+               <p className="text-[10px] font-black uppercase">Bracket Initializing...</p>
+             </div>
+           )}
+        </div>
+      )}
+
       {activeTab === 'all_pyramids' && !navLeague && (
         <div className="grid grid-cols-2 gap-2">
           {LEAGUES.map(l => (
@@ -191,14 +248,6 @@ export default function RankingsPage() {
             <Button key={g} variant="outline" className="h-10 border-white/5 bg-secondary/20 font-bold" onClick={() => setNavGroup(g)}>{g}</Button>
           ))}
         </div>
-      )}
-
-      {activeTab === 'pyramid_cup' && (
-         <div className="py-20 text-center animate-in fade-in duration-500">
-           <Link href="/tournaments/cup">
-             <Button className="hero-gradient font-black text-xs uppercase px-10">OPEN CUP TERMINAL</Button>
-           </Link>
-         </div>
       )}
     </div>
   );

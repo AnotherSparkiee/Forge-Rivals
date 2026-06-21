@@ -21,15 +21,18 @@ import { useUser } from '@/firebase';
 function GameInterface({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
-  const { isLoaded } = useGameState();
+  const { isLoaded, isDataReady } = useGameState();
   
   const isAuthOrSetup = pathname?.startsWith('/auth') || pathname === '/setup';
 
-  // ВАЖНО: Если идет загрузка пользователя — показываем экран загрузки
-  if (isUserLoading) return <LoadingScreen />;
+  // Показываем прелоадер если:
+  // 1. Грузится юзер
+  // 2. Юзер есть, это не Setup, но мир еще не синхронизирован (isDataReady === false)
+  const showPreloader = isUserLoading || (!!user && !isAuthOrSetup && !isDataReady);
 
-  // Рендерим TopBar и BottomNav ТОЛЬКО если пользователь авторизован, данные загружены и это не служебные страницы
-  const shouldRenderBars = !!user && isLoaded && !isAuthOrSetup;
+  if (showPreloader) return <LoadingScreen />;
+
+  const shouldRenderBars = !!user && isLoaded && isDataReady && !isAuthOrSetup;
 
   return (
     <>
@@ -55,7 +58,6 @@ function GameInterface({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Utility to merge classes safely in layout
 function cn(...classes: any[]) {
   return classes.filter(Boolean).join(' ');
 }
