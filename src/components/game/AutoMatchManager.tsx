@@ -1,38 +1,37 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v48.
- * Обеспечивает атомарную запись календаря и всех 8 команд в БД.
+ * @fileOverview Автономный менеджер синхронизации v50.
+ * Использует атомарный инициализатор сезона.
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, writeBatch, collection, query, where, serverTimestamp, updateDoc, setDoc } from 'firebase/firestore';
-import { getStableGroupTeams, generateSeasonCalendar } from '@/app/lib/leagues-data';
-import { getGlobalSeasonInfo, isMatchOverdue, getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
-import { forceResolveGroupMatches } from '@/app/actions/mmo-engine';
-import { generatePyramidCup } from '@/app/actions/cup-engine';
+import { doc, getDoc, collection, query, where } from 'firebase/firestore';
+import { getGlobalSeasonInfo, getMoscowDateString } from '@/app/lib/time-utils';
+import { initializeSeasonGroup, initializePyramidCup } from '@/app/actions/season-init';
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
-  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, allSeasonMatches, language, payStaffSalaries, displayName: storeName } = useGameState();
+  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId } = useGameState();
   const db = useFirestore();
   const processingRef = useRef(false);
-  const lastEconomicCheckRef = useRef<string | null>(null);
 
   const leaguePlayersQuery = useMemoFirebase(() => {
     if (isUserLoading || !user?.uid || !selectedLeagueId) return null;
     return query(
       collection(db, 'players_v10'), 
-      where('selectedLeagueId', '==', String(selectedLeagueId))
+      where('selectedLeagueId', '==', String(selectedLeagueId)),
+      where('leagueLevel', '==', Number(leagueLevel)),
+      where('groupId', '==', Number(groupId))
     );
-  }, [db, selectedLeagueId, isUserLoading, user?.uid]);
+  }, [db, selectedLeagueId, leagueLevel, groupId, isUserLoading, user?.uid]);
 
-  const { data: leaguePlayers } = useCollection(leaguePlayersQuery);
+  const { data: groupPlayers } = useCollection(leaguePlayersQuery);
 
   useEffect(() => {
-    if (isUserLoading || !user?.uid || !isLoaded || !userId || !selectedLeagueId || !leaguePlayers) return;
+    if (isUserLoading || !user?.uid || !isLoaded || !userId || !selectedLeagueId || !groupPlayers) return;
 
     const heartbeat = async () => {
       if (processingRef.current) return;
@@ -40,104 +39,22 @@ export function AutoMatchManager() {
 
       try {
         const info = getGlobalSeasonInfo();
-        const todayStr = getMoscowDateString();
         const currentSN = info.seasonNumber;
-        const currentSeasonId = `season_${currentSN}`;
-
-        // 1. ECONOMIC CYCLE
-        if (lastEconomicCheckRef.current !== todayStr) {
-          const currentPrefixedGroupId = `${currentSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
-          const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', currentPrefixedGroupId, 'teams', userId);
-          const teamSnap = await getDoc(teamRef);
-          
-          if (teamSnap.exists()) {
-            const teamData = teamSnap.data();
-            if (teamData.lastSponsorPayoutDate !== todayStr) {
-              const basePayout = 250000;
-              const bonusMult = 1 + ((teamData.managerSkills?.sponsors || 0) * 0.1);
-              const finalPayout = Math.round(basePayout * (teamData.isPremium ? 3.0 : 1.0) * bonusMult);
-              
-              await updateDoc(teamRef, { 
-                credits: (teamData.credits || 0) + finalPayout, 
-                lastSponsorPayoutDate: todayStr, 
-                updatedAt: serverTimestamp() 
-              });
-              
-              await setDoc(doc(db, 'notifications_v7', `sponsor_${userId}_${todayStr}`), { 
-                userId, 
-                title: language === 'ru' ? "Выплата спонсоров" : "Sponsor Payout", 
-                description: language === 'ru' ? `Получено €${finalPayout.toLocaleString()}` : `Received €${finalPayout.toLocaleString()}`, 
-                type: 'league', 
-                read: false, 
-                createdAt: getMoscowTime().toISOString() 
-              });
-            }
-            await payStaffSalaries();
-          }
-          lastEconomicCheckRef.current = todayStr;
-        }
-
-        // 2. LEAGUE INITIALIZATION
-        const prefixedGroupId = `${currentSeasonId}_league_${selectedLeagueId}_group_${groupId}`;
-        const groupRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId);
         
-        const groupSnap = await getDoc(groupRef);
-        if (!groupSnap.exists()) {
-          console.log(`[SYNC ENGINE] Creating Group Records for ${prefixedGroupId}`);
+        const tableId = `season_${currentSN}_tier_${leagueLevel}_group_${groupId}_league_${selectedLeagueId}`;
+        const tableRef = doc(db, 'league_tables', tableId);
+        
+        const tableSnap = await getDoc(tableRef);
+        if (!tableSnap.exists()) {
+          console.log(`[ATOMIC SYNC] Initializing Season ${currentSN} for group ${groupId}`);
           
-          const groupPlayers = leaguePlayers.filter(p => Number(p.leagueLevel) === Number(leagueLevel) && Number(p.groupId) === Number(groupId));
-          const currentTeams = getStableGroupTeams(Number(leagueLevel), Number(groupId), selectedLeagueId, groupPlayers);
-          const calendar = generateSeasonCalendar(currentTeams, currentSN, selectedLeagueId);
-          
-          const batch = writeBatch(db);
-          batch.set(groupRef, { 
-            id: prefixedGroupId, 
-            seasonId: currentSeasonId, 
-            seasonNumber: currentSN, 
-            status: 'ready', 
-            updatedAt: serverTimestamp(),
-            version: 32
-          });
-          
-          currentTeams.forEach(team => {
-            const teamTableRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', team.id);
-            const finalName = team.id === userId ? (storeName || team.name) : team.name;
+          const players = groupPlayers.map(p => ({
+            id: p.id,
+            name: p.displayName || `Manager_${p.id.slice(0,4)}`
+          }));
 
-            batch.set(teamTableRef, {
-              id: team.id,
-              name: finalName,
-              displayName: finalName,
-              wins: 0, draws: 0, losses: 0, points: 0,
-              credits: team.isBot ? 0 : 1000000,
-              crystals: team.isBot ? 0 : 50,
-              updatedAt: serverTimestamp(),
-              version: 32 
-            }, { merge: true });
-          });
-          
-          calendar.forEach((m) => {
-            const matchId = `m_${prefixedGroupId}_d${m.day}_${m.pairKey}`;
-            batch.set(doc(db, 'matches_v1', matchId), { 
-              ...m, 
-              id: matchId, 
-              seasonId: currentSeasonId, 
-              seasonNumber: currentSN, 
-              groupId: prefixedGroupId, 
-              leagueId: selectedLeagueId, 
-              divisionId: Number(leagueLevel),
-              status: 'scheduled', 
-              isFinished: false, 
-              version: 32 
-            });
-          });
-          await batch.commit();
-          await generatePyramidCup(currentSN);
-        }
-
-        // 3. MATCH RESOLVER
-        const overdue = allSeasonMatches.filter(m => isMatchOverdue(m.startTime) && !m.isFinished && m.version === 32);
-        if (overdue.length > 0) {
-          await forceResolveGroupMatches(selectedLeagueId, Number(leagueLevel), prefixedGroupId);
+          await initializeSeasonGroup(currentSN, Number(leagueLevel), Number(groupId), selectedLeagueId, players);
+          await initializePyramidCup(currentSN, selectedLeagueId);
         }
 
       } catch (e: any) {
@@ -147,10 +64,10 @@ export function AutoMatchManager() {
       }
     };
 
-    const interval = setInterval(heartbeat, 60000);
+    const interval = setInterval(heartbeat, 30000);
     heartbeat();
     return () => clearInterval(interval);
-  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, leaguePlayers, db, allSeasonMatches, isUserLoading, user?.uid, language, payStaffSalaries, storeName]);
+  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, groupPlayers, db, isUserLoading, user?.uid]);
 
   return null;
 }
