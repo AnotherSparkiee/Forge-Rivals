@@ -2,7 +2,7 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v41. Унифицированный ID и исправленная навигация.
+ * @fileOverview Страница рейтингов v41.5. Улучшенная навигация и блокировка мерцания.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -34,12 +34,10 @@ export default function RankingsPage() {
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
   
-  // Browsing state (для вкладки "Все пирамиды")
   const [navLeague, setNavLeague] = useState<string | null>(null);
   const [navLevel, setNavLevel] = useState<number | null>(null);
   const [navGroup, setNavGroup] = useState<number | null>(null);
 
-  // Определение контекста (v41 строгое приведение)
   const isMyLeagueTab = activeTab === 'my_league';
   const contextLeagueId = isMyLeagueTab ? String(selectedLeagueId || "ALPHA") : String(navLeague || selectedLeagueId || "ALPHA");
   const contextLevel = isMyLeagueTab ? String(leagueLevel || 9) : String(navLevel || leagueLevel || 9);
@@ -49,7 +47,6 @@ export default function RankingsPage() {
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
-  // Cup Data
   const [activeRound, setActiveRound] = useState('r1');
   const cupDocId = `cup_s${activeSeasonNumber}_l${contextLeagueId}`;
   const cupRef = useMemoFirebase(() => doc(db, 'cup_pyramid_v1', cupDocId), [db, cupDocId]);
@@ -59,7 +56,7 @@ export default function RankingsPage() {
     if (!tableData || !tableData.teamData) return [];
     
     const list = tableData.teamData.map((t: any) => {
-      const s = tableData.stats?.[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
+      const s = tableData.stats?.[t.id] || { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
       return {
         id: t.id,
         name: t.name,
@@ -104,7 +101,6 @@ export default function RankingsPage() {
   }[language === 'ru' ? 'ru' : 'en'];
 
   const handleBack = () => {
-    // Вкладка "Своя таблица" и "Кубок" ведут сразу в меню хаба
     if (activeTab === 'my_league' || activeTab === 'pyramid_cup' || activeTab === 'my_pyramid') {
       setActiveTab('menu');
       return;
@@ -115,7 +111,6 @@ export default function RankingsPage() {
       return;
     }
 
-    // Послойная навигация для "Все пирамиды"
     if (navGroup) setNavGroup(null);
     else if (navLevel) setNavLevel(null);
     else if (navLeague) setNavLeague(null);
@@ -168,7 +163,7 @@ export default function RankingsPage() {
                <span>#</span><span>Team</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
              </div>
              
-             {isTableLoading && standings.length === 0 ? (
+             {isTableLoading ? (
                <div className="py-20 text-center opacity-30"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
              ) : standings.length > 0 ? standings.map((entry: any, i: number) => (
                <div key={entry.id} className={cn("grid grid-cols-[30px_1fr_80px_40px] items-center p-3 rounded-xl border mb-1 transition-all", entry.id === user?.uid ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-secondary/20 border-white/5")}>
@@ -240,7 +235,7 @@ export default function RankingsPage() {
       {(activeTab === 'my_pyramid' || (activeTab === 'all_pyramids' && navLeague)) && !navLevel && (
         <div className="space-y-2 animate-in slide-in-from-right-4">
           {Array.from({ length: MAX_LEVELS }, (_, i) => i + 1).map(lvl => (
-            <Card key={lvl} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all" onClick={() => setNavLevel(lvl)}>
+            <Card key={lvl} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer transition-all" onClick={() => setNavLevel(lvl)}>
               <CardContent className="p-4 flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-secondary/50 flex items-center justify-center border border-white/5"><span className="text-xs font-headline font-bold text-primary">{lvl}</span></div>

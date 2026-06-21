@@ -2,7 +2,7 @@
 'use client';
 
 /**
- * @fileOverview Терминал Кубка v41. Прямое отображение сетки.
+ * @fileOverview Терминал Кубка v41.5. Прямое отображение сетки без промежуточных кнопок.
  */
 
 import { useState, useEffect } from 'react';

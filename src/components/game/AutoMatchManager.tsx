@@ -2,15 +2,15 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v41 (Strict Atomic Initialization).
- * Унифицирует ID и гарантирует фиксацию данных в БД до завершения прелоадера.
+ * @fileOverview Ядро MMO-синхронизации v41.5 (Blocking Verification Sync).
+ * Гарантирует наличие данных в кэше устройства до завершения прелоадера.
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore } from '@/firebase';
 import { 
-  doc, getDoc, writeBatch, serverTimestamp, collection, query, where, getDocs, updateDoc
+  doc, getDoc, writeBatch, serverTimestamp, collection, query, where, getDocs, updateDoc, onSnapshot
 } from 'firebase/firestore';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -33,13 +33,12 @@ export function AutoMatchManager() {
       const tier = String(leagueLevel);
       const grp = String(groupId);
       
-      // СТРОГИЙ ID v41 (Унифицирован для всех компонентов)
       const tableId = `s${sNum}_l${lId}_t${tier}_g${grp}`;
       
       if (syncInProgressRef.current === tableId) return;
       syncInProgressRef.current = tableId;
 
-      console.log(`[WORLD-SYNC v41] Critical Sync for ${tableId}...`);
+      console.log(`[WORLD-SYNC v41.5] Verifying ${tableId}...`);
       
       try {
         const tableRef = doc(db, 'league_tables_v1', tableId);
@@ -47,14 +46,14 @@ export function AutoMatchManager() {
         const myName = String(displayName);
 
         if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < 41) {
-          console.log(`[WORLD-SYNC] Rebuilding world v41: ${tableId}`);
+          console.log(`[WORLD-SYNC] Creating new world v41: ${tableId}`);
           const batch = writeBatch(db);
           
           const teams = [{ id: userId, name: myName, isBot: false }];
           for (let i = 1; i <= 7; i++) {
             const botNum = (Number(tier) * 1000) + (Number(grp) * 10) + i;
             const botId = `bot${botNum}`;
-            teams.push({ id: botId, name: botId, isBot: true });
+            teams.push({ id: botId, name: `🤖 ${botId}`, isBot: true });
           }
 
           const stats: any = {};
@@ -62,7 +61,6 @@ export function AutoMatchManager() {
             stats[t.id] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
           });
 
-          // 1. Создаем таблицу (v41)
           batch.set(tableRef, {
             id: tableId, season: Number(sNum), leagueId: lId, tier: Number(tier), group: Number(grp),
             teams: teams.map(t => t.id),
@@ -72,7 +70,6 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           });
 
-          // 2. Инициализируем Кубок Лиги
           const cupId = `cup_s${sNum}_l${lId}`;
           const cupRef = doc(db, 'cup_pyramid_v1', cupId);
           const cupSnap = await getDoc(cupRef);
@@ -83,8 +80,8 @@ export function AutoMatchManager() {
               const botH = 5000 + i;
               const botA = 5001 + i;
               r1.push({
-                home: { id: `bot${botH}`, name: `bot${botH}` },
-                away: { id: `bot${botA}`, name: `bot${botA}` },
+                home: { id: `bot${botH}`, name: `🤖 bot${botH}` },
+                away: { id: `bot${botA}`, name: `🤖 bot${botA}` },
                 scoreA: null, scoreB: null
               });
             }
@@ -96,7 +93,6 @@ export function AutoMatchManager() {
             });
           }
 
-          // 3. Генерируем Календарь v41
           const leagueInfo = LEAGUES.find(l => l.id === lId) || LEAGUES[0];
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
           const seasonStartMs = new Date('2026-06-21T21:00:00Z').getTime() + (Number(sNum) - 1) * 15 * 24 * 3600000;
@@ -135,10 +131,9 @@ export function AutoMatchManager() {
 
           await batch.commit();
         } else {
-          // Если мир уже есть v41, проверяем, вписан ли в него текущий игрок
           const data = tableSnap.data();
           if (data && !data.teams.includes(userId)) {
-            console.log("[WORLD-SYNC] Joining v41 group, replacing bot...");
+            console.log("[WORLD-SYNC] Replacing bot with user...");
             const teamData = [...(data.teamData || [])];
             const botIdx = teamData.findIndex((t: any) => t.isBot || t.id.startsWith('bot'));
             
@@ -155,7 +150,6 @@ export function AutoMatchManager() {
                 teams: newTeams, teamData: teamData, stats: newStats, updatedAt: serverTimestamp()
               });
 
-              // Обновляем матчи в фоне
               const matchesQuery = query(collection(db, 'matches_v1'), where('tableId', '==', tableId), where('version', '==', 41));
               const matchesSnap = await getDocs(matchesQuery);
               const matchBatch = writeBatch(db);
@@ -169,11 +163,17 @@ export function AutoMatchManager() {
           }
         }
         
-        // Сигнал готовности устанавливается только после всех операций с БД
-        setWorldReady(true);
+        // ВЕРИФИКАЦИЯ: Ждем реального появления данных в кэше
+        const unsub = onSnapshot(tableRef, (snap) => {
+          if (snap.exists() && snap.data()?.teams?.includes(userId)) {
+            console.log("[WORLD-SYNC] Data verified in local cache.");
+            setWorldReady(true);
+            unsub();
+          }
+        });
+
       } catch (e) {
         console.error("[WORLD-SYNC ERROR]", e);
-        // Резервный выход из прелоадера через 5 секунд в случае сетевой ошибки
         setTimeout(() => setWorldReady(true), 5000);
       }
     };
