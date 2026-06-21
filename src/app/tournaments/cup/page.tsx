@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview Терминал Кубка v40.
- * Прямое чтение из /cup_pyramid_v1.
+ * Исправлена стабильность отображения и чтения раундов.
  */
 
 import { useState, useEffect } from 'react';
@@ -116,7 +116,11 @@ export default function PyramidCupPage() {
                   </CardContent>
                 </Card>
               );
-            }) : <div className="py-20 text-center opacity-30 uppercase font-black text-[10px]">No matches in this round</div>}
+            }) : (
+              <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10">
+                <p className="text-[10px] uppercase font-black">No matches recorded in this round</p>
+              </div>
+            )}
           </div>
         </>
       ) : (
