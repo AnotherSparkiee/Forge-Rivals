@@ -1,11 +1,10 @@
-
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v41.5. Улучшенная навигация и блокировка мерцания.
+ * @fileOverview Страница рейтингов v42. Изолированная навигация и мгновенное отображение данных.
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
@@ -43,6 +42,7 @@ export default function RankingsPage() {
   const contextLevel = isMyLeagueTab ? String(leagueLevel || 9) : String(navLevel || leagueLevel || 9);
   const contextGroup = isMyLeagueTab ? String(groupId || 1) : String(navGroup || groupId || 1);
 
+  // Используем v42 для синхронизации с AutoMatchManager
   const tableId = `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
@@ -53,6 +53,7 @@ export default function RankingsPage() {
   const { data: cupData, isLoading: isCupLoading } = useDoc(cupRef);
 
   const standings = useMemo(() => {
+    // Мгновенно формируем список из teamData, чтобы не ждать stats
     if (!tableData || !tableData.teamData) return [];
     
     const list = tableData.teamData.map((t: any) => {
@@ -101,6 +102,7 @@ export default function RankingsPage() {
   }[language === 'ru' ? 'ru' : 'en'];
 
   const handleBack = () => {
+    // Вкладка "Своя таблица" и "Кубок" просто возвращают в меню
     if (activeTab === 'my_league' || activeTab === 'pyramid_cup' || activeTab === 'my_pyramid') {
       setActiveTab('menu');
       return;
@@ -111,6 +113,7 @@ export default function RankingsPage() {
       return;
     }
 
+    // Навигация поиска
     if (navGroup) setNavGroup(null);
     else if (navLevel) setNavLevel(null);
     else if (navLeague) setNavLeague(null);
@@ -174,9 +177,9 @@ export default function RankingsPage() {
                </div>
              )) : (
                <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10 mt-4 flex flex-col items-center">
-                 <AlertTriangle className="w-12 h-12 mb-4" />
+                 <AlertTriangle className="w-12 h-12 mb-4 text-orange-500" />
                  <p className="text-[10px] font-black uppercase">Syncing Terminal...</p>
-                 <p className="text-[8px] text-muted-foreground mt-2 italic">Awaiting connection to league server v41</p>
+                 <p className="text-[8px] text-muted-foreground mt-2 italic">Awaiting connection to league server v42</p>
                </div>
              )}
            </div>
@@ -187,7 +190,7 @@ export default function RankingsPage() {
         <div className="space-y-6 animate-in fade-in duration-500">
            {isCupLoading ? (
              <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
-           ) : cupData ? (
+           ) : cupData && (cupData.rounds?.r1?.length > 0) ? (
              <>
                <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4">
                  {['r1', 'r2', 'r3', 'r4', 'r5'].map((r, i) => (
@@ -214,6 +217,7 @@ export default function RankingsPage() {
              <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10 flex flex-col items-center">
                <Medal className="w-12 h-12 mb-4" />
                <p className="text-[10px] font-black uppercase">Cup Data Missing</p>
+               <p className="text-[8px] text-muted-foreground mt-2 italic">Initialization in progress v42</p>
              </div>
            )}
         </div>

@@ -1,9 +1,8 @@
-
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v41.5 (Blocking Verification Sync).
- * Гарантирует наличие данных в кэше устройства до завершения прелоадера.
+ * @fileOverview Ядро MMO-синхронизации v42 (Strict Blocking Verification).
+ * Гарантирует наличие данных версии v42 в кэше до завершения прелоадера.
  */
 
 import { useEffect, useRef } from 'react';
@@ -38,15 +37,16 @@ export function AutoMatchManager() {
       if (syncInProgressRef.current === tableId) return;
       syncInProgressRef.current = tableId;
 
-      console.log(`[WORLD-SYNC v41.5] Verifying ${tableId}...`);
+      console.log(`[WORLD-SYNC v42] Synchronizing ${tableId}...`);
       
       try {
         const tableRef = doc(db, 'league_tables_v1', tableId);
         const tableSnap = await getDoc(tableRef);
         const myName = String(displayName);
 
-        if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < 41) {
-          console.log(`[WORLD-SYNC] Creating new world v41: ${tableId}`);
+        // Если таблицы нет или старая версия - создаем заново
+        if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < 42) {
+          console.log(`[WORLD-SYNC] Initializing world v42: ${tableId}`);
           const batch = writeBatch(db);
           
           const teams = [{ id: userId, name: myName, isBot: false }];
@@ -66,33 +66,11 @@ export function AutoMatchManager() {
             teams: teams.map(t => t.id),
             teamData: teams,
             stats,
-            version: 41,
+            version: 42,
             updatedAt: serverTimestamp()
           });
 
-          const cupId = `cup_s${sNum}_l${lId}`;
-          const cupRef = doc(db, 'cup_pyramid_v1', cupId);
-          const cupSnap = await getDoc(cupRef);
-          
-          if (!cupSnap.exists() || (cupSnap.data()?.version || 0) < 41) {
-            const r1 = [];
-            for (let i = 0; i < 32; i += 2) {
-              const botH = 5000 + i;
-              const botA = 5001 + i;
-              r1.push({
-                home: { id: `bot${botH}`, name: `🤖 bot${botH}` },
-                away: { id: `bot${botA}`, name: `🤖 bot${botA}` },
-                scoreA: null, scoreB: null
-              });
-            }
-            batch.set(cupRef, {
-              id: cupId, season: Number(sNum), leagueId: lId,
-              rounds: { r1, r2: [], r3: [], r4: [], r5: [] },
-              version: 41,
-              updatedAt: serverTimestamp()
-            });
-          }
-
+          // Календарь на 14 туров
           const leagueInfo = LEAGUES.find(l => l.id === lId) || LEAGUES[0];
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
           const seasonStartMs = new Date('2026-06-21T21:00:00Z').getTime() + (Number(sNum) - 1) * 15 * 24 * 3600000;
@@ -108,32 +86,40 @@ export function AutoMatchManager() {
               if (r % 2 === 1) [hIdx, aIdx] = [aIdx, hIdx];
               const hId = tempIds[hIdx];
               const aId = tempIds[aIdx];
-              const day1 = r + 1;
-              const day2 = r + 1 + rounds;
-
+              
               const createMatch = (day: number, h: string, a: string) => {
                 const startTime = new Date(seasonStartMs + (day - 1) * 24 * 3600000 + hh * 3600000 + mm * 60000);
-                const mId = `m_${tableId}_d${day}_h${h}`;
+                const mId = `m_${tableId}_v42_d${day}_h${h}`;
                 batch.set(doc(db, 'matches_v1', mId), {
                   id: mId, tableId, season: Number(sNum), tour: day, day,
                   homeId: h, homeName: teams.find(t => t.id === h)?.name || h,
                   awayId: a, awayName: teams.find(t => t.id === a)?.name || a,
                   startTime: startTime.toISOString(),
-                  isFinished: false, version: 41, createdAt: serverTimestamp()
+                  isFinished: false, version: 42, createdAt: serverTimestamp()
                 });
               };
-              createMatch(day1, hId, aId);
-              createMatch(day2, aId, hId);
+              createMatch(r + 1, hId, aId);
+              createMatch(r + 1 + rounds, aId, hId);
             }
             const last = tempIds.pop()!;
             tempIds.splice(1, 0, last);
           }
 
+          // Инициализация Кубка
+          const cupId = `cup_s${sNum}_l${lId}`;
+          const cupRef = doc(db, 'cup_pyramid_v1', cupId);
+          batch.set(cupRef, {
+            id: cupId, season: Number(sNum), leagueId: lId,
+            rounds: { r1: [], r2: [], r3: [], r4: [], r5: [] },
+            version: 42,
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+
           await batch.commit();
         } else {
+          // Если таблица v42 уже есть, проверяем, не нужно ли подселить игрока
           const data = tableSnap.data();
           if (data && !data.teams.includes(userId)) {
-            console.log("[WORLD-SYNC] Replacing bot with user...");
             const teamData = [...(data.teamData || [])];
             const botIdx = teamData.findIndex((t: any) => t.isBot || t.id.startsWith('bot'));
             
@@ -149,24 +135,14 @@ export function AutoMatchManager() {
               await updateDoc(tableRef, {
                 teams: newTeams, teamData: teamData, stats: newStats, updatedAt: serverTimestamp()
               });
-
-              const matchesQuery = query(collection(db, 'matches_v1'), where('tableId', '==', tableId), where('version', '==', 41));
-              const matchesSnap = await getDocs(matchesQuery);
-              const matchBatch = writeBatch(db);
-              matchesSnap.docs.forEach(mDoc => {
-                const m = mDoc.data();
-                if (m.homeId === botIdToRemove) matchBatch.update(mDoc.ref, { homeId: userId, homeName: myName });
-                if (m.awayId === botIdToRemove) matchBatch.update(mDoc.ref, { awayId: userId, awayName: myName });
-              });
-              await matchBatch.commit();
             }
           }
         }
         
-        // ВЕРИФИКАЦИЯ: Ждем реального появления данных в кэше
+        // ВЕРИФИКАЦИЯ: Ждем реального появления данных v42 в кэше
         const unsub = onSnapshot(tableRef, (snap) => {
-          if (snap.exists() && snap.data()?.teams?.includes(userId)) {
-            console.log("[WORLD-SYNC] Data verified in local cache.");
+          if (snap.exists() && snap.data()?.version === 42 && snap.data()?.teams?.includes(userId)) {
+            console.log("[WORLD-SYNC] Data v42 verified. Unlocking interface.");
             setWorldReady(true);
             unsub();
           }
@@ -174,6 +150,7 @@ export function AutoMatchManager() {
 
       } catch (e) {
         console.error("[WORLD-SYNC ERROR]", e);
+        // Резервный разблок через 5 сек
         setTimeout(() => setWorldReady(true), 5000);
       }
     };
