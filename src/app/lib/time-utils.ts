@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v90. Глобальная синхронизация (Эпоха: 22.06.2026).
+ * @fileOverview Ядро времени v91. Глобальная синхронизация (Эпоха: 15.06.2026).
  */
 
 let syncPoint = {
@@ -8,8 +8,8 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-// 22.06.2026 00:00 MSK в формате ISO UTC (21.06 21:00 UTC)
-export const GLOBAL_EPOCH_ISO = '2026-06-21T21:00:00Z'; 
+// 15.06.2026 00:00 MSK (14.06 21:00 UTC)
+export const GLOBAL_EPOCH_ISO = '2026-06-14T21:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
   if (typeof performance !== 'undefined') {
@@ -17,7 +17,7 @@ export function setServerTime(serverMs: number) {
   } else {
     syncPoint = { serverMs, perfMs: 0 };
   }
-  console.log(`[TIME-CORE v90] Global Sync established: ${new Date(serverMs).toISOString()}`);
+  console.log(`[TIME-CORE v91] Global Sync established: ${new Date(serverMs).toISOString()}`);
 }
 
 export function getMoscowTime(): Date {
