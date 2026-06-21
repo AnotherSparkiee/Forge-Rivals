@@ -1,14 +1,14 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v57.
- * Оптимизация: загрузка всех игроков лиги без индекса и клиентская фильтрация.
+ * @fileOverview Автономный менеджер синхронизации v58.
+ * Гарантированный запуск Лиги и Кубка при входе игрока.
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, collection, query, where } from 'firebase/firestore';
+import { doc, getDoc, collection } from 'firebase/firestore';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { initializeSeasonGroup, initializePyramidCup } from '@/app/actions/season-init';
 
@@ -18,8 +18,7 @@ export function AutoMatchManager() {
   const db = useFirestore();
   const processingRef = useRef(false);
 
-  // Оптимизация: убираем 'where', чтобы запрос работал без ручного создания индекса в Firebase
-  // Для прототипа это самый надежный способ гарантировать появление данных.
+  // Загружаем всех игроков лиги для распределения
   const allPlayersQuery = useMemoFirebase(() => {
     if (isUserLoading || !user?.uid) return null;
     return collection(db, 'players_v10');
@@ -38,7 +37,7 @@ export function AutoMatchManager() {
         const info = getGlobalSeasonInfo();
         const currentSN = info.seasonNumber;
         
-        // ID таблицы в унифицированной коллекции v1
+        // ID таблицы по новому стандарту
         const tableId = `season_${currentSN}_tier_${leagueLevel}_group_${groupId}_league_${selectedLeagueId}`;
         const tableRef = doc(db, 'league_tables_v1', tableId);
         
@@ -46,46 +45,42 @@ export function AutoMatchManager() {
         const needsInit = !tableSnap.exists() || (tableSnap.data()?.version || 0) < 35;
 
         if (needsInit) {
-          console.log(`[ATOMIC SYNC v3.5] Initializing Season ${currentSN} for league ${selectedLeagueId} Group ${groupId}`);
+          console.log(`[WORLD SYNC v4.0] Initializing World for League ${selectedLeagueId} Group ${groupId}`);
           
-          // Фильтруем игроков этой конкретной группы на клиенте (MAX reliability)
+          // 1. Фильтруем участников группы
           const groupPlayers = allGlobalPlayers.filter(p => 
-            p.selectedLeagueId === String(selectedLeagueId) &&
+            p.selectedLeagueId === selectedLeagueId &&
             Number(p.leagueLevel) === Number(leagueLevel) && 
             Number(p.groupId) === Number(groupId)
           );
 
-          // Убеждаемся, что текущий игрок точно включен с актуальным именем
           const playersToInit = groupPlayers.map(p => ({
             id: p.id,
             name: p.displayName || `Manager_${p.id.slice(0,4)}`
           }));
 
-          const hasMe = playersToInit.some(p => p.id === userId);
-          if (!hasMe) {
-            playersToInit.push({
-              id: userId,
-              name: displayName || `Manager_${userId.slice(0,4)}`
-            });
+          // Убеждаемся, что мы в списке
+          if (!playersToInit.some(p => p.id === userId)) {
+            playersToInit.push({ id: userId, name: displayName || `Manager_${userId.slice(0,4)}` });
           }
 
-          // 1. Создаем таблицу и 14 туров атомарно
+          // 2. Атомарно создаем лигу и матчи
           await initializeSeasonGroup(currentSN, Number(leagueLevel), Number(groupId), selectedLeagueId, playersToInit);
           
-          // 2. Создаем сетку кубка для всей лиги атомарно
+          // 3. Атомарно создаем кубок лиги
           await initializePyramidCup(currentSN, selectedLeagueId);
           
-          console.log("[ATOMIC SYNC] Season data established successfully.");
+          console.log("[WORLD SYNC] Operations completed successfully.");
         }
 
       } catch (e: any) {
-        console.error("[GLOBAL SYNC ERROR]", e);
+        console.error("[WORLD SYNC ERROR]", e);
       } finally {
         processingRef.current = false;
       }
     };
 
-    const interval = setInterval(heartbeat, 15000);
+    const interval = setInterval(heartbeat, 30000);
     heartbeat();
     return () => clearInterval(interval);
   }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allGlobalPlayers, db, isUserLoading, user?.uid, displayName]);

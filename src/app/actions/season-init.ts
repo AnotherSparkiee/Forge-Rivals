@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Атомарный инициализатор сезона v3.5.
+ * @fileOverview Атомарный инициализатор сезона v4.0.
  * Создает таблицы (8 команд), 14 туров матчей и кубок в одной транзакции.
  */
 
@@ -82,7 +82,7 @@ export async function initializeSeasonGroup(
   const leagueInfo = LEAGUES.find(l => l.id === leagueId) || LEAGUES[0];
   const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
   
-  // Эпоха сезона
+  // Эпоха сезона (согласно time-utils v90)
   const seasonStart = new Date('2026-06-22T00:00:00+03:00');
   const startMs = seasonStart.getTime() + (season - 1) * 15 * 24 * 60 * 60 * 1000;
 
@@ -130,10 +130,11 @@ export async function initializePyramidCup(season: number, leagueId: string) {
   const cupDocId = `season_${season}_league_${leagueId}`;
   const cupRef = doc(db, 'cup_pyramid_v1', cupDocId);
   
+  // Проверяем существование
   const cupSnap = await getDoc(cupRef);
   if (cupSnap.exists() && cupSnap.data().version === 35) return { success: true, alreadyExists: true };
 
-  // Собираем всех реальных игроков лиги
+  // Собираем всех реальных игроков лиги (макс 32 для сетки)
   const playersSnap = await getDocs(query(collection(db, 'players_v10'), where('selectedLeagueId', '==', leagueId)));
   const participants = playersSnap.docs.map(d => ({ 
     id: d.id, 
