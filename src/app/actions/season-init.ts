@@ -1,16 +1,16 @@
 'use server';
 
 /**
- * @fileOverview Атомарный инициализатор сезона v1.0.
- * Создает таблицы, матчи и кубок в одной транзакции.
+ * @fileOverview Атомарный инициализатор сезона v2.0.
+ * Создает таблицы (8 команд), 14 туров матчей и кубок в одной транзакции.
  */
 
 import { 
   collection, doc, getDocs, writeBatch, query, where, 
-  getDoc, serverTimestamp, Timestamp, Firestore
+  getDoc, serverTimestamp, Timestamp, Firestore, setDoc
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
-import { LEAGUES, TEAMS_PER_GROUP } from '@/app/lib/leagues-data';
+import { LEAGUES } from '@/app/lib/leagues-data';
 
 interface TeamStats {
   points: number;
@@ -42,8 +42,11 @@ export async function initializeSeasonGroup(
   // 1. Подготовка 8 команд (игроки + боты)
   const teams = [...realPlayers];
   const botsNeeded = Math.max(0, 8 - teams.length);
+  const leagueIdx = LEAGUES.findIndex(l => l.id === leagueId);
+  const leaguePrefix = (leagueIdx + 1).toString().padStart(2, '0');
+  
   for (let i = 0; i < botsNeeded; i++) {
-    const botId = `bot_${leagueId}_t${tier}_g${group}_s${i + 1}`;
+    const botId = `bot${leaguePrefix}${tier}${group.toString().padStart(3, '0')}${i + 1}`;
     teams.push({ id: botId, name: botId, isBot: true });
   }
   
@@ -59,7 +62,7 @@ export async function initializeSeasonGroup(
     };
   });
 
-  // 2. Создание таблицы
+  // 2. Создание документа таблицы
   batch.set(tableRef, {
     id: tableId,
     season,
@@ -69,7 +72,8 @@ export async function initializeSeasonGroup(
     teams: teamIds,
     teamData: teams.map(t => ({ id: t.id, name: t.name, isBot: !!t.isBot })),
     stats,
-    updatedAt: serverTimestamp()
+    updatedAt: serverTimestamp(),
+    version: 2
   });
 
   // 3. Генерация 14 туров (Round-robin 2 круга)
@@ -77,9 +81,9 @@ export async function initializeSeasonGroup(
   const leagueInfo = LEAGUES.find(l => l.id === leagueId) || LEAGUES[0];
   const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
   
-  // Эпоха сезона (упрощенно)
+  // Эпоха сезона
   const seasonStart = new Date('2026-06-22T00:00:00+03:00');
-  const startMs = seasonStart.getTime() + (season - 1) * 16 * 24 * 60 * 60 * 1000;
+  const startMs = seasonStart.getTime() + (season - 1) * 15 * 24 * 60 * 60 * 1000;
 
   schedule.forEach((roundMatches, roundIdx) => {
     const tour = roundIdx + 1;
@@ -96,9 +100,10 @@ export async function initializeSeasonGroup(
         tableId,
         season,
         tour,
+        day: tour,
         leagueId,
         tier,
-        groupId: group,
+        groupId: String(group),
         homeId: m.home,
         homeName: homeTeam?.name || m.home,
         awayId: m.away,
@@ -106,7 +111,8 @@ export async function initializeSeasonGroup(
         startTime: matchTime.toISOString(),
         status: "scheduled",
         isFinished: false,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        version: 32
       });
     });
   });
@@ -116,29 +122,38 @@ export async function initializeSeasonGroup(
 }
 
 /**
- * Инициализирует сетку кубка для лиги.
+ * Инициализирует сетку кубка для лиги в одном документе.
  */
 export async function initializePyramidCup(season: number, leagueId: string) {
   const { firestore: db } = initializeFirebase();
-  const cupRef = doc(db, 'cup_pyramid', `season_${season}_league_${leagueId}`);
+  const cupDocId = `season_${season}_league_${leagueId}`;
+  const cupRef = doc(db, 'cup_pyramid', cupDocId);
   
   const cupSnap = await getDoc(cupRef);
   if (cupSnap.exists()) return { success: true, alreadyExists: true };
 
-  // Собираем всех игроков лиги
+  // Собираем всех реальных игроков лиги
   const playersSnap = await getDocs(query(collection(db, 'players_v10'), where('selectedLeagueId', '==', leagueId)));
-  const participants = playersSnap.docs.map(d => ({ id: d.id, name: d.data().displayName || d.id }));
+  const participants = playersSnap.docs.map(d => ({ 
+    id: d.id, 
+    name: d.data().displayName || `Manager_${d.id.slice(0,4)}`,
+    isPlayer: true 
+  }));
   
-  // Дополняем до 32 команд для красивой сетки
+  // Дополняем до 32 команд ботами
   const totalSlots = 32;
+  const leagueIdx = LEAGUES.findIndex(l => l.id === leagueId);
+  const leaguePrefix = (leagueIdx + 1).toString().padStart(2, '0');
+
   while (participants.length < totalSlots) {
-    const botId = `cup_bot_${leagueId}_s${participants.length + 1}`;
-    participants.push({ id: botId, name: botId });
+    const botId = `bot${leaguePrefix}cup${participants.length + 1}`;
+    participants.push({ id: botId, name: botId, isPlayer: false });
   }
 
-  // Перемешиваем
+  // Перемешиваем детерминировано на основе сезона
+  const seed = season;
   for (let i = participants.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = (seed + i) % (i + 1);
     [participants[i], participants[j]] = [participants[j], participants[i]];
   }
 
@@ -151,7 +166,8 @@ export async function initializePyramidCup(season: number, leagueId: string) {
       away: participants[i+1],
       scoreA: null,
       scoreB: null,
-      winnerId: null
+      winnerId: null,
+      status: 'scheduled'
     });
   }
 
@@ -166,14 +182,15 @@ export async function initializePyramidCup(season: number, leagueId: string) {
       r5: [null] // Final
     },
     status: 'active',
-    createdAt: serverTimestamp()
+    createdAt: serverTimestamp(),
+    version: 2
   });
 
   return { success: true };
 }
 
 /**
- * Алгоритм круговой системы для 8 команд.
+ * Алгоритм круговой системы (Round-robin) для 8 команд.
  */
 function generateRoundRobin(teams: string[]) {
   const n = teams.length;
@@ -190,7 +207,7 @@ function generateRoundRobin(teams: string[]) {
     players.splice(1, 0, players.pop()!);
   }
   
-  // Второй круг (те же пары, смена сторон)
+  // Второй круг (смена сторон)
   const secondCircle = rounds.map(r => r.map(m => ({ home: m.away, away: m.home })));
   return [...rounds, ...secondCircle];
 }
@@ -204,6 +221,7 @@ export async function getLeagueTable(season: number, tier: number, group: number
 
 export async function getCupGrid(season: number, leagueId: string) {
   const { firestore: db } = initializeFirebase();
-  const snap = await getDoc(doc(db, 'cup_pyramid', `season_${season}_league_${leagueId}`));
+  const cupDocId = `season_${season}_league_${leagueId}`;
+  const snap = await getDoc(doc(db, 'cup_pyramid', cupDocId));
   return snap.exists() ? snap.data() : null;
 }

@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v50.
- * Использует атомарный инициализатор сезона.
+ * @fileOverview Автономный менеджер синхронизации v52.
+ * Использует атомарный инициализатор сезона (Таблица + Календарь + Кубок).
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, getDoc, collection, query, where } from 'firebase/firestore';
-import { getGlobalSeasonInfo, getMoscowDateString } from '@/app/lib/time-utils';
+import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { initializeSeasonGroup, initializePyramidCup } from '@/app/actions/season-init';
 
 export function AutoMatchManager() {
@@ -41,20 +41,26 @@ export function AutoMatchManager() {
         const info = getGlobalSeasonInfo();
         const currentSN = info.seasonNumber;
         
+        // ID таблицы по новому стандарту
         const tableId = `season_${currentSN}_tier_${leagueLevel}_group_${groupId}_league_${selectedLeagueId}`;
         const tableRef = doc(db, 'league_tables', tableId);
         
         const tableSnap = await getDoc(tableRef);
         if (!tableSnap.exists()) {
-          console.log(`[ATOMIC SYNC] Initializing Season ${currentSN} for group ${groupId}`);
+          console.log(`[ATOMIC SYNC v2] Initializing Season ${currentSN} for league ${selectedLeagueId} Group ${groupId}`);
           
           const players = groupPlayers.map(p => ({
             id: p.id,
             name: p.displayName || `Manager_${p.id.slice(0,4)}`
           }));
 
+          // 1. Создаем таблицу и 14 туров
           await initializeSeasonGroup(currentSN, Number(leagueLevel), Number(groupId), selectedLeagueId, players);
+          
+          // 2. Создаем сетку кубка для всей лиги
           await initializePyramidCup(currentSN, selectedLeagueId);
+          
+          console.log("[ATOMIC SYNC] Season data established successfully.");
         }
 
       } catch (e: any) {
@@ -64,7 +70,7 @@ export function AutoMatchManager() {
       }
     };
 
-    const interval = setInterval(heartbeat, 30000);
+    const interval = setInterval(heartbeat, 60000);
     heartbeat();
     return () => clearInterval(interval);
   }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, groupPlayers, db, isUserLoading, user?.uid]);

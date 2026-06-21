@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v40. 
- * Переведена на систему /league_tables.
+ * @fileOverview Страница рейтингов v45. 
+ * Читает данные напрямую из документа /league_tables.
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
@@ -21,7 +21,7 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'pyramid_cup' | 'champions_league';
+type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'pyramid_cup';
 
 export default function RankingsPage() {
   const { user, isUserLoading } = useUser();
@@ -41,24 +41,27 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel);
   const contextGroup = Number(navGroup || groupId);
 
-  // Таблица Лиги
+  // Прямое чтение документа таблицы
   const tableId = `season_${activeSeasonNumber}_tier_${contextLevel}_group_${contextGroup}_league_${contextLeagueId}`;
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
-  // Кубок
-  const cupId = `season_${activeSeasonNumber}_league_${contextLeagueId}`;
-  const cupRef = useMemoFirebase(() => doc(db, 'cup_pyramid', cupId), [db, cupId]);
-  const { data: cupData, isLoading: isCupLoading } = useDoc(cupRef);
-
   const standings = useMemo(() => {
     if (!tableData || !tableData.stats) return [];
     
-    return tableData.teamData.map((t: any) => ({
-      id: t.id,
-      name: t.name,
-      ...tableData.stats[t.id]
-    })).sort((a: any, b: any) => b.points - a.points || b.diff - a.diff || a.name.localeCompare(b.name));
+    // Формируем список из teamData + актуальные статы
+    return tableData.teamData.map((t: any) => {
+      const s = tableData.stats[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
+      return {
+        id: t.id,
+        name: t.name,
+        points: s.points,
+        wins: s.wins,
+        draws: s.draws,
+        losses: s.losses,
+        diff: s.diff
+      };
+    }).sort((a: any, b: any) => b.points - a.points || b.diff - a.diff || a.name.localeCompare(b.name));
   }, [tableData]);
 
   const t = {
@@ -67,7 +70,6 @@ export default function RankingsPage() {
       pts: "PTS", winLoss: "W-D-L", back: "Back",
       menu: [
         { id: 'my_league', label: 'My Current Table', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
-        { id: 'champions_league', label: 'Champions League', desc: 'Elite Inter-Server Blitz', icon: Crown, color: 'text-yellow-500' },
         { id: 'my_pyramid', label: 'My Pyramid', desc: `Explore ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
         { id: 'all_pyramids', label: 'Global Structure', desc: 'Browse all 16 leagues', icon: Globe, color: 'text-blue-400' },
         { id: 'pyramid_cup', label: 'Pyramid Cup', desc: 'Knockout Stage', icon: Medal, color: 'text-yellow-500' },
@@ -78,7 +80,6 @@ export default function RankingsPage() {
       pts: "ОЧК", winLoss: "В-Н-П", back: "Назад",
       menu: [
         { id: 'my_league', label: 'Своя таблица', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
-        { id: 'champions_league', label: 'Лига Чемпионов', desc: 'Элитный межсерверный блиц', icon: Crown, color: 'text-yellow-500' },
         { id: 'my_pyramid', label: 'Своя пирамида', desc: `Изучить лигу ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
         { id: 'all_pyramids', label: 'Глобальная структура', desc: 'Все 16 лиг мира', icon: Globe, color: 'text-blue-400' },
         { id: 'pyramid_cup', label: 'Кубок пирамиды', desc: 'Сетка плей-офф', icon: Medal, color: 'text-yellow-500' },
@@ -104,7 +105,7 @@ export default function RankingsPage() {
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
             {activeTab === 'menu' ? t.title : (activeTab === 'pyramid_cup' ? "PYRAMID CUP" : t.menu.find(m => m.id === activeTab)?.label)}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{contextLeagueId}</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{contextLeagueId} DIV {contextLevel}</p>
         </div>
       </header>
 
@@ -151,36 +152,10 @@ export default function RankingsPage() {
              )) : (
                <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10 mt-4">
                  <AlertCircle className="w-12 h-12 mx-auto mb-4" />
-                 <p className="text-[10px] font-black uppercase">Table Not Initialized</p>
+                 <p className="text-[10px] font-black uppercase">Table Not Ready</p>
                </div>
              )}
            </div>
-        </div>
-      )}
-
-      {activeTab === 'pyramid_cup' && (
-        <div className="space-y-4 animate-in fade-in">
-           {isCupLoading ? (
-             <div className="py-20 text-center opacity-30"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>
-           ) : cupData?.rounds?.r1 ? (
-             <div className="space-y-2">
-               <h3 className="text-xs font-black uppercase tracking-widest text-accent mb-4">Round 1 (1/16 Final)</h3>
-               {cupData.rounds.r1.map((m: any, idx: number) => (
-                 <Card key={idx} className="glass-card border-white/5">
-                   <CardContent className="p-3 flex items-center justify-between text-[10px] font-bold uppercase">
-                     <span className={cn("flex-1 text-right truncate", m.home.id === user?.uid && "text-primary")}>{m.home.name}</span>
-                     <div className="px-3 py-1 bg-background/50 rounded mx-4 text-accent">VS</div>
-                     <span className={cn("flex-1 text-left truncate", m.away.id === user?.uid && "text-primary")}>{m.away.name}</span>
-                   </CardContent>
-                 </Card>
-               ))}
-             </div>
-           ) : (
-             <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10">
-               <Trophy className="w-12 h-12 mx-auto mb-4" />
-               <p className="text-[10px] font-black uppercase">Cup Grid Generating...</p>
-             </div>
-           )}
         </div>
       )}
 
@@ -210,6 +185,12 @@ export default function RankingsPage() {
             <Button key={g} variant="outline" className="h-10 border-white/5 bg-secondary/20 font-bold" onClick={() => setNavGroup(g)}>{g}</Button>
           ))}
         </div>
+      )}
+
+      {activeTab === 'pyramid_cup' && (
+         <div className="py-20 text-center animate-in fade-in duration-500">
+           <Link href="/tournaments/cup"><Button className="hero-gradient font-black text-xs uppercase px-10">OPEN CUP TERMINAL</Button></Link>
+         </div>
       )}
     </div>
   );
