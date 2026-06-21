@@ -1,8 +1,9 @@
+
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v63. 
- * Читает из /league_tables_v1. Добавлена надежная обработка пустого состояния.
+ * @fileOverview Страница рейтингов v65. 
+ * Оптимизирована для работы с teamData для исключения пустых строк.
  */
 
 import { useState, useMemo } from 'react';
