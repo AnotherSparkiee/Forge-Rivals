@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview Терминал Кубка v16. 
- * Прямое чтение из /cup_pyramid. Добавлена версия v32.
+ * Прямое чтение из /cup_pyramid_v1. Добавлена версия v35.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -28,9 +28,9 @@ export default function PyramidCupPage() {
   
   const [activeRound, setActiveRound] = useState('r1');
 
-  // Читаем сетку из единого документа
+  // Читаем сетку из единого документа v1
   const cupDocId = `season_${activeSeasonNumber}_league_${selectedLeagueId}`;
-  const cupRef = useMemoFirebase(() => selectedLeagueId ? doc(db, 'cup_pyramid', cupDocId) : null, [db, cupDocId, selectedLeagueId]);
+  const cupRef = useMemoFirebase(() => selectedLeagueId ? doc(db, 'cup_pyramid_v1', cupDocId) : null, [db, cupDocId, selectedLeagueId]);
   const { data: cupData, isLoading: isCupLoading } = useDoc(cupRef);
 
   useEffect(() => {

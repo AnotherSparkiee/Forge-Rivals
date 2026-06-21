@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview Страница рейтингов v48. 
- * Прямое чтение из /league_tables с поддержкой атомарной структуры.
+ * Прямое чтение из /league_tables_v1 с поддержкой атомарной структуры.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -42,8 +42,9 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel);
   const contextGroup = Number(navGroup || groupId);
 
+  // Используем унифицированную коллекцию v1
   const tableId = `season_${activeSeasonNumber}_tier_${contextLevel}_group_${contextGroup}_league_${contextLeagueId}`;
-  const tableRef = useMemoFirebase(() => doc(db, 'league_tables', tableId), [db, tableId]);
+  const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
   const standings = useMemo(() => {

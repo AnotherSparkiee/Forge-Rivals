@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview Автономный менеджер синхронизации v56.
- * Исправлено: фильтрация на клиенте для обхода требований к индексам Firestore.
+ * Исправлено: использование коллекции v1 и атомарная инициализация v35.
  */
 
 import { useEffect, useRef } from 'react';
@@ -40,12 +40,14 @@ export function AutoMatchManager() {
         const info = getGlobalSeasonInfo();
         const currentSN = info.seasonNumber;
         
-        // ID таблицы по новому стандарту
+        // ID таблицы в унифицированной коллекции v1
         const tableId = `season_${currentSN}_tier_${leagueLevel}_group_${groupId}_league_${selectedLeagueId}`;
-        const tableRef = doc(db, 'league_tables', tableId);
+        const tableRef = doc(db, 'league_tables_v1', tableId);
         
         const tableSnap = await getDoc(tableRef);
-        if (!tableSnap.exists()) {
+        const needsInit = !tableSnap.exists() || (tableSnap.data()?.version || 0) < 35;
+
+        if (needsInit) {
           console.log(`[ATOMIC SYNC v3.5] Initializing Season ${currentSN} for league ${selectedLeagueId} Group ${groupId}`);
           
           // Фильтруем игроков этой конкретной группы на клиенте

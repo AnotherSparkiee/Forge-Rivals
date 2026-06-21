@@ -37,7 +37,7 @@ export async function initializeSeasonGroup(
   const batch = writeBatch(db);
   
   const tableId = `season_${season}_tier_${tier}_group_${group}_league_${leagueId}`;
-  const tableRef = doc(db, 'league_tables', tableId);
+  const tableRef = doc(db, 'league_tables_v1', tableId);
   
   // 1. Подготовка 8 команд (игроки + боты)
   const teams = [...realPlayers];
@@ -74,7 +74,7 @@ export async function initializeSeasonGroup(
     teamData: teams.map(t => ({ id: t.id, name: t.name, isBot: !!t.isBot })),
     stats,
     updatedAt: serverTimestamp(),
-    version: 32
+    version: 35
   });
 
   // 3. Генерация 14 туров (Round-robin 2 круга)
@@ -91,7 +91,7 @@ export async function initializeSeasonGroup(
     roundMatches.forEach((m, mIdx) => {
       const matchTime = new Date(startMs + (tour - 1) * 24 * 60 * 60 * 1000 + hh * 3600000 + mm * 60000);
       const matchId = `m_${tableId}_t${tour}_idx${mIdx}`;
-      const matchRef = doc(db, 'matches', matchId);
+      const matchRef = doc(db, 'matches_v1', matchId);
       
       const homeTeam = teams.find(t => t.id === m.home);
       const awayTeam = teams.find(t => t.id === m.away);
@@ -113,7 +113,7 @@ export async function initializeSeasonGroup(
         status: "scheduled",
         isFinished: false,
         createdAt: serverTimestamp(),
-        version: 32
+        version: 35
       });
     });
   });
@@ -128,10 +128,10 @@ export async function initializeSeasonGroup(
 export async function initializePyramidCup(season: number, leagueId: string) {
   const { firestore: db } = initializeFirebase();
   const cupDocId = `season_${season}_league_${leagueId}`;
-  const cupRef = doc(db, 'cup_pyramid', cupDocId);
+  const cupRef = doc(db, 'cup_pyramid_v1', cupDocId);
   
   const cupSnap = await getDoc(cupRef);
-  if (cupSnap.exists()) return { success: true, alreadyExists: true };
+  if (cupSnap.exists() && cupSnap.data().version === 35) return { success: true, alreadyExists: true };
 
   // Собираем всех реальных игроков лиги
   const playersSnap = await getDocs(query(collection(db, 'players_v10'), where('selectedLeagueId', '==', leagueId)));
@@ -186,7 +186,7 @@ export async function initializePyramidCup(season: number, leagueId: string) {
     },
     status: 'active',
     createdAt: serverTimestamp(),
-    version: 32
+    version: 35
   });
 
   return { success: true };
