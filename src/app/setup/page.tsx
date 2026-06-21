@@ -15,6 +15,7 @@ import { useGameState } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { findStrategicPlacement, ensureWorldInitialized } from '@/app/actions/season-init';
 
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
@@ -41,6 +42,9 @@ export default function SetupPage() {
     if (!user || !selectedLeagueId || !selectedCountryCode || !profile) return;
     setIsUpdating(true);
     try {
+      // 1. Находим стратегическое место в лиге (заменяем ботов)
+      const placement = await findStrategicPlacement(selectedLeagueId);
+      
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       const uniqueSquad = getRandomStartingSquad();
       const { seasonNumber } = getGlobalSeasonInfo();
@@ -48,8 +52,8 @@ export default function SetupPage() {
       
       const pointerData = {
         selectedLeagueId,
-        leagueLevel: 9,
-        groupId: 1,
+        leagueLevel: placement.tier,
+        groupId: placement.group,
         country: selectedCountry?.name || 'International',
         setupDate: nowIso
       };
@@ -57,8 +61,8 @@ export default function SetupPage() {
       const teamData = {
         id: user.uid,
         displayName: profile.displayName || "Manager",
-        credits: 1000000, // Starting budget
-        crystals: 50,    // Starting crystals
+        credits: 1000000, 
+        crystals: 50,    
         experiencePoints: 0,
         managerLevel: 1,
         managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
@@ -78,25 +82,23 @@ export default function SetupPage() {
       const batch = writeBatch(db);
       const rootRef = doc(db, 'players_v10', user.uid);
       
-      // Update root profile pointers
       batch.update(rootRef, pointerData);
 
-      // Construct identical 8-segment path used in store.tsx
       const seasonId = `season_${seasonNumber || 1}`;
-      const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_1`;
-      
-      // leagues_v2 -> {leagueId} -> divisions -> 9 -> groups -> {prefixedGroupId} -> teams -> {userId}
-      const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', '9', 'groups', prefixedGroupId, 'teams', user.uid);
+      const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${placement.group}`;
+      const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(placement.tier), 'groups', prefixedGroupId, 'teams', user.uid);
       
       batch.set(teamRef, teamData, { merge: true });
 
-      // Initialize starting heroes as subcollection
       uniqueSquad.forEach(hero => {
         const heroRef = doc(collection(teamRef, 'heroes'), hero.id);
         batch.set(heroRef, JSON.parse(JSON.stringify(hero)), { merge: true });
       });
 
       await batch.commit();
+
+      // 2. Инициализируем или обновляем мир для этой группы (заменяем бота в таблице/матчах)
+      await ensureWorldInitialized(Number(seasonNumber || 1), selectedLeagueId, placement.tier, placement.group, user.uid);
 
       toast({ title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!" });
       router.replace('/');

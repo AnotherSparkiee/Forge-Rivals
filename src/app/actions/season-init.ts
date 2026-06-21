@@ -1,13 +1,13 @@
 'use server';
 
 /**
- * @fileOverview Атомарный инициализатор игрового мира v5.0.
- * Формирует таблицы, календарь и кубок на стороне сервера.
+ * @fileOverview Атомарный инициализатор игрового мира v6.0.
+ * Реализует логику стратегического распределения игроков и замены ботов.
  */
 
 import { 
   collection, doc, getDocs, writeBatch, query, where, 
-  getDoc, serverTimestamp, setDoc
+  getDoc, serverTimestamp, setDoc, Timestamp
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -24,7 +24,43 @@ interface TeamStats {
 }
 
 /**
- * ГЛАВНЫЙ ВХОД: Проверяет и инициализирует группу и кубок.
+ * Находит оптимальное место в иерархии лиги.
+ * Приоритет: высшие дивизионы (от 1 до 9), где есть места (занятые ботами).
+ */
+export async function findStrategicPlacement(leagueId: string) {
+  const { firestore: db } = initializeFirebase();
+  
+  // Проходим по дивизионам от 1 до 9
+  for (let tier = 1; tier <= 9; tier++) {
+    const groupsInTier = Math.pow(2, tier - 1);
+    
+    // Собираем всех реальных игроков в этом дивизионе этой лиги
+    const playersSnap = await getDocs(query(
+      collection(db, 'players_v10'),
+      where('selectedLeagueId', '==', leagueId),
+      where('leagueLevel', '==', tier)
+    ));
+
+    const groupCounts: Record<number, number> = {};
+    playersSnap.docs.forEach(d => {
+      const g = d.data().groupId || 1;
+      groupCounts[g] = (groupCounts[g] || 0) + 1;
+    });
+
+    // Ищем первую группу в дивизионе, где меньше 8 человек
+    for (let g = 1; g <= groupsInTier; g++) {
+      if ((groupCounts[g] || 0) < 8) {
+        return { tier, group: g };
+      }
+    }
+  }
+
+  return { tier: 9, group: 1 }; // Fallback
+}
+
+/**
+ * ГЛАВНЫЙ ВХОД: Проверяет и инициализирует группу.
+ * Если группа уже существует, проверяет, нужно ли заменить бота на текущего игрока.
  */
 export async function ensureWorldInitialized(
   season: number, 
@@ -39,7 +75,54 @@ export async function ensureWorldInitialized(
   const tableRef = doc(db, 'league_tables_v1', tableId);
   
   const tableSnap = await getDoc(tableRef);
+  const meSnap = await getDoc(doc(db, 'players_v10', userId));
+  const myName = meSnap.exists() ? (meSnap.data().displayName || `Manager_${userId.slice(0, 4)}`) : `Manager_${userId.slice(0, 4)}`;
+
   if (tableSnap.exists() && tableSnap.data().version === 35) {
+    const data = tableSnap.data();
+    
+    // Если игрока еще нет в таблице этой группы (но он туда назначен), заменяем одного бота
+    if (!data.teams.includes(userId)) {
+      console.log(`[WORLD GEN] Swapping bot for real player ${userId} in existing table ${tableId}...`);
+      const botIdx = data.teamData.findIndex((t: any) => t.isBot === true);
+      
+      if (botIdx !== -1) {
+        const batch = writeBatch(db);
+        const oldBotId = data.teamData[botIdx].id;
+        
+        const newTeams = [...data.teams];
+        newTeams[newTeams.indexOf(oldBotId)] = userId;
+        
+        const newTeamData = [...data.teamData];
+        newTeamData[botIdx] = { id: userId, name: myName, isBot: false };
+        
+        const newStats = { ...data.stats };
+        newStats[userId] = newStats[oldBotId] || { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0, goalsScored: 0, goalsConceded: 0 };
+        delete newStats[oldBotId];
+
+        batch.update(tableRef, {
+          teams: newTeams,
+          teamData: newTeamData,
+          stats: newStats,
+          updatedAt: serverTimestamp()
+        });
+
+        // Обновляем все матчи, где участвовал этот бот
+        const matchesSnap = await getDocs(query(collection(db, 'matches_v1'), where('tableId', '==', tableId)));
+        matchesSnap.docs.forEach(mDoc => {
+          const mData = mDoc.data();
+          const update: any = {};
+          if (mData.homeId === oldBotId) { update.homeId = userId; update.homeName = myName; }
+          if (mData.awayId === oldBotId) { update.awayId = userId; update.awayName = myName; }
+          if (Object.keys(update).length > 0) {
+            batch.update(mDoc.ref, update);
+          }
+        });
+
+        await batch.commit();
+        return { success: true, swapped: true };
+      }
+    }
     return { success: true, alreadyInitialized: true };
   }
 
@@ -61,14 +144,7 @@ export async function ensureWorldInitialized(
 
   // Гарантируем наличие текущего игрока
   if (!realPlayers.some(p => p.id === userId)) {
-    const meSnap = await getDoc(doc(db, 'players_v10', userId));
-    if (meSnap.exists()) {
-      realPlayers.push({
-        id: userId,
-        name: meSnap.data().displayName || `Manager_${userId.slice(0, 4)}`,
-        isBot: false
-      });
-    }
+    realPlayers.push({ id: userId, name: myName, isBot: false });
   }
 
   // 2. Инициализируем группу (Таблица + Календарь)
