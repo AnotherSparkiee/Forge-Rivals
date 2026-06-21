@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v40.9 (Atomic World Initialization).
- * Блокирует прелоадер до полной готовности Лиги и Кубка.
+ * @fileOverview Ядро MMO-синхронизации v40.10 (Atomic World Initialization).
+ * Гарантирует наличие игрового мира до завершения прелоадера.
  */
 
 import { useEffect, useRef } from 'react';
@@ -22,7 +22,7 @@ export function AutoMatchManager() {
   const syncInProgressRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Ждем базовой загрузки профиля и выбора лиги
+    // Ждем загрузки профиля и выбора лиги
     if (isUserLoading || !user?.uid || !isLoaded || !selectedLeagueId || !displayName) return;
 
     const syncSharedWorld = async () => {
@@ -37,18 +37,14 @@ export function AutoMatchManager() {
       if (syncInProgressRef.current === tableId) return;
       syncInProgressRef.current = tableId;
 
-      console.log(`[WORLD-SYNC v40.9] Starting synchronization for ${tableId}...`);
+      console.log(`[WORLD-SYNC v40.10] Syncing ${tableId} for ${displayName}...`);
       
       try {
         const tableRef = doc(db, 'league_tables_v1', tableId);
         let tableSnap = await getDoc(tableRef);
         const myName = String(displayName);
 
-        // 1. Инициализация абсолютно новой группы
-        if (!tableSnap.exists()) {
-          console.log(`[WORLD-SYNC] Creating new group ${tableId}...`);
-          const batch = writeBatch(db);
-
+        const createNewGroup = async (batch: any) => {
           const teams = [{ id: userId, name: myName, isBot: false }];
           for (let i = 1; i <= 7; i++) {
             const botNum = (tier * 1000) + (grp * 10) + i;
@@ -61,7 +57,7 @@ export function AutoMatchManager() {
             stats[t.id] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
           });
 
-          // Создаем таблицу
+          // 1. Создаем таблицу
           batch.set(tableRef, {
             id: tableId, season: sNum, leagueId: lId, tier, group: grp,
             teams: teams.map(t => t.id),
@@ -71,7 +67,7 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           });
 
-          // Инициализируем Кубок для этой лиги (на 32 команды = 1/16 финала)
+          // 2. Инициализируем Кубок для этой лиги
           const cupId = `cup_s${sNum}_l${lId}`;
           const cupRef = doc(db, 'cup_pyramid_v1', cupId);
           const cupSnap = await getDoc(cupRef);
@@ -79,11 +75,9 @@ export function AutoMatchManager() {
           if (!cupSnap.exists()) {
             const r1 = [];
             for (let i = 0; i < 32; i += 2) {
-              const b1 = 5000 + i;
-              const b2 = 5001 + i;
               r1.push({
-                home: { id: `bot${b1}`, name: `bot${b1}` },
-                away: { id: `bot${b2}`, name: `bot${b2}` },
+                home: { id: `bot${5000+i}`, name: `bot${5000+i}` },
+                away: { id: `bot${5001+i}`, name: `bot${5001+i}` },
                 scoreA: null, scoreB: null
               });
             }
@@ -95,7 +89,7 @@ export function AutoMatchManager() {
             });
           }
 
-          // Генерируем Календарь (14 туров)
+          // 3. Генерируем Календарь (14 туров)
           const leagueInfo = LEAGUES.find(l => l.id === lId) || LEAGUES[0];
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
           const seasonStartMs = new Date('2026-06-21T21:00:00Z').getTime() + (sNum - 1) * 15 * 24 * 3600000;
@@ -111,7 +105,6 @@ export function AutoMatchManager() {
               if (r % 2 === 1) [hIdx, aIdx] = [aIdx, hIdx];
               const hId = tempIds[hIdx];
               const aId = tempIds[aIdx];
-
               const day1 = r + 1;
               const day2 = r + 1 + rounds;
 
@@ -132,70 +125,50 @@ export function AutoMatchManager() {
             const last = tempIds.pop()!;
             tempIds.splice(1, 0, last);
           }
-          
+        };
+
+        if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < 40) {
+          const batch = writeBatch(db);
+          await createNewGroup(batch);
           await batch.commit();
-          console.log(`[WORLD-SYNC] Group ${tableId} successfully initialized.`);
-          
-          // ВЕРИФИКАЦИЯ: Ждем до секунды, чтобыFirestore подтвердил запись
-          let retry = 0;
-          while (retry < 5) {
-            const verifySnap = await getDoc(tableRef);
-            if (verifySnap.exists() && verifySnap.data()?.teamData?.length > 0) break;
-            await new Promise(r => setTimeout(r, 500));
-            retry++;
-          }
-        } 
-        
-        // 2. MMO-Замена бота в существующей группе
-        else {
+        } else {
+          // Замена бота если документ уже есть
           const tableData = tableSnap.data();
-          if (tableData && tableData.version === 40) {
-            if (!tableData.teams.includes(userId)) {
-              console.log(`[WORLD-SYNC] Slot acquisition: swapping bot for user ${userId}...`);
-              const teamData = [...(tableData.teamData || [])];
-              const botIdx = teamData.findIndex((t: any) => t.isBot || t.id.startsWith('bot'));
+          if (tableData && !tableData.teams.includes(userId)) {
+            const teamData = [...(tableData.teamData || [])];
+            const botIdx = teamData.findIndex((t: any) => t.isBot || t.id.startsWith('bot'));
+            
+            if (botIdx !== -1) {
+              const botIdToRemove = teamData[botIdx].id;
+              teamData[botIdx] = { id: userId, name: myName, isBot: false };
               
-              if (botIdx !== -1) {
-                const botIdToRemove = teamData[botIdx].id;
-                teamData[botIdx] = { id: userId, name: myName, isBot: false };
-                
-                const newTeams = teamData.map((t: any) => t.id);
-                const newStats = { ...(tableData.stats || {}) };
-                delete newStats[botIdToRemove];
-                newStats[userId] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
+              const newTeams = teamData.map((t: any) => t.id);
+              const newStats = { ...(tableData.stats || {}) };
+              delete newStats[botIdToRemove];
+              newStats[userId] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
 
-                await updateDoc(tableRef, {
-                  teams: newTeams, teamData: teamData, stats: newStats, updatedAt: serverTimestamp()
-                });
+              await updateDoc(tableRef, {
+                teams: newTeams, teamData: teamData, stats: newStats, updatedAt: serverTimestamp()
+              });
 
-                // Обновляем матчи Лиги
-                const matchesQuery = query(
-                  collection(db, 'matches_v1'),
-                  where('tableId', '==', tableId),
-                  where('version', '==', 40)
-                );
-                const matchesSnap = await getDocs(matchesQuery);
-                const matchBatch = writeBatch(db);
-
-                matchesSnap.docs.forEach(mDoc => {
-                  const m = mDoc.data();
-                  if (m.homeId === botIdToRemove) matchBatch.update(mDoc.ref, { homeId: userId, homeName: myName });
-                  if (m.awayId === botIdToRemove) matchBatch.update(mDoc.ref, { awayId: userId, awayName: myName });
-                });
-
-                await matchBatch.commit();
-                console.log(`[WORLD-SYNC] Bot-swap completed for ${userId}.`);
-              }
+              // Обновляем матчи в фоне
+              const matchesQuery = query(collection(db, 'matches_v1'), where('tableId', '==', tableId), where('version', '==', 40));
+              const matchesSnap = await getDocs(matchesQuery);
+              const matchBatch = writeBatch(db);
+              matchesSnap.docs.forEach(mDoc => {
+                const m = mDoc.data();
+                if (m.homeId === botIdToRemove) matchBatch.update(mDoc.ref, { homeId: userId, homeName: myName });
+                if (m.awayId === botIdToRemove) matchBatch.update(mDoc.ref, { awayId: userId, awayName: myName });
+              });
+              await matchBatch.commit();
             }
           }
         }
         
-        // Только теперь разрешаем приложению убрать прелоадер
         setWorldReady(true);
       } catch (e) {
         console.error("[WORLD-SYNC ERROR]", e);
-        // Fail-safe: пускаем в игру через таймаут
-        setTimeout(() => setWorldReady(true), 3000);
+        setTimeout(() => setWorldReady(true), 2000);
       }
     };
 

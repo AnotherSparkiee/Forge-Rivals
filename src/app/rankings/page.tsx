@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview Страница рейтингов v40.10.
- * Исправлено мерцание пустых таблиц и навигация.
+ * Исправлена ошибка AlertTriangle и мерцание пустых таблиц.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -164,7 +164,7 @@ export default function RankingsPage() {
                <span>#</span><span>Team</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
              </div>
              
-             {(isTableLoading && standings.length === 0) ? (
+             {isTableLoading && standings.length === 0 ? (
                <div className="py-20 text-center opacity-30"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>
              ) : standings.length > 0 ? standings.map((entry: any, i: number) => (
                <div key={entry.id} className={cn("grid grid-cols-[30px_1fr_80px_40px] items-center p-3 rounded-xl border mb-1", entry.id === user?.uid ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-secondary/20 border-white/5")}>
@@ -176,8 +176,8 @@ export default function RankingsPage() {
              )) : (
                <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10 mt-4">
                  <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
-                 <p className="text-[10px] font-black uppercase">Initializing League Data...</p>
-                 <p className="text-[8px] text-muted-foreground mt-2">Syncing tactical nodes</p>
+                 <p className="text-[10px] font-black uppercase">Syncing Arena...</p>
+                 <p className="text-[8px] text-muted-foreground mt-2">Initializing tactical coordinates</p>
                </div>
              )}
            </div>
