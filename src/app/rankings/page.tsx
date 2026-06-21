@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import Link from 'next/link';
 
 type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'pyramid_cup';
 
