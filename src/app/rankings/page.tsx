@@ -1,9 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v62. 
- * Читает из /league_tables_v1 с использованием мгновенного массива teamData.
- * Исправлены импорты и логика отображения при пустых данных.
+ * @fileOverview Страница рейтингов v63. 
+ * Читает из /league_tables_v1. Добавлена надежная обработка пустого состояния.
  */
 
 import { useState, useMemo } from 'react';
@@ -30,7 +29,7 @@ export default function RankingsPage() {
   const router = useRouter();
   const { 
     leagueLevel, groupId, isLoaded, language, 
-    selectedLeagueId, activeSeasonNumber, isDataReady
+    selectedLeagueId, activeSeasonNumber
   } = useGameState();
   const db = useFirestore();
   
@@ -43,7 +42,6 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel || 9);
   const contextGroup = Number(navGroup || groupId || 1);
 
-  // Генерируем ID только если данные из стора готовы или мы в режиме навигации
   const tableId = useMemo(() => {
     return `season_${activeSeasonNumber}_tier_${contextLevel}_group_${contextGroup}_league_${contextLeagueId}`;
   }, [activeSeasonNumber, contextLevel, contextGroup, contextLeagueId]);

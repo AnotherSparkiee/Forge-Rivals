@@ -21,8 +21,7 @@ service cloud.firestore {
 
     // Season System v1
     match /league_tables_v1/{tableId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read, write: if isSignedIn();
     }
 
     match /cup_pyramid_v1/{cupId} {
