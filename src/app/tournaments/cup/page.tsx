@@ -1,8 +1,9 @@
+
 'use client';
 
 /**
- * @fileOverview Терминал Кубка v40.6.
- * Прямое отображение сетки раундов без промежуточных экранов.
+ * @fileOverview Терминал Кубка v40.12.
+ * Прямое отображение сетки раундов 1/16 финала.
  */
 
 import { useState, useEffect } from 'react';
@@ -10,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { 
-  ChevronLeft, Trophy, Swords, Loader2, AlertTriangle, Medal
+  ChevronLeft, Trophy, Swords, Loader2, Medal
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -44,7 +45,7 @@ export default function PyramidCupPage() {
       round: "Round",
       final: "Final",
       waiting: "TBD",
-      noGrid: "Bracket Not Initialized",
+      noGrid: "Bracket Pending",
       noGridDesc: "Syncing data with league server...",
     },
     ru: {
@@ -53,7 +54,7 @@ export default function PyramidCupPage() {
       round: "Раунд",
       final: "Финал",
       waiting: "TBD",
-      noGrid: "Сетка не создана",
+      noGrid: "Сетка формируется",
       noGridDesc: "Синхронизация данных с сервером лиги...",
     }
   }[language as 'en' | 'ru'] || { title: "Cup" };
@@ -63,17 +64,19 @@ export default function PyramidCupPage() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
       <header className="mb-6 flex items-center gap-4">
-        <Link href="/tournaments">
-          <Button variant="ghost" size="icon" className="rounded-full border border-white/5">
+        <Link href="/">
+          <Button variant="ghost" size="icon" className="rounded-full border border-white/5 bg-secondary/50">
             <ChevronLeft className="w-6 h-6" />
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white flex items-center gap-2">
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white flex items-center gap-2 leading-none">
             <Trophy className="w-6 h-6 text-yellow-500" />
             {t.title}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{selectedLeagueId} SEASON {activeSeasonNumber}</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1">
+            {selectedLeagueId} SEASON {activeSeasonNumber}
+          </p>
         </div>
       </header>
 
@@ -104,7 +107,7 @@ export default function PyramidCupPage() {
             {matches.length > 0 ? matches.map((m: any, idx: number) => {
               const isMyMatch = m.home?.id === user.uid || m.away?.id === user.uid;
               return (
-                <Card key={idx} className={cn("glass-card border-white/5", isMyMatch && "border-primary/50 bg-primary/10")}>
+                <Card key={idx} className={cn("glass-card border-white/5 overflow-hidden", isMyMatch && "border-primary/50 bg-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.1)]")}>
                   <CardContent className="p-3">
                     <div className="grid grid-cols-[1fr_40px_1fr] items-center">
                       <div className="text-right truncate"><p className={cn("text-[10px] font-bold uppercase", m.home?.id === user.uid ? "text-primary" : "text-white")}>{m.home?.name || t.waiting}</p></div>
@@ -115,9 +118,9 @@ export default function PyramidCupPage() {
                 </Card>
               );
             }) : (
-              <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10">
-                <Medal className="w-12 h-12 mx-auto mb-4" />
-                <p className="text-[10px] uppercase font-black">Round records not found</p>
+              <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-3xl p-10 mt-4 flex flex-col items-center gap-4">
+                <Medal className="w-12 h-12" />
+                <p className="text-[10px] uppercase font-black tracking-widest">Awaiting Battle Sequence</p>
               </div>
             )}
           </div>
@@ -126,7 +129,7 @@ export default function PyramidCupPage() {
         <div className="py-20 text-center animate-in fade-in duration-700 flex flex-col items-center">
           <Medal className="w-12 h-12 text-orange-500 mb-4 opacity-50" />
           <h2 className="text-lg font-headline font-bold uppercase text-white mb-2">{t.noGrid}</h2>
-          <p className="text-[10px] text-muted-foreground uppercase px-10">{t.noGridDesc}</p>
+          <p className="text-[10px] text-muted-foreground uppercase px-10 italic">"{t.noGridDesc}"</p>
         </div>
       )}
     </div>

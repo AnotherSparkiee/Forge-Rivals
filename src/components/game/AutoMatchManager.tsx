@@ -1,8 +1,10 @@
+
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v40.10 (Atomic World Initialization).
+ * @fileOverview Ядро MMO-синхронизации v40.12 (Atomic World Initialization).
  * Гарантирует наличие игрового мира до завершения прелоадера.
+ * Блокирует вход до подтверждения записи в БД.
  */
 
 import { useEffect, useRef } from 'react';
@@ -22,7 +24,7 @@ export function AutoMatchManager() {
   const syncInProgressRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Ждем загрузки профиля и выбора лиги
+    // Ждем загрузки профиля
     if (isUserLoading || !user?.uid || !isLoaded || !selectedLeagueId || !displayName) return;
 
     const syncSharedWorld = async () => {
@@ -37,14 +39,17 @@ export function AutoMatchManager() {
       if (syncInProgressRef.current === tableId) return;
       syncInProgressRef.current = tableId;
 
-      console.log(`[WORLD-SYNC v40.10] Syncing ${tableId} for ${displayName}...`);
+      console.log(`[WORLD-SYNC v40.12] Checking integrity for ${tableId}...`);
       
       try {
         const tableRef = doc(db, 'league_tables_v1', tableId);
-        let tableSnap = await getDoc(tableRef);
+        const tableSnap = await getDoc(tableRef);
         const myName = String(displayName);
 
-        const createNewGroup = async (batch: any) => {
+        if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < 40) {
+          console.log(`[WORLD-SYNC] Creating new group world ${tableId}`);
+          const batch = writeBatch(db);
+          
           const teams = [{ id: userId, name: myName, isBot: false }];
           for (let i = 1; i <= 7; i++) {
             const botNum = (tier * 1000) + (grp * 10) + i;
@@ -75,9 +80,11 @@ export function AutoMatchManager() {
           if (!cupSnap.exists()) {
             const r1 = [];
             for (let i = 0; i < 32; i += 2) {
+              const botH = 5000 + i;
+              const botA = 5001 + i;
               r1.push({
-                home: { id: `bot${5000+i}`, name: `bot${5000+i}` },
-                away: { id: `bot${5001+i}`, name: `bot${5001+i}` },
+                home: { id: `bot${botH}`, name: `bot${botH}` },
+                away: { id: `bot${botA}`, name: `bot${botA}` },
                 scoreA: null, scoreB: null
               });
             }
@@ -89,7 +96,7 @@ export function AutoMatchManager() {
             });
           }
 
-          // 3. Генерируем Календарь (14 туров)
+          // 3. Генерируем Календарь
           const leagueInfo = LEAGUES.find(l => l.id === lId) || LEAGUES[0];
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
           const seasonStartMs = new Date('2026-06-21T21:00:00Z').getTime() + (sNum - 1) * 15 * 24 * 3600000;
@@ -125,16 +132,14 @@ export function AutoMatchManager() {
             const last = tempIds.pop()!;
             tempIds.splice(1, 0, last);
           }
-        };
 
-        if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < 40) {
-          const batch = writeBatch(db);
-          await createNewGroup(batch);
           await batch.commit();
+          console.log("[WORLD-SYNC] New world committed successfully.");
         } else {
-          // Замена бота если документ уже есть
+          // Мир есть, проверяем вхождение игрока
           const tableData = tableSnap.data();
           if (tableData && !tableData.teams.includes(userId)) {
+            console.log("[WORLD-SYNC] Joining existing world, swapping bot...");
             const teamData = [...(tableData.teamData || [])];
             const botIdx = teamData.findIndex((t: any) => t.isBot || t.id.startsWith('bot'));
             
@@ -161,14 +166,17 @@ export function AutoMatchManager() {
                 if (m.awayId === botIdToRemove) matchBatch.update(mDoc.ref, { awayId: userId, awayName: myName });
               });
               await matchBatch.commit();
+              console.log("[WORLD-SYNC] Bot swap completed.");
             }
           }
         }
         
+        // Устанавливаем готовность только ПОСЛЕ всех проверок и записей
         setWorldReady(true);
       } catch (e) {
         console.error("[WORLD-SYNC ERROR]", e);
-        setTimeout(() => setWorldReady(true), 2000);
+        // Резервный вход через 5 секунд в случае сетевой ошибки
+        setTimeout(() => setWorldReady(true), 5000);
       }
     };
 

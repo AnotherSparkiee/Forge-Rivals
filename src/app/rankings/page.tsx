@@ -1,8 +1,10 @@
+
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v40.10.
- * Исправлена ошибка AlertTriangle и мерцание пустых таблиц.
+ * @fileOverview Страница рейтингов v40.12.
+ * Исправлена кнопка Назад и мерцание.
+ * У вкладок "Своя таблица" и "Глобальная структура" теперь независимая логика.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -34,12 +36,12 @@ export default function RankingsPage() {
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
   
-  // Browsing state
+  // Browsing state (только для вкладок "Все пирамиды")
   const [navLeague, setNavLeague] = useState<string | null>(null);
   const [navLevel, setNavLevel] = useState<number | null>(null);
   const [navGroup, setNavGroup] = useState<number | null>(null);
 
-  // Context logic
+  // Определение контекста таблицы
   const isMyLeagueTab = activeTab === 'my_league';
   const contextLeagueId = isMyLeagueTab ? (selectedLeagueId || "ALPHA") : (navLeague || selectedLeagueId || "ALPHA");
   const contextLevel = isMyLeagueTab ? Number(leagueLevel || 9) : Number(navLevel || leagueLevel || 9);
@@ -108,14 +110,23 @@ export default function RankingsPage() {
       router.push('/');
       return;
     }
-    if (activeTab === 'my_league' || activeTab === 'pyramid_cup' || (activeTab === 'my_pyramid' && !navLevel) || (activeTab === 'all_pyramids' && !navLeague)) {
+
+    // Если мы во вкладке "Своя таблица" или "Кубок" - сразу в меню
+    if (activeTab === 'my_league' || activeTab === 'pyramid_cup') {
       setActiveTab('menu');
       return;
     }
 
-    if (navGroup) setNavGroup(null);
-    else if (navLevel) setNavLevel(null);
-    else if (navLeague) setNavLeague(null);
+    // Логика возврата по слоям для "Все пирамиды" и "Моя пирамида"
+    if (navGroup) {
+      setNavGroup(null);
+    } else if (navLevel) {
+      setNavLevel(null);
+    } else if (navLeague) {
+      setNavLeague(null);
+    } else {
+      setActiveTab('menu');
+    }
   };
 
   if (isUserLoading || !isLoaded || !user || !isDataReady) return <LoadingScreen />;
@@ -130,8 +141,8 @@ export default function RankingsPage() {
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
             {activeTab === 'menu' ? t.title : t.menu.find(m => m.id === activeTab)?.label}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">
-            {contextLeagueId} {navLevel ? `DIV ${navLevel}` : (isMyLeagueTab ? `DIV ${leagueLevel}` : '')}
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest leading-none mt-1">
+            {activeTab === 'menu' ? t.subtitle : `${contextLeagueId} • DIV ${contextLevel}`}
           </p>
         </div>
       </header>
@@ -153,7 +164,7 @@ export default function RankingsPage() {
       )}
 
       {(activeTab === 'my_league' || navGroup) && (
-        <div className="space-y-4 animate-in fade-in">
+        <div className="space-y-4 animate-in fade-in duration-500">
            <div className="flex items-center justify-between px-1">
              <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase">GROUP {contextGroup}</Badge>
              <span className="text-[10px] font-mono text-muted-foreground">SEASON {activeSeasonNumber}</span>
@@ -165,19 +176,19 @@ export default function RankingsPage() {
              </div>
              
              {isTableLoading && standings.length === 0 ? (
-               <div className="py-20 text-center opacity-30"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>
+               <div className="py-20 text-center opacity-30"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
              ) : standings.length > 0 ? standings.map((entry: any, i: number) => (
-               <div key={entry.id} className={cn("grid grid-cols-[30px_1fr_80px_40px] items-center p-3 rounded-xl border mb-1", entry.id === user?.uid ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-secondary/20 border-white/5")}>
+               <div key={entry.id} className={cn("grid grid-cols-[30px_1fr_80px_40px] items-center p-3 rounded-xl border mb-1 transition-all", entry.id === user?.uid ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-secondary/20 border-white/5")}>
                  <div className="text-xs font-black italic text-muted-foreground">{i + 1}</div>
                  <div className="truncate"><span className={cn("text-[11px] font-bold uppercase text-white", entry.id === user?.uid && "text-primary")}>{entry.name}</span></div>
                  <div className="text-center font-mono text-[10px] text-muted-foreground">{entry.wins}-{entry.draws}-{entry.losses}</div>
                  <div className="text-right font-headline font-black text-primary italic">{entry.points}</div>
                </div>
              )) : (
-               <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10 mt-4">
-                 <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
-                 <p className="text-[10px] font-black uppercase">Syncing Arena...</p>
-                 <p className="text-[8px] text-muted-foreground mt-2">Initializing tactical coordinates</p>
+               <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10 mt-4 flex flex-col items-center">
+                 <AlertTriangle className="w-12 h-12 mb-4" />
+                 <p className="text-[10px] font-black uppercase">World Sync Pending</p>
+                 <p className="text-[8px] text-muted-foreground mt-2">Checking match coordinates...</p>
                </div>
              )}
            </div>
@@ -185,21 +196,21 @@ export default function RankingsPage() {
       )}
 
       {activeTab === 'pyramid_cup' && (
-        <div className="space-y-6 animate-in fade-in">
+        <div className="space-y-6 animate-in fade-in duration-500">
            {isCupLoading ? (
              <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
            ) : cupData ? (
              <>
-               <div className="flex gap-1 overflow-x-auto scrollbar-hide pb-2">
+               <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4">
                  {['r1', 'r2', 'r3', 'r4', 'r5'].map((r, i) => (
-                   <Button key={r} variant={activeRound === r ? "default" : "outline"} size="sm" onClick={() => setActiveRound(r)} className={cn("h-8 px-4 rounded-lg font-black text-[8px] uppercase", activeRound === r ? "hero-gradient border-none" : "bg-secondary/20 border-white/5")}>
+                   <Button key={r} variant={activeRound === r ? "default" : "outline"} size="sm" onClick={() => setActiveRound(r)} className={cn("h-10 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap", activeRound === r ? "hero-gradient border-none" : "bg-secondary/20 border-white/5")}>
                      {i === 4 ? t.final : `${t.round} ${i + 1}`}
                    </Button>
                  ))}
                </div>
                <div className="space-y-2">
-                 {(cupData.rounds?.[activeRound] || []).map((m: any, idx: number) => (
-                   <Card key={idx} className="glass-card border-white/5">
+                 {(cupData.rounds?.[activeRound] || []).length > 0 ? (cupData.rounds?.[activeRound] || []).map((m: any, idx: number) => (
+                   <Card key={idx} className={cn("glass-card border-white/5", (m.home?.id === user.uid || m.away?.id === user.uid) && "border-primary/50 bg-primary/10")}>
                      <CardContent className="p-3">
                        <div className="grid grid-cols-[1fr_40px_1fr] items-center text-[10px] font-bold uppercase">
                          <div className="text-right truncate"><span className={m.home?.id === user.uid ? "text-primary" : "text-white"}>{m.home?.name || t.waiting}</span></div>
@@ -208,42 +219,53 @@ export default function RankingsPage() {
                        </div>
                      </CardContent>
                    </Card>
-                 ))}
+                 )) : <div className="py-20 text-center opacity-30 text-[10px] font-black uppercase">Awaiting round start...</div>}
                </div>
              </>
            ) : (
-             <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10">
-               <Medal className="w-12 h-12 mx-auto mb-4" />
-               <p className="text-[10px] font-black uppercase">Bracket Pending...</p>
+             <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10 flex flex-col items-center">
+               <Medal className="w-12 h-12 mb-4" />
+               <p className="text-[10px] font-black uppercase">Cup Data Missing</p>
              </div>
            )}
         </div>
       )}
 
       {activeTab === 'all_pyramids' && !navLeague && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 animate-in slide-in-from-bottom-4">
           {LEAGUES.map(l => (
-            <Card key={l.id} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => setNavLeague(l.id)}>
-              <CardContent className="p-4 text-center"><p className="text-sm font-headline font-bold text-white italic">{l.id}</p></CardContent>
+            <Card key={l.id} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer active:scale-95 transition-all" onClick={() => setNavLeague(l.id)}>
+              <CardContent className="p-4 text-center">
+                <p className="text-sm font-headline font-bold text-white italic tracking-widest">{l.id}</p>
+                <p className="text-[8px] text-muted-foreground uppercase mt-1">Start: {l.startTime}</p>
+              </CardContent>
             </Card>
           ))}
         </div>
       )}
 
       {(activeTab === 'my_pyramid' || (activeTab === 'all_pyramids' && navLeague)) && !navLevel && (
-        <div className="space-y-2">
+        <div className="space-y-2 animate-in slide-in-from-right-4">
           {Array.from({ length: MAX_LEVELS }, (_, i) => i + 1).map(lvl => (
-            <Card key={lvl} className="glass-card border-white/5 cursor-pointer" onClick={() => setNavLevel(lvl)}>
-              <CardContent className="p-4 flex justify-between items-center"><span className="text-sm font-bold uppercase">Division {lvl}</span><ChevronRight className="w-4 h-4 text-muted-foreground" /></CardContent>
+            <Card key={lvl} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all" onClick={() => setNavLevel(lvl)}>
+              <CardContent className="p-4 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-secondary/50 flex items-center justify-center border border-white/5"><span className="text-xs font-headline font-bold text-primary">{lvl}</span></div>
+                  <span className="text-sm font-bold uppercase">Division {lvl}</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </CardContent>
             </Card>
           ))}
         </div>
       )}
 
       {navLevel && !navGroup && (
-        <div className="grid grid-cols-4 gap-2 max-h-[60vh] overflow-y-auto scrollbar-hide">
-          {Array.from({ length: Math.pow(2, navLevel - 1) }, (_, i) => i + 1).slice(0, 128).map(g => (
-            <Button key={g} variant="outline" className="h-10 border-white/5 bg-secondary/20 font-bold" onClick={() => setNavGroup(g)}>{g}</Button>
+        <div className="grid grid-cols-4 gap-2 animate-in zoom-in-95 max-h-[60vh] overflow-y-auto scrollbar-hide pb-10">
+          {Array.from({ length: Math.pow(2, navLevel - 1) }, (_, i) => i + 1).slice(0, 512).map(g => (
+            <Button key={g} variant="outline" className="h-10 border-white/5 bg-secondary/20 font-bold hover:bg-primary/20 hover:text-primary transition-all" onClick={() => setNavGroup(g)}>
+              {g}
+            </Button>
           ))}
         </div>
       )}
