@@ -19,55 +19,17 @@ service cloud.firestore {
       allow write: if isOwner(userId);
     }
 
-    // New Atomic League Tables
+    // Atomic Season Structure
     match /league_tables/{tableId} {
       allow read, write: if isSignedIn();
     }
 
-    // New Atomic Cup Structure
     match /cup_pyramid/{cupId} {
       allow read, write: if isSignedIn();
     }
 
-    // New Atomic Matches (v32)
     match /matches/{matchId} {
       allow read, write: if isSignedIn();
-    }
-
-    // Pyramidal League Structure (Legacy & Reference)
-    match /leagues_v2/{document=**} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn(); 
-    }
-
-    // Global Matches (Shared collection for all leagues)
-    match /matches_v1/{document=**} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn(); 
-    }
-
-    // Cup Matches (Global tournament bracket)
-    match /cup_matches/{document=**} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    // System Status & Metadata
-    match /system_v1/{document=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    // Market & Auctions
-    match /market_v7/{document=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    // Notifications
-    match /notifications_v7/{notifId} {
-      allow read: if isSignedIn();
-      allow create: if true;
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
     }
 
     // Social & Messaging
@@ -82,6 +44,17 @@ service cloud.firestore {
 
     match /friend_requests_v4/{requestId} {
       allow read, write: if isSignedIn();
+    }
+
+    match /market_v7/{document=**} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /notifications_v7/{notifId} {
+      allow read: if isSignedIn();
+      allow create: if true;
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
     }
 
     match /friendly_lobbies_v3/{lobbyId} {

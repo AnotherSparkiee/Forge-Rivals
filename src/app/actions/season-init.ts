@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Атомарный инициализатор сезона v3.0.
+ * @fileOverview Атомарный инициализатор сезона v3.5.
  * Создает таблицы (8 команд), 14 туров матчей и кубок в одной транзакции.
  */
 
@@ -138,7 +138,8 @@ export async function initializePyramidCup(season: number, leagueId: string) {
   const participants = playersSnap.docs.map(d => ({ 
     id: d.id, 
     name: d.data().displayName || `Manager_${d.id.slice(0,4)}`,
-    isPlayer: true 
+    isPlayer: true,
+    level: d.data().leagueLevel || 9
   }));
   
   // Дополняем до 32 команд ботами
@@ -148,23 +149,24 @@ export async function initializePyramidCup(season: number, leagueId: string) {
 
   while (participants.length < totalSlots) {
     const botId = `bot${leaguePrefix}cup${participants.length + 1}`;
-    participants.push({ id: botId, name: botId, isPlayer: false });
+    participants.push({ id: botId, name: botId, isPlayer: false, level: 9 });
   }
 
   // Перемешиваем детерминировано на основе сезона
   const seed = season;
-  for (let i = participants.length - 1; i > 0; i--) {
+  const shuffledParticipants = [...participants].sort((a, b) => a.id.localeCompare(b.id));
+  for (let i = shuffledParticipants.length - 1; i > 0; i--) {
     const j = (seed + i) % (i + 1);
-    [participants[i], participants[j]] = [participants[j], participants[i]];
+    [shuffledParticipants[i], shuffledParticipants[j]] = [shuffledParticipants[j], shuffledParticipants[i]];
   }
 
   // Формируем Раунд 1 (1/16)
   const round1 = [];
-  for (let i = 0; i < participants.length; i += 2) {
+  for (let i = 0; i < shuffledParticipants.length; i += 2) {
     round1.push({
       matchId: `cup_s${season}_l${leagueId}_r1_m${(i/2)+1}`,
-      home: participants[i],
-      away: participants[i+1],
+      home: shuffledParticipants[i],
+      away: shuffledParticipants[i+1],
       scoreA: null,
       scoreB: null,
       winnerId: null,

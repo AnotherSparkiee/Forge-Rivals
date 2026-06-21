@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v55.
- * Исправлено: принудительная инициализация при отсутствии документов.
+ * @fileOverview Автономный менеджер синхронизации v56.
+ * Исправлено: фильтрация на клиенте для обхода требований к индексам Firestore.
  */
 
 import { useEffect, useRef } from 'react';
@@ -14,24 +14,23 @@ import { initializeSeasonGroup, initializePyramidCup } from '@/app/actions/seaso
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
-  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId } = useGameState();
+  const { isLoaded, id: userId, selectedLeagueId, leagueLevel, groupId, displayName } = useGameState();
   const db = useFirestore();
   const processingRef = useRef(false);
 
+  // Облегченный запрос: только по LeagueId, чтобы избежать композитных индексов
   const leaguePlayersQuery = useMemoFirebase(() => {
     if (isUserLoading || !user?.uid || !selectedLeagueId) return null;
     return query(
       collection(db, 'players_v10'), 
-      where('selectedLeagueId', '==', String(selectedLeagueId)),
-      where('leagueLevel', '==', Number(leagueLevel)),
-      where('groupId', '==', Number(groupId))
+      where('selectedLeagueId', '==', String(selectedLeagueId))
     );
-  }, [db, selectedLeagueId, leagueLevel, groupId, isUserLoading, user?.uid]);
+  }, [db, selectedLeagueId, isUserLoading, user?.uid]);
 
-  const { data: groupPlayers } = useCollection(leaguePlayersQuery);
+  const { data: allLeaguePlayers } = useCollection(leaguePlayersQuery);
 
   useEffect(() => {
-    if (isUserLoading || !user?.uid || !isLoaded || !userId || !selectedLeagueId || !groupPlayers) return;
+    if (isUserLoading || !user?.uid || !isLoaded || !userId || !selectedLeagueId || !allLeaguePlayers) return;
 
     const heartbeat = async () => {
       if (processingRef.current) return;
@@ -47,15 +46,30 @@ export function AutoMatchManager() {
         
         const tableSnap = await getDoc(tableRef);
         if (!tableSnap.exists()) {
-          console.log(`[ATOMIC SYNC v3] Initializing Season ${currentSN} for league ${selectedLeagueId} Group ${groupId}`);
+          console.log(`[ATOMIC SYNC v3.5] Initializing Season ${currentSN} for league ${selectedLeagueId} Group ${groupId}`);
           
-          const players = groupPlayers.map(p => ({
+          // Фильтруем игроков этой конкретной группы на клиенте
+          const groupPlayers = allLeaguePlayers.filter(p => 
+            Number(p.leagueLevel) === Number(leagueLevel) && 
+            Number(p.groupId) === Number(groupId)
+          );
+
+          // Убеждаемся, что текущий игрок точно включен с актуальным именем
+          const playersToInit = groupPlayers.map(p => ({
             id: p.id,
             name: p.displayName || `Manager_${p.id.slice(0,4)}`
           }));
 
+          const hasMe = playersToInit.some(p => p.id === userId);
+          if (!hasMe) {
+            playersToInit.push({
+              id: userId,
+              name: displayName || `Manager_${userId.slice(0,4)}`
+            });
+          }
+
           // 1. Создаем таблицу и 14 туров атомарно
-          await initializeSeasonGroup(currentSN, Number(leagueLevel), Number(groupId), selectedLeagueId, players);
+          await initializeSeasonGroup(currentSN, Number(leagueLevel), Number(groupId), selectedLeagueId, playersToInit);
           
           // 2. Создаем сетку кубка для всей лиги атомарно
           await initializePyramidCup(currentSN, selectedLeagueId);
@@ -70,10 +84,10 @@ export function AutoMatchManager() {
       }
     };
 
-    const interval = setInterval(heartbeat, 60000);
+    const interval = setInterval(heartbeat, 30000);
     heartbeat();
     return () => clearInterval(interval);
-  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, groupPlayers, db, isUserLoading, user?.uid]);
+  }, [isLoaded, userId, selectedLeagueId, leagueLevel, groupId, allLeaguePlayers, db, isUserLoading, user?.uid, displayName]);
 
   return null;
 }
