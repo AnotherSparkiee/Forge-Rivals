@@ -176,17 +176,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsubTeam(); playersUnsub(); staffUnsub(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
-  // Global Matches Listener (Unified v1 Support)
+  // Global Matches Listener (v40 Support)
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
     const info = getGlobalSeasonInfo();
-    const tableId = `season_${info.activeSeasonNumber}_tier_${state.leagueLevel}_group_${state.groupId}_league_${state.selectedLeagueId}`;
+    const tableId = `s${info.activeSeasonNumber}_l${state.selectedLeagueId}_t${state.leagueLevel}_g${state.groupId}`;
     
-    // Переход на коллекцию v1 и версию v35
     const q = query(
       collection(db, 'matches_v1'), 
       where('tableId', '==', tableId),
-      where('version', '==', 35)
+      where('version', '==', 40)
     );
 
     let active = true;

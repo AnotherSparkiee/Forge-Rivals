@@ -142,7 +142,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_history':
-        const myHistory = validMatches.filter(m => (m.homeId === user?.uid || m.awayId === user?.uid) && m.isFinished).sort((a, b) => a.tour - a.tour);
+        const myHistory = validMatches.filter(m => (m.homeId === user?.uid || m.awayId === user?.uid) && m.isFinished).sort((a, b) => a.tour - b.tour);
         return (
           <div className="animate-in fade-in">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>
@@ -158,7 +158,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'league_history':
-        const leagueHistory = validMatches.filter(m => m.isFinished).sort((a, b) => a.tour - a.tour);
+        const leagueHistory = validMatches.filter(m => m.isFinished).sort((a, b) => a.tour - b.tour);
         return (
           <div className="animate-in fade-in">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>

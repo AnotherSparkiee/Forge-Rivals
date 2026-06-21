@@ -43,10 +43,11 @@ export function AutoMatchManager() {
           console.log(`[WORLD-SYNC v40] Deploying Season Infrastructure: ${tableId}`);
           const batch = writeBatch(db);
 
-          // 1. Формируем участников (Вы + 7 Ботов)
+          // 1. Формируем участников (Вы + 7 Классических Ботов)
           const teams = [{ id: userId, name: displayName || "Manager", isBot: false }];
           for (let i = 1; i <= 7; i++) {
-            const botId = `bot_${lId}_${tier}_${grp}_${i}`;
+            const botNum = 1000 + (tier * 100) + (grp * 10) + i;
+            const botId = `bot${botNum}`;
             teams.push({ id: botId, name: botId, isBot: true });
           }
 
@@ -71,16 +72,18 @@ export function AutoMatchManager() {
           const cupSnap = await getDoc(cupRef);
 
           if (!cupSnap.exists() || cupSnap.data()?.version !== 40) {
-            const participants = [...teams];
-            while (participants.length < 32) {
-              const bId = `bot_cup_${lId}_${participants.length + 1}`;
-              participants.push({ id: bId, name: bId, isBot: true });
+            const cupParticipants = [...teams];
+            // Дополняем до 32 участников для сетки
+            while (cupParticipants.length < 32) {
+              const bNum = 5000 + cupParticipants.length;
+              const bId = `bot${bNum}`;
+              cupParticipants.push({ id: bId, name: bId, isBot: true });
             }
             const r1 = [];
             for (let i = 0; i < 32; i += 2) {
               r1.push({
-                home: { id: participants[i].id, name: participants[i].name },
-                away: { id: participants[i+1].id, name: participants[i+1].name },
+                home: { id: cupParticipants[i].id, name: cupParticipants[i].name },
+                away: { id: cupParticipants[i+1].id, name: cupParticipants[i+1].name },
                 scoreA: null, scoreB: null
               });
             }
@@ -95,17 +98,22 @@ export function AutoMatchManager() {
           // 4. Генерируем 14 туров календаря (Round-robin)
           const leagueInfo = LEAGUES.find(l => l.id === lId) || LEAGUES[0];
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
-          const seasonStartMs = new Date('2026-06-22T00:00:00+03:00').getTime() + (sNum - 1) * 15 * 24 * 3600000;
+          // Эпоха v40: 22.06.2026
+          const seasonStartMs = new Date('2026-06-21T21:00:00Z').getTime() + (sNum - 1) * 15 * 24 * 3600000;
 
           const n = 8;
           const rounds = n - 1;
-          const teamIds = teams.map(t => t.id);
-          const tempIds = [...teamIds];
+          const tempIds = teams.map(t => t.id);
 
           for (let r = 0; r < rounds; r++) {
             for (let i = 0; i < n / 2; i++) {
-              const home = tempIds[i];
-              const away = tempIds[n - 1 - i];
+              let hIdx = i;
+              let aIdx = n - 1 - i;
+              
+              if (r % 2 === 1) [hIdx, aIdx] = [aIdx, hIdx];
+
+              const hId = tempIds[hIdx];
+              const aId = tempIds[aIdx];
               
               const createMatch = (day: number, h: string, a: string) => {
                 const startTime = new Date(seasonStartMs + (day - 1) * 24 * 3600000 + hh * 3600000 + mm * 60000);
@@ -119,14 +127,16 @@ export function AutoMatchManager() {
                 });
               };
 
-              createMatch(r + 1, home, away); // Круг 1
-              createMatch(r + 1 + rounds, away, home); // Круг 2
+              createMatch(r + 1, hId, aId); // Круг 1
+              createMatch(r + 1 + rounds, aId, hId); // Круг 2
             }
-            tempIds.splice(1, 0, tempIds.pop()!);
+            // Циклический сдвиг для Round-robin
+            const last = tempIds.pop()!;
+            tempIds.splice(1, 0, last);
           }
 
           await batch.commit();
-          console.log("[WORLD-SYNC v40] Season 1 fully initialized.");
+          console.log("[WORLD-SYNC v40] Deployment complete.");
         }
       } catch (e) {
         console.error("[WORLD-SYNC ERROR]", e);
