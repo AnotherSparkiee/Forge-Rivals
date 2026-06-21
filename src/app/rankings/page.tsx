@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v50. 
- * Читает из /league_tables_v1 с поддержкой teamData.
+ * @fileOverview Страница рейтингов v60. 
+ * Читает из /league_tables_v1 с использованием мгновенного массива teamData.
  */
 
 import { useState, useMemo } from 'react';
@@ -49,18 +49,26 @@ export default function RankingsPage() {
   const standings = useMemo(() => {
     if (!tableData || !tableData.stats || !tableData.teamData) return [];
     
-    return tableData.teamData.map((t: any) => {
+    // Преобразуем данные команд и объединяем со статистикой
+    const list = tableData.teamData.map((t: any) => {
       const s = tableData.stats[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
       return {
         id: t.id,
         name: t.name,
-        points: s.points,
-        wins: s.wins,
-        draws: s.draws,
-        losses: s.losses,
-        diff: s.diff
+        points: Number(s.points || 0),
+        wins: Number(s.wins || 0),
+        draws: Number(s.draws || 0),
+        losses: Number(s.losses || 0),
+        diff: Number(s.diff || 0)
       };
-    }).sort((a: any, b: any) => b.points - a.points || b.diff - a.diff || a.name.localeCompare(b.name));
+    });
+
+    // Сортировка на клиенте: Очки -> Разница -> Имя
+    return list.sort((a: any, b: any) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.diff !== a.diff) return b.diff - a.diff;
+      return a.name.localeCompare(b.name);
+    });
   }, [tableData]);
 
   const t = {
@@ -150,7 +158,7 @@ export default function RankingsPage() {
                </div>
              )) : (
                <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10 mt-4">
-                 <AlertCircle className="w-12 h-12 mx-auto mb-4" />
+                 <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
                  <p className="text-[10px] font-black uppercase">Syncing Arena...</p>
                  <p className="text-[8px] text-muted-foreground mt-2">Initializing tactical coordinates</p>
                </div>
