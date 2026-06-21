@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v40.6.
- * Исправлены ошибки импорта и рендеринга Кубка без промежуточных окон.
+ * @fileOverview Страница рейтингов v40.8.
+ * Исправлена логика отображения своей таблицы, навигации и кнопки Назад.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -20,7 +20,6 @@ import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import Link from 'next/link';
 
 type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'pyramid_cup';
 
@@ -34,19 +33,24 @@ export default function RankingsPage() {
   const db = useFirestore();
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
+  
+  // Browsing state (only for 'all_pyramids' and 'my_pyramid')
   const [navLeague, setNavLeague] = useState<string | null>(null);
   const [navLevel, setNavLevel] = useState<number | null>(null);
   const [navGroup, setNavGroup] = useState<number | null>(null);
 
-  const contextLeagueId = navLeague || selectedLeagueId || "ALPHA";
-  const contextLevel = Number(navLevel || leagueLevel || 9);
-  const contextGroup = Number(navGroup || groupId || 1);
+  // Determine current viewing context
+  const isMyLeagueTab = activeTab === 'my_league';
+  
+  const contextLeagueId = isMyLeagueTab ? (selectedLeagueId || "ALPHA") : (navLeague || selectedLeagueId || "ALPHA");
+  const contextLevel = isMyLeagueTab ? Number(leagueLevel || 9) : Number(navLevel || leagueLevel || 9);
+  const contextGroup = isMyLeagueTab ? Number(groupId || 1) : Number(navGroup || groupId || 1);
 
   const tableId = `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
-  // Кубок
+  // Cup Data
   const [activeRound, setActiveRound] = useState('r1');
   const cupDocId = `cup_s${activeSeasonNumber}_l${contextLeagueId}`;
   const cupRef = useMemoFirebase(() => doc(db, 'cup_pyramid_v1', cupDocId), [db, cupDocId]);
@@ -100,25 +104,44 @@ export default function RankingsPage() {
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
+  const handleBack = () => {
+    if (activeTab === 'menu') {
+      router.push('/');
+      return;
+    }
+
+    if (activeTab === 'my_league' || activeTab === 'pyramid_cup') {
+      setActiveTab('menu');
+      return;
+    }
+
+    // Advanced navigation back
+    if (navGroup) {
+      setNavGroup(null);
+    } else if (navLevel) {
+      setNavLevel(null);
+    } else if (navLeague) {
+      setNavLeague(null);
+    } else {
+      setActiveTab('menu');
+    }
+  };
+
   if (isUserLoading || !isLoaded || !user) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
       <header className="mb-8 flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="rounded-full border border-white/5" onClick={() => { 
-          if (navGroup) setNavGroup(null); 
-          else if (navLevel) setNavLevel(null); 
-          else if (navLeague) setNavLeague(null); 
-          else if (activeTab !== 'menu') setActiveTab('menu'); 
-          else router.push('/'); 
-        }}>
+        <Button variant="ghost" size="icon" className="rounded-full border border-white/5" onClick={handleBack}>
           <ChevronLeft className="w-6 h-6" />
         </Button>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
             {activeTab === 'menu' ? t.title : (activeTab === 'pyramid_cup' ? "PYRAMID CUP" : t.menu.find(m => m.id === activeTab)?.label)}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{contextLeagueId} DIV {contextLevel}</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">
+            {contextLeagueId} {navLevel || navGroup ? `DIV ${contextLevel}` : ''} {navGroup ? `GRP ${contextGroup}` : ''}
+          </p>
         </div>
       </header>
 
@@ -127,7 +150,6 @@ export default function RankingsPage() {
           {t.menu.map(item => (
             <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => { 
               setActiveTab(item.id as RankingTab); 
-              if (item.id === 'my_league') { setNavLeague(selectedLeagueId); setNavLevel(leagueLevel); setNavGroup(groupId); }
             }}>
               <CardContent className="p-4 flex justify-between items-center">
                 <div className="flex items-center gap-4">
@@ -141,6 +163,7 @@ export default function RankingsPage() {
         </div>
       )}
 
+      {/* TABLE VIEW (For My League or specifically selected group) */}
       {(activeTab === 'my_league' || navGroup) && (
         <div className="space-y-4 animate-in fade-in">
            <div className="flex items-center justify-between px-1">
@@ -156,7 +179,7 @@ export default function RankingsPage() {
              {isTableLoading ? (
                <div className="py-20 text-center opacity-30"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>
              ) : standings.length > 0 ? standings.map((entry: any, i: number) => (
-               <div key={entry.id} className={cn("grid grid-cols-[30px_1fr_80px_40px] items-center p-3 rounded-xl border mb-1", entry.id === user?.uid ? "bg-primary/20 border-primary/40" : "bg-secondary/20 border-white/5")}>
+               <div key={entry.id} className={cn("grid grid-cols-[30px_1fr_80px_40px] items-center p-3 rounded-xl border mb-1", entry.id === user?.uid ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-secondary/20 border-white/5")}>
                  <div className="text-xs font-black italic text-muted-foreground">{i + 1}</div>
                  <div className="truncate"><span className={cn("text-[11px] font-bold uppercase text-white", entry.id === user?.uid && "text-primary")}>{entry.name}</span></div>
                  <div className="text-center font-mono text-[10px] text-muted-foreground">{entry.wins}-{entry.draws}-{entry.losses}</div>

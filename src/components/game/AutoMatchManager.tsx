@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v40.6 (Resilient Preload Edition).
- * Решает проблему "вечного прелоадера" через гарантированный Callback.
+ * @fileOverview Ядро MMO-синхронизации v40.8 (Reliable Session Sync).
+ * Исправлена проблема вечного прелоадера и мерцания таблиц.
  */
 
 import { useEffect, useRef } from 'react';
@@ -35,7 +35,7 @@ export function AutoMatchManager() {
       
       const tableId = `s${sNum}_l${lId}_t${tier}_g${grp}`;
       
-      // Если уже проверено в этой сессии - выходим
+      // Если уже проверено в этой сессии - подтверждаем готовность и выходим
       if (initializedRef.current.has(tableId)) {
         setWorldReady(true);
         return;
@@ -44,7 +44,7 @@ export function AutoMatchManager() {
       if (checkingRef.current === tableId) return;
       checkingRef.current = tableId;
 
-      console.log(`[WORLD-SYNC v40.6] Checking synchronization for ${tableId}...`);
+      console.log(`[WORLD-SYNC v40.8] Synchronizing ${tableId}...`);
       
       try {
         const tableRef = doc(db, 'league_tables_v1', tableId);
@@ -100,7 +100,7 @@ export function AutoMatchManager() {
             });
           }
 
-          // Календарь
+          // Календарь (14 туров)
           const leagueInfo = LEAGUES.find(l => l.id === lId) || LEAGUES[0];
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
           const seasonStartMs = new Date('2026-06-21T21:00:00Z').getTime() + (sNum - 1) * 15 * 24 * 3600000;
@@ -144,39 +144,42 @@ export function AutoMatchManager() {
         // 2. MMO-Замена бота в существующей группе
         else {
           const tableData = tableSnap.data();
-          if (tableData && tableData.version === 40 && !tableData.teams.includes(userId)) {
-            const teamData = [...(tableData.teamData || [])];
-            const botIdx = teamData.findIndex((t: any) => t.isBot || t.id.startsWith('bot'));
-            
-            if (botIdx !== -1) {
-              const botIdToRemove = teamData[botIdx].id;
-              teamData[botIdx] = { id: userId, name: myName, isBot: false };
+          if (tableData && tableData.version === 40) {
+            // Если меня еще нет в этой таблице
+            if (!tableData.teams.includes(userId)) {
+              const teamData = [...(tableData.teamData || [])];
+              const botIdx = teamData.findIndex((t: any) => t.isBot || t.id.startsWith('bot'));
               
-              const newTeams = teamData.map((t: any) => t.id);
-              const newStats = { ...(tableData.stats || {}) };
-              delete newStats[botIdToRemove];
-              newStats[userId] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
+              if (botIdx !== -1) {
+                const botIdToRemove = teamData[botIdx].id;
+                teamData[botIdx] = { id: userId, name: myName, isBot: false };
+                
+                const newTeams = teamData.map((t: any) => t.id);
+                const newStats = { ...(tableData.stats || {}) };
+                delete newStats[botIdToRemove];
+                newStats[userId] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
 
-              await updateDoc(tableRef, {
-                teams: newTeams, teamData: teamData, stats: newStats, updatedAt: serverTimestamp()
-              });
+                await updateDoc(tableRef, {
+                  teams: newTeams, teamData: teamData, stats: newStats, updatedAt: serverTimestamp()
+                });
 
-              // Обновляем матчи Лиги
-              const matchesQuery = query(
-                collection(db, 'matches_v1'),
-                where('tableId', '==', tableId),
-                where('version', '==', 40)
-              );
-              const matchesSnap = await getDocs(matchesQuery);
-              const matchBatch = writeBatch(db);
+                // Обновляем матчи Лиги
+                const matchesQuery = query(
+                  collection(db, 'matches_v1'),
+                  where('tableId', '==', tableId),
+                  where('version', '==', 40)
+                );
+                const matchesSnap = await getDocs(matchesQuery);
+                const matchBatch = writeBatch(db);
 
-              matchesSnap.docs.forEach(mDoc => {
-                const m = mDoc.data();
-                if (m.homeId === botIdToRemove) matchBatch.update(mDoc.ref, { homeId: userId, homeName: myName });
-                if (m.awayId === botIdToRemove) matchBatch.update(mDoc.ref, { awayId: userId, awayName: myName });
-              });
+                matchesSnap.docs.forEach(mDoc => {
+                  const m = mDoc.data();
+                  if (m.homeId === botIdToRemove) matchBatch.update(mDoc.ref, { homeId: userId, homeName: myName });
+                  if (m.awayId === botIdToRemove) matchBatch.update(mDoc.ref, { awayId: userId, awayName: myName });
+                });
 
-              await matchBatch.commit();
+                await matchBatch.commit();
+              }
             }
           }
         }
