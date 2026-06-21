@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v49. 
- * Прямое чтение из /league_tables_v1 с предсказуемыми ID.
+ * @fileOverview Страница рейтингов v50. 
+ * Читает из /league_tables_v1 с поддержкой teamData.
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
@@ -42,7 +42,6 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel);
   const contextGroup = Number(navGroup || groupId);
 
-  // Таблица по новому формату ID v4.0
   const tableId = `season_${activeSeasonNumber}_tier_${contextLevel}_group_${contextGroup}_league_${contextLeagueId}`;
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
@@ -152,8 +151,8 @@ export default function RankingsPage() {
              )) : (
                <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10 mt-4">
                  <AlertCircle className="w-12 h-12 mx-auto mb-4" />
-                 <p className="text-[10px] font-black uppercase">Table Not Ready</p>
-                 <p className="text-[8px] text-muted-foreground mt-2">Initialize your group in AutoMatchManager</p>
+                 <p className="text-[10px] font-black uppercase">Syncing Arena...</p>
+                 <p className="text-[8px] text-muted-foreground mt-2">Initializing tactical coordinates</p>
                </div>
              )}
            </div>
@@ -190,7 +189,9 @@ export default function RankingsPage() {
 
       {activeTab === 'pyramid_cup' && (
          <div className="py-20 text-center animate-in fade-in duration-500">
-           <Link href="/tournaments/cup"><Button className="hero-gradient font-black text-xs uppercase px-10">OPEN CUP TERMINAL</Button></Link>
+           <Link href="/tournaments/cup">
+             <Button className="hero-gradient font-black text-xs uppercase px-10">OPEN CUP TERMINAL</Button>
+           </Link>
          </div>
       )}
     </div>

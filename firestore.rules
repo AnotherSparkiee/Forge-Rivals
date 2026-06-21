@@ -21,7 +21,8 @@ service cloud.firestore {
 
     // Season System v1
     match /league_tables_v1/{tableId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
 
     match /cup_pyramid_v1/{cupId} {
@@ -62,6 +63,10 @@ service cloud.firestore {
     }
 
     match /cw_basket_v2/{entryId} {
+      allow read, write: if isSignedIn();
+    }
+    
+    match /friend_requests_v4/{reqId} {
       allow read, write: if isSignedIn();
     }
 
