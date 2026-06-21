@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v42 (Strict Blocking Verification).
- * Гарантирует наличие данных версии v42 в кэше до завершения прелоадера.
+ * @fileOverview Ядро MMO-синхронизации v43 (Strict Blocking Verification).
+ * Гарантирует наличие данных версии v43 в кэше до завершения прелоадера.
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore } from '@/firebase';
 import { 
-  doc, getDoc, writeBatch, serverTimestamp, collection, query, where, getDocs, updateDoc, onSnapshot
+  doc, getDoc, writeBatch, serverTimestamp, updateDoc, onSnapshot
 } from 'firebase/firestore';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -37,16 +37,16 @@ export function AutoMatchManager() {
       if (syncInProgressRef.current === tableId) return;
       syncInProgressRef.current = tableId;
 
-      console.log(`[WORLD-SYNC v42] Synchronizing ${tableId}...`);
+      console.log(`[WORLD-SYNC v43] Synchronizing ${tableId}...`);
       
       try {
         const tableRef = doc(db, 'league_tables_v1', tableId);
         const tableSnap = await getDoc(tableRef);
         const myName = String(displayName);
 
-        // Если таблицы нет или старая версия - создаем заново
-        if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < 42) {
-          console.log(`[WORLD-SYNC] Initializing world v42: ${tableId}`);
+        // Если таблицы нет или старая версия - создаем заново (v43)
+        if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < 43) {
+          console.log(`[WORLD-SYNC] Initializing world v43: ${tableId}`);
           const batch = writeBatch(db);
           
           const teams = [{ id: userId, name: myName, isBot: false }];
@@ -66,7 +66,7 @@ export function AutoMatchManager() {
             teams: teams.map(t => t.id),
             teamData: teams,
             stats,
-            version: 42,
+            version: 43,
             updatedAt: serverTimestamp()
           });
 
@@ -89,13 +89,13 @@ export function AutoMatchManager() {
               
               const createMatch = (day: number, h: string, a: string) => {
                 const startTime = new Date(seasonStartMs + (day - 1) * 24 * 3600000 + hh * 3600000 + mm * 60000);
-                const mId = `m_${tableId}_v42_d${day}_h${h}`;
+                const mId = `m_${tableId}_v43_d${day}_h${h}`;
                 batch.set(doc(db, 'matches_v1', mId), {
                   id: mId, tableId, season: Number(sNum), tour: day, day,
                   homeId: h, homeName: teams.find(t => t.id === h)?.name || h,
                   awayId: a, awayName: teams.find(t => t.id === a)?.name || a,
                   startTime: startTime.toISOString(),
-                  isFinished: false, version: 42, createdAt: serverTimestamp()
+                  isFinished: false, version: 43, createdAt: serverTimestamp()
                 });
               };
               createMatch(r + 1, hId, aId);
@@ -111,13 +111,13 @@ export function AutoMatchManager() {
           batch.set(cupRef, {
             id: cupId, season: Number(sNum), leagueId: lId,
             rounds: { r1: [], r2: [], r3: [], r4: [], r5: [] },
-            version: 42,
+            version: 43,
             updatedAt: serverTimestamp()
           }, { merge: true });
 
           await batch.commit();
         } else {
-          // Если таблица v42 уже есть, проверяем, не нужно ли подселить игрока
+          // Если таблица v43 уже есть, проверяем, не нужно ли подселить игрока
           const data = tableSnap.data();
           if (data && !data.teams.includes(userId)) {
             const teamData = [...(data.teamData || [])];
@@ -139,10 +139,10 @@ export function AutoMatchManager() {
           }
         }
         
-        // ВЕРИФИКАЦИЯ: Ждем реального появления данных v42 в кэше
+        // ВЕРИФИКАЦИЯ: Ждем реального появления данных v43 в кэше
         const unsub = onSnapshot(tableRef, (snap) => {
-          if (snap.exists() && snap.data()?.version === 42 && snap.data()?.teams?.includes(userId)) {
-            console.log("[WORLD-SYNC] Data v42 verified. Unlocking interface.");
+          if (snap.exists() && snap.data()?.version === 43 && snap.data()?.teams?.includes(userId)) {
+            console.log("[WORLD-SYNC] Data v43 verified. Unlocking interface.");
             setWorldReady(true);
             unsub();
           }
@@ -150,8 +150,8 @@ export function AutoMatchManager() {
 
       } catch (e) {
         console.error("[WORLD-SYNC ERROR]", e);
-        // Резервный разблок через 5 сек
-        setTimeout(() => setWorldReady(true), 5000);
+        // Резервный разблок через 8 сек
+        setTimeout(() => setWorldReady(true), 8000);
       }
     };
 

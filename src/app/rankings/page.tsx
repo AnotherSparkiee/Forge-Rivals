@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v42. Изолированная навигация и мгновенное отображение данных.
+ * @fileOverview Страница рейтингов v43. Изолированная навигация и мгновенное отображение данных.
  */
 
 import { useState, useMemo } from 'react';
@@ -42,7 +42,7 @@ export default function RankingsPage() {
   const contextLevel = isMyLeagueTab ? String(leagueLevel || 9) : String(navLevel || leagueLevel || 9);
   const contextGroup = isMyLeagueTab ? String(groupId || 1) : String(navGroup || groupId || 1);
 
-  // Используем v42 для синхронизации с AutoMatchManager
+  // Используем v43 для синхронизации с AutoMatchManager
   const tableId = `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
@@ -179,7 +179,7 @@ export default function RankingsPage() {
                <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10 mt-4 flex flex-col items-center">
                  <AlertTriangle className="w-12 h-12 mb-4 text-orange-500" />
                  <p className="text-[10px] font-black uppercase">Syncing Terminal...</p>
-                 <p className="text-[8px] text-muted-foreground mt-2 italic">Awaiting connection to league server v42</p>
+                 <p className="text-[8px] text-muted-foreground mt-2 italic">Awaiting connection to league server v43</p>
                </div>
              )}
            </div>
@@ -217,7 +217,7 @@ export default function RankingsPage() {
              <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10 flex flex-col items-center">
                <Medal className="w-12 h-12 mb-4" />
                <p className="text-[10px] font-black uppercase">Cup Data Missing</p>
-               <p className="text-[8px] text-muted-foreground mt-2 italic">Initialization in progress v42</p>
+               <p className="text-[8px] text-muted-foreground mt-2 italic">Initialization in progress v43</p>
              </div>
            )}
         </div>
