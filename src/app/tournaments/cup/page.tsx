@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Терминал Кубка v15. 
- * Отображает сетку напрямую из документа /cup_pyramid.
+ * @fileOverview Терминал Кубка v16. 
+ * Прямое чтение из /cup_pyramid. Добавлена версия v32.
  */
 
 import { useState, useMemo, useEffect } from 'react';

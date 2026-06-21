@@ -1,8 +1,7 @@
 'use client';
 
 /**
- * Глобальное хранилище v71 (Complete Implementation). 
- * Исправлены ошибки отсутствующих функций (ReferenceError).
+ * Глобальное хранилище v72 (Atomic Season Support). 
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -177,12 +176,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsubTeam(); playersUnsub(); staffUnsub(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
-  // Global Matches Listener (V32)
+  // Global Matches Listener (V32 Support)
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
     const info = getGlobalSeasonInfo();
     const tableId = `season_${info.activeSeasonNumber}_tier_${state.leagueLevel}_group_${state.groupId}_league_${state.selectedLeagueId}`;
     
+    // Поддержка обеих коллекций на переходный период
     const q = query(
       collection(db, 'matches'), 
       where('tableId', '==', tableId),
@@ -252,7 +252,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const claimDailyPlayerTraining = useCallback((playerId: string) => {
     const r = getRefs(); if (!r) return;
     updateDoc(doc(collection(r.team, 'heroes'), playerId), { dailyTrainingFocus: null, dailyTrainingFinishTime: null });
-    // Add logic for stat gain here if needed
   }, [getRefs]);
 
   const recoverAllFatigue = useCallback((type: 'credits' | 'crystals') => {

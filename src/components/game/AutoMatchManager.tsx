@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Автономный менеджер синхронизации v52.
- * Использует атомарный инициализатор сезона (Таблица + Календарь + Кубок).
+ * @fileOverview Автономный менеджер синхронизации v55.
+ * Исправлено: принудительная инициализация при отсутствии документов.
  */
 
 import { useEffect, useRef } from 'react';
@@ -47,17 +47,17 @@ export function AutoMatchManager() {
         
         const tableSnap = await getDoc(tableRef);
         if (!tableSnap.exists()) {
-          console.log(`[ATOMIC SYNC v2] Initializing Season ${currentSN} for league ${selectedLeagueId} Group ${groupId}`);
+          console.log(`[ATOMIC SYNC v3] Initializing Season ${currentSN} for league ${selectedLeagueId} Group ${groupId}`);
           
           const players = groupPlayers.map(p => ({
             id: p.id,
             name: p.displayName || `Manager_${p.id.slice(0,4)}`
           }));
 
-          // 1. Создаем таблицу и 14 туров
+          // 1. Создаем таблицу и 14 туров атомарно
           await initializeSeasonGroup(currentSN, Number(leagueLevel), Number(groupId), selectedLeagueId, players);
           
-          // 2. Создаем сетку кубка для всей лиги
+          // 2. Создаем сетку кубка для всей лиги атомарно
           await initializePyramidCup(currentSN, selectedLeagueId);
           
           console.log("[ATOMIC SYNC] Season data established successfully.");

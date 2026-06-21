@@ -1,16 +1,16 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v45. 
- * Читает данные напрямую из документа /league_tables.
+ * @fileOverview Страница рейтингов v48. 
+ * Прямое чтение из /league_tables с поддержкой атомарной структуры.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
-  Shield, Globe, Layers, Crown, Loader2, AlertCircle, Medal
+  Shield, Globe, Layers, Medal, Loader2, AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -42,15 +42,13 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel);
   const contextGroup = Number(navGroup || groupId);
 
-  // Прямое чтение документа таблицы
   const tableId = `season_${activeSeasonNumber}_tier_${contextLevel}_group_${contextGroup}_league_${contextLeagueId}`;
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
   const standings = useMemo(() => {
-    if (!tableData || !tableData.stats) return [];
+    if (!tableData || !tableData.stats || !tableData.teamData) return [];
     
-    // Формируем список из teamData + актуальные статы
     return tableData.teamData.map((t: any) => {
       const s = tableData.stats[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
       return {

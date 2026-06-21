@@ -19,8 +19,22 @@ service cloud.firestore {
       allow write: if isOwner(userId);
     }
 
-    // Pyramidal League Structure (V25+)
-    // Позволяем всем игрокам читать таблицы и составы групп для синхронизации
+    // New Atomic League Tables
+    match /league_tables/{tableId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // New Atomic Cup Structure
+    match /cup_pyramid/{cupId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // New Atomic Matches (v32)
+    match /matches/{matchId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Pyramidal League Structure (Legacy & Reference)
     match /leagues_v2/{document=**} {
       allow read: if isSignedIn();
       allow write: if isSignedIn(); 
