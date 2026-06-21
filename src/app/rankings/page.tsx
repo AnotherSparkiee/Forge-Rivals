@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v61. 
+ * @fileOverview Страница рейтингов v62. 
  * Читает из /league_tables_v1 с использованием мгновенного массива teamData.
- * Исправлен импорт AlertTriangle и добавлена обработка Link.
+ * Исправлены импорты и логика отображения при пустых данных.
  */
 
 import { useState, useMemo } from 'react';
@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
-  Shield, Globe, Layers, Medal, Loader2, AlertCircle, AlertTriangle
+  Shield, Globe, Layers, Medal, Loader2, AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,7 @@ export default function RankingsPage() {
   const router = useRouter();
   const { 
     leagueLevel, groupId, isLoaded, language, 
-    selectedLeagueId, activeSeasonNumber
+    selectedLeagueId, activeSeasonNumber, isDataReady
   } = useGameState();
   const db = useFirestore();
   
@@ -40,17 +40,20 @@ export default function RankingsPage() {
   const [navGroup, setNavGroup] = useState<number | null>(null);
 
   const contextLeagueId = navLeague || selectedLeagueId || "ALPHA";
-  const contextLevel = Number(navLevel || leagueLevel);
-  const contextGroup = Number(navGroup || groupId);
+  const contextLevel = Number(navLevel || leagueLevel || 9);
+  const contextGroup = Number(navGroup || groupId || 1);
 
-  const tableId = `season_${activeSeasonNumber}_tier_${contextLevel}_group_${contextGroup}_league_${contextLeagueId}`;
+  // Генерируем ID только если данные из стора готовы или мы в режиме навигации
+  const tableId = useMemo(() => {
+    return `season_${activeSeasonNumber}_tier_${contextLevel}_group_${contextGroup}_league_${contextLeagueId}`;
+  }, [activeSeasonNumber, contextLevel, contextGroup, contextLeagueId]);
+
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
   const standings = useMemo(() => {
     if (!tableData || !tableData.stats || !tableData.teamData) return [];
     
-    // Преобразуем данные команд и объединяем со статистикой
     const list = tableData.teamData.map((t: any) => {
       const s = tableData.stats[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
       return {
@@ -64,7 +67,6 @@ export default function RankingsPage() {
       };
     });
 
-    // Сортировка на клиенте: Очки -> Разница -> Имя
     return list.sort((a: any, b: any) => {
       if (b.points !== a.points) return b.points - a.points;
       if (b.diff !== a.diff) return b.diff - a.diff;
@@ -206,4 +208,3 @@ export default function RankingsPage() {
     </div>
   );
 }
-
