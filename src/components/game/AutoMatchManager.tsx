@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v44 (Global Epoch & Atomic Calendar).
- * Гарантирует создание всех 56 матчей сезона при инициализации группы.
+ * @fileOverview Ядро MMO-синхронизации v45 (Reset Edition: Start 29.06).
+ * Гарантирует создание всех 56 матчей сезона и Кубка при инициализации.
  */
 
 import { useEffect, useRef } from 'react';
@@ -36,16 +36,15 @@ export function AutoMatchManager() {
       if (syncInProgressRef.current === tableId) return;
       syncInProgressRef.current = tableId;
 
-      console.log(`[WORLD-SYNC v44] Synchronizing ${tableId}...`);
+      console.log(`[WORLD-SYNC v45] Initializing Reset Season ${tableId}...`);
       
       try {
         const tableRef = doc(db, 'league_tables_v1', tableId);
         const tableSnap = await getDoc(tableRef);
         const myName = String(displayName);
 
-        // Если таблицы нет или старая версия - создаем заново (v44)
-        if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < 44) {
-          console.log(`[WORLD-SYNC] Initializing world v44: ${tableId}`);
+        // Если таблицы нет или старая версия - создаем заново (v45)
+        if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < 45) {
           const batch = writeBatch(db);
           
           const teams = [{ id: userId, name: myName, isBot: false }];
@@ -64,7 +63,7 @@ export function AutoMatchManager() {
             teams: teams.map(t => t.id),
             teamData: teams,
             stats,
-            version: 44,
+            version: 45,
             updatedAt: serverTimestamp()
           });
 
@@ -74,53 +73,49 @@ export function AutoMatchManager() {
           const seasonStartMs = new Date(GLOBAL_EPOCH_ISO).getTime() + (sNum - 1) * 15 * 24 * 3600000;
 
           const n = 8;
-          const roundsPerHalf = n - 1;
           const teamIds = teams.map(t => t.id);
 
-          for (let r = 0; r < roundsPerHalf; r++) {
+          for (let r = 0; r < n - 1; r++) {
             for (let i = 0; i < n / 2; i++) {
               let hIdx = i;
               let aIdx = n - 1 - i;
-              
-              // Ротация для первого круга
               if (r % 2 === 1) [hIdx, aIdx] = [aIdx, hIdx];
               
               const hId = teamIds[hIdx];
               const aId = teamIds[aIdx];
               
-              // Функция создания матча
               const createMatch = (day: number, h: string, a: string) => {
                 const startTime = new Date(seasonStartMs + (day - 1) * 24 * 3600000 + hh * 3600000 + mm * 60000);
-                const matchId = `m_v44_${tableId}_d${day}_h${h}`;
+                const matchId = `m_v45_${tableId}_d${day}_h${h}`;
                 const mRef = doc(db, 'matches_v1', matchId);
                 batch.set(mRef, {
                   id: matchId, tableId, season: sNum, tour: day, day,
                   homeId: h, homeName: teams.find(t => t.id === h)?.name || h,
                   awayId: a, awayName: teams.find(t => t.id === a)?.name || a,
                   startTime: startTime.toISOString(),
-                  isFinished: false, version: 44, createdAt: serverTimestamp()
+                  isFinished: false, version: 45, createdAt: serverTimestamp()
                 });
               };
 
-              createMatch(r + 1, hId, aId); // Круг 1
-              createMatch(r + 1 + roundsPerHalf, aId, hId); // Круг 2
+              createMatch(r + 1, hId, aId);
+              createMatch(r + 1 + (n - 1), aId, hId);
             }
-            // Ротация индексов (кроме первого)
             const last = teamIds.pop()!;
             teamIds.splice(1, 0, last);
           }
 
-          // Инициализация Кубка Лиги
+          // Инициализация Кубка Лиги v45
           const cupId = `cup_s${sNum}_l${lId}`;
           const cupRef = doc(db, 'cup_pyramid_v1', cupId);
           batch.set(cupRef, {
             id: cupId, season: sNum, leagueId: lId,
             rounds: { r1: [], r2: [], r3: [], r4: [], r5: [] },
-            version: 44,
+            version: 45,
             updatedAt: serverTimestamp()
           }, { merge: true });
 
           await batch.commit();
+          setWorldReady(true);
         } else {
           // Если таблица уже есть, проверяем на замену ботов
           const data = tableSnap.data();
@@ -142,20 +137,11 @@ export function AutoMatchManager() {
               });
             }
           }
+          setWorldReady(true);
         }
-        
-        // Финальная проверка наличия данных v44 в кэше
-        const unsub = onSnapshot(tableRef, (snap) => {
-          if (snap.exists() && snap.data()?.version === 44 && snap.data()?.teams?.includes(userId)) {
-            console.log("[WORLD-SYNC] Data v44 verified.");
-            setWorldReady(true);
-            unsub();
-          }
-        });
-
       } catch (e) {
         console.error("[WORLD-SYNC ERROR]", e);
-        setTimeout(() => setWorldReady(true), 5000);
+        setWorldReady(true);
       }
     };
 

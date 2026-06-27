@@ -1,8 +1,7 @@
-
 'use client';
 
 /**
- * Глобальное хранилище v41 (Atomic Season Support & Preload Logic). 
+ * Глобальное хранилище v45 (Atomic Reset & v45 Filter). 
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -179,7 +178,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsubTeam(); playersUnsub(); staffUnsub(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
-  // Global Matches Listener (v41 Support)
+  // Global Matches Listener (v45 Reset)
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
     const info = getGlobalSeasonInfo();
@@ -191,7 +190,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const q = query(
       collection(db, 'matches_v1'), 
       where('tableId', '==', tableId),
-      where('version', '==', 41)
+      where('version', '==', 45)
     );
 
     let active = true;

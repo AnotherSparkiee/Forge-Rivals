@@ -1,8 +1,7 @@
-
 'use client';
 
 /**
- * @fileOverview Терминал Кубка v41.5. Прямое отображение сетки без промежуточных кнопок.
+ * @fileOverview Терминал Кубка v45. Reset Edition.
  */
 
 import { useState, useEffect } from 'react';
@@ -45,7 +44,7 @@ export default function PyramidCupPage() {
       final: "Final",
       waiting: "TBD",
       noGrid: "Bracket Pending",
-      noGridDesc: "Syncing data with league server v41...",
+      noGridDesc: "Syncing data with league server v45...",
     },
     ru: {
       title: "КУБОК ПИРАМИДЫ",
@@ -54,7 +53,7 @@ export default function PyramidCupPage() {
       final: "Финал",
       waiting: "TBD",
       noGrid: "Сетка формируется",
-      noGridDesc: "Синхронизация данных с сервером лиги v41...",
+      noGridDesc: "Синхронизация данных с сервером лиги v45...",
     }
   }[language as 'en' | 'ru'] || { title: "Cup" };
 
