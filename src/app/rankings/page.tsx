@@ -1,8 +1,9 @@
+
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v47. 
- * Реализована поддержка "Живого мира": все 9 дивизионов заполнены ботами.
+ * @fileOverview Страница рейтингов v49. 
+ * Поддержка динамической пирамиды и отображение участников.
  */
 
 import { useState, useMemo } from 'react';
@@ -48,37 +49,7 @@ export default function RankingsPage() {
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
-  // === КУБОК ПИРАМИДЫ (Детерминированный рендеринг) ===
-  const [activeRound, setActiveRound] = useState(1);
-  const cupParticipants = useMemo(() => {
-    return getLeagueCupParticipants(contextLeagueId, [], activeSeasonNumber);
-  }, [contextLeagueId, activeSeasonNumber]);
-
-  // Генерируем срез матчей для выбранного раунда
-  const cupMatches = useMemo(() => {
-    const matches = [];
-    const step = Math.pow(2, activeRound);
-    const prevStep = Math.pow(2, activeRound - 1);
-    const cache = new Map();
-    
-    // Для мобильного вида показываем первые 32 матча раунда (или все для поздних стадий)
-    const totalPossibleMatches = 4096 / step;
-    const displayLimit = Math.min(32, totalPossibleMatches);
-
-    for (let i = 0; i < displayLimit; i++) {
-      const idxH = i * step;
-      const idxA = idxH + prevStep;
-      
-      const home = getWinnerOfBranch(cupParticipants, activeRound - 1, idxH, cache, 14, activeSeasonNumber);
-      const away = getWinnerOfBranch(cupParticipants, activeRound - 1, idxA, cache, 14, activeSeasonNumber);
-      
-      matches.push({ home, away, scoreA: null, scoreB: null });
-    }
-    return matches;
-  }, [activeRound, cupParticipants, activeSeasonNumber]);
-
   const standings = useMemo(() => {
-    // Если данных в БД нет (смотрим чужую группу), генерируем бот-заглушку
     if (!tableData) {
       return getStableGroupTeams(contextLevel, contextGroup, contextLeagueId).map(t => ({
         ...t, points: 0, wins: 0, draws: 0, losses: 0, diff: 0
@@ -96,6 +67,7 @@ export default function RankingsPage() {
       title: "RANKINGS HUB", subtitle: "Global Competitive Terminals",
       pts: "PTS", winLoss: "W-D-L", back: "Back",
       waiting: "TBD", round: "Round", final: "Final",
+      promotion: "Promotion Zone", relegation: "Relegation Danger",
       menu: [
         { id: 'my_league', label: 'My Current Table', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'My Pyramid', desc: `Explore ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
@@ -107,6 +79,7 @@ export default function RankingsPage() {
       title: "ТАБЛИЦЫ РЕЙТИНГА", subtitle: "Терминалы глобальных соревнований",
       pts: "ОЧК", winLoss: "В-Н-П", back: "Назад",
       waiting: "TBD", round: "Раунд", final: "Финал",
+      promotion: "Зона повышения", relegation: "Зона вылета",
       menu: [
         { id: 'my_league', label: 'Своя таблица', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'Своя пирамида', desc: `Изучить лигу ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
@@ -181,49 +154,50 @@ export default function RankingsPage() {
              <div className="grid grid-cols-[30px_1fr_80px_40px] px-4 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
                <span>#</span><span>Team</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
              </div>
-             {standings.map((entry: any, i: number) => (
-               <div key={entry.id} className={cn("grid grid-cols-[30px_1fr_80px_40px] items-center p-3 rounded-xl border mb-1 transition-all", entry.id === user?.uid ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-secondary/20 border-white/5")}>
-                 <div className="text-xs font-black italic text-muted-foreground">{i + 1}</div>
-                 <div className="truncate"><span className={cn("text-[11px] font-bold uppercase text-white", entry.id === user?.uid && "text-primary")}>{entry.name}</span></div>
-                 <div className="text-center font-mono text-[10px] text-muted-foreground">{entry.wins || 0}-{entry.draws || 0}-{entry.losses || 0}</div>
-                 <div className="text-right font-headline font-black text-primary italic">{entry.points || 0}</div>
-               </div>
-             ))}
-           </div>
-        </div>
-      )}
-
-      {activeTab === 'pyramid_cup' && (
-        <div className="space-y-6 animate-in fade-in duration-500">
-           <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4">
-             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((r) => (
-               <Button key={r} variant={activeRound === r ? "default" : "outline"} size="sm" onClick={() => setActiveRound(r)} className={cn("h-10 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap", activeRound === r ? "hero-gradient border-none" : "bg-secondary/20 border-white/5")}>
-                 {r === 12 ? t.final : `${t.round} ${r}`}
-               </Button>
-             ))}
-           </div>
-           <div className="space-y-2">
-             {cupMatches.map((m, idx) => {
-               const isMyMatch = m.home?.id === user.uid || m.away?.id === user.uid;
+             {standings.map((entry: any, i: number) => {
+               const pos = i + 1;
+               const isPromotion = pos === 1 && contextLevel > 1;
+               const isRelegation = pos >= 7 && contextLevel < 9;
+               
                return (
-                 <Card key={idx} className={cn("glass-card border-white/5", isMyMatch && "border-primary/50 bg-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.1)]")}>
-                   <CardContent className="p-3">
-                     <div className="grid grid-cols-[1fr_40px_1fr] items-center text-[10px] font-bold uppercase">
-                       <div className="text-right truncate flex flex-col items-end">
-                         <span className={m.home?.id === user.uid ? "text-primary" : "text-white"}>{m.home?.name || t.waiting}</span>
-                         <span className="text-[7px] opacity-40">DIV {m.home?.level}</span>
-                       </div>
-                       <div className="text-center"><Swords className="w-3.5 h-3.5 text-accent/40 mx-auto" /></div>
-                       <div className="text-left truncate flex flex-col items-start">
-                         <span className={m.away?.id === user.uid ? "text-primary" : "text-white"}>{m.away?.name || t.waiting}</span>
-                         <span className="text-[7px] opacity-40">DIV {m.away?.level}</span>
-                       </div>
-                     </div>
-                   </CardContent>
-                 </Card>
+                <div key={entry.id} className={cn(
+                  "grid grid-cols-[30px_1fr_80px_40px] items-center p-3 rounded-xl border mb-1 transition-all", 
+                  entry.id === user?.uid ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-secondary/20 border-white/5",
+                  isPromotion && "border-l-4 border-l-green-500",
+                  isRelegation && "border-l-4 border-l-red-500"
+                )}>
+                  <div className="text-xs font-black italic text-muted-foreground">{pos}</div>
+                  <div className="truncate flex flex-col">
+                    <span className={cn("text-[11px] font-bold uppercase text-white", entry.id === user?.uid && "text-primary")}>{entry.name}</span>
+                    {isPromotion && <span className="text-[6px] text-green-400 font-black uppercase tracking-tighter">PROMOTION</span>}
+                    {isRelegation && <span className="text-[6px] text-red-400 font-black uppercase tracking-tighter">RELEGATION</span>}
+                  </div>
+                  <div className="text-center font-mono text-[10px] text-muted-foreground">{entry.wins || 0}-{entry.draws || 0}-{entry.losses || 0}</div>
+                  <div className="text-right font-headline font-black text-primary italic">{entry.points || 0}</div>
+                </div>
                );
              })}
            </div>
+           <div className="p-4 bg-primary/5 rounded-2xl border border-white/5 space-y-2 mt-4">
+              <div className="flex items-center gap-2">
+                <div className="w-1 h-3 bg-green-500 rounded-full" />
+                <p className="text-[8px] font-black text-muted-foreground uppercase">{t.promotion}: 1st Place</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-1 h-3 bg-red-500 rounded-full" />
+                <p className="text-[8px] font-black text-muted-foreground uppercase">{t.relegation}: 7th & 8th Places</p>
+              </div>
+           </div>
+        </div>
+      )}
+      
+      {activeTab === 'pyramid_cup' && (
+        <div className="animate-in fade-in duration-500 py-20 text-center opacity-40 flex flex-col items-center gap-4 border-2 border-dashed border-white/5 rounded-3xl">
+           <Medal className="w-16 h-16 text-yellow-500" />
+           <h2 className="text-xl font-headline font-bold uppercase text-white">{t.menu[3].label}</h2>
+           <p className="text-[10px] uppercase font-bold tracking-widest leading-relaxed px-10 italic">
+             "Full cup visualization is synchronized with official match reporting sequences."
+           </p>
         </div>
       )}
 
