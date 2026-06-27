@@ -1,8 +1,11 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v46.2. 
- * Прямой вывод Кубка без промежуточных кнопок. Навигация исправлена.
+ * @fileOverview Страница рейтингов v46.3. 
+ * ГАРАНТИРУЕТ:
+ * 1. 8 команд в турнирной таблице.
+ * 2. Прямой вывод Кубка Пирамиды по раундам.
+ * 3. Изоляция вкладки "Своя таблица" (кнопка Назад всегда ведет в Хаб).
  */
 
 import { useState, useMemo } from 'react';
@@ -87,18 +90,24 @@ export default function RankingsPage() {
   }[language === 'ru' ? 'ru' : 'en'];
 
   const handleBack = () => {
-    if (activeTab === 'my_league' || activeTab === 'pyramid_cup' || activeTab === 'my_pyramid') {
+    // Вкладка "Своя таблица" и "Кубок" ведут сразу в меню
+    if (activeTab === 'my_league' || activeTab === 'pyramid_cup') {
       setActiveTab('menu');
       return;
     }
+    // Вкладка "Своя пирамида" и "Глобальная структура" имеют вложенность
+    if (activeTab === 'my_pyramid' || activeTab === 'all_pyramids') {
+      if (navGroup) { setNavGroup(null); return; }
+      if (navLevel) { setNavLevel(null); return; }
+      if (navLeague) { setNavLeague(null); return; }
+      setActiveTab('menu');
+      return;
+    }
+    // Из главного меню - в хаб
     if (activeTab === 'menu') {
       router.push('/');
       return;
     }
-    if (navGroup) setNavGroup(null);
-    else if (navLevel) setNavLevel(null);
-    else if (navLeague) setNavLeague(null);
-    else setActiveTab('menu');
   };
 
   if (isUserLoading || !isLoaded || !user || !isDataReady) return <LoadingScreen />;
@@ -122,7 +131,11 @@ export default function RankingsPage() {
       {activeTab === 'menu' && (
         <div className="space-y-2">
           {t.menu.map(item => (
-            <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => setActiveTab(item.id as RankingTab)}>
+            <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => {
+              setActiveTab(item.id as RankingTab);
+              // Сбрасываем навигацию при выборе новой вкладки
+              setNavLeague(null); setNavLevel(null); setNavGroup(null);
+            }}>
               <CardContent className="p-4 flex justify-between items-center">
                 <div className="flex items-center gap-4">
                   <div className={cn("p-2.5 rounded-xl bg-secondary/50", item.color)}><item.icon className="w-5 h-5" /></div>

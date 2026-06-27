@@ -1,8 +1,11 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v46.2 (League-Specific Cup & Universal Match Recorder).
- * Гарантирует создание всех 56 матчей сезона и Кубка лиги при инициализации после 28.06 16:00.
+ * @fileOverview Ядро MMO-синхронизации v46.3.
+ * ГАРАНТИРУЕТ:
+ * 1. В группе лиги ровно 8 команд (1 игрок + 7 ботов).
+ * 2. Кубок лиги имеет раундовую систему (1/16, 1/8, 1/4, 1/2, Финал).
+ * 3. Атомарная инициализация после 28.06 16:00.
  */
 
 import { useEffect, useRef } from 'react';
@@ -36,7 +39,7 @@ export function AutoMatchManager() {
       if (syncInProgressRef.current === tableId) return;
       syncInProgressRef.current = tableId;
 
-      // Если генерация еще не наступила (до 28.06 16:00) - просто пускаем игрока
+      // Если генерация еще не наступила (до 28.06 16:00)
       if (!info.isGenerationDay && info.isPreSeason) {
         setWorldReady(true);
         return;
@@ -47,10 +50,11 @@ export function AutoMatchManager() {
         const tableSnap = await getDoc(tableRef);
         const myName = String(displayName);
 
-        // 1. СИНХРОНИЗАЦИЯ ТАБЛИЦЫ И КАЛЕНДАРЯ
+        // 1. ЛИГА: 8 КОМАНД И КАЛЕНДАРЬ
         if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < 46) {
           const batch = writeBatch(db);
           
+          // Ровно 8 команд
           const teams = [{ id: userId, name: myName, isBot: false }];
           for (let i = 1; i <= 7; i++) {
             const botId = `bot${tier}${grp}${i}${sNum}`;
@@ -75,6 +79,7 @@ export function AutoMatchManager() {
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
           const seasonStartMs = new Date(GLOBAL_EPOCH_ISO).getTime() + (sNum - 1) * 15 * 24 * 3600000;
 
+          // Календарь на 8 команд (56 матчей)
           const n = 8;
           const teamIds = teams.map(t => t.id);
 
@@ -108,7 +113,7 @@ export function AutoMatchManager() {
           }
           await batch.commit();
         } else {
-          // Замена бота если игрок новый в группе
+          // Если группа уже есть, проверяем, не нужно ли заменить бота игроком
           const data = tableSnap.data();
           if (data && !data.teams.includes(userId)) {
             const teamData = [...(data.teamData || [])];
@@ -125,7 +130,7 @@ export function AutoMatchManager() {
           }
         }
 
-        // 2. СИНХРОНИЗАЦИЯ КУБКА ЛИГИ (Shared among all groups of the league)
+        // 2. КУБОК: РАУНДОВАЯ СИСТЕМА
         const cupId = `cup_s${sNum}_l${lId}`;
         const cupRef = doc(db, 'cup_pyramid_v1', cupId);
 
@@ -155,7 +160,6 @@ export function AutoMatchManager() {
             const alreadyIn = r1.some(m => m.home?.id === userId || m.away?.id === userId);
             
             if (!alreadyIn) {
-              // Находим первого бота в сетке 1/16 и заменяем его
               let replaced = false;
               for (let i = 0; i < r1.length; i++) {
                 if (r1[i].home?.id?.startsWith('bot')) {

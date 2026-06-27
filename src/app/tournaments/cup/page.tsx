@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Терминал Кубка v46.2. 
- * Сетка раундов отображается сразу. Только менеджеры своей лиги.
+ * @fileOverview Терминал Кубка v46.3. 
+ * Сетка раундов (1/16) отображается сразу.
  */
 
 import { useState, useEffect } from 'react';
@@ -45,7 +45,7 @@ export default function PyramidCupPage() {
       final: "Final",
       waiting: "TBD",
       noGrid: "Bracket Pending",
-      noGridDesc: "Syncing data with league server v46...",
+      noGridDesc: "Syncing data with league server v46.3...",
     },
     ru: {
       title: "КУБОК ПИРАМИДЫ",
@@ -54,7 +54,7 @@ export default function PyramidCupPage() {
       final: "Финал",
       waiting: "TBD",
       noGrid: "Сетка формируется",
-      noGridDesc: "Синхронизация данных с сервером лиги v46...",
+      noGridDesc: "Синхронизация данных с сервером лиги v46.3...",
     }
   }[language as 'en' | 'ru'] || { title: "Cup" };
 
