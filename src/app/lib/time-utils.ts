@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v95. Глобальная синхронизация (Эпоха: 29.06.2026).
+ * @fileOverview Ядро времени v50. Глобальная синхронизация цикла (15 дней).
  */
 
 let syncPoint = {
@@ -17,7 +17,6 @@ export function setServerTime(serverMs: number) {
   } else {
     syncPoint = { serverMs, perfMs: 0 };
   }
-  console.log(`[TIME-CORE v95] Global Sync established: ${new Date(serverMs).toISOString()}`);
 }
 
 export function getMoscowTime(): Date {
@@ -68,34 +67,40 @@ export function getGlobalSeasonInfo() {
   const utcNow = getMoscowTime();
   const epochUtc = new Date(GLOBAL_EPOCH_ISO);
   const diffMs = utcNow.getTime() - epochUtc.getTime();
+  
   const cycleDuration = 15; 
   const dayMs = 24 * 60 * 60 * 1000;
   const cycleMs = cycleDuration * dayMs;
 
-  // ТРИГГЕР ГЕНЕРАЦИИ: 28.06 16:00 MSK (это за 8 часов до начала сезона)
-  const genTriggerMs = epochUtc.getTime() - (8 * 60 * 60 * 1000);
-  const isGenerationAvailable = utcNow.getTime() >= genTriggerMs;
-
   if (diffMs < 0) {
     return {
       seasonDay: 0, dayOfCycle: 0, seasonNumber: 1, activeSeasonNumber: 1,
-      isOffseason: true, isPreSeason: true, isGenerationDay: isGenerationAvailable,
+      isOffseason: true, isPreSeason: true, isGenerationWindow: false,
       timeToStartMs: Math.abs(diffMs), currentSeasonStart: epochUtc, nextSeasonStart: epochUtc
     };
   }
 
   const seasonNumber = Math.floor(diffMs / cycleMs) + 1;
   const dayOfCycle = Math.floor((diffMs % cycleMs) / dayMs) + 1;
+  
+  // Межсезонье - это 15-й день
   const isOffseason = dayOfCycle === 15;
+  
+  // ТРИГГЕР ГЕНЕРАЦИИ: 15-й день после 16:00 MSK
+  const mskNow = toMskDate(utcNow);
+  const isGenerationWindow = isOffseason && mskNow.getUTCHours() >= 16;
+
+  // Если окно генерации открыто, интерфейс должен ориентироваться на СЛЕДУЮЩИЙ сезон
+  const activeSeasonNumber = isGenerationWindow ? seasonNumber + 1 : seasonNumber;
 
   return {
     seasonDay: isOffseason ? 0 : dayOfCycle,
     dayOfCycle,
     seasonNumber,
-    activeSeasonNumber: seasonNumber,
+    activeSeasonNumber,
     isOffseason,
+    isGenerationWindow,
     isPreSeason: false,
-    isGenerationDay: isOffseason,
     timeToStartMs: Math.max(0, (new Date(epochUtc.getTime() + seasonNumber * cycleMs)).getTime() - utcNow.getTime()),
     currentSeasonStart: new Date(epochUtc.getTime() + (seasonNumber - 1) * cycleMs),
     nextSeasonStart: new Date(epochUtc.getTime() + seasonNumber * cycleMs)

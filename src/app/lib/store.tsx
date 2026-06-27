@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Глобальное хранилище v46 (Atomic Reset & v46 Filter). 
+ * Глобальное хранилище v50 (Full Seasonal Automation). 
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -32,6 +32,7 @@ interface GameState {
   rank: number; seasonDay: number; seasonNumber: number;
   isSyncing: boolean; language: string; skillPoints: number;
   isDataReady: boolean; allSeasonMatches: any[]; nextMatch: any | null; isMatchesLoading: boolean;
+  lastProcessedSeason: number;
 
   addCrystals: (amount: number) => void;
   addCredits: (amount: number) => void;
@@ -87,6 +88,7 @@ const DEFAULT_STATE: GameState = {
   skillPoints: 0, arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
+  lastProcessedSeason: 0,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
   setTrainingFocus: () => {}, startDailyPlayerTraining: () => {}, claimDailyPlayerTraining: () => {},
@@ -129,7 +131,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         groupId: Number(data.groupId || 1), country: data.country || null,
         lastSeenMatchDay: Number(data.lastSeenMatchDay || 0),
         activeSeasonNumber: Number(info.activeSeasonNumber),
-        seasonNumber: Number(info.seasonNumber), seasonDay: Number(info.seasonDay), isLoaded: true
+        seasonNumber: Number(info.seasonNumber), seasonDay: Number(info.seasonDay),
+        lastProcessedSeason: Number(data.lastProcessedSeason || 0),
+        isLoaded: true
       }));
     });
     return () => { active = false; unsub(); };
@@ -178,7 +182,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsubTeam(); playersUnsub(); staffUnsub(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
-  // Global Matches Listener (v46 Reset)
+  // Global Matches Listener (v50 Automation)
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
     const info = getGlobalSeasonInfo();
@@ -190,7 +194,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const q = query(
       collection(db, 'matches_v1'), 
       where('tableId', '==', tableId),
-      where('version', '==', 46)
+      where('version', '==', 50)
     );
 
     let active = true;
@@ -330,9 +334,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, [getRefs]);
 
-  const payStaffSalaries = async () => {
-    // Logic for paying salaries from credits
-  };
+  const payStaffSalaries = async () => {};
 
   const recordMatch = useCallback((w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string) => {
     const r = getRefs(); if (!r) return; 
