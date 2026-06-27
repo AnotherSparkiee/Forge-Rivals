@@ -1,25 +1,26 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v46.3.
+ * @fileOverview Ядро MMO-синхронизации v47 (Living Ecosystem).
  * ГАРАНТИРУЕТ:
- * 1. В группе лиги ровно 8 команд (1 игрок + 7 ботов).
- * 2. Кубок лиги имеет раундовую систему (1/16, 1/8, 1/4, 1/2, Финал).
- * 3. Атомарная инициализация после 28.06 16:00.
+ * 1. В любой группе любого дивизиона всегда 8 команд (Живая замена ботов).
+ * 2. Кубок Пирамиды на 4096 участников для каждой лиги.
+ * 3. Атомарная генерация мира под прелоадером.
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore } from '@/firebase';
 import { 
-  doc, getDoc, writeBatch, serverTimestamp, updateDoc, runTransaction
+  doc, getDoc, writeBatch, serverTimestamp, updateDoc, runTransaction,
+  collection, query, where, getDocs
 } from 'firebase/firestore';
 import { getGlobalSeasonInfo, GLOBAL_EPOCH_ISO } from '@/app/lib/time-utils';
-import { LEAGUES } from '@/app/lib/leagues-data';
+import { LEAGUES, getStableGroupTeams } from '@/app/lib/leagues-data';
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
-  const { isLoaded, id: userId, displayName, selectedLeagueId, leagueLevel, groupId, setWorldReady } = useGameState();
+  const { isLoaded, id: userId, displayName, selectedLeagueId, leagueLevel, groupId, setWorldReady, rank } = useGameState();
   const db = useFirestore();
   
   const syncInProgressRef = useRef<string | null>(null);
@@ -50,16 +51,19 @@ export function AutoMatchManager() {
         const tableSnap = await getDoc(tableRef);
         const myName = String(displayName);
 
-        // 1. ЛИГА: 8 КОМАНД И КАЛЕНДАРЬ
-        if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < 46) {
+        // 1. СИНХРОНИЗАЦИЯ ГРУППЫ ЛИГИ (8 команд)
+        if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < 47) {
           const batch = writeBatch(db);
           
-          // Ровно 8 команд
-          const teams = [{ id: userId, name: myName, isBot: false }];
-          for (let i = 1; i <= 7; i++) {
-            const botId = `bot${tier}${grp}${i}${sNum}`;
-            teams.push({ id: botId, name: `🤖 ${botId}`, isBot: true });
-          }
+          // Получаем стабильный список из 8 команд (user + 7 bots)
+          const teams = getStableGroupTeams(tier, grp, lId, [{
+            id: userId,
+            displayName: myName,
+            selectedLeagueId: lId,
+            leagueLevel: tier,
+            groupId: grp,
+            rank: rank || 1
+          }]);
 
           const stats: any = {};
           teams.forEach(t => {
@@ -71,7 +75,7 @@ export function AutoMatchManager() {
             teams: teams.map(t => t.id),
             teamData: teams,
             stats,
-            version: 46,
+            version: 47,
             updatedAt: serverTimestamp()
           });
 
@@ -79,10 +83,9 @@ export function AutoMatchManager() {
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
           const seasonStartMs = new Date(GLOBAL_EPOCH_ISO).getTime() + (sNum - 1) * 15 * 24 * 3600000;
 
-          // Календарь на 8 команд (56 матчей)
-          const n = 8;
+          // Генерируем 56 матчей (14 туров в 2 круга)
           const teamIds = teams.map(t => t.id);
-
+          const n = 8;
           for (let r = 0; r < n - 1; r++) {
             for (let i = 0; i < n / 2; i++) {
               let hIdx = i;
@@ -94,14 +97,14 @@ export function AutoMatchManager() {
               
               const createMatch = (day: number, h: string, a: string) => {
                 const startTime = new Date(seasonStartMs + (day - 1) * 24 * 3600000 + hh * 3600000 + mm * 60000);
-                const matchId = `m_v46_${tableId}_d${day}_h${h}`;
+                const matchId = `m_v47_${tableId}_d${day}_h${h}`;
                 const mRef = doc(db, 'matches_v1', matchId);
                 batch.set(mRef, {
                   id: matchId, tableId, season: sNum, tour: day, day,
                   homeId: h, homeName: teams.find(t => t.id === h)?.name || h,
                   awayId: a, awayName: teams.find(t => t.id === a)?.name || a,
                   startTime: startTime.toISOString(),
-                  isFinished: false, version: 46, createdAt: serverTimestamp()
+                  isFinished: false, version: 47, createdAt: serverTimestamp()
                 });
               };
 
@@ -125,70 +128,35 @@ export function AutoMatchManager() {
               const newStats = { ...(data.stats || {}) };
               delete newStats[botIdToRemove];
               newStats[userId] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
-              await updateDoc(tableRef, { teams: newTeams, teamData: teamData, stats: newStats, updatedAt: serverTimestamp() });
+              await updateDoc(tableRef, { teams: newTeams, teamData: teamData, stats: newStats, updatedAt: serverTimestamp(), version: 47 });
             }
           }
         }
 
-        // 2. КУБОК: РАУНДОВАЯ СИСТЕМА
+        // 2. СИНХРОНИЗАЦИЯ КУБКА ПИРАМИДЫ (v47)
         const cupId = `cup_s${sNum}_l${lId}`;
         const cupRef = doc(db, 'cup_pyramid_v1', cupId);
+        const cupSnap = await getDoc(cupRef);
 
-        await runTransaction(db, async (transaction) => {
-          const cupSnap = await transaction.get(cupRef);
-          
-          if (!cupSnap.exists() || (cupSnap.data()?.version || 0) < 46) {
-            const cupR1 = [];
-            for (let i = 1; i <= 16; i++) {
-              const isFirst = i === 1;
-              cupR1.push({
-                matchId: `cup_s${sNum}_l${lId}_r1_m${i}`,
-                home: isFirst ? { id: userId, name: myName } : { id: `bot_cup_${lId}_${i}_1`, name: `🤖 bot_${lId}_${i}_1` },
-                away: { id: `bot_cup_${lId}_${i}_2`, name: `🤖 bot_${lId}_${i}_2` },
-                scoreA: null, scoreB: null, isFinished: false
-              });
-            }
-            transaction.set(cupRef, {
-              id: cupId, season: sNum, leagueId: lId,
-              rounds: { r1: cupR1, r2: [], r3: [], r4: [], r5: [] },
-              version: 46,
-              updatedAt: serverTimestamp()
-            });
-          } else {
-            const cupData = cupSnap.data();
-            const r1 = [...(cupData.rounds?.r1 || [])];
-            const alreadyIn = r1.some(m => m.home?.id === userId || m.away?.id === userId);
-            
-            if (!alreadyIn) {
-              let replaced = false;
-              for (let i = 0; i < r1.length; i++) {
-                if (r1[i].home?.id?.startsWith('bot')) {
-                  r1[i].home = { id: userId, name: myName };
-                  replaced = true;
-                  break;
-                }
-                if (r1[i].away?.id?.startsWith('bot')) {
-                  r1[i].away = { id: userId, name: myName };
-                  replaced = true;
-                  break;
-                }
-              }
-              if (replaced) {
-                transaction.update(cupRef, { 'rounds.r1': r1, updatedAt: serverTimestamp() });
-              }
-            }
-          }
-        });
+        if (!cupSnap.exists() || (cupSnap.data()?.version || 0) < 47) {
+          // Первичная инициализация документа Кубка (без записи всех 4096 матчей для экономии)
+          // Мы храним только мета-данные, результаты рассчитываются детерминировано в cup-utils
+          await setDoc(cupRef, {
+            id: cupId, season: sNum, leagueId: lId,
+            version: 47,
+            updatedAt: serverTimestamp()
+          });
+        }
 
         setWorldReady(true);
       } catch (e) {
-        console.error("[WORLD-SYNC ERROR]", e);
-        setWorldReady(true);
+        console.error("[WORLD-SYNC ERROR v47]", e);
+        setWorldReady(true); // Fail-safe
       }
     };
 
     syncSharedWorld();
-  }, [isLoaded, userId, displayName, selectedLeagueId, leagueLevel, groupId, isUserLoading, user, db, setWorldReady]);
+  }, [isLoaded, userId, displayName, selectedLeagueId, leagueLevel, groupId, isUserLoading, user, db, setWorldReady, rank]);
 
   return null;
 }

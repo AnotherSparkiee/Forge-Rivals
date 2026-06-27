@@ -1,6 +1,6 @@
 /**
- * @fileOverview Ядро лиг v20: Детерминированное расписание и уникальные ID ботов.
- * Боты теперь привязаны к конкретной лиге и группе.
+ * @fileOverview Ядро лиг v47: Детерминированное расписание и уникальные ID ботов.
+ * Боты теперь привязаны к конкретной лиге и группе для создания Living Ecosystem.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -35,35 +35,41 @@ export const LEAGUES: LeagueOption[] = [
 ];
 
 /**
- * Создает список из 8 команд, гарантируя уникальность ботов для каждой лиги/группы.
+ * Создает стабильный список из 8 команд для группы.
+ * Заменяет ботов на реальных игроков на основе их Rank (слота в группе).
  */
-export function getStableGroupTeams(level: number, group: number, leagueId: string, allLeaguePlayers: any[] = []) {
-  const leagueIdx = LEAGUES.findIndex(l => l.id === leagueId);
-  const leaguePrefix = (leagueIdx + 1).toString().padStart(2, '0');
+export function getStableGroupTeams(level: number, group: number, leagueId: string, realPlayersInGroup: any[] = []) {
+  const leagueIdx = (LEAGUES.findIndex(l => l.id === leagueId) + 1).toString().padStart(2, '0');
   const groupPrefix = group.toString().padStart(3, '0');
 
-  // Реальные игроки
-  const groupPlayers = allLeaguePlayers.filter(p => 
-    p.selectedLeagueId === leagueId && 
-    Number(p.leagueLevel) === level && 
-    Number(p.groupId) === group
-  ).map(p => ({
-    id: p.id,
-    name: p.displayName || `Manager_${p.id.slice(0, 4)}`,
-    isBot: false
-  }));
+  const teams = new Array(TEAMS_PER_GROUP).fill(null);
 
-  const teams = [...groupPlayers];
-  const botsNeeded = Math.max(0, TEAMS_PER_GROUP - teams.length);
-  
-  for (let i = 0; i < botsNeeded; i++) {
-    // Уникальный ID бота: bot + №Лиги + Уровень + №Группы + №Слота
-    // Пример: bot0190011 (Лига 1, Лвл 9, Группа 001, Слот 1)
-    const botId = `bot${leaguePrefix}${level}${groupPrefix}${i + 1}`;
-    teams.push({ id: botId, name: botId, isBot: true });
+  // 1. Расставляем реальных игроков по их Rank (1-8)
+  realPlayersInGroup.forEach(p => {
+    const slot = Math.min(8, Math.max(1, p.rank || 1));
+    teams[slot - 1] = {
+      id: p.id,
+      name: p.displayName || `Manager_${p.id.slice(0, 4)}`,
+      isBot: false,
+      rank: slot
+    };
+  });
+
+  // 2. Заполняем пустые места уникальными ботами
+  for (let i = 0; i < TEAMS_PER_GROUP; i++) {
+    if (!teams[i]) {
+      const slotNum = i + 1;
+      const botId = `bot${leagueIdx}${level}${groupPrefix}${slotNum}`;
+      teams[i] = {
+        id: botId,
+        name: botId,
+        isBot: true,
+        rank: slotNum
+      };
+    }
   }
 
-  return teams.sort((a, b) => a.id.localeCompare(b.id));
+  return teams;
 }
 
 export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagueId: string) {
@@ -109,6 +115,9 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
   return matches.sort((a, b) => a.day - b.day);
 }
 
+/**
+ * Детерминированный результат матча.
+ */
 export function getMatchResult(homeId: string, awayId: string, day: number, season: number): [number, number] {
   const seedStr = `${homeId}_${awayId}_s${season}_d${day}`;
   let hash = 0;
@@ -117,7 +126,7 @@ export function getMatchResult(homeId: string, awayId: string, day: number, seas
     hash |= 0;
   }
   const val = Math.abs(hash) % 100;
-  if (val < 35) return [2, 0];
-  if (val < 65) return [1, 1];
+  if (val < 45) return [2, 0];
+  if (val < 55) return [1, 1];
   return [0, 2];
 }
