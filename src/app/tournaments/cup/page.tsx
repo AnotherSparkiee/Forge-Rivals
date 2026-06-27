@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Терминал Кубка v46. Reset Edition.
+ * @fileOverview Терминал Кубка v46.2. 
+ * Сетка раундов отображается сразу. Только менеджеры своей лиги.
  */
 
 import { useState, useEffect } from 'react';

@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v46 (Reset Edition: Start 29.06).
- * Гарантирует создание всех 56 матчей сезона и Кубка при инициализации после 28.06 16:00.
+ * @fileOverview Ядро MMO-синхронизации v46.2 (League-Specific Cup & Universal Match Recorder).
+ * Гарантирует создание всех 56 матчей сезона и Кубка лиги при инициализации после 28.06 16:00.
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore } from '@/firebase';
 import { 
-  doc, getDoc, writeBatch, serverTimestamp, updateDoc
+  doc, getDoc, writeBatch, serverTimestamp, updateDoc, runTransaction
 } from 'firebase/firestore';
 import { getGlobalSeasonInfo, GLOBAL_EPOCH_ISO } from '@/app/lib/time-utils';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -38,19 +38,16 @@ export function AutoMatchManager() {
 
       // Если генерация еще не наступила (до 28.06 16:00) - просто пускаем игрока
       if (!info.isGenerationDay && info.isPreSeason) {
-        console.log(`[WORLD-SYNC v46] Generation not yet available. Waiting for 28.06 16:00.`);
         setWorldReady(true);
         return;
       }
 
-      console.log(`[WORLD-SYNC v46] Synchronizing Global Reset Season ${tableId}...`);
-      
       try {
         const tableRef = doc(db, 'league_tables_v1', tableId);
         const tableSnap = await getDoc(tableRef);
         const myName = String(displayName);
 
-        // Если таблицы нет или старая версия - создаем заново (v46)
+        // 1. СИНХРОНИЗАЦИЯ ТАБЛИЦЫ И КАЛЕНДАРЯ
         if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < 46) {
           const batch = writeBatch(db);
           
@@ -74,7 +71,6 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           });
 
-          // Календарь на 14 туров (в два круга)
           const leagueInfo = LEAGUES.find(l => l.id === lId) || LEAGUES[0];
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
           const seasonStartMs = new Date(GLOBAL_EPOCH_ISO).getTime() + (sNum - 1) * 15 * 24 * 3600000;
@@ -110,55 +106,77 @@ export function AutoMatchManager() {
             const last = teamIds.pop()!;
             teamIds.splice(1, 0, last);
           }
-
-          // Инициализация Кубка Лиги v46 (на 16 лиг)
-          const cupId = `cup_s${sNum}_l${lId}`;
-          const cupRef = doc(db, 'cup_pyramid_v1', cupId);
-          
-          // Генерируем 16 пар для 1/16 финала (32 команды)
-          const cupR1 = [];
-          for (let i = 1; i <= 16; i++) {
-            const isMyMatch = i === 1;
-            cupR1.push({
-              matchId: `cup_s${sNum}_l${lId}_r1_m${i}`,
-              home: isMyMatch ? { id: userId, name: myName } : { id: `bot_cup_${i}_1`, name: `🤖 bot_cup_${i}_1` },
-              away: { id: `bot_cup_${i}_2`, name: `🤖 bot_cup_${i}_2` },
-              scoreA: null, scoreB: null, isFinished: false
-            });
-          }
-
-          batch.set(cupRef, {
-            id: cupId, season: sNum, leagueId: lId,
-            rounds: { r1: cupR1, r2: [], r3: [], r4: [], r5: [] },
-            version: 46,
-            updatedAt: serverTimestamp()
-          }, { merge: true });
-
           await batch.commit();
-          setWorldReady(true);
         } else {
-          // Если таблица уже есть, проверяем на замену ботов
+          // Замена бота если игрок новый в группе
           const data = tableSnap.data();
           if (data && !data.teams.includes(userId)) {
             const teamData = [...(data.teamData || [])];
             const botIdx = teamData.findIndex((t: any) => t.isBot || t.id.startsWith('bot'));
-            
             if (botIdx !== -1) {
               const botIdToRemove = teamData[botIdx].id;
               teamData[botIdx] = { id: userId, name: myName, isBot: false };
-              
               const newTeams = teamData.map((t: any) => t.id);
               const newStats = { ...(data.stats || {}) };
               delete newStats[botIdToRemove];
               newStats[userId] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
-
-              await updateDoc(tableRef, {
-                teams: newTeams, teamData: teamData, stats: newStats, updatedAt: serverTimestamp()
-              });
+              await updateDoc(tableRef, { teams: newTeams, teamData: teamData, stats: newStats, updatedAt: serverTimestamp() });
             }
           }
-          setWorldReady(true);
         }
+
+        // 2. СИНХРОНИЗАЦИЯ КУБКА ЛИГИ (Shared among all groups of the league)
+        const cupId = `cup_s${sNum}_l${lId}`;
+        const cupRef = doc(db, 'cup_pyramid_v1', cupId);
+
+        await runTransaction(db, async (transaction) => {
+          const cupSnap = await transaction.get(cupRef);
+          
+          if (!cupSnap.exists() || (cupSnap.data()?.version || 0) < 46) {
+            const cupR1 = [];
+            for (let i = 1; i <= 16; i++) {
+              const isFirst = i === 1;
+              cupR1.push({
+                matchId: `cup_s${sNum}_l${lId}_r1_m${i}`,
+                home: isFirst ? { id: userId, name: myName } : { id: `bot_cup_${lId}_${i}_1`, name: `🤖 bot_${lId}_${i}_1` },
+                away: { id: `bot_cup_${lId}_${i}_2`, name: `🤖 bot_${lId}_${i}_2` },
+                scoreA: null, scoreB: null, isFinished: false
+              });
+            }
+            transaction.set(cupRef, {
+              id: cupId, season: sNum, leagueId: lId,
+              rounds: { r1: cupR1, r2: [], r3: [], r4: [], r5: [] },
+              version: 46,
+              updatedAt: serverTimestamp()
+            });
+          } else {
+            const cupData = cupSnap.data();
+            const r1 = [...(cupData.rounds?.r1 || [])];
+            const alreadyIn = r1.some(m => m.home?.id === userId || m.away?.id === userId);
+            
+            if (!alreadyIn) {
+              // Находим первого бота в сетке 1/16 и заменяем его
+              let replaced = false;
+              for (let i = 0; i < r1.length; i++) {
+                if (r1[i].home?.id?.startsWith('bot')) {
+                  r1[i].home = { id: userId, name: myName };
+                  replaced = true;
+                  break;
+                }
+                if (r1[i].away?.id?.startsWith('bot')) {
+                  r1[i].away = { id: userId, name: myName };
+                  replaced = true;
+                  break;
+                }
+              }
+              if (replaced) {
+                transaction.update(cupRef, { 'rounds.r1': r1, updatedAt: serverTimestamp() });
+              }
+            }
+          }
+        });
+
+        setWorldReady(true);
       } catch (e) {
         console.error("[WORLD-SYNC ERROR]", e);
         setWorldReady(true);

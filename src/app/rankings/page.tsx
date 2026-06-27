@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v46. Reset Edition.
+ * @fileOverview Страница рейтингов v46.2. 
+ * Прямой вывод Кубка без промежуточных кнопок. Навигация исправлена.
  */
 
 import { useState, useMemo } from 'react';
@@ -42,7 +43,6 @@ export default function RankingsPage() {
   const contextLevel = isMyLeagueTab ? String(leagueLevel || 9) : String(navLevel || leagueLevel || 9);
   const contextGroup = isMyLeagueTab ? String(groupId || 1) : String(navGroup || groupId || 1);
 
-  // Синхронизация с версией v46
   const tableId = `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
@@ -54,25 +54,11 @@ export default function RankingsPage() {
 
   const standings = useMemo(() => {
     if (!tableData || !tableData.teamData) return [];
-    
     const list = tableData.teamData.map((t: any) => {
-      const s = tableData.stats?.[t.id] || { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
-      return {
-        id: t.id,
-        name: t.name,
-        points: Number(s.points || 0),
-        wins: Number(s.wins || 0),
-        draws: Number(s.draws || 0),
-        losses: Number(s.losses || 0),
-        diff: Number(s.diff || 0)
-      };
+      const s = tableData.stats?.[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
+      return { ...t, ...s };
     });
-
-    return list.sort((a: any, b: any) => {
-      if (b.points !== a.points) return b.points - a.points;
-      if (b.diff !== a.diff) return b.diff - a.diff;
-      return a.name.localeCompare(b.name);
-    });
+    return list.sort((a: any, b: any) => b.points - a.points || b.diff - a.diff || a.name.localeCompare(b.name));
   }, [tableData]);
 
   const t = {
@@ -155,26 +141,23 @@ export default function RankingsPage() {
              <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase">GROUP {contextGroup}</Badge>
              <span className="text-[10px] font-mono text-muted-foreground">SEASON {activeSeasonNumber}</span>
            </div>
-
            <div className="space-y-1">
              <div className="grid grid-cols-[30px_1fr_80px_40px] px-4 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
                <span>#</span><span>Team</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
              </div>
-             
              {isTableLoading ? (
                <div className="py-20 text-center opacity-30"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
              ) : standings.length > 0 ? standings.map((entry: any, i: number) => (
                <div key={entry.id} className={cn("grid grid-cols-[30px_1fr_80px_40px] items-center p-3 rounded-xl border mb-1 transition-all", entry.id === user?.uid ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-secondary/20 border-white/5")}>
                  <div className="text-xs font-black italic text-muted-foreground">{i + 1}</div>
                  <div className="truncate"><span className={cn("text-[11px] font-bold uppercase text-white", entry.id === user?.uid && "text-primary")}>{entry.name}</span></div>
-                 <div className="text-center font-mono text-[10px] text-muted-foreground">{entry.wins}-{entry.draws}-{entry.losses}</div>
-                 <div className="text-right font-headline font-black text-primary italic">{entry.points}</div>
+                 <div className="text-center font-mono text-[10px] text-muted-foreground">{entry.wins || 0}-{entry.draws || 0}-{entry.losses || 0}</div>
+                 <div className="text-right font-headline font-black text-primary italic">{entry.points || 0}</div>
                </div>
              )) : (
                <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10 mt-4 flex flex-col items-center">
                  <AlertTriangle className="w-12 h-12 mb-4 text-orange-500" />
                  <p className="text-[10px] font-black uppercase">Syncing Terminal...</p>
-                 <p className="text-[8px] text-muted-foreground mt-2 italic">Awaiting connection to league server v46</p>
                </div>
              )}
            </div>
@@ -195,8 +178,8 @@ export default function RankingsPage() {
                  ))}
                </div>
                <div className="space-y-2">
-                 {(cupData.rounds?.[activeRound] || []).length > 0 ? (cupData.rounds?.[activeRound] || []).map((m: any, idx: number) => (
-                   <Card key={idx} className={cn("glass-card border-white/5", (m.home?.id === user.uid || m.away?.id === user.uid) && "border-primary/50 bg-primary/10")}>
+                 {(cupData.rounds?.[activeRound] || []).map((m: any, idx: number) => (
+                   <Card key={idx} className={cn("glass-card border-white/5", (m.home?.id === user.uid || m.away?.id === user.uid) && "border-primary/50 bg-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.1)]")}>
                      <CardContent className="p-3">
                        <div className="grid grid-cols-[1fr_40px_1fr] items-center text-[10px] font-bold uppercase">
                          <div className="text-right truncate"><span className={m.home?.id === user.uid ? "text-primary" : "text-white"}>{m.home?.name || t.waiting}</span></div>
@@ -205,14 +188,13 @@ export default function RankingsPage() {
                        </div>
                      </CardContent>
                    </Card>
-                 )) : <div className="py-20 text-center opacity-30 text-[10px] font-black uppercase">Awaiting round start...</div>}
+                 ))}
                </div>
              </>
            ) : (
              <div className="py-20 text-center opacity-30 border border-dashed border-white/5 rounded-2xl p-10 flex flex-col items-center">
                <Medal className="w-12 h-12 mb-4" />
-               <p className="text-[10px] font-black uppercase">Cup Data Missing</p>
-               <p className="text-[8px] text-muted-foreground mt-2 italic">Initialization in progress v46</p>
+               <p className="text-[10px] font-black uppercase">Syncing Terminal...</p>
              </div>
            )}
         </div>
