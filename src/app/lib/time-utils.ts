@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v92. Глобальная синхронизация (Эпоха: 29.06.2026).
+ * @fileOverview Ядро времени v95. Глобальная синхронизация (Эпоха: 29.06.2026).
  */
 
 let syncPoint = {
@@ -17,7 +17,7 @@ export function setServerTime(serverMs: number) {
   } else {
     syncPoint = { serverMs, perfMs: 0 };
   }
-  console.log(`[TIME-CORE v92] Global Sync established: ${new Date(serverMs).toISOString()}`);
+  console.log(`[TIME-CORE v95] Global Sync established: ${new Date(serverMs).toISOString()}`);
 }
 
 export function getMoscowTime(): Date {
@@ -72,10 +72,14 @@ export function getGlobalSeasonInfo() {
   const dayMs = 24 * 60 * 60 * 1000;
   const cycleMs = cycleDuration * dayMs;
 
+  // ТРИГГЕР ГЕНЕРАЦИИ: 28.06 16:00 MSK (это за 8 часов до начала сезона)
+  const genTriggerMs = epochUtc.getTime() - (8 * 60 * 60 * 1000);
+  const isGenerationAvailable = utcNow.getTime() >= genTriggerMs;
+
   if (diffMs < 0) {
     return {
       seasonDay: 0, dayOfCycle: 0, seasonNumber: 1, activeSeasonNumber: 1,
-      isOffseason: true, isPreSeason: true, isGenerationDay: true,
+      isOffseason: true, isPreSeason: true, isGenerationDay: isGenerationAvailable,
       timeToStartMs: Math.abs(diffMs), currentSeasonStart: epochUtc, nextSeasonStart: epochUtc
     };
   }

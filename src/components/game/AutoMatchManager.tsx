@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v45 (Reset Edition: Start 29.06).
- * Гарантирует создание всех 56 матчей сезона и Кубка при инициализации.
+ * @fileOverview Ядро MMO-синхронизации v46 (Reset Edition: Start 29.06).
+ * Гарантирует создание всех 56 матчей сезона и Кубка при инициализации после 28.06 16:00.
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore } from '@/firebase';
 import { 
-  doc, getDoc, writeBatch, serverTimestamp, updateDoc, onSnapshot
+  doc, getDoc, writeBatch, serverTimestamp, updateDoc
 } from 'firebase/firestore';
 import { getGlobalSeasonInfo, GLOBAL_EPOCH_ISO } from '@/app/lib/time-utils';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -36,15 +36,22 @@ export function AutoMatchManager() {
       if (syncInProgressRef.current === tableId) return;
       syncInProgressRef.current = tableId;
 
-      console.log(`[WORLD-SYNC v45] Initializing Reset Season ${tableId}...`);
+      // Если генерация еще не наступила (до 28.06 16:00) - просто пускаем игрока
+      if (!info.isGenerationDay && info.isPreSeason) {
+        console.log(`[WORLD-SYNC v46] Generation not yet available. Waiting for 28.06 16:00.`);
+        setWorldReady(true);
+        return;
+      }
+
+      console.log(`[WORLD-SYNC v46] Synchronizing Global Reset Season ${tableId}...`);
       
       try {
         const tableRef = doc(db, 'league_tables_v1', tableId);
         const tableSnap = await getDoc(tableRef);
         const myName = String(displayName);
 
-        // Если таблицы нет или старая версия - создаем заново (v45)
-        if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < 45) {
+        // Если таблицы нет или старая версия - создаем заново (v46)
+        if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < 46) {
           const batch = writeBatch(db);
           
           const teams = [{ id: userId, name: myName, isBot: false }];
@@ -63,7 +70,7 @@ export function AutoMatchManager() {
             teams: teams.map(t => t.id),
             teamData: teams,
             stats,
-            version: 45,
+            version: 46,
             updatedAt: serverTimestamp()
           });
 
@@ -86,14 +93,14 @@ export function AutoMatchManager() {
               
               const createMatch = (day: number, h: string, a: string) => {
                 const startTime = new Date(seasonStartMs + (day - 1) * 24 * 3600000 + hh * 3600000 + mm * 60000);
-                const matchId = `m_v45_${tableId}_d${day}_h${h}`;
+                const matchId = `m_v46_${tableId}_d${day}_h${h}`;
                 const mRef = doc(db, 'matches_v1', matchId);
                 batch.set(mRef, {
                   id: matchId, tableId, season: sNum, tour: day, day,
                   homeId: h, homeName: teams.find(t => t.id === h)?.name || h,
                   awayId: a, awayName: teams.find(t => t.id === a)?.name || a,
                   startTime: startTime.toISOString(),
-                  isFinished: false, version: 45, createdAt: serverTimestamp()
+                  isFinished: false, version: 46, createdAt: serverTimestamp()
                 });
               };
 
@@ -104,13 +111,26 @@ export function AutoMatchManager() {
             teamIds.splice(1, 0, last);
           }
 
-          // Инициализация Кубка Лиги v45
+          // Инициализация Кубка Лиги v46 (на 16 лиг)
           const cupId = `cup_s${sNum}_l${lId}`;
           const cupRef = doc(db, 'cup_pyramid_v1', cupId);
+          
+          // Генерируем 16 пар для 1/16 финала (32 команды)
+          const cupR1 = [];
+          for (let i = 1; i <= 16; i++) {
+            const isMyMatch = i === 1;
+            cupR1.push({
+              matchId: `cup_s${sNum}_l${lId}_r1_m${i}`,
+              home: isMyMatch ? { id: userId, name: myName } : { id: `bot_cup_${i}_1`, name: `🤖 bot_cup_${i}_1` },
+              away: { id: `bot_cup_${i}_2`, name: `🤖 bot_cup_${i}_2` },
+              scoreA: null, scoreB: null, isFinished: false
+            });
+          }
+
           batch.set(cupRef, {
             id: cupId, season: sNum, leagueId: lId,
-            rounds: { r1: [], r2: [], r3: [], r4: [], r5: [] },
-            version: 45,
+            rounds: { r1: cupR1, r2: [], r3: [], r4: [], r5: [] },
+            version: 46,
             updatedAt: serverTimestamp()
           }, { merge: true });
 

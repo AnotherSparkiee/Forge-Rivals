@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @fileOverview Терминал Кубка v45. Reset Edition.
+ * @fileOverview Терминал Кубка v46. Reset Edition.
  */
 
 import { useState, useEffect } from 'react';
@@ -44,7 +44,7 @@ export default function PyramidCupPage() {
       final: "Final",
       waiting: "TBD",
       noGrid: "Bracket Pending",
-      noGridDesc: "Syncing data with league server v45...",
+      noGridDesc: "Syncing data with league server v46...",
     },
     ru: {
       title: "КУБОК ПИРАМИДЫ",
@@ -53,7 +53,7 @@ export default function PyramidCupPage() {
       final: "Финал",
       waiting: "TBD",
       noGrid: "Сетка формируется",
-      noGridDesc: "Синхронизация данных с сервером лиги v45...",
+      noGridDesc: "Синхронизация данных с сервером лиги v46...",
     }
   }[language as 'en' | 'ru'] || { title: "Cup" };
 
@@ -109,7 +109,7 @@ export default function PyramidCupPage() {
                   <CardContent className="p-3">
                     <div className="grid grid-cols-[1fr_40px_1fr] items-center">
                       <div className="text-right truncate"><p className={cn("text-[10px] font-bold uppercase", m.home?.id === user.uid ? "text-primary" : "text-white")}>{m.home?.name || t.waiting}</p></div>
-                      <div className="flex justify-center">{m.scoreA !== null ? <span className="text-sm font-headline font-black">{m.scoreA}:{m.scoreB}</span> : <Swords className="w-3.5 h-3.5 text-accent/40 mx-auto" />}</div>
+                      <div className="flex justify-center">{m.scoreA !== null ? <span className="text-sm font-headline font-black">{m.scoreA}:${m.scoreB}</span> : <Swords className="w-3.5 h-3.5 text-accent/40 mx-auto" />}</div>
                       <div className="text-left truncate"><p className={cn("text-[10px] font-bold uppercase", m.away?.id === user.uid ? "text-primary" : "text-white")}>{m.away?.name || t.waiting}</p></div>
                     </div>
                   </CardContent>
