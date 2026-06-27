@@ -8,14 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LEAGUES } from '@/app/lib/leagues-data';
 import { COUNTRIES } from '@/app/lib/countries-data';
-import { Loader2, Flag, Globe } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useGameState } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { findStrategicPlacement, ensureWorldInitialized } from '@/app/actions/season-init';
+import { findStrategicPlacement } from '@/app/actions/season-init';
 
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
@@ -42,7 +42,7 @@ export default function SetupPage() {
     if (!user || !selectedLeagueId || !selectedCountryCode || !profile) return;
     setIsUpdating(true);
     try {
-      // 1. Находим стратегическое место в лиге (заменяем ботов)
+      // 1. Находим стратегическое место (приоритет - высокие дивизионы)
       const placement = await findStrategicPlacement(selectedLeagueId);
       
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
@@ -54,6 +54,7 @@ export default function SetupPage() {
         selectedLeagueId,
         leagueLevel: placement.tier,
         groupId: placement.group,
+        rank: placement.rank, // Сохраняем конкретный слот в группе
         country: selectedCountry?.name || 'International',
         setupDate: nowIso
       };
@@ -74,6 +75,7 @@ export default function SetupPage() {
           sub1: uniqueSquad[5].id, sub2: uniqueSquad[6].id
         },
         strategy: 'Balanced Play',
+        rank: placement.rank,
         lastProcessedSeason: Number(seasonNumber || 1),
         matchHistory: [],
         createdAt: nowIso
@@ -84,6 +86,7 @@ export default function SetupPage() {
       
       batch.update(rootRef, pointerData);
 
+      // Команда создается в иерархии лиг
       const seasonId = `season_${seasonNumber || 1}`;
       const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${placement.group}`;
       const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(placement.tier), 'groups', prefixedGroupId, 'teams', user.uid);
@@ -96,9 +99,6 @@ export default function SetupPage() {
       });
 
       await batch.commit();
-
-      // 2. Инициализируем или обновляем мир для этой группы (заменяем бота в таблице/матчах)
-      await ensureWorldInitialized(Number(seasonNumber || 1), selectedLeagueId, placement.tier, placement.group, user.uid);
 
       toast({ title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!" });
       router.replace('/');
@@ -118,7 +118,7 @@ export default function SetupPage() {
       <div className="relative z-10 w-full max-w-md mx-auto px-4 flex flex-col min-h-screen py-12">
         <header className="text-center mb-12">
           <h1 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter">
-            {step === 'league' ? 'SELECT MATCH TIME' : 'CHOOSE CLUB FLAG'}
+            {step === 'league' ? (language === 'ru' ? 'ВЫБЕРИТЕ ВРЕМЯ МАТЧЕЙ' : 'SELECT MATCH TIME') : (language === 'ru' ? 'ВЫБЕРИТЕ ФЛАГ КЛУБА' : 'CHOOSE CLUB FLAG')}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-2">Operational Node Initialization</p>
         </header>

@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро лиг v47: Детерминированное расписание и уникальные ID ботов.
+ * @fileOverview Ядро лиг v48: Стратегическое распределение и уникальные ID ботов.
  * Боты теперь привязаны к конкретной лиге и группе для создания Living Ecosystem.
  */
 
@@ -59,10 +59,11 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
   for (let i = 0; i < TEAMS_PER_GROUP; i++) {
     if (!teams[i]) {
       const slotNum = i + 1;
+      // Уникальный ID бота в пирамиде: bot + LeagueIndex + Level + GroupPrefix + Slot
       const botId = `bot${leagueIdx}${level}${groupPrefix}${slotNum}`;
       teams[i] = {
         id: botId,
-        name: botId,
+        name: `🤖 ${botId}`, // Красивое отображение бота
         isBot: true,
         rank: slotNum
       };
