@@ -12,12 +12,14 @@ import { FriendlyMatchListener } from "@/components/game/FriendlyMatchListener";
 import { CWBasketListener } from "@/components/game/CWBasketListener";
 import { DailyRewardManager } from "@/components/game/DailyRewardManager";
 import { TransferResolver } from "@/components/game/TransferResolver";
+import { TelegramSyncHandler } from "@/components/game/TelegramSyncHandler";
 import { AuthGuard } from "@/components/game/AuthGuard";
 import { Suspense } from 'react';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { usePathname } from 'next/navigation';
 import { useUser } from '@/firebase';
 import { cn } from '@/lib/utils';
+import Script from 'next/script';
 
 function GameInterface({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -27,7 +29,6 @@ function GameInterface({ children }: { children: React.ReactNode }) {
   const isAuthOrSetup = pathname?.startsWith('/auth') || pathname === '/setup';
 
   // Рендерим менеджер синхронизации ВСЕГДА, если юзер залогинен и это не страница входа/настройки.
-  // Это позволит ему работать "под" прелоадером.
   const needsWorldSync = !!user && !isAuthOrSetup;
 
   // Показываем прелоадер только если:
@@ -37,6 +38,7 @@ function GameInterface({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <TelegramSyncHandler />
       {needsWorldSync && <AutoMatchManager />}
       
       {showPreloader ? (
@@ -77,6 +79,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
       </head>
       <body className="font-body antialiased min-h-screen bg-background text-foreground" suppressHydrationWarning>
         <FirebaseClientProvider>

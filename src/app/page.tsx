@@ -10,7 +10,7 @@ import {
   Loader2, Check, UserPlus,
   GraduationCap, CalendarDays, Medal,
   ArrowRightLeft, 
-  Clock, Radio, Shield
+  Clock, Radio, Shield, Send
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,8 @@ export default function Home() {
   const [isMatchActive, setIsMatchActive] = useState(false);
   
   const seasonInfo = useMemo(() => getGlobalSeasonInfo(), [isLoaded]);
+
+  const isTelegram = typeof window !== 'undefined' && !!(window as any).Telegram?.WebApp?.initData;
 
   const unreadMatches = useMemo(() => {
     if (!user || !isLoaded) return [];
@@ -145,9 +147,26 @@ export default function Home() {
   if (isUserLoading) return <LoadingScreen />;
   if (!user) {
     const tAuth = {
-      en: { title: authMode === 'login' ? "Sync Credentials" : "Initiate Profile", userLabel: "Email or Team Name", passLabel: "Access Key", submit: authMode === 'login' ? "ESTABLISH LINK" : "INITIALIZE", toggle: authMode === 'login' ? "New manager? Create profile" : "Already registered? Sync link", subtitle: "COMMAND CENTER ACCESS" },
-      ru: { title: authMode === 'login' ? "Синхронизация" : "Создание профиля", userLabel: "Почта или Название клуба", passLabel: "Ключ доступа (Пароль)", submit: authMode === 'login' ? "УСТАНОВИТЬ СВЯЗЬ" : "СОЗДАТЬ", toggle: authMode === 'login' ? "Новый менеджер? Создать профиль" : "Есть аккаунт? Войти", subtitle: "ДОСТУК К КОМАНДНОМУ ЦЕНТРУ" }
-    }[language as 'en' | 'ru'] || { title: "Auth", userLabel: "User", passLabel: "Pass", submit: "Connect", toggle: "Switch", subtitle: "ACCESS" };
+      en: { 
+        title: authMode === 'login' ? "Sync Credentials" : "Initiate Profile", 
+        userLabel: "Email or Team Name", 
+        passLabel: "Access Key", 
+        submit: authMode === 'login' ? "ESTABLISH LINK" : "INITIALIZE", 
+        toggle: authMode === 'login' ? "New manager? Create profile" : "Already registered? Sync link", 
+        subtitle: "COMMAND CENTER ACCESS",
+        tgSync: "Synchronizing with Telegram..."
+      },
+      ru: { 
+        title: authMode === 'login' ? "Синхронизация" : "Создание профиля", 
+        userLabel: "Почта или Название клуба", 
+        passLabel: "Ключ доступа (Пароль)", 
+        submit: authMode === 'login' ? "УСТАНОВИТЬ СВЯЗЬ" : "СОЗДАТЬ", 
+        toggle: authMode === 'login' ? "Новый менеджер? Создать профиль" : "Есть аккаунт? Войти", 
+        subtitle: "ДОСТУП К КОМАНДНОМУ ЦЕНТРУ",
+        tgSync: "Синхронизация с Telegram..."
+      }
+    }[language as 'en' | 'ru'] || { title: "Auth", userLabel: "User", passLabel: "Pass", submit: "Connect", toggle: "Switch", subtitle: "ACCESS", tgSync: "Syncing..." };
+    
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-background relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)]" />
@@ -166,13 +185,27 @@ export default function Home() {
             <h1 className="text-3xl font-headline font-bold tracking-tighter text-primary">LINES OF ENMITY</h1>
             <p className="text-muted-foreground mt-2 text-[10px] uppercase tracking-[0.3em] font-black">{tAuth.subtitle}</p>
           </div>
+          
           <Card className="glass-card">
-            {authMode === 'login' ? (
+            {isTelegram ? (
+              <CardContent className="p-12 text-center flex flex-col items-center gap-6">
+                <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30 relative">
+                   <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                   <div className="absolute -bottom-2 -right-2 bg-secondary rounded-lg p-1.5 border border-white/10 shadow-xl">
+                     <Send className="w-3 h-3 text-accent" />
+                   </div>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-white">{tAuth.tgSync}</h3>
+                  <p className="text-[10px] text-muted-foreground uppercase font-medium animate-pulse">Establishing encrypted link...</p>
+                </div>
+              </CardContent>
+            ) : authMode === 'login' ? (
               <form onSubmit={handleLogin}>
                 <CardHeader><CardTitle className="font-headline text-center uppercase tracking-widest text-accent text-lg">{tAuth.title}</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2"><Label>{tAuth.userLabel}</Label><Input value={identifier} onChange={e => setIdentifier(e.target.value)} required className="bg-secondary/50 h-12" /></div>
-                  <div className="space-y-2"><Label>{tAuth.passLabel}</Label><Input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50 h-12" /></div>
+                  <div className="space-y-2"><Label>{tAuth.passLabel}</Label><Input type="password" password={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50 h-12" /></div>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-4">
                   <Button type="submit" className="w-full h-14 hero-gradient font-black text-xs uppercase" disabled={isAuthLoading}>{isAuthLoading ? <Loader2 className="animate-spin" /> : tAuth.submit}</Button>
