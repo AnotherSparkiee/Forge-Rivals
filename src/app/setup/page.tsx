@@ -16,6 +16,8 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
+const SETUP_VERSION = 60;
+
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
@@ -37,10 +39,6 @@ export default function SetupPage() {
     }
   }, [user, isUserLoading, router]);
 
-  /**
-   * Finds the first available slot (occupied by a bot) in the league pyramid.
-   * Priority: Division 1 -> Division 9.
-   */
   const findPlacementClient = async (leagueId: string) => {
     const q = query(collection(db, 'players_v10'), where('selectedLeagueId', '==', leagueId));
     const snap = await getDocs(q);
@@ -48,14 +46,15 @@ export default function SetupPage() {
     const occupiedIndices = new Set<number>();
     snap.forEach(d => {
       const data = d.data();
-      const tier = Number(data.leagueLevel);
-      const group = Number(data.groupId);
-      const rank = Number(data.rank);
-      
-      if (tier && group && rank) {
-        const groupsBefore = Math.pow(2, tier - 1) - 1;
-        const globalIndex = (groupsBefore * 8) + (group - 1) * 8 + (rank - 1);
-        occupiedIndices.add(globalIndex);
+      if (data.version === SETUP_VERSION) {
+        const tier = Number(data.leagueLevel);
+        const group = Number(data.groupId);
+        const rank = Number(data.rank);
+        if (tier && group && rank) {
+          const groupsBefore = Math.pow(2, tier - 1) - 1;
+          const globalIndex = (groupsBefore * 8) + (group - 1) * 8 + (rank - 1);
+          occupiedIndices.add(globalIndex);
+        }
       }
     });
 
@@ -73,7 +72,6 @@ export default function SetupPage() {
     const group = (groupIndex - groupsBeforeTier) + 1;
     const rank = (foundIndex % 8) + 1;
 
-    console.log(`[PLACEMENT v52.1] Strategic Slot: Tier ${tier}, Group ${group}, Rank ${rank}`);
     return { tier, group, rank };
   };
 
@@ -88,9 +86,8 @@ export default function SetupPage() {
       const nowIso = new Date().toISOString();
       
       const batch = writeBatch(db);
-      
-      // 1. Update Root Profile (use setDoc for safety)
       const rootRef = doc(db, 'players_v10', user.uid);
+      
       batch.set(rootRef, {
         selectedLeagueId,
         leagueLevel: Number(placement.tier),
@@ -99,10 +96,9 @@ export default function SetupPage() {
         country: selectedCountry?.name || 'International',
         setupDate: nowIso,
         lastProcessedSeason: Number(activeSeasonNumber || 1),
-        version: 52
+        version: SETUP_VERSION
       }, { merge: true });
 
-      // 2. Initialize Team Document in League Hierarchy
       const seasonId = `season_${activeSeasonNumber || 1}`;
       const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${placement.group}`;
       const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(placement.tier), 'groups', prefixedGroupId, 'teams', user.uid);
@@ -110,13 +106,9 @@ export default function SetupPage() {
       batch.set(teamRef, {
         id: user.uid,
         displayName: profile.displayName || "Manager",
-        credits: 1000000, 
-        crystals: 50,    
-        experiencePoints: 0,
-        managerLevel: 1,
+        credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
         managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
-        arena: { capacity: 5000 },
-        hq: {}, bootcamp: {}, academy: {}, medical: {},
+        arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
         lineup: { 
           offlane: uniqueSquad[0].id, carry: uniqueSquad[1].id, mid: uniqueSquad[2].id, 
           support: uniqueSquad[3].id, full_support: uniqueSquad[4].id, 
@@ -127,10 +119,9 @@ export default function SetupPage() {
         lastProcessedSeason: Number(activeSeasonNumber || 1),
         matchHistory: [],
         createdAt: nowIso,
-        version: 52
+        version: SETUP_VERSION
       }, { merge: true });
 
-      // 3. Add Heroes to the team
       uniqueSquad.forEach(hero => {
         const heroRef = doc(collection(teamRef, 'heroes'), hero.id);
         batch.set(heroRef, JSON.parse(JSON.stringify(hero)), { merge: true });
@@ -138,18 +129,11 @@ export default function SetupPage() {
 
       await batch.commit();
       toast({ title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!" });
-      
-      setTimeout(() => {
-        router.replace('/');
-      }, 500);
+      setTimeout(() => router.replace('/'), 500);
 
     } catch (e: any) {
-      console.error("[SETUP v52.1 ERROR]", e);
-      toast({ 
-        variant: "destructive", 
-        title: "Setup Failed", 
-        description: e.message || "Network error" 
-      });
+      console.error("[SETUP v60 ERROR]", e);
+      toast({ variant: "destructive", title: "Setup Failed", description: e.message });
     } finally {
       setIsUpdating(false);
     }
@@ -165,7 +149,7 @@ export default function SetupPage() {
           <h1 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter">
             {step === 'league' ? (language === 'ru' ? 'ВЫБЕРИТЕ ВРЕМЯ МАТЧЕЙ' : 'SELECT MATCH TIME') : (language === 'ru' ? 'ВЫБЕРИТЕ ФЛАГ КЛУБА' : 'CHOOSE CLUB FLAG')}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-2">Operational Node Initialization</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-2">Operational Node Initialization (v60)</p>
         </header>
         
         <div className="flex-1">

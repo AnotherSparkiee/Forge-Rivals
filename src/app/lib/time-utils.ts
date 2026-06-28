@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v50. Глобальная синхронизация цикла (15 дней).
+ * @fileOverview Ядро времени v60. Глобальная синхронизация цикла (15 дней).
  */
 
 let syncPoint = {
@@ -8,7 +8,7 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-// 29.06.2026 00:00 MSK (28.06 21:00 UTC)
+// Начало Сезона 1: 29.06.2026 00:00 MSK (28.06 21:00 UTC)
 export const GLOBAL_EPOCH_ISO = '2026-06-28T21:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
