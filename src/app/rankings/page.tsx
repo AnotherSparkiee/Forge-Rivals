@@ -1,8 +1,9 @@
+
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v60. 
- * Поддержка динамической пирамиды и отображение участников.
+ * @fileOverview Страница рейтингов v62 (FMO Style). 
+ * Отображение детальной статистики В-Н-П и зон продвижения.
  */
 
 import { useState, useMemo } from 'react';
@@ -10,7 +11,8 @@ import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
-  Shield, Globe, Layers, Medal, Loader2, AlertTriangle, Swords
+  Shield, Globe, Layers, Medal, Loader2, AlertTriangle, Swords,
+  ArrowUp, ArrowDown, Dash
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -20,9 +22,8 @@ import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { getLeagueCupParticipants, getWinnerOfBranch } from '../lib/cup-utils';
 
-type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'pyramid_cup';
+type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids';
 
 export default function RankingsPage() {
   const { user, isUserLoading } = useUser();
@@ -34,7 +35,6 @@ export default function RankingsPage() {
   const db = useFirestore();
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
-  
   const [navLeague, setNavLeague] = useState<string | null>(null);
   const [navLevel, setNavLevel] = useState<number | null>(null);
   const [navGroup, setNavGroup] = useState<number | null>(null);
@@ -52,11 +52,11 @@ export default function RankingsPage() {
     if (isTableLoading) return [];
     if (!tableData) {
       return getStableGroupTeams(contextLevel, contextGroup, contextLeagueId).map(t => ({
-        ...t, points: 0, wins: 0, draws: 0, losses: 0, diff: 0
+        ...t, points: 0, wins: 0, draws: 0, losses: 0, diff: 0, matchesPlayed: 0
       }));
     }
     const list = (tableData.teamData || []).map((t: any) => {
-      const s = tableData.stats?.[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
+      const s = tableData.stats?.[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0, matchesPlayed: 0 };
       return { ...t, ...s };
     });
     return list.sort((a: any, b: any) => b.points - a.points || b.diff - a.diff || a.name.localeCompare(b.name));
@@ -65,37 +65,30 @@ export default function RankingsPage() {
   const t = {
     en: {
       title: "RANKINGS HUB", subtitle: "Global Competitive Terminals",
-      pts: "PTS", winLoss: "W-D-L", back: "Back",
-      waiting: "TBD", round: "Round", final: "Final",
-      promotion: "Promotion Zone", relegation: "Relegation Danger",
+      pts: "PTS", winLoss: "W-D-L", m: "M", back: "Back",
       syncing: "Syncing world data...",
+      promotion: "Promotion Zone", relegation: "Relegation Danger",
       menu: [
         { id: 'my_league', label: 'My Current Table', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'My Pyramid', desc: `Explore ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
         { id: 'all_pyramids', label: 'Global Structure', desc: 'Browse all 16 leagues', icon: Globe, color: 'text-blue-400' },
-        { id: 'pyramid_cup', label: 'Pyramid Cup', desc: 'Knockout Stage', icon: Medal, color: 'text-yellow-500' },
       ]
     },
     ru: {
       title: "ТАБЛИЦЫ РЕЙТИНГА", subtitle: "Терминалы глобальных соревнований",
-      pts: "ОЧК", winLoss: "В-Н-П", back: "Назад",
-      waiting: "TBD", round: "Раунд", final: "Финал",
-      promotion: "Зона повышения", relegation: "Зона вылета",
+      pts: "ОЧК", winLoss: "В-Н-П", m: "И", back: "Назад",
       syncing: "Синхронизация данных...",
+      promotion: "Зона повышения", relegation: "Зона вылета",
       menu: [
         { id: 'my_league', label: 'Своя таблица', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'Своя пирамида', desc: `Изучить лигу ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
         { id: 'all_pyramids', label: 'Глобальная структура', desc: 'Все 16 лиг мира', icon: Globe, color: 'text-blue-400' },
-        { id: 'pyramid_cup', label: 'Кубок пирамиды', desc: 'Сетка плей-офф', icon: Medal, color: 'text-yellow-500' },
       ]
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
   const handleBack = () => {
-    if (activeTab === 'my_league' || activeTab === 'pyramid_cup') {
-      setActiveTab('menu');
-      return;
-    }
+    if (activeTab === 'my_league') { setActiveTab('menu'); return; }
     if (activeTab === 'my_pyramid' || activeTab === 'all_pyramids') {
       if (navGroup) { setNavGroup(null); return; }
       if (navLevel) { setNavLevel(null); return; }
@@ -103,10 +96,7 @@ export default function RankingsPage() {
       setActiveTab('menu');
       return;
     }
-    if (activeTab === 'menu') {
-      router.push('/');
-      return;
-    }
+    router.push('/');
   };
 
   if (isUserLoading || !isLoaded || !user || !isDataReady) return <LoadingScreen />;
@@ -160,8 +150,8 @@ export default function RankingsPage() {
              </div>
            ) : (
              <div className="space-y-1">
-               <div className="grid grid-cols-[30px_1fr_80px_40px] px-4 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
-                 <span>#</span><span>Team</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
+               <div className="grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 px-3 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
+                 <span>#</span><span>Team</span><span className="text-center">{t.m}</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
                </div>
                {standings.map((entry: any, i: number) => {
                  const pos = i + 1;
@@ -171,21 +161,20 @@ export default function RankingsPage() {
                  
                  return (
                   <div key={entry.id} className={cn(
-                    "grid grid-cols-[30px_1fr_80px_40px] items-center p-3 rounded-xl border mb-1 transition-all", 
+                    "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all", 
                     isMe ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-secondary/20 border-white/5",
                     isPromotion && "border-l-4 border-l-green-500",
                     isRelegation && "border-l-4 border-l-red-500"
                   )}>
-                    <div className="text-xs font-black italic text-muted-foreground">{pos}</div>
+                    <div className="text-[10px] font-black italic text-muted-foreground">{pos}</div>
                     <div className="truncate flex flex-col">
-                      <span className={cn("text-[11px] font-bold uppercase", isMe ? "text-primary" : "text-white")}>
+                      <span className={cn("text-[10px] font-bold uppercase", isMe ? "text-primary" : "text-white")}>
                         {entry.isBot ? `🤖 ${entry.name}` : entry.name}
                       </span>
-                      {isPromotion && <span className="text-[6px] text-green-400 font-black uppercase tracking-tighter">PROMOTION</span>}
-                      {isRelegation && <span className="text-[6px] text-red-400 font-black uppercase tracking-tighter">RELEGATION</span>}
                     </div>
-                    <div className="text-center font-mono text-[10px] text-muted-foreground">{entry.wins || 0}-{entry.draws || 0}-{entry.losses || 0}</div>
-                    <div className="text-right font-headline font-black text-primary italic">{entry.points || 0}</div>
+                    <div className="text-center font-mono text-[9px] text-muted-foreground">{entry.matchesPlayed || 0}</div>
+                    <div className="text-center font-mono text-[9px] text-muted-foreground/60">{entry.wins || 0}-{entry.draws || 0}-{entry.losses || 0}</div>
+                    <div className="text-right font-headline font-black text-primary italic pr-1">{entry.points || 0}</div>
                   </div>
                  );
                })}
@@ -195,25 +184,15 @@ export default function RankingsPage() {
            {!isTableLoading && (
              <div className="p-4 bg-primary/5 rounded-2xl border border-white/5 space-y-2 mt-4">
                 <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
-                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.promotion}: 1st Place</p>
+                  <ArrowUp className="w-3 h-3 text-green-500" />
+                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.promotion}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full shadow-[0_0_5px_rgba(239,68,68,0.5)]" />
-                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.relegation}: 7th & 8th Places</p>
+                  <ArrowDown className="w-3 h-3 text-red-500" />
+                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.relegation}</p>
                 </div>
              </div>
            )}
-        </div>
-      )}
-      
-      {activeTab === 'pyramid_cup' && (
-        <div className="animate-in fade-in duration-500 py-20 text-center opacity-40 flex flex-col items-center gap-4 border-2 border-dashed border-white/5 rounded-3xl">
-           <Medal className="w-16 h-16 text-yellow-500" />
-           <h2 className="text-xl font-headline font-bold uppercase text-white">{t.menu[3].label}</h2>
-           <p className="text-[10px] uppercase font-bold tracking-widest leading-relaxed px-10 italic">
-             "Full cup visualization is synchronized with official match reporting sequences."
-           </p>
         </div>
       )}
 

@@ -1,7 +1,6 @@
-
 /**
- * @fileOverview Ядро лиг v60: Улучшенное вытеснение ботов и стабильная генерация календаря.
- * Гарантирует, что реальный игрок занимает свой зарезервированный Rank в иерархии группы.
+ * @fileOverview Ядро лиг v62: Ультимативный генератор календаря в стиле FMO.
+ * Реализует алгоритм Berger (Circle Method) для честной круговой системы.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -36,16 +35,14 @@ export const LEAGUES: LeagueOption[] = [
 ];
 
 /**
- * Creates a stable list of 8 teams for a group.
- * Real players displace bots at their specific Rank (1-8).
+ * Генерирует стабильный состав группы. 
+ * Реальные игроки занимают свои Rank (1-8), остальные — боты.
  */
 export function getStableGroupTeams(level: number, group: number, leagueId: string, realPlayersInGroup: any[] = []) {
   const leagueIdx = (LEAGUES.findIndex(l => l.id === leagueId) + 1).toString().padStart(2, '0');
   const groupPrefix = group.toString().padStart(3, '0');
-
   const teams = new Array(TEAMS_PER_GROUP).fill(null);
 
-  // 1. Place real players by their Rank (1-8)
   realPlayersInGroup.forEach(p => {
     const slot = Math.min(8, Math.max(1, p.rank || 1));
     teams[slot - 1] = {
@@ -56,7 +53,6 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
     };
   });
 
-  // 2. Fill remaining slots with unique bots
   for (let i = 0; i < TEAMS_PER_GROUP; i++) {
     if (!teams[i]) {
       const slotNum = i + 1;
@@ -69,15 +65,16 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
       };
     }
   }
-
   return teams;
 }
 
+/**
+ * Генерация календаря на 14 дней (2 круга) по алгоритму Бергера.
+ */
 export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagueId: string) {
-  const n = teams.length;
-  const roundsPerHalf = n - 1; 
+  const n = teams.length; // 8
+  const rounds = n - 1; // 7 rounds in one circle
   const matches = [];
-  const indices = Array.from({ length: n }, (_, i) => i);
   
   const league = LEAGUES.find(l => l.id === leagueId) || LEAGUES[0];
   const [hh, mm] = league.startTime.split(':').map(Number);
@@ -85,20 +82,19 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
   const epochUtc = new Date(GLOBAL_EPOCH_ISO);
   const seasonStartMs = epochUtc.getTime() + (seasonNumber - 1) * 15 * 24 * 60 * 60 * 1000;
 
-  for (let round = 0; round < roundsPerHalf; round++) {
-    for (let i = 0; i < n / 2; i++) {
-      let hIdx = indices[i];
-      let aIdx = indices[n - 1 - i];
-      if ((i + round) % 2 === 1) [hIdx, aIdx] = [aIdx, hIdx];
-      
-      const day1 = round + 1;
-      const day2 = round + 1 + roundsPerHalf;
+  // Berger Table Algorithm (Circle Method)
+  const pool = Array.from({ length: n }, (_, i) => i);
 
-      const createEntry = (day: number, h: any, a: any) => {
+  for (let round = 0; round < rounds; round++) {
+    for (let i = 0; i < n / 2; i++) {
+      const homeIdx = pool[i];
+      const awayIdx = pool[n - 1 - i];
+
+      const createMatch = (day: number, h: any, a: any, tour: number) => {
         const startTime = new Date(seasonStartMs + (day - 1) * 24 * 60 * 60 * 1000 + hh * 60 * 60 * 1000 + mm * 60 * 1000);
         return {
           day,
-          tour: day,
+          tour,
           homeId: h.id,
           homeName: h.name,
           awayId: a.id,
@@ -108,27 +104,52 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
         };
       };
 
-      matches.push(createEntry(day1, teams[hIdx], teams[aIdx]));
-      matches.push(createEntry(day2, teams[aIdx], teams[hIdx]));
+      // 1st leg (Days 1-7)
+      const h = teams[homeIdx];
+      const a = teams[awayIdx];
+      matches.push(createMatch(round + 1, h, a, round + 1));
+
+      // 2nd leg (Days 8-14)
+      matches.push(createMatch(round + 8, a, h, round + 8));
     }
-    const last = indices.pop()!;
-    indices.splice(1, 0, last);
+    
+    // Rotate pool
+    const last = pool.pop()!;
+    pool.splice(1, 0, last);
   }
+
   return matches.sort((a, b) => a.day - b.day);
 }
 
 /**
- * Deterministic match result for bots.
+ * Deterministically generates a match result based on input parameters.
+ * Used for auto-resolving bot matches and pre-calculating series outcomes.
  */
-export function getMatchResult(homeId: string, awayId: string, day: number, season: number): [number, number] {
-  const seedStr = `${homeId}_${awayId}_s${season}_d${day}`;
+export function getMatchResult(idA: string, idB: string, seed1: any, seed2: any): [number, number] {
+  const combinedKey = `${idA}-${idB}-${seed1}-${seed2}`;
+  
+  // Simple deterministic hash
   let hash = 0;
-  for (let i = 0; i < seedStr.length; i++) {
-    hash = ((hash << 5) - hash) + seedStr.charCodeAt(i);
+  for (let i = 0; i < combinedKey.length; i++) {
+    hash = ((hash << 5) - hash) + combinedKey.charCodeAt(i);
     hash |= 0;
   }
-  const val = Math.abs(hash) % 100;
-  if (val < 45) return [2, 0];
-  if (val < 55) return [1, 1];
-  return [0, 2];
+  
+  const absHash = Math.abs(hash);
+  const rawScoreA = absHash % 3;
+  const rawScoreB = (absHash >> 2) % 3;
+  
+  // Logic for League/Basket (seed2 is false or a specific flag)
+  // League matches are Bo2, results can be 2-0, 0-2, or 1-1.
+  if (typeof seed2 === 'boolean' && seed2 === false) {
+    if (rawScoreA === rawScoreB) return [1, 1];
+    return rawScoreA > rawScoreB ? [2, 0] : [0, 2];
+  }
+  
+  // Logic for Cup (seed2 is season number, implying no draws allowed in bracket)
+  if (rawScoreA === rawScoreB) {
+    return [rawScoreA + 1, rawScoreB]; // Ensure a winner for the bracket
+  }
+  
+  return [rawScoreA, rawScoreB];
 }
