@@ -31,9 +31,13 @@ service cloud.firestore {
     match /matches_v1/{matchId} {
       allow read, write: if isSignedIn();
     }
+    
+    match /cup_matches/{matchId} {
+      allow read, write: if isSignedIn();
+    }
 
-    // Leagues Hierarchy
-    match /leagues_v2/{leagueId}/divisions/{divId}/groups/{groupId}/{document=**} {
+    // Leagues Hierarchy - Simplified for reliability
+    match /leagues_v2/{document=**} {
       allow read, write: if isSignedIn();
     }
 
@@ -66,6 +70,11 @@ service cloud.firestore {
     }
     
     match /friend_requests_v4/{reqId} {
+      allow read, write: if isSignedIn();
+    }
+    
+    // System
+    match /system_v1/{docId} {
       allow read, write: if isSignedIn();
     }
 

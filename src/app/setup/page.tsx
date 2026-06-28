@@ -47,14 +47,14 @@ export default function SetupPage() {
       
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       const uniqueSquad = getRandomStartingSquad();
-      const { activeSeasonNumber } = getGlobalSeasonInfo(); // Use activeSeasonNumber for consistency
+      const { activeSeasonNumber } = getGlobalSeasonInfo();
       const nowIso = new Date().toISOString();
       
       const pointerData = {
         selectedLeagueId,
         leagueLevel: placement.tier,
         groupId: placement.group,
-        rank: placement.rank, // Сохраняем конкретный слот в группе
+        rank: placement.rank,
         country: selectedCountry?.name || 'International',
         setupDate: nowIso,
         lastProcessedSeason: Number(activeSeasonNumber || 1)
@@ -85,7 +85,8 @@ export default function SetupPage() {
       const batch = writeBatch(db);
       const rootRef = doc(db, 'players_v10', user.uid);
       
-      batch.update(rootRef, pointerData);
+      // Используем set с merge: true вместо update для надежности
+      batch.set(rootRef, pointerData, { merge: true });
 
       // Команда создается в иерархии лиг
       const seasonId = `season_${activeSeasonNumber || 1}`;
@@ -105,7 +106,7 @@ export default function SetupPage() {
       router.replace('/');
     } catch (e: any) {
       console.error("Critical Sync Error", e);
-      toast({ variant: "destructive", title: "Sync Failed", description: e.message });
+      toast({ variant: "destructive", title: "Sync Failed", description: e.message || "Permissions denied" });
     } finally {
       setIsUpdating(false);
     }
