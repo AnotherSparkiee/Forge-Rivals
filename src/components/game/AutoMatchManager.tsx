@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v52 (Resilient Grouping & Bot Displacement).
+ * @fileOverview Ядро MMO-синхронизации v52.1 (Resilient Grouping & Bot Displacement).
  * ГАРАНТИРУЕТ:
  * 1. Инициализацию группы лиги (standings + 56 matches) при первом входе.
  * 2. Атомарное вытеснение бота реальным игроком в его Rank-слоте.
- * 3. Транзит между сезонами (Promotion/Relegation).
+ * 3. Транзит между сезонами и восстановление существующих игроков.
  */
 
 import { useEffect, useRef } from 'react';
@@ -69,12 +69,10 @@ export function AutoMatchManager() {
             const myPosition = standings.findIndex((s: any) => s.id === userId) + 1;
 
             if (myPosition === 1 && activeLevel > 1) {
-              // PROMOTION
               activeLevel -= 1;
               activeGroup = Math.ceil(activeGroup / 2);
               activeRank = activeGroup % 2 === 1 ? 7 : 8; 
             } else if (myPosition >= 7 && activeLevel < 9) {
-              // RELEGATION
               activeLevel += 1;
               activeGroup = (activeGroup * 2) - (myPosition === 7 ? 1 : 0);
               activeRank = 1;
@@ -97,6 +95,10 @@ export function AutoMatchManager() {
         const tableId = `s${currentSeason}_l${lId}_t${activeLevel}_g${activeGroup}`;
         const tableRef = doc(db, 'league_tables_v1', tableId);
         const tableSnap = await getDoc(tableRef);
+
+        const seasonId = `season_${currentSeason}`;
+        const prefixedGroupId = `${seasonId}_league_${lId}_group_${activeGroup}`;
+        const teamInLeagueRef = doc(db, 'leagues_v2', lId, 'divisions', String(activeLevel), 'groups', prefixedGroupId, 'teams', userId);
 
         if (!tableSnap.exists()) {
           console.log(`[WORLD GEN v52] Initializing group structure for ${tableId}...`);
@@ -122,16 +124,27 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           });
 
+          // Ensure team document exists in leagues_v2 (Fixing "No document to update")
+          batch.set(teamInLeagueRef, {
+            id: userId,
+            displayName: String(displayName),
+            rank: activeRank,
+            updatedAt: serverTimestamp(),
+            version: SYNC_VERSION
+          }, { merge: true });
+
           // Generate 56-match Calendar
           const leagueInfo = LEAGUES.find(l => l.id === lId) || LEAGUES[0];
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
           const seasonStartMs = new Date(GLOBAL_EPOCH_ISO).getTime() + (currentSeason - 1) * 15 * 24 * 3600000;
 
           const teamIds = teams.map(t => t.id);
+          const scheduleIndices = Array.from({ length: 8 }, (_, i) => i);
+          
           for (let r = 0; r < 7; r++) {
             for (let i = 0; i < 4; i++) {
-              let hIdx = i;
-              let aIdx = 7 - i;
+              let hIdx = scheduleIndices[i];
+              let aIdx = scheduleIndices[7 - i];
               if (r % 2 === 1) [hIdx, aIdx] = [aIdx, hIdx];
               
               const hId = teamIds[hIdx];
@@ -152,14 +165,17 @@ export function AutoMatchManager() {
               createMatch(r + 1, hId, aId);
               createMatch(r + 8, aId, hId);
             }
-            const last = teamIds.pop()!;
-            teamIds.splice(1, 0, last);
+            const last = scheduleIndices.pop()!;
+            scheduleIndices.splice(1, 0, last);
           }
           
           await batch.commit();
         } else {
-          // Check if real player needs to displace a bot in an existing table
+          // Table exists, check for displacement or missing team doc
           const data = tableSnap.data();
+          const batch = writeBatch(db);
+          let needsCommit = false;
+
           if (data && !data.teams.includes(userId)) {
             const teamData = [...(data.teamData || [])];
             const slotIdx = activeRank - 1;
@@ -173,28 +189,30 @@ export function AutoMatchManager() {
               delete newStats[botIdToRemove];
               newStats[userId] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
               
-              await updateDoc(tableRef, { 
+              batch.update(tableRef, { 
                 teams: newTeams, teamData: teamData, stats: newStats, 
                 updatedAt: serverTimestamp(), version: SYNC_VERSION 
               });
+              needsCommit = true;
             }
           }
-        }
 
-        // 3. PYRAMID CUP INITIALIZATION
-        const cupId = `cup_s${currentSeason}_l${lId}`;
-        const cupRef = doc(db, 'cup_pyramid_v1', cupId);
-        const cupSnap = await getDoc(cupRef);
-        if (!cupSnap.exists()) {
-          await setDoc(cupRef, { 
-            id: cupId, season: currentSeason, leagueId: lId, 
-            version: SYNC_VERSION, updatedAt: serverTimestamp() 
-          });
+          // Force create team doc if missing
+          batch.set(teamInLeagueRef, {
+            id: userId,
+            displayName: String(displayName),
+            rank: activeRank,
+            updatedAt: serverTimestamp(),
+            version: SYNC_VERSION
+          }, { merge: true });
+          needsCommit = true;
+
+          if (needsCommit) await batch.commit();
         }
 
         setWorldReady(true);
       } catch (e) {
-        console.error("[AUTO-MANAGER v52 ERROR]", e);
+        console.error("[AUTO-MANAGER v52.1 ERROR]", e);
         setWorldReady(true);
       }
     };

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, writeBatch, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { doc, writeBatch, collection, query, where, getDocs, serverTimestamp, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -38,7 +38,7 @@ export default function SetupPage() {
   }, [user, isUserLoading, router]);
 
   /**
-   * Finds the first available slot (currently occupied by a bot) in the league pyramid.
+   * Finds the first available slot (occupied by a bot) in the league pyramid.
    * Priority: Division 1 -> Division 9.
    */
   const findPlacementClient = async (leagueId: string) => {
@@ -53,14 +53,12 @@ export default function SetupPage() {
       const rank = Number(data.rank);
       
       if (tier && group && rank) {
-        // Absolute index formula for 1-9 hierarchy
         const groupsBefore = Math.pow(2, tier - 1) - 1;
         const globalIndex = (groupsBefore * 8) + (group - 1) * 8 + (rank - 1);
         occupiedIndices.add(globalIndex);
       }
     });
 
-    // Scan for the first unoccupied global index in the league (Total 4088 slots)
     let foundIndex = 0;
     for (let i = 0; i < 4088; i++) {
       if (!occupiedIndices.has(i)) {
@@ -69,14 +67,13 @@ export default function SetupPage() {
       }
     }
 
-    // Convert global index back to T/G/R coordinates
     const groupIndex = Math.floor(foundIndex / 8);
     const tier = Math.floor(Math.log2(groupIndex + 1)) + 1;
     const groupsBeforeTier = Math.pow(2, tier - 1) - 1;
     const group = (groupIndex - groupsBeforeTier) + 1;
     const rank = (foundIndex % 8) + 1;
 
-    console.log(`[PLACEMENT v52] Priority selection: Tier ${tier}, Group ${group}, Rank ${rank} (Index ${foundIndex})`);
+    console.log(`[PLACEMENT v52.1] Strategic Slot: Tier ${tier}, Group ${group}, Rank ${rank}`);
     return { tier, group, rank };
   };
 
@@ -92,7 +89,7 @@ export default function SetupPage() {
       
       const batch = writeBatch(db);
       
-      // 1. Update Root Profile
+      // 1. Update Root Profile (use setDoc for safety)
       const rootRef = doc(db, 'players_v10', user.uid);
       batch.set(rootRef, {
         selectedLeagueId,
@@ -147,11 +144,11 @@ export default function SetupPage() {
       }, 500);
 
     } catch (e: any) {
-      console.error("[SETUP v52 ERROR]", e);
+      console.error("[SETUP v52.1 ERROR]", e);
       toast({ 
         variant: "destructive", 
         title: "Setup Failed", 
-        description: e.message || "Permissions or network error" 
+        description: e.message || "Network error" 
       });
     } finally {
       setIsUpdating(false);
