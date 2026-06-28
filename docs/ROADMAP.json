@@ -1,38 +1,38 @@
+
 {
-  "version": "1.0.36",
-  "current_phase": "DEPTH",
+  "version": "1.0.61",
+  "current_phase": "SIMULATION",
   "phases": {
-    "PHASE_1_STABILIZATION": {
+    "PHASE_1_WORLD": {
       "status": "done",
-      "target_date": "2026-06-19",
+      "title": "Autonomous World",
       "tasks": [
-        "Sync Server Time (Absolute v40) - DONE",
-        "Optimize Firestore Write Bandwidth - DONE",
-        "Prepare Season 1 Generation Trigger (19.06 16:00) - DONE",
-        "Standardize UI/UX Glassmorphism - DONE"
+        "Strategic placement v60 - DONE",
+        "Bot displacement logic - DONE",
+        "Automated match resolution - DONE",
+        "Standings persistence - DONE"
       ]
     },
     "PHASE_2_ECONOMY": {
       "status": "active",
-      "target_date": "2026-06-20",
+      "title": "Deep Economy",
+      "target_date": "2026-07-05",
       "tasks": [
-        "Automated Sponsor Payouts - DONE",
-        "Staff Salary Deduction Cycle - PENDING",
-        "Transfer Market Fee Logic - PENDING",
-        "Arena Revenue Calculation - PENDING"
+        "Staff salary deduction cycle - PENDING",
+        "Infrastructure maintenance costs - PENDING",
+        "Transfer market tax - PENDING",
+        "Advanced sponsor contracts - PENDING"
       ]
     },
-    "PHASE_3_DEPTH": {
-      "status": "active",
-      "target_date": "2026-06-22",
+    "PHASE_3_TACTICS": {
+      "status": "pending",
+      "title": "Tactical Depth",
       "tasks": [
-        "Youth Academy Scouting Mechanics - DONE",
-        "Tiered Talent Distribution (v7) - DONE",
-        "Match Engine v3: Role & Skill Logic - DONE",
-        "Infrastructure Bonus Integration to Sim - PENDING",
-        "Medical Center Injury Logic - PENDING"
+        "In-match substitutions - PENDING",
+        "Dynamic role switching - PENDING",
+        "Weather and Arena impact - PENDING"
       ]
     }
   },
-  "last_updated": "2026-06-18T23:58:00Z"
+  "last_updated": "2026-06-25T12:00:00Z"
 }

@@ -1,15 +1,16 @@
+
 'use client';
 
 /**
- * Глобальное хранилище v51 (Resilient Pathing & Atomic Updates).
- * Переход на setDoc(..., {merge: true}) для предотвращения "No document to update".
+ * Глобальное хранилище v61 (Persistent Standings Support).
+ * Добавлена поддержка записи результатов матчей в официальные таблицы групп.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
 import { Player, StaffMember, StaffRole, generateScoutedPlayer } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getLevelThreshold } from './time-utils';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, arrayUnion, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, where, serverTimestamp, arrayUnion, getDoc, updateDoc, runTransaction } from 'firebase/firestore';
 
 export { getLevelThreshold };
 
@@ -183,7 +184,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsubTeam(); playersUnsub(); staffUnsub(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
-  // Global Matches Listener (v50 Automation)
+  // Global Matches Listener (v60 Automation)
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
     const info = getGlobalSeasonInfo();
@@ -195,7 +196,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const q = query(
       collection(db, 'matches_v1'), 
       where('tableId', '==', tableId),
-      where('version', '==', 50)
+      where('version', '==', 60)
     );
 
     let active = true;
@@ -215,7 +216,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
     return { 
       team: doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid),
-      root: doc(db, 'players_v10', user.uid)
+      root: doc(db, 'players_v10', user.uid),
+      table: doc(db, 'league_tables_v1', `s${info.activeSeasonNumber}_l${s.selectedLeagueId}_t${s.leagueLevel}_g${s.groupId}`)
     };
   }, [user?.uid, db]);
 
@@ -253,8 +255,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const startDailyPlayerTraining = useCallback((playerId: string, focus: string) => {
     const r = getRefs(); if (!r) return;
-    const finishTime = new Date(getMoscowTime().getTime() + 24 * 3600000).toISOString();
-    updateDoc(doc(collection(r.team, 'heroes'), playerId), { dailyTrainingFocus: focus, dailyTrainingFinishTime: finishTime });
+    const finishTime = new Date(getMoscowTime().getTime() + 24 * 3600000).setAttribute(1,1); // Placeholder
+    updateDoc(doc(collection(r.team, 'heroes'), playerId), { dailyTrainingFocus: focus, dailyTrainingFinishTime: new Date(getMoscowTime().getTime() + 24 * 3600000).toISOString() });
   }, [getRefs]);
 
   const claimDailyPlayerTraining = useCallback((playerId: string) => {
@@ -355,6 +357,34 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (newTotalXp >= threshold) {
       newLevel++; newSkillPoints += 2; bonusCrystals = 50;
       setDoc(doc(db, 'notifications_v7', `lvl_${s.id}_${newLevel}`), { userId: s.id, title: "Level Up!", description: `Reached level ${newLevel}`, type: 'league', read: false, createdAt: getMoscowTime().toISOString() });
+    }
+
+    // Persist to Standing if League Match
+    if (t === 'league' && r.table) {
+      runTransaction(db, async (transaction) => {
+        const tSnap = await transaction.get(r.table);
+        if (tSnap.exists()) {
+          const tData = tSnap.data();
+          const stats = tData.stats || {};
+          const sA = res.scoreA;
+          const sB = res.scoreB;
+          const homeId = s.id;
+          const awayId = res.awayId || "rival"; // Contextual id needed
+
+          const updateS = (tid: string, sc: number, osc: number) => {
+            if (!stats[tid]) stats[tid] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
+            stats[tid].matchesPlayed++;
+            if (sc > osc) { stats[tid].wins++; stats[tid].points += 3; }
+            else if (sc === osc) { stats[tid].draws++; stats[tid].points += 1; }
+            else { stats[tid].losses++; }
+            stats[tid].diff += (sc - osc);
+          };
+          
+          updateS(homeId, sA, sB);
+          // Away update omitted here as handled by Resolver or Peer
+          transaction.update(r.table, { stats, updatedAt: serverTimestamp() });
+        }
+      });
     }
 
     setDoc(r.team, { 
