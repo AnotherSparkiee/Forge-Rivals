@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, writeBatch, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, writeBatch, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -48,17 +48,19 @@ export default function SetupPage() {
     const occupiedIndices = new Set<number>();
     snap.forEach(d => {
       const data = d.data();
-      const tier = Number(data.leagueLevel || 9);
-      const group = Number(data.groupId || 1);
-      const rank = Number(data.rank || 1);
+      const tier = Number(data.leagueLevel);
+      const group = Number(data.groupId);
+      const rank = Number(data.rank);
       
-      // Calculate global index in the pyramid (0 to 4087)
-      const groupsBefore = Math.pow(2, tier - 1) - 1;
-      const globalIndex = (groupsBefore * 8) + (group - 1) * 8 + (rank - 1);
-      occupiedIndices.add(globalIndex);
+      if (tier && group && rank) {
+        // Absolute index formula for 1-9 hierarchy
+        const groupsBefore = Math.pow(2, tier - 1) - 1;
+        const globalIndex = (groupsBefore * 8) + (group - 1) * 8 + (rank - 1);
+        occupiedIndices.add(globalIndex);
+      }
     });
 
-    // Find the first index not in the set
+    // Scan for the first unoccupied global index in the league (Total 4088 slots)
     let foundIndex = 0;
     for (let i = 0; i < 4088; i++) {
       if (!occupiedIndices.has(i)) {
@@ -67,14 +69,14 @@ export default function SetupPage() {
       }
     }
 
-    // Convert back to Tier/Group/Rank
+    // Convert global index back to T/G/R coordinates
     const groupIndex = Math.floor(foundIndex / 8);
     const tier = Math.floor(Math.log2(groupIndex + 1)) + 1;
-    const groupsBeforeInTier = Math.pow(2, tier - 1) - 1;
-    const group = (groupIndex - groupsBeforeInTier) + 1;
+    const groupsBeforeTier = Math.pow(2, tier - 1) - 1;
+    const group = (groupIndex - groupsBeforeTier) + 1;
     const rank = (foundIndex % 8) + 1;
 
-    console.log(`[PLACEMENT v52] Found slot: T${tier} G${group} R${rank} (Index ${foundIndex})`);
+    console.log(`[PLACEMENT v52] Priority selection: Tier ${tier}, Group ${group}, Rank ${rank} (Index ${foundIndex})`);
     return { tier, group, rank };
   };
 
