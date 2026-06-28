@@ -1,75 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Вспомогательная функция для проверки авторизации
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // В прототипе Lines of Enmity разрешаем полный доступ авторизованным пользователям
-    // к игровым данным для обеспечения работы механик "живого мира" (замещение ботов, генерация лиг).
-    
-    match /players_v10/{document=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /leagues_v2/{document=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /league_tables_v1/{document=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /matches_v1/{document=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /cup_pyramid_v1/{document=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /cup_matches/{document=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /market_v7/{document=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /notifications_v7/{document=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /friendly_lobbies_v3/{document=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /cw_basket_v2/{document=**} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /friend_requests_v4/{document=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /global_chat_v2/{document=**} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-    }
-
-    match /private_messages_v3/{document=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /system_v1/{document=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    // Глобальное правило для всех остальных путей
+    // Global rule for the prototype: Allow all authenticated users to read and write to all collections.
+    // This ensures that complex world-building operations (displacing bots, generating calendars) 
+    // never fail due to permission depth issues.
     match /{document=**} {
-      allow read, write: if isSignedIn();
+      allow read, write: if request.auth != null;
     }
   }
 }

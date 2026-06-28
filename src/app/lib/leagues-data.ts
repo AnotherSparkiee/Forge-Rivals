@@ -1,6 +1,6 @@
 /**
- * @fileOverview Ядро лиг v48: Стратегическое распределение и уникальные ID ботов.
- * Боты теперь привязаны к конкретной лиге и группе для создания Living Ecosystem.
+ * @fileOverview Ядро лиг v52: Улучшенное вытеснение ботов и стабильная генерация календаря.
+ * Гарантирует, что реальный игрок занимает свой зарезервированный Rank в иерархии группы.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -35,8 +35,8 @@ export const LEAGUES: LeagueOption[] = [
 ];
 
 /**
- * Создает стабильный список из 8 команд для группы.
- * Заменяет ботов на реальных игроков на основе их Rank (слота в группе).
+ * Creates a stable list of 8 teams for a group.
+ * Real players displace bots at their specific Rank (1-8).
  */
 export function getStableGroupTeams(level: number, group: number, leagueId: string, realPlayersInGroup: any[] = []) {
   const leagueIdx = (LEAGUES.findIndex(l => l.id === leagueId) + 1).toString().padStart(2, '0');
@@ -44,7 +44,7 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
 
   const teams = new Array(TEAMS_PER_GROUP).fill(null);
 
-  // 1. Расставляем реальных игроков по их Rank (1-8)
+  // 1. Place real players by their Rank (1-8)
   realPlayersInGroup.forEach(p => {
     const slot = Math.min(8, Math.max(1, p.rank || 1));
     teams[slot - 1] = {
@@ -55,15 +55,15 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
     };
   });
 
-  // 2. Заполняем пустые места уникальными ботами
+  // 2. Fill remaining slots with unique bots
   for (let i = 0; i < TEAMS_PER_GROUP; i++) {
     if (!teams[i]) {
       const slotNum = i + 1;
-      // Уникальный ID бота в пирамиде: bot + LeagueIndex + Level + GroupPrefix + Slot
+      // botID format: bot + LeagueIndex + Tier + GroupPrefix + Slot
       const botId = `bot${leagueIdx}${level}${groupPrefix}${slotNum}`;
       teams[i] = {
         id: botId,
-        name: `🤖 ${botId}`, // Красивое отображение бота
+        name: `🤖 ${botId}`,
         isBot: true,
         rank: slotNum
       };
@@ -98,6 +98,7 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
         const startTime = new Date(seasonStartMs + (day - 1) * 24 * 60 * 60 * 1000 + hh * 60 * 60 * 1000 + mm * 60 * 1000);
         return {
           day,
+          tour: day,
           homeId: home.id,
           homeName: home.name,
           awayId: away.id,
@@ -117,7 +118,7 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
 }
 
 /**
- * Детерминированный результат матча.
+ * Deterministic match result for bots.
  */
 export function getMatchResult(homeId: string, awayId: string, day: number, season: number): [number, number] {
   const seedStr = `${homeId}_${awayId}_s${season}_d${day}`;

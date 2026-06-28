@@ -37,7 +37,10 @@ export default function SetupPage() {
     }
   }, [user, isUserLoading, router]);
 
-  // Клиентская функция поиска места для гарантии использования Auth-контекста
+  /**
+   * Finds the first available slot (currently occupied by a bot) in the league pyramid.
+   * Priority: Division 1 -> Division 9.
+   */
   const findPlacementClient = async (leagueId: string) => {
     const q = query(collection(db, 'players_v10'), where('selectedLeagueId', '==', leagueId));
     const snap = await getDocs(q);
@@ -49,11 +52,13 @@ export default function SetupPage() {
       const group = Number(data.groupId || 1);
       const rank = Number(data.rank || 1);
       
+      // Calculate global index in the pyramid (0 to 4087)
       const groupsBefore = Math.pow(2, tier - 1) - 1;
       const globalIndex = (groupsBefore * 8) + (group - 1) * 8 + (rank - 1);
       occupiedIndices.add(globalIndex);
     });
 
+    // Find the first index not in the set
     let foundIndex = 0;
     for (let i = 0; i < 4088; i++) {
       if (!occupiedIndices.has(i)) {
@@ -62,12 +67,14 @@ export default function SetupPage() {
       }
     }
 
+    // Convert back to Tier/Group/Rank
     const groupIndex = Math.floor(foundIndex / 8);
     const tier = Math.floor(Math.log2(groupIndex + 1)) + 1;
-    const groupsBefore = Math.pow(2, tier - 1) - 1;
-    const group = (groupIndex - groupsBefore) + 1;
+    const groupsBeforeInTier = Math.pow(2, tier - 1) - 1;
+    const group = (groupIndex - groupsBeforeInTier) + 1;
     const rank = (foundIndex % 8) + 1;
 
+    console.log(`[PLACEMENT v52] Found slot: T${tier} G${group} R${rank} (Index ${foundIndex})`);
     return { tier, group, rank };
   };
 
@@ -75,15 +82,17 @@ export default function SetupPage() {
     if (!user || !selectedLeagueId || !selectedCountryCode || !profile) return;
     setIsUpdating(true);
     try {
-      // 1. Находим стратегическое место на клиенте
       const placement = await findPlacementClient(selectedLeagueId);
-      
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       const uniqueSquad = getRandomStartingSquad();
       const { activeSeasonNumber } = getGlobalSeasonInfo();
       const nowIso = new Date().toISOString();
       
-      const pointerData = {
+      const batch = writeBatch(db);
+      
+      // 1. Update Root Profile
+      const rootRef = doc(db, 'players_v10', user.uid);
+      batch.set(rootRef, {
         selectedLeagueId,
         leagueLevel: Number(placement.tier),
         groupId: Number(placement.group),
@@ -91,10 +100,15 @@ export default function SetupPage() {
         country: selectedCountry?.name || 'International',
         setupDate: nowIso,
         lastProcessedSeason: Number(activeSeasonNumber || 1),
-        version: 51
-      };
+        version: 52
+      }, { merge: true });
 
-      const teamData = {
+      // 2. Initialize Team Document in League Hierarchy
+      const seasonId = `season_${activeSeasonNumber || 1}`;
+      const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${placement.group}`;
+      const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(placement.tier), 'groups', prefixedGroupId, 'teams', user.uid);
+      
+      batch.set(teamRef, {
         id: user.uid,
         displayName: profile.displayName || "Manager",
         credits: 1000000, 
@@ -114,28 +128,16 @@ export default function SetupPage() {
         lastProcessedSeason: Number(activeSeasonNumber || 1),
         matchHistory: [],
         createdAt: nowIso,
-        version: 51
-      };
+        version: 52
+      }, { merge: true });
 
-      const batch = writeBatch(db);
-      const rootRef = doc(db, 'players_v10', user.uid);
-      
-      // Атомарная запись во все необходимые узлы с использованием merge
-      batch.set(rootRef, pointerData, { merge: true });
-
-      const seasonId = `season_${activeSeasonNumber || 1}`;
-      const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${placement.group}`;
-      const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(placement.tier), 'groups', prefixedGroupId, 'teams', user.uid);
-      
-      batch.set(teamRef, teamData, { merge: true });
-
+      // 3. Add Heroes to the team
       uniqueSquad.forEach(hero => {
         const heroRef = doc(collection(teamRef, 'heroes'), hero.id);
         batch.set(heroRef, JSON.parse(JSON.stringify(hero)), { merge: true });
       });
 
       await batch.commit();
-
       toast({ title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!" });
       
       setTimeout(() => {
@@ -143,7 +145,7 @@ export default function SetupPage() {
       }, 500);
 
     } catch (e: any) {
-      console.error("Critical Setup Error", e);
+      console.error("[SETUP v52 ERROR]", e);
       toast({ 
         variant: "destructive", 
         title: "Setup Failed", 

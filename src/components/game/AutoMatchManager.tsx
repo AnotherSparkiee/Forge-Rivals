@@ -1,23 +1,23 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v50 (Full Seasonal Automation).
+ * @fileOverview Ядро MMO-синхронизации v52 (Resilient Grouping & Bot Displacement).
  * ГАРАНТИРУЕТ:
- * 1. Транзит игрока (Promotion/Relegation) в окне генерации (День 15, 16:00+).
- * 2. Генерацию 56 матчей следующего сезона.
- * 3. Атомарное обновление таблиц и Кубка.
+ * 1. Инициализацию группы лиги (standings + 56 matches) при первом входе.
+ * 2. Атомарное вытеснение бота реальным игроком в его Rank-слоте.
+ * 3. Транзит между сезонами (Promotion/Relegation).
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore } from '@/firebase';
 import { 
-  doc, getDoc, writeBatch, serverTimestamp, updateDoc, setDoc
+  doc, getDoc, writeBatch, serverTimestamp, updateDoc, setDoc, collection
 } from 'firebase/firestore';
 import { getGlobalSeasonInfo, GLOBAL_EPOCH_ISO } from '@/app/lib/time-utils';
 import { LEAGUES, getStableGroupTeams } from '@/app/lib/leagues-data';
 
-const SYNC_VERSION = 50;
+const SYNC_VERSION = 52;
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
@@ -35,7 +35,7 @@ export function AutoMatchManager() {
 
     const syncSharedWorld = async () => {
       const info = getGlobalSeasonInfo();
-      const currentSeason = Number(info.activeSeasonNumber); // Если 16:00 Дня 15, тут будет Season + 1
+      const currentSeason = Number(info.activeSeasonNumber);
       const lId = String(selectedLeagueId);
       
       const syncKey = `${userId}_s${currentSeason}_v${SYNC_VERSION}_sync`;
@@ -48,12 +48,10 @@ export function AutoMatchManager() {
         let activeGroup = Number(groupId);
         let activeRank = Number(rank || 1);
 
-        // 1. ПРОВЕРКА НЕОБХОДИМОСТИ ТРАНЗИТА (Повышение/Понижение)
+        // 1. SEASON TRANSITION (Promotion/Relegation)
         const lastProcessed = Number(lastProcessedSeason || 0);
-        
-        // Если мы в окне генерации или уже в новом сезоне, а профиль еще на старом
         if (lastProcessed > 0 && currentSeason > lastProcessed) {
-          console.log(`[SEASON TRANSITION v50] Processing Season ${lastProcessed} -> ${currentSeason}...`);
+          console.log(`[SEASON TRANSITION v52] Processing Season ${lastProcessed} -> ${currentSeason}...`);
           
           const prevTableId = `s${lastProcessed}_l${lId}_t${activeLevel}_g${activeGroup}`;
           const prevTableSnap = await getDoc(doc(db, 'league_tables_v1', prevTableId));
@@ -62,9 +60,10 @@ export function AutoMatchManager() {
             const tableData = prevTableSnap.data();
             const stats = tableData.stats || {};
             
-            const standings = tableData.teamData.map((t: any) => ({
+            const standings = (tableData.teamData || []).map((t: any) => ({
               id: t.id,
-              ...(stats[t.id] || { points: 0, diff: 0 })
+              points: stats[t.id]?.points || 0,
+              diff: stats[t.id]?.diff || 0
             })).sort((a: any, b: any) => b.points - a.points || b.diff - a.diff);
 
             const myPosition = standings.findIndex((s: any) => s.id === userId) + 1;
@@ -88,21 +87,19 @@ export function AutoMatchManager() {
               lastProcessedSeason: currentSeason
             });
           } else {
-            // No data from previous season - skip resolution
             await updateDoc(rootRef, { lastProcessedSeason: currentSeason });
           }
         } else if (lastProcessed === 0) {
-          // First time initialization
           await updateDoc(rootRef, { lastProcessedSeason: currentSeason });
         }
 
-        // 2. СИНХРОНИЗАЦИЯ ТЕКУЩЕЙ ТАБЛИЦЫ
+        // 2. GROUP INITIALIZATION & BOT DISPLACEMENT
         const tableId = `s${currentSeason}_l${lId}_t${activeLevel}_g${activeGroup}`;
         const tableRef = doc(db, 'league_tables_v1', tableId);
         const tableSnap = await getDoc(tableRef);
 
-        if (!tableSnap.exists() || (tableSnap.data()?.version || 0) < SYNC_VERSION) {
-          console.log(`[GEN v50] Creating world for ${tableId}...`);
+        if (!tableSnap.exists()) {
+          console.log(`[WORLD GEN v52] Initializing group structure for ${tableId}...`);
           const batch = writeBatch(db);
           
           const teams = getStableGroupTeams(activeLevel, activeGroup, lId, [{
@@ -125,7 +122,7 @@ export function AutoMatchManager() {
             updatedAt: serverTimestamp()
           });
 
-          // ГЕНЕРАЦИЯ КАЛЕНДАРЯ (56 МАТЧЕЙ)
+          // Generate 56-match Calendar
           const leagueInfo = LEAGUES.find(l => l.id === lId) || LEAGUES[0];
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
           const seasonStartMs = new Date(GLOBAL_EPOCH_ISO).getTime() + (currentSeason - 1) * 15 * 24 * 3600000;
@@ -161,7 +158,7 @@ export function AutoMatchManager() {
           
           await batch.commit();
         } else {
-          // Если таблица есть, проверяем не нужно ли подселить игрока в его Rank
+          // Check if real player needs to displace a bot in an existing table
           const data = tableSnap.data();
           if (data && !data.teams.includes(userId)) {
             const teamData = [...(data.teamData || [])];
@@ -184,17 +181,20 @@ export function AutoMatchManager() {
           }
         }
 
-        // 3. СИНХРОНИЗАЦИЯ КУБКА ПИРАМИДЫ
+        // 3. PYRAMID CUP INITIALIZATION
         const cupId = `cup_s${currentSeason}_l${lId}`;
         const cupRef = doc(db, 'cup_pyramid_v1', cupId);
         const cupSnap = await getDoc(cupRef);
-        if (!cupSnap.exists() || (cupSnap.data()?.version || 0) < SYNC_VERSION) {
-          await setDoc(cupRef, { id: cupId, season: currentSeason, leagueId: lId, version: SYNC_VERSION, updatedAt: serverTimestamp() });
+        if (!cupSnap.exists()) {
+          await setDoc(cupRef, { 
+            id: cupId, season: currentSeason, leagueId: lId, 
+            version: SYNC_VERSION, updatedAt: serverTimestamp() 
+          });
         }
 
         setWorldReady(true);
       } catch (e) {
-        console.error("[AUTO-MANAGER v50 ERROR]", e);
+        console.error("[AUTO-MANAGER v52 ERROR]", e);
         setWorldReady(true);
       }
     };
