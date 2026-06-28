@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Ядро лиг v60: Улучшенное вытеснение ботов и стабильная генерация календаря.
  * Гарантирует, что реальный игрок занимает свой зарезервированный Rank в иерархии группы.
@@ -55,11 +56,10 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
     };
   });
 
-  // 2. Fill remaining slots with unique bots (UPPERCASE for consistent ID check)
+  // 2. Fill remaining slots with unique bots
   for (let i = 0; i < TEAMS_PER_GROUP; i++) {
     if (!teams[i]) {
       const slotNum = i + 1;
-      // botID format: BOT + LeagueIndex + Tier + GroupPrefix + Slot
       const botId = `BOT${leagueIdx}${level}${groupPrefix}${slotNum}`;
       teams[i] = {
         id: botId,
@@ -94,17 +94,17 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
       const day1 = round + 1;
       const day2 = round + 1 + roundsPerHalf;
 
-      const createEntry = (day: number, home: any, away: any) => {
+      const createEntry = (day: number, h: any, a: any) => {
         const startTime = new Date(seasonStartMs + (day - 1) * 24 * 60 * 60 * 1000 + hh * 60 * 60 * 1000 + mm * 60 * 1000);
         return {
           day,
           tour: day,
-          homeId: home.id,
-          homeName: home.name,
-          awayId: away.id,
-          awayName: away.name,
+          homeId: h.id,
+          homeName: h.name,
+          awayId: a.id,
+          awayName: a.name,
           startTime: startTime.toISOString(),
-          pairKey: [home.id, away.id].sort().join('_vs_')
+          pairKey: [h.id, a.id].sort().join('_vs_')
         };
       };
 
