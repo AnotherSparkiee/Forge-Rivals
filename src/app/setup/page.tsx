@@ -52,12 +52,13 @@ export default function SetupPage() {
       
       const pointerData = {
         selectedLeagueId,
-        leagueLevel: placement.tier,
-        groupId: placement.group,
-        rank: placement.rank,
+        leagueLevel: Number(placement.tier),
+        groupId: Number(placement.group),
+        rank: Number(placement.rank),
         country: selectedCountry?.name || 'International',
         setupDate: nowIso,
-        lastProcessedSeason: Number(activeSeasonNumber || 1)
+        lastProcessedSeason: Number(activeSeasonNumber || 1),
+        version: 51
       };
 
       const teamData = {
@@ -76,16 +77,17 @@ export default function SetupPage() {
           sub1: uniqueSquad[5].id, sub2: uniqueSquad[6].id
         },
         strategy: 'Balanced Play',
-        rank: placement.rank,
+        rank: Number(placement.rank),
         lastProcessedSeason: Number(activeSeasonNumber || 1),
         matchHistory: [],
-        createdAt: nowIso
+        createdAt: nowIso,
+        version: 51
       };
 
       const batch = writeBatch(db);
       const rootRef = doc(db, 'players_v10', user.uid);
       
-      // Используем set с merge: true вместо update для надежности
+      // Атомарная запись во все необходимые узлы
       batch.set(rootRef, pointerData, { merge: true });
 
       // Команда создается в иерархии лиг
@@ -103,10 +105,19 @@ export default function SetupPage() {
       await batch.commit();
 
       toast({ title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!" });
-      router.replace('/');
+      
+      // Небольшая задержка перед редиректом для распространения данных
+      setTimeout(() => {
+        router.replace('/');
+      }, 500);
+
     } catch (e: any) {
       console.error("Critical Sync Error", e);
-      toast({ variant: "destructive", title: "Sync Failed", description: e.message || "Permissions denied" });
+      toast({ 
+        variant: "destructive", 
+        title: "Sync Failed", 
+        description: e.message || "Permissions denied" 
+      });
     } finally {
       setIsUpdating(false);
     }
