@@ -47,7 +47,7 @@ export default function SetupPage() {
       
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       const uniqueSquad = getRandomStartingSquad();
-      const { seasonNumber } = getGlobalSeasonInfo();
+      const { activeSeasonNumber } = getGlobalSeasonInfo(); // Use activeSeasonNumber for consistency
       const nowIso = new Date().toISOString();
       
       const pointerData = {
@@ -56,7 +56,8 @@ export default function SetupPage() {
         groupId: placement.group,
         rank: placement.rank, // Сохраняем конкретный слот в группе
         country: selectedCountry?.name || 'International',
-        setupDate: nowIso
+        setupDate: nowIso,
+        lastProcessedSeason: Number(activeSeasonNumber || 1)
       };
 
       const teamData = {
@@ -76,7 +77,7 @@ export default function SetupPage() {
         },
         strategy: 'Balanced Play',
         rank: placement.rank,
-        lastProcessedSeason: Number(seasonNumber || 1),
+        lastProcessedSeason: Number(activeSeasonNumber || 1),
         matchHistory: [],
         createdAt: nowIso
       };
@@ -87,7 +88,7 @@ export default function SetupPage() {
       batch.update(rootRef, pointerData);
 
       // Команда создается в иерархии лиг
-      const seasonId = `season_${seasonNumber || 1}`;
+      const seasonId = `season_${activeSeasonNumber || 1}`;
       const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${placement.group}`;
       const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(placement.tier), 'groups', prefixedGroupId, 'teams', user.uid);
       
