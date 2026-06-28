@@ -2,81 +2,74 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // === HELPERS ===
+    // Вспомогательная функция для проверки авторизации
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // === DATA STRUCTURES ===
-
-    // Профили игроков - разрешаем чтение и запись всем авторизованным для синхронизации мира
-    match /players_v10/{userId} {
+    // В прототипе Lines of Enmity разрешаем полный доступ авторизованным пользователям
+    // к игровым данным для обеспечения работы механик "живого мира" (замещение ботов, генерация лиг).
+    
+    match /players_v10/{document=**} {
       allow read, write: if isSignedIn();
     }
 
-    // Таблицы лиг - критически важно для AutoMatchManager
-    match /league_tables_v1/{tableId} {
-      allow read, write: if isSignedIn();
-    }
-
-    // Кубок Пирамиды
-    match /cup_pyramid_v1/{cupId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /cup_matches/{matchId} {
-      allow read, write: if isSignedIn();
-    }
-
-    // Матчи
-    match /matches_v1/{matchId} {
-      allow read, write: if isSignedIn();
-    }
-
-    // Иерархия лиг - полный доступ для авторизованных (необходимо для управления ботами)
     match /leagues_v2/{document=**} {
       allow read, write: if isSignedIn();
     }
 
-    // Социальные функции и рынок
-    match /global_chat_v2/{msgId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+    match /league_tables_v1/{document=**} {
+      allow read, write: if isSignedIn();
     }
 
-    match /private_messages_v3/{msgId} {
-      allow read, create, update: if isSignedIn() && (request.auth.uid in request.resource.data.participants || request.auth.uid in resource.data.participants);
+    match /matches_v1/{document=**} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /cup_pyramid_v1/{document=**} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /cup_matches/{document=**} {
+      allow read, write: if isSignedIn();
     }
 
     match /market_v7/{document=**} {
       allow read, write: if isSignedIn();
     }
 
-    match /notifications_v7/{notifId} {
+    match /notifications_v7/{document=**} {
       allow read, write: if isSignedIn();
     }
 
-    match /friendly_lobbies_v3/{lobbyId} {
+    match /friendly_lobbies_v3/{document=**} {
       allow read, write: if isSignedIn();
     }
 
-    match /cw_basket_v2/{entryId} {
+    match /cw_basket_v2/{document=**} {
       allow read, write: if isSignedIn();
     }
     
-    match /friend_requests_v4/{reqId} {
-      allow read, write: if isSignedIn();
-    }
-    
-    // Системные коллекции
-    match /system_v1/{docId} {
+    match /friend_requests_v4/{document=**} {
       allow read, write: if isSignedIn();
     }
 
-    // Fallback
-    match /{document=**} {
+    match /global_chat_v2/{document=**} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow create: if isSignedIn();
+    }
+
+    match /private_messages_v3/{document=**} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /system_v1/{document=**} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Глобальное правило для всех остальных путей
+    match /{document=**} {
+      allow read, write: if isSignedIn();
     }
   }
 }

@@ -3,19 +3,18 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, writeBatch, collection } from 'firebase/firestore';
+import { doc, writeBatch, collection, query, where, getDocs } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LEAGUES } from '@/app/lib/leagues-data';
 import { COUNTRIES } from '@/app/lib/countries-data';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ChevronLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useGameState } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { findStrategicPlacement } from '@/app/actions/season-init';
 
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
@@ -38,12 +37,46 @@ export default function SetupPage() {
     }
   }, [user, isUserLoading, router]);
 
+  // Клиентская функция поиска места для гарантии использования Auth-контекста
+  const findPlacementClient = async (leagueId: string) => {
+    const q = query(collection(db, 'players_v10'), where('selectedLeagueId', '==', leagueId));
+    const snap = await getDocs(q);
+    
+    const occupiedIndices = new Set<number>();
+    snap.forEach(d => {
+      const data = d.data();
+      const tier = Number(data.leagueLevel || 9);
+      const group = Number(data.groupId || 1);
+      const rank = Number(data.rank || 1);
+      
+      const groupsBefore = Math.pow(2, tier - 1) - 1;
+      const globalIndex = (groupsBefore * 8) + (group - 1) * 8 + (rank - 1);
+      occupiedIndices.add(globalIndex);
+    });
+
+    let foundIndex = 0;
+    for (let i = 0; i < 4088; i++) {
+      if (!occupiedIndices.has(i)) {
+        foundIndex = i;
+        break;
+      }
+    }
+
+    const groupIndex = Math.floor(foundIndex / 8);
+    const tier = Math.floor(Math.log2(groupIndex + 1)) + 1;
+    const groupsBefore = Math.pow(2, tier - 1) - 1;
+    const group = (groupIndex - groupsBefore) + 1;
+    const rank = (foundIndex % 8) + 1;
+
+    return { tier, group, rank };
+  };
+
   const handleCompleteSetup = async () => {
     if (!user || !selectedLeagueId || !selectedCountryCode || !profile) return;
     setIsUpdating(true);
     try {
-      // 1. Находим стратегическое место (приоритет - высокие дивизионы)
-      const placement = await findStrategicPlacement(selectedLeagueId);
+      // 1. Находим стратегическое место на клиенте
+      const placement = await findPlacementClient(selectedLeagueId);
       
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       const uniqueSquad = getRandomStartingSquad();
@@ -87,10 +120,9 @@ export default function SetupPage() {
       const batch = writeBatch(db);
       const rootRef = doc(db, 'players_v10', user.uid);
       
-      // Атомарная запись во все необходимые узлы
+      // Атомарная запись во все необходимые узлы с использованием merge
       batch.set(rootRef, pointerData, { merge: true });
 
-      // Команда создается в иерархии лиг
       const seasonId = `season_${activeSeasonNumber || 1}`;
       const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${placement.group}`;
       const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(placement.tier), 'groups', prefixedGroupId, 'teams', user.uid);
@@ -106,17 +138,16 @@ export default function SetupPage() {
 
       toast({ title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!" });
       
-      // Небольшая задержка перед редиректом для распространения данных
       setTimeout(() => {
         router.replace('/');
       }, 500);
 
     } catch (e: any) {
-      console.error("Critical Sync Error", e);
+      console.error("Critical Setup Error", e);
       toast({ 
         variant: "destructive", 
-        title: "Sync Failed", 
-        description: e.message || "Permissions denied" 
+        title: "Setup Failed", 
+        description: e.message || "Permissions or network error" 
       });
     } finally {
       setIsUpdating(false);
@@ -135,6 +166,7 @@ export default function SetupPage() {
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-2">Operational Node Initialization</p>
         </header>
+        
         <div className="flex-1">
           {step === 'league' ? (
             <div className="grid grid-cols-2 gap-3">
@@ -168,6 +200,7 @@ export default function SetupPage() {
             </div>
           )}
         </div>
+        
         <footer className="mt-12">
           <Button disabled={isUpdating || (step === 'league' && !selectedLeagueId) || (step === 'country' && !selectedCountryCode)} onClick={step === 'league' ? () => setStep('country') : handleCompleteSetup} className="w-full h-16 hero-gradient font-black text-xs tracking-widest uppercase shadow-xl">
             {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'league' ? 'CONTINUE' : 'FINALIZE PROFILE')}
