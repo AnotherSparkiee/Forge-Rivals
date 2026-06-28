@@ -11,7 +11,7 @@ import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore } from '@/firebase';
 import { 
-  doc, getDoc, writeBatch, serverTimestamp, collection, query, where, getDocs 
+  doc, getDoc, writeBatch, serverTimestamp, collection, query, where, getDocs, updateDoc 
 } from 'firebase/firestore';
 import { getGlobalSeasonInfo, GLOBAL_EPOCH_ISO } from '@/app/lib/time-utils';
 import { LEAGUES, getStableGroupTeams } from '@/app/lib/leagues-data';
@@ -51,7 +51,6 @@ export function AutoMatchManager() {
         let activeRank = Number(rootData.rank || rank || 1);
 
         // 1. GREAT REDISTRIBUTION (v60 Patch)
-        // If the player's version is outdated, we must re-assign them to the highest free slot
         if (Number(rootData.version || 0) < SYNC_VERSION) {
           console.log(`[GREAT REDISTRIBUTION v60] Relocating manager ${displayName}...`);
           
@@ -137,7 +136,6 @@ export function AutoMatchManager() {
             version: SYNC_VERSION
           }, { merge: true });
 
-          // 56-match Calendar (14 tours x 4 games x 2 circles)
           const leagueInfo = LEAGUES.find(l => l.id === lId) || LEAGUES[0];
           const [hh, mm] = leagueInfo.startTime.split(':').map(Number);
           const seasonStartMs = new Date(GLOBAL_EPOCH_ISO).getTime() + (currentSeason - 1) * 15 * 24 * 3600000;
@@ -175,22 +173,34 @@ export function AutoMatchManager() {
           
           await batch.commit();
         } else {
-          // Check for displacement
+          // Robust Displacement check
           const data = tableSnap.data();
           const batch = writeBatch(db);
           let needsCommit = false;
 
-          if (data && !data.teams.includes(userId)) {
+          if (data) {
             const teamData = [...(data.teamData || [])];
             const slotIdx = activeRank - 1;
+            const currentSlotTeam = teamData[slotIdx];
             
-            if (teamData[slotIdx] && (teamData[slotIdx].isBot || String(teamData[slotIdx].id).startsWith('bot'))) {
-              const botIdToRemove = teamData[slotIdx].id;
+            // Check if player is NOT in teams array OR their slot is occupied by a bot
+            const isMissingInArray = !data.teams.includes(userId);
+            const isSlotOccupiedByBot = currentSlotTeam && (currentSlotTeam.isBot || String(currentSlotTeam.id).toLowerCase().startsWith('bot'));
+
+            if (isMissingInArray || isSlotOccupiedByBot) {
+              console.log(`[DISPLACEMENT v60] Correcting table for ${displayName} at slot ${activeRank}`);
+              
+              const botIdToRemove = isSlotOccupiedByBot ? currentSlotTeam.id : null;
+              
               teamData[slotIdx] = { id: userId, name: String(displayName), isBot: false, rank: activeRank };
+              
               const newTeams = teamData.map((t: any) => t.id);
               const newStats = { ...(data.stats || {}) };
-              delete newStats[botIdToRemove];
-              newStats[userId] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
+              
+              if (botIdToRemove) delete newStats[botIdToRemove];
+              if (!newStats[userId]) {
+                newStats[userId] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
+              }
               
               batch.update(tableRef, { 
                 teams: newTeams, teamData: teamData, stats: newStats, 

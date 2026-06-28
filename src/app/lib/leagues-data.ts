@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро лиг v52: Улучшенное вытеснение ботов и стабильная генерация календаря.
+ * @fileOverview Ядро лиг v60: Улучшенное вытеснение ботов и стабильная генерация календаря.
  * Гарантирует, что реальный игрок занимает свой зарезервированный Rank в иерархии группы.
  */
 
@@ -55,15 +55,15 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
     };
   });
 
-  // 2. Fill remaining slots with unique bots
+  // 2. Fill remaining slots with unique bots (UPPERCASE for consistent ID check)
   for (let i = 0; i < TEAMS_PER_GROUP; i++) {
     if (!teams[i]) {
       const slotNum = i + 1;
-      // botID format: bot + LeagueIndex + Tier + GroupPrefix + Slot
-      const botId = `bot${leagueIdx}${level}${groupPrefix}${slotNum}`;
+      // botID format: BOT + LeagueIndex + Tier + GroupPrefix + Slot
+      const botId = `BOT${leagueIdx}${level}${groupPrefix}${slotNum}`;
       teams[i] = {
         id: botId,
-        name: `🤖 ${botId}`,
+        name: botId,
         isBot: true,
         rank: slotNum
       };

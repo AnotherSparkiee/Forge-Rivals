@@ -1,8 +1,7 @@
-
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v49. 
+ * @fileOverview Страница рейтингов v60. 
  * Поддержка динамической пирамиды и отображение участников.
  */
 
@@ -43,24 +42,25 @@ export default function RankingsPage() {
   const isMyLeagueTab = activeTab === 'my_league';
   const contextLeagueId = isMyLeagueTab ? String(selectedLeagueId || "ALPHA") : String(navLeague || selectedLeagueId || "ALPHA");
   const contextLevel = isMyLeagueTab ? Number(leagueLevel || 9) : Number(navLevel || leagueLevel || 9);
-  const contextGroup = isMyLeagueTab ? Number(groupId || 1) : Number(navGroup || groupId || 1);
+  const contextGroup = isMyLeagueTab ? Number(navGroup || (isMyLeagueTab ? groupId : 1) || 1) : Number(navGroup || 1);
 
-  const tableId = `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
+  const tableId = `s${activeSeasonNumber || 1}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
   const standings = useMemo(() => {
+    if (isTableLoading) return [];
     if (!tableData) {
       return getStableGroupTeams(contextLevel, contextGroup, contextLeagueId).map(t => ({
         ...t, points: 0, wins: 0, draws: 0, losses: 0, diff: 0
       }));
     }
-    const list = tableData.teamData.map((t: any) => {
+    const list = (tableData.teamData || []).map((t: any) => {
       const s = tableData.stats?.[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
       return { ...t, ...s };
     });
     return list.sort((a: any, b: any) => b.points - a.points || b.diff - a.diff || a.name.localeCompare(b.name));
-  }, [tableData, contextLevel, contextGroup, contextLeagueId]);
+  }, [tableData, contextLevel, contextGroup, contextLeagueId, isTableLoading]);
 
   const t = {
     en: {
@@ -68,6 +68,7 @@ export default function RankingsPage() {
       pts: "PTS", winLoss: "W-D-L", back: "Back",
       waiting: "TBD", round: "Round", final: "Final",
       promotion: "Promotion Zone", relegation: "Relegation Danger",
+      syncing: "Syncing world data...",
       menu: [
         { id: 'my_league', label: 'My Current Table', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'My Pyramid', desc: `Explore ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
@@ -80,6 +81,7 @@ export default function RankingsPage() {
       pts: "ОЧК", winLoss: "В-Н-П", back: "Назад",
       waiting: "TBD", round: "Раунд", final: "Финал",
       promotion: "Зона повышения", relegation: "Зона вылета",
+      syncing: "Синхронизация данных...",
       menu: [
         { id: 'my_league', label: 'Своя таблица', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'Своя пирамида', desc: `Изучить лигу ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
@@ -150,44 +152,58 @@ export default function RankingsPage() {
              <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase">GROUP {contextGroup}</Badge>
              <span className="text-[10px] font-mono text-muted-foreground">SEASON {activeSeasonNumber}</span>
            </div>
-           <div className="space-y-1">
-             <div className="grid grid-cols-[30px_1fr_80px_40px] px-4 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
-               <span>#</span><span>Team</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
+           
+           {isTableLoading ? (
+             <div className="py-20 text-center opacity-50 flex flex-col items-center gap-4">
+               <Loader2 className="w-8 h-8 animate-spin text-primary" />
+               <p className="text-[10px] uppercase font-black tracking-widest">{t.syncing}</p>
              </div>
-             {standings.map((entry: any, i: number) => {
-               const pos = i + 1;
-               const isPromotion = pos === 1 && contextLevel > 1;
-               const isRelegation = pos >= 7 && contextLevel < 9;
-               
-               return (
-                <div key={entry.id} className={cn(
-                  "grid grid-cols-[30px_1fr_80px_40px] items-center p-3 rounded-xl border mb-1 transition-all", 
-                  entry.id === user?.uid ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-secondary/20 border-white/5",
-                  isPromotion && "border-l-4 border-l-green-500",
-                  isRelegation && "border-l-4 border-l-red-500"
-                )}>
-                  <div className="text-xs font-black italic text-muted-foreground">{pos}</div>
-                  <div className="truncate flex flex-col">
-                    <span className={cn("text-[11px] font-bold uppercase text-white", entry.id === user?.uid && "text-primary")}>{entry.name}</span>
-                    {isPromotion && <span className="text-[6px] text-green-400 font-black uppercase tracking-tighter">PROMOTION</span>}
-                    {isRelegation && <span className="text-[6px] text-red-400 font-black uppercase tracking-tighter">RELEGATION</span>}
+           ) : (
+             <div className="space-y-1">
+               <div className="grid grid-cols-[30px_1fr_80px_40px] px-4 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
+                 <span>#</span><span>Team</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
+               </div>
+               {standings.map((entry: any, i: number) => {
+                 const pos = i + 1;
+                 const isPromotion = pos === 1 && contextLevel > 1;
+                 const isRelegation = pos >= 7 && contextLevel < 9;
+                 const isMe = entry.id === user?.uid;
+                 
+                 return (
+                  <div key={entry.id} className={cn(
+                    "grid grid-cols-[30px_1fr_80px_40px] items-center p-3 rounded-xl border mb-1 transition-all", 
+                    isMe ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-secondary/20 border-white/5",
+                    isPromotion && "border-l-4 border-l-green-500",
+                    isRelegation && "border-l-4 border-l-red-500"
+                  )}>
+                    <div className="text-xs font-black italic text-muted-foreground">{pos}</div>
+                    <div className="truncate flex flex-col">
+                      <span className={cn("text-[11px] font-bold uppercase", isMe ? "text-primary" : "text-white")}>
+                        {entry.isBot ? `🤖 ${entry.name}` : entry.name}
+                      </span>
+                      {isPromotion && <span className="text-[6px] text-green-400 font-black uppercase tracking-tighter">PROMOTION</span>}
+                      {isRelegation && <span className="text-[6px] text-red-400 font-black uppercase tracking-tighter">RELEGATION</span>}
+                    </div>
+                    <div className="text-center font-mono text-[10px] text-muted-foreground">{entry.wins || 0}-{entry.draws || 0}-{entry.losses || 0}</div>
+                    <div className="text-right font-headline font-black text-primary italic">{entry.points || 0}</div>
                   </div>
-                  <div className="text-center font-mono text-[10px] text-muted-foreground">{entry.wins || 0}-{entry.draws || 0}-{entry.losses || 0}</div>
-                  <div className="text-right font-headline font-black text-primary italic">{entry.points || 0}</div>
+                 );
+               })}
+             </div>
+           )}
+
+           {!isTableLoading && (
+             <div className="p-4 bg-primary/5 rounded-2xl border border-white/5 space-y-2 mt-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
+                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.promotion}: 1st Place</p>
                 </div>
-               );
-             })}
-           </div>
-           <div className="p-4 bg-primary/5 rounded-2xl border border-white/5 space-y-2 mt-4">
-              <div className="flex items-center gap-2">
-                <div className="w-1 h-3 bg-green-500 rounded-full" />
-                <p className="text-[8px] font-black text-muted-foreground uppercase">{t.promotion}: 1st Place</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-1 h-3 bg-red-500 rounded-full" />
-                <p className="text-[8px] font-black text-muted-foreground uppercase">{t.relegation}: 7th & 8th Places</p>
-              </div>
-           </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full shadow-[0_0_5px_rgba(239,68,68,0.5)]" />
+                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.relegation}: 7th & 8th Places</p>
+                </div>
+             </div>
+           )}
         </div>
       )}
       
@@ -217,7 +233,7 @@ export default function RankingsPage() {
       {(activeTab === 'my_pyramid' || (activeTab === 'all_pyramids' && navLeague)) && !navLevel && (
         <div className="space-y-2 animate-in slide-in-from-right-4">
           {Array.from({ length: MAX_LEVELS }, (_, i) => i + 1).map(lvl => (
-            <Card key={lvl} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer transition-all" onClick={() => setNavLevel(lvl)}>
+            <Card key={lvl} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer" onClick={() => setNavLevel(lvl)}>
               <CardContent className="p-4 flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-secondary/50 flex items-center justify-center border border-white/5"><span className="text-xs font-headline font-bold text-primary">{lvl}</span></div>
