@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Ядро лиг v62: Ультимативный генератор календаря в стиле FMO.
  * Реализует алгоритм Berger (Circle Method) для честной круговой системы.
@@ -47,7 +48,7 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
     const slot = Math.min(8, Math.max(1, p.rank || 1));
     teams[slot - 1] = {
       id: p.id,
-      name: p.displayName || `Manager_${p.id.slice(0, 4)}`,
+      name: p.name || p.displayName || `Manager_${p.id.slice(0, 4)}`,
       isBot: false,
       rank: slot
     };

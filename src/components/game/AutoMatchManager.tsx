@@ -2,11 +2,9 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v62 (Self-Healing World).
- * Полная автоматизация лиги в стиле FMO:
- * 1. Вытеснение ботов при входе реального игрока.
- * 2. Авто-симуляция просроченных матчей группы.
- * 3. Обновление Standings в реальном времени.
+ * @fileOverview Ядро MMO-синхронизации v62.5 (Self-Healing World).
+ * Исправлено вытеснение ботов: теперь реальный игрок принудительно вписывается 
+ * в таблицу и календарь матчей своей группы.
  */
 
 import { useEffect, useRef } from 'react';
@@ -19,7 +17,7 @@ import { getGlobalSeasonInfo, isMatchOverdue } from '@/app/lib/time-utils';
 import { getStableGroupTeams, generateSeasonCalendar } from '@/app/lib/leagues-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 
-const SYNC_VERSION = 62;
+const SYNC_VERSION = 60;
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
@@ -40,13 +38,11 @@ export function AutoMatchManager() {
       const currentSeason = Number(info.activeSeasonNumber);
       const lId = String(selectedLeagueId);
       
-      const syncKey = `${userId}_s${currentSeason}_v${SYNC_VERSION}_fmo_final`;
+      const syncKey = `${userId}_s${currentSeason}_v${SYNC_VERSION}_fmo_final_v625`;
       if (syncInProgressRef.current === syncKey) return;
       syncInProgressRef.current = syncKey;
 
       try {
-        console.log(`[FMO ENGINE v62] Syncing node for ${displayName}...`);
-        
         const rootRef = doc(db, 'players_v10', userId);
         const rootSnap = await getDoc(rootRef);
         const rootData = rootSnap.data() || {};
@@ -59,9 +55,10 @@ export function AutoMatchManager() {
         const tableRef = doc(db, 'league_tables_v1', tableId);
         const tableSnap = await getDoc(tableRef);
 
-        // 1. ИНИЦИАЛИЗАЦИЯ ТАБЛИЦЫ И КАЛЕНДАРЯ
+        // 1. ИНИЦИАЛИЗАЦИЯ ИЛИ ОБНОВЛЕНИЕ ТАБЛИЦЫ
         if (!tableSnap.exists()) {
-          const teams = getStableGroupTeams(activeLevel, activeGroup, lId, [{ id: userId, displayName, rank: activeRank }]);
+          console.log(`[FMO ENGINE] Initializing NEW table: ${tableId}`);
+          const teams = getStableGroupTeams(activeLevel, activeGroup, lId, [{ id: userId, name: displayName, rank: activeRank }]);
           await setDoc(tableRef, {
             tableId, season: currentSeason, leagueId: lId, tier: activeLevel, group: activeGroup,
             teamData: teams, stats: {}, createdAt: serverTimestamp(), version: SYNC_VERSION
@@ -81,29 +78,38 @@ export function AutoMatchManager() {
           // 2. ВЫТЕСНЕНИЕ БОТА (Если игрок зашел в готовую таблицу)
           const tData = tableSnap.data();
           const teams = tData.teamData || [];
-          const slot = teams[activeRank - 1];
+          const currentSlotPlayer = teams[activeRank - 1];
 
-          if (slot && slot.isBot) {
-            console.log(`[FMO ENGINE] Displacing bot ${slot.id} -> ${displayName}`);
+          // Если в слоте не наш ID (значит там бот или старые данные)
+          if (!currentSlotPlayer || currentSlotPlayer.id !== userId) {
+            console.log(`[FMO ENGINE] Displacing occupant in slot ${activeRank}: ${currentSlotPlayer?.id} -> ${userId}`);
+            
+            const oldBotId = currentSlotPlayer?.id;
             const updatedTeams = [...teams];
             updatedTeams[activeRank - 1] = { id: userId, name: displayName, isBot: false, rank: activeRank };
+            
             await updateDoc(tableRef, { teamData: updatedTeams });
 
-            const qM = query(collection(db, 'matches_v1'), where('tableId', '==', tableId), where('isFinished', '==', false));
+            // Обновляем все матчи группы, где участвовал этот бот
+            const qM = query(collection(db, 'matches_v1'), where('tableId', '==', tableId), where('version', '==', SYNC_VERSION));
             const mSnap = await getDocs(qM);
             const batch = writeBatch(db);
             mSnap.forEach(mDoc => {
               const m = mDoc.data();
               const upd: any = {};
-              if (m.homeId === slot.id) { upd.homeId = userId; upd.homeName = displayName; }
-              if (m.awayId === slot.id) { upd.awayId = userId; upd.awayName = displayName; }
+              if (m.homeId === oldBotId || (m.homeId && m.homeId.startsWith('BOT') && m.homeId.endsWith(String(activeRank)))) { 
+                upd.homeId = userId; upd.homeName = displayName; 
+              }
+              if (m.awayId === oldBotId || (m.awayId && m.awayId.startsWith('BOT') && m.awayId.endsWith(String(activeRank)))) { 
+                upd.awayId = userId; upd.awayName = displayName; 
+              }
               if (Object.keys(upd).length > 0) batch.update(mDoc.ref, upd);
             });
             await batch.commit();
           }
         }
 
-        // 3. AUTO-RESOLVER (Симуляция всех прошедших игр группы)
+        // 3. AUTO-RESOLVER (Симуляция матчей)
         const qPending = query(
           collection(db, 'matches_v1'),
           where('tableId', '==', tableId),
@@ -115,8 +121,6 @@ export function AutoMatchManager() {
         for (const mDoc of pendingSnap.docs) {
           const mData = mDoc.data();
           if (isMatchOverdue(mData.startTime)) {
-            console.log(`[RESOLVER v62] Processing overdue match: ${mDoc.id}`);
-            
             const isPlayerHome = mData.homeId === userId;
             const isPlayerAway = mData.awayId === userId;
             let result;
@@ -150,7 +154,7 @@ export function AutoMatchManager() {
               const tCurrentSnap = await transaction.get(tableRef);
               if (tCurrentSnap.exists()) {
                 const stats = tCurrentSnap.data().stats || {};
-                const updateStats = (id: string, sc: number, osc: number) => {
+                const updateS = (id: string, sc: number, osc: number) => {
                   if (!stats[id]) stats[id] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
                   stats[id].matchesPlayed++;
                   if (sc > osc) { stats[id].wins++; stats[id].points += 3; }
@@ -158,8 +162,8 @@ export function AutoMatchManager() {
                   else { stats[id].losses++; }
                   stats[id].diff += (sc - osc);
                 };
-                updateStats(mData.homeId, sA, sB);
-                updateStats(mData.awayId, sB, sA);
+                updateS(mData.homeId, sA, sB);
+                updateS(mData.awayId, sB, sA);
                 transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
               }
               transaction.update(mDoc.ref, {
@@ -171,7 +175,7 @@ export function AutoMatchManager() {
 
         setWorldReady(true);
       } catch (e) {
-        console.error("[AUTO-MANAGER v62 ERROR]", e);
+        console.error("[AUTO-MANAGER v62.5 ERROR]", e);
         setWorldReady(true);
       }
     };
