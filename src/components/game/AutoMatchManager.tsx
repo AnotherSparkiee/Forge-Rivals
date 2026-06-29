@@ -1,10 +1,8 @@
-
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v62.5 (Self-Healing World).
- * Исправлено вытеснение ботов: теперь реальный игрок принудительно вписывается 
- * в таблицу и календарь матчей своей группы.
+ * @fileOverview Ядро MMO-синхронизации v63 (FMO Gear Games Style).
+ * Обеспечивает объединение реальных игроков в группы и автономную симуляцию мира.
  */
 
 import { useEffect, useRef } from 'react';
@@ -17,7 +15,7 @@ import { getGlobalSeasonInfo, isMatchOverdue } from '@/app/lib/time-utils';
 import { getStableGroupTeams, generateSeasonCalendar } from '@/app/lib/leagues-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 
-const SYNC_VERSION = 60;
+const SYNC_VERSION = 60; // Единая версия для сезона
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
@@ -37,79 +35,90 @@ export function AutoMatchManager() {
       const info = getGlobalSeasonInfo();
       const currentSeason = Number(info.activeSeasonNumber);
       const lId = String(selectedLeagueId);
-      
-      const syncKey = `${userId}_s${currentSeason}_v${SYNC_VERSION}_fmo_final_v625`;
+      const tier = Number(leagueLevel);
+      const group = Number(groupId);
+
+      const syncKey = `${userId}_s${currentSeason}_v${SYNC_VERSION}_fmo_final_v63`;
       if (syncInProgressRef.current === syncKey) return;
       syncInProgressRef.current = syncKey;
 
       try {
-        const rootRef = doc(db, 'players_v10', userId);
-        const rootSnap = await getDoc(rootRef);
-        const rootData = rootSnap.data() || {};
-        
-        const activeLevel = Number(rootData.leagueLevel || leagueLevel);
-        const activeGroup = Number(rootData.groupId || groupId);
-        const activeRank = Number(rootData.rank || rank || 1);
-
-        const tableId = `s${currentSeason}_l${lId}_t${activeLevel}_g${activeGroup}`;
+        const tableId = `s${currentSeason}_l${lId}_t${tier}_g${group}`;
         const tableRef = doc(db, 'league_tables_v1', tableId);
-        const tableSnap = await getDoc(tableRef);
+        
+        // 1. Собираем ВСЕХ реальных игроков этой группы
+        const playersQuery = query(
+          collection(db, 'players_v10'),
+          where('selectedLeagueId', '==', lId),
+          where('leagueLevel', '==', tier),
+          where('groupId', '==', group)
+        );
+        const playersSnap = await getDocs(playersQuery);
+        const realPlayers = playersSnap.docs.map(d => ({
+          id: d.id,
+          name: d.data().displayName || "Manager",
+          rank: d.data().rank || 8
+        }));
 
-        // 1. ИНИЦИАЛИЗАЦИЯ ИЛИ ОБНОВЛЕНИЕ ТАБЛИЦЫ
+        // 2. Проверяем/Создаем таблицу
+        const tableSnap = await getDoc(tableRef);
+        const teams = getStableGroupTeams(tier, group, lId, realPlayers);
+
         if (!tableSnap.exists()) {
-          console.log(`[FMO ENGINE] Initializing NEW table: ${tableId}`);
-          const teams = getStableGroupTeams(activeLevel, activeGroup, lId, [{ id: userId, name: displayName, rank: activeRank }]);
+          console.log(`[FMO ENGINE] Initializing NEW shared table: ${tableId}`);
           await setDoc(tableRef, {
-            tableId, season: currentSeason, leagueId: lId, tier: activeLevel, group: activeGroup,
+            tableId, season: currentSeason, leagueId: lId, tier, group,
             teamData: teams, stats: {}, createdAt: serverTimestamp(), version: SYNC_VERSION
           });
           
           const batch = writeBatch(db);
           const matches = generateSeasonCalendar(teams, currentSeason, lId);
           matches.forEach(m => {
-            const mId = `m_s${currentSeason}_${lId}_t${activeLevel}_g${activeGroup}_d${m.day}_h${m.homeId}`;
+            const mId = `m_s${currentSeason}_${lId}_t${tier}_g${group}_d${m.day}_h${m.homeId}`;
             batch.set(doc(db, 'matches_v1', mId), {
-              ...m, tableId, season: currentSeason, leagueId: lId, tier: activeLevel, groupId: String(activeGroup),
+              ...m, tableId, season: currentSeason, leagueId: lId, tier, groupId: String(group),
               status: 'scheduled', isFinished: false, version: SYNC_VERSION
             });
           });
           await batch.commit();
         } else {
-          // 2. ВЫТЕСНЕНИЕ БОТА (Если игрок зашел в готовую таблицу)
+          // Обновляем состав таблицы, если появились новые реальные игроки
           const tData = tableSnap.data();
-          const teams = tData.teamData || [];
-          const currentSlotPlayer = teams[activeRank - 1];
+          const existingTeams = tData.teamData || [];
+          
+          let needsUpdate = false;
+          const updatedTeams = [...existingTeams];
 
-          // Если в слоте не наш ID (значит там бот или старые данные)
-          if (!currentSlotPlayer || currentSlotPlayer.id !== userId) {
-            console.log(`[FMO ENGINE] Displacing occupant in slot ${activeRank}: ${currentSlotPlayer?.id} -> ${userId}`);
-            
-            const oldBotId = currentSlotPlayer?.id;
-            const updatedTeams = [...teams];
-            updatedTeams[activeRank - 1] = { id: userId, name: displayName, isBot: false, rank: activeRank };
-            
+          realPlayers.forEach(p => {
+            const slotIdx = p.rank - 1;
+            if (!updatedTeams[slotIdx] || updatedTeams[slotIdx].isBot || updatedTeams[slotIdx].id !== p.id) {
+              updatedTeams[slotIdx] = { id: p.id, name: p.name, isBot: false, rank: p.rank };
+              needsUpdate = true;
+            }
+          });
+
+          if (needsUpdate) {
+            console.log(`[FMO ENGINE] Updating shared table with new human players`);
             await updateDoc(tableRef, { teamData: updatedTeams });
 
-            // Обновляем все матчи группы, где участвовал этот бот
+            // Обновляем календарь для новых имен
             const qM = query(collection(db, 'matches_v1'), where('tableId', '==', tableId), where('version', '==', SYNC_VERSION));
             const mSnap = await getDocs(qM);
-            const batch = writeBatch(db);
+            const mBatch = writeBatch(db);
             mSnap.forEach(mDoc => {
               const m = mDoc.data();
               const upd: any = {};
-              if (m.homeId === oldBotId || (m.homeId && m.homeId.startsWith('BOT') && m.homeId.endsWith(String(activeRank)))) { 
-                upd.homeId = userId; upd.homeName = displayName; 
-              }
-              if (m.awayId === oldBotId || (m.awayId && m.awayId.startsWith('BOT') && m.awayId.endsWith(String(activeRank)))) { 
-                upd.awayId = userId; upd.awayName = displayName; 
-              }
-              if (Object.keys(upd).length > 0) batch.update(mDoc.ref, upd);
+              updatedTeams.forEach(p => {
+                if (m.homeId === p.id && m.homeName !== p.name) upd.homeName = p.name;
+                if (m.awayId === p.id && m.awayName !== p.name) upd.awayName = p.name;
+              });
+              if (Object.keys(upd).length > 0) mBatch.update(mDoc.ref, upd);
             });
-            await batch.commit();
+            await mBatch.commit();
           }
         }
 
-        // 3. AUTO-RESOLVER (Симуляция матчей)
+        // 3. AUTO-RESOLVER (Симуляция ВСЕХ матчей группы)
         const qPending = query(
           collection(db, 'matches_v1'),
           where('tableId', '==', tableId),
@@ -121,28 +130,30 @@ export function AutoMatchManager() {
         for (const mDoc of pendingSnap.docs) {
           const mData = mDoc.data();
           if (isMatchOverdue(mData.startTime)) {
-            const isPlayerHome = mData.homeId === userId;
-            const isPlayerAway = mData.awayId === userId;
+            // Симулируем результат (для прототипа используем детерминированную логику или ИИ)
+            const isMeInvolved = mData.homeId === userId || mData.awayId === userId;
             let result;
 
-            if (isPlayerHome || isPlayerAway) {
+            if (isMeInvolved) {
               const squad = ownedPlayers.filter(p => Object.values(lineup).includes(p.id)).map(p => ({
                 name: p.name, role: p.role, overallRating: p.overallRating, proStats: p.proStats,
                 isSub: p.id === lineup.sub1 || p.id === lineup.sub2
               }));
 
               result = await simulateMobaMatch({
-                teamA: isPlayerHome ? { name: displayName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.homeName, strategy: "Balanced", heroes: [] },
-                teamB: isPlayerAway ? { name: displayName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.awayName, strategy: "Balanced", heroes: [] },
+                teamA: mData.homeId === userId ? { name: displayName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.homeName, strategy: "Balanced", heroes: [] },
+                teamB: mData.awayId === userId ? { name: displayName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.awayName, strategy: "Balanced", heroes: [] },
                 isBo2: true
               });
             } else {
-              const winsA = Math.random() > 0.5 ? 2 : (Math.random() > 0.3 ? 1 : 0);
+              // Детерминированный результат для матчей ботов
+              const winProb = 0.5;
+              const winsA = Math.random() < winProb ? 2 : (Math.random() < 0.3 ? 1 : 0);
               const winsB = winsA === 2 ? 0 : (winsA === 1 ? 1 : 2);
               result = { 
                 winner: winsA > winsB ? mData.homeName : (winsB > winsA ? mData.awayName : "Draw"), 
                 seriesScore: `${winsA}-${winsB}`, 
-                games: [{ scoreA: winsA > 0 ? 1 : 0, scoreB: winsB > 0 ? 1 : 0, duration: "35:00", mvp: "Bot", matchSummary: "Automated simulation." }] 
+                games: [{ scoreA: winsA > 0 ? 1 : 0, scoreB: winsB > 0 ? 1 : 0, duration: "30:00", mvp: "Bot", matchSummary: "System simulation." }] 
               };
             }
 
@@ -154,13 +165,13 @@ export function AutoMatchManager() {
               const tCurrentSnap = await transaction.get(tableRef);
               if (tCurrentSnap.exists()) {
                 const stats = tCurrentSnap.data().stats || {};
-                const updateS = (id: string, sc: number, osc: number) => {
-                  if (!stats[id]) stats[id] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
-                  stats[id].matchesPlayed++;
-                  if (sc > osc) { stats[id].wins++; stats[id].points += 3; }
-                  else if (sc === osc) { stats[id].draws++; stats[id].points += 1; }
-                  else { stats[id].losses++; }
-                  stats[id].diff += (sc - osc);
+                const updateS = (tid: string, sc: number, osc: number) => {
+                  if (!stats[tid]) stats[tid] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
+                  stats[tid].matchesPlayed++;
+                  if (sc > osc) { stats[tid].wins++; stats[tid].points += 3; }
+                  else if (sc === osc) { stats[tid].draws++; stats[tid].points += 1; }
+                  else { stats[tid].losses++; }
+                  stats[tid].diff += (sc - osc);
                 };
                 updateS(mData.homeId, sA, sB);
                 updateS(mData.awayId, sB, sA);
@@ -175,7 +186,7 @@ export function AutoMatchManager() {
 
         setWorldReady(true);
       } catch (e) {
-        console.error("[AUTO-MANAGER v62.5 ERROR]", e);
+        console.error("[AUTO-MANAGER v63 ERROR]", e);
         setWorldReady(true);
       }
     };

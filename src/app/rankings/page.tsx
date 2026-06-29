@@ -1,9 +1,8 @@
-
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v62 (FMO Style). 
- * Отображение детальной статистики В-Н-П и зон продвижения.
+ * @fileOverview Страница рейтингов v63 (FMO Gear Games Style). 
+ * Отображение живых таблиц с реальными игроками и ботами.
  */
 
 import { useState, useMemo } from 'react';
@@ -12,7 +11,7 @@ import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
   Shield, Globe, Layers, Medal, Loader2, AlertTriangle, Swords,
-  ArrowUp, ArrowDown, Dash
+  ArrowUp, ArrowDown, User, Bot
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -59,6 +58,7 @@ export default function RankingsPage() {
       const s = tableData.stats?.[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0, matchesPlayed: 0 };
       return { ...t, ...s };
     });
+    // Сортировка: Очки -> Разница -> Имя
     return list.sort((a: any, b: any) => b.points - a.points || b.diff - a.diff || a.name.localeCompare(b.name));
   }, [tableData, contextLevel, contextGroup, contextLeagueId, isTableLoading]);
 
@@ -76,7 +76,7 @@ export default function RankingsPage() {
     },
     ru: {
       title: "ТАБЛИЦЫ РЕЙТИНГА", subtitle: "Терминалы глобальных соревнований",
-      pts: "ОЧК", winLoss: "В-Н-П", m: "И", back: "Назад",
+      pts: "О", winLoss: "В-Н-П", m: "И", back: "Назад",
       syncing: "Синхронизация данных...",
       promotion: "Зона повышения", relegation: "Зона вылета",
       menu: [
@@ -109,10 +109,10 @@ export default function RankingsPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white leading-none">
-            {activeTab === 'menu' ? t.title : t.menu.find(m => m.id === activeTab)?.label}
+            {activeTab === 'menu' ? t.title : (isMyLeagueTab ? t.menu[0].label : contextLeagueId)}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest leading-none mt-1.5 font-black opacity-50">
-            {activeTab === 'menu' ? t.subtitle : `${contextLeagueId} • DIV ${contextLevel}`}
+            {activeTab === 'menu' ? t.subtitle : `DIV ${contextLevel} • GROUP ${contextGroup}`}
           </p>
         </div>
       </header>
@@ -139,7 +139,7 @@ export default function RankingsPage() {
       {(activeTab === 'my_league' || navGroup) && (
         <div className="space-y-4 animate-in fade-in duration-500">
            <div className="flex items-center justify-between px-1">
-             <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase">GROUP {contextGroup}</Badge>
+             <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase">DIV {contextLevel} • G {contextGroup}</Badge>
              <span className="text-[10px] font-mono text-muted-foreground">SEASON {activeSeasonNumber}</span>
            </div>
            
@@ -167,9 +167,10 @@ export default function RankingsPage() {
                     isRelegation && "border-l-4 border-l-red-500"
                   )}>
                     <div className="text-[10px] font-black italic text-muted-foreground">{pos}</div>
-                    <div className="truncate flex flex-col">
-                      <span className={cn("text-[10px] font-bold uppercase", isMe ? "text-primary" : "text-white")}>
-                        {entry.isBot ? `🤖 ${entry.name}` : entry.name}
+                    <div className="truncate flex items-center gap-1.5">
+                      {entry.isBot ? <Bot className="w-3 h-3 opacity-30 shrink-0" /> : <User className="w-3 h-3 text-primary shrink-0" />}
+                      <span className={cn("text-[10px] font-bold uppercase truncate", isMe ? "text-primary" : "text-white")}>
+                        {entry.name}
                       </span>
                     </div>
                     <div className="text-center font-mono text-[9px] text-muted-foreground">{entry.matchesPlayed || 0}</div>
@@ -184,11 +185,11 @@ export default function RankingsPage() {
            {!isTableLoading && (
              <div className="p-4 bg-primary/5 rounded-2xl border border-white/5 space-y-2 mt-4">
                 <div className="flex items-center gap-2">
-                  <ArrowUp className="w-3 h-3 text-green-500" />
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
                   <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.promotion}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <ArrowDown className="w-3 h-3 text-red-500" />
+                  <div className="w-2 h-2 rounded-full bg-red-500" />
                   <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.relegation}</p>
                 </div>
              </div>
