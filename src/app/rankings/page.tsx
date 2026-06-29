@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v60 (Clean Legacy). 
- * Данные читаются строго из документов league_tables_v1.
+ * @fileOverview Страница рейтингов v61. 
+ * Читает общие данные группы из документа league_tables_v1.
  */
 
 import { useState, useMemo } from 'react';
@@ -43,15 +43,13 @@ export default function RankingsPage() {
   const contextLevel = isMyLeagueTab ? Number(leagueLevel || 1) : Number(navLevel || leagueLevel || 1);
   const contextGroup = isMyLeagueTab ? Number(navGroup || (isMyLeagueTab ? groupId : 1) || 1) : Number(navGroup || 1);
 
-  // Используем унифицированный ID таблицы цикла
-  const tableId = `cycle_${activeSeasonNumber || 1}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
+  const tableId = `cycle_${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
   const standings = useMemo(() => {
     if (isTableLoading) return [];
     
-    // Если данных в БД нет — создаем временный массив ботов для визуализации
     if (!tableData || !tableData.teamData) {
       const baseTeams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId);
       return baseTeams.map(t => ({
@@ -71,7 +69,7 @@ export default function RankingsPage() {
     en: {
       title: "RANKINGS HUB", subtitle: "Global Competitive Terminals",
       pts: "PTS", winLoss: "W-D-L", m: "M", back: "Back",
-      syncing: "Synchronizing with world server...",
+      syncing: "Synchronizing group data...",
       promotion: "Promotion Zone", relegation: "Relegation Danger",
       menu: [
         { id: 'my_league', label: 'League Standings', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
@@ -82,7 +80,7 @@ export default function RankingsPage() {
     ru: {
       title: "ТАБЛИЦЫ РЕЙТИНГА", subtitle: "Терминалы глобальных соревнований",
       pts: "О", winLoss: "В-Н-П", m: "И", back: "Назад",
-      syncing: "Синхронизация с сервером мира...",
+      syncing: "Синхронизация данных группы...",
       promotion: "Зона повышения", relegation: "Зона вылета",
       menu: [
         { id: 'my_league', label: 'Таблица Лиги', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
@@ -160,9 +158,9 @@ export default function RankingsPage() {
                </div>
                {standings.map((entry: any, i: number) => {
                  const pos = i + 1;
+                 const isMe = entry.id === user?.uid;
                  const isPromotion = pos === 1 && contextLevel > 1;
                  const isRelegation = pos >= 7 && contextLevel < 9;
-                 const isMe = entry.id === user?.uid;
                  
                  return (
                   <div key={entry.id} className={cn(
@@ -174,7 +172,7 @@ export default function RankingsPage() {
                     <div className="text-[10px] font-black italic text-muted-foreground">{pos}</div>
                     <div className="truncate flex items-center gap-1.5">
                       {entry.isBot ? <Bot className="w-3 h-3 opacity-30 shrink-0" /> : <User className="w-3 h-3 text-primary shrink-0" />}
-                      <span className={cn("text-[10px] font-bold uppercase truncate", isMe ? "text-primary" : "text-white")}>
+                      <span className={cn("text-[10px] font-bold uppercase truncate", isMe ? "text-primary font-black" : "text-white")}>
                         {entry.name}
                       </span>
                     </div>

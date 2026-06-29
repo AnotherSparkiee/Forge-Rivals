@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview МАТЧ-ЦЕНТР v46.
- * Использование унифицированной фильтрации по версии v46.
+ * @fileOverview МАТЧ-ЦЕНТР v61.
+ * Отображение календаря строго по данным группы из БД.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -18,7 +18,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { useUser } from '@/firebase';
-import { getMoscowTime, isMatchLive } from '../lib/time-utils';
+import { getMoscowTime, isMatchLive, getGlobalSeasonInfo } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 type MatchView = 'menu' | 'next' | 'my_future' | 'my_history' | 'league_future' | 'league_history';
@@ -28,7 +28,7 @@ export default function MatchesPage() {
   const router = useRouter();
   const { 
     isLoaded, isDataReady, language, allSeasonMatches, nextMatch,
-    activeSeasonNumber
+    activeSeasonNumber, selectedLeagueId, leagueLevel, groupId
   } = useGameState();
   
   const [view, setView] = useState<MatchView>('menu');
@@ -40,9 +40,12 @@ export default function MatchesPage() {
     return () => clearInterval(timer);
   }, [user, isUserLoading, router]);
 
+  // Фильтруем матчи строго по текущей группе и циклу
+  const groupTableId = `cycle_${activeSeasonNumber}_l${selectedLeagueId}_t${leagueLevel}_g${groupId}`;
+  
   const validMatches = useMemo(() => {
-    return (allSeasonMatches || []).filter(m => (m.version === 46) && m.season === activeSeasonNumber);
-  }, [allSeasonMatches, activeSeasonNumber]);
+    return (allSeasonMatches || []).filter(m => m.tableId === groupTableId);
+  }, [allSeasonMatches, groupTableId]);
 
   const t = {
     ru: {
@@ -190,7 +193,7 @@ export default function MatchesPage() {
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center gap-4">
         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => view === 'menu' ? router.push('/') : setView('menu')}><ChevronLeft className="w-6 h-6" /></Button>
-        <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">Season {activeSeasonNumber}</p></div>
+        <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">Active Operations Cycle</p></div>
       </header>
       {renderContent()}
     </div>

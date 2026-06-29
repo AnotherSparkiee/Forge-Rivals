@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v60 (Infinite Season Engine). 
+ * @fileOverview Ядро времени v61 (Infinite Season Engine). 
  * Глобальная синхронизация цикла (15 дней).
  * Начало Сезона 1: 29.06.2026 00:00 MSK.
  */
@@ -74,11 +74,10 @@ export function getGlobalSeasonInfo() {
   const dayMs = 24 * 60 * 60 * 1000;
   const cycleMs = cycleDuration * dayMs;
 
-  // Если дата еще не наступила (хотя по условию сегодня 29.06.2026)
   if (diffMs < 0) {
     return {
       seasonDay: 1, dayOfCycle: 1, seasonNumber: 1, activeSeasonNumber: 1,
-      isOffseason: false, isPreSeason: false, isGenerationWindow: false,
+      isOffseason: false, isGenerationWindow: false,
       timeToStartMs: 0, currentSeasonStart: epochUtc, nextSeasonStart: new Date(epochUtc.getTime() + cycleMs)
     };
   }
@@ -87,9 +86,7 @@ export function getGlobalSeasonInfo() {
   const dayOfCycle = Math.floor((diffMs % cycleMs) / dayMs) + 1;
   
   const isOffseason = dayOfCycle === 15;
-  const mskNow = toMskDate(utcNow);
-  const isGenerationWindow = isOffseason && mskNow.getUTCHours() >= 16;
-  const activeSeasonNumber = isGenerationWindow ? seasonNumber + 1 : seasonNumber;
+  const activeSeasonNumber = seasonNumber;
 
   return {
     seasonDay: isOffseason ? 0 : dayOfCycle,
@@ -97,8 +94,6 @@ export function getGlobalSeasonInfo() {
     seasonNumber,
     activeSeasonNumber,
     isOffseason,
-    isGenerationWindow,
-    isPreSeason: false,
     timeToStartMs: Math.max(0, (new Date(epochUtc.getTime() + seasonNumber * cycleMs)).getTime() - utcNow.getTime()),
     currentSeasonStart: new Date(epochUtc.getTime() + (seasonNumber - 1) * cycleMs),
     nextSeasonStart: new Date(epochUtc.getTime() + seasonNumber * cycleMs)

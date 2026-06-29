@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v60 (Infinite Engine).
- * Принудительное внедрение игрока в общие таблицы и автоматический резолв матчей группы.
+ * @fileOverview Ядро MMO-синхронизации v61 (Infinite Engine).
+ * Принудительная инициализация таблиц, календарей и инъекция игрока.
  */
 
 import { useEffect, useRef } from 'react';
@@ -15,7 +15,7 @@ import { getGlobalSeasonInfo, isMatchOverdue, getMoscowTime } from '@/app/lib/ti
 import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/app/lib/leagues-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 
-const SYNC_VERSION = 60; 
+const SYNC_VERSION = 61; 
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
@@ -29,7 +29,6 @@ export function AutoMatchManager() {
   const syncInProgressRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // ВАЖНО: Добавляем проверку версии, чтобы принудительно перерегистрировать старых игроков (v50 -> v60)
     if (isUserLoading || !user?.uid || !isLoaded || !selectedLeagueId || !displayName) return;
 
     const syncSharedWorld = async () => {
@@ -43,23 +42,24 @@ export function AutoMatchManager() {
       if (syncInProgressRef.current === syncKey) return;
       syncInProgressRef.current = syncKey;
 
-      console.log(`[WORLD ENGINE v60] Synchronizing Group ${lId} T${tier} G${group}...`);
+      console.log(`[WORLD SYNC v61] Processing Group ${lId} T${tier} G${group}...`);
 
       try {
         const tableId = `cycle_${currentSeason}_l${lId}_t${tier}_g${group}`;
         const tableRef = doc(db, 'league_tables_v1', tableId);
         
         // 1. Инициализация таблицы если её нет
-        const tableSnap = await getDoc(tableRef);
+        let tableSnap = await getDoc(tableRef);
         
         if (!tableSnap.exists()) {
-          console.log(`[V60] Creating New Table: ${tableId}`);
+          console.log(`[V61] INITIALIZING NEW GROUP: ${tableId}`);
           const baseTeams = getStableGroupTeams(tier, group, lId, []);
           await setDoc(tableRef, {
             tableId, season: currentSeason, leagueId: lId, tier, group,
             teamData: baseTeams, stats: {}, createdAt: serverTimestamp(), version: SYNC_VERSION
           });
           
+          // Генерируем календарь для новой группы
           const batch = writeBatch(db);
           const matches = generateSeasonCalendar(baseTeams, currentSeason, lId);
           matches.forEach(m => {
@@ -70,22 +70,27 @@ export function AutoMatchManager() {
             }, { merge: true });
           });
           await batch.commit();
+          tableSnap = await getDoc(tableRef);
         }
 
-        // 2. АГРЕССИВНОЕ ВНЕДРЕНИЕ: Проверяем, записан ли текущий юзер в таблицу
-        const currentData = (await getDoc(tableRef)).data();
+        // 2. ИНЪЕКЦИЯ ИГРОКА: Проверяем слот
+        const currentData = tableSnap.data();
         const teams = currentData?.teamData || [];
         const mySlotIdx = rank - 1;
 
-        if (!teams[mySlotIdx] || teams[mySlotIdx].id !== userId) {
-          console.log(`[V60] DISPLACING BOT: Injecting ${displayName} into rank ${rank}`);
+        if (!teams[mySlotIdx] || teams[mySlotIdx].id !== userId || teams[mySlotIdx].name !== displayName) {
+          console.log(`[V61] INJECTING PLAYER: Replacing bot at slot ${rank} with ${displayName}`);
           const updatedTeams = [...teams];
           updatedTeams[mySlotIdx] = { id: userId, name: displayName, isBot: false, rank };
           
           await updateDoc(tableRef, { teamData: updatedTeams });
 
-          // Обновляем имена в календаре матчей
-          const qM = query(collection(db, 'matches_v1'), where('tableId', '==', tableId), where('version', '==', SYNC_VERSION));
+          // Обновляем имена в календаре матчей группы
+          const qM = query(
+            collection(db, 'matches_v1'), 
+            where('tableId', '==', tableId), 
+            where('version', '==', SYNC_VERSION)
+          );
           const mSnap = await getDocs(qM);
           const mBatch = writeBatch(db);
           mSnap.forEach(mDoc => {
@@ -96,7 +101,29 @@ export function AutoMatchManager() {
           await mBatch.commit();
         }
 
-        // 3. АВТО-РЕЗОЛВЕР: Симулируем все прошедшие матчи группы
+        // 3. ПРОВЕРКА КАЛЕНДАРЯ: Если таблица есть, но матчи исчезли
+        const qCheckMatches = query(
+          collection(db, 'matches_v1'), 
+          where('tableId', '==', tableId), 
+          where('version', '==', SYNC_VERSION)
+        );
+        const checkSnap = await getDocs(qCheckMatches);
+        
+        if (checkSnap.empty) {
+          console.log(`[V61] RESTORING MISSING CALENDAR for ${tableId}`);
+          const mBatch = writeBatch(db);
+          const matches = generateSeasonCalendar(teams, currentSeason, lId);
+          matches.forEach(m => {
+            const mId = `m_s${currentSeason}_${lId}_t${tier}_g${group}_d${m.day}_h${m.homeId}`;
+            mBatch.set(doc(db, 'matches_v1', mId), {
+              ...m, tableId, season: currentSeason, leagueId: lId, tier, groupId: String(group),
+              status: 'scheduled', isFinished: false, version: SYNC_VERSION
+            }, { merge: true });
+          });
+          await mBatch.commit();
+        }
+
+        // 4. РЕЗОЛВЕР: Симулируем прошедшие игры
         const qPending = query(
           collection(db, 'matches_v1'),
           where('tableId', '==', tableId),
@@ -108,11 +135,11 @@ export function AutoMatchManager() {
         for (const mDoc of pendingSnap.docs) {
           const mData = mDoc.data();
           if (isMatchOverdue(mData.startTime)) {
-            console.log(`[V60] Resolving: ${mData.homeName} vs ${mData.awayName}`);
+            console.log(`[V61] AUTO-RESOLVING: ${mData.homeName} vs ${mData.awayName}`);
             
             const isMeHome = mData.homeId === userId;
             const isMeAway = mData.awayId === userId;
-            let result;
+            let simulation;
 
             if (isMeHome || isMeAway) {
               const squad = ownedPlayers.filter(p => Object.values(lineup).includes(p.id)).map(p => ({
@@ -120,21 +147,21 @@ export function AutoMatchManager() {
                 isSub: p.id === lineup.sub1 || p.id === lineup.sub2
               }));
 
-              result = await simulateMobaMatch({
+              simulation = await simulateMobaMatch({
                 teamA: isMeHome ? { name: displayName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.homeName, strategy: "Balanced Play", heroes: [] },
                 teamB: isMeAway ? { name: displayName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.awayName, strategy: "Balanced Play", heroes: [] },
                 isBo2: true
               });
             } else {
               const [sA, sB] = getMatchResult(mData.homeId, mData.awayId, currentSeason, false);
-              result = { 
+              simulation = { 
                 winner: sA > sB ? mData.homeName : (sB > sA ? mData.awayName : "Ничья"), 
                 seriesScore: `${sA}-${sB}`, 
-                games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 0 ? 1 : 0, duration: "30:00", mvp: "Bot", matchSummary: "Auto Simulation." }] 
+                games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 0 ? 1 : 0, duration: "30:00", mvp: "Bot", matchSummary: "Automatic battle resolution." }] 
               };
             }
 
-            const scoreParts = result.seriesScore.split('-');
+            const scoreParts = simulation.seriesScore.split('-');
             const finalSA = parseInt(scoreParts[0]);
             const finalSB = parseInt(scoreParts[1]);
 
@@ -155,7 +182,7 @@ export function AutoMatchManager() {
                 transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
               }
               transaction.update(mDoc.ref, {
-                scoreA: finalSA, scoreB: finalSB, status: 'finished', isFinished: true, simulation: result, finishedAt: serverTimestamp()
+                scoreA: finalSA, scoreB: finalSB, status: 'finished', isFinished: true, simulation, finishedAt: serverTimestamp()
               });
             });
           }
@@ -163,7 +190,7 @@ export function AutoMatchManager() {
 
         setWorldReady(true);
       } catch (e) {
-        console.error("[V60 ERROR]", e);
+        console.error("[V61 SYNC ERROR]", e);
         setWorldReady(true);
       }
     };
