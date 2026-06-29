@@ -1,9 +1,8 @@
-
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v68 (FMO Absolute Injection).
- * Принудительная замена Bot IDs в календаре при входе игрока.
+ * @fileOverview Ядро MMO-синхронизации v71 (FMO Absolute Injection Sync).
+ * Принудительная инъекция имен и ID в общие структуры лиги.
  */
 
 import { useEffect, useRef } from 'react';
@@ -16,7 +15,7 @@ import { getGlobalSeasonInfo, isMatchOverdue } from '@/app/lib/time-utils';
 import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/app/lib/leagues-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 
-const SYNC_VERSION = 68; 
+const SYNC_VERSION = 71; 
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
@@ -40,17 +39,18 @@ export function AutoMatchManager() {
       const groupNum = Number(groupId);
       const myRank = Number(rank || 1);
 
-      const syncKey = `${userId}_s${currentSeason}_v${SYNC_VERSION}`;
+      const tableId = `s${currentSeason}_l${lId}_t${tier}_g${groupNum}`;
+      const syncKey = `${userId}_${tableId}_v${SYNC_VERSION}`;
+      
       if (syncInProgressRef.current === syncKey) return;
       syncInProgressRef.current = syncKey;
 
-      const tableId = `s${currentSeason}_l${lId}_t${tier}_g${groupNum}`;
       const tableRef = doc(db, 'league_tables_v1', tableId);
 
       try {
-        console.log(`[WORLD SYNC v68] Protocol: ${tableId}`);
+        console.log(`[WORLD SYNC v71] Initiating protocol for: ${tableId}`);
 
-        // 1. ПРОВЕРКА ТАБЛИЦЫ
+        // 1. АВТОМАТИЧЕСКАЯ ИНИЦИАЛИЗАЦИЯ ТАБЛИЦЫ
         let tableSnap = await getDoc(tableRef);
         let teamData = [];
 
@@ -83,11 +83,12 @@ export function AutoMatchManager() {
           }
         }
 
-        // 2. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ (56 МАТЧЕЙ)
+        // 2. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ (56 МАТЧЕЙ) С ПРИНУДИТЕЛЬНОЙ ИНЪЕКЦИЕЙ
         const matchesQuery = query(collection(db, 'matches_v1'), where('tableId', '==', tableId));
         const matchesSnap = await getDocs(matchesQuery);
 
         if (matchesSnap.empty) {
+          console.log(`[SYNC v71] Generating new calendar for group...`);
           const batch = writeBatch(db);
           const calendar = generateSeasonCalendar(teamData, currentSeason, lId);
           calendar.forEach(m => {
@@ -99,11 +100,9 @@ export function AutoMatchManager() {
           });
           await batch.commit();
         } else {
-          // ПРИНУДИТЕЛЬНАЯ ИНЪЕКЦИЯ ID И ИМЕНИ ИГРОКА В МАТЧИ
           const batch = writeBatch(db);
           let needsUpdate = false;
           
-          // Определяем Bot ID, который должен занимать этот слот
           const leagueIdx = (['ALPHA', 'BETA', 'GAMMA', 'DELTA', 'EPSILON', 'ZETA', 'ETA', 'THETA', 'IOTA', 'KAPPA', 'LAMBDA', 'MU', 'NU', 'XI', 'OMICRON', 'PI'].indexOf(lId) + 1).toString().padStart(2, '0');
           const botIdForMySlot = `BOT${leagueIdx}${tier}${groupNum.toString().padStart(3, '0')}${myRank}`;
 
@@ -113,17 +112,13 @@ export function AutoMatchManager() {
             
             // Если в матче стоит ID бота нашего слота — меняем на реальный UID
             if (m.homeId === botIdForMySlot && m.homeId !== userId) {
-              m.homeId = userId;
-              m.homeName = displayName;
-              changed = true;
+              m.homeId = userId; m.homeName = displayName; changed = true;
             }
             if (m.awayId === botIdForMySlot && m.awayId !== userId) {
-              m.awayId = userId;
-              m.awayName = displayName;
-              changed = true;
+              m.awayId = userId; m.awayName = displayName; changed = true;
             }
 
-            // На всякий случай проверяем имена
+            // На всякий случай проверяем и обновляем имена из актуальной таблицы
             const correctHome = teamData.find(t => t.id === m.homeId)?.name || m.homeName;
             const correctAway = teamData.find(t => t.id === m.awayId)?.name || m.awayName;
             
@@ -132,21 +127,16 @@ export function AutoMatchManager() {
 
             if (changed) {
               needsUpdate = true;
-              batch.update(d.ref, { 
-                homeId: m.homeId, 
-                awayId: m.awayId, 
-                homeName: m.homeName, 
-                awayName: m.awayName 
-              });
+              batch.update(d.ref, { homeId: m.homeId, awayId: m.awayId, homeName: m.homeName, awayName: m.awayName });
             }
           });
           if (needsUpdate) await batch.commit();
         }
 
-        // МИР ГОТОВ - РАЗБЛОКИРОВКА UI
+        // РАЗБЛОКИРОВКА UI
         setWorldReady(true);
 
-        // 3. АВТО-РЕЗОЛВЕР (Фоновое разрешение матчей)
+        // 3. ФОНОВЫЙ РЕЗОЛВЕР ПРОШЕДШИХ МАТЧЕЙ
         const pendingQuery = query(
           collection(db, 'matches_v1'),
           where('tableId', '==', tableId),
@@ -177,7 +167,7 @@ export function AutoMatchManager() {
               simulation = { 
                 winner: sA > sB ? mData.homeName : (sB > sA ? mData.awayName : "Ничья"), 
                 seriesScore: `${sA}-${sB}`, 
-                games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 0 ? 1 : 0, duration: "30:00", mvp: "Bot System", matchSummary: "FMO Sync Resolution." }] 
+                games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 0 ? 1 : 0, duration: "30:00", mvp: "Bot System", matchSummary: "FMO Absolute Resolution." }] 
               };
             }
 
@@ -208,7 +198,7 @@ export function AutoMatchManager() {
           }
         }
       } catch (e) {
-        console.error("[V68 SYNC ERROR]", e);
+        console.error("[V71 SYNC ERROR]", e);
         setWorldReady(true);
       }
     };

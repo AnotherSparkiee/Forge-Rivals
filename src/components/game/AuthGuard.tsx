@@ -7,7 +7,7 @@ import { LoadingScreen } from './LoadingScreen';
 import { useGameState } from '@/app/lib/store';
 
 /**
- * STRATEGIC ROUTE GUARD v66 (FMO Protocol)
+ * STRATEGIC ROUTE GUARD v71 (FMO Protocol)
  * Forces re-setup if the user version is old.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
@@ -35,8 +35,8 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     }
 
     // 2. IF AUTHORIZED
-    // FORCE CLEAN SYNC VERSION 66
-    const needsSetup = !selectedLeagueId || !country || (Number(version || 0) < 66);
+    // FORCE CLEAN SYNC VERSION 71
+    const needsSetup = !selectedLeagueId || !country || (Number(version || 0) < 71);
     
     if (needsSetup) {
       if (!isSetupPage && !isAuthPage) {

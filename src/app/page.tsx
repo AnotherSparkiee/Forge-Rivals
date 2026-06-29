@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -113,7 +112,6 @@ export default function Home() {
           }
         }
       } else {
-        // Fallback info when no match is found
         setCountdown(isMatchesLoading ? 'SYNCING...' : 'AWAITING DEPLOYMENT');
       }
     }, 1000);
@@ -228,7 +226,7 @@ export default function Home() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6 flex flex-col gap-1">
-        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.68</span></div>
+        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.71</span></div>
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
           {seasonInfo.isOffseason ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
           {seasonInfo.isOffseason ? tHub.offseason : 'ACTIVE LEAGUE'}

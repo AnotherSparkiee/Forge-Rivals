@@ -1,8 +1,7 @@
-
 'use client';
 
 /**
- * Глобальное хранилище v68 (FMO Absolute Injection Sync).
+ * Глобальное хранилище v71 (FMO Absolute Injection Sync).
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -187,7 +186,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsubTeam(); playersUnsub(); unsubStaff(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
-  // Global Matches Listener (Unified v65 ID)
+  // Global Matches Listener (v71 Format)
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
     const info = getGlobalSeasonInfo();
