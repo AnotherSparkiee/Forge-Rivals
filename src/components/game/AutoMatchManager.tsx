@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v70 (FMO Legacy Protocol).
+ * @fileOverview Ядро MMO-синхронизации v71 (Force Injected Protocol).
  * Агрессивная интеграция реальных игроков в общие таблицы и календари.
  * Запуск сезона "на ходу" с автоматической симуляцией пропущенных дней.
  */
@@ -15,7 +15,6 @@ import {
 import { getGlobalSeasonInfo, isMatchOverdue, getMoscowTime } from '@/app/lib/time-utils';
 import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/app/lib/leagues-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
-import { getLeagueCupParticipants, getWinnerOfBranch } from '@/app/lib/cup-utils';
 
 const SYNC_VERSION = 70; 
 
@@ -40,11 +39,11 @@ export function AutoMatchManager() {
       const tier = Number(leagueLevel);
       const group = Number(groupId);
 
-      const syncKey = `${userId}_s${currentSeason}_v${SYNC_VERSION}`;
+      const syncKey = `${userId}_s${currentSeason}_v${SYNC_VERSION}_v71`;
       if (syncInProgressRef.current === syncKey) return;
       syncInProgressRef.current = syncKey;
 
-      console.log(`[WORLD ENGINE v70] Synchronizing Group ${lId} T${tier} G${group}...`);
+      console.log(`[WORLD ENGINE v71] Synchronizing Group ${lId} T${tier} G${group}...`);
 
       try {
         const tableId = `s${currentSeason}_l${lId}_t${tier}_g${group}`;
@@ -65,12 +64,17 @@ export function AutoMatchManager() {
           rank: Number(d.data().rank || 1)
         }));
 
+        // Ensure current user is explicitly in the list for force injection
+        if (!realPlayers.some(p => p.id === userId)) {
+          realPlayers.push({ id: userId, name: displayName, rank: Number(rank || 1) });
+        }
+
         // 2. TABLE & CALENDAR INITIALIZATION
         const tableSnap = await getDoc(tableRef);
         let currentTableTeams = getStableGroupTeams(tier, group, lId, realPlayers);
         
         if (!tableSnap.exists()) {
-          console.log(`[V70] First entry: Creating Table & Calendar for ${tableId}`);
+          console.log(`[V71] First entry: Creating Table & Calendar for ${tableId}`);
           await setDoc(tableRef, {
             tableId, season: currentSeason, leagueId: lId, tier, group,
             teamData: currentTableTeams, stats: {}, createdAt: serverTimestamp(), version: SYNC_VERSION
@@ -101,9 +105,10 @@ export function AutoMatchManager() {
           });
 
           if (needsUpdate) {
-            console.log(`[V70] Updating shared table with new human presence...`);
+            console.log(`[V71] Updating shared table with new human presence...`);
             await updateDoc(tableRef, { teamData: updatedTeams });
             
+            // Sync names in all matches of the group
             const qM = query(collection(db, 'matches_v1'), where('tableId', '==', tableId), where('version', '==', SYNC_VERSION));
             const mSnap = await getDocs(qM);
             const mBatch = writeBatch(db);
@@ -132,6 +137,7 @@ export function AutoMatchManager() {
         for (const mDoc of pendingSnap.docs) {
           const mData = mDoc.data();
           if (isMatchOverdue(mData.startTime)) {
+            console.log(`[V71] Resolving overdue match: ${mData.homeName} vs ${mData.awayName}`);
             const isMeInvolved = mData.homeId === userId || mData.awayId === userId;
             let result;
 
@@ -184,7 +190,7 @@ export function AutoMatchManager() {
 
         setWorldReady(true);
       } catch (e) {
-        console.error("[WORLD ENGINE v70 ERROR]", e);
+        console.error("[WORLD ENGINE v71 ERROR]", e);
         setWorldReady(true);
       }
     };
