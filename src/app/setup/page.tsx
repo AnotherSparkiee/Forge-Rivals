@@ -16,7 +16,7 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-const SETUP_VERSION = 50;
+const SETUP_VERSION = 62;
 
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
@@ -43,7 +43,6 @@ export default function SetupPage() {
     const occupiedIndices = new Set<number>();
     snap.forEach(d => {
       const data = d.data();
-      // Only consider players on the same clean version
       if (Number(data.version || 0) === SETUP_VERSION) {
         const tier = Number(data.leagueLevel);
         const group = Number(data.groupId);
@@ -57,7 +56,6 @@ export default function SetupPage() {
     });
 
     let foundIndex = 0;
-    // Scan for first free slot in the 4088-slot hierarchy
     for (let i = 0; i < 4088; i++) {
       if (!occupiedIndices.has(i)) {
         foundIndex = i;
@@ -98,7 +96,6 @@ export default function SetupPage() {
         version: SETUP_VERSION
       }, { merge: true });
 
-      // Team Data Reference
       const seasonId = `season_${activeSeasonNumber || 1}`;
       const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${placement.group}`;
       const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(placement.tier), 'groups', prefixedGroupId, 'teams', user.uid);
@@ -132,7 +129,7 @@ export default function SetupPage() {
       setTimeout(() => router.replace('/'), 500);
 
     } catch (e: any) {
-      console.error("[SETUP v50 ERROR]", e);
+      console.error("[SETUP v62 ERROR]", e);
       toast({ variant: "destructive", title: "Setup Failed", description: e.message });
     } finally {
       setIsUpdating(false);
@@ -154,7 +151,7 @@ export default function SetupPage() {
           <h1 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter">
             {step === 'league' ? (language === 'ru' ? 'ВЫБЕРИТЕ ВРЕМЯ МАТЧЕЙ' : 'SELECT MATCH TIME') : (language === 'ru' ? 'ВЫБЕРИТЕ ФЛАГ КЛУБА' : 'CHOOSE CLUB FLAG')}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-2">Operational Node Initialization (v50)</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-2">Operational Node Initialization (v62)</p>
         </header>
         
         <div className="flex-1">

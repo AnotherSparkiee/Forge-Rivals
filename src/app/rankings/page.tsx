@@ -1,12 +1,12 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v61. 
+ * @fileOverview Страница рейтингов v62. 
  * Читает общие данные группы из документа league_tables_v1.
  */
 
 import { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'navigation';
 import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
@@ -43,7 +43,8 @@ export default function RankingsPage() {
   const contextLevel = isMyLeagueTab ? Number(leagueLevel || 1) : Number(navLevel || leagueLevel || 1);
   const contextGroup = isMyLeagueTab ? Number(navGroup || (isMyLeagueTab ? groupId : 1) || 1) : Number(navGroup || 1);
 
-  const tableId = `cycle_${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
+  // v62 Standardized ID format
+  const tableId = `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 

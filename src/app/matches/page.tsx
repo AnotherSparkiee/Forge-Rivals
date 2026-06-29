@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @fileOverview МАТЧ-ЦЕНТР v61.
+ * @fileOverview МАТЧ-ЦЕНТР v62.
  * Отображение календаря строго по данным группы из БД.
  */
 
@@ -40,8 +40,8 @@ export default function MatchesPage() {
     return () => clearInterval(timer);
   }, [user, isUserLoading, router]);
 
-  // Фильтруем матчи строго по текущей группе и циклу
-  const groupTableId = `cycle_${activeSeasonNumber}_l${selectedLeagueId}_t${leagueLevel}_g${groupId}`;
+  // Фильтруем матчи строго по текущей группе и циклу (v62 Format)
+  const groupTableId = `s${activeSeasonNumber}_l${selectedLeagueId}_t${leagueLevel}_g${groupId}`;
   
   const validMatches = useMemo(() => {
     return (allSeasonMatches || []).filter(m => m.tableId === groupTableId);

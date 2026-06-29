@@ -1,8 +1,7 @@
 'use client';
 
 /**
- * Глобальное хранилище v50 (FMO Legacy Mode).
- * Добавлена поддержка записи результатов матчей в официальные таблицы групп.
+ * Глобальное хранилище v62 (Full Sync Protocol).
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -185,7 +184,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsubTeam(); playersUnsub(); staffUnsub(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
-  // Global Matches Listener (Sync to common matches collection)
+  // Global Matches Listener (v62 Standardized ID)
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
     const info = getGlobalSeasonInfo();
@@ -193,8 +192,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     
     const q = query(
       collection(db, 'matches_v1'), 
-      where('tableId', '==', tableId),
-      where('version', '==', 50)
+      where('tableId', '==', tableId)
     );
 
     let active = true;
