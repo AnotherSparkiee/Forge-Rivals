@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, writeBatch, collection, query, where, getDocs, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, writeBatch, collection, query, where, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LEAGUES } from '@/app/lib/leagues-data';
@@ -16,7 +16,7 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-const SETUP_VERSION = 60;
+const SETUP_VERSION = 70;
 
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
@@ -46,7 +46,7 @@ export default function SetupPage() {
     const occupiedIndices = new Set<number>();
     snap.forEach(d => {
       const data = d.data();
-      if (data.version === SETUP_VERSION) {
+      if (Number(data.version || 0) >= SETUP_VERSION) {
         const tier = Number(data.leagueLevel);
         const group = Number(data.groupId);
         const rank = Number(data.rank);
@@ -59,6 +59,7 @@ export default function SetupPage() {
     });
 
     let foundIndex = 0;
+    // Scan through all 4088 slots in the league hierarchy
     for (let i = 0; i < 4088; i++) {
       if (!occupiedIndices.has(i)) {
         foundIndex = i;
@@ -132,7 +133,7 @@ export default function SetupPage() {
       setTimeout(() => router.replace('/'), 500);
 
     } catch (e: any) {
-      console.error("[SETUP v60 ERROR]", e);
+      console.error("[SETUP v70 ERROR]", e);
       toast({ variant: "destructive", title: "Setup Failed", description: e.message });
     } finally {
       setIsUpdating(false);
@@ -149,7 +150,7 @@ export default function SetupPage() {
           <h1 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter">
             {step === 'league' ? (language === 'ru' ? 'ВЫБЕРИТЕ ВРЕМЯ МАТЧЕЙ' : 'SELECT MATCH TIME') : (language === 'ru' ? 'ВЫБЕРИТЕ ФЛАГ КЛУБА' : 'CHOOSE CLUB FLAG')}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-2">Operational Node Initialization (v60)</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-2">Operational Node Initialization (v70)</p>
         </header>
         
         <div className="flex-1">
