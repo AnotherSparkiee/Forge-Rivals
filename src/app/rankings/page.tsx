@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v62. 
+ * @fileOverview Страница рейтингов v63. 
  * Читает общие данные группы из документа league_tables_v1.
  */
 
@@ -43,20 +43,13 @@ export default function RankingsPage() {
   const contextLevel = isMyLeagueTab ? Number(leagueLevel || 1) : Number(navLevel || leagueLevel || 1);
   const contextGroup = isMyLeagueTab ? Number(navGroup || (isMyLeagueTab ? groupId : 1) || 1) : Number(navGroup || 1);
 
-  // v62 Standardized ID format
+  // v63 Standardized ID format
   const tableId = `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
   const standings = useMemo(() => {
-    if (isTableLoading) return [];
-    
-    if (!tableData || !tableData.teamData) {
-      const baseTeams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId);
-      return baseTeams.map(t => ({
-        ...t, points: 0, wins: 0, draws: 0, losses: 0, diff: 0, matchesPlayed: 0
-      }));
-    }
+    if (!tableData || !tableData.teamData) return [];
 
     const list = (tableData.teamData).map((t: any) => {
       const s = tableData.stats?.[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0, matchesPlayed: 0 };
@@ -64,13 +57,14 @@ export default function RankingsPage() {
     });
 
     return list.sort((a: any, b: any) => b.points - a.points || b.diff - a.diff || a.name.localeCompare(b.name));
-  }, [tableData, contextLevel, contextGroup, contextLeagueId, isTableLoading]);
+  }, [tableData]);
 
   const t = {
     en: {
       title: "RANKINGS HUB", subtitle: "Global Competitive Terminals",
       pts: "PTS", winLoss: "W-D-L", m: "M", back: "Back",
       syncing: "Synchronizing group data...",
+      noData: "Group Data Syncing...",
       promotion: "Promotion Zone", relegation: "Relegation Danger",
       menu: [
         { id: 'my_league', label: 'League Standings', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
@@ -82,6 +76,7 @@ export default function RankingsPage() {
       title: "ТАБЛИЦЫ РЕЙТИНГА", subtitle: "Терминалы глобальных соревнований",
       pts: "О", winLoss: "В-Н-П", m: "И", back: "Назад",
       syncing: "Синхронизация данных группы...",
+      noData: "Группа синхронизируется...",
       promotion: "Зона повышения", relegation: "Зона вылета",
       menu: [
         { id: 'my_league', label: 'Таблица Лиги', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
@@ -147,11 +142,13 @@ export default function RankingsPage() {
              <span className="text-[10px] font-mono text-muted-foreground uppercase">LIVE STANDINGS</span>
            </div>
            
-           {isTableLoading && !tableData ? (
+           {isTableLoading || !tableData ? (
              <div className="py-20 text-center opacity-50 flex flex-col items-center gap-4">
                <Loader2 className="w-8 h-8 animate-spin text-primary" />
                <p className="text-[10px] uppercase font-black tracking-widest">{t.syncing}</p>
              </div>
+           ) : standings.length === 0 ? (
+             <div className="py-20 text-center opacity-30 italic text-xs">{t.noData}</div>
            ) : (
              <div className="space-y-1">
                <div className="grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 px-3 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
@@ -186,7 +183,7 @@ export default function RankingsPage() {
              </div>
            )}
 
-           {!isTableLoading && (
+           {!isTableLoading && standings.length > 0 && (
              <div className="p-4 bg-primary/5 rounded-2xl border border-white/5 space-y-2 mt-4">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-green-500" />
