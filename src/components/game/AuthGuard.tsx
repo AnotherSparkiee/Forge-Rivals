@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser } from '@/firebase';
@@ -7,7 +8,7 @@ import { LoadingScreen } from './LoadingScreen';
 import { useGameState } from '@/app/lib/store';
 
 /**
- * STRATEGIC ROUTE GUARD v70
+ * STRATEGIC ROUTE GUARD v70.1
  * Forces re-setup if the user version is old.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
@@ -18,16 +19,15 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   
   const [isInitialCheckDone, setIsInitialCheckDone] = useState(false);
 
-  useEffect(() => {
-    if (isUserLoading) return;
+  const isAuthPage = pathname?.startsWith('/auth');
+  const isSetupPage = pathname === '/setup';
 
-    const isRoot = pathname === '/';
-    const isAuthPage = pathname?.startsWith('/auth');
-    const isSetupPage = pathname === '/setup';
+  useEffect(() => {
+    if (isUserLoading || !isLoaded) return;
 
     // 1. IF NOT AUTHORIZED
     if (!user) {
-      if (!isRoot && !isAuthPage) {
+      if (!isAuthPage && pathname !== '/') {
         router.replace('/');
       } else {
         setIsInitialCheckDone(true);
@@ -36,8 +36,6 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     }
 
     // 2. IF AUTHORIZED
-    if (!isLoaded) return;
-
     // FORCE REDISTRIBUTION VERSION 70
     const needsSetup = !selectedLeagueId || !country || (Number(version || 0) < 70);
     
@@ -54,9 +52,10 @@ export function AuthGuard({ children }: { children: ReactNode }) {
         setIsInitialCheckDone(true);
       }
     }
-  }, [user, isUserLoading, isLoaded, selectedLeagueId, country, version, router, pathname]);
+  }, [user, isUserLoading, isLoaded, selectedLeagueId, country, version, router, pathname, isAuthPage, isSetupPage]);
 
-  if (isUserLoading || !isInitialCheckDone) {
+  // Allow auth pages and setup page to render even while checking, but only if they are the current path
+  if (isUserLoading || (!isInitialCheckDone && !isAuthPage && !isSetupPage)) {
     return <LoadingScreen />;
   }
 

@@ -2,8 +2,9 @@
 'use client';
 
 /**
- * Глобальное хранилище v61 (Persistent Standings Support).
+ * Глобальное хранилище v70.1 (Persistent Standings Support).
  * Добавлена поддержка записи результатов матчей в официальные таблицы групп.
+ * Исправлена поддержка поля version для AuthGuard.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -35,6 +36,7 @@ interface GameState {
   isSyncing: boolean; language: string; skillPoints: number;
   isDataReady: boolean; allSeasonMatches: any[]; nextMatch: any | null; isMatchesLoading: boolean;
   lastProcessedSeason: number;
+  version: number;
 
   addCrystals: (amount: number) => void;
   addCredits: (amount: number) => void;
@@ -90,7 +92,7 @@ const DEFAULT_STATE: GameState = {
   skillPoints: 0, arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0,
+  lastProcessedSeason: 0, version: 0,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
   setTrainingFocus: () => {}, startDailyPlayerTraining: () => {}, claimDailyPlayerTraining: () => {},
@@ -135,6 +137,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         activeSeasonNumber: Number(info.activeSeasonNumber),
         seasonNumber: Number(info.seasonNumber), seasonDay: Number(info.seasonDay),
         lastProcessedSeason: Number(data.lastProcessedSeason || 0),
+        version: Number(data.version || 0),
         isLoaded: true
       }));
     });
@@ -255,7 +258,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const startDailyPlayerTraining = useCallback((playerId: string, focus: string) => {
     const r = getRefs(); if (!r) return;
-    const finishTime = new Date(getMoscowTime().getTime() + 24 * 3600000).setAttribute(1,1); // Placeholder
     updateDoc(doc(collection(r.team, 'heroes'), playerId), { dailyTrainingFocus: focus, dailyTrainingFinishTime: new Date(getMoscowTime().getTime() + 24 * 3600000).toISOString() });
   }, [getRefs]);
 
@@ -369,7 +371,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           const sA = res.scoreA;
           const sB = res.scoreB;
           const homeId = s.id;
-          const awayId = res.awayId || "rival"; // Contextual id needed
 
           const updateS = (tid: string, sc: number, osc: number) => {
             if (!stats[tid]) stats[tid] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
@@ -381,7 +382,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           };
           
           updateS(homeId, sA, sB);
-          // Away update omitted here as handled by Resolver or Peer
           transaction.update(r.table, { stats, updatedAt: serverTimestamp() });
         }
       });

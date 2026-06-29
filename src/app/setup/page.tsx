@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -23,15 +24,12 @@ export default function SetupPage() {
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const { language } = useGameState();
+  const { language, isLoaded, displayName } = useGameState();
   
   const [step, setStep] = useState<'league' | 'country'>('league');
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
-
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
-  const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -77,7 +75,7 @@ export default function SetupPage() {
   };
 
   const handleCompleteSetup = async () => {
-    if (!user || !selectedLeagueId || !selectedCountryCode || !profile) return;
+    if (!user || !selectedLeagueId || !selectedCountryCode) return;
     setIsUpdating(true);
     try {
       const placement = await findPlacementClient(selectedLeagueId);
@@ -106,7 +104,7 @@ export default function SetupPage() {
       
       batch.set(teamRef, {
         id: user.uid,
-        displayName: profile.displayName || "Manager",
+        displayName: displayName || "Manager",
         credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
         managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
         arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
@@ -140,17 +138,22 @@ export default function SetupPage() {
     }
   };
 
-  if (isUserLoading || isProfileLoading || !user) return <LoadingScreen />;
+  if (isUserLoading || !user || !isLoaded) return <LoadingScreen />;
 
   return (
     <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
       <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)]" />
       <div className="relative z-10 w-full max-w-md mx-auto px-4 flex flex-col min-h-screen py-12">
         <header className="text-center mb-12">
+          {step === 'country' && (
+            <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => setStep('league')}>
+              <ChevronLeft className="w-6 h-6" />
+            </Button>
+          )}
           <h1 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter">
             {step === 'league' ? (language === 'ru' ? 'ВЫБЕРИТЕ ВРЕМЯ МАТЧЕЙ' : 'SELECT MATCH TIME') : (language === 'ru' ? 'ВЫБЕРИТЕ ФЛАГ КЛУБА' : 'CHOOSE CLUB FLAG')}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-2">Operational Node Initialization (v70)</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-2">Operational Node Initialization (v70.1)</p>
         </header>
         
         <div className="flex-1">
