@@ -1,6 +1,7 @@
+
 /**
- * @fileOverview Ядро лиг v63: Ультимативный генератор календаря в стиле FMO.
- * Реализует алгоритм Berger (Circle Method) и стабильное распределение игроков.
+ * @fileOverview Ядро лиг v65: Ультимативный генератор календаря.
+ * Исправлена логика приоритета реальных игроков над ботами.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -45,7 +46,7 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
 
   // Сначала размещаем всех известных реальных игроков на их позиции
   realPlayersInGroup.forEach(p => {
-    const slot = Math.min(8, Math.max(1, p.rank || 1));
+    const slot = Math.min(8, Math.max(1, Number(p.rank || 1)));
     teams[slot - 1] = {
       id: p.id,
       name: p.name || p.displayName || `Manager_${p.id.slice(0, 4)}`,

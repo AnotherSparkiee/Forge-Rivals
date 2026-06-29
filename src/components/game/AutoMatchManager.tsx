@@ -1,8 +1,9 @@
+
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v64 (FMO Gear Games Style).
- * Обеспечивает объединение реальных игроков в группы, автономную симуляцию лиг и Кубка.
+ * @fileOverview Ядро MMO-синхронизации v65 (Human Presence Patch).
+ * Гарантирует интеграцию всех реальных игроков в общие таблицы и календари.
  */
 
 import { useEffect, useRef } from 'react';
@@ -16,7 +17,7 @@ import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/a
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { getLeagueCupParticipants, getWinnerOfBranch } from '@/app/lib/cup-utils';
 
-const SYNC_VERSION = 64; 
+const SYNC_VERSION = 65; 
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
@@ -39,7 +40,7 @@ export function AutoMatchManager() {
       const tier = Number(leagueLevel);
       const group = Number(groupId);
 
-      const syncKey = `${userId}_s${currentSeason}_v${SYNC_VERSION}_fmo_final_v64`;
+      const syncKey = `${userId}_s${currentSeason}_v${SYNC_VERSION}_fmo_v65`;
       if (syncInProgressRef.current === syncKey) return;
       syncInProgressRef.current = syncKey;
 
@@ -47,7 +48,7 @@ export function AutoMatchManager() {
         const tableId = `s${currentSeason}_l${lId}_t${tier}_g${group}`;
         const tableRef = doc(db, 'league_tables_v1', tableId);
         
-        // 1. COLLECT ALL REAL PLAYERS IN THIS GROUP
+        // 1. ПОЛУЧАЕМ ВСЕХ РЕАЛЬНЫХ ИГРОКОВ В ЭТОЙ ГРУППЕ
         const playersQuery = query(
           collection(db, 'players_v10'),
           where('selectedLeagueId', '==', lId),
@@ -58,22 +59,22 @@ export function AutoMatchManager() {
         const realPlayers = playersSnap.docs.map(d => ({
           id: d.id,
           name: d.data().displayName || "Manager",
-          rank: d.data().rank || 8
+          rank: Number(d.data().rank || 8)
         }));
 
-        // 2. CHECK / CREATE SHARED TABLE
+        // 2. СИНХРОНИЗАЦИЯ ТАБЛИЦЫ
         const tableSnap = await getDoc(tableRef);
-        const teams = getStableGroupTeams(tier, group, lId, realPlayers);
-
+        let currentTableTeams = getStableGroupTeams(tier, group, lId, realPlayers);
+        
         if (!tableSnap.exists()) {
-          console.log(`[FMO ENGINE] Initializing NEW shared table: ${tableId}`);
+          console.log(`[V65] Initializing Table: ${tableId}`);
           await setDoc(tableRef, {
             tableId, season: currentSeason, leagueId: lId, tier, group,
-            teamData: teams, stats: {}, createdAt: serverTimestamp(), version: SYNC_VERSION
+            teamData: currentTableTeams, stats: {}, createdAt: serverTimestamp(), version: SYNC_VERSION
           });
           
           const batch = writeBatch(db);
-          const matches = generateSeasonCalendar(teams, currentSeason, lId);
+          const matches = generateSeasonCalendar(currentTableTeams, currentSeason, lId);
           matches.forEach(m => {
             const mId = `m_s${currentSeason}_${lId}_t${tier}_g${group}_d${m.day}_h${m.homeId}`;
             batch.set(doc(db, 'matches_v1', mId), {
@@ -83,24 +84,24 @@ export function AutoMatchManager() {
           });
           await batch.commit();
         } else {
-          // Update table composition if new human players appeared
+          // Если таблица есть, проверяем, все ли реальные люди в ней прописаны
           const tData = tableSnap.data();
-          const existingTeams = tData.teamData || [];
           let needsUpdate = false;
-          const updatedTeams = [...existingTeams];
+          const updatedTeams = [...(tData.teamData || currentTableTeams)];
 
           realPlayers.forEach(p => {
-            const slotIdx = p.rank - 1;
-            if (!updatedTeams[slotIdx] || updatedTeams[slotIdx].isBot || updatedTeams[slotIdx].id !== p.id) {
-              updatedTeams[slotIdx] = { id: p.id, name: p.name, isBot: false, rank: p.rank };
+            const idx = p.rank - 1;
+            if (!updatedTeams[idx] || updatedTeams[idx].isBot || updatedTeams[idx].id !== p.id) {
+              updatedTeams[idx] = { id: p.id, name: p.name, isBot: false, rank: p.rank };
               needsUpdate = true;
             }
           });
 
           if (needsUpdate) {
-            console.log(`[FMO ENGINE] Updating shared table with new human players`);
+            console.log(`[V65] Injecting humans into existing table ${tableId}`);
             await updateDoc(tableRef, { teamData: updatedTeams });
-
+            
+            // Также обновляем имена в матчах
             const qM = query(collection(db, 'matches_v1'), where('tableId', '==', tableId), where('version', '==', SYNC_VERSION));
             const mSnap = await getDocs(qM);
             const mBatch = writeBatch(db);
@@ -117,7 +118,7 @@ export function AutoMatchManager() {
           }
         }
 
-        // 3. AUTO-RESOLVER (Simulate ALL overdue matches for the group)
+        // 3. AUTO-RESOLVER (MMO Engine)
         const qPending = query(
           collection(db, 'matches_v1'),
           where('tableId', '==', tableId),
@@ -179,7 +180,7 @@ export function AutoMatchManager() {
           }
         }
 
-        // 4. PYRAMID CUP SIMULATION (Deterministic based on Season and Day)
+        // 4. PYRAMID CUP SIMULATION
         const cupDocId = `cup_s${currentSeason}_l${lId}`;
         const cupRef = doc(db, 'cup_pyramid_v1', cupDocId);
         const cupSnap = await getDoc(cupRef);
@@ -194,7 +195,7 @@ export function AutoMatchManager() {
           
           const simulateRound = (rNum: number) => {
             const matches: any[] = [];
-            const matchCount = Math.pow(2, 12 - rNum); // R1: 2048 matches
+            const matchCount = Math.pow(2, 12 - rNum);
             const cache = new Map();
             
             for (let i = 0; i < matchCount; i++) {
@@ -210,7 +211,7 @@ export function AutoMatchManager() {
                 matches.push({ home: h || { name: 'TBD' }, away: a || { name: 'TBD' }, scoreA: null, scoreB: null });
               }
             }
-            return matches.slice(0, 32); // Limit visible for UI performance
+            return matches.slice(0, 32); 
           };
 
           rounds.r1 = simulateRound(1);
@@ -227,7 +228,7 @@ export function AutoMatchManager() {
 
         setWorldReady(true);
       } catch (e) {
-        console.error("[WORLD ENGINE v64 ERROR]", e);
+        console.error("[WORLD ENGINE v65 ERROR]", e);
         setWorldReady(true);
       }
     };

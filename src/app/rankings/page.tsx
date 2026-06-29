@@ -1,8 +1,9 @@
+
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v63 (FMO Gear Games Style). 
- * Отображение живых таблиц с реальными игроками и ботами.
+ * @fileOverview Страница рейтингов v65 (Human Presence Patch). 
+ * Исправлено отображение имен реальных игроков в турнирных таблицах.
  */
 
 import { useState, useMemo } from 'react';
@@ -49,15 +50,22 @@ export default function RankingsPage() {
 
   const standings = useMemo(() => {
     if (isTableLoading) return [];
-    if (!tableData) {
-      return getStableGroupTeams(contextLevel, contextGroup, contextLeagueId).map(t => ({
+    
+    // Если данных в БД нет — генерируем базовую структуру (боты)
+    const baseTeams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId);
+    
+    if (!tableData || !tableData.teamData) {
+      return baseTeams.map(t => ({
         ...t, points: 0, wins: 0, draws: 0, losses: 0, diff: 0, matchesPlayed: 0
       }));
     }
-    const list = (tableData.teamData || []).map((t: any) => {
+
+    // Сопоставляем данные из teamData документа с актуальной статистикой stats
+    const list = (tableData.teamData).map((t: any) => {
       const s = tableData.stats?.[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0, matchesPlayed: 0 };
       return { ...t, ...s };
     });
+
     // Сортировка: Очки -> Разница -> Имя
     return list.sort((a: any, b: any) => b.points - a.points || b.diff - a.diff || a.name.localeCompare(b.name));
   }, [tableData, contextLevel, contextGroup, contextLeagueId, isTableLoading]);
