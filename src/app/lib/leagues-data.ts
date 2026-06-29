@@ -1,14 +1,12 @@
-
 /**
- * @fileOverview Ядро лиг v65: Ультимативный генератор календаря.
- * Исправлена логика приоритета реальных игроков над ботами.
+ * @fileOverview Ядро лиг v50: Канонический генератор FMO.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
 
 export interface LeagueOption {
   id: string;
-  startTime: string; // Формат "HH:mm" в MSK
+  startTime: string; // "HH:mm" in MSK
   description: string;
 }
 
@@ -83,9 +81,10 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
   const [hh, mm] = league.startTime.split(':').map(Number);
   
   const epochUtc = new Date(GLOBAL_EPOCH_ISO);
-  const seasonStartMs = epochUtc.getTime() + (seasonNumber - 1) * 15 * 24 * 60 * 60 * 1000;
+  const cycleDuration = 15; 
+  const dayMs = 24 * 60 * 60 * 1000;
+  const seasonStartMs = epochUtc.getTime() + (seasonNumber - 1) * cycleDuration * dayMs;
 
-  // Berger Table Algorithm (Circle Method)
   const pool = Array.from({ length: n }, (_, i) => i);
 
   for (let round = 0; round < rounds; round++) {
@@ -93,8 +92,10 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
       const homeIdx = pool[i];
       const awayIdx = pool[n - 1 - i];
 
-      const createMatch = (day: number, h: any, a: any, tour: number) => {
-        const startTime = new Date(seasonStartMs + (day - 1) * 24 * 60 * 60 * 1000 + hh * 60 * 60 * 1000 + mm * 60 * 1000);
+      const createMatch = (day: number, hIdx: number, aIdx: number, tour: number) => {
+        const h = teams[hIdx];
+        const a = teams[aIdx];
+        const startTime = new Date(seasonStartMs + (day - 1) * dayMs + hh * 60 * 60 * 1000 + mm * 60 * 1000);
         return {
           day,
           tour,
@@ -107,16 +108,13 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
         };
       };
 
-      // Первый круг (Дни 1-7)
-      const h = teams[homeIdx];
-      const a = teams[awayIdx];
-      matches.push(createMatch(round + 1, h, a, round + 1));
-
-      // Второй круг (Дни 8-14)
-      matches.push(createMatch(round + 8, a, h, round + 8));
+      // Round 1 (Days 1-7)
+      matches.push(createMatch(round + 1, homeIdx, awayIdx, round + 1));
+      // Round 2 (Days 8-14)
+      matches.push(createMatch(round + 8, awayIdx, homeIdx, round + 8));
     }
     
-    // Вращение участников (кроме первого)
+    // Berger rotation
     const last = pool.pop()!;
     pool.splice(1, 0, last);
   }
@@ -130,7 +128,6 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
 export function getMatchResult(idA: string, idB: string, seed1: any, seed2: any): [number, number] {
   const combinedKey = `${idA}-${idB}-${seed1}-${seed2}`;
   
-  // Хэширование для детерминизма
   let hash = 0;
   for (let i = 0; i < combinedKey.length; i++) {
     hash = ((hash << 5) - hash) + combinedKey.charCodeAt(i);
@@ -141,16 +138,13 @@ export function getMatchResult(idA: string, idB: string, seed1: any, seed2: any)
   const rawScoreA = absHash % 3;
   const rawScoreB = (absHash >> 2) % 3;
   
-  // Bo2 Logic for League
-  if (typeof seed2 === 'boolean' && seed2 === false) {
+  // Bo2 Logic for League (seed2 is false/drawAllowed)
+  if (seed2 === false) {
     if (rawScoreA === rawScoreB) return [1, 1];
     return rawScoreA > rawScoreB ? [2, 0] : [0, 2];
   }
   
   // Bracket Logic for Cup (no draws)
-  if (rawScoreA === rawScoreB) {
-    return [rawScoreA + 1, rawScoreB];
-  }
-  
+  if (rawScoreA === rawScoreB) return [rawScoreA + 1, rawScoreB];
   return [rawScoreA, rawScoreB];
 }

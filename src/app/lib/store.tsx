@@ -1,10 +1,8 @@
-
 'use client';
 
 /**
- * Глобальное хранилище v70.1 (Persistent Standings Support).
+ * Глобальное хранилище v50 (FMO Legacy Mode).
  * Добавлена поддержка записи результатов матчей в официальные таблицы групп.
- * Исправлена поддержка поля version для AuthGuard.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -187,19 +185,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsubTeam(); playersUnsub(); staffUnsub(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
-  // Global Matches Listener (v60 Automation)
+  // Global Matches Listener (Sync to common matches collection)
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
     const info = getGlobalSeasonInfo();
-    const lId = String(state.selectedLeagueId);
-    const tier = String(state.leagueLevel);
-    const grp = String(state.groupId);
-    const tableId = `s${info.activeSeasonNumber}_l${lId}_t${tier}_g${grp}`;
+    const tableId = `s${info.activeSeasonNumber}_l${state.selectedLeagueId}_t${state.leagueLevel}_g${state.groupId}`;
     
     const q = query(
       collection(db, 'matches_v1'), 
       where('tableId', '==', tableId),
-      where('version', '==', 60)
+      where('version', '==', 50)
     );
 
     let active = true;
@@ -359,32 +354,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (newTotalXp >= threshold) {
       newLevel++; newSkillPoints += 2; bonusCrystals = 50;
       setDoc(doc(db, 'notifications_v7', `lvl_${s.id}_${newLevel}`), { userId: s.id, title: "Level Up!", description: `Reached level ${newLevel}`, type: 'league', read: false, createdAt: getMoscowTime().toISOString() });
-    }
-
-    // Persist to Standing if League Match
-    if (t === 'league' && r.table) {
-      runTransaction(db, async (transaction) => {
-        const tSnap = await transaction.get(r.table);
-        if (tSnap.exists()) {
-          const tData = tSnap.data();
-          const stats = tData.stats || {};
-          const sA = res.scoreA;
-          const sB = res.scoreB;
-          const homeId = s.id;
-
-          const updateS = (tid: string, sc: number, osc: number) => {
-            if (!stats[tid]) stats[tid] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
-            stats[tid].matchesPlayed++;
-            if (sc > osc) { stats[tid].wins++; stats[tid].points += 3; }
-            else if (sc === osc) { stats[tid].draws++; stats[tid].points += 1; }
-            else { stats[tid].losses++; }
-            stats[tid].diff += (sc - osc);
-          };
-          
-          updateS(homeId, sA, sB);
-          transaction.update(r.table, { stats, updatedAt: serverTimestamp() });
-        }
-      });
     }
 
     setDoc(r.team, { 

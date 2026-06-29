@@ -1,9 +1,8 @@
-
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v65 (Human Presence Patch). 
- * Исправлено отображение имен реальных игроков в турнирных таблицах.
+ * @fileOverview Страница рейтингов v50 (Clean Legacy). 
+ * Данные читаются строго из документов league_tables_v1.
  */
 
 import { useState, useMemo } from 'react';
@@ -11,8 +10,8 @@ import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
-  Shield, Globe, Layers, Medal, Loader2, AlertTriangle, Swords,
-  ArrowUp, ArrowDown, User, Bot
+  Shield, Globe, Layers, Medal, Loader2,
+  User, Bot
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -51,22 +50,21 @@ export default function RankingsPage() {
   const standings = useMemo(() => {
     if (isTableLoading) return [];
     
-    // Если данных в БД нет — генерируем базовую структуру (боты)
-    const baseTeams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId);
-    
+    // Fallback if data not found in DB
     if (!tableData || !tableData.teamData) {
+      const baseTeams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId);
       return baseTeams.map(t => ({
         ...t, points: 0, wins: 0, draws: 0, losses: 0, diff: 0, matchesPlayed: 0
       }));
     }
 
-    // Сопоставляем данные из teamData документа с актуальной статистикой stats
+    // Merge team identities with live stats
     const list = (tableData.teamData).map((t: any) => {
       const s = tableData.stats?.[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0, matchesPlayed: 0 };
       return { ...t, ...s };
     });
 
-    // Сортировка: Очки -> Разница -> Имя
+    // Ranking Logic: Points -> Diff -> Name
     return list.sort((a: any, b: any) => b.points - a.points || b.diff - a.diff || a.name.localeCompare(b.name));
   }, [tableData, contextLevel, contextGroup, contextLeagueId, isTableLoading]);
 

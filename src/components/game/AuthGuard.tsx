@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser } from '@/firebase';
@@ -8,7 +7,7 @@ import { LoadingScreen } from './LoadingScreen';
 import { useGameState } from '@/app/lib/store';
 
 /**
- * STRATEGIC ROUTE GUARD v70.1
+ * STRATEGIC ROUTE GUARD v50 (Legacy Protocol)
  * Forces re-setup if the user version is old.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
@@ -36,8 +35,8 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     }
 
     // 2. IF AUTHORIZED
-    // FORCE REDISTRIBUTION VERSION 70
-    const needsSetup = !selectedLeagueId || !country || (Number(version || 0) < 70);
+    // FORCE CLEAN SYNC VERSION 50
+    const needsSetup = !selectedLeagueId || !country || (Number(version || 0) < 50);
     
     if (needsSetup) {
       if (!isSetupPage && !isAuthPage) {
