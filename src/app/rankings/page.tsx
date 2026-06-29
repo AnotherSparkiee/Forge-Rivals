@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v64. 
- * Читает общие данные группы из документа league_tables_v1.
+ * @fileOverview Страница рейтингов v65 (FMO Absolute Protocol). 
+ * Читает общие данные группы из документа league_tables_v1 с повышенной отказоустойчивостью.
  */
 
 import { useState, useMemo } from 'react';
@@ -16,7 +16,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { LEAGUES, MAX_LEVELS, getStableGroupTeams } from '../lib/leagues-data';
+import { LEAGUES, MAX_LEVELS } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -43,7 +43,7 @@ export default function RankingsPage() {
   const contextLevel = isMyLeagueTab ? Number(leagueLevel || 1) : Number(navLevel || leagueLevel || 1);
   const contextGroup = isMyLeagueTab ? Number(navGroup || (isMyLeagueTab ? groupId : 1) || 1) : Number(navGroup || 1);
 
-  // v64 Standardized ID format
+  // v65 Standardized ID format
   const tableId = `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
@@ -64,7 +64,7 @@ export default function RankingsPage() {
       title: "RANKINGS HUB", subtitle: "Global Competitive Terminals",
       pts: "PTS", winLoss: "W-D-L", m: "M", back: "Back",
       syncing: "Synchronizing group data...",
-      noData: "Group Data Syncing...",
+      noData: "Establishing Link with League Server...",
       promotion: "Promotion Zone", relegation: "Relegation Danger",
       menu: [
         { id: 'my_league', label: 'League Standings', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
@@ -76,7 +76,7 @@ export default function RankingsPage() {
       title: "ТАБЛИЦЫ РЕЙТИНГА", subtitle: "Терминалы глобальных соревнований",
       pts: "О", winLoss: "В-Н-П", m: "И", back: "Назад",
       syncing: "Синхронизация данных группы...",
-      noData: "Группа синхронизируется...",
+      noData: "Установка связи с сервером лиги...",
       promotion: "Зона повышения", relegation: "Зона вылета",
       menu: [
         { id: 'my_league', label: 'Таблица Лиги', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },

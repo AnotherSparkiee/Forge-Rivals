@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Глобальное хранилище v64 (Full Sync Protocol).
+ * Глобальное хранилище v65 (FMO Absolute Sync).
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -136,6 +136,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         seasonNumber: Number(info.seasonNumber), seasonDay: Number(info.seasonDay),
         lastProcessedSeason: Number(data.lastProcessedSeason || 0),
         version: Number(data.version || 0),
+        rank: Number(data.rank || 1),
         isLoaded: true
       }));
     });
@@ -185,7 +186,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsubTeam(); playersUnsub(); unsubStaff(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
-  // Global Matches Listener (v64 Standardized ID)
+  // Global Matches Listener (Unified v65 ID)
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
     const info = getGlobalSeasonInfo();
@@ -345,10 +346,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!r) return;
 
     try {
-      // 1. Delete the team document
       await deleteDoc(r.team);
-      
-      // 2. Reset the root player profile to trigger AuthGuard re-setup
       await updateDoc(r.root, {
         selectedLeagueId: null,
         leagueLevel: null,
@@ -356,10 +354,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         rank: null,
         country: null,
         setupDate: null,
-        version: 0 // Resetting version forces setup
+        version: 0 
       });
-
-      // Force page reload to clear state and trigger AuthGuard
       window.location.href = '/setup';
     } catch (e) {
       console.error("Profile reset failed:", e);
