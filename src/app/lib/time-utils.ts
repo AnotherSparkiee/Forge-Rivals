@@ -1,6 +1,7 @@
 /**
- * @fileOverview Ядро времени v50. Глобальная синхронизация цикла (15 дней).
- * Установлена эпоха в прошлом (29.06.2024) для запуска сезона "на ходу".
+ * @fileOverview Ядро времени v60 (Infinite Season Engine). 
+ * Глобальная синхронизация цикла (15 дней).
+ * Начало Сезона 1: 29.06.2026 00:00 MSK.
  */
 
 let syncPoint = {
@@ -9,8 +10,8 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-// Начало Сезона 1: 2024-06-28 21:00 UTC (00:00 MSK 29.06.2024)
-export const GLOBAL_EPOCH_ISO = '2024-06-28T21:00:00Z'; 
+// Начало времен: 29 июня 2026 года (28.06 21:00 UTC)
+export const GLOBAL_EPOCH_ISO = '2026-06-28T21:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
   if (typeof performance !== 'undefined') {
@@ -73,11 +74,12 @@ export function getGlobalSeasonInfo() {
   const dayMs = 24 * 60 * 60 * 1000;
   const cycleMs = cycleDuration * dayMs;
 
+  // Если дата еще не наступила (хотя по условию сегодня 29.06.2026)
   if (diffMs < 0) {
     return {
-      seasonDay: 0, dayOfCycle: 0, seasonNumber: 1, activeSeasonNumber: 1,
-      isOffseason: true, isPreSeason: true, isGenerationWindow: false,
-      timeToStartMs: Math.abs(diffMs), currentSeasonStart: epochUtc, nextSeasonStart: epochUtc
+      seasonDay: 1, dayOfCycle: 1, seasonNumber: 1, activeSeasonNumber: 1,
+      isOffseason: false, isPreSeason: false, isGenerationWindow: false,
+      timeToStartMs: 0, currentSeasonStart: epochUtc, nextSeasonStart: new Date(epochUtc.getTime() + cycleMs)
     };
   }
 
@@ -106,7 +108,7 @@ export function getGlobalSeasonInfo() {
 export function isMatchOverdue(startTimeIso: string): boolean {
   const utcNow = getMoscowTime();
   const start = new Date(startTimeIso);
-  // Match is considered overdue 35 minutes after start
+  // Матч считается "прошедшим" через 35 минут после начала
   return utcNow.getTime() > (start.getTime() + (35 * 60 * 1000));
 }
 

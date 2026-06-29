@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v50 (Legacy Engine).
- * Принудительная интеграция реальных игроков в общие таблицы и автоматический резолв матчей группы.
+ * @fileOverview Ядро MMO-синхронизации v60 (Infinite Engine).
+ * Принудительное внедрение игрока в общие таблицы и автоматический резолв матчей группы.
  */
 
 import { useEffect, useRef } from 'react';
@@ -15,7 +15,7 @@ import { getGlobalSeasonInfo, isMatchOverdue, getMoscowTime } from '@/app/lib/ti
 import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/app/lib/leagues-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 
-const SYNC_VERSION = 50; 
+const SYNC_VERSION = 60; 
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
@@ -29,7 +29,8 @@ export function AutoMatchManager() {
   const syncInProgressRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (isUserLoading || !user?.uid || !isLoaded || !selectedLeagueId || !displayName || Number(version || 0) < SYNC_VERSION) return;
+    // ВАЖНО: Добавляем проверку версии, чтобы принудительно перерегистрировать старых игроков (v50 -> v60)
+    if (isUserLoading || !user?.uid || !isLoaded || !selectedLeagueId || !displayName) return;
 
     const syncSharedWorld = async () => {
       const info = getGlobalSeasonInfo();
@@ -42,40 +43,25 @@ export function AutoMatchManager() {
       if (syncInProgressRef.current === syncKey) return;
       syncInProgressRef.current = syncKey;
 
-      console.log(`[WORLD ENGINE v50] Synchronizing Group ${lId} T${tier} G${group}...`);
+      console.log(`[WORLD ENGINE v60] Synchronizing Group ${lId} T${tier} G${group}...`);
 
       try {
-        const tableId = `s${currentSeason}_l${lId}_t${tier}_g${group}`;
+        const tableId = `cycle_${currentSeason}_l${lId}_t${tier}_g${group}`;
         const tableRef = doc(db, 'league_tables_v1', tableId);
         
-        // 1. SCAN FOR ALL REAL PLAYERS IN THIS GROUP
-        const playersQuery = query(
-          collection(db, 'players_v10'),
-          where('selectedLeagueId', '==', lId),
-          where('leagueLevel', '==', tier),
-          where('groupId', '==', group),
-          where('version', '==', SYNC_VERSION)
-        );
-        const playersSnap = await getDocs(playersQuery);
-        const realPlayersInGroup = playersSnap.docs.map(d => ({
-          id: d.id,
-          name: d.data().displayName || "Manager",
-          rank: Number(d.data().rank || 1)
-        }));
-
-        // 2. TABLE & CALENDAR INITIALIZATION
+        // 1. Инициализация таблицы если её нет
         const tableSnap = await getDoc(tableRef);
-        let currentTableTeams = getStableGroupTeams(tier, group, lId, realPlayersInGroup);
         
         if (!tableSnap.exists()) {
-          console.log(`[V50] Creating Shared Table & Calendar for ${tableId}`);
+          console.log(`[V60] Creating New Table: ${tableId}`);
+          const baseTeams = getStableGroupTeams(tier, group, lId, []);
           await setDoc(tableRef, {
             tableId, season: currentSeason, leagueId: lId, tier, group,
-            teamData: currentTableTeams, stats: {}, createdAt: serverTimestamp(), version: SYNC_VERSION
+            teamData: baseTeams, stats: {}, createdAt: serverTimestamp(), version: SYNC_VERSION
           });
           
           const batch = writeBatch(db);
-          const matches = generateSeasonCalendar(currentTableTeams, currentSeason, lId);
+          const matches = generateSeasonCalendar(baseTeams, currentSeason, lId);
           matches.forEach(m => {
             const mId = `m_s${currentSeason}_${lId}_t${tier}_g${group}_d${m.day}_h${m.homeId}`;
             batch.set(doc(db, 'matches_v1', mId), {
@@ -84,32 +70,33 @@ export function AutoMatchManager() {
             }, { merge: true });
           });
           await batch.commit();
-        } else {
-          // AGGRESSIVE INJECTION: Check if user is in table teamData
-          const tData = tableSnap.data();
-          const existingTeams = tData.teamData || [];
-          const userIdx = rank - 1;
-          
-          if (!existingTeams[userIdx] || existingTeams[userIdx].id !== userId) {
-            console.log(`[V50] Injecting User into Shared Table at slot ${rank}`);
-            const updatedTeams = [...existingTeams];
-            updatedTeams[userIdx] = { id: userId, name: displayName, isBot: false, rank };
-            await updateDoc(tableRef, { teamData: updatedTeams });
-            
-            // Sync names in all matches of the group
-            const qM = query(collection(db, 'matches_v1'), where('tableId', '==', tableId), where('version', '==', SYNC_VERSION));
-            const mSnap = await getDocs(qM);
-            const mBatch = writeBatch(db);
-            mSnap.forEach(mDoc => {
-              const m = mDoc.data();
-              if (m.homeId === userId) mBatch.update(mDoc.ref, { homeName: displayName });
-              if (m.awayId === userId) mBatch.update(mDoc.ref, { awayName: displayName });
-            });
-            await mBatch.commit();
-          }
         }
 
-        // 3. AUTO-RESOLVER (Simulate overdue matches for the entire group)
+        // 2. АГРЕССИВНОЕ ВНЕДРЕНИЕ: Проверяем, записан ли текущий юзер в таблицу
+        const currentData = (await getDoc(tableRef)).data();
+        const teams = currentData?.teamData || [];
+        const mySlotIdx = rank - 1;
+
+        if (!teams[mySlotIdx] || teams[mySlotIdx].id !== userId) {
+          console.log(`[V60] DISPLACING BOT: Injecting ${displayName} into rank ${rank}`);
+          const updatedTeams = [...teams];
+          updatedTeams[mySlotIdx] = { id: userId, name: displayName, isBot: false, rank };
+          
+          await updateDoc(tableRef, { teamData: updatedTeams });
+
+          // Обновляем имена в календаре матчей
+          const qM = query(collection(db, 'matches_v1'), where('tableId', '==', tableId), where('version', '==', SYNC_VERSION));
+          const mSnap = await getDocs(qM);
+          const mBatch = writeBatch(db);
+          mSnap.forEach(mDoc => {
+            const m = mDoc.data();
+            if (m.homeId === userId) mBatch.update(mDoc.ref, { homeName: displayName });
+            if (m.awayId === userId) mBatch.update(mDoc.ref, { awayName: displayName });
+          });
+          await mBatch.commit();
+        }
+
+        // 3. АВТО-РЕЗОЛВЕР: Симулируем все прошедшие матчи группы
         const qPending = query(
           collection(db, 'matches_v1'),
           where('tableId', '==', tableId),
@@ -121,30 +108,29 @@ export function AutoMatchManager() {
         for (const mDoc of pendingSnap.docs) {
           const mData = mDoc.data();
           if (isMatchOverdue(mData.startTime)) {
-            console.log(`[V50] Resolving overdue match: ${mData.homeName} vs ${mData.awayName}`);
+            console.log(`[V60] Resolving: ${mData.homeName} vs ${mData.awayName}`);
             
-            // Check if current user is one of the participants
-            const isMeInvolved = mData.homeId === userId || mData.awayId === userId;
+            const isMeHome = mData.homeId === userId;
+            const isMeAway = mData.awayId === userId;
             let result;
 
-            if (isMeInvolved) {
+            if (isMeHome || isMeAway) {
               const squad = ownedPlayers.filter(p => Object.values(lineup).includes(p.id)).map(p => ({
                 name: p.name, role: p.role, overallRating: p.overallRating, proStats: p.proStats,
                 isSub: p.id === lineup.sub1 || p.id === lineup.sub2
               }));
 
               result = await simulateMobaMatch({
-                teamA: mData.homeId === userId ? { name: displayName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.homeName, strategy: "Balanced Play", heroes: [] },
-                teamB: mData.awayId === userId ? { name: displayName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.awayName, strategy: "Balanced Play", heroes: [] },
+                teamA: isMeHome ? { name: displayName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.homeName, strategy: "Balanced Play", heroes: [] },
+                teamB: isMeAway ? { name: displayName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.awayName, strategy: "Balanced Play", heroes: [] },
                 isBo2: true
               });
             } else {
-              // Deterministic bot vs bot resolution
               const [sA, sB] = getMatchResult(mData.homeId, mData.awayId, currentSeason, false);
               result = { 
                 winner: sA > sB ? mData.homeName : (sB > sA ? mData.awayName : "Ничья"), 
                 seriesScore: `${sA}-${sB}`, 
-                games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 0 ? 1 : 0, duration: "30:00", mvp: "Bot", matchSummary: "Автоматическая симуляция мира." }] 
+                games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 0 ? 1 : 0, duration: "30:00", mvp: "Bot", matchSummary: "Auto Simulation." }] 
               };
             }
 
@@ -177,7 +163,7 @@ export function AutoMatchManager() {
 
         setWorldReady(true);
       } catch (e) {
-        console.error("[WORLD ENGINE v50 ERROR]", e);
+        console.error("[V60 ERROR]", e);
         setWorldReady(true);
       }
     };

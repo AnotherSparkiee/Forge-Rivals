@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v50 (Clean Legacy). 
+ * @fileOverview Страница рейтингов v60 (Clean Legacy). 
  * Данные читаются строго из документов league_tables_v1.
  */
 
@@ -40,17 +40,18 @@ export default function RankingsPage() {
 
   const isMyLeagueTab = activeTab === 'my_league';
   const contextLeagueId = isMyLeagueTab ? String(selectedLeagueId || "ALPHA") : String(navLeague || selectedLeagueId || "ALPHA");
-  const contextLevel = isMyLeagueTab ? Number(leagueLevel || 9) : Number(navLevel || leagueLevel || 9);
+  const contextLevel = isMyLeagueTab ? Number(leagueLevel || 1) : Number(navLevel || leagueLevel || 1);
   const contextGroup = isMyLeagueTab ? Number(navGroup || (isMyLeagueTab ? groupId : 1) || 1) : Number(navGroup || 1);
 
-  const tableId = `s${activeSeasonNumber || 1}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
+  // Используем унифицированный ID таблицы цикла
+  const tableId = `cycle_${activeSeasonNumber || 1}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
   const standings = useMemo(() => {
     if (isTableLoading) return [];
     
-    // Fallback if data not found in DB
+    // Если данных в БД нет — создаем временный массив ботов для визуализации
     if (!tableData || !tableData.teamData) {
       const baseTeams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId);
       return baseTeams.map(t => ({
@@ -58,13 +59,11 @@ export default function RankingsPage() {
       }));
     }
 
-    // Merge team identities with live stats
     const list = (tableData.teamData).map((t: any) => {
       const s = tableData.stats?.[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0, matchesPlayed: 0 };
       return { ...t, ...s };
     });
 
-    // Ranking Logic: Points -> Diff -> Name
     return list.sort((a: any, b: any) => b.points - a.points || b.diff - a.diff || a.name.localeCompare(b.name));
   }, [tableData, contextLevel, contextGroup, contextLeagueId, isTableLoading]);
 
@@ -72,23 +71,23 @@ export default function RankingsPage() {
     en: {
       title: "RANKINGS HUB", subtitle: "Global Competitive Terminals",
       pts: "PTS", winLoss: "W-D-L", m: "M", back: "Back",
-      syncing: "Syncing world data...",
+      syncing: "Synchronizing with world server...",
       promotion: "Promotion Zone", relegation: "Relegation Danger",
       menu: [
-        { id: 'my_league', label: 'My Current Table', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
-        { id: 'my_pyramid', label: 'My Pyramid', desc: `Explore ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
-        { id: 'all_pyramids', label: 'Global Structure', desc: 'Browse all 16 leagues', icon: Globe, color: 'text-blue-400' },
+        { id: 'my_league', label: 'League Standings', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
+        { id: 'my_pyramid', label: 'League Pyramid', desc: `Explore ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
+        { id: 'all_pyramids', label: 'Global Map', desc: 'Browse all 16 leagues', icon: Globe, color: 'text-blue-400' },
       ]
     },
     ru: {
       title: "ТАБЛИЦЫ РЕЙТИНГА", subtitle: "Терминалы глобальных соревнований",
       pts: "О", winLoss: "В-Н-П", m: "И", back: "Назад",
-      syncing: "Синхронизация данных...",
+      syncing: "Синхронизация с сервером мира...",
       promotion: "Зона повышения", relegation: "Зона вылета",
       menu: [
-        { id: 'my_league', label: 'Своя таблица', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
-        { id: 'my_pyramid', label: 'Своя пирамида', desc: `Изучить лигу ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
-        { id: 'all_pyramids', label: 'Глобальная структура', desc: 'Все 16 лиг мира', icon: Globe, color: 'text-blue-400' },
+        { id: 'my_league', label: 'Таблица Лиги', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
+        { id: 'my_pyramid', label: 'Пирамида Лиги', desc: `Изучить лигу ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
+        { id: 'all_pyramids', label: 'Карта мира', desc: 'Все 16 лиг мира', icon: Globe, color: 'text-blue-400' },
       ]
     }
   }[language === 'ru' ? 'ru' : 'en'];
@@ -145,11 +144,11 @@ export default function RankingsPage() {
       {(activeTab === 'my_league' || navGroup) && (
         <div className="space-y-4 animate-in fade-in duration-500">
            <div className="flex items-center justify-between px-1">
-             <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase">DIV {contextLevel} • G {contextGroup}</Badge>
-             <span className="text-[10px] font-mono text-muted-foreground">SEASON {activeSeasonNumber}</span>
+             <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase italic">DIV {contextLevel} • G {contextGroup}</Badge>
+             <span className="text-[10px] font-mono text-muted-foreground uppercase">LIVE STANDINGS</span>
            </div>
            
-           {isTableLoading ? (
+           {isTableLoading && !tableData ? (
              <div className="py-20 text-center opacity-50 flex flex-col items-center gap-4">
                <Loader2 className="w-8 h-8 animate-spin text-primary" />
                <p className="text-[10px] uppercase font-black tracking-widest">{t.syncing}</p>

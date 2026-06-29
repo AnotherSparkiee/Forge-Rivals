@@ -58,7 +58,7 @@ export default function Home() {
       (m.homeId === user.uid || m.awayId === user.uid) && 
       m.isFinished && 
       Number(m.day) > (lastSeenMatchDay || 0) &&
-      m.version === 50
+      m.version === 60
     );
 
     const historyUnread = (matchHistory || []).filter(m => m.seen === false);
@@ -94,17 +94,7 @@ export default function Home() {
         const ss = Math.floor((diff % (1000 * 60)) / 1000);
         setCountdown(`${dd}d ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
         setIsMatchActive(false);
-      } else if (info.isOffseason && !info.isGenerationWindow) {
-        // Межсезонье (первая половина Дня 15)
-        const targetTime = new Date(info.currentSeasonStart.getTime() + 14 * 24 * 3600000 + 16 * 3600000); // 16:00
-        const diff = targetTime.getTime() - mskNow.getTime();
-        const hh = Math.floor(diff / 3600000);
-        const mm = Math.floor((diff % 3600000) / 60000);
-        const ss = Math.floor((diff % 60000) / 1000);
-        setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
-        setIsMatchActive(false);
-      } else if (info.isGenerationWindow) {
-        // Окно генерации (после 16:00 Дня 15)
+      } else if (info.isOffseason) {
         const diff = info.nextSeasonStart.getTime() - mskNow.getTime();
         const hh = Math.floor(diff / 3600000);
         const mm = Math.floor((diff % 3600000) / 60000);
@@ -228,20 +218,17 @@ export default function Home() {
   if (!isLoaded) return <LoadingScreen />;
 
   const tHub = {
-    en: { nextMatch: "Next Engagement", offseason: "OFFSEASON", battleBtn: "MATCH OVERVIEW", navTitle: "Command Terminals", startsIn: "S1 STARTS IN:", live: "LIVE: ENGAGEMENT IN PROGRESS", preparing: "PREPARING NEW SEASON" },
-    ru: { nextMatch: "Следующий матч", offseason: "МЕЖСЕЗОНЬЕ", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", startsIn: "СЕЗОН 1 ЧЕРЕЗ:", live: "В ЭФИРЕ: ИДЕТ СРАЖЕНИЕ", preparing: "ПОДГОТОВКА СЕЗОНА" }
+    en: { nextMatch: "Next Engagement", offseason: "OFFSEASON BREAK", battleBtn: "MATCH OVERVIEW", navTitle: "Command Terminals", startsIn: "NEXT CYCLE IN:", live: "LIVE: ENGAGEMENT IN PROGRESS", preparing: "PREPARING NEW SEASON" },
+    ru: { nextMatch: "Следующий матч", offseason: "ПЕРЕРЫВ", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", startsIn: "НОВЫЙ ЦИКЛ ЧЕРЕЗ:", live: "В ЭФИРЕ: ИДЕТ СРАЖЕНИЕ", preparing: "ПОДГОТОВКА СЕЗОНА" }
   }[language as 'en' | 'ru'];
-
-  const isPreSeason = getMoscowTime() < seasonInfo.currentSeasonStart;
-  const showPreparing = seasonInfo.isGenerationWindow;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6 flex flex-col gap-1">
-        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.50</span></div>
+        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.60</span></div>
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
-          {(seasonInfo.isOffseason || isPreSeason) ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
-          {showPreparing ? tHub.preparing : (seasonInfo.isOffseason || isPreSeason ? tHub.offseason : `SEASON ${seasonInfo.seasonNumber}`)}
+          {seasonInfo.isOffseason ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
+          {seasonInfo.isOffseason ? tHub.offseason : 'ACTIVE LEAGUE'}
         </h1>
       </header>
 
@@ -250,9 +237,9 @@ export default function Home() {
           <CardContent className="p-6">
             <div className="text-center space-y-4">
               <Badge variant="outline" className={cn("text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5", isMatchActive ? "bg-red-500/20 text-white animate-pulse" : "bg-primary/10 text-primary")}>
-                {isMatchActive ? tHub.live : (showPreparing ? 'GENERATION PHASE' : (isPreSeason ? 'SYSTEM INITIALIZATION' : 'PRO LEAGUE'))}
+                {isMatchActive ? tHub.live : (seasonInfo.isOffseason ? 'CYCLE BREAK' : 'LEAGUE PHASE')}
               </Badge>
-              {nextMatch && !isPreSeason ? (
+              {nextMatch && !seasonInfo.isOffseason ? (
                 <div className="flex items-center justify-between gap-4 py-2">
                   <div className="flex-1 text-right truncate"><p className="text-[10px] font-headline font-bold uppercase italic text-white">{nextMatch.match.homeName}</p></div>
                   <div className="px-3 py-1 rounded-lg bg-background/60 border border-white/5"><Swords className={cn("w-4 h-4", isMatchActive ? "text-red-500 animate-bounce" : "text-accent")} /></div>
@@ -261,7 +248,7 @@ export default function Home() {
               ) : <div className="py-6 opacity-30 text-[10px] font-bold uppercase">{tHub.startsIn}</div>}
               <div className="bg-background/60 py-3 rounded-2xl border border-white/5">
                 <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                  {isMatchActive ? 'ENGAGEMENT PHASE' : (showPreparing ? `NEXT SEASON: ${seasonInfo.activeSeasonNumber}` : (isPreSeason ? 'SEASON 1 LAUNCH' : 'TIME TO ENGAGEMENT'))}
+                  {isMatchActive ? 'ENGAGEMENT PHASE' : 'TIME TO DEPLOYMENT'}
                 </p>
                 <p className={cn("text-xl font-headline font-bold tabular-nums tracking-tighter text-white", isMatchActive && "text-red-500 animate-pulse")}>
                   {countdown || 'SYNCING...'}
@@ -278,7 +265,7 @@ export default function Home() {
           <Swords className={cn("w-6 h-6", unreadMatches.length > 0 && "animate-bounce")} />
           <div className="flex flex-col items-start">
             <span className="text-xl font-headline font-bold italic uppercase leading-none">{tHub.battleBtn}</span>
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-80 mt-1">{unreadMatches.length > 0 ? (language === 'ru' ? 'ЕСТЬ НОВЫЕ РЕЗУЛЬТАТЫ' : 'NEW RESULTS AVAILABLE') : (language === 'ru' ? 'АРХИВ ТРАНСЛЯЦИЙ' : 'MATCH ARCHIVE')}</span>
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-80 mt-1">{unreadMatches.length > 0 ? (language === 'ru' ? 'НОВЫЕ РЕЗУЛЬТАТЫ' : 'NEW RESULTS') : (language === 'ru' ? 'АРХИВ МАТЧЕЙ' : 'MATCH ARCHIVE')}</span>
           </div>
           {unreadMatches.length > 0 && (
             <div className="ml-auto w-10 h-10 rounded-full bg-red-600 flex items-center justify-center border-2 border-white shadow-lg">
