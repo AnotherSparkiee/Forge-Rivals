@@ -1,5 +1,6 @@
 /**
- * @fileOverview Ядро времени v60. Глобальная синхронизация цикла (15 дней).
+ * @fileOverview Ядро времени v64. Глобальная синхронизация цикла (15 дней).
+ * Установлена эпоха для запуска сезона "на ходу".
  */
 
 let syncPoint = {
@@ -8,8 +9,8 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-// Начало Сезона 1: 29.06.2026 00:00 MSK (28.06 21:00 UTC)
-export const GLOBAL_EPOCH_ISO = '2026-06-28T21:00:00Z'; 
+// Начало Сезона 1: 17.06.2026 00:00 MSK (Для запуска сезона "на ходу")
+export const GLOBAL_EPOCH_ISO = '2026-06-16T21:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
   if (typeof performance !== 'undefined') {
@@ -83,14 +84,9 @@ export function getGlobalSeasonInfo() {
   const seasonNumber = Math.floor(diffMs / cycleMs) + 1;
   const dayOfCycle = Math.floor((diffMs % cycleMs) / dayMs) + 1;
   
-  // Межсезонье - это 15-й день
   const isOffseason = dayOfCycle === 15;
-  
-  // ТРИГГЕР ГЕНЕРАЦИИ: 15-й день после 16:00 MSK
   const mskNow = toMskDate(utcNow);
   const isGenerationWindow = isOffseason && mskNow.getUTCHours() >= 16;
-
-  // Если окно генерации открыто, интерфейс должен ориентироваться на СЛЕДУЮЩИЙ сезон
   const activeSeasonNumber = isGenerationWindow ? seasonNumber + 1 : seasonNumber;
 
   return {
@@ -110,6 +106,7 @@ export function getGlobalSeasonInfo() {
 export function isMatchOverdue(startTimeIso: string): boolean {
   const utcNow = getMoscowTime();
   const start = new Date(startTimeIso);
+  // Match is considered overdue 35 minutes after start
   return utcNow.getTime() > (start.getTime() + (35 * 60 * 1000));
 }
 

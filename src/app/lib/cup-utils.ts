@@ -24,7 +24,6 @@ export function getLeagueCupParticipants(leagueId: string, realPlayersInLeague: 
   const TOTAL_SLOTS = 4096;
   const fullList: (CupParticipant | null)[] = Array(TOTAL_SLOTS).fill(null);
   
-  // 1. Собираем карту реальных игроков для быстрого поиска
   const playerMap = new Map<string, any>();
   realPlayersInLeague.forEach(p => {
     const key = `${p.leagueLevel}_${p.groupId}_${p.rank || 1}`;
@@ -34,12 +33,11 @@ export function getLeagueCupParticipants(leagueId: string, realPlayersInLeague: 
   const leagueIdx = (['ALPHA', 'BETA', 'GAMMA', 'DELTA', 'EPSILON', 'ZETA', 'ETA', 'THETA', 'IOTA', 'KAPPA', 'LAMBDA', 'MU', 'NU', 'XI', 'OMICRON', 'PI'].indexOf(leagueId) + 1).toString().padStart(2, '0');
 
   let currentGlobalIndex = 0;
-  
-  // Проходим по всей иерархии дивизионов (Tier 1..9)
   for (let lvl = 1; lvl <= 9; lvl++) {
     const groupsInDiv = Math.pow(2, lvl - 1);
     for (let g = 1; g <= groupsInDiv; g++) {
       for (let slot = 1; slot <= 8; slot++) {
+        if (currentGlobalIndex >= TOTAL_SLOTS) break;
         const key = `${lvl}_${g}_${slot}`;
         const real = playerMap.get(key);
         
@@ -51,8 +49,7 @@ export function getLeagueCupParticipants(leagueId: string, realPlayersInLeague: 
             level: lvl
           };
         } else {
-          // Генерация уникального ID бота
-          const botId = `bot${leagueIdx}${lvl}${g.toString().padStart(3, '0')}${slot}`;
+          const botId = `BOT${leagueIdx}${lvl}${g.toString().padStart(3, '0')}${slot}`;
           fullList[currentGlobalIndex] = {
             id: botId,
             name: botId,
@@ -61,11 +58,8 @@ export function getLeagueCupParticipants(leagueId: string, realPlayersInLeague: 
           };
         }
         currentGlobalIndex++;
-        if (currentGlobalIndex >= TOTAL_SLOTS) break;
       }
-      if (currentGlobalIndex >= TOTAL_SLOTS) break;
     }
-    if (currentGlobalIndex >= TOTAL_SLOTS) break;
   }
 
   return fullList;
@@ -73,7 +67,6 @@ export function getLeagueCupParticipants(leagueId: string, realPlayersInLeague: 
 
 /**
  * Рекурсивно определяет победителя ветки в Кубке.
- * Использует детерминированный алгоритм на основе Seed (Сезон + Раунд + Команды).
  */
 export function getWinnerOfBranch(
   participants: (CupParticipant | null)[], 
@@ -86,7 +79,6 @@ export function getWinnerOfBranch(
   const key = `${startIndex}-${round}`;
   if (cache.has(key)) return cache.get(key)!;
   
-  // Базовый случай: Раунд 0
   if (round === 0) return participants[startIndex] || null;
   if (round > limitDay) return null;
   
@@ -98,17 +90,14 @@ export function getWinnerOfBranch(
   if (!h) { cache.set(key, a); return a; }
   if (!a) { cache.set(key, h); return h; }
 
-  // Проверка: вступил ли дивизион в игру?
   const hEntry = getEntryRound(h.level);
   const aEntry = getEntryRound(a.level);
 
-  // Если оба еще не вступили по расписанию - "технический" проход первого (для формирования сетки)
   if (round <= hEntry && round <= aEntry) {
     cache.set(key, h); 
     return h;
   }
 
-  // Симуляция результата
   const [scoreH, scoreA] = getMatchResult(h.id, a.id, round, season);
   const winner = scoreH > scoreA ? h : a; 
   
