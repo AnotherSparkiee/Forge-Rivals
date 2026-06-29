@@ -1,7 +1,7 @@
 /**
- * @fileOverview Ядро времени v65 (Infinite Season Engine). 
+ * @fileOverview Ядро времени v66 (Infinite Season Engine). 
  * Глобальная синхронизация цикла (15 дней).
- * Начало времен зафиксировано: 20 июня 2026 года.
+ * Начало времен зафиксировано: 29 июня 2026 года (День 1).
  */
 
 let syncPoint = {
@@ -10,8 +10,8 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-// Начало времен: 20 июня 2026 00:00 MSK (19.06 21:00 UTC)
-export const GLOBAL_EPOCH_ISO = '2026-06-19T21:00:00Z'; 
+// Начало времен: 29 июня 2026 00:00 MSK (28.06 21:00 UTC)
+export const GLOBAL_EPOCH_ISO = '2026-06-28T21:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
   if (typeof performance !== 'undefined') {
@@ -82,6 +82,7 @@ export function getGlobalSeasonInfo() {
     };
   }
 
+  // Номера сезонов скрыты из UI, но важны для ID документов
   const seasonNumber = Math.floor(diffMs / cycleMs) + 1;
   const dayOfCycle = Math.floor((diffMs % cycleMs) / dayMs) + 1;
   
@@ -103,6 +104,7 @@ export function getGlobalSeasonInfo() {
 export function isMatchOverdue(startTimeIso: string): boolean {
   const utcNow = getMoscowTime();
   const start = new Date(startTimeIso);
+  // Матч считается просроченным через 35 минут после начала
   return utcNow.getTime() > (start.getTime() + (35 * 60 * 1000));
 }
 

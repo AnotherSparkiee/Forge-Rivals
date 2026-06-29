@@ -57,8 +57,7 @@ export default function Home() {
     const leagueUnread = (allSeasonMatches || []).filter(m => 
       (m.homeId === user.uid || m.awayId === user.uid) && 
       m.isFinished && 
-      Number(m.day) > (lastSeenMatchDay || 0) &&
-      m.version === 60
+      Number(m.day) > (lastSeenMatchDay || 0)
     );
 
     const historyUnread = (matchHistory || []).filter(m => m.seen === false);
@@ -87,12 +86,7 @@ export default function Home() {
       const mskNow = getMoscowTime();
       
       if (mskNow < info.currentSeasonStart) {
-        const diff = info.currentSeasonStart.getTime() - mskNow.getTime();
-        const dd = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hh = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const mm = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const ss = Math.floor((diff % (1000 * 60)) / 1000);
-        setCountdown(`${dd}d ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
+        setCountdown('PREPARING...');
         setIsMatchActive(false);
       } else if (info.isOffseason) {
         const diff = info.nextSeasonStart.getTime() - mskNow.getTime();
@@ -107,11 +101,17 @@ export default function Home() {
         if (live) setCountdown('LIVE');
         else {
           const diff = new Date(nextMatch.match.startTime).getTime() - mskNow.getTime();
-          const hh = Math.floor(diff / 3600000);
-          const mm = Math.floor((diff % 3600000) / 60000);
-          const ss = Math.floor((diff % 60000) / 1000);
-          setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
+          if (diff <= 0) {
+            setCountdown('PROCESSING...');
+          } else {
+            const hh = Math.floor(diff / 3600000);
+            const mm = Math.floor((diff % 3600000) / 60000);
+            const ss = Math.floor((diff % 60000) / 1000);
+            setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
+          }
         }
+      } else {
+        setCountdown('INITIALIZING...');
       }
     }, 1000);
     return () => clearInterval(timer);
@@ -152,7 +152,7 @@ export default function Home() {
         passLabel: "Ключ доступа (Пароль)", 
         submit: authMode === 'login' ? "УСТАНОВИТЬ СВЯЗЬ" : "СОЗДАТЬ", 
         toggle: authMode === 'login' ? "Новый менеджер? Создать профиль" : "Есть аккаунт? Войти", 
-        subtitle: "ДОСТУП К КОМАНДНОМУ ЦЕНТРУ",
+        subtitle: "ДОСТУП К КОМАНДНЫЙ ЦЕНТРУ",
         tgSync: "Синхронизация с Telegram..."
       }
     }[language as 'en' | 'ru'] || { title: "Auth", userLabel: "User", passLabel: "Pass", submit: "Connect", toggle: "Switch", subtitle: "ACCESS", tgSync: "Syncing..." };
@@ -195,7 +195,7 @@ export default function Home() {
                 <CardHeader><CardTitle className="font-headline text-center uppercase tracking-widest text-accent text-lg">{tAuth.title}</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2"><Label>{tAuth.userLabel}</Label><Input value={identifier} onChange={e => setIdentifier(e.target.value)} required className="bg-secondary/50 h-12" /></div>
-                  <div className="space-y-2"><Label>{tAuth.passLabel}</Label><Input type="password" password={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50 h-12" /></div>
+                  <div className="space-y-2"><Label>{tAuth.passLabel}</Label><Input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50 h-12" /></div>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-4">
                   <Button type="submit" className="w-full h-14 hero-gradient font-black text-xs uppercase" disabled={isAuthLoading}>{isAuthLoading ? <Loader2 className="animate-spin" /> : tAuth.submit}</Button>
@@ -225,7 +225,7 @@ export default function Home() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6 flex flex-col gap-1">
-        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.60</span></div>
+        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.66</span></div>
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
           {seasonInfo.isOffseason ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
           {seasonInfo.isOffseason ? tHub.offseason : 'ACTIVE LEAGUE'}

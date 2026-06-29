@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v65 (FMO Absolute Protocol).
+ * @fileOverview Ядро MMO-синхронизации v66 (FMO Absolute Sync).
  * Агрессивно вписывает игрока в мир, генерирует календарь и симулирует матчи всей группы.
  */
 
@@ -15,7 +15,7 @@ import { getGlobalSeasonInfo, isMatchOverdue } from '@/app/lib/time-utils';
 import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/app/lib/leagues-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 
-const SYNC_VERSION = 65; 
+const SYNC_VERSION = 66; 
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
@@ -46,15 +46,21 @@ export function AutoMatchManager() {
       const tableId = `s${currentSeason}_l${lId}_t${tier}_g${group}`;
       const tableRef = doc(db, 'league_tables_v1', tableId);
 
+      // Fail-safe: если синхронизация затянется, всё равно разблокируем UI через 5 секунд
+      const failSafeTimer = setTimeout(() => {
+        console.warn("[SYNC v66] Fail-safe triggered. Unlocking UI.");
+        setWorldReady(true);
+      }, 5000);
+
       try {
-        console.log(`[WORLD SYNC v65] Initializing Protocol for ${tableId}`);
+        console.log(`[WORLD SYNC v66] Initializing Protocol for ${tableId}`);
 
         // 1. ПОЛУЧЕНИЕ ИЛИ СОЗДАНИЕ ТАБЛИЦЫ
         let tableSnap = await getDoc(tableRef);
         let teamData = [];
 
         if (!tableSnap.exists()) {
-          console.log(`[V65] Table missing. Creating full group skeleton.`);
+          console.log(`[V66] Table missing. Creating full group skeleton.`);
           teamData = getStableGroupTeams(tier, group, lId, [{
             id: userId,
             name: displayName || "Manager",
@@ -71,10 +77,11 @@ export function AutoMatchManager() {
           teamData = data.teamData || [];
           
           // Проверяем, вписан ли Я в таблицу на свое место
-          const mySlot = teamData[myRank - 1];
+          const mySlotIndex = myRank - 1;
+          const mySlot = teamData[mySlotIndex];
           if (!mySlot || mySlot.id !== userId) {
-            console.log(`[V65] Player missing from slot ${myRank}. Forcing injection.`);
-            teamData[myRank - 1] = {
+            console.log(`[V66] Player missing from slot ${myRank}. Forcing injection.`);
+            teamData[mySlotIndex] = {
               id: userId,
               name: displayName || "Manager",
               rank: myRank,
@@ -89,7 +96,7 @@ export function AutoMatchManager() {
         const matchesSnap = await getDocs(matchesQuery);
 
         if (matchesSnap.empty) {
-          console.log(`[V65] Matches missing. Generating 56-match cycle.`);
+          console.log(`[V66] Matches missing. Generating 56-match cycle.`);
           const batch = writeBatch(db);
           const calendar = generateSeasonCalendar(teamData, currentSeason, lId);
           calendar.forEach(m => {
@@ -101,25 +108,27 @@ export function AutoMatchManager() {
           });
           await batch.commit();
         } else {
-          // Принудительное обновление имен в матчах, если они боты
-          const needsNameUpdate = matchesSnap.docs.some(d => {
+          // Принудительное обновление имен в матчах (если там стоят BOT ID)
+          const batch = writeBatch(db);
+          let needsUpdate = false;
+          matchesSnap.docs.forEach(d => {
             const m = d.data();
-            return (m.homeId === userId && m.homeName !== displayName) || (m.awayId === userId && m.awayName !== displayName);
+            const correctHome = teamData.find(t => t.id === m.homeId)?.name || m.homeName;
+            const correctAway = teamData.find(t => t.id === m.awayId)?.name || m.awayName;
+            
+            if (m.homeName !== correctHome || m.awayName !== correctAway) {
+              needsUpdate = true;
+              batch.update(d.ref, { homeName: correctHome, awayName: correctAway });
+            }
           });
-
-          if (needsNameUpdate) {
-            console.log(`[V65] Mismatched names in matches. Updating.`);
-            const batch = writeBatch(db);
-            matchesSnap.docs.forEach(d => {
-              const m = d.data();
-              if (m.homeId === userId) batch.update(d.ref, { homeName: displayName });
-              if (m.awayId === userId) batch.update(d.ref, { awayName: displayName });
-            });
+          if (needsUpdate) {
+            console.log(`[V66] Updating match participant names to match table.`);
             await batch.commit();
           }
         }
 
         // РАЗБЛОКИРОВКА UI
+        clearTimeout(failSafeTimer);
         setWorldReady(true);
 
         // 3. АВТО-РЕЗОЛВЕР (Фоновая симуляция просроченных игр всей группы)
@@ -185,8 +194,9 @@ export function AutoMatchManager() {
           }
         }
       } catch (e) {
-        console.error("[V65 SYNC ERROR]", e);
-        setWorldReady(true); // Fail-safe to avoid infinite loader
+        console.error("[V66 SYNC ERROR]", e);
+        clearTimeout(failSafeTimer);
+        setWorldReady(true);
       }
     };
 

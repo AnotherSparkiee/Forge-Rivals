@@ -7,7 +7,7 @@ import { LoadingScreen } from './LoadingScreen';
 import { useGameState } from '@/app/lib/store';
 
 /**
- * STRATEGIC ROUTE GUARD v50 (Legacy Protocol)
+ * STRATEGIC ROUTE GUARD v66 (FMO Protocol)
  * Forces re-setup if the user version is old.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
@@ -35,8 +35,8 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     }
 
     // 2. IF AUTHORIZED
-    // FORCE CLEAN SYNC VERSION 50
-    const needsSetup = !selectedLeagueId || !country || (Number(version || 0) < 50);
+    // FORCE CLEAN SYNC VERSION 66
+    const needsSetup = !selectedLeagueId || !country || (Number(version || 0) < 66);
     
     if (needsSetup) {
       if (!isSetupPage && !isAuthPage) {
@@ -53,7 +53,6 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     }
   }, [user, isUserLoading, isLoaded, selectedLeagueId, country, version, router, pathname, isAuthPage, isSetupPage]);
 
-  // Allow auth pages and setup page to render even while checking, but only if they are the current path
   if (isUserLoading || (!isInitialCheckDone && !isAuthPage && !isSetupPage)) {
     return <LoadingScreen />;
   }
