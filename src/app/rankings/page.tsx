@@ -6,7 +6,7 @@
  */
 
 import { useState, useMemo } from 'react';
-import { useRouter } from 'navigation';
+import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
