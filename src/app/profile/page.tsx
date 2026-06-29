@@ -5,13 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { 
-  User, ShieldCheck, LogOut, 
+  User, ShieldCheck, LogOut, RefreshCw,
   ChevronRight, ChevronLeft, Loader2,
   Trophy, Star, Wallet, Gem, Flag, Zap, 
   Award, ScrollText, CircleDollarSign, 
   UserCog, HeartPulse, GraduationCap, 
   TrendingUp, BarChart3, Building2, MapPin,
-  Shield, Activity, Settings2, Info
+  Shield, Activity, Settings2, Info, AlertTriangle, Trash2
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -23,6 +23,14 @@ import { doc } from 'firebase/firestore';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 type ProfileTab = 'menu' | 'team' | 'daily';
 
@@ -32,7 +40,7 @@ export default function ProfilePage() {
     credits, crystals, leagueLevel, 
     experiencePoints, activeLicenseTier, hq, managerLevel,
     skillPoints, managerSkills, upgradeManagerSkill, arena, bootcamp, academy, medical,
-    isPremium, premiumUntil
+    isPremium, premiumUntil, resetProfile
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
@@ -41,7 +49,8 @@ export default function ProfilePage() {
   const { toast } = useToast();
   
   const [activeTab, setActiveTab] = useState<ProfileTab>('menu');
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -94,7 +103,9 @@ export default function ProfilePage() {
       lvl: "УР",
       xp: "XP Progress",
       popularity: "Club Popularity",
-      logout: "LOG OUT",
+      resetBtn: "RESET PROFILE",
+      resetTitle: "ABSOLUTE RESET",
+      resetDesc: "This action will PERMANENTLY delete your team, progress, and assets. You will have to initialize your club again. THIS CANNOT BE UNDONE.",
       teamStats: "Club Status",
       premiumActive: "ELITE STATUS ACTIVE",
       premiumExp: "Expires",
@@ -118,7 +129,9 @@ export default function ProfilePage() {
       lvl: "УР",
       xp: "Опыт менеджера",
       popularity: "Популярность клуба",
-      logout: "ВЫЙТИ ИЗ АККАУНТА",
+      resetBtn: "СБРОСИТЬ ПРОФИЛЬ",
+      resetTitle: "ПОЛНЫЙ СБРОС",
+      resetDesc: "Это действие НАВСЕГДА удалит вашу команду, весь прогресс и активы. Вам придется заново инициализировать клуб. ЭТО ДЕЙСТВИЕ НЕЛЬЗЯ ОТМЕНИТЬ.",
       teamStats: "Статус команды",
       premiumActive: "ЭЛИТНЫЙ СТАТУС АКТИВЕН",
       premiumExp: "Истекает",
@@ -139,6 +152,19 @@ export default function ProfilePage() {
   };
 
   const t = translations[language as 'en' | 'ru'] || translations.ru;
+
+  const handleReset = async () => {
+    setIsResetting(true);
+    try {
+      await resetProfile();
+      toast({ title: language === 'ru' ? "Профиль сброшен" : "Profile Reset Complete" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Reset Failed" });
+    } finally {
+      setIsResetting(false);
+      setShowResetDialog(false);
+    }
+  };
 
   const renderTeamView = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-6">
@@ -299,7 +325,14 @@ export default function ProfilePage() {
             <Button variant="outline" className="h-12 border-white/5 bg-secondary/20 hover:bg-white/5 justify-between px-4 group"><div className="flex items-center gap-3"><Settings2 className="w-4 h-4 text-accent group-hover:scale-110 transition-transform" /><span className="text-[10px] font-black uppercase">Security & Account Settings</span></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Button>
           </div>
           <div className="pt-6">
-            <Button variant="destructive" className="w-full h-14 hero-gradient border-none font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-95 transition-all" onClick={async () => { setIsLoggingOut(true); await signOut(auth); router.push('/'); }} disabled={isLoggingOut}>{isLoggingOut ? <Loader2 className="animate-spin" /> : <><LogOut className="w-4 h-4 mr-2" /> {t.logout}</>}</Button>
+            <Button 
+              variant="destructive" 
+              className="w-full h-14 hero-gradient border-none font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-95 transition-all" 
+              onClick={() => setShowResetDialog(true)}
+              disabled={isResetting}
+            >
+              {isResetting ? <Loader2 className="animate-spin" /> : <><RefreshCw className="w-4 h-4 mr-2" /> {t.resetBtn}</>}
+            </Button>
           </div>
         </div>
       )}
@@ -317,6 +350,41 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+
+      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <DialogContent className="max-w-xs bg-card border-white/10 p-6">
+          <DialogHeader>
+            <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4 border border-red-500/20">
+              <AlertTriangle className="w-8 h-8 text-red-500 animate-pulse" />
+            </div>
+            <DialogTitle className="text-center font-headline font-bold uppercase text-red-500">
+              {t.resetTitle}
+            </DialogTitle>
+            <DialogDescription className="text-center text-xs text-muted-foreground mt-2">
+              {t.resetDesc}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 mt-6">
+            <Button 
+              variant="destructive" 
+              className="h-12 font-black uppercase text-[10px]" 
+              onClick={handleReset}
+              disabled={isResetting}
+            >
+              {isResetting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />} 
+              {language === 'ru' ? 'ПОДТВЕРДИТЬ СБРОС' : 'CONFIRM RESET'}
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-12 font-bold uppercase text-[10px] border-white/10" 
+              onClick={() => setShowResetDialog(false)}
+              disabled={isResetting}
+            >
+              {language === 'ru' ? 'ОТМЕНА' : 'CANCEL'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

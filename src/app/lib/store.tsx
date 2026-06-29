@@ -74,6 +74,7 @@ interface GameState {
   healPlayer: (playerId: string, type: 'credits' | 'crystals', cost: number) => void;
   launchFanCampaign: (type: 'open_day' | 'autograph' | 'ultras_trip', cost: number, fans: number, loyalty: number) => void;
   setWorldReady: (isReady: boolean) => void;
+  resetProfile: () => Promise<void>;
 }
 
 const DEFAULT_STATE: GameState = {
@@ -102,7 +103,7 @@ const DEFAULT_STATE: GameState = {
   accelerateConstruction: () => false, checkConstructions: () => {},
   scoutCandidates: () => {}, recruitCandidate: () => {}, clearScoutingReport: () => {},
   payStaffSalaries: async () => {}, healPlayer: () => {}, launchFanCampaign: () => {},
-  setWorldReady: () => {}
+  setWorldReady: () => {}, resetProfile: async () => {}
 };
 
 const GameStateContext = createContext<GameState | undefined>(DEFAULT_STATE);
@@ -174,14 +175,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       setState(prev => ({ ...prev, ownedPlayers: all.filter(h => h.isYouth !== true), youthAcademyPlayers: all.filter(h => h.isYouth === true) }));
     });
 
-    const staffUnsub = onSnapshot(collection(teamRef, 'staff'), (sSnap) => {
+    const unsubStaff = onSnapshot(collection(teamRef, 'staff'), (sSnap) => {
       if (!active) return;
       const staffObj: any = { coach: null, analyst: null, scout: null, doctor: null, financier: null };
       sSnap.docs.forEach(doc => { const m = doc.data() as StaffMember; staffObj[m.role] = m; });
       setState(prev => ({ ...prev, staff: staffObj }));
     });
 
-    return () => { active = false; unsubTeam(); playersUnsub(); staffUnsub(); };
+    return () => { active = false; unsubTeam(); playersUnsub(); unsubStaff(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
   // Global Matches Listener (v64 Standardized ID)
@@ -334,6 +335,37 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }, { merge: true });
   }, [getRefs]);
 
+  const resetProfile = useCallback(async () => {
+    const s = stateRef.current;
+    if (!user?.uid) return;
+    
+    setIsWorldReady(false);
+    
+    const r = getRefs();
+    if (!r) return;
+
+    try {
+      // 1. Delete the team document
+      await deleteDoc(r.team);
+      
+      // 2. Reset the root player profile to trigger AuthGuard re-setup
+      await updateDoc(r.root, {
+        selectedLeagueId: null,
+        leagueLevel: null,
+        groupId: null,
+        rank: null,
+        country: null,
+        setupDate: null,
+        version: 0 // Resetting version forces setup
+      });
+
+      // Force page reload to clear state and trigger AuthGuard
+      window.location.href = '/setup';
+    } catch (e) {
+      console.error("Profile reset failed:", e);
+    }
+  }, [user?.uid, getRefs]);
+
   const payStaffSalaries = async () => {};
 
   const recordMatch = useCallback((w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string) => {
@@ -459,8 +491,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries,
     scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, 
     startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen,
-    setWorldReady
-  }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, setWorldReady]);
+    setWorldReady, resetProfile
+  }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, setWorldReady, resetProfile]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
 }

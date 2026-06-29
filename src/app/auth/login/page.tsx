@@ -4,14 +4,14 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useFirestore, useUser } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { collection, query, where, getDocs, limit, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Loader2, ArrowRight, ShieldCheck, LogOut } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -37,7 +37,8 @@ export default function LoginPage() {
       passLabel: "Access Key (Password)",
       submitBtn: "ESTABLISH LINK",
       welcomeBack: "Authorized Session Detected",
-      enterHub: "ENTER COMMAND CENTER"
+      enterHub: "ENTER COMMAND CENTER",
+      signOut: "SIGN OUT"
     },
     ru: {
       title: "Синхронизация данных",
@@ -47,7 +48,8 @@ export default function LoginPage() {
       passLabel: "Ключ доступа (Пароль)",
       submitBtn: "УСТАНОВИТЬ СВЯЗЬ",
       welcomeBack: "Сессия авторизована",
-      enterHub: "ВОЙТИ В КОМАНДНЫЙ ЦЕНТР"
+      enterHub: "ВОЙТИ В КОМАНДНЫЙ ЦЕНТР",
+      signOut: "ВЫЙТИ ИЗ АККАУНТА"
     }
   };
 
@@ -98,8 +100,8 @@ export default function LoginPage() {
           </CardFooter>
         </Card>
         <p className="text-center">
-          <button onClick={() => auth.signOut()} className="text-[10px] font-black text-red-400 uppercase tracking-widest hover:underline">
-            {language === 'ru' ? 'ВЫЙТИ ИЗ АККАУНТА' : 'SIGN OUT'}
+          <button onClick={() => signOut(auth)} className="text-[10px] font-black text-red-400 uppercase tracking-widest hover:underline flex items-center justify-center gap-2 mx-auto">
+            <LogOut className="w-3.5 h-3.5" /> {t.signOut}
           </button>
         </p>
       </div>
