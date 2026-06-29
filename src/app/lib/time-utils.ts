@@ -1,7 +1,7 @@
 /**
- * @fileOverview Ядро времени v66 (Infinite Season Engine). 
+ * @fileOverview Ядро времени v67 (Infinite Season Engine). 
  * Глобальная синхронизация цикла (15 дней).
- * Начало времен зафиксировано: 29 июня 2026 года (День 1).
+ * Начало времен: 29 июня 2026 года (День 1).
  */
 
 let syncPoint = {
@@ -10,7 +10,7 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-// Начало времен: 29 июня 2026 00:00 MSK (28.06 21:00 UTC)
+// Начало времен: 29 июня 2026 00:00 MSK
 export const GLOBAL_EPOCH_ISO = '2026-06-28T21:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
@@ -82,20 +82,17 @@ export function getGlobalSeasonInfo() {
     };
   }
 
-  // Номера сезонов скрыты из UI, но важны для ID документов
   const seasonNumber = Math.floor(diffMs / cycleMs) + 1;
   const dayOfCycle = Math.floor((diffMs % cycleMs) / dayMs) + 1;
   
   const isOffseason = dayOfCycle === 15;
-  const activeSeasonNumber = seasonNumber;
 
   return {
     seasonDay: isOffseason ? 0 : dayOfCycle,
     dayOfCycle,
     seasonNumber,
-    activeSeasonNumber,
+    activeSeasonNumber: seasonNumber,
     isOffseason,
-    timeToStartMs: Math.max(0, (new Date(epochUtc.getTime() + seasonNumber * cycleMs)).getTime() - utcNow.getTime()),
     currentSeasonStart: new Date(epochUtc.getTime() + (seasonNumber - 1) * cycleMs),
     nextSeasonStart: new Date(epochUtc.getTime() + seasonNumber * cycleMs)
   };
@@ -104,13 +101,13 @@ export function getGlobalSeasonInfo() {
 export function isMatchOverdue(startTimeIso: string): boolean {
   const utcNow = getMoscowTime();
   const start = new Date(startTimeIso);
-  // Матч считается просроченным через 35 минут после начала
-  return utcNow.getTime() > (start.getTime() + (35 * 60 * 1000));
+  // Просрочен через 45 минут после начала
+  return utcNow.getTime() > (start.getTime() + (45 * 60 * 1000));
 }
 
 export function isMatchLive(startTimeIso: string): boolean {
   const utcNow = getMoscowTime();
   const start = new Date(startTimeIso);
-  const end = new Date(start.getTime() + (35 * 60 * 1000));
+  const end = new Date(start.getTime() + (45 * 60 * 1000));
   return utcNow.getTime() >= start.getTime() && utcNow.getTime() <= end.getTime();
 }

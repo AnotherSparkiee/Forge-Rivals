@@ -37,7 +37,8 @@ export default function Home() {
   const { toast } = useToast();
   const { 
     language, setLanguage, isLoaded, 
-    nextMatch, allSeasonMatches, lastSeenMatchDay, matchHistory
+    nextMatch, allSeasonMatches, lastSeenMatchDay, matchHistory,
+    isDataReady
   } = useGameState();
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -111,7 +112,7 @@ export default function Home() {
           }
         }
       } else {
-        setCountdown('INITIALIZING...');
+        setCountdown('SYNCING...');
       }
     }, 1000);
     return () => clearInterval(timer);
@@ -215,7 +216,7 @@ export default function Home() {
     );
   }
 
-  if (!isLoaded) return <LoadingScreen />;
+  if (!isLoaded || !isDataReady) return <LoadingScreen />;
 
   const tHub = {
     en: { nextMatch: "Next Engagement", offseason: "OFFSEASON BREAK", battleBtn: "MATCH OVERVIEW", navTitle: "Command Terminals", startsIn: "NEXT CYCLE IN:", live: "LIVE: ENGAGEMENT IN PROGRESS", preparing: "PREPARING NEW SEASON" },
@@ -225,7 +226,7 @@ export default function Home() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6 flex flex-col gap-1">
-        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.66</span></div>
+        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.67</span></div>
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
           {seasonInfo.isOffseason ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
           {seasonInfo.isOffseason ? tHub.offseason : 'ACTIVE LEAGUE'}

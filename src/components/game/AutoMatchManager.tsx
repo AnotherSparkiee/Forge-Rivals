@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v66 (FMO Absolute Sync).
- * Агрессивно вписывает игрока в мир, генерирует календарь и симулирует матчи всей группы.
+ * @fileOverview Ядро MMO-синхронизации v67 (FMO Absolute Sync).
+ * Принудительная инициализация мира перед допуском игрока в UI.
  */
 
 import { useEffect, useRef } from 'react';
@@ -36,32 +36,25 @@ export function AutoMatchManager() {
       const currentSeason = Number(info.activeSeasonNumber);
       const lId = String(selectedLeagueId);
       const tier = Number(leagueLevel);
-      const group = Number(groupId);
+      const groupNum = Number(groupId);
       const myRank = Number(rank || 1);
 
       const syncKey = `${userId}_s${currentSeason}_v${SYNC_VERSION}`;
       if (syncInProgressRef.current === syncKey) return;
       syncInProgressRef.current = syncKey;
 
-      const tableId = `s${currentSeason}_l${lId}_t${tier}_g${group}`;
+      const tableId = `s${currentSeason}_l${lId}_t${tier}_g${groupNum}`;
       const tableRef = doc(db, 'league_tables_v1', tableId);
 
-      // Fail-safe: если синхронизация затянется, всё равно разблокируем UI через 5 секунд
-      const failSafeTimer = setTimeout(() => {
-        console.warn("[SYNC v66] Fail-safe triggered. Unlocking UI.");
-        setWorldReady(true);
-      }, 5000);
-
       try {
-        console.log(`[WORLD SYNC v66] Initializing Protocol for ${tableId}`);
+        console.log(`[WORLD SYNC v67] Protocol: ${tableId}`);
 
-        // 1. ПОЛУЧЕНИЕ ИЛИ СОЗДАНИЕ ТАБЛИЦЫ
+        // 1. ПРОВЕРКА ТАБЛИЦЫ
         let tableSnap = await getDoc(tableRef);
         let teamData = [];
 
         if (!tableSnap.exists()) {
-          console.log(`[V66] Table missing. Creating full group skeleton.`);
-          teamData = getStableGroupTeams(tier, group, lId, [{
+          teamData = getStableGroupTeams(tier, groupNum, lId, [{
             id: userId,
             name: displayName || "Manager",
             rank: myRank,
@@ -69,18 +62,16 @@ export function AutoMatchManager() {
           }]);
           
           await setDoc(tableRef, {
-            tableId, season: currentSeason, leagueId: lId, tier, group,
+            tableId, season: currentSeason, leagueId: lId, tier, group: groupNum,
             teamData, stats: {}, createdAt: serverTimestamp(), version: SYNC_VERSION
           });
         } else {
           const data = tableSnap.data();
           teamData = data.teamData || [];
           
-          // Проверяем, вписан ли Я в таблицу на свое место
           const mySlotIndex = myRank - 1;
           const mySlot = teamData[mySlotIndex];
           if (!mySlot || mySlot.id !== userId) {
-            console.log(`[V66] Player missing from slot ${myRank}. Forcing injection.`);
             teamData[mySlotIndex] = {
               id: userId,
               name: displayName || "Manager",
@@ -91,24 +82,23 @@ export function AutoMatchManager() {
           }
         }
 
-        // 2. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ
+        // 2. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ (56 МАТЧЕЙ)
         const matchesQuery = query(collection(db, 'matches_v1'), where('tableId', '==', tableId));
         const matchesSnap = await getDocs(matchesQuery);
 
         if (matchesSnap.empty) {
-          console.log(`[V66] Matches missing. Generating 56-match cycle.`);
           const batch = writeBatch(db);
           const calendar = generateSeasonCalendar(teamData, currentSeason, lId);
           calendar.forEach(m => {
-            const mId = `m_s${currentSeason}_${lId}_t${tier}_g${group}_d${m.day}_h${m.homeId}`;
+            const mId = `m_s${currentSeason}_${lId}_t${tier}_g${groupNum}_d${m.day}_h${m.homeId}`;
             batch.set(doc(db, 'matches_v1', mId), {
-              ...m, tableId, season: currentSeason, leagueId: lId, tier, groupId: String(group),
+              ...m, tableId, season: currentSeason, leagueId: lId, tier, groupId: groupNum,
               status: 'scheduled', isFinished: false, version: SYNC_VERSION
             });
           });
           await batch.commit();
         } else {
-          // Принудительное обновление имен в матчах (если там стоят BOT ID)
+          // Принудительная замена имен ботов на название клуба
           const batch = writeBatch(db);
           let needsUpdate = false;
           matchesSnap.docs.forEach(d => {
@@ -121,17 +111,13 @@ export function AutoMatchManager() {
               batch.update(d.ref, { homeName: correctHome, awayName: correctAway });
             }
           });
-          if (needsUpdate) {
-            console.log(`[V66] Updating match participant names to match table.`);
-            await batch.commit();
-          }
+          if (needsUpdate) await batch.commit();
         }
 
-        // РАЗБЛОКИРОВКА UI
-        clearTimeout(failSafeTimer);
+        // МИР ГОТОВ - РАЗБЛОКИРОВКА UI
         setWorldReady(true);
 
-        // 3. АВТО-РЕЗОЛВЕР (Фоновая симуляция просроченных игр всей группы)
+        // 3. АВТО-РЕЗОЛВЕР (Фоновое разрешение матчей)
         const pendingQuery = query(
           collection(db, 'matches_v1'),
           where('tableId', '==', tableId),
@@ -158,12 +144,11 @@ export function AutoMatchManager() {
                 isBo2: true
               });
             } else {
-              // Детерминированный результат для ботов
               const [sA, sB] = getMatchResult(mData.homeId, mData.awayId, currentSeason, false);
               simulation = { 
                 winner: sA > sB ? mData.homeName : (sB > sA ? mData.awayName : "Ничья"), 
                 seriesScore: `${sA}-${sB}`, 
-                games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 0 ? 1 : 0, duration: "30:00", mvp: "Bot System", matchSummary: "Automatic FMO Resolution." }] 
+                games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 0 ? 1 : 0, duration: "30:00", mvp: "Bot System", matchSummary: "FMO Sync Resolution." }] 
               };
             }
 
@@ -194,8 +179,7 @@ export function AutoMatchManager() {
           }
         }
       } catch (e) {
-        console.error("[V66 SYNC ERROR]", e);
-        clearTimeout(failSafeTimer);
+        console.error("[V67 SYNC ERROR]", e);
         setWorldReady(true);
       }
     };
