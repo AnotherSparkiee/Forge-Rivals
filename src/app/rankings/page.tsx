@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v63. 
+ * @fileOverview Страница рейтингов v64. 
  * Читает общие данные группы из документа league_tables_v1.
  */
 
@@ -43,7 +43,7 @@ export default function RankingsPage() {
   const contextLevel = isMyLeagueTab ? Number(leagueLevel || 1) : Number(navLevel || leagueLevel || 1);
   const contextGroup = isMyLeagueTab ? Number(navGroup || (isMyLeagueTab ? groupId : 1) || 1) : Number(navGroup || 1);
 
-  // v63 Standardized ID format
+  // v64 Standardized ID format
   const tableId = `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
@@ -142,7 +142,7 @@ export default function RankingsPage() {
              <span className="text-[10px] font-mono text-muted-foreground uppercase">LIVE STANDINGS</span>
            </div>
            
-           {isTableLoading || !tableData ? (
+           {(isTableLoading || !tableData) ? (
              <div className="py-20 text-center opacity-50 flex flex-col items-center gap-4">
                <Loader2 className="w-8 h-8 animate-spin text-primary" />
                <p className="text-[10px] uppercase font-black tracking-widest">{t.syncing}</p>
@@ -183,7 +183,7 @@ export default function RankingsPage() {
              </div>
            )}
 
-           {!isTableLoading && standings.length > 0 && (
+           {tableData && standings.length > 0 && (
              <div className="p-4 bg-primary/5 rounded-2xl border border-white/5 space-y-2 mt-4">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-green-500" />
