@@ -1,8 +1,9 @@
+
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v67 (FMO Absolute Sync).
- * Принудительная инициализация мира перед допуском игрока в UI.
+ * @fileOverview Ядро MMO-синхронизации v68 (FMO Absolute Injection).
+ * Принудительная замена Bot IDs в календаре при входе игрока.
  */
 
 import { useEffect, useRef } from 'react';
@@ -15,7 +16,7 @@ import { getGlobalSeasonInfo, isMatchOverdue } from '@/app/lib/time-utils';
 import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/app/lib/leagues-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 
-const SYNC_VERSION = 66; 
+const SYNC_VERSION = 68; 
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
@@ -47,7 +48,7 @@ export function AutoMatchManager() {
       const tableRef = doc(db, 'league_tables_v1', tableId);
 
       try {
-        console.log(`[WORLD SYNC v67] Protocol: ${tableId}`);
+        console.log(`[WORLD SYNC v68] Protocol: ${tableId}`);
 
         // 1. ПРОВЕРКА ТАБЛИЦЫ
         let tableSnap = await getDoc(tableRef);
@@ -98,17 +99,45 @@ export function AutoMatchManager() {
           });
           await batch.commit();
         } else {
-          // Принудительная замена имен ботов на название клуба
+          // ПРИНУДИТЕЛЬНАЯ ИНЪЕКЦИЯ ID И ИМЕНИ ИГРОКА В МАТЧИ
           const batch = writeBatch(db);
           let needsUpdate = false;
+          
+          // Определяем Bot ID, который должен занимать этот слот
+          const leagueIdx = (['ALPHA', 'BETA', 'GAMMA', 'DELTA', 'EPSILON', 'ZETA', 'ETA', 'THETA', 'IOTA', 'KAPPA', 'LAMBDA', 'MU', 'NU', 'XI', 'OMICRON', 'PI'].indexOf(lId) + 1).toString().padStart(2, '0');
+          const botIdForMySlot = `BOT${leagueIdx}${tier}${groupNum.toString().padStart(3, '0')}${myRank}`;
+
           matchesSnap.docs.forEach(d => {
             const m = d.data();
+            let changed = false;
+            
+            // Если в матче стоит ID бота нашего слота — меняем на реальный UID
+            if (m.homeId === botIdForMySlot && m.homeId !== userId) {
+              m.homeId = userId;
+              m.homeName = displayName;
+              changed = true;
+            }
+            if (m.awayId === botIdForMySlot && m.awayId !== userId) {
+              m.awayId = userId;
+              m.awayName = displayName;
+              changed = true;
+            }
+
+            // На всякий случай проверяем имена
             const correctHome = teamData.find(t => t.id === m.homeId)?.name || m.homeName;
             const correctAway = teamData.find(t => t.id === m.awayId)?.name || m.awayName;
             
-            if (m.homeName !== correctHome || m.awayName !== correctAway) {
+            if (m.homeName !== correctHome) { m.homeName = correctHome; changed = true; }
+            if (m.awayName !== correctAway) { m.awayName = correctAway; changed = true; }
+
+            if (changed) {
               needsUpdate = true;
-              batch.update(d.ref, { homeName: correctHome, awayName: correctAway });
+              batch.update(d.ref, { 
+                homeId: m.homeId, 
+                awayId: m.awayId, 
+                homeName: m.homeName, 
+                awayName: m.awayName 
+              });
             }
           });
           if (needsUpdate) await batch.commit();
@@ -179,7 +208,7 @@ export function AutoMatchManager() {
           }
         }
       } catch (e) {
-        console.error("[V67 SYNC ERROR]", e);
+        console.error("[V68 SYNC ERROR]", e);
         setWorldReady(true);
       }
     };

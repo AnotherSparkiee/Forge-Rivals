@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -38,7 +39,7 @@ export default function Home() {
   const { 
     language, setLanguage, isLoaded, 
     nextMatch, allSeasonMatches, lastSeenMatchDay, matchHistory,
-    isDataReady
+    isDataReady, isMatchesLoading
   } = useGameState();
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -112,11 +113,12 @@ export default function Home() {
           }
         }
       } else {
-        setCountdown('SYNCING...');
+        // Fallback info when no match is found
+        setCountdown(isMatchesLoading ? 'SYNCING...' : 'AWAITING DEPLOYMENT');
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [nextMatch]);
+  }, [nextMatch, isMatchesLoading]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,14 +221,14 @@ export default function Home() {
   if (!isLoaded || !isDataReady) return <LoadingScreen />;
 
   const tHub = {
-    en: { nextMatch: "Next Engagement", offseason: "OFFSEASON BREAK", battleBtn: "MATCH OVERVIEW", navTitle: "Command Terminals", startsIn: "NEXT CYCLE IN:", live: "LIVE: ENGAGEMENT IN PROGRESS", preparing: "PREPARING NEW SEASON" },
-    ru: { nextMatch: "Следующий матч", offseason: "ПЕРЕРЫВ", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", startsIn: "НОВЫЙ ЦИКЛ ЧЕРЕЗ:", live: "В ЭФИРЕ: ИДЕТ СРАЖЕНИЕ", preparing: "ПОДГОТОВКА СЕЗОНА" }
+    en: { nextMatch: "Next Engagement", offseason: "OFFSEASON BREAK", battleBtn: "MATCH OVERVIEW", navTitle: "Command Terminals", startsIn: "NEXT CYCLE IN:", live: "LIVE: ENGAGEMENT IN PROGRESS", preparing: "PREPARING NEW SEASON", sync: "SYNCING NODES..." },
+    ru: { nextMatch: "Следующий матч", offseason: "ПЕРЕРЫВ", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", startsIn: "НОВЫЙ ЦИКЛ ЧЕРЕЗ:", live: "В ЭФИРЕ: ИДЕТ СРАЖЕНИЕ", preparing: "ПОДГОТОВКА СЕЗОНА", sync: "СИНХРОНИЗАЦИЯ УЗЛОВ..." }
   }[language as 'en' | 'ru'];
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6 flex flex-col gap-1">
-        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.67</span></div>
+        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.68</span></div>
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
           {seasonInfo.isOffseason ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
           {seasonInfo.isOffseason ? tHub.offseason : 'ACTIVE LEAGUE'}
@@ -252,7 +254,7 @@ export default function Home() {
                   {isMatchActive ? 'ENGAGEMENT PHASE' : 'TIME TO DEPLOYMENT'}
                 </p>
                 <p className={cn("text-xl font-headline font-bold tabular-nums tracking-tighter text-white", isMatchActive && "text-red-500 animate-pulse")}>
-                  {countdown || 'SYNCING...'}
+                  {countdown === 'SYNCING...' ? tHub.sync : (countdown || 'SYNCING...')}
                 </p>
               </div>
             </div>

@@ -1,7 +1,8 @@
+
 'use client';
 
 /**
- * Глобальное хранилище v65 (FMO Absolute Sync).
+ * Глобальное хранилище v68 (FMO Absolute Injection Sync).
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -481,7 +482,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     isDataReady: isWorldReady && state.isLoaded, 
     allSeasonMatches: allMatches, 
     nextMatch: nextMatchInfo, 
-    isMatchesLoading: !isWorldReady,
+    isMatchesLoading: !isWorldReady || allMatches.length === 0,
     addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage,
     setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, 
     addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries,

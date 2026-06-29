@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -16,7 +17,7 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-const SETUP_VERSION = 66;
+const SETUP_VERSION = 68;
 
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
@@ -129,7 +130,7 @@ export default function SetupPage() {
       setTimeout(() => router.replace('/'), 500);
 
     } catch (e: any) {
-      console.error("[SETUP v66 ERROR]", e);
+      console.error("[SETUP v68 ERROR]", e);
       toast({ variant: "destructive", title: "Setup Failed", description: e.message });
     } finally {
       setIsUpdating(false);
@@ -151,7 +152,7 @@ export default function SetupPage() {
           <h1 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter">
             {step === 'league' ? (language === 'ru' ? 'ВЫБЕРИТЕ ВРЕМЯ МАТЧЕЙ' : 'SELECT MATCH TIME') : (language === 'ru' ? 'ВЫБЕРИТЕ ФЛАГ КЛУБА' : 'CHOOSE CLUB FLAG')}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-2">Operational Protocol v66</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-2">Operational Protocol v68</p>
         </header>
         
         <div className="flex-1">
