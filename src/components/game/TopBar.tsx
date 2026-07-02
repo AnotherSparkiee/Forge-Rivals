@@ -11,13 +11,13 @@ import { COUNTRIES } from '@/app/lib/countries-data';
 import Link from 'next/link';
 
 /**
- * Верхняя панель v27.
- * Добавлен индикатор Online-синхронизации.
+ * Верхняя панель v28.
+ * Добавлена поддержка логотипов клубов.
  */
 export function TopBar() {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
-  const { credits, crystals, isSyncing, language, isPremium } = useGameState();
+  const { credits, crystals, isSyncing, language, isPremium, clubLogo } = useGameState();
   const db = useFirestore();
 
   const userRef = useMemoFirebase(() => (isUserLoading || !user) ? null : doc(db, 'players_v10', user.uid), [db, user, isUserLoading]);
@@ -85,6 +85,13 @@ export function TopBar() {
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-[10px]" role="img" aria-label="flag">{userCountry?.flag || '🏳️'}</span>
+            
+            {clubLogo && (
+              <div className="w-5 h-5 rounded-full bg-secondary border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                <img src={clubLogo} alt="Club" className="w-full h-full object-contain p-0.5" />
+              </div>
+            )}
+
             <div className="flex items-center gap-1 min-w-0">
               <div className={cn(
                 "relative inline-flex items-center min-w-0 max-w-[160px]",

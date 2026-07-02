@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v65 (FMO Absolute Protocol). 
- * Читает общие данные группы из документа league_tables_v1 с повышенной отказоустойчивостью.
+ * @fileOverview Страница рейтингов v66 (Club Identity Protocol). 
+ * Читает общие данные группы и отображает логотипы клубов.
  */
 
 import { useState, useMemo } from 'react';
@@ -11,7 +11,7 @@ import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
   Shield, Globe, Layers, Medal, Loader2,
-  User, Bot
+  User, Bot, Target
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -43,7 +43,6 @@ export default function RankingsPage() {
   const contextLevel = isMyLeagueTab ? Number(leagueLevel || 1) : Number(navLevel || leagueLevel || 1);
   const contextGroup = isMyLeagueTab ? Number(navGroup || (isMyLeagueTab ? groupId : 1) || 1) : Number(navGroup || 1);
 
-  // v65 Standardized ID format
   const tableId = `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
   const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
@@ -168,8 +167,16 @@ export default function RankingsPage() {
                     isRelegation && "border-l-4 border-l-red-500"
                   )}>
                     <div className="text-[10px] font-black italic text-muted-foreground">{pos}</div>
-                    <div className="truncate flex items-center gap-1.5">
-                      {entry.isBot ? <Bot className="w-3 h-3 opacity-30 shrink-0" /> : <User className="w-3 h-3 text-primary shrink-0" />}
+                    <div className="truncate flex items-center gap-1.5 min-w-0">
+                      <div className="w-4 h-4 rounded-full overflow-hidden flex items-center justify-center bg-secondary shrink-0 border border-white/5">
+                         {entry.logo ? (
+                           <img src={entry.logo} alt="Club" className="w-full h-full object-contain p-0.5" />
+                         ) : entry.isBot ? (
+                           <Bot className="w-2.5 h-2.5 opacity-30" />
+                         ) : (
+                           <User className="w-2.5 h-2.5 text-primary" />
+                         )}
+                      </div>
                       <span className={cn("text-[10px] font-bold uppercase truncate", isMe ? "text-primary font-black" : "text-white")}>
                         {entry.name}
                       </span>

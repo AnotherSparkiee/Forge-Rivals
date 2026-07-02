@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -9,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LEAGUES } from '@/app/lib/leagues-data';
 import { COUNTRIES } from '@/app/lib/countries-data';
-import { Loader2, ChevronLeft } from 'lucide-react';
+import { Loader2, ChevronLeft, ShieldCheck, Trophy, Target } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useGameState } from '@/app/lib/store';
@@ -17,7 +16,12 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-const SETUP_VERSION = 68;
+const SETUP_VERSION = 72;
+
+const CLUBS = [
+  { id: 'parivision', name: 'Parivision', logo: 'https://iili.io/CYIAgVa.webp' },
+  { id: 'none', name: 'No Official Club', logo: '' },
+];
 
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
@@ -26,9 +30,10 @@ export default function SetupPage() {
   const { toast } = useToast();
   const { language, isLoaded, displayName } = useGameState();
   
-  const [step, setStep] = useState<'league' | 'country'>('league');
+  const [step, setStep] = useState<'league' | 'country' | 'club'>('league');
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
+  const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
@@ -44,7 +49,7 @@ export default function SetupPage() {
     const occupiedIndices = new Set<number>();
     snap.forEach(d => {
       const data = d.data();
-      if (Number(data.version || 0) === SETUP_VERSION) {
+      if (Number(data.version || 0) >= 71) {
         const tier = Number(data.leagueLevel);
         const group = Number(data.groupId);
         const rank = Number(data.rank);
@@ -74,11 +79,12 @@ export default function SetupPage() {
   };
 
   const handleCompleteSetup = async () => {
-    if (!user || !selectedLeagueId || !selectedCountryCode) return;
+    if (!user || !selectedLeagueId || !selectedCountryCode || !selectedClubId) return;
     setIsUpdating(true);
     try {
       const placement = await findPlacementClient(selectedLeagueId);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
+      const selectedClub = CLUBS.find(c => c.id === selectedClubId);
       const uniqueSquad = getRandomStartingSquad();
       const { activeSeasonNumber } = getGlobalSeasonInfo();
       const nowIso = new Date().toISOString();
@@ -92,6 +98,8 @@ export default function SetupPage() {
         groupId: Number(placement.group),
         rank: Number(placement.rank),
         country: selectedCountry?.name || 'International',
+        clubName: selectedClub?.name || null,
+        clubLogo: selectedClub?.logo || null,
         setupDate: nowIso,
         lastProcessedSeason: Number(activeSeasonNumber || 1),
         version: SETUP_VERSION
@@ -104,6 +112,8 @@ export default function SetupPage() {
       batch.set(teamRef, {
         id: user.uid,
         displayName: displayName || "Manager",
+        clubName: selectedClub?.name || null,
+        clubLogo: selectedClub?.logo || null,
         credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
         managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
         arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
@@ -130,7 +140,7 @@ export default function SetupPage() {
       setTimeout(() => router.replace('/'), 500);
 
     } catch (e: any) {
-      console.error("[SETUP v68 ERROR]", e);
+      console.error("[SETUP v72 ERROR]", e);
       toast({ variant: "destructive", title: "Setup Failed", description: e.message });
     } finally {
       setIsUpdating(false);
@@ -139,24 +149,45 @@ export default function SetupPage() {
 
   if (isUserLoading || !user || !isLoaded) return <LoadingScreen />;
 
+  const t = {
+    ru: {
+      league: 'ВЫБЕРИТЕ ВРЕМЯ МАТЧЕЙ',
+      country: 'ВЫБЕРИТЕ ФЛАГ КЛУБА',
+      club: 'ВЫБОР КЛУБА',
+      continue: 'ПРОДОЛЖИТЬ',
+      finalize: 'ЗАВЕРШИТЬ ПРОФИЛЬ',
+      protocol: 'Операционный протокол v72',
+      msk: 'ВРЕМЯ МСК'
+    },
+    en: {
+      league: 'SELECT MATCH TIME',
+      country: 'CHOOSE CLUB FLAG',
+      club: 'CLUB SELECTION',
+      continue: 'CONTINUE',
+      finalize: 'FINALIZE PROFILE',
+      protocol: 'Operational Protocol v72',
+      msk: 'MSK TIME'
+    }
+  }[language === 'ru' ? 'ru' : 'en'];
+
   return (
     <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
       <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)]" />
       <div className="relative z-10 w-full max-w-md mx-auto px-4 flex flex-col min-h-screen py-12">
-        <header className="text-center mb-12">
-          {step === 'country' && (
-            <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => setStep('league')}>
+        <header className="text-center mb-12 relative">
+          {step !== 'league' && (
+            <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => setStep(step === 'country' ? 'league' : 'country')}>
               <ChevronLeft className="w-6 h-6" />
             </Button>
           )}
           <h1 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter">
-            {step === 'league' ? (language === 'ru' ? 'ВЫБЕРИТЕ ВРЕМЯ МАТЧЕЙ' : 'SELECT MATCH TIME') : (language === 'ru' ? 'ВЫБЕРИТЕ ФЛАГ КЛУБА' : 'CHOOSE CLUB FLAG')}
+            {step === 'league' ? t.league : step === 'country' ? t.country : t.club}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-2">Operational Protocol v68</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-2">{t.protocol}</p>
         </header>
         
         <div className="flex-1">
-          {step === 'league' ? (
+          {step === 'league' && (
             <div className="grid grid-cols-2 gap-3">
               {LEAGUES.map((l) => (
                 <Card 
@@ -166,13 +197,15 @@ export default function SetupPage() {
                 >
                   <CardContent className="p-4 text-center">
                     <span className="text-xl font-headline font-bold text-white">{l.startTime}</span>
-                    <p className="text-[7px] text-muted-foreground uppercase mt-1">MSK TIME</p>
+                    <p className="text-[7px] text-muted-foreground uppercase mt-1">{t.msk}</p>
                   </CardContent>
                 </Card>
               ))}
             </div>
-          ) : (
-            <div className="grid grid-cols-3 gap-3">
+          )}
+
+          {step === 'country' && (
+            <div className="grid grid-cols-3 gap-3 h-[60vh] overflow-y-auto scrollbar-hide">
               {COUNTRIES.map((c) => (
                 <Card 
                   key={c.code} 
@@ -187,11 +220,45 @@ export default function SetupPage() {
               ))}
             </div>
           )}
+
+          {step === 'club' && (
+            <div className="space-y-3">
+              {CLUBS.map((c) => (
+                <Card 
+                  key={c.id} 
+                  className={cn(
+                    "glass-card border-white/5 cursor-pointer transition-all overflow-hidden group", 
+                    selectedClubId === c.id ? "ring-2 ring-primary bg-primary/5 shadow-[0_0_20px_rgba(var(--primary),0.2)]" : "hover:bg-white/5"
+                  )} 
+                  onClick={() => setSelectedClubId(c.id)}
+                >
+                  <CardContent className="p-5 flex items-center gap-6">
+                    <div className="w-16 h-16 rounded-xl bg-secondary/50 flex items-center justify-center border border-white/10 shrink-0 group-hover:scale-105 transition-transform overflow-hidden shadow-xl">
+                      {c.logo ? (
+                        <img src={c.logo} alt={c.name} className="w-full h-full object-contain p-2" />
+                      ) : (
+                        <Target className="w-8 h-8 text-muted-foreground opacity-30" />
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-headline font-bold text-white uppercase italic">{c.name}</h3>
+                      <p className="text-[8px] text-muted-foreground uppercase tracking-widest font-black opacity-50">Operational Identity</p>
+                    </div>
+                    {selectedClubId === c.id && <ShieldCheck className="ml-auto w-6 h-6 text-primary animate-pulse" />}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
         
         <footer className="mt-12">
-          <Button disabled={isUpdating || (step === 'league' && !selectedLeagueId) || (step === 'country' && !selectedCountryCode)} onClick={step === 'league' ? () => setStep('country') : handleCompleteSetup} className="w-full h-16 hero-gradient font-black text-xs tracking-widest uppercase shadow-xl">
-            {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'league' ? 'CONTINUE' : 'FINALIZE PROFILE')}
+          <Button 
+            disabled={isUpdating || (step === 'league' && !selectedLeagueId) || (step === 'country' && !selectedCountryCode) || (step === 'club' && !selectedClubId)} 
+            onClick={step === 'league' ? () => setStep('country') : step === 'country' ? () => setStep('club') : handleCompleteSetup} 
+            className="w-full h-16 hero-gradient font-black text-xs tracking-widest uppercase shadow-xl"
+          >
+            {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'club' ? t.finalize : t.continue)}
           </Button>
         </footer>
       </div>

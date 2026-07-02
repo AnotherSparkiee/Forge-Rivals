@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v71 (FMO Absolute Injection Sync).
- * Принудительная инъекция имен и ID в общие структуры лиги.
+ * @fileOverview Ядро MMO-синхронизации v72 (Club Identity Injection).
+ * Принудительная инъекция имен, ID и логотипов клубов в общие структуры.
  */
 
 import { useEffect, useRef } from 'react';
@@ -15,13 +15,13 @@ import { getGlobalSeasonInfo, isMatchOverdue } from '@/app/lib/time-utils';
 import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/app/lib/leagues-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 
-const SYNC_VERSION = 71; 
+const SYNC_VERSION = 72; 
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
   const { 
     isLoaded, id: userId, displayName, selectedLeagueId, 
-    leagueLevel, groupId, setWorldReady, rank,
+    leagueLevel, groupId, setWorldReady, rank, clubLogo,
     ownedPlayers, lineup, strategy, staff, bootcamp
   } = useGameState();
   const db = useFirestore();
@@ -48,7 +48,7 @@ export function AutoMatchManager() {
       const tableRef = doc(db, 'league_tables_v1', tableId);
 
       try {
-        console.log(`[WORLD SYNC v71] Initiating protocol for: ${tableId}`);
+        console.log(`[WORLD SYNC v72] Initiating protocol for: ${tableId}`);
 
         // 1. АВТОМАТИЧЕСКАЯ ИНИЦИАЛИЗАЦИЯ ТАБЛИЦЫ
         let tableSnap = await getDoc(tableRef);
@@ -59,6 +59,7 @@ export function AutoMatchManager() {
             id: userId,
             name: displayName || "Manager",
             rank: myRank,
+            logo: clubLogo || null,
             isBot: false
           }]);
           
@@ -72,23 +73,26 @@ export function AutoMatchManager() {
           
           const mySlotIndex = myRank - 1;
           const mySlot = teamData[mySlotIndex];
-          if (!mySlot || mySlot.id !== userId) {
+          
+          // Проверяем актуальность данных игрока в таблице (имя и ЛОГО)
+          if (!mySlot || mySlot.id !== userId || mySlot.logo !== clubLogo || mySlot.name !== displayName) {
             teamData[mySlotIndex] = {
               id: userId,
               name: displayName || "Manager",
               rank: myRank,
+              logo: clubLogo || null,
               isBot: false
             };
             await updateDoc(tableRef, { teamData, updatedAt: serverTimestamp() });
           }
         }
 
-        // 2. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ (56 МАТЧЕЙ) С ПРИНУДИТЕЛЬНОЙ ИНЪЕКЦИЕЙ
+        // 2. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ
         const matchesQuery = query(collection(db, 'matches_v1'), where('tableId', '==', tableId));
         const matchesSnap = await getDocs(matchesQuery);
 
         if (matchesSnap.empty) {
-          console.log(`[SYNC v71] Generating new calendar for group...`);
+          console.log(`[SYNC v72] Generating new calendar for group...`);
           const batch = writeBatch(db);
           const calendar = generateSeasonCalendar(teamData, currentSeason, lId);
           calendar.forEach(m => {
@@ -110,7 +114,6 @@ export function AutoMatchManager() {
             const m = d.data();
             let changed = false;
             
-            // Если в матче стоит ID бота нашего слота — меняем на реальный UID
             if (m.homeId === botIdForMySlot && m.homeId !== userId) {
               m.homeId = userId; m.homeName = displayName; changed = true;
             }
@@ -118,7 +121,6 @@ export function AutoMatchManager() {
               m.awayId = userId; m.awayName = displayName; changed = true;
             }
 
-            // На всякий случай проверяем и обновляем имена из актуальной таблицы
             const correctHome = teamData.find(t => t.id === m.homeId)?.name || m.homeName;
             const correctAway = teamData.find(t => t.id === m.awayId)?.name || m.awayName;
             
@@ -198,13 +200,13 @@ export function AutoMatchManager() {
           }
         }
       } catch (e) {
-        console.error("[V71 SYNC ERROR]", e);
+        console.error("[V72 SYNC ERROR]", e);
         setWorldReady(true);
       }
     };
 
     syncSharedWorld();
-  }, [isLoaded, userId, displayName, selectedLeagueId, leagueLevel, groupId, rank, ownedPlayers, lineup, strategy, staff, bootcamp, db, isUserLoading, user, setWorldReady]);
+  }, [isLoaded, userId, displayName, selectedLeagueId, leagueLevel, groupId, rank, clubLogo, ownedPlayers, lineup, strategy, staff, bootcamp, db, isUserLoading, user, setWorldReady]);
 
   return null;
 }

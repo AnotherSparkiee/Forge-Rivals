@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Глобальное хранилище v71 (FMO Absolute Injection Sync).
+ * Глобальное хранилище v72 (Club Identity Sync).
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -18,6 +18,7 @@ interface GameState {
   credits: number; crystals: number; experiencePoints: number; managerLevel: number;
   leagueLevel: number; groupId: number; selectedLeagueId: string | null;
   displayName: string; id: string; isLoaded: boolean;
+  clubName: string | null; clubLogo: string | null;
   lineup: Record<LineupSlot, string | null>;
   ownedPlayers: Player[]; youthAcademyPlayers: Player[];
   scoutingCandidates: Player[]; lastScoutDate: string | null;
@@ -81,6 +82,7 @@ const DEFAULT_STATE: GameState = {
   credits: 0, crystals: 0, experiencePoints: 0, managerLevel: 1,
   leagueLevel: 9, groupId: 1, selectedLeagueId: null,
   displayName: 'Manager', id: '', isLoaded: false, 
+  clubName: null, clubLogo: null,
   lineup: { carry: null, mid: null, offlane: null, support: null, full_support: null, sub1: null, sub2: null, res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null },
   ownedPlayers: [], youthAcademyPlayers: [], scoutingCandidates: [], lastScoutDate: null,
   staff: { coach: null, analyst: null, scout: null, doctor: null, financier: null },
@@ -131,6 +133,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         ...s, id: user.uid, displayName: data.displayName || "Manager",
         selectedLeagueId: data.selectedLeagueId || null, leagueLevel: Number(data.leagueLevel || 9),
         groupId: Number(data.groupId || 1), country: data.country || null,
+        clubName: data.clubName || null, clubLogo: data.clubLogo || null,
         lastSeenMatchDay: Number(data.lastSeenMatchDay || 0),
         activeSeasonNumber: Number(info.activeSeasonNumber),
         seasonNumber: Number(info.seasonNumber), seasonDay: Number(info.seasonDay),
@@ -353,6 +356,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         groupId: null,
         rank: null,
         country: null,
+        clubName: null,
+        clubLogo: null,
         setupDate: null,
         version: 0 
       });
@@ -498,3 +503,4 @@ export function useGameState() {
   if (context === undefined) throw new Error('useGameState must be used within a GameStateProvider');
   return context;
 }
+
