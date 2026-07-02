@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Глобальное хранилище v72 (Club Identity Sync).
+ * Глобальное хранилище v76 (Club Identity Sync).
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -311,8 +311,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const updateProfileName = useCallback((name: string) => {
     const r = getRefs(); if (!r) return;
-    updateDoc(r.root, { displayName: name });
-    setDoc(r.team, { displayName: name }, { merge: true });
+    updateDoc(r.root, { clubName: name });
+    setDoc(r.team, { clubName: name }, { merge: true });
   }, [getRefs]);
 
   const updateProfileCountry = useCallback((country: string) => {
@@ -503,4 +503,3 @@ export function useGameState() {
   if (context === undefined) throw new Error('useGameState must be used within a GameStateProvider');
   return context;
 }
-

@@ -1,9 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v74 (Club Identity Injection).
- * Принудительная инъекция имен, ID и логотипов клубов в общие структуры.
- * Добавлена задержка инициализации для предотвращения ошибок доступа.
+ * @fileOverview Ядро MMO-синхронизации v76 (Club Identity Injection).
+ * Принудительная инъекция пользовательского названия клуба и логотипа.
  */
 
 import { useEffect, useRef } from 'react';
@@ -16,13 +15,13 @@ import { getGlobalSeasonInfo, isMatchOverdue } from '@/app/lib/time-utils';
 import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/app/lib/leagues-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 
-const SYNC_VERSION = 74; 
+const SYNC_VERSION = 76; 
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
   const { 
     isLoaded, id: userId, displayName, selectedLeagueId, 
-    leagueLevel, groupId, setWorldReady, rank, clubLogo,
+    leagueLevel, groupId, setWorldReady, rank, clubLogo, clubName,
     ownedPlayers, lineup, strategy, staff, bootcamp
   } = useGameState();
   const db = useFirestore();
@@ -33,7 +32,7 @@ export function AutoMatchManager() {
     if (isUserLoading || !user?.uid || !isLoaded || !selectedLeagueId) return;
 
     const syncSharedWorld = async () => {
-      // Небольшая задержка, чтобы убедиться, что сессия Firebase полностью активна
+      // Небольшая задержка для стабильности сессии
       await new Promise(resolve => setTimeout(resolve, 500));
 
       const info = getGlobalSeasonInfo();
@@ -52,16 +51,18 @@ export function AutoMatchManager() {
       const tableRef = doc(db, 'league_tables_v1', tableId);
 
       try {
-        console.log(`[WORLD SYNC v74] Initiating protocol for: ${tableId}`);
+        console.log(`[WORLD SYNC v76] Initiating protocol for: ${tableId}`);
 
         // 1. АВТОМАТИЧЕСКАЯ ИНИЦИАЛИЗАЦИЯ ТАБЛИЦЫ
         let tableSnap = await getDoc(tableRef);
         let teamData = [];
 
+        const currentClubName = clubName || displayName || "Manager";
+
         if (!tableSnap.exists()) {
           teamData = getStableGroupTeams(tier, groupNum, lId, [{
             id: userId,
-            name: displayName || "Manager",
+            name: currentClubName,
             rank: myRank,
             logo: clubLogo || null,
             isBot: false
@@ -78,10 +79,10 @@ export function AutoMatchManager() {
           const mySlotIndex = myRank - 1;
           const mySlot = teamData[mySlotIndex];
           
-          if (!mySlot || mySlot.id !== userId || mySlot.logo !== clubLogo || mySlot.name !== displayName) {
+          if (!mySlot || mySlot.id !== userId || mySlot.logo !== clubLogo || mySlot.name !== currentClubName) {
             teamData[mySlotIndex] = {
               id: userId,
-              name: displayName || "Manager",
+              name: currentClubName,
               rank: myRank,
               logo: clubLogo || null,
               isBot: false
@@ -95,7 +96,7 @@ export function AutoMatchManager() {
         const matchesSnap = await getDocs(matchesQuery);
 
         if (matchesSnap.empty) {
-          console.log(`[SYNC v74] Generating new calendar for group...`);
+          console.log(`[SYNC v76] Generating new calendar for group...`);
           const batch = writeBatch(db);
           const calendar = generateSeasonCalendar(teamData, currentSeason, lId);
           calendar.forEach(m => {
@@ -118,10 +119,10 @@ export function AutoMatchManager() {
             let changed = false;
             
             if (m.homeId === botIdForMySlot && m.homeId !== userId) {
-              m.homeId = userId; m.homeName = displayName; changed = true;
+              m.homeId = userId; m.homeName = currentClubName; changed = true;
             }
             if (m.awayId === botIdForMySlot && m.awayId !== userId) {
-              m.awayId = userId; m.awayName = displayName; changed = true;
+              m.awayId = userId; m.awayName = currentClubName; changed = true;
             }
 
             const correctHome = teamData.find(t => t.id === m.homeId)?.name || m.homeName;
@@ -162,8 +163,8 @@ export function AutoMatchManager() {
               }));
 
               simulation = await simulateMobaMatch({
-                teamA: isMeHome ? { name: displayName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.homeName, strategy: "Balanced Play", heroes: [] },
-                teamB: isMeAway ? { name: displayName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.awayName, strategy: "Balanced Play", heroes: [] },
+                teamA: isMeHome ? { name: currentClubName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.homeName, strategy: "Balanced Play", heroes: [] },
+                teamB: isMeAway ? { name: currentClubName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.awayName, strategy: "Balanced Play", heroes: [] },
                 isBo2: true
               });
             } else {
@@ -202,13 +203,13 @@ export function AutoMatchManager() {
           }
         }
       } catch (e) {
-        console.error("[V74 SYNC ERROR]", e);
+        console.error("[V76 SYNC ERROR]", e);
         setWorldReady(true);
       }
     };
 
     syncSharedWorld();
-  }, [isLoaded, userId, displayName, selectedLeagueId, leagueLevel, groupId, rank, clubLogo, ownedPlayers, lineup, strategy, staff, bootcamp, db, isUserLoading, user, setWorldReady]);
+  }, [isLoaded, userId, displayName, selectedLeagueId, leagueLevel, groupId, rank, clubLogo, clubName, ownedPlayers, lineup, strategy, staff, bootcamp, db, isUserLoading, user, setWorldReady]);
 
   return null;
 }

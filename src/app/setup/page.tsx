@@ -6,9 +6,11 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, writeBatch, collection, query, where, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { LEAGUES } from '@/app/lib/leagues-data';
 import { COUNTRIES } from '@/app/lib/countries-data';
-import { Loader2, ChevronLeft, ShieldCheck, Trophy, Target, Shield } from 'lucide-react';
+import { Loader2, ChevronLeft, ShieldCheck, Trophy, Target, Shield, Edit3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useGameState } from '@/app/lib/store';
@@ -16,7 +18,7 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-const SETUP_VERSION = 74;
+const SETUP_VERSION = 76;
 
 const CLUBS = [
   { id: 'parivision', name: 'Parivision', logo: 'https://iili.io/CYIAgVa.webp' },
@@ -36,10 +38,11 @@ export default function SetupPage() {
   const { toast } = useToast();
   const { language, isLoaded, displayName } = useGameState();
   
-  const [step, setStep] = useState<'league' | 'country' | 'club'>('league');
+  const [step, setStep] = useState<'league' | 'country' | 'club' | 'name'>('league');
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
+  const [customClubName, setCustomClubName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
@@ -47,6 +50,13 @@ export default function SetupPage() {
       router.replace('/');
     }
   }, [user, isUserLoading, router]);
+
+  // Pre-fill custom name from display name (which might be TG name)
+  useEffect(() => {
+    if (displayName && !customClubName) {
+      setCustomClubName(displayName);
+    }
+  }, [displayName]);
 
   const findPlacementClient = async (leagueId: string) => {
     const q = query(collection(db, 'players_v10'), where('selectedLeagueId', '==', leagueId));
@@ -85,7 +95,7 @@ export default function SetupPage() {
   };
 
   const handleCompleteSetup = async () => {
-    if (!user || !selectedLeagueId || !selectedCountryCode || !selectedClubId) return;
+    if (!user || !selectedLeagueId || !selectedCountryCode || !selectedClubId || customClubName.trim().length < 3) return;
     setIsUpdating(true);
     try {
       const placement = await findPlacementClient(selectedLeagueId);
@@ -104,7 +114,7 @@ export default function SetupPage() {
         groupId: Number(placement.group),
         rank: Number(placement.rank),
         country: selectedCountry?.name || 'International',
-        clubName: selectedClub?.name || null,
+        clubName: customClubName.trim(),
         clubLogo: selectedClub?.logo || null,
         setupDate: nowIso,
         lastProcessedSeason: Number(activeSeasonNumber || 1),
@@ -118,7 +128,7 @@ export default function SetupPage() {
       batch.set(teamRef, {
         id: user.uid,
         displayName: displayName || "Manager",
-        clubName: selectedClub?.name || null,
+        clubName: customClubName.trim(),
         clubLogo: selectedClub?.logo || null,
         credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
         managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
@@ -146,7 +156,7 @@ export default function SetupPage() {
       setTimeout(() => router.replace('/'), 500);
 
     } catch (e: any) {
-      console.error("[SETUP v74 ERROR]", e);
+      console.error("[SETUP v76 ERROR]", e);
       toast({ variant: "destructive", title: "Setup Failed", description: e.message });
     } finally {
       setIsUpdating(false);
@@ -160,19 +170,25 @@ export default function SetupPage() {
       league: 'ВРЕМЯ МАТЧЕЙ',
       country: 'ФЛАГ КЛУБА',
       club: 'ВЫБОР КЛУБА',
+      name: 'НАЗВАНИЕ КЛУБА',
       continue: 'ПРОДОЛЖИТЬ',
       finalize: 'ЗАВЕРШИТЬ ПРОФИЛЬ',
-      protocol: 'Операционный протокол v74',
-      msk: 'МСК'
+      protocol: 'Операционный протокол v76',
+      msk: 'МСК',
+      namePlaceholder: 'Введите название клуба...',
+      nameDesc: 'Это имя будет отображаться в чатах и таблицах.'
     },
     en: {
       league: 'MATCH TIME',
       country: 'CLUB FLAG',
       club: 'CLUB CHOICE',
+      name: 'CLUB NAME',
       continue: 'CONTINUE',
       finalize: 'FINALIZE PROFILE',
-      protocol: 'Operational Protocol v74',
-      msk: 'MSK'
+      protocol: 'Operational Protocol v76',
+      msk: 'MSK',
+      namePlaceholder: 'Enter club name...',
+      nameDesc: 'This name will be visible in chats and rankings.'
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
@@ -182,12 +198,16 @@ export default function SetupPage() {
       <div className="relative z-10 w-full max-w-md mx-auto px-4 flex flex-col py-12">
         <header className="text-center mb-10 relative">
           {step !== 'league' && (
-            <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => setStep(step === 'country' ? 'league' : 'country')}>
+            <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => {
+              if (step === 'country') setStep('league');
+              if (step === 'club') setStep('country');
+              if (step === 'name') setStep('club');
+            }}>
               <ChevronLeft className="w-6 h-6" />
             </Button>
           )}
           <h1 className="text-2xl font-headline font-bold text-white uppercase tracking-tighter">
-            {step === 'league' ? t.league : step === 'country' ? t.country : t.club}
+            {step === 'league' ? t.league : step === 'country' ? t.country : step === 'club' ? t.club : t.name}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1 opacity-60">{t.protocol}</p>
         </header>
@@ -258,16 +278,59 @@ export default function SetupPage() {
               ))}
             </div>
           )}
+
+          {step === 'name' && (
+            <div className="space-y-6 animate-in fade-in duration-500">
+               <Card className="glass-card border-primary/20 bg-primary/5 p-6">
+                 <div className="space-y-4">
+                   <div className="space-y-2">
+                     <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">{t.name}</Label>
+                     <div className="relative">
+                       <Edit3 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
+                       <Input 
+                        value={customClubName} 
+                        onChange={(e) => setCustomClubName(e.target.value)} 
+                        placeholder={t.namePlaceholder}
+                        className="pl-12 h-14 bg-background/50 border-white/10 text-lg font-bold"
+                       />
+                     </div>
+                     <p className="text-[9px] text-muted-foreground italic px-1">{t.nameDesc}</p>
+                   </div>
+                 </div>
+               </Card>
+
+               <div className="flex items-center gap-4 p-4 bg-accent/5 rounded-2xl border border-accent/20">
+                  <div className="w-12 h-12 bg-secondary/50 rounded-xl flex items-center justify-center border border-white/5 shrink-0 overflow-hidden p-2">
+                    {selectedClubId && <img src={CLUBS.find(c => c.id === selectedClubId)?.logo} alt="" className="w-full h-full object-contain" />}
+                  </div>
+                  <div>
+                    <p className="text-[8px] font-black text-accent uppercase tracking-widest leading-none mb-1">Visual Identity</p>
+                    <p className="text-sm font-headline font-bold text-white uppercase truncate">{customClubName || '—'}</p>
+                  </div>
+               </div>
+            </div>
+          )}
         </div>
         
         <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-white/10 z-50">
           <div className="max-w-md mx-auto">
             <Button 
-              disabled={isUpdating || (step === 'league' && !selectedLeagueId) || (step === 'country' && !selectedCountryCode) || (step === 'club' && !selectedClubId)} 
-              onClick={step === 'league' ? () => setStep('country') : step === 'country' ? () => setStep('club') : handleCompleteSetup} 
+              disabled={
+                isUpdating || 
+                (step === 'league' && !selectedLeagueId) || 
+                (step === 'country' && !selectedCountryCode) || 
+                (step === 'club' && !selectedClubId) ||
+                (step === 'name' && customClubName.trim().length < 3)
+              } 
+              onClick={() => {
+                if (step === 'league') setStep('country');
+                else if (step === 'country') setStep('club');
+                else if (step === 'club') setStep('name');
+                else handleCompleteSetup();
+              }} 
               className="w-full h-16 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-0.98 transition-all"
             >
-              {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'club' ? t.finalize : t.continue)}
+              {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'name' ? t.finalize : t.continue)}
             </Button>
           </div>
         </footer>
