@@ -22,6 +22,10 @@ const CLUBS = [
   { id: 'parivision', name: 'Parivision', logo: 'https://iili.io/CYIAgVa.webp' },
   { id: 'falcons', name: 'Falcons', logo: 'https://iili.io/CYTjsIe.webp' },
   { id: 'spirit', name: 'Team Spirit', logo: 'https://iili.io/CYTefEb.webp' },
+  { id: 'aurora', name: 'Aurora Gaming', logo: 'https://iili.io/CYuhmu9.webp' },
+  { id: 'betboom', name: 'BetBoom Team', logo: 'https://iili.io/CYuNrj1.webp' },
+  { id: 'yandex', name: 'Team Yandex', logo: 'https://iili.io/CYukyZP.webp' },
+  { id: 'liquid', name: 'Team Liquid', logo: 'https://i.postimg.cc/8C5P8V2Z/liquid.png' },
   { id: 'none', name: 'No Official Club', logo: '' },
 ];
 
@@ -268,7 +272,7 @@ export default function SetupPage() {
             <Button 
               disabled={isUpdating || (step === 'league' && !selectedLeagueId) || (step === 'country' && !selectedCountryCode) || (step === 'club' && !selectedClubId)} 
               onClick={step === 'league' ? () => setStep('country') : step === 'country' ? () => setStep('club') : handleCompleteSetup} 
-              className="w-full h-16 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-[0.98] transition-all"
+              className="w-full h-16 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-0.98 transition-all"
             >
               {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'club' ? t.finalize : t.continue)}
             </Button>
