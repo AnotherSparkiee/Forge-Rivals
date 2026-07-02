@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LEAGUES } from '@/app/lib/leagues-data';
 import { COUNTRIES } from '@/app/lib/countries-data';
-import { Loader2, ChevronLeft, ShieldCheck, Trophy, Target } from 'lucide-react';
+import { Loader2, ChevronLeft, ShieldCheck, Trophy, Target, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useGameState } from '@/app/lib/store';
@@ -16,10 +16,12 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-const SETUP_VERSION = 72;
+const SETUP_VERSION = 73;
 
 const CLUBS = [
   { id: 'parivision', name: 'Parivision', logo: 'https://iili.io/CYIAgVa.webp' },
+  { id: 'falcons', name: 'Falcons', logo: 'https://iili.io/CYTjsIe.webp' },
+  { id: 'spirit', name: 'Team Spirit', logo: 'https://iili.io/CYTefEb.webp' },
   { id: 'none', name: 'No Official Club', logo: '' },
 ];
 
@@ -140,7 +142,7 @@ export default function SetupPage() {
       setTimeout(() => router.replace('/'), 500);
 
     } catch (e: any) {
-      console.error("[SETUP v72 ERROR]", e);
+      console.error("[SETUP v73 ERROR]", e);
       toast({ variant: "destructive", title: "Setup Failed", description: e.message });
     } finally {
       setIsUpdating(false);
@@ -156,7 +158,7 @@ export default function SetupPage() {
       club: 'ВЫБОР КЛУБА',
       continue: 'ПРОДОЛЖИТЬ',
       finalize: 'ЗАВЕРШИТЬ ПРОФИЛЬ',
-      protocol: 'Операционный протокол v72',
+      protocol: 'Операционный протокол v73',
       msk: 'ВРЕМЯ МСК'
     },
     en: {
@@ -165,7 +167,7 @@ export default function SetupPage() {
       club: 'CLUB SELECTION',
       continue: 'CONTINUE',
       finalize: 'FINALIZE PROFILE',
-      protocol: 'Operational Protocol v72',
+      protocol: 'Operational Protocol v73',
       msk: 'MSK TIME'
     }
   }[language === 'ru' ? 'ru' : 'en'];
@@ -174,7 +176,7 @@ export default function SetupPage() {
     <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
       <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)]" />
       <div className="relative z-10 w-full max-w-md mx-auto px-4 flex flex-col min-h-screen py-12">
-        <header className="text-center mb-12 relative">
+        <header className="text-center mb-10 relative">
           {step !== 'league' && (
             <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => setStep(step === 'country' ? 'league' : 'country')}>
               <ChevronLeft className="w-6 h-6" />
@@ -188,7 +190,7 @@ export default function SetupPage() {
         
         <div className="flex-1">
           {step === 'league' && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 h-[60vh] overflow-y-auto scrollbar-hide">
               {LEAGUES.map((l) => (
                 <Card 
                   key={l.id} 
@@ -222,29 +224,32 @@ export default function SetupPage() {
           )}
 
           {step === 'club' && (
-            <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3 h-[60vh] overflow-y-auto scrollbar-hide">
               {CLUBS.map((c) => (
                 <Card 
                   key={c.id} 
                   className={cn(
-                    "glass-card border-white/5 cursor-pointer transition-all overflow-hidden group", 
+                    "glass-card border-white/5 cursor-pointer transition-all overflow-hidden group aspect-square flex items-center justify-center", 
                     selectedClubId === c.id ? "ring-2 ring-primary bg-primary/5 shadow-[0_0_20px_rgba(var(--primary),0.2)]" : "hover:bg-white/5"
                   )} 
                   onClick={() => setSelectedClubId(c.id)}
                 >
-                  <CardContent className="p-5 flex items-center gap-6">
-                    <div className="w-16 h-16 rounded-xl bg-secondary/50 flex items-center justify-center border border-white/10 shrink-0 group-hover:scale-105 transition-transform overflow-hidden shadow-xl">
-                      {c.logo ? (
-                        <img src={c.logo} alt={c.name} className="w-full h-full object-contain p-2" />
-                      ) : (
-                        <Target className="w-8 h-8 text-muted-foreground opacity-30" />
-                      )}
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-headline font-bold text-white uppercase italic">{c.name}</h3>
-                      <p className="text-[8px] text-muted-foreground uppercase tracking-widest font-black opacity-50">Operational Identity</p>
-                    </div>
-                    {selectedClubId === c.id && <ShieldCheck className="ml-auto w-6 h-6 text-primary animate-pulse" />}
+                  <CardContent className="p-0 flex items-center justify-center w-full h-full">
+                    {c.logo ? (
+                      <div className="relative w-full h-full flex items-center justify-center">
+                        <img src={c.logo} alt={c.name} className="w-4/5 h-4/5 object-contain" />
+                        {selectedClubId === c.id && (
+                          <div className="absolute top-2 right-2 bg-primary rounded-full p-1 shadow-lg">
+                            <ShieldCheck className="w-4 h-4 text-primary-foreground" />
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center opacity-30 flex flex-col items-center">
+                        <Shield className="w-10 h-10 mb-2" />
+                        <p className="text-[9px] font-black uppercase tracking-tighter">NONE</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -252,7 +257,7 @@ export default function SetupPage() {
           )}
         </div>
         
-        <footer className="mt-12">
+        <footer className="mt-8">
           <Button 
             disabled={isUpdating || (step === 'league' && !selectedLeagueId) || (step === 'country' && !selectedCountryCode) || (step === 'club' && !selectedClubId)} 
             onClick={step === 'league' ? () => setStep('country') : step === 'country' ? () => setStep('club') : handleCompleteSetup} 
