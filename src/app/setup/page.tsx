@@ -25,8 +25,8 @@ const CLUBS = [
   { id: 'aurora', name: 'Aurora Gaming', logo: 'https://iili.io/CYuhmu9.webp' },
   { id: 'betboom', name: 'BetBoom Team', logo: 'https://iili.io/CYuNrj1.webp' },
   { id: 'yandex', name: 'Team Yandex', logo: 'https://iili.io/CYukyZP.webp' },
-  { id: 'liquid', name: 'Team Liquid', logo: 'https://i.postimg.cc/8C5P8V2Z/liquid.png' },
-  { id: 'none', name: 'No Official Club', logo: '' },
+  { id: 'liquid', name: 'Team Liquid', logo: 'https://iili.io/CYuS3pR.webp' },
+  { id: 'navi', name: 'NAVI', logo: 'https://iili.io/CYupwe2.webp' },
 ];
 
 export default function SetupPage() {
@@ -245,21 +245,14 @@ export default function SetupPage() {
                   onClick={() => setSelectedClubId(c.id)}
                 >
                   <CardContent className="p-0 flex items-center justify-center w-full h-full">
-                    {c.logo ? (
-                      <div className="relative w-full h-full flex items-center justify-center p-2">
-                        <img src={c.logo} alt={c.name} className="w-full h-full object-contain" />
-                        {selectedClubId === c.id && (
-                          <div className="absolute top-1 right-1 bg-primary rounded-full p-0.5 shadow-lg">
-                            <ShieldCheck className="w-2.5 h-2.5 text-primary-foreground" />
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center opacity-30 flex flex-col items-center">
-                        <Shield className="w-6 h-6 mb-1" />
-                        <p className="text-[6px] font-black uppercase tracking-tighter">NONE</p>
-                      </div>
-                    )}
+                    <div className="relative w-full h-full flex items-center justify-center p-2">
+                      <img src={c.logo} alt={c.name} className="w-full h-full object-contain" />
+                      {selectedClubId === c.id && (
+                        <div className="absolute top-1 right-1 bg-primary rounded-full p-0.5 shadow-lg">
+                          <ShieldCheck className="w-2.5 h-2.5 text-primary-foreground" />
+                        </div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               ))}
