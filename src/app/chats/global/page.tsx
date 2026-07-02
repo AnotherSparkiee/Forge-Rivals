@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -10,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { 
   ChevronLeft, Send, Loader2, MessageSquare, 
   User, Mail, Shield, History, AlertTriangle, 
-  CornerUpLeft, ChevronRight, UserPlus
+  CornerUpLeft, ChevronRight, UserPlus, Crown
 } from 'lucide-react';
 import Link from 'next/link';
 import { collection, query, orderBy, limit, doc } from 'firebase/firestore';
@@ -31,11 +30,11 @@ export default function GlobalChatPage() {
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
-  const { language, isLoaded } = useGameState();
+  const { language, isLoaded, clubName, clubLogo, isPremium } = useGameState();
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isActionProcessing, setIsActionProcessing] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<{id: string, name: string} | null>(null);
+  const [selectedUser, setSelectedUser] = useState<{id: string, name: string, clubName?: string, clubLogo?: string} | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
@@ -73,6 +72,9 @@ export default function GlobalChatPage() {
       await addDocumentNonBlocking(collection(db, 'global_chat_v2'), {
         userId: String(user.uid),
         userName: String(profile.displayName || "Manager"),
+        clubName: String(clubName || profile.displayName || "Manager"),
+        clubLogo: String(clubLogo || ""),
+        isPremium: Boolean(isPremium),
         text: String(message.trim()),
         createdAt: now
       });
@@ -86,14 +88,14 @@ export default function GlobalChatPage() {
 
   const handleReply = () => {
     if (selectedUser) {
-      setMessage(`${selectedUser.name}, `);
+      setMessage(`${selectedUser.clubName || selectedUser.name}, `);
       setSelectedUser(null);
     }
   };
 
   const handlePrivateMessage = () => {
     if (selectedUser) {
-      router.push(`/chats/private?uid=${selectedUser.id}&name=${encodeURIComponent(selectedUser.name)}`);
+      router.push(`/chats/private?uid=${selectedUser.id}&name=${encodeURIComponent(selectedUser.clubName || selectedUser.name)}`);
     }
   };
 
@@ -108,9 +110,9 @@ export default function GlobalChatPage() {
 
       const requestData = {
         fromId: String(user.uid),
-        fromName: String(profile.displayName || "Manager"),
+        fromName: String(clubName || profile.displayName || "Manager"),
         toId: String(selectedUser.id),
-        toName: String(selectedUser.name),
+        toName: String(selectedUser.clubName || selectedUser.name),
         status: 'pending',
         createdAt: now,
         updatedAt: now
@@ -120,7 +122,7 @@ export default function GlobalChatPage() {
 
       toast({ 
         title: language === 'ru' ? "Заявка отправлена!" : "Request Sent!",
-        description: language === 'ru' ? `Вы предложили дружбу ${selectedUser.name}` : `Friendship proposed to ${selectedUser.name}`
+        description: language === 'ru' ? `Вы предложили дружбу ${selectedUser.clubName || selectedUser.name}` : `Friendship proposed to ${selectedUser.clubName || selectedUser.name}`
       });
       setSelectedUser(null);
     } catch (e: any) {
@@ -210,18 +212,22 @@ export default function GlobalChatPage() {
             return (
               <div 
                 key={msg.id} 
-                onClick={() => setSelectedUser({ id: msg.userId, name: msg.userName })}
+                onClick={() => setSelectedUser({ id: msg.userId, name: msg.userName, clubName: msg.clubName, clubLogo: msg.clubLogo })}
                 className={cn(
                   "flex flex-col px-4 py-2 hover:bg-white/5 transition-colors cursor-pointer group active:bg-white/10",
                   isMe ? "items-end" : "items-start"
                 )}
               >
                 <div className="flex items-center gap-2 mb-1">
+                  {msg.clubLogo && (
+                    <img src={msg.clubLogo} alt="" className="w-3.5 h-3.5 object-contain" />
+                  )}
                   <span className={cn(
-                    "text-[10px] font-black uppercase tracking-tight",
-                    isMe ? "text-accent" : "text-primary"
+                    "text-[10px] font-black uppercase tracking-tight flex items-center gap-1",
+                    msg.isPremium ? "text-yellow-500" : (isMe ? "text-accent" : "text-primary")
                   )}>
-                    {isMe ? 'YOU' : msg.userName}
+                    {msg.clubName || msg.userName}
+                    {msg.isPremium && <Crown className="w-2.5 h-2.5" />}
                   </span>
                   <span className="text-[8px] text-muted-foreground font-mono opacity-50">
                     {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
@@ -271,15 +277,19 @@ export default function GlobalChatPage() {
         <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden">
           <DialogHeader className="p-6 bg-gradient-to-br from-primary/10 to-transparent border-b border-white/5">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-secondary/50 flex items-center justify-center border border-white/10">
-                <User className="w-6 h-6 text-primary" />
+              <div className="w-12 h-12 rounded-lg bg-secondary/50 flex items-center justify-center border border-white/10 overflow-hidden">
+                {selectedUser?.clubLogo ? (
+                  <img src={selectedUser.clubLogo} alt="" className="w-full h-full object-contain p-2" />
+                ) : (
+                  <User className="w-6 h-6 text-primary" />
+                )}
               </div>
               <div>
                 <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">
-                  {selectedUser?.name}
+                  {selectedUser?.clubName || selectedUser?.name}
                 </DialogTitle>
                 <DialogDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
-                  {t.userMenuDesc} {selectedUser?.name}
+                  {t.userMenuDesc} {selectedUser?.clubName || selectedUser?.name}
                 </DialogDescription>
               </div>
             </div>

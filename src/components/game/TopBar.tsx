@@ -11,19 +11,17 @@ import { COUNTRIES } from '@/app/lib/countries-data';
 import Link from 'next/link';
 
 /**
- * Верхняя панель v28.
- * Добавлена поддержка логотипов клубов.
+ * Верхняя панель v29.
+ * Обновлена идентификация: удалены флаги и скругления логотипов.
  */
 export function TopBar() {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
-  const { credits, crystals, isSyncing, language, isPremium, clubLogo } = useGameState();
+  const { credits, crystals, isSyncing, language, isPremium, clubLogo, clubName } = useGameState();
   const db = useFirestore();
 
   const userRef = useMemoFirebase(() => (isUserLoading || !user) ? null : doc(db, 'players_v10', user.uid), [db, user, isUserLoading]);
   const { data: profile } = useDoc(userRef);
-
-  const userCountry = COUNTRIES.find(c => c.name === profile?.country);
 
   const unreadMessagesQuery = useMemoFirebase(() => {
     if (isUserLoading || !user) return null;
@@ -83,12 +81,10 @@ export function TopBar() {
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-white/10 h-14 flex items-center">
       <div className="w-full max-lg mx-auto px-4 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-[10px]" role="img" aria-label="flag">{userCountry?.flag || '🏳️'}</span>
-            
+          <div className="flex items-center gap-2 min-w-0">
             {clubLogo && (
-              <div className="w-5 h-5 rounded-full bg-secondary border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
-                <img src={clubLogo} alt="Club" className="w-full h-full object-contain p-0.5" />
+              <div className="w-7 h-7 bg-transparent flex items-center justify-center shrink-0">
+                <img src={clubLogo} alt="Club" className="w-full h-full object-contain" />
               </div>
             )}
 
@@ -101,17 +97,17 @@ export function TopBar() {
                   <div className="absolute inset-0 bg-gradient-to-r from-accent/20 via-accent/5 to-transparent -z-10" />
                 )}
                 <span className={cn(
-                  "text-[9px] font-black uppercase tracking-tight truncate",
+                  "text-[10px] font-black uppercase tracking-tight truncate",
                   isPremium ? "text-white" : "text-primary"
                 )}>
-                  {profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
+                  {clubName || profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
                 </span>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-1">
-             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
-             <RefreshCw className="w-3 h-3 text-muted-foreground animate-spin [animation-duration:3s]" />
+             <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
+             <RefreshCw className="w-3 h-3 text-muted-foreground/40 animate-spin [animation-duration:4s]" />
           </div>
         </div>
 

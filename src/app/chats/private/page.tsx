@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -9,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
   ChevronLeft, Send, Loader2, Mail, 
-  User, ChevronRight
+  User, ChevronRight, Crown
 } from 'lucide-react';
 import Link from 'next/link';
 import { collection, query, serverTimestamp, doc, where, limit } from 'firebase/firestore';
@@ -22,6 +21,9 @@ interface Message {
   id: string;
   senderId: string;
   senderName: string;
+  senderClubName?: string;
+  senderClubLogo?: string;
+  senderIsPremium?: boolean;
   receiverId: string;
   receiverName: string;
   participants: string[];
@@ -35,7 +37,7 @@ export default function PrivateMessagesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const db = useFirestore();
-  const { language, isLoaded } = useGameState();
+  const { language, isLoaded, clubName, clubLogo, isPremium } = useGameState();
   
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [selectedChatName, setSelectedChatName] = useState<string>('');
@@ -68,14 +70,16 @@ export default function PrivateMessagesPage() {
 
   const conversations = useMemo(() => {
     if (!allMessages || !user) return [];
-    const groups: Record<string, { id: string, name: string, lastMessage: string, lastTime: any, unread: number }> = {};
+    const groups: Record<string, { id: string, name: string, clubLogo?: string, lastMessage: string, lastTime: any, unread: number }> = {};
     
     allMessages.forEach(msg => {
-      const otherId = msg.senderId === user.uid ? msg.receiverId : msg.senderId;
-      const otherName = msg.senderId === user.uid ? msg.receiverName : msg.senderName;
+      const isSenderMe = msg.senderId === user.uid;
+      const otherId = isSenderMe ? msg.receiverId : msg.senderId;
+      const otherName = isSenderMe ? msg.receiverName : (msg.senderClubName || msg.senderName);
+      const otherLogo = isSenderMe ? undefined : msg.senderClubLogo;
       
       if (!groups[otherId]) {
-        groups[otherId] = { id: otherId, name: otherName, lastMessage: '', lastTime: null, unread: 0 };
+        groups[otherId] = { id: otherId, name: otherName, clubLogo: otherLogo, lastMessage: '', lastTime: null, unread: 0 };
       }
       
       groups[otherId].lastMessage = msg.text;
@@ -125,6 +129,9 @@ export default function PrivateMessagesPage() {
       addDocumentNonBlocking(collection(db, 'private_messages_v3'), {
         senderId: user.uid,
         senderName: profile.displayName || "Manager",
+        senderClubName: clubName || profile.displayName || "Manager",
+        senderClubLogo: clubLogo || "",
+        senderIsPremium: Boolean(isPremium),
         receiverId: selectedChatId,
         receiverName: selectedChatName,
         participants: [user.uid, selectedChatId],
@@ -210,8 +217,12 @@ export default function PrivateMessagesPage() {
               >
                 <CardContent className="p-4 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-full bg-secondary/50 flex items-center justify-center border border-white/10 shrink-0">
-                      <User className="w-5 h-5 text-muted-foreground" />
+                    <div className="w-10 h-10 rounded-lg bg-secondary/50 flex items-center justify-center border border-white/10 shrink-0 overflow-hidden">
+                      {chat.clubLogo ? (
+                        <img src={chat.clubLogo} alt="" className="w-full h-full object-contain p-2" />
+                      ) : (
+                        <User className="w-5 h-5 text-muted-foreground" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-0.5">
@@ -250,17 +261,25 @@ export default function PrivateMessagesPage() {
           <div className="flex-1 overflow-y-auto px-4 space-y-4 scrollbar-hide pt-4 pb-20" ref={scrollRef}>
             {currentChatMessages.map((msg) => {
               const isMe = msg.senderId === user.uid;
+              const displayName = isMe ? (clubName || msg.senderClubName || t.you) : (msg.senderClubName || msg.senderName);
+              const displayLogo = isMe ? clubLogo : msg.senderClubLogo;
+              const displayPremium = isMe ? isPremium : msg.senderIsPremium;
+
               return (
                 <div key={msg.id} className={cn(
                   "flex flex-col max-w-[85%]",
                   isMe ? "ml-auto items-end" : "mr-auto items-start"
                 )}>
                   <div className="flex items-center gap-2 mb-1 px-1">
+                    {displayLogo && (
+                      <img src={displayLogo} alt="" className="w-3.5 h-3.5 object-contain" />
+                    )}
                     <span className={cn(
-                      "text-[10px] font-black uppercase tracking-tight",
-                      isMe ? "text-accent" : "text-primary"
+                      "text-[10px] font-black uppercase tracking-tight flex items-center gap-1",
+                      displayPremium ? "text-yellow-500" : (isMe ? "text-accent" : "text-primary")
                     )}>
-                      {isMe ? t.you : msg.senderName}
+                      {displayName}
+                      {displayPremium && <Crown className="w-2.5 h-2.5" />}
                     </span>
                     <span className="text-[8px] text-muted-foreground font-mono opacity-50">
                       {msg.createdAt ? new Date(msg.createdAt.toMillis?.() || 0).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
