@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ТУРНИР "ЧУГУННЫЙ ЧАЙНИК" v1.0.
- * Формат: 16 участников, Bo1, Группы по 4 + Плей-офф (1/4).
+ * @fileOverview ТУРНИР "ЧУГУННЫЙ ЧАЙНИК" v1.1.
+ * Исправлен импорт LoadingScreen и оптимизирована логика.
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { getDeterministicTournament } from '../iron-globe/page';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 const TOURNAMENT_FEE = 50000;
 const START_TIME = "20:05";
@@ -70,7 +71,6 @@ export default function IronKettlePage() {
       const closeTarget = new Date(mskNow);
       closeTarget.setHours(ch, cm, 0, 0);
 
-      // Турнир длится 30 минут (3 группы по 5 мин + 3 плей-офф по 5 мин)
       const finishTarget = new Date(startTarget);
       finishTarget.setMinutes(finishTarget.getMinutes() + 30); 
 
@@ -93,7 +93,8 @@ export default function IronKettlePage() {
       } else {
         setIsLive(false);
         setIsRegClosed(false);
-        setCountdown(formatDiff(closeTarget.getTime() - mskNow.getTime()));
+        const diff = closeTarget.getTime() - mskNow.getTime();
+        setCountdown(formatDiff(diff));
       }
     };
 
@@ -111,7 +112,6 @@ export default function IronKettlePage() {
 
   const tournamentData = useMemo(() => {
     if (!isRegClosed || !user) return null;
-    // Используем детерминированную логику из Globe, адаптированную под 16 команд
     return getDeterministicTournament(getMoscowDateString(), participants || [], user.uid, getMoscowTime(), START_TIME);
   }, [isRegClosed, participants, user]);
 
@@ -199,7 +199,7 @@ export default function IronKettlePage() {
     playoffs: language === 'ru' ? "Плей-офф" : "Playoffs"
   };
 
-  if (isParticipantsLoading || isUserLoading) return <LoadingScreen />;
+  if (isParticipantsLoading || isUserLoading || !isLoaded) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">

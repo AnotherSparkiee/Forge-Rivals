@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -20,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { getDeterministicTournament } from '../iron-globe/page';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 const TOURNAMENT_FEE = 90000;
 const START_TIME = "21:35";
@@ -196,7 +196,6 @@ export default function IronBrickPage() {
     setIsJoining(true);
     try {
       await updateDoc(userRef!, {
-        inGameCurrency: credits - TOURNAMENT_FEE,
         tournaments: arrayUnion(TOUR_ID)
       });
       addCredits(-TOURNAMENT_FEE);
@@ -216,7 +215,7 @@ export default function IronBrickPage() {
     spots: language === 'ru' ? "мест занято" : "spots filled"
   };
 
-  if (isParticipantsLoading || isUserLoading) return <Loader2 className="w-8 h-8 animate-spin mx-auto mt-20" />;
+  if (isParticipantsLoading || isUserLoading || !isLoaded) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -19,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 const TOURNAMENT_FEE = 90000;
 const START_TIME = "21:05";
@@ -207,7 +207,7 @@ export default function IronGlobePage() {
 
   const t = { title: language === 'ru' ? "ЧУГУННЫЙ ГЛОБУС" : "CHUGUNNY GLOBE", subtitle: language === 'ru' ? "Элитное соревнование 16-ти лучших" : "Elite 16-team competition", results: language === 'ru' ? "ИТОГИ ТУРНИРА" : "TOURNAMENT RESULTS", participants: language === 'ru' ? "СПИСОК УЧАСТНИКОВ" : "PARTICIPANTS LIST", spots: language === 'ru' ? "мест занято" : "spots filled" };
 
-  if (isParticipantsLoading || isUserLoading) return <Loader2 className="w-8 h-8 animate-spin mx-auto mt-20" />;
+  if (isParticipantsLoading || isUserLoading || !isLoaded) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
