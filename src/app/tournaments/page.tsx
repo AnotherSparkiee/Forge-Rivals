@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview ТУРНИРНЫЙ ХАБ v2.0.
- * Оставлены только 5 основных вкладок согласно требованию.
+ * Исправлена ошибка ReferenceError и оставлены только 5 основных вкладок.
  */
 
 import { useEffect, useState, useMemo } from 'react';
@@ -48,7 +48,7 @@ export default function TournamentsPage() {
     return <LoadingScreen />;
   }
 
-  const translations = {
+  const t = {
     en: {
       title: "TOURNAMENT HUB",
       subtitle: "Operational Terminals",
