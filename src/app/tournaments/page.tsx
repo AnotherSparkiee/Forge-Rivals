@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ТУРНИРНЫЙ ХАБ v1.7.
- * Добавлен турнир "Чугунный Чайник".
+ * @fileOverview ТУРНИРНЫЙ ХАБ v1.8.
+ * Обновлен статус турнира "Чугунный Чайник" (теперь часовой цикл).
  */
 
 import { useEffect, useState, useMemo } from 'react';
@@ -73,7 +73,7 @@ export default function TournamentsPage() {
       trialDesc: "Instant battle against AI Trainer",
       cup: "Pyramid Cup",
       cupDesc: "Main National Trophy",
-      dailyTitle: "DAILY SPECIALS",
+      dailyTitle: "EVENT TRACKER",
       ironGlobe: "Iron Globe",
       ironBrick: "Iron Brick",
       ironKettle: "Iron Kettle",
@@ -95,7 +95,7 @@ export default function TournamentsPage() {
       trialDesc: "Мгновенный бой против ИИ-Тренера",
       cup: "Кубок Пирамиды",
       cupDesc: "Главный трофей нации",
-      dailyTitle: "ЕЖЕДНЕВНЫЕ СОБЫТИЯ",
+      dailyTitle: "ТРЕКЕР СОБЫТИЙ",
       ironGlobe: "Чугунный Глобус",
       ironBrick: "Чугунный Кирпич",
       ironKettle: "Чугунный Чайник",
@@ -145,7 +145,6 @@ export default function TournamentsPage() {
         isTrial: true,
         updatedAt: serverTimestamp()
       });
-      toast({ title: language === 'ru' ? "Вызов от ИИ получен" : "AI Challenge received" });
     } finally {
       setIsActionLoading(false);
     }
@@ -173,6 +172,14 @@ export default function TournamentsPage() {
     return "FINISHED";
   };
 
+  const getKettleStatus = () => {
+    const mins = now.getMinutes();
+    if (mins < 15) return "REG_OPEN";
+    if (mins < 20) return "PREPARING";
+    if (mins < 50) return "LIVE";
+    return "BREAK";
+  };
+
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-20">
       <header className="mb-6 flex items-center gap-4">
@@ -181,7 +188,6 @@ export default function TournamentsPage() {
       </header>
 
       <div className="space-y-6">
-        {/* MAJOR TOURNAMENTS */}
         <div className="space-y-2">
           <Link href="/tournaments/cup">
             <Card className="glass-card p-4 flex items-center justify-between border-yellow-500/20 bg-yellow-500/5 group hover:bg-yellow-500/10 transition-all">
@@ -199,23 +205,24 @@ export default function TournamentsPage() {
           </Link>
         </div>
 
-        {/* DAILY SPECIALS */}
         <section className="space-y-3">
           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent px-1 flex items-center gap-2">
             <LayoutGrid className="w-3.5 h-3.5" /> {t.dailyTitle}
           </h2>
           <div className="grid grid-cols-1 gap-2">
              <Link href="/tournaments/iron-kettle" className="block">
-               <Card className="glass-card border-white/5 hover:border-orange-500/30 transition-all cursor-pointer overflow-hidden">
+               <Card className="glass-card border-orange-500/30 bg-orange-500/5 hover:border-orange-500/50 transition-all cursor-pointer overflow-hidden">
                  <CardContent className="p-4 flex items-center justify-between">
                    <div className="flex items-center gap-4">
-                     <div className="p-2 rounded-xl bg-orange-500/20 border border-orange-500/30"><Coffee className="w-6 h-6 text-orange-500" /></div>
+                     <div className="p-2.5 rounded-xl bg-orange-500/20 border border-orange-500/30"><Coffee className="w-6 h-6 text-orange-500" /></div>
                      <div>
                        <h4 className="text-sm font-bold uppercase text-white">{t.ironKettle}</h4>
-                       <p className="text-[8px] text-muted-foreground uppercase font-black">16 Teams • Group Stage + Playoffs</p>
+                       <p className="text-[8px] text-muted-foreground uppercase font-black">Hourly Cycle • 16 Teams • G + P</p>
                      </div>
                    </div>
-                   <Badge className="text-[7px] font-black">{getDailyStatus(20, 5)}</Badge>
+                   <Badge className={cn("text-[7px] font-black", getKettleStatus() === 'LIVE' && "bg-red-600 animate-pulse")}>
+                     {getKettleStatus()}
+                   </Badge>
                  </CardContent>
                </Card>
              </Link>
@@ -242,7 +249,6 @@ export default function TournamentsPage() {
           </div>
         </section>
 
-        {/* QUICK ENGAGEMENTS */}
         <div className="space-y-2">
           <Card 
             className={cn(
@@ -286,7 +292,6 @@ export default function TournamentsPage() {
           </Card>
         </div>
 
-        {/* UTILS */}
         <div className="grid grid-cols-2 gap-2">
           <Link href="/tournaments/open-friendlies">
             <Button variant="outline" className="w-full h-12 border-white/5 bg-secondary/20 font-black text-[9px] uppercase tracking-widest gap-2">
