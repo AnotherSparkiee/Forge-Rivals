@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ТУРНИРНЫЙ ХАБ v1.6.
- * Исправлена синхронизация времени через toMskDate.
+ * @fileOverview ТУРНИРНЫЙ ХАБ v1.7.
+ * Добавлен турнир "Чугунный Чайник".
  */
 
 import { useEffect, useState, useMemo } from 'react';
@@ -15,7 +15,7 @@ import {
   Trophy, Medal, Swords, UserPlus, 
   Search, History, Gamepad2, ChevronLeft, 
   ChevronRight, Loader2, XCircle, ShoppingBasket, RefreshCw, AlertTriangle,
-  Globe, LayoutGrid
+  Globe, LayoutGrid, Coffee
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -76,6 +76,7 @@ export default function TournamentsPage() {
       dailyTitle: "DAILY SPECIALS",
       ironGlobe: "Iron Globe",
       ironBrick: "Iron Brick",
+      ironKettle: "Iron Kettle",
       reset: "EMERGENCY RESET",
       resetDesc: "Clear all stuck match tasks"
     },
@@ -97,6 +98,7 @@ export default function TournamentsPage() {
       dailyTitle: "ЕЖЕДНЕВНЫЕ СОБЫТИЯ",
       ironGlobe: "Чугунный Глобус",
       ironBrick: "Чугунный Кирпич",
+      ironKettle: "Чугунный Чайник",
       reset: "ЭКСТРЕННЫЙ СБРОС",
       resetDesc: "Очистить все застрявшие задачи"
     }
@@ -202,25 +204,41 @@ export default function TournamentsPage() {
           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent px-1 flex items-center gap-2">
             <LayoutGrid className="w-3.5 h-3.5" /> {t.dailyTitle}
           </h2>
-          <div className="grid grid-cols-2 gap-2">
-             <Link href="/tournaments/iron-globe" className="block">
-               <Card className="glass-card border-white/5 hover:border-primary/30 transition-all cursor-pointer overflow-hidden">
-                 <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                   <Globe className="w-8 h-8 text-primary" />
-                   <h4 className="text-[10px] font-bold uppercase text-white">{t.ironGlobe}</h4>
-                   <Badge className="text-[7px] font-black">{getDailyStatus(21, 5)}</Badge>
+          <div className="grid grid-cols-1 gap-2">
+             <Link href="/tournaments/iron-kettle" className="block">
+               <Card className="glass-card border-white/5 hover:border-orange-500/30 transition-all cursor-pointer overflow-hidden">
+                 <CardContent className="p-4 flex items-center justify-between">
+                   <div className="flex items-center gap-4">
+                     <div className="p-2 rounded-xl bg-orange-500/20 border border-orange-500/30"><Coffee className="w-6 h-6 text-orange-500" /></div>
+                     <div>
+                       <h4 className="text-sm font-bold uppercase text-white">{t.ironKettle}</h4>
+                       <p className="text-[8px] text-muted-foreground uppercase font-black">16 Teams • Group Stage + Playoffs</p>
+                     </div>
+                   </div>
+                   <Badge className="text-[7px] font-black">{getDailyStatus(20, 5)}</Badge>
                  </CardContent>
                </Card>
              </Link>
-             <Link href="/tournaments/iron-brick" className="block">
-               <Card className="glass-card border-white/5 hover:border-accent/30 transition-all cursor-pointer overflow-hidden">
-                 <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                   <Medal className="w-8 h-8 text-accent" />
-                   <h4 className="text-[10px] font-bold uppercase text-white">{t.ironBrick}</h4>
-                   <Badge className="text-[7px] font-black">{getDailyStatus(21, 35)}</Badge>
-                 </CardContent>
-               </Card>
-             </Link>
+             <div className="grid grid-cols-2 gap-2">
+               <Link href="/tournaments/iron-globe" className="block">
+                 <Card className="glass-card border-white/5 hover:border-primary/30 transition-all cursor-pointer overflow-hidden">
+                   <CardContent className="p-4 flex flex-col items-center text-center gap-2">
+                     <Globe className="w-8 h-8 text-primary" />
+                     <h4 className="text-[10px] font-bold uppercase text-white">{t.ironGlobe}</h4>
+                     <Badge className="text-[7px] font-black">{getDailyStatus(21, 5)}</Badge>
+                   </CardContent>
+                 </Card>
+               </Link>
+               <Link href="/tournaments/iron-brick" className="block">
+                 <Card className="glass-card border-white/5 hover:border-accent/30 transition-all cursor-pointer overflow-hidden">
+                   <CardContent className="p-4 flex flex-col items-center text-center gap-2">
+                     <Medal className="w-8 h-8 text-accent" />
+                     <h4 className="text-[10px] font-bold uppercase text-white">{t.ironBrick}</h4>
+                     <Badge className="text-[7px] font-black">{getDailyStatus(21, 35)}</Badge>
+                   </CardContent>
+                 </Card>
+               </Link>
+             </div>
           </div>
         </section>
 
