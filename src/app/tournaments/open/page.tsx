@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, Coffee, Globe, Medal, 
-  ChevronRight, Clock, Target, CalendarClock
+  ChevronRight, Clock, Target, CalendarClock, ShieldAlert
 } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
@@ -14,11 +14,11 @@ import { useState, useEffect } from 'react';
 import { getMoscowTime, toMskDate } from '@/app/lib/time-utils';
 
 /**
- * Open Tournaments List v2.1.
- * Lists all active automated tournaments. Pyramid Cup moved to Rankings.
+ * Open Tournaments List v2.2.
+ * Only shows upcoming or LIVE tournaments. Finished ones are hidden (moved to History).
  */
 export default function OpenTournamentsPage() {
-  const { language, activeSeasonNumber, selectedLeagueId } = useGameState();
+  const { language } = useGameState();
   const [now, setNow] = useState(getMoscowTime());
 
   useEffect(() => {
@@ -27,15 +27,33 @@ export default function OpenTournamentsPage() {
   }, []);
 
   const t = {
-    title: language === 'ru' ? "ОТКРЫТЫЕ ТУРНИРЫ" : "OPEN TOURNAMENTS",
-    subtitle: language === 'ru' ? "Список официальных соревнований" : "List of official competitions",
-    back: language === 'ru' ? "Назад" : "Back",
-    live: language === 'ru' ? "В ЭФИРЕ" : "LIVE",
-    kettle: language === 'ru' ? "Чугунный Чайник" : "Cast Iron Kettle",
-    globe: language === 'ru' ? "Чугунный Глобус" : "Cast Iron Globe",
-    brick: language === 'ru' ? "Чугунный Кирпич" : "Cast Iron Brick",
-    desc: language === 'ru' ? "Выберите соревнование для участия или просмотра" : "Select a competition to participate or spectate"
-  };
+    en: {
+      title: "OPEN TOURNAMENTS",
+      subtitle: "Upcoming & Active Events",
+      back: "Back",
+      live: "LIVE",
+      kettle: "Cast Iron Kettle",
+      globe: "Cast Iron Globe",
+      brick: "Cast Iron Brick",
+      noUpcoming: "No upcoming tournaments",
+      checkHistory: "Completed tournaments are archived in History.",
+      historyBtn: "VIEW HISTORY",
+      desc: "Register for upcoming events or watch active LIVE battles."
+    },
+    ru: {
+      title: "ОТКРЫТЫЕ ТУРНИРЫ",
+      subtitle: "Предстоящие и активные события",
+      back: "Назад",
+      live: "В ЭФИРЕ",
+      kettle: "Чугунный Чайник",
+      globe: "Чугунный Глобус",
+      brick: "Чугунный Кирпич",
+      noUpcoming: "Предстоящих турниров нет",
+      checkHistory: "Завершенные турниры перемещены в Историю.",
+      historyBtn: "В ИСТОРИЮ",
+      desc: "Регистрируйтесь в новых событиях или смотрите LIVE-битвы."
+    }
+  }[language === 'ru' ? 'ru' : 'en'];
 
   const getDailyStatus = (sh: number, sm: number) => {
     const mskNow = toMskDate(now);
@@ -55,6 +73,16 @@ export default function OpenTournamentsPage() {
     return "BREAK";
   };
 
+  const kettleStatus = getKettleStatus();
+  const globeStatus = getDailyStatus(21, 5);
+  const brickStatus = getDailyStatus(21, 35);
+
+  const showKettle = true; // Kettle is hourly, always upcoming or live
+  const showGlobe = globeStatus !== "FINISHED";
+  const showBrick = brickStatus !== "FINISHED";
+
+  const hasAnyUpcoming = showGlobe || showBrick || showKettle;
+
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center gap-4">
@@ -70,50 +98,77 @@ export default function OpenTournamentsPage() {
       </header>
 
       <div className="space-y-4">
-        {/* IRON KETTLE */}
-        <Link href="/tournaments/iron-kettle">
-          <Card className="glass-card border-orange-500/20 bg-orange-500/5 hover:bg-orange-500/10 transition-all cursor-pointer">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-2.5 rounded-xl bg-orange-500/20"><Coffee className="w-6 h-6 text-orange-500" /></div>
-                <div>
-                  <h3 className="text-sm font-bold uppercase text-white">{t.kettle}</h3>
-                  <p className="text-[8px] text-muted-foreground uppercase font-black">Hourly • 16 Teams • G + P</p>
-                </div>
-              </div>
-              <Badge className={cn("text-[7px] font-black h-5", getKettleStatus() === 'LIVE' ? "bg-red-600 animate-pulse" : "bg-orange-500/20 text-orange-400 border-none")}>
-                {getKettleStatus()}
-              </Badge>
-            </CardContent>
-          </Card>
-        </Link>
+        {hasAnyUpcoming ? (
+          <>
+            {/* IRON KETTLE */}
+            <Link href="/tournaments/iron-kettle">
+              <Card className="glass-card border-orange-500/20 bg-orange-500/5 hover:bg-orange-500/10 transition-all cursor-pointer">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2.5 rounded-xl bg-orange-500/20"><Coffee className="w-6 h-6 text-orange-500" /></div>
+                    <div>
+                      <h3 className="text-sm font-bold uppercase text-white">{t.kettle}</h3>
+                      <p className="text-[8px] text-muted-foreground uppercase font-black">Hourly • 16 Teams • G + P</p>
+                    </div>
+                  </div>
+                  <Badge className={cn("text-[7px] font-black h-5", kettleStatus === 'LIVE' ? "bg-red-600 animate-pulse" : "bg-orange-500/20 text-orange-400 border-none")}>
+                    {kettleStatus}
+                  </Badge>
+                </CardContent>
+              </Card>
+            </Link>
 
-        {/* DAILY TOURNAMENTS */}
-        <div className="grid grid-cols-2 gap-2">
-          <Link href="/tournaments/iron-globe">
-            <Card className="glass-card border-white/5 hover:border-primary/30 transition-all cursor-pointer overflow-hidden h-full">
-              <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                <Globe className="w-8 h-8 text-primary" />
-                <h4 className="text-[10px] font-bold uppercase text-white">{t.globe}</h4>
-                <Badge variant="outline" className="text-[7px] font-black h-5 border-white/10">{getDailyStatus(21, 5)}</Badge>
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/tournaments/iron-brick">
-            <Card className="glass-card border-white/5 hover:border-accent/30 transition-all cursor-pointer overflow-hidden h-full">
-              <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                <Medal className="w-8 h-8 text-accent" />
-                <h4 className="text-[10px] font-bold uppercase text-white">{t.brick}</h4>
-                <Badge variant="outline" className="text-[7px] font-black h-5 border-white/10">{getDailyStatus(21, 35)}</Badge>
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
+            {/* DAILY TOURNAMENTS */}
+            <div className="grid grid-cols-2 gap-2">
+              {showGlobe && (
+                <Link href="/tournaments/iron-globe">
+                  <Card className="glass-card border-white/5 hover:border-primary/30 transition-all cursor-pointer overflow-hidden h-full">
+                    <CardContent className="p-4 flex flex-col items-center text-center gap-2">
+                      <Globe className="w-8 h-8 text-primary" />
+                      <h4 className="text-[10px] font-bold uppercase text-white">{t.globe}</h4>
+                      <Badge variant="outline" className={cn("text-[7px] font-black h-5 border-white/10", globeStatus === 'LIVE' && "text-red-500 border-red-500/50")}>
+                        {globeStatus}
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                </Link>
+              )}
+              {showBrick && (
+                <Link href="/tournaments/iron-brick">
+                  <Card className="glass-card border-white/5 hover:border-accent/30 transition-all cursor-pointer overflow-hidden h-full">
+                    <CardContent className="p-4 flex flex-col items-center text-center gap-2">
+                      <Medal className="w-8 h-8 text-accent" />
+                      <h4 className="text-[10px] font-bold uppercase text-white">{t.brick}</h4>
+                      <Badge variant="outline" className={cn("text-[7px] font-black h-5 border-white/10", brickStatus === 'LIVE' && "text-red-500 border-red-500/50")}>
+                        {brickStatus}
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                </Link>
+              )}
+            </div>
 
-        <div className="p-6 bg-secondary/10 rounded-2xl border border-dashed border-white/5 text-center opacity-40">
-           <CalendarClock className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-           <p className="text-[8px] font-black uppercase tracking-widest">{t.desc}</p>
-        </div>
+            <div className="p-6 bg-secondary/10 rounded-2xl border border-dashed border-white/5 text-center opacity-40">
+               <CalendarClock className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+               <p className="text-[8px] font-black uppercase tracking-widest">{t.desc}</p>
+            </div>
+          </>
+        ) : (
+          <div className="py-20 flex flex-col items-center justify-center text-center animate-in fade-in duration-700">
+            <div className="w-24 h-24 rounded-full bg-secondary/10 border-2 border-dashed border-white/5 flex items-center justify-center mb-6">
+              <ShieldAlert className="w-12 h-12 text-muted-foreground opacity-20" />
+            </div>
+            <h2 className="text-xl font-headline font-bold uppercase text-white tracking-tight">{t.noUpcoming}</h2>
+            <p className="text-xs text-muted-foreground mt-2 max-w-[240px] leading-relaxed italic">
+              {t.checkHistory}
+            </p>
+            <Link href="/tournaments/history" className="mt-8">
+              <Button className="h-12 px-8 hero-gradient font-black text-[10px] uppercase tracking-widest shadow-xl">
+                {t.historyBtn}
+              </Button>
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );
