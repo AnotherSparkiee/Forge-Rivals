@@ -16,7 +16,7 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-const SETUP_VERSION = 73;
+const SETUP_VERSION = 74;
 
 const CLUBS = [
   { id: 'parivision', name: 'Parivision', logo: 'https://iili.io/CYIAgVa.webp' },
@@ -146,7 +146,7 @@ export default function SetupPage() {
       setTimeout(() => router.replace('/'), 500);
 
     } catch (e: any) {
-      console.error("[SETUP v73 ERROR]", e);
+      console.error("[SETUP v74 ERROR]", e);
       toast({ variant: "destructive", title: "Setup Failed", description: e.message });
     } finally {
       setIsUpdating(false);
@@ -162,7 +162,7 @@ export default function SetupPage() {
       club: 'ВЫБОР КЛУБА',
       continue: 'ПРОДОЛЖИТЬ',
       finalize: 'ЗАВЕРШИТЬ ПРОФИЛЬ',
-      protocol: 'Операционный протокол v73',
+      protocol: 'Операционный протокол v74',
       msk: 'МСК'
     },
     en: {
@@ -171,7 +171,7 @@ export default function SetupPage() {
       club: 'CLUB CHOICE',
       continue: 'CONTINUE',
       finalize: 'FINALIZE PROFILE',
-      protocol: 'Operational Protocol v73',
+      protocol: 'Operational Protocol v74',
       msk: 'MSK'
     }
   }[language === 'ru' ? 'ru' : 'en'];

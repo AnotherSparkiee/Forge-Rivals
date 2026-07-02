@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v72 (Club Identity Injection).
+ * @fileOverview Ядро MMO-синхронизации v74 (Club Identity Injection).
  * Принудительная инъекция имен, ID и логотипов клубов в общие структуры.
+ * Добавлена задержка инициализации для предотвращения ошибок доступа.
  */
 
 import { useEffect, useRef } from 'react';
@@ -15,7 +16,7 @@ import { getGlobalSeasonInfo, isMatchOverdue } from '@/app/lib/time-utils';
 import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/app/lib/leagues-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 
-const SYNC_VERSION = 72; 
+const SYNC_VERSION = 74; 
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
@@ -32,6 +33,9 @@ export function AutoMatchManager() {
     if (isUserLoading || !user?.uid || !isLoaded || !selectedLeagueId) return;
 
     const syncSharedWorld = async () => {
+      // Небольшая задержка, чтобы убедиться, что сессия Firebase полностью активна
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       const info = getGlobalSeasonInfo();
       const currentSeason = Number(info.activeSeasonNumber);
       const lId = String(selectedLeagueId);
@@ -48,7 +52,7 @@ export function AutoMatchManager() {
       const tableRef = doc(db, 'league_tables_v1', tableId);
 
       try {
-        console.log(`[WORLD SYNC v72] Initiating protocol for: ${tableId}`);
+        console.log(`[WORLD SYNC v74] Initiating protocol for: ${tableId}`);
 
         // 1. АВТОМАТИЧЕСКАЯ ИНИЦИАЛИЗАЦИЯ ТАБЛИЦЫ
         let tableSnap = await getDoc(tableRef);
@@ -74,7 +78,6 @@ export function AutoMatchManager() {
           const mySlotIndex = myRank - 1;
           const mySlot = teamData[mySlotIndex];
           
-          // Проверяем актуальность данных игрока в таблице (имя и ЛОГО)
           if (!mySlot || mySlot.id !== userId || mySlot.logo !== clubLogo || mySlot.name !== displayName) {
             teamData[mySlotIndex] = {
               id: userId,
@@ -92,7 +95,7 @@ export function AutoMatchManager() {
         const matchesSnap = await getDocs(matchesQuery);
 
         if (matchesSnap.empty) {
-          console.log(`[SYNC v72] Generating new calendar for group...`);
+          console.log(`[SYNC v74] Generating new calendar for group...`);
           const batch = writeBatch(db);
           const calendar = generateSeasonCalendar(teamData, currentSeason, lId);
           calendar.forEach(m => {
@@ -135,7 +138,6 @@ export function AutoMatchManager() {
           if (needsUpdate) await batch.commit();
         }
 
-        // РАЗБЛОКИРОВКА UI
         setWorldReady(true);
 
         // 3. ФОНОВЫЙ РЕЗОЛВЕР ПРОШЕДШИХ МАТЧЕЙ
@@ -200,7 +202,7 @@ export function AutoMatchManager() {
           }
         }
       } catch (e) {
-        console.error("[V72 SYNC ERROR]", e);
+        console.error("[V74 SYNC ERROR]", e);
         setWorldReady(true);
       }
     };
