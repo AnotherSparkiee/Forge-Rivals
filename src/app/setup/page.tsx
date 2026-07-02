@@ -153,53 +153,56 @@ export default function SetupPage() {
 
   const t = {
     ru: {
-      league: 'ВЫБЕРИТЕ ВРЕМЯ МАТЧЕЙ',
-      country: 'ВЫБЕРИТЕ ФЛАГ КЛУБА',
+      league: 'ВРЕМЯ МАТЧЕЙ',
+      country: 'ФЛАГ КЛУБА',
       club: 'ВЫБОР КЛУБА',
       continue: 'ПРОДОЛЖИТЬ',
       finalize: 'ЗАВЕРШИТЬ ПРОФИЛЬ',
       protocol: 'Операционный протокол v73',
-      msk: 'ВРЕМЯ МСК'
+      msk: 'МСК'
     },
     en: {
-      league: 'SELECT MATCH TIME',
-      country: 'CHOOSE CLUB FLAG',
-      club: 'CLUB SELECTION',
+      league: 'MATCH TIME',
+      country: 'CLUB FLAG',
+      club: 'CLUB CHOICE',
       continue: 'CONTINUE',
       finalize: 'FINALIZE PROFILE',
       protocol: 'Operational Protocol v73',
-      msk: 'MSK TIME'
+      msk: 'MSK'
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
   return (
-    <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-background flex flex-col relative">
       <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)]" />
-      <div className="relative z-10 w-full max-w-md mx-auto px-4 flex flex-col min-h-screen py-12">
+      <div className="relative z-10 w-full max-w-md mx-auto px-4 flex flex-col py-12">
         <header className="text-center mb-10 relative">
           {step !== 'league' && (
             <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => setStep(step === 'country' ? 'league' : 'country')}>
               <ChevronLeft className="w-6 h-6" />
             </Button>
           )}
-          <h1 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter">
+          <h1 className="text-2xl font-headline font-bold text-white uppercase tracking-tighter">
             {step === 'league' ? t.league : step === 'country' ? t.country : t.club}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-2">{t.protocol}</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1 opacity-60">{t.protocol}</p>
         </header>
         
-        <div className="flex-1">
+        <div className="flex-1 pb-24">
           {step === 'league' && (
-            <div className="grid grid-cols-2 gap-3 h-[60vh] overflow-y-auto scrollbar-hide">
+            <div className="grid grid-cols-4 gap-2">
               {LEAGUES.map((l) => (
                 <Card 
                   key={l.id} 
-                  className={cn("glass-card border-white/5 cursor-pointer transition-all", selectedLeagueId === l.id ? "ring-2 ring-primary bg-primary/5" : "hover:bg-white/5")} 
+                  className={cn(
+                    "glass-card border-white/5 cursor-pointer transition-all aspect-square flex items-center justify-center", 
+                    selectedLeagueId === l.id ? "ring-2 ring-primary bg-primary/10" : "hover:bg-white/5"
+                  )} 
                   onClick={() => setSelectedLeagueId(l.id)}
                 >
-                  <CardContent className="p-4 text-center">
-                    <span className="text-xl font-headline font-bold text-white">{l.startTime}</span>
-                    <p className="text-[7px] text-muted-foreground uppercase mt-1">{t.msk}</p>
+                  <CardContent className="p-0 text-center flex flex-col items-center justify-center">
+                    <span className="text-sm font-headline font-bold text-white leading-none">{l.startTime}</span>
+                    <p className="text-[6px] text-muted-foreground uppercase mt-1 font-black">{t.msk}</p>
                   </CardContent>
                 </Card>
               ))}
@@ -207,16 +210,19 @@ export default function SetupPage() {
           )}
 
           {step === 'country' && (
-            <div className="grid grid-cols-3 gap-3 h-[60vh] overflow-y-auto scrollbar-hide">
+            <div className="grid grid-cols-4 gap-2">
               {COUNTRIES.map((c) => (
                 <Card 
                   key={c.code} 
-                  className={cn("glass-card border-white/5 cursor-pointer transition-all", selectedCountryCode === c.code ? "ring-2 ring-accent bg-accent/5" : "hover:bg-white/5")} 
+                  className={cn(
+                    "glass-card border-white/5 cursor-pointer transition-all aspect-square flex items-center justify-center", 
+                    selectedCountryCode === c.code ? "ring-2 ring-accent bg-accent/10 shadow-[0_0_15px_rgba(var(--accent),0.2)]" : "hover:bg-white/5"
+                  )} 
                   onClick={() => setSelectedCountryCode(c.code)}
                 >
-                  <CardContent className="p-4 text-center">
-                    <span className="text-3xl">{c.flag}</span>
-                    <p className="text-[7px] text-muted-foreground uppercase mt-2 truncate">{c.name}</p>
+                  <CardContent className="p-0 text-center flex flex-col items-center justify-center">
+                    <span className="text-2xl">{c.flag}</span>
+                    <p className="text-[6px] text-muted-foreground uppercase mt-1 font-black truncate max-w-full px-1">{c.name}</p>
                   </CardContent>
                 </Card>
               ))}
@@ -224,30 +230,30 @@ export default function SetupPage() {
           )}
 
           {step === 'club' && (
-            <div className="grid grid-cols-2 gap-3 h-[60vh] overflow-y-auto scrollbar-hide">
+            <div className="grid grid-cols-4 gap-2">
               {CLUBS.map((c) => (
                 <Card 
                   key={c.id} 
                   className={cn(
-                    "glass-card border-white/5 cursor-pointer transition-all overflow-hidden group aspect-square flex items-center justify-center", 
-                    selectedClubId === c.id ? "ring-2 ring-primary bg-primary/5 shadow-[0_0_20px_rgba(var(--primary),0.2)]" : "hover:bg-white/5"
+                    "glass-card border-white/5 cursor-pointer transition-all overflow-hidden aspect-square flex items-center justify-center", 
+                    selectedClubId === c.id ? "ring-2 ring-primary bg-primary/10 shadow-[0_0_20px_rgba(var(--primary),0.2)]" : "hover:bg-white/5"
                   )} 
                   onClick={() => setSelectedClubId(c.id)}
                 >
                   <CardContent className="p-0 flex items-center justify-center w-full h-full">
                     {c.logo ? (
-                      <div className="relative w-full h-full flex items-center justify-center">
-                        <img src={c.logo} alt={c.name} className="w-4/5 h-4/5 object-contain" />
+                      <div className="relative w-full h-full flex items-center justify-center p-2">
+                        <img src={c.logo} alt={c.name} className="w-full h-full object-contain" />
                         {selectedClubId === c.id && (
-                          <div className="absolute top-2 right-2 bg-primary rounded-full p-1 shadow-lg">
-                            <ShieldCheck className="w-4 h-4 text-primary-foreground" />
+                          <div className="absolute top-1 right-1 bg-primary rounded-full p-0.5 shadow-lg">
+                            <ShieldCheck className="w-2.5 h-2.5 text-primary-foreground" />
                           </div>
                         )}
                       </div>
                     ) : (
                       <div className="text-center opacity-30 flex flex-col items-center">
-                        <Shield className="w-10 h-10 mb-2" />
-                        <p className="text-[9px] font-black uppercase tracking-tighter">NONE</p>
+                        <Shield className="w-6 h-6 mb-1" />
+                        <p className="text-[6px] font-black uppercase tracking-tighter">NONE</p>
                       </div>
                     )}
                   </CardContent>
@@ -257,14 +263,16 @@ export default function SetupPage() {
           )}
         </div>
         
-        <footer className="mt-8">
-          <Button 
-            disabled={isUpdating || (step === 'league' && !selectedLeagueId) || (step === 'country' && !selectedCountryCode) || (step === 'club' && !selectedClubId)} 
-            onClick={step === 'league' ? () => setStep('country') : step === 'country' ? () => setStep('club') : handleCompleteSetup} 
-            className="w-full h-16 hero-gradient font-black text-xs tracking-widest uppercase shadow-xl"
-          >
-            {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'club' ? t.finalize : t.continue)}
-          </Button>
+        <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-white/10 z-50">
+          <div className="max-w-md mx-auto">
+            <Button 
+              disabled={isUpdating || (step === 'league' && !selectedLeagueId) || (step === 'country' && !selectedCountryCode) || (step === 'club' && !selectedClubId)} 
+              onClick={step === 'league' ? () => setStep('country') : step === 'country' ? () => setStep('club') : handleCompleteSetup} 
+              className="w-full h-16 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-[0.98] transition-all"
+            >
+              {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'club' ? t.finalize : t.continue)}
+            </Button>
+          </div>
         </footer>
       </div>
     </div>
