@@ -4,7 +4,7 @@ import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, Trophy, Coffee, Globe, Medal, 
+  ChevronLeft, Coffee, Globe, Medal, 
   ChevronRight, Clock, Target, CalendarClock
 } from 'lucide-react';
 import Link from 'next/link';
@@ -14,8 +14,8 @@ import { useState, useEffect } from 'react';
 import { getMoscowTime, toMskDate } from '@/app/lib/time-utils';
 
 /**
- * Open Tournaments List v2.0.
- * Lists all active automated tournaments.
+ * Open Tournaments List v2.1.
+ * Lists all active automated tournaments. Pyramid Cup moved to Rankings.
  */
 export default function OpenTournamentsPage() {
   const { language, activeSeasonNumber, selectedLeagueId } = useGameState();
@@ -34,7 +34,6 @@ export default function OpenTournamentsPage() {
     kettle: language === 'ru' ? "Чугунный Чайник" : "Cast Iron Kettle",
     globe: language === 'ru' ? "Чугунный Глобус" : "Cast Iron Globe",
     brick: language === 'ru' ? "Чугунный Кирпич" : "Cast Iron Brick",
-    cup: language === 'ru' ? "Кубок Пирамиды" : "Pyramid Cup",
     desc: language === 'ru' ? "Выберите соревнование для участия или просмотра" : "Select a competition to participate or spectate"
   };
 
@@ -71,22 +70,6 @@ export default function OpenTournamentsPage() {
       </header>
 
       <div className="space-y-4">
-        {/* PYRAMID CUP */}
-        <Link href="/tournaments/cup">
-          <Card className="glass-card border-yellow-500/20 bg-yellow-500/5 hover:bg-yellow-500/10 transition-all cursor-pointer">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-2.5 rounded-xl bg-yellow-500/20"><Trophy className="w-6 h-6 text-yellow-500" /></div>
-                <div>
-                  <h3 className="text-sm font-bold uppercase text-white">{t.cup}</h3>
-                  <p className="text-[8px] text-muted-foreground uppercase font-black">Season {activeSeasonNumber} • National Trophy</p>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            </CardContent>
-          </Card>
-        </Link>
-
         {/* IRON KETTLE */}
         <Link href="/tournaments/iron-kettle">
           <Card className="glass-card border-orange-500/20 bg-orange-500/5 hover:bg-orange-500/10 transition-all cursor-pointer">

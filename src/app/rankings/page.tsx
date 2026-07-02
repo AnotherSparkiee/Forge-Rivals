@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v66 (Club Identity Protocol). 
- * Читает общие данные группы и отображает логотипы клубов.
+ * @fileOverview Страница рейтингов v67 (Club Identity Protocol). 
+ * Добавлен доступ к Кубку Пирамиды.
  */
 
 import { useState, useMemo } from 'react';
@@ -21,8 +21,9 @@ import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import Link from 'next/link';
 
-type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids';
+type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'cup';
 
 export default function RankingsPage() {
   const { user, isUserLoading } = useUser();
@@ -69,6 +70,7 @@ export default function RankingsPage() {
         { id: 'my_league', label: 'League Standings', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'League Pyramid', desc: `Explore ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
         { id: 'all_pyramids', label: 'Global Map', desc: 'Browse all 16 leagues', icon: Globe, color: 'text-blue-400' },
+        { id: 'cup', label: 'Pyramid Cup', desc: 'National elimination grid', icon: Trophy, color: 'text-yellow-500', href: '/tournaments/cup' },
       ]
     },
     ru: {
@@ -81,6 +83,7 @@ export default function RankingsPage() {
         { id: 'my_league', label: 'Таблица Лиги', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'Пирамида Лиги', desc: `Изучить лигу ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
         { id: 'all_pyramids', label: 'Карта мира', desc: 'Все 16 лиг мира', icon: Globe, color: 'text-blue-400' },
+        { id: 'cup', label: 'Кубок Пирамиды', desc: 'Сетка национального турнира', icon: Trophy, color: 'text-yellow-500', href: '/tournaments/cup' },
       ]
     }
   }[language === 'ru' ? 'ru' : 'en'];
@@ -107,7 +110,7 @@ export default function RankingsPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white leading-none">
-            {activeTab === 'menu' ? t.title : (isMyLeagueTab ? t.menu[0].label : contextLeagueId)}
+            {activeTab === 'menu' ? t.title : (isMyLeagueTab ? t.menu[0].label : (activeTab === 'cup' ? t.menu[3].label : contextLeagueId))}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest leading-none mt-1.5 font-black opacity-50">
             {activeTab === 'menu' ? t.subtitle : `DIV ${contextLevel} • GROUP ${contextGroup}`}
@@ -117,20 +120,28 @@ export default function RankingsPage() {
 
       {activeTab === 'menu' && (
         <div className="space-y-2">
-          {t.menu.map(item => (
-            <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => {
-              setActiveTab(item.id as RankingTab);
-              setNavLeague(null); setNavLevel(null); setNavGroup(null);
-            }}>
-              <CardContent className="p-4 flex justify-between items-center">
-                <div className="flex items-center gap-4">
-                  <div className={cn("p-2.5 rounded-xl bg-secondary/50", item.color)}><item.icon className="w-5 h-5" /></div>
-                  <div><h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{item.label}</h3><p className="text-[10px] text-muted-foreground">{item.desc}</p></div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-all" />
-              </CardContent>
-            </Card>
-          ))}
+          {t.menu.map(item => {
+            const content = (
+              <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => {
+                if (item.href) return;
+                setActiveTab(item.id as RankingTab);
+                setNavLeague(null); setNavLevel(null); setNavGroup(null);
+              }}>
+                <CardContent className="p-4 flex justify-between items-center">
+                  <div className="flex items-center gap-4">
+                    <div className={cn("p-2.5 rounded-xl bg-secondary/50", item.color)}><item.icon className="w-5 h-5" /></div>
+                    <div><h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{item.label}</h3><p className="text-[10px] text-muted-foreground">{item.desc}</p></div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-all" />
+                </CardContent>
+              </Card>
+            );
+
+            if (item.href) {
+              return <Link key={item.id} href={item.href} className="block">{content}</Link>;
+            }
+            return content;
+          })}
         </div>
       )}
 
