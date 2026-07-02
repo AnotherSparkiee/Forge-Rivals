@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ТУРНИР "ЧУГУННЫЙ ЧАЙНИК" v2.0 (Hourly Infinite Cycle).
- * Проводится каждый час: 00-15 рег, 20-50 матчи, 50-59 итоги.
+ * @fileOverview ТУРНИР "ЧУГУННЫЙ ЧАЙНИК" v2.1.
+ * Обновлены таблицы группового этапа: В-П, Игр, Очк.
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   Trophy, Clock, Users, ChevronLeft, 
   Loader2, Swords, CheckCircle2, User, 
-  History as HistoryIcon, Coffee, Target
+  History as HistoryIcon, Coffee, Target, Info
 } from 'lucide-react';
 import Link from 'next/link';
 import { getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
@@ -41,8 +41,6 @@ function getHourlyTournamentData(
 ) {
   const realPlayers = participants?.map(p => ({ id: p.id, name: p.displayName || "Manager", isPlayer: true })) || [];
   const botNeeded = Math.max(0, MAX_PARTICIPANTS - realPlayers.length);
-  
-  // Seed based on date + hour
   const seedBase = dateStr.split('-').reduce((acc, v) => acc + parseInt(v), 0) + hour;
   
   const bots = Array.from({ length: botNeeded }).map((_, i) => {
@@ -51,8 +49,6 @@ function getHourlyTournamentData(
   });
 
   const allTeams = [...realPlayers, ...bots].sort((a, b) => a.id.localeCompare(b.id));
-  
-  // Shuffling
   const shuffled = [...allTeams];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = (seedBase + i) % (i + 1);
@@ -68,20 +64,24 @@ function getHourlyTournamentData(
 
   const mins = mskNow.getMinutes();
   const elapsedMins = Math.max(0, mins - 20);
-  
-  // Rounds: 0-5 (G1), 5-10 (G2), 10-15 (G3), 15-20 (Q), 20-25 (S), 25-30 (F)
   const completedGroupRounds = Math.min(3, Math.floor(elapsedMins / 5));
   const isPlayoffsVisible = elapsedMins >= 15;
 
   const processedGroups = groups.map((group) => {
     return group.map(t => {
-      let pts = 0;
+      let wins = 0;
+      let losses = 0;
       for (let r = 1; r <= completedGroupRounds; r++) {
         const roundSeed = (t.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0) + seedBase + r) % 10;
-        if (roundSeed < 4) pts += 3;
-        else if (roundSeed < 7) pts += 1;
+        if (roundSeed < 5) wins++; else losses++;
       }
-      return { ...t, pts };
+      return { 
+        ...t, 
+        wins, 
+        losses, 
+        played: completedGroupRounds, 
+        pts: wins * 3 
+      };
     }).sort((a, b) => b.pts - a.pts || a.id.localeCompare(b.id));
   });
 
@@ -133,36 +133,23 @@ export default function IronKettlePage() {
       const mins = mskNow.getMinutes();
       const currentHour = mskNow.getHours();
 
-      // Reset state if hour changed
       if (stateRef.current.lastHour !== currentHour) {
         stateRef.current = { notified: false, activeRecord: false, finalResult: false, lastHour: currentHour };
       }
 
       if (mins < 15) {
-        // REG OPEN
-        setIsLive(false);
-        setIsRegClosed(false);
-        setHasFinished(false);
+        setIsLive(false); setIsRegClosed(false); setHasFinished(false);
         const diff = (15 - mins) * 60 - mskNow.getSeconds();
         setCountdown(formatSeconds(diff));
       } else if (mins < 20) {
-        // REG CLOSED / PREPARING
-        setIsLive(false);
-        setIsRegClosed(true);
-        setHasFinished(false);
+        setIsLive(false); setIsRegClosed(true); setHasFinished(false);
         const diff = (20 - mins) * 60 - mskNow.getSeconds();
         setCountdown(formatSeconds(diff));
       } else if (mins < 50) {
-        // LIVE
-        setIsLive(true);
-        setIsRegClosed(true);
-        setHasFinished(false);
+        setIsLive(true); setIsRegClosed(true); setHasFinished(false);
         setCountdown('LIVE');
       } else {
-        // FINISHED
-        setIsLive(false);
-        setIsRegClosed(true);
-        setHasFinished(true);
+        setIsLive(false); setIsRegClosed(true); setHasFinished(true);
         const diff = (60 - mins) * 60 - mskNow.getSeconds();
         setCountdown(formatSeconds(diff));
       }
@@ -185,14 +172,11 @@ export default function IronKettlePage() {
     return getHourlyTournamentData(getMoscowDateString(), now.getHours(), participants || [], user.uid, now);
   }, [isRegClosed, participants, user]);
 
-  // Handle Active Record
   useEffect(() => {
     if (isLive && isJoined && !stateRef.current.activeRecord && userRef && profile) {
       stateRef.current.activeRecord = true;
-      const today = getMoscowDateString();
       const mskNow = getMoscowTime();
       const hour = mskNow.getHours();
-      
       const activeRecord = {
         tournamentId: `${TOUR_ID}_h${hour}`,
         tournamentName: `${language === 'ru' ? "Чугунный Чайник" : "Cast Iron Kettle"} (${hour}:00)`,
@@ -200,48 +184,25 @@ export default function IronKettlePage() {
         startDate: mskNow.toISOString(),
         status: 'active'
       };
-
-      updateDoc(userRef, {
-        tournamentHistory: arrayUnion(activeRecord)
-      }).catch(e => console.error(e));
+      updateDoc(userRef, { tournamentHistory: arrayUnion(activeRecord) }).catch(e => console.error(e));
     }
   }, [isLive, isJoined, userRef, profile, language]);
 
-  // Handle Final Result
   useEffect(() => {
     if (hasFinished && isJoined && !stateRef.current.finalResult && userRef && profile && tournamentData) {
       stateRef.current.finalResult = true;
       const mskNow = getMoscowTime();
-      const today = getMoscowDateString();
       const hour = mskNow.getHours();
-      
       const opponent = tournamentData.myOpponent;
-      const mockResult = {
-        scoreA: 1, scoreB: 0,
-        matchSummary: "Intense Bo1 struggle in the hourly Kettle Arena.",
-        teamStats: { teamA: { kills: 12, towersDestroyed: 4 }, teamB: { kills: 8, towersDestroyed: 2 } },
-        heroPerformance: []
-      };
-      
+      const mockResult = { scoreA: 1, scoreB: 0, matchSummary: "Hourly Arena resolution.", teamStats: { teamA: { kills: 12, towersDestroyed: 4 }, teamB: { kills: 8, towersDestroyed: 2 } }, heroPerformance: [] };
       recordMatch(profile.displayName || "Manager", mockResult, 0, opponent?.name || "Tournament Rival", 'tournament', mskNow.toISOString());
-
       const updatedHistory = (profile.tournamentHistory || []).map((h: any) => {
         if (h.tournamentId === `${TOUR_ID}_h${hour}` && h.status === 'active') {
-          return {
-            ...h,
-            status: 'completed',
-            endDate: mskNow.toISOString(),
-            result: language === 'ru' ? "Завершено" : "Completed"
-          };
+          return { ...h, status: 'completed', endDate: mskNow.toISOString(), result: language === 'ru' ? "Завершено" : "Completed" };
         }
         return h;
       });
-
-      updateDoc(userRef, {
-        tournamentHistory: updatedHistory,
-        tournaments: arrayRemove(TOUR_ID)
-      });
-
+      updateDoc(userRef, { tournamentHistory: updatedHistory, tournaments: arrayRemove(TOUR_ID) });
       toast({ title: language === 'ru' ? "Турнир окончен" : "Tournament Ended" });
     }
   }, [hasFinished, isJoined, userRef, profile, language, toast, recordMatch, tournamentData]);
@@ -250,9 +211,7 @@ export default function IronKettlePage() {
     if (!user || !profile || isJoining || isRegClosed || credits < TOURNAMENT_FEE) return;
     setIsJoining(true);
     try {
-      await updateDoc(userRef!, {
-        tournaments: arrayUnion(TOUR_ID)
-      });
+      await updateDoc(userRef!, { tournaments: arrayUnion(TOUR_ID) });
       addCredits(-TOURNAMENT_FEE);
       toast({ title: language === 'ru' ? "Вы зарегистрированы!" : "Successfully registered!" });
     } finally { setIsJoining(false); }
@@ -269,7 +228,13 @@ export default function IronKettlePage() {
     regOpen: language === 'ru' ? "РЕГИСТРАЦИЯ ОТКРЫТА" : "REG OPEN",
     regClosed: language === 'ru' ? "РЕГИСТРАЦИЯ ЗАКРЫТА" : "REG CLOSED",
     live: language === 'ru' ? "В ЭФИРЕ" : "LIVE",
-    nextCycle: language === 'ru' ? "ДО СЛЕДУЮЩЕГО ЦИКЛА" : "NEXT CYCLE IN"
+    nextCycle: language === 'ru' ? "ДО СЛЕДУЮЩЕГО ЦИКЛА" : "NEXT CYCLE IN",
+    table: {
+      team: language === 'ru' ? "Команда" : "Team",
+      wl: language === 'ru' ? "В-П" : "W-L",
+      games: language === 'ru' ? "Игр" : "G",
+      pts: language === 'ru' ? "Очк" : "PTS"
+    }
   };
 
   if (isParticipantsLoading || isUserLoading || !isLoaded) return <LoadingScreen />;
@@ -277,21 +242,16 @@ export default function IronKettlePage() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
       <header className="mb-6 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Link href="/tournaments">
-            <Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-orange-500">{t.title}</h1>
-            <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
-          </div>
+        <Link href="/tournaments/open">
+          <Button variant="ghost" size="icon" className="rounded-full border border-white/5"><ChevronLeft className="w-6 h-6" /></Button>
+        </Link>
+        <div>
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-orange-500">{t.title}</h1>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50">{t.subtitle}</p>
         </div>
       </header>
 
-      <Card className={cn(
-        "glass-card mb-6 border-orange-500/30 overflow-hidden",
-        isLive && "bg-orange-500/5"
-      )}>
+      <Card className={cn("glass-card mb-6 border-orange-500/30 overflow-hidden", isLive && "bg-orange-500/5")}>
         <CardContent className="p-0">
           <div className="p-6 text-center border-b border-white/5">
             <div className="w-20 h-20 rounded-full bg-secondary/50 border-2 border-orange-500 mx-auto mb-4 flex items-center justify-center">
@@ -300,27 +260,13 @@ export default function IronKettlePage() {
             <Badge variant={isLive ? "destructive" : "outline"} className="mb-2 uppercase text-[8px] tracking-widest">
               {isLive ? t.live : isRegClosed ? (hasFinished ? t.nextCycle : t.regClosed) : t.regOpen}
             </Badge>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase">{isLive ? 'BATTLE TIME' : 'TIMER'}</p>
             <p className="text-4xl font-headline font-bold text-orange-500">{countdown}</p>
           </div>
-          
-          {!isRegClosed && (
+          {!isRegClosed && !isJoined && (
             <div className="p-4 bg-secondary/20">
-              <div className="flex justify-between text-[8px] font-bold uppercase mb-1">
-                <span>{t.participants}</span>
-                <span>{currentCount} / {MAX_PARTICIPANTS} {t.spots}</span>
-              </div>
-              <Progress value={(currentCount / MAX_PARTICIPANTS) * 100} className="h-1 mb-4" />
-              
-              {!isJoined ? (
-                <Button className="w-full h-12 hero-gradient font-bold" onClick={handleJoin} disabled={isJoining || credits < TOURNAMENT_FEE || currentCount >= MAX_PARTICIPANTS}>
-                  {isJoining ? <Loader2 className="animate-spin mr-2" /> : <Swords className="w-4 h-4 mr-2" />} REGISTER ({TOURNAMENT_FEE.toLocaleString()} €)
-                </Button>
-              ) : (
-                <div className="p-3 bg-green-500/10 text-green-400 text-center text-xs font-bold uppercase tracking-widest border border-green-500/20 rounded-xl">
-                  <CheckCircle2 className="w-4 h-4 inline mr-2" /> REGISTERED
-                </div>
-              )}
+              <Button className="w-full h-12 hero-gradient font-bold" onClick={handleJoin} disabled={isJoining || currentCount >= MAX_PARTICIPANTS}>
+                {isJoining ? <Loader2 className="animate-spin mr-2" /> : <Swords className="w-4 h-4 mr-2" />} REGISTER ({TOURNAMENT_FEE.toLocaleString()} €)
+              </Button>
             </div>
           )}
         </CardContent>
@@ -334,29 +280,36 @@ export default function IronKettlePage() {
           </TabsList>
           
           <TabsContent value="groups" className="mt-4 space-y-3">
-            <div className="grid grid-cols-1 gap-3">
-              {tournamentData?.groups.map((group, idx) => (
-                <Card key={idx} className="glass-card border-white/5 bg-secondary/10 overflow-hidden">
-                  <CardHeader className="py-2 px-4 bg-orange-500/10 border-b border-white/5">
-                    <CardTitle className="text-[10px] font-black uppercase text-orange-400 tracking-widest">Group {String.fromCharCode(65 + idx)}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    {group.map((team, tIdx) => (
-                      <div key={team.id} className={cn(
-                        "flex items-center justify-between p-3 border-b border-white/5 last:border-0",
-                        team.id === user?.uid && "bg-primary/10 border-l-2 border-l-primary"
-                      )}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-black text-muted-foreground w-3">{tIdx + 1}</span>
-                          <span className="text-xs font-bold uppercase text-white truncate max-w-[150px]">{team.name}</span>
-                        </div>
-                        <span className="text-[10px] font-mono text-accent font-black">{team.pts} PTS</span>
+            {tournamentData?.groups.map((group, idx) => (
+              <Card key={idx} className="glass-card border-white/5 bg-secondary/10 overflow-hidden">
+                <CardHeader className="py-2 px-4 bg-orange-500/10 border-b border-white/5 flex justify-between flex-row items-center">
+                  <CardTitle className="text-[10px] font-black uppercase text-orange-400 tracking-widest">Group {String.fromCharCode(65 + idx)}</CardTitle>
+                  <div className="flex gap-4 text-[7px] font-black text-muted-foreground uppercase tracking-tighter">
+                    <span className="w-6 text-center">{t.table.games}</span>
+                    <span className="w-8 text-center">{t.table.wl}</span>
+                    <span className="w-6 text-center">{t.table.pts}</span>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {group.map((team, tIdx) => (
+                    <div key={team.id} className={cn(
+                      "flex items-center justify-between p-3 border-b border-white/5 last:border-0",
+                      team.id === user?.uid && "bg-primary/10 border-l-2 border-l-primary"
+                    )}>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-[10px] font-black text-muted-foreground w-3">{tIdx + 1}</span>
+                        <span className="text-xs font-bold uppercase text-white truncate pr-2">{team.name}</span>
                       </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                      <div className="flex gap-4 items-center shrink-0">
+                        <span className="w-6 text-center text-[10px] font-mono text-muted-foreground">{team.played}</span>
+                        <span className="w-8 text-center text-[10px] font-mono text-white/80">{team.wins}-{team.losses}</span>
+                        <span className="w-6 text-center text-[10px] font-mono text-accent font-black">{team.pts}</span>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ))}
           </TabsContent>
 
           <TabsContent value="playoffs" className="mt-4">
@@ -379,43 +332,10 @@ export default function IronKettlePage() {
                     ))}
                   </div>
                 </section>
-                
-                <div className="p-4 bg-orange-500/5 rounded-2xl border border-orange-500/20 text-center">
-                   <p className="text-[8px] font-black text-orange-400 uppercase tracking-widest">LIVE HOURLY ENGINE v2.0</p>
-                </div>
               </div>
             )}
           </TabsContent>
         </Tabs>
-      )}
-
-      {!isRegClosed && !isLive && (
-        <section className="space-y-3 mt-8">
-          <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1 flex items-center gap-2">
-            <Users className="w-3.5 h-3.5" /> {t.participants}
-          </h2>
-          <div className="grid grid-cols-2 gap-2">
-            {participants?.map((p) => (
-              <div key={p.id} className={cn(
-                "flex items-center gap-2 p-2 rounded-xl border border-white/5 bg-secondary/20",
-                p.id === user?.uid && "border-primary/30 bg-primary/5"
-              )}>
-                <div className="w-6 h-6 rounded-full bg-background flex items-center justify-center border border-white/10 shrink-0">
-                  <User className="w-3 h-3 text-muted-foreground" />
-                </div>
-                <span className="text-[10px] font-bold uppercase truncate">{p.displayName}</span>
-              </div>
-            ))}
-            {Array.from({ length: Math.max(0, MAX_PARTICIPANTS - currentCount) }).map((_, i) => (
-               <div key={i} className="flex items-center gap-2 p-2 rounded-xl border border-dashed border-white/5 opacity-30">
-                  <div className="w-6 h-6 rounded-full bg-background flex items-center justify-center border border-white/10">
-                    <Users className="w-3 h-3" />
-                  </div>
-                  <span className="text-[9px] font-black uppercase">BOT SLOT</span>
-               </div>
-            ))}
-          </div>
-        </section>
       )}
     </div>
   );

@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, Coffee, Globe, Medal, 
-  ChevronRight, Clock, Target, CalendarClock, ShieldAlert
+  ChevronRight, Clock, Target, CalendarClock, ShieldAlert,
+  ArrowRight, Users
 } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
@@ -14,8 +15,8 @@ import { useState, useEffect } from 'react';
 import { getMoscowTime, toMskDate } from '@/app/lib/time-utils';
 
 /**
- * Open Tournaments List v2.2.
- * Only shows upcoming or LIVE tournaments. Finished ones are hidden (moved to History).
+ * Open Tournaments List v3.0.
+ * Отображение турниров строгим списком с фильтрацией завершенных.
  */
 export default function OpenTournamentsPage() {
   const { language } = useGameState();
@@ -29,7 +30,7 @@ export default function OpenTournamentsPage() {
   const t = {
     en: {
       title: "OPEN TOURNAMENTS",
-      subtitle: "Upcoming & Active Events",
+      subtitle: "Active Registration & Live Events",
       back: "Back",
       live: "LIVE",
       kettle: "Cast Iron Kettle",
@@ -38,11 +39,12 @@ export default function OpenTournamentsPage() {
       noUpcoming: "No upcoming tournaments",
       checkHistory: "Completed tournaments are archived in History.",
       historyBtn: "VIEW HISTORY",
-      desc: "Register for upcoming events or watch active LIVE battles."
+      desc: "Register for upcoming events or watch active LIVE battles.",
+      format: "16 Teams • Groups + Playoffs • Bo1"
     },
     ru: {
       title: "ОТКРЫТЫЕ ТУРНИРЫ",
-      subtitle: "Предстоящие и активные события",
+      subtitle: "Регистрация и текущие события",
       back: "Назад",
       live: "В ЭФИРЕ",
       kettle: "Чугунный Чайник",
@@ -51,7 +53,8 @@ export default function OpenTournamentsPage() {
       noUpcoming: "Предстоящих турниров нет",
       checkHistory: "Завершенные турниры перемещены в Историю.",
       historyBtn: "В ИСТОРИЮ",
-      desc: "Регистрируйтесь в новых событиях или смотрите LIVE-битвы."
+      desc: "Регистрируйтесь в новых событиях или смотрите LIVE-битвы.",
+      format: "16 команд • Группы + Плей-офф • Bo1"
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
@@ -77,11 +80,11 @@ export default function OpenTournamentsPage() {
   const globeStatus = getDailyStatus(21, 5);
   const brickStatus = getDailyStatus(21, 35);
 
-  const showKettle = true; // Kettle is hourly, always upcoming or live
-  const showGlobe = globeStatus !== "FINISHED";
-  const showBrick = brickStatus !== "FINISHED";
-
-  const hasAnyUpcoming = showGlobe || showBrick || showKettle;
+  const upcomingTournaments = [
+    { id: 'kettle', name: t.kettle, icon: Coffee, color: 'text-orange-500', bg: 'bg-orange-500/20', status: kettleStatus, href: '/tournaments/iron-kettle', visible: true },
+    { id: 'globe', name: t.globe, icon: Globe, color: 'text-primary', bg: 'bg-primary/20', status: globeStatus, href: '/tournaments/iron-globe', visible: globeStatus !== 'FINISHED' },
+    { id: 'brick', name: t.brick, icon: Medal, color: 'text-accent', bg: 'bg-accent/20', status: brickStatus, href: '/tournaments/iron-brick', visible: brickStatus !== 'FINISHED' },
+  ].filter(t => t.visible);
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
@@ -93,66 +96,42 @@ export default function OpenTournamentsPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{t.title}</h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50">{t.subtitle}</p>
         </div>
       </header>
 
-      <div className="space-y-4">
-        {hasAnyUpcoming ? (
-          <>
-            {/* IRON KETTLE */}
-            <Link href="/tournaments/iron-kettle">
-              <Card className="glass-card border-orange-500/20 bg-orange-500/5 hover:bg-orange-500/10 transition-all cursor-pointer">
+      <div className="space-y-2">
+        {upcomingTournaments.length > 0 ? (
+          upcomingTournaments.map((tour) => (
+            <Link key={tour.id} href={tour.href}>
+              <Card className={cn(
+                "glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group overflow-hidden",
+                tour.status === 'LIVE' && "border-red-500/30 bg-red-500/5"
+              )}>
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="p-2.5 rounded-xl bg-orange-500/20"><Coffee className="w-6 h-6 text-orange-500" /></div>
+                    <div className={cn("p-2.5 rounded-xl transition-transform group-hover:scale-110", tour.bg)}>
+                      <tour.icon className={cn("w-6 h-6", tour.color)} />
+                    </div>
                     <div>
-                      <h3 className="text-sm font-bold uppercase text-white">{t.kettle}</h3>
-                      <p className="text-[8px] text-muted-foreground uppercase font-black">Hourly • 16 Teams • G + P</p>
+                      <h3 className="text-sm font-bold uppercase text-white group-hover:text-primary transition-colors">{tour.name}</h3>
+                      <p className="text-[8px] text-muted-foreground uppercase font-black tracking-widest mt-0.5">{t.format}</p>
                     </div>
                   </div>
-                  <Badge className={cn("text-[7px] font-black h-5", kettleStatus === 'LIVE' ? "bg-red-600 animate-pulse" : "bg-orange-500/20 text-orange-400 border-none")}>
-                    {kettleStatus}
-                  </Badge>
+                  <div className="text-right flex flex-col items-end gap-1">
+                    <Badge className={cn(
+                      "text-[7px] font-black h-5 uppercase tracking-widest px-2",
+                      tour.status === 'LIVE' ? "bg-red-600 animate-pulse text-white" : 
+                      (tour.status === 'REG_OPEN' || tour.status === 'OPEN' ? "bg-green-600/20 text-green-400" : "bg-secondary text-muted-foreground")
+                    )}>
+                      {tour.status}
+                    </Badge>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-all" />
+                  </div>
                 </CardContent>
               </Card>
             </Link>
-
-            {/* DAILY TOURNAMENTS */}
-            <div className="grid grid-cols-2 gap-2">
-              {showGlobe && (
-                <Link href="/tournaments/iron-globe">
-                  <Card className="glass-card border-white/5 hover:border-primary/30 transition-all cursor-pointer overflow-hidden h-full">
-                    <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                      <Globe className="w-8 h-8 text-primary" />
-                      <h4 className="text-[10px] font-bold uppercase text-white">{t.globe}</h4>
-                      <Badge variant="outline" className={cn("text-[7px] font-black h-5 border-white/10", globeStatus === 'LIVE' && "text-red-500 border-red-500/50")}>
-                        {globeStatus}
-                      </Badge>
-                    </CardContent>
-                  </Card>
-                </Link>
-              )}
-              {showBrick && (
-                <Link href="/tournaments/iron-brick">
-                  <Card className="glass-card border-white/5 hover:border-accent/30 transition-all cursor-pointer overflow-hidden h-full">
-                    <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                      <Medal className="w-8 h-8 text-accent" />
-                      <h4 className="text-[10px] font-bold uppercase text-white">{t.brick}</h4>
-                      <Badge variant="outline" className={cn("text-[7px] font-black h-5 border-white/10", brickStatus === 'LIVE' && "text-red-500 border-red-500/50")}>
-                        {brickStatus}
-                      </Badge>
-                    </CardContent>
-                  </Card>
-                </Link>
-              )}
-            </div>
-
-            <div className="p-6 bg-secondary/10 rounded-2xl border border-dashed border-white/5 text-center opacity-40">
-               <CalendarClock className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-               <p className="text-[8px] font-black uppercase tracking-widest">{t.desc}</p>
-            </div>
-          </>
+          ))
         ) : (
           <div className="py-20 flex flex-col items-center justify-center text-center animate-in fade-in duration-700">
             <div className="w-24 h-24 rounded-full bg-secondary/10 border-2 border-dashed border-white/5 flex items-center justify-center mb-6">
@@ -170,6 +149,13 @@ export default function OpenTournamentsPage() {
           </div>
         )}
       </div>
+
+      {upcomingTournaments.length > 0 && (
+        <div className="mt-8 p-6 bg-secondary/10 rounded-3xl border border-dashed border-white/5 text-center opacity-40">
+          <CalendarClock className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+          <p className="text-[8px] font-black uppercase tracking-widest">{t.desc}</p>
+        </div>
+      )}
     </div>
   );
 }

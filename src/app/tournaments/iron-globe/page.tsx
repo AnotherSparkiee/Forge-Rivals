@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   Trophy, Clock, Users, Coins, ChevronLeft, 
   ShieldCheck, Loader2, Star, Swords, Medal,
-  ArrowRight, CheckCircle2, User, History as HistoryIcon
+  ArrowRight, CheckCircle2, User, History as HistoryIcon, Target
 } from 'lucide-react';
 import Link from 'next/link';
 import { getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
@@ -26,7 +26,8 @@ const REG_CLOSE_TIME = "20:50";
 const MAX_PARTICIPANTS = 16;
 
 /**
- * Deterministic helper to get tournament structure based on date and participants.
+ * Deterministic helper to get tournament structure.
+ * Updated with W-L, Games, Points stats.
  */
 export function getDeterministicTournament(
   dateStr: string, 
@@ -60,13 +61,13 @@ export function getDeterministicTournament(
 
   const processedGroups = groups.map((group) => {
     return group.map(t => {
-      let pts = 0;
+      let wins = 0;
+      let losses = 0;
       for (let r = 1; r <= completedGroupRounds; r++) {
         const roundSeed = (t.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0) + seed + r) % 10;
-        if (roundSeed < 4) pts += 3;
-        else if (roundSeed < 7) pts += 1;
+        if (roundSeed < 5) wins++; else losses++;
       }
-      return { ...t, pts };
+      return { ...t, wins, losses, played: completedGroupRounds, pts: wins * 3 };
     }).sort((a, b) => b.pts - a.pts || a.id.localeCompare(b.id));
   });
 
@@ -119,24 +120,18 @@ export default function IronGlobePage() {
       const finishTarget = new Date(startTarget.getTime() + 35 * 60 * 1000);
 
       if (mskNow.getTime() >= finishTarget.getTime()) {
-        setHasFinished(true);
-        setIsLive(false);
-        setCountdown('00:00:00');
+        setHasFinished(true); setIsLive(false); setCountdown('00:00:00');
       } else if (mskNow.getTime() >= startTarget.getTime()) {
-        setIsLive(true);
-        setIsRegClosed(true);
-        setCountdown('00:00:00');
+        setIsLive(true); setIsRegClosed(true); setCountdown('00:00:00');
       } else if (mskNow.getTime() >= closeTarget.getTime()) {
-        setIsLive(false);
-        setIsRegClosed(true);
+        setIsLive(false); setIsRegClosed(true);
         if (!notifiedRef.current && isJoined) {
           toast({ title: language === 'ru' ? "Регистрация завершена" : "Registration Closed" });
           notifiedRef.current = true;
         }
         setCountdown(formatDiff(startTarget.getTime() - mskNow.getTime()));
       } else {
-        setIsLive(false);
-        setIsRegClosed(false);
+        setIsLive(false); setIsRegClosed(false);
         setCountdown(formatDiff(closeTarget.getTime() - mskNow.getTime()));
       }
     };
@@ -199,25 +194,31 @@ export default function IronGlobePage() {
     if (!user || !profile || isJoining || isRegClosed || credits < TOURNAMENT_FEE) return;
     setIsJoining(true);
     try {
-      await updateDoc(userRef!, { inGameCurrency: credits - TOURNAMENT_FEE, tournaments: arrayUnion('iron-globe') });
+      await updateDoc(userRef!, { tournaments: arrayUnion('iron-globe') });
       addCredits(-TOURNAMENT_FEE);
       toast({ title: language === 'ru' ? "Вы зарегистрированы!" : "Successfully registered!" });
     } finally { setIsJoining(false); }
   };
 
-  const t = { title: language === 'ru' ? "ЧУГУННЫЙ ГЛОБУС" : "CHUGUNNY GLOBE", subtitle: language === 'ru' ? "Элитное соревнование 16-ти лучших" : "Elite 16-team competition", results: language === 'ru' ? "ИТОГИ ТУРНИРА" : "TOURNAMENT RESULTS", participants: language === 'ru' ? "СПИСОК УЧАСТНИКОВ" : "PARTICIPANTS LIST", spots: language === 'ru' ? "мест занято" : "spots filled" };
+  const t = { 
+    title: language === 'ru' ? "ЧУГУННЫЙ ГЛОБУС" : "CHUGUNNY GLOBE", 
+    subtitle: language === 'ru' ? "Ежедневный турнир (Группы + Плей-офф)" : "Daily Tournament (Groups + Playoffs)", 
+    results: language === 'ru' ? "ИТОГИ ТУРНИРА" : "TOURNAMENT RESULTS", 
+    participants: language === 'ru' ? "СПИСОК УЧАСТНИКОВ" : "PARTICIPANTS LIST",
+    table: { team: "Команда", wl: "В-П", games: "Игр", pts: "Очк" }
+  };
 
   if (isParticipantsLoading || isUserLoading || !isLoaded) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
       <header className="mb-6 flex items-center justify-between gap-4">
-        <Link href="/tournaments/history">
-          <Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button>
+        <Link href="/tournaments/open">
+          <Button variant="ghost" size="icon" className="rounded-full border border-white/5"><ChevronLeft className="w-6 h-6" /></Button>
         </Link>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-primary">{t.title}</h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{t.subtitle}</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50">{t.subtitle}</p>
         </div>
       </header>
       {hasFinished ? (
@@ -231,31 +232,66 @@ export default function IronGlobePage() {
           <Card className="glass-card mb-6 border-primary/30 bg-primary/5 overflow-hidden">
             <CardContent className="p-6 text-center">
               <Trophy className={cn("w-10 h-10 text-primary mx-auto mb-4", isLive && "animate-pulse")} />
-              <Badge variant={isLive ? "destructive" : "outline"} className="mb-2 uppercase text-[8px]">{isLive ? 'LIVE' : isRegClosed ? 'REG CLOSED' : 'REG OPEN'}</Badge>
+              <Badge variant={isLive ? "destructive" : "outline"} className="mb-2 uppercase text-[8px] tracking-widest">{isLive ? 'LIVE' : isRegClosed ? 'REG CLOSED' : 'REG OPEN'}</Badge>
               <p className="text-4xl font-headline font-bold text-primary">{countdown}</p>
               {!isRegClosed && !isJoined && <Button className="w-full h-12 hero-gradient font-bold mt-4" onClick={handleJoin} disabled={isJoining || currentCount >= MAX_PARTICIPANTS}>REGISTER ({TOURNAMENT_FEE.toLocaleString()} €)</Button>}
             </CardContent>
           </Card>
           {isRegClosed && (
             <Tabs defaultValue="groups" className="w-full">
-              <TabsList className="w-full bg-secondary/50 grid grid-cols-2">
-                <TabsTrigger value="groups" className="uppercase text-[10px] font-bold">Group Stage</TabsTrigger>
-                <TabsTrigger value="playoffs" className="uppercase text-[10px] font-bold">Playoffs</TabsTrigger>
+              <TabsList className="w-full bg-secondary/50 grid grid-cols-2 h-12 p-1 rounded-xl">
+                <TabsTrigger value="groups" className="uppercase text-[10px] font-black rounded-lg">Групповой этап</TabsTrigger>
+                <TabsTrigger value="playoffs" className="uppercase text-[10px] font-black rounded-lg">Плей-офф</TabsTrigger>
               </TabsList>
-              <TabsContent value="groups" className="mt-4 space-y-4">
+              <TabsContent value="groups" className="mt-4 space-y-3">
                 {tournamentData?.groups.map((group, idx) => (
-                  <Card key={idx} className="glass-card border-white/5">
-                    <CardHeader className="py-2 px-4 bg-primary/10 border-b border-white/5"><CardTitle className="text-[10px] font-bold uppercase">Group {String.fromCharCode(65 + idx)}</CardTitle></CardHeader>
+                  <Card key={idx} className="glass-card border-white/5 bg-secondary/10 overflow-hidden">
+                    <CardHeader className="py-2 px-4 bg-primary/10 border-b border-white/5 flex justify-between flex-row items-center">
+                      <CardTitle className="text-[10px] font-black uppercase text-primary tracking-widest">Group {String.fromCharCode(65 + idx)}</CardTitle>
+                      <div className="flex gap-4 text-[7px] font-black text-muted-foreground uppercase tracking-tighter">
+                        <span className="w-6 text-center">{t.table.games}</span>
+                        <span className="w-8 text-center">{t.table.wl}</span>
+                        <span className="w-6 text-center">{t.table.pts}</span>
+                      </div>
+                    </CardHeader>
                     <CardContent className="p-0">
-                      {group.map((team) => (
-                        <div key={team.id} className={cn("flex items-center justify-between p-3 border-b border-white/5", team.id === user?.uid && "bg-primary/5")}>
-                          <span className="text-xs font-bold uppercase">{team.name}</span>
-                          <span className="text-[10px] font-mono text-accent font-bold">{team.pts} PTS</span>
+                      {group.map((team, tIdx) => (
+                        <div key={team.id} className={cn("flex items-center justify-between p-3 border-b border-white/5 last:border-0", team.id === user?.uid && "bg-primary/5")}>
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                             <span className="text-[10px] font-black text-muted-foreground w-3">{tIdx + 1}</span>
+                             <span className="text-xs font-bold uppercase text-white truncate pr-2">{team.name}</span>
+                          </div>
+                          <div className="flex gap-4 items-center shrink-0">
+                            <span className="w-6 text-center text-[10px] font-mono text-muted-foreground">{team.played}</span>
+                            <span className="w-8 text-center text-[10px] font-mono text-white/80">{team.wins}-{team.losses}</span>
+                            <span className="w-6 text-center text-[10px] font-mono text-accent font-black">{team.pts}</span>
+                          </div>
                         </div>
                       ))}
                     </CardContent>
                   </Card>
                 ))}
+              </TabsContent>
+              <TabsContent value="playoffs" className="mt-4">
+                {!tournamentData?.isPlayoffsVisible ? (
+                  <div className="py-20 text-center opacity-40 border border-dashed border-white/10 rounded-3xl p-10">
+                    <Target className="w-12 h-12 mx-auto mb-4 animate-pulse" />
+                    <p className="uppercase text-[10px] font-black tracking-widest">Ожидание завершения группового этапа</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <h3 className="text-[10px] font-black text-accent uppercase tracking-[0.2em] px-1">1/4 Финала</h3>
+                    <div className="grid gap-2">
+                      {[0, 1, 2, 3].map(i => (
+                        <div key={i} className="bg-secondary/30 p-4 rounded-2xl border border-white/5 flex items-center justify-between shadow-inner">
+                          <span className="text-[10px] font-bold text-white uppercase truncate flex-1">{tournamentData?.qualifiers[i*2].name}</span>
+                          <div className="px-3 text-[10px] font-black italic text-primary">VS</div>
+                          <span className="text-[10px] font-bold text-white uppercase truncate flex-1 text-right">{tournamentData?.qualifiers[i*2+1].name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           )}
