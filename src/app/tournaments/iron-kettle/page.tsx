@@ -1,11 +1,10 @@
 'use client';
 
 /**
- * @fileOverview ТУРНИР "ЧУГУННЫЙ ЧАЙНИК" v3.5 (Trophy & Rewards).
+ * @fileOverview ТУРНИР "ЧУГУННЫЙ ЧАЙНИК" v3.6 (Fixed Participation & Identity).
  * 1. Расписание: 10:00, 14:00, 18:00, 22:00 MSK.
- * 2. Регистрация: за 3 часа до старта, закрытие за 15 мин.
- * 3. Награды: Победитель получает 250,000 € и трофей.
- * 4. Уникальные ID турнирных сессий.
+ * 2. Уникальные ID сессий предотвращают ложное участие.
+ * 3. Приоритет clubName над displayName.
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -57,13 +56,31 @@ export default function IronKettlePage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
+  // Уникальный ID инстанса турнира для текущего часа
+  const tournamentInstanceId = useMemo(() => {
+    const now = getMoscowTime();
+    const today = getMoscowDateString();
+    
+    let targetHour = SCHEDULE.find(h => {
+      const currentHour = now.getHours();
+      return currentHour >= h - 3 && currentHour < h + 2; 
+    });
+
+    if (targetHour === undefined) return `kettle_${today}_idle`;
+    return `kettle_${today}_h${targetHour}`;
+  }, []);
+
   const participantsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', TOUR_ID));
-  }, [db]);
+    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', tournamentInstanceId));
+  }, [db, tournamentInstanceId]);
 
   const { data: participants, isLoading: isParticipantsLoading } = useCollection(participantsQuery);
 
-  const isJoined = useMemo(() => profile?.tournaments?.includes(TOUR_ID), [profile]);
+  // Проверка участия строго по ID конкретной сессии
+  const isJoined = useMemo(() => {
+    if (!profile?.tournaments) return false;
+    return profile.tournaments.includes(tournamentInstanceId);
+  }, [profile, tournamentInstanceId]);
 
   useEffect(() => {
     const updateTime = () => {
@@ -74,6 +91,7 @@ export default function IronKettlePage() {
       let targetHour = SCHEDULE.find(h => {
         const start = h;
         const visibleFrom = h - 3;
+        // Видим турнир за 3 часа до начала и в течение 90 минут после начала
         return currentHour >= visibleFrom && (currentHour < start || (currentHour === start && currentMin < 90));
       });
 
@@ -117,11 +135,6 @@ export default function IronKettlePage() {
     const timer = setInterval(updateTime, 1000);
     return () => clearInterval(timer);
   }, []);
-
-  const tournamentInstanceId = useMemo(() => {
-    if (!activeTourHour) return null;
-    return `kettle_${getMoscowDateString()}_h${activeTourHour}`;
-  }, [activeTourHour]);
 
   const tournamentData = useMemo(() => {
     if (status === 'IDLE' || !activeTourHour || !user) return null;
@@ -170,9 +183,11 @@ export default function IronKettlePage() {
             isSub: p.id === lineup.sub1 || p.id === lineup.sub2
           }));
 
+          const clubIdent = profile?.clubName || profile?.displayName || "My Club";
+
           const simulation = await simulateMobaMatch({
             teamA: { 
-              name: profile?.clubName || profile?.displayName || "My Club", 
+              name: clubIdent, 
               strategy, heroes: squad, 
               staffBonus: staff.coach?.skills?.primary || 0,
               infraBonus: (bootcamp.bootcampLevel || 0)
@@ -183,7 +198,7 @@ export default function IronKettlePage() {
 
           const matchRecord = {
             id: matchId,
-            homeName: profile?.clubName || profile?.displayName || "My Club",
+            homeName: clubIdent,
             awayName: opponent.name,
             scoreA: simulation.games[0].scoreA,
             scoreB: simulation.games[0].scoreB,
@@ -192,7 +207,7 @@ export default function IronKettlePage() {
             simulation,
             type: 'tournament',
             playedAt: now.toISOString(),
-            version: 77
+            version: 76
           };
 
           await setDoc(matchRef, matchRecord);
@@ -201,7 +216,6 @@ export default function IronKettlePage() {
             simulation, 0, opponent.name, 'tournament', now.toISOString(), matchId
           );
 
-          // REWARD LOGIC FOR FINAL WIN
           if (isFinal && simulation.games[0].scoreA > simulation.games[0].scoreB) {
             if (rewardClaimedRef.current !== tournamentInstanceId) {
               rewardClaimedRef.current = tournamentInstanceId;
@@ -235,7 +249,9 @@ export default function IronKettlePage() {
     if (!user || !profile || isJoining || status !== 'REG_OPEN' || credits < TOURNAMENT_FEE) return;
     setIsJoining(true);
     try {
-      await updateDoc(userRef!, { tournaments: arrayUnion(TOUR_ID) });
+      await updateDoc(userRef!, { 
+        tournaments: arrayUnion(tournamentInstanceId) 
+      });
       addCredits(-TOURNAMENT_FEE);
       toast({ title: language === 'ru' ? "Вы зарегистрированы!" : "Successfully registered!" });
     } finally { setIsJoining(false); }
@@ -365,6 +381,7 @@ export default function IronKettlePage() {
 
 function getKettleTournamentData(dateStr: string, hour: number, participants: any[], userId: string, mskNow: Date) {
   const seedBase = dateStr.split('-').reduce((acc, v) => acc + parseInt(v), 0) + hour;
+  // ПРИОРИТЕТ clubName для всех участников
   const realPlayers = participants.map(p => ({ id: p.id, name: p.clubName || p.displayName || "Manager", isPlayer: true }));
   const botNeeded = Math.max(0, MAX_PARTICIPANTS - realPlayers.length);
   const bots = Array.from({ length: botNeeded }).map((_, i) => {
