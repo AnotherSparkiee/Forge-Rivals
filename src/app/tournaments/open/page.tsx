@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from '@/app/lib/store';
@@ -16,8 +15,8 @@ import { useState, useEffect } from 'react';
 import { getMoscowTime, toMskDate } from '@/app/lib/time-utils';
 
 /**
- * Open Tournaments List v3.1.
- * Чугунный чайник теперь отображается за 3 часа до начала сессии.
+ * Open Tournaments List v3.2.
+ * Cyber Athletic Cup updated with custom image assets.
  */
 export default function OpenTournamentsPage() {
   const { language } = useGameState();
@@ -34,7 +33,7 @@ export default function OpenTournamentsPage() {
       subtitle: "Active Registration & Live Events",
       back: "Back",
       live: "LIVE",
-      kettle: "Cast Iron Kettle",
+      kettle: "Cyber Athletic Cup",
       globe: "Cast Iron Globe",
       brick: "Cast Iron Brick",
       noUpcoming: "No upcoming tournaments",
@@ -48,7 +47,7 @@ export default function OpenTournamentsPage() {
       subtitle: "Регистрация и текущие события",
       back: "Назад",
       live: "В ЭФИРЕ",
-      kettle: "Чугунный Чайник",
+      kettle: "Cyber Athletic Cup",
       globe: "Чугунный Глобус",
       brick: "Чугунный Кирпич",
       noUpcoming: "Предстоящих турниров нет",
@@ -90,7 +89,7 @@ export default function OpenTournamentsPage() {
   const brickStatus = getDailyStatus(21, 35);
 
   const upcomingTournaments = [
-    { id: 'kettle', name: t.kettle, icon: Coffee, color: 'text-orange-500', bg: 'bg-orange-500/20', status: kettleStatus, href: '/tournaments/iron-kettle', visible: kettleStatus !== 'IDLE' },
+    { id: 'kettle', name: t.kettle, icon: null, image: "https://iili.io/Ca1DVf9.md.png", bg: 'bg-primary/20', status: kettleStatus, href: '/tournaments/iron-kettle', visible: kettleStatus !== 'IDLE' },
     { id: 'globe', name: t.globe, icon: Globe, color: 'text-primary', bg: 'bg-primary/20', status: globeStatus, href: '/tournaments/iron-globe', visible: globeStatus !== 'FINISHED' },
     { id: 'brick', name: t.brick, icon: Medal, color: 'text-accent', bg: 'bg-accent/20', status: brickStatus, href: '/tournaments/iron-brick', visible: brickStatus !== 'FINISHED' },
   ].filter(t => t.visible);
@@ -119,8 +118,12 @@ export default function OpenTournamentsPage() {
               )}>
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className={cn("p-2.5 rounded-xl transition-transform group-hover:scale-110", tour.bg)}>
-                      <tour.icon className={cn("w-6 h-6", tour.color)} />
+                    <div className={cn("p-1.5 rounded-xl transition-transform group-hover:scale-110 flex items-center justify-center overflow-hidden w-12 h-12 bg-secondary/50 border border-white/5")}>
+                      {tour.image ? (
+                        <img src={tour.image} alt="" className="w-full h-full object-contain" />
+                      ) : (
+                        tour.icon && <tour.icon className={cn("w-6 h-6", tour.color)} />
+                      )}
                     </div>
                     <div>
                       <h3 className="text-sm font-bold uppercase text-white group-hover:text-primary transition-colors">{tour.name}</h3>

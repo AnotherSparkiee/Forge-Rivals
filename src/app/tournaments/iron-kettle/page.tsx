@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @fileOverview ТУРНИР "ЧУГУННЫЙ ЧАЙНИК" v3.7 (Participants List).
+ * @fileOverview ТУРНИР "CYBER ATHLETIC CUP" v3.8.
  * 1. Расписание: 10:00, 14:00, 18:00, 22:00 MSK.
  * 2. Уникальные ID сессий.
  * 3. Список реально зарегистрированных участников.
@@ -86,17 +86,6 @@ export default function IronKettlePage() {
       const now = getMoscowTime();
       const currentHour = now.getHours();
       const currentMin = now.getMinutes();
-
-      let targetHour = SCHEDULE.find(h => {
-        const start = h;
-        const visibleFrom = h - 3;
-        return hourIsInRange(currentHour, currentMin, visibleFrom, start);
-      });
-
-      function hourIsInRange(h: number, m: number, start: number, end: number) {
-        // Упрощенная логика для прототипа
-        return h >= start && (h < end || (h === end && m < 90));
-      }
 
       const foundHour = SCHEDULE.find(h => {
         const start = h;
@@ -230,21 +219,21 @@ export default function IronKettlePage() {
               addCredits(TOURNAMENT_REWARD);
               addTrophy({
                 id: tournamentInstanceId,
-                name: language === 'ru' ? "Кубок Чугунного Чайника" : "Cast Iron Kettle Cup",
+                name: "Cyber Athletic Cup",
                 type: 'kettle',
                 date: now.toISOString(),
                 reward: TOURNAMENT_REWARD
               });
               toast({ 
-                title: language === 'ru' ? "ЧЕМПИОН ЧАЙНИКА!" : "KETTLE CHAMPION!",
+                title: language === 'ru' ? "ЧЕМПИОН КУБКА!" : "CUP CHAMPION!",
                 description: language === 'ru' ? `Вы получили ${TOURNAMENT_REWARD.toLocaleString()} € и трофей!` : `You earned ${TOURNAMENT_REWARD.toLocaleString()} € and a trophy!`
               });
             }
           }
 
-          toast({ title: language === 'ru' ? "Матч Чайника завершен!" : "Kettle Match Finished!" });
+          toast({ title: language === 'ru' ? "Матч турнира завершен!" : "Cup Match Finished!" });
         } catch (e) {
-          console.error("Kettle Sim Error:", e);
+          console.error("Cup Sim Error:", e);
           simLockRef.current.delete(tourKey);
         }
       }
@@ -266,7 +255,7 @@ export default function IronKettlePage() {
   };
 
   const t = {
-    title: language === 'ru' ? "ЧУГУННЫЙ ЧАЙНИК" : "CAST IRON KETTLE",
+    title: "CYBER ATHLETIC CUP",
     subtitle: language === 'ru' ? "Регулярный кубок (Группы + Плей-офф)" : "Regular Cup (Groups + Playoffs)",
     regOpen: language === 'ru' ? "РЕГИСТРАЦИЯ ОТКРЫТА" : "REG OPEN",
     regClosed: language === 'ru' ? "РЕГИСТРАЦИЯ ЗАКРЫТА" : "REG CLOSED",
@@ -286,22 +275,22 @@ export default function IronKettlePage() {
             <Button variant="ghost" size="icon" className="rounded-full border border-white/5"><ChevronLeft className="w-6 h-6" /></Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-orange-500">{t.title}</h1>
+            <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-primary">{t.title}</h1>
             <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50">{t.subtitle}</p>
           </div>
         </div>
       </header>
 
-      <Card className={cn("glass-card mb-6 border-orange-500/30 overflow-hidden", status === 'LIVE' && "bg-orange-500/5 shadow-[0_0_20px_rgba(249,115,22,0.1)]")}>
+      <Card className={cn("glass-card mb-6 border-primary/30 overflow-hidden", status === 'LIVE' && "bg-primary/5 shadow-[0_0_20px_rgba(var(--primary),0.1)]")}>
         <CardContent className="p-0">
           <div className="p-6 text-center border-b border-white/5">
-            <div className="w-20 h-20 rounded-full bg-secondary/50 border-2 border-orange-500 mx-auto mb-4 flex items-center justify-center">
-              <Coffee className={cn("w-10 h-10 text-orange-500", status === 'LIVE' && "animate-pulse")} />
+            <div className="w-24 h-24 mx-auto mb-4 flex items-center justify-center relative">
+               <img src="https://iili.io/Ca1DVf9.md.png" alt="Cup" className={cn("w-full h-full object-contain drop-shadow-[0_0_15px_rgba(var(--primary),0.3)]", status === 'LIVE' && "animate-pulse")} />
             </div>
             <Badge variant={status === 'LIVE' ? "destructive" : "outline"} className="mb-2 uppercase text-[8px] tracking-widest">
               {status === 'REG_OPEN' ? t.regOpen : status === 'REG_CLOSED' ? t.regClosed : status === 'LIVE' ? t.live : t.idle}
             </Badge>
-            <p className="text-4xl font-headline font-bold text-orange-500 tabular-nums">{countdown}</p>
+            <p className="text-4xl font-headline font-bold text-primary tabular-nums">{countdown}</p>
             <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">
               {activeTourHour ? `Next Session: ${activeTourHour}:00 MSK` : 'Check back later'}
             </p>
@@ -327,7 +316,6 @@ export default function IronKettlePage() {
         </CardContent>
       </Card>
 
-      {/* СПИСОК УЧАСТНИКОВ (ВИДИМ ВО ВРЕМЯ РЕГИСТРАЦИИ) */}
       {status === 'REG_OPEN' && (
         <section className="space-y-3 mb-8">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1 flex items-center gap-2">
@@ -367,8 +355,8 @@ export default function IronKettlePage() {
           <TabsContent value="groups" className="mt-4 space-y-3">
             {tournamentData.groups.map((group, idx) => (
               <Card key={idx} className="glass-card border-white/5 bg-secondary/10 overflow-hidden">
-                <CardHeader className="py-2 px-4 bg-orange-500/10 border-b border-white/5 flex justify-between flex-row items-center">
-                  <CardTitle className="text-[10px] font-black uppercase text-orange-400">Group {String.fromCharCode(65 + idx)}</CardTitle>
+                <CardHeader className="py-2 px-4 bg-primary/10 border-b border-white/5 flex justify-between flex-row items-center">
+                  <CardTitle className="text-[10px] font-black uppercase text-primary">Group {String.fromCharCode(65 + idx)}</CardTitle>
                   <div className="flex gap-4 text-[7px] font-black text-muted-foreground uppercase">
                     <span className="w-6 text-center">{t.table.games}</span>
                     <span className="w-8 text-center">{t.table.wl}</span>
