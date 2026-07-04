@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState } from '@/app/lib/store';
@@ -15,8 +16,8 @@ import { useState, useEffect } from 'react';
 import { getMoscowTime, toMskDate } from '@/app/lib/time-utils';
 
 /**
- * Open Tournaments List v3.0.
- * Отображение турниров строгим списком с фильтрацией завершенных.
+ * Open Tournaments List v3.1.
+ * Чугунный чайник теперь отображается за 3 часа до начала сессии.
  */
 export default function OpenTournamentsPage() {
   const { language } = useGameState();
@@ -69,11 +70,19 @@ export default function OpenTournamentsPage() {
   };
 
   const getKettleStatus = () => {
-    const mins = now.getMinutes();
-    if (mins < 15) return "REG_OPEN";
-    if (mins < 20) return "PREPARING";
-    if (mins < 50) return "LIVE";
-    return "BREAK";
+    const hour = now.getHours();
+    const min = now.getMinutes();
+    const schedules = [10, 14, 18, 22];
+
+    const active = schedules.find(h => {
+      const visibleFrom = h - 3;
+      return hour >= visibleFrom && (hour < h || (hour === h && min < 90));
+    });
+
+    if (active === undefined) return "IDLE";
+    if (hour < active && (hour > active - 1 || min < 45)) return "REG_OPEN";
+    if (hour < active) return "REG_CLOSED";
+    return "LIVE";
   };
 
   const kettleStatus = getKettleStatus();
@@ -81,7 +90,7 @@ export default function OpenTournamentsPage() {
   const brickStatus = getDailyStatus(21, 35);
 
   const upcomingTournaments = [
-    { id: 'kettle', name: t.kettle, icon: Coffee, color: 'text-orange-500', bg: 'bg-orange-500/20', status: kettleStatus, href: '/tournaments/iron-kettle', visible: true },
+    { id: 'kettle', name: t.kettle, icon: Coffee, color: 'text-orange-500', bg: 'bg-orange-500/20', status: kettleStatus, href: '/tournaments/iron-kettle', visible: kettleStatus !== 'IDLE' },
     { id: 'globe', name: t.globe, icon: Globe, color: 'text-primary', bg: 'bg-primary/20', status: globeStatus, href: '/tournaments/iron-globe', visible: globeStatus !== 'FINISHED' },
     { id: 'brick', name: t.brick, icon: Medal, color: 'text-accent', bg: 'bg-accent/20', status: brickStatus, href: '/tournaments/iron-brick', visible: brickStatus !== 'FINISHED' },
   ].filter(t => t.visible);

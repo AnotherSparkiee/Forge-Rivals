@@ -1,20 +1,24 @@
+
 'use client';
 
 /**
- * @fileOverview ТУРНИР "ЧУГУННЫЙ ЧАЙНИК" v2.1.
- * Обновлены таблицы группового этапа: В-П, Игр, Очк.
+ * @fileOverview ТУРНИР "ЧУГУННЫЙ ЧАЙНИК" v3.0 (FMO Protocol).
+ * 1. Расписание: 10:00, 14:00, 18:00, 22:00 MSK.
+ * 2. Регистрация: за 3 часа до старта, закрытие за 15 мин.
+ * 3. Интервал: 15 минут между турами.
+ * 4. Отчеты: полная симуляция с записью в matches_v1.
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
-import { doc, updateDoc, collection, query, where, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, arrayUnion, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   Trophy, Clock, Users, ChevronLeft, 
   Loader2, Swords, CheckCircle2, User, 
-  History as HistoryIcon, Coffee, Target, Info
+  History as HistoryIcon, Coffee, Target, Info, ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
 import { getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
@@ -24,96 +28,27 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
+import { generateBotSquad } from '@/app/lib/moba-data';
 
 const TOURNAMENT_FEE = 50000;
 const MAX_PARTICIPANTS = 16;
 const TOUR_ID = 'iron-kettle';
-
-/**
- * Deterministic helper for Hourly Tournament
- */
-function getHourlyTournamentData(
-  dateStr: string, 
-  hour: number,
-  participants: any[], 
-  userId: string, 
-  mskNow: Date
-) {
-  const realPlayers = participants?.map(p => ({ id: p.id, name: p.displayName || "Manager", isPlayer: true })) || [];
-  const botNeeded = Math.max(0, MAX_PARTICIPANTS - realPlayers.length);
-  const seedBase = dateStr.split('-').reduce((acc, v) => acc + parseInt(v), 0) + hour;
-  
-  const bots = Array.from({ length: botNeeded }).map((_, i) => {
-    const botIdNum = 5000 + (seedBase % 1000) + (i * 17);
-    return { id: `bot${botIdNum}`, name: `bot${botIdNum}`, isPlayer: false };
-  });
-
-  const allTeams = [...realPlayers, ...bots].sort((a, b) => a.id.localeCompare(b.id));
-  const shuffled = [...allTeams];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = (seedBase + i) % (i + 1);
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-
-  const groups = [ 
-    shuffled.slice(0, 4), 
-    shuffled.slice(4, 8), 
-    shuffled.slice(8, 12), 
-    shuffled.slice(12, 16) 
-  ];
-
-  const mins = mskNow.getMinutes();
-  const elapsedMins = Math.max(0, mins - 20);
-  const completedGroupRounds = Math.min(3, Math.floor(elapsedMins / 5));
-  const isPlayoffsVisible = elapsedMins >= 15;
-
-  const processedGroups = groups.map((group) => {
-    return group.map(t => {
-      let wins = 0;
-      let losses = 0;
-      for (let r = 1; r <= completedGroupRounds; r++) {
-        const roundSeed = (t.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0) + seedBase + r) % 10;
-        if (roundSeed < 5) wins++; else losses++;
-      }
-      return { 
-        ...t, 
-        wins, 
-        losses, 
-        played: completedGroupRounds, 
-        pts: wins * 3 
-      };
-    }).sort((a, b) => b.pts - a.pts || a.id.localeCompare(b.id));
-  });
-
-  let myOpponent = null;
-  const myGroupIdx = groups.findIndex(g => g.some(t => t.id === userId));
-  if (myGroupIdx !== -1) {
-    const myGroup = groups[myGroupIdx];
-    const myIdx = myGroup.findIndex(t => t.id === userId);
-    myOpponent = myGroup[(myIdx + 1) % 4];
-  }
-
-  return { 
-    groups: processedGroups, 
-    qualifiers: processedGroups.flatMap(g => [g[0], g[1]]), 
-    myOpponent, 
-    isPlayoffsVisible 
-  };
-}
+const SCHEDULE = [10, 14, 18, 22]; // Часы начала (MSK)
+const ROUND_INTERVAL = 15; // минут
 
 export default function IronKettlePage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
-  const { credits, addCredits, language, isLoaded, recordMatch } = useGameState();
+  const { credits, addCredits, language, isLoaded, recordMatch, ownedPlayers, lineup, strategy, staff, bootcamp } = useGameState();
   const { toast } = useToast();
   
   const [isJoining, setIsJoining] = useState(false);
   const [countdown, setCountdown] = useState('');
-  const [isLive, setIsLive] = useState(false);
-  const [isRegClosed, setIsRegClosed] = useState(false);
-  const [hasFinished, setHasFinished] = useState(false);
+  const [status, setStatus] = useState<'IDLE' | 'REG_OPEN' | 'REG_CLOSED' | 'LIVE' | 'FINISHED'>('IDLE');
+  const [activeTourHour, setActiveTourHour] = useState<number | null>(null);
   
-  const stateRef = useRef({ notified: false, activeRecord: false, finalResult: false, lastHour: -1 });
+  const simLockRef = useRef<Set<string>>(new Set());
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
@@ -125,40 +60,54 @@ export default function IronKettlePage() {
   const { data: participants, isLoading: isParticipantsLoading } = useCollection(participantsQuery);
 
   const isJoined = useMemo(() => profile?.tournaments?.includes(TOUR_ID), [profile]);
-  const currentCount = participants?.length || 0;
 
   useEffect(() => {
     const updateTime = () => {
-      const mskNow = getMoscowTime();
-      const mins = mskNow.getMinutes();
-      const currentHour = mskNow.getHours();
+      const now = getMoscowTime();
+      const currentHour = now.getHours();
+      const currentMin = now.getMinutes();
 
-      if (stateRef.current.lastHour !== currentHour) {
-        stateRef.current = { notified: false, activeRecord: false, finalResult: false, lastHour: currentHour };
+      // Находим ближайший или текущий турнир
+      let targetHour = SCHEDULE.find(h => {
+        const start = h;
+        const visibleFrom = h - 3;
+        return currentHour >= visibleFrom && (currentHour < start || (currentHour === start && currentMin < 90));
+      });
+
+      if (targetHour === undefined) {
+        setStatus('IDLE');
+        setCountdown('--:--:--');
+        setActiveTourHour(null);
+        return;
       }
 
-      if (mins < 15) {
-        setIsLive(false); setIsRegClosed(false); setHasFinished(false);
-        const diff = (15 - mins) * 60 - mskNow.getSeconds();
-        setCountdown(formatSeconds(diff));
-      } else if (mins < 20) {
-        setIsLive(false); setIsRegClosed(true); setHasFinished(false);
-        const diff = (20 - mins) * 60 - mskNow.getSeconds();
-        setCountdown(formatSeconds(diff));
-      } else if (mins < 50) {
-        setIsLive(true); setIsRegClosed(true); setHasFinished(false);
+      setActiveTourHour(targetHour);
+      const startTarget = new Date(now);
+      startTarget.setHours(targetHour, 0, 0, 0);
+      
+      const regCloseTarget = new Date(startTarget.getTime() - 15 * 60000);
+      const endTarget = new Date(startTarget.getTime() + 90 * 60000);
+
+      if (now < regCloseTarget) {
+        setStatus('REG_OPEN');
+        setCountdown(formatDiff(regCloseTarget.getTime() - now.getTime()));
+      } else if (now < startTarget) {
+        setStatus('REG_CLOSED');
+        setCountdown(formatDiff(startTarget.getTime() - now.getTime()));
+      } else if (now < endTarget) {
+        setStatus('LIVE');
         setCountdown('LIVE');
       } else {
-        setIsLive(false); setIsRegClosed(true); setHasFinished(true);
-        const diff = (60 - mins) * 60 - mskNow.getSeconds();
-        setCountdown(formatSeconds(diff));
+        setStatus('FINISHED');
+        setCountdown('ENDED');
       }
     };
 
-    const formatSeconds = (s: number) => {
-      const mm = Math.floor(s / 60);
-      const ss = s % 60;
-      return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    const formatDiff = (diff: number) => {
+      const hh = Math.floor(diff / 3600000);
+      const mm = Math.floor((diff % 3600000) / 60000);
+      const ss = Math.floor((diff % 60000) / 1000);
+      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
     };
 
     updateTime();
@@ -167,48 +116,97 @@ export default function IronKettlePage() {
   }, []);
 
   const tournamentData = useMemo(() => {
-    if (!isRegClosed || !user) return null;
-    const now = getMoscowTime();
-    return getHourlyTournamentData(getMoscowDateString(), now.getHours(), participants || [], user.uid, now);
-  }, [isRegClosed, participants, user]);
+    if (status === 'IDLE' || !activeTourHour || !user) return null;
+    return getKettleTournamentData(getMoscowDateString(), activeTourHour, participants || [], user.uid, getMoscowTime());
+  }, [status, activeTourHour, participants, user]);
 
+  // AUTO-SIMULATION ENGINE
   useEffect(() => {
-    if (isLive && isJoined && !stateRef.current.activeRecord && userRef && profile) {
-      stateRef.current.activeRecord = true;
-      const mskNow = getMoscowTime();
-      const hour = mskNow.getHours();
-      const activeRecord = {
-        tournamentId: `${TOUR_ID}_h${hour}`,
-        tournamentName: `${language === 'ru' ? "Чугунный Чайник" : "Cast Iron Kettle"} (${hour}:00)`,
-        result: language === 'ru' ? "В процессе" : "In Progress",
-        startDate: mskNow.toISOString(),
-        status: 'active'
-      };
-      updateDoc(userRef, { tournamentHistory: arrayUnion(activeRecord) }).catch(e => console.error(e));
-    }
-  }, [isLive, isJoined, userRef, profile, language]);
+    if (status !== 'LIVE' || !tournamentData || !isJoined || !user) return;
 
-  useEffect(() => {
-    if (hasFinished && isJoined && !stateRef.current.finalResult && userRef && profile && tournamentData) {
-      stateRef.current.finalResult = true;
-      const mskNow = getMoscowTime();
-      const hour = mskNow.getHours();
-      const opponent = tournamentData.myOpponent;
-      const mockResult = { scoreA: 1, scoreB: 0, matchSummary: "Hourly Arena resolution.", teamStats: { teamA: { kills: 12, towersDestroyed: 4 }, teamB: { kills: 8, towersDestroyed: 2 } }, heroPerformance: [] };
-      recordMatch(profile.displayName || "Manager", mockResult, 0, opponent?.name || "Tournament Rival", 'tournament', mskNow.toISOString());
-      const updatedHistory = (profile.tournamentHistory || []).map((h: any) => {
-        if (h.tournamentId === `${TOUR_ID}_h${hour}` && h.status === 'active') {
-          return { ...h, status: 'completed', endDate: mskNow.toISOString(), result: language === 'ru' ? "Завершено" : "Completed" };
+    const runAutoSim = async () => {
+      const now = getMoscowTime();
+      const start = new Date(now);
+      start.setHours(activeTourHour!, 0, 0, 0);
+      
+      const minsPassed = Math.floor((now.getTime() - start.getTime()) / 60000);
+      const currentRoundIdx = Math.floor(minsPassed / ROUND_INTERVAL); // 0, 1, 2, 3, 4, 5
+      
+      if (currentRoundIdx < 0 || currentRoundIdx > 5) return;
+
+      const tourKey = `kettle_${activeTourHour}_r${currentRoundIdx}`;
+      if (simLockRef.current.has(tourKey)) return;
+      simLockRef.current.add(tourKey);
+
+      // Проверяем, есть ли у нас матч в этом раунде
+      let opponent = null;
+      if (currentRoundIdx < 3) {
+        // Групповой этап
+        opponent = tournamentData.myOpponent;
+      } else {
+        // Плей-офф (упрощенно для прототипа)
+        if (tournamentData.isPlayoffsVisible) {
+          opponent = tournamentData.qualifiers[0]; 
         }
-        return h;
-      });
-      updateDoc(userRef, { tournamentHistory: updatedHistory, tournaments: arrayRemove(TOUR_ID) });
-      toast({ title: language === 'ru' ? "Турнир окончен" : "Tournament Ended" });
-    }
-  }, [hasFinished, isJoined, userRef, profile, language, toast, recordMatch, tournamentData]);
+      }
+
+      if (!opponent) return;
+
+      const matchId = `match_kettle_${getMoscowDateString()}_h${activeTourHour}_r${currentRoundIdx}_u${user.uid}`;
+      const matchRef = doc(db, 'matches_v1', matchId);
+      const snap = await getDoc(matchRef);
+
+      if (!snap.exists()) {
+        try {
+          const squad = ownedPlayers.filter(p => Object.values(lineup).includes(p.id)).map(p => ({
+            name: p.name, role: p.role, overallRating: p.overallRating, proStats: p.proStats,
+            isSub: p.id === lineup.sub1 || p.id === lineup.sub2
+          }));
+
+          const simulation = await simulateMobaMatch({
+            teamA: { 
+              name: profile?.clubName || profile?.displayName || "My Club", 
+              strategy, heroes: squad, 
+              staffBonus: staff.coach?.skills?.primary || 0,
+              infraBonus: (bootcamp.bootcampLevel || 0)
+            },
+            teamB: { name: opponent.name, strategy: "Balanced Play", heroes: generateBotSquad(25) },
+            isBo2: false
+          });
+
+          const matchRecord = {
+            id: matchId,
+            homeName: profile?.clubName || profile?.displayName || "My Club",
+            awayName: opponent.name,
+            scoreA: simulation.games[0].scoreA,
+            scoreB: simulation.games[0].scoreB,
+            status: 'finished',
+            isFinished: true,
+            simulation,
+            type: 'tournament',
+            playedAt: now.toISOString(),
+            version: 77
+          };
+
+          await setDoc(matchRef, matchRecord);
+          recordMatch(
+            simulation.games[0].scoreA > simulation.games[0].scoreB ? matchRecord.homeName : opponent.name,
+            simulation, 0, opponent.name, 'tournament', now.toISOString(), matchId
+          );
+
+          toast({ title: language === 'ru' ? "Матч Чайника завершен!" : "Kettle Match Finished!" });
+        } catch (e) {
+          console.error("Kettle Sim Error:", e);
+          simLockRef.current.delete(tourKey);
+        }
+      }
+    };
+
+    runAutoSim();
+  }, [status, tournamentData, isJoined, user, activeTourHour, ownedPlayers, lineup, strategy, staff, bootcamp, db, profile, recordMatch, language]);
 
   const handleJoin = async () => {
-    if (!user || !profile || isJoining || isRegClosed || credits < TOURNAMENT_FEE) return;
+    if (!user || !profile || isJoining || status !== 'REG_OPEN' || credits < TOURNAMENT_FEE) return;
     setIsJoining(true);
     try {
       await updateDoc(userRef!, { tournaments: arrayUnion(TOUR_ID) });
@@ -219,22 +217,12 @@ export default function IronKettlePage() {
 
   const t = {
     title: language === 'ru' ? "ЧУГУННЫЙ ЧАЙНИК" : "CAST IRON KETTLE",
-    subtitle: language === 'ru' ? "Часовой цикл (Группы + Плей-офф)" : "Hourly Cycle (Groups + Playoffs)",
-    results: language === 'ru' ? "ИТОГИ ТУРНИРА" : "TOURNAMENT RESULTS",
-    participants: language === 'ru' ? "СПИСОК УЧАСТНИКОВ" : "PARTICIPANTS LIST",
-    spots: language === 'ru' ? "мест занято" : "spots filled",
-    groupStage: language === 'ru' ? "Групповой этап" : "Group Stage",
-    playoffs: language === 'ru' ? "Плей-офф" : "Playoffs",
+    subtitle: language === 'ru' ? "Регулярный кубок (Группы + Плей-офф)" : "Regular Cup (Groups + Playoffs)",
     regOpen: language === 'ru' ? "РЕГИСТРАЦИЯ ОТКРЫТА" : "REG OPEN",
     regClosed: language === 'ru' ? "РЕГИСТРАЦИЯ ЗАКРЫТА" : "REG CLOSED",
     live: language === 'ru' ? "В ЭФИРЕ" : "LIVE",
-    nextCycle: language === 'ru' ? "ДО СЛЕДУЮЩЕГО ЦИКЛА" : "NEXT CYCLE IN",
-    table: {
-      team: language === 'ru' ? "Команда" : "Team",
-      wl: language === 'ru' ? "В-П" : "W-L",
-      games: language === 'ru' ? "Игр" : "G",
-      pts: language === 'ru' ? "Очк" : "PTS"
-    }
+    idle: language === 'ru' ? "ОЖИДАНИЕ ЦИКЛА" : "AWAITING CYCLE",
+    table: { team: "Команда", wl: "В-П", games: "Игр", pts: "Очк" }
   };
 
   if (isParticipantsLoading || isUserLoading || !isLoaded) return <LoadingScreen />;
@@ -242,49 +230,60 @@ export default function IronKettlePage() {
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
       <header className="mb-6 flex items-center justify-between gap-4">
-        <Link href="/tournaments/open">
-          <Button variant="ghost" size="icon" className="rounded-full border border-white/5"><ChevronLeft className="w-6 h-6" /></Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-orange-500">{t.title}</h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50">{t.subtitle}</p>
+        <div className="flex items-center gap-4">
+          <Link href="/tournaments/open">
+            <Button variant="ghost" size="icon" className="rounded-full border border-white/5"><ChevronLeft className="w-6 h-6" /></Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-orange-500">{t.title}</h1>
+            <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50">{t.subtitle}</p>
+          </div>
         </div>
       </header>
 
-      <Card className={cn("glass-card mb-6 border-orange-500/30 overflow-hidden", isLive && "bg-orange-500/5")}>
+      <Card className={cn("glass-card mb-6 border-orange-500/30 overflow-hidden", status === 'LIVE' && "bg-orange-500/5 shadow-[0_0_20px_rgba(249,115,22,0.1)]")}>
         <CardContent className="p-0">
           <div className="p-6 text-center border-b border-white/5">
             <div className="w-20 h-20 rounded-full bg-secondary/50 border-2 border-orange-500 mx-auto mb-4 flex items-center justify-center">
-              <Coffee className={cn("w-10 h-10 text-orange-500", isLive && "animate-pulse")} />
+              <Coffee className={cn("w-10 h-10 text-orange-500", status === 'LIVE' && "animate-pulse")} />
             </div>
-            <Badge variant={isLive ? "destructive" : "outline"} className="mb-2 uppercase text-[8px] tracking-widest">
-              {isLive ? t.live : isRegClosed ? (hasFinished ? t.nextCycle : t.regClosed) : t.regOpen}
+            <Badge variant={status === 'LIVE' ? "destructive" : "outline"} className="mb-2 uppercase text-[8px] tracking-widest">
+              {status === 'REG_OPEN' ? t.regOpen : status === 'REG_CLOSED' ? t.regClosed : status === 'LIVE' ? t.live : t.idle}
             </Badge>
-            <p className="text-4xl font-headline font-bold text-orange-500">{countdown}</p>
+            <p className="text-4xl font-headline font-bold text-orange-500 tabular-nums">{countdown}</p>
+            <p className="text-[9px] text-muted-foreground uppercase font-black mt-2 tracking-widest">
+              {activeTourHour ? `Next Session: ${activeTourHour}:00 MSK` : 'Check back later'}
+            </p>
           </div>
-          {!isRegClosed && !isJoined && (
+          {status === 'REG_OPEN' && !isJoined && (
             <div className="p-4 bg-secondary/20">
-              <Button className="w-full h-12 hero-gradient font-bold" onClick={handleJoin} disabled={isJoining || currentCount >= MAX_PARTICIPANTS}>
-                {isJoining ? <Loader2 className="animate-spin mr-2" /> : <Swords className="w-4 h-4 mr-2" />} REGISTER ({TOURNAMENT_FEE.toLocaleString()} €)
+              <Button className="w-full h-12 hero-gradient font-black text-xs tracking-widest uppercase shadow-xl" onClick={handleJoin} disabled={isJoining || (participants?.length || 0) >= MAX_PARTICIPANTS}>
+                {isJoining ? <Loader2 className="animate-spin mr-2" /> : <Swords className="w-4 h-4 mr-2" />} 
+                ВСТУПИТЬ ({TOURNAMENT_FEE.toLocaleString()} €)
               </Button>
             </div>
+          )}
+          {isJoined && status !== 'FINISHED' && (
+             <div className="p-3 bg-green-500/10 text-green-400 text-center text-[10px] font-black uppercase tracking-widest border-t border-white/5">
+               <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" /> ВЫ УЧАСТНИК
+             </div>
           )}
         </CardContent>
       </Card>
 
-      {(isRegClosed || isLive || hasFinished) && (
+      {tournamentData && (status === 'REG_CLOSED' || status === 'LIVE' || status === 'FINISHED') && (
         <Tabs defaultValue="groups" className="w-full">
           <TabsList className="w-full bg-secondary/50 grid grid-cols-2 h-12 p-1 rounded-xl">
-            <TabsTrigger value="groups" className="uppercase text-[10px] font-black rounded-lg">{t.groupStage}</TabsTrigger>
-            <TabsTrigger value="playoffs" className="uppercase text-[10px] font-black rounded-lg">{t.playoffs}</TabsTrigger>
+            <TabsTrigger value="groups" className="uppercase text-[10px] font-black rounded-lg">Группы</TabsTrigger>
+            <TabsTrigger value="playoffs" className="uppercase text-[10px] font-black rounded-lg">Сетка</TabsTrigger>
           </TabsList>
           
           <TabsContent value="groups" className="mt-4 space-y-3">
-            {tournamentData?.groups.map((group, idx) => (
+            {tournamentData.groups.map((group, idx) => (
               <Card key={idx} className="glass-card border-white/5 bg-secondary/10 overflow-hidden">
                 <CardHeader className="py-2 px-4 bg-orange-500/10 border-b border-white/5 flex justify-between flex-row items-center">
-                  <CardTitle className="text-[10px] font-black uppercase text-orange-400 tracking-widest">Group {String.fromCharCode(65 + idx)}</CardTitle>
-                  <div className="flex gap-4 text-[7px] font-black text-muted-foreground uppercase tracking-tighter">
+                  <CardTitle className="text-[10px] font-black uppercase text-orange-400">Group {String.fromCharCode(65 + idx)}</CardTitle>
+                  <div className="flex gap-4 text-[7px] font-black text-muted-foreground uppercase">
                     <span className="w-6 text-center">{t.table.games}</span>
                     <span className="w-8 text-center">{t.table.wl}</span>
                     <span className="w-6 text-center">{t.table.pts}</span>
@@ -292,13 +291,10 @@ export default function IronKettlePage() {
                 </CardHeader>
                 <CardContent className="p-0">
                   {group.map((team, tIdx) => (
-                    <div key={team.id} className={cn(
-                      "flex items-center justify-between p-3 border-b border-white/5 last:border-0",
-                      team.id === user?.uid && "bg-primary/10 border-l-2 border-l-primary"
-                    )}>
+                    <div key={team.id} className={cn("flex items-center justify-between p-3 border-b border-white/5 last:border-0", team.id === user?.uid && "bg-primary/10 border-l-2 border-l-primary")}>
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <span className="text-[10px] font-black text-muted-foreground w-3">{tIdx + 1}</span>
-                        <span className="text-xs font-bold uppercase text-white truncate pr-2">{team.name}</span>
+                        <span className="text-xs font-bold uppercase text-white truncate">{team.name}</span>
                       </div>
                       <div className="flex gap-4 items-center shrink-0">
                         <span className="w-6 text-center text-[10px] font-mono text-muted-foreground">{team.played}</span>
@@ -313,25 +309,25 @@ export default function IronKettlePage() {
           </TabsContent>
 
           <TabsContent value="playoffs" className="mt-4">
-            {!tournamentData?.isPlayoffsVisible ? (
-              <div className="py-20 text-center opacity-40 border border-dashed border-white/10 rounded-3xl p-10">
-                 <Target className="w-12 h-12 mx-auto mb-4 animate-pulse" />
-                 <p className="uppercase text-[10px] font-black tracking-widest leading-relaxed">Awaiting completion of<br/>group stage engagements</p>
+            {!tournamentData.isPlayoffsVisible ? (
+              <div className="py-20 text-center opacity-40 border border-dashed border-white/10 rounded-3xl p-10 flex flex-col items-center gap-4">
+                 <Target className="w-12 h-12 text-muted-foreground animate-pulse" />
+                 <p className="uppercase text-[10px] font-black tracking-widest leading-relaxed">Ожидание завершения<br/>группового этапа</p>
               </div>
             ) : (
-              <div className="space-y-6">
-                <section className="space-y-3">
-                  <h3 className="text-[10px] font-black text-accent uppercase tracking-[0.2em] px-1">Quarter-Finals (1/4)</h3>
-                  <div className="grid gap-2">
-                    {[0, 1, 2, 3].map(i => (
-                      <div key={i} className="bg-secondary/30 p-4 rounded-2xl border border-white/5 flex items-center justify-between shadow-inner">
-                        <span className="text-[10px] font-bold text-white uppercase truncate flex-1">{tournamentData?.qualifiers[i*2].name}</span>
-                        <div className="px-3 text-[10px] font-black italic text-primary">VS</div>
-                        <span className="text-[10px] font-bold text-white uppercase truncate flex-1 text-right">{tournamentData?.qualifiers[i*2+1].name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </section>
+              <div className="space-y-4">
+                <h3 className="text-[10px] font-black text-accent uppercase tracking-widest px-1">1/4 Финала</h3>
+                <div className="grid gap-2">
+                  {[0, 1, 2, 3].map(i => (
+                    <Card key={i} className="glass-card border-white/5 bg-secondary/20">
+                      <CardContent className="p-4 flex items-center justify-between">
+                         <span className="text-[10px] font-bold uppercase truncate flex-1">{tournamentData.qualifiers[i*2]?.name || 'TBD'}</span>
+                         <div className="px-3 text-[10px] font-black italic text-primary">VS</div>
+                         <span className="text-[10px] font-bold uppercase truncate flex-1 text-right">{tournamentData.qualifiers[i*2+1]?.name || 'TBD'}</span>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               </div>
             )}
           </TabsContent>
@@ -339,4 +335,50 @@ export default function IronKettlePage() {
       )}
     </div>
   );
+}
+
+function getKettleTournamentData(dateStr: string, hour: number, participants: any[], userId: string, mskNow: Date) {
+  const seedBase = dateStr.split('-').reduce((acc, v) => acc + parseInt(v), 0) + hour;
+  const realPlayers = participants.map(p => ({ id: p.id, name: p.clubName || p.displayName || "Manager", isPlayer: true }));
+  const botNeeded = Math.max(0, MAX_PARTICIPANTS - realPlayers.length);
+  const bots = Array.from({ length: botNeeded }).map((_, i) => {
+    const botIdNum = 5000 + (seedBase % 1000) + (i * 17);
+    return { id: `bot${botIdNum}`, name: `bot${botIdNum}`, isPlayer: false };
+  });
+  const allTeams = [...realPlayers, ...bots].sort((a, b) => a.id.localeCompare(b.id));
+  const shuffled = [...allTeams];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = (seedBase + i) % (i + 1);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  const groups = [ shuffled.slice(0, 4), shuffled.slice(4, 8), shuffled.slice(8, 12), shuffled.slice(12, 16) ];
+  const start = new Date(mskNow); start.setHours(hour, 0, 0, 0);
+  const minsPassed = Math.floor((mskNow.getTime() - start.getTime()) / 60000);
+  const completedRounds = Math.min(3, Math.max(0, Math.floor(minsPassed / ROUND_INTERVAL)));
+  
+  const processedGroups = groups.map((group) => {
+    return group.map(t => {
+      let wins = 0;
+      for (let r = 1; r <= completedRounds; r++) {
+        const roundSeed = (t.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0) + seedBase + r) % 10;
+        if (roundSeed < 5) wins++;
+      }
+      return { ...t, wins, losses: completedRounds - wins, played: completedRounds, pts: wins * 3 };
+    }).sort((a, b) => b.pts - a.pts || a.id.localeCompare(b.id));
+  });
+
+  const myGroupIdx = groups.findIndex(g => g.some(t => t.id === userId));
+  let myOpponent = null;
+  if (myGroupIdx !== -1) {
+    const myGroup = groups[myGroupIdx];
+    const myIdx = myGroup.findIndex(t => t.id === userId);
+    myOpponent = myGroup[(myIdx + 1) % 4];
+  }
+
+  return { 
+    groups: processedGroups, 
+    qualifiers: processedGroups.flatMap(g => [g[0], g[1]]), 
+    isPlayoffsVisible: minsPassed >= 45,
+    myOpponent
+  };
 }
