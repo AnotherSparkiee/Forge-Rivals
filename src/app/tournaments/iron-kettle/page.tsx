@@ -1,12 +1,11 @@
-
 'use client';
 
 /**
- * @fileOverview ТУРНИР "ЧУГУННЫЙ ЧАЙНИК" v3.0 (FMO Protocol).
+ * @fileOverview ТУРНИР "ЧУГУННЫЙ ЧАЙНИК" v3.5 (Trophy & Rewards).
  * 1. Расписание: 10:00, 14:00, 18:00, 22:00 MSK.
  * 2. Регистрация: за 3 часа до старта, закрытие за 15 мин.
- * 3. Интервал: 15 минут между турами.
- * 4. Отчеты: полная симуляция с записью в matches_v1.
+ * 3. Награды: Победитель получает 250,000 € и трофей.
+ * 4. Уникальные ID турнирных сессий.
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -18,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   Trophy, Clock, Users, ChevronLeft, 
   Loader2, Swords, CheckCircle2, User, 
-  History as HistoryIcon, Coffee, Target, Info, ChevronRight
+  History as HistoryIcon, Coffee, Target, Info, ChevronRight, Medal
 } from 'lucide-react';
 import Link from 'next/link';
 import { getMoscowTime, getMoscowDateString } from '@/app/lib/time-utils';
@@ -32,6 +31,7 @@ import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
 
 const TOURNAMENT_FEE = 50000;
+const TOURNAMENT_REWARD = 250000;
 const MAX_PARTICIPANTS = 16;
 const TOUR_ID = 'iron-kettle';
 const SCHEDULE = [10, 14, 18, 22]; // Часы начала (MSK)
@@ -40,7 +40,10 @@ const ROUND_INTERVAL = 15; // минут
 export default function IronKettlePage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
-  const { credits, addCredits, language, isLoaded, recordMatch, ownedPlayers, lineup, strategy, staff, bootcamp } = useGameState();
+  const { 
+    credits, addCredits, language, isLoaded, recordMatch, 
+    ownedPlayers, lineup, strategy, staff, bootcamp, addTrophy 
+  } = useGameState();
   const { toast } = useToast();
   
   const [isJoining, setIsJoining] = useState(false);
@@ -49,6 +52,7 @@ export default function IronKettlePage() {
   const [activeTourHour, setActiveTourHour] = useState<number | null>(null);
   
   const simLockRef = useRef<Set<string>>(new Set());
+  const rewardClaimedRef = useRef<string | null>(null);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
@@ -67,7 +71,6 @@ export default function IronKettlePage() {
       const currentHour = now.getHours();
       const currentMin = now.getMinutes();
 
-      // Находим ближайший или текущий турнир
       let targetHour = SCHEDULE.find(h => {
         const start = h;
         const visibleFrom = h - 3;
@@ -115,14 +118,19 @@ export default function IronKettlePage() {
     return () => clearInterval(timer);
   }, []);
 
+  const tournamentInstanceId = useMemo(() => {
+    if (!activeTourHour) return null;
+    return `kettle_${getMoscowDateString()}_h${activeTourHour}`;
+  }, [activeTourHour]);
+
   const tournamentData = useMemo(() => {
     if (status === 'IDLE' || !activeTourHour || !user) return null;
     return getKettleTournamentData(getMoscowDateString(), activeTourHour, participants || [], user.uid, getMoscowTime());
   }, [status, activeTourHour, participants, user]);
 
-  // AUTO-SIMULATION ENGINE
+  // AUTO-SIMULATION & REWARDS ENGINE
   useEffect(() => {
-    if (status !== 'LIVE' || !tournamentData || !isJoined || !user) return;
+    if (status !== 'LIVE' || !tournamentData || !isJoined || !user || !tournamentInstanceId) return;
 
     const runAutoSim = async () => {
       const now = getMoscowTime();
@@ -130,21 +138,20 @@ export default function IronKettlePage() {
       start.setHours(activeTourHour!, 0, 0, 0);
       
       const minsPassed = Math.floor((now.getTime() - start.getTime()) / 60000);
-      const currentRoundIdx = Math.floor(minsPassed / ROUND_INTERVAL); // 0, 1, 2, 3, 4, 5
+      const currentRoundIdx = Math.floor(minsPassed / ROUND_INTERVAL); 
       
       if (currentRoundIdx < 0 || currentRoundIdx > 5) return;
 
-      const tourKey = `kettle_${activeTourHour}_r${currentRoundIdx}`;
+      const tourKey = `${tournamentInstanceId}_r${currentRoundIdx}`;
       if (simLockRef.current.has(tourKey)) return;
       simLockRef.current.add(tourKey);
 
-      // Проверяем, есть ли у нас матч в этом раунде
       let opponent = null;
+      const isFinal = currentRoundIdx === 5;
+      
       if (currentRoundIdx < 3) {
-        // Групповой этап
         opponent = tournamentData.myOpponent;
       } else {
-        // Плей-офф (упрощенно для прототипа)
         if (tournamentData.isPlayoffsVisible) {
           opponent = tournamentData.qualifiers[0]; 
         }
@@ -152,7 +159,7 @@ export default function IronKettlePage() {
 
       if (!opponent) return;
 
-      const matchId = `match_kettle_${getMoscowDateString()}_h${activeTourHour}_r${currentRoundIdx}_u${user.uid}`;
+      const matchId = `match_${tourKey}_u${user.uid}`;
       const matchRef = doc(db, 'matches_v1', matchId);
       const snap = await getDoc(matchRef);
 
@@ -194,6 +201,25 @@ export default function IronKettlePage() {
             simulation, 0, opponent.name, 'tournament', now.toISOString(), matchId
           );
 
+          // REWARD LOGIC FOR FINAL WIN
+          if (isFinal && simulation.games[0].scoreA > simulation.games[0].scoreB) {
+            if (rewardClaimedRef.current !== tournamentInstanceId) {
+              rewardClaimedRef.current = tournamentInstanceId;
+              addCredits(TOURNAMENT_REWARD);
+              addTrophy({
+                id: tournamentInstanceId,
+                name: language === 'ru' ? "Кубок Чугунного Чайника" : "Cast Iron Kettle Cup",
+                type: 'kettle',
+                date: now.toISOString(),
+                reward: TOURNAMENT_REWARD
+              });
+              toast({ 
+                title: language === 'ru' ? "ЧЕМПИОН ЧАЙНИКА!" : "KETTLE CHAMPION!",
+                description: language === 'ru' ? `Вы получили ${TOURNAMENT_REWARD.toLocaleString()} € и трофей!` : `You earned ${TOURNAMENT_REWARD.toLocaleString()} € and a trophy!`
+              });
+            }
+          }
+
           toast({ title: language === 'ru' ? "Матч Чайника завершен!" : "Kettle Match Finished!" });
         } catch (e) {
           console.error("Kettle Sim Error:", e);
@@ -203,7 +229,7 @@ export default function IronKettlePage() {
     };
 
     runAutoSim();
-  }, [status, tournamentData, isJoined, user, activeTourHour, ownedPlayers, lineup, strategy, staff, bootcamp, db, profile, recordMatch, language]);
+  }, [status, tournamentData, isJoined, user, activeTourHour, ownedPlayers, lineup, strategy, staff, bootcamp, db, profile, recordMatch, language, tournamentInstanceId, addCredits, addTrophy, toast]);
 
   const handleJoin = async () => {
     if (!user || !profile || isJoining || status !== 'REG_OPEN' || credits < TOURNAMENT_FEE) return;

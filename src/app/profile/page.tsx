@@ -11,7 +11,7 @@ import {
   Award, ScrollText, CircleDollarSign, 
   UserCog, HeartPulse, GraduationCap, 
   TrendingUp, BarChart3, Building2, MapPin,
-  Shield, Activity, Settings2, Info, AlertTriangle, Trash2
+  Shield, Activity, Settings2, Info, AlertTriangle, Trash2, Medal
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -40,7 +40,7 @@ export default function ProfilePage() {
     credits, crystals, leagueLevel, 
     experiencePoints, activeLicenseTier, hq, managerLevel,
     skillPoints, managerSkills, upgradeManagerSkill, arena, bootcamp, academy, medical,
-    isPremium, premiumUntil, resetProfile
+    isPremium, premiumUntil, resetProfile, trophies
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
@@ -109,6 +109,8 @@ export default function ProfilePage() {
       teamStats: "Club Status",
       premiumActive: "ELITE STATUS ACTIVE",
       premiumExp: "Expires",
+      trophies: "TROPHIES",
+      noTrophies: "No trophies won yet. Win tournaments to see them here.",
       skills: {
         title: "STRATEGIC DEVELOPMENT",
         points: "Points Available",
@@ -135,6 +137,8 @@ export default function ProfilePage() {
       teamStats: "Статус команды",
       premiumActive: "ЭЛИТНЫЙ СТАТУС АКТИВЕН",
       premiumExp: "Истекает",
+      trophies: "ТРОФЕИ",
+      noTrophies: "Трофеев пока нет. Выигрывайте турниры, чтобы они появились здесь.",
       skills: {
         title: "РАЗВИТИЕ КЛУБА",
         points: "Очки навыков",
@@ -236,7 +240,7 @@ export default function ProfilePage() {
           {[
             { key: 'sponsors', icon: CircleDollarSign, label: t.skills.sponsors, color: 'text-yellow-400', desc: isPremium ? '+200% Active' : '+10% Income' },
             { key: 'agents', icon: UserCog, label: t.skills.agents, color: 'text-blue-400', desc: '+10% Sale Fee' },
-            { key: 'training', icon: GraduationCap, label: t.skills.training, color: 'text-primary', desc: isPremium ? '5x XP Active' : '+10% XP Rate' },
+            { key: 'training', icon: GraduationCap, label: t.skills.training, color: 'text-primary', colorVal: 'hsl(var(--primary))', desc: isPremium ? '5x XP Active' : '+10% XP Rate' },
             { key: 'medical', icon: HeartPulse, label: t.skills.medical, color: 'text-red-400', desc: '+10% Form Limit' }
           ].map((skill) => (
             <Card key={skill.key} className="glass-card border-white/5 overflow-hidden group">
@@ -314,12 +318,36 @@ export default function ProfilePage() {
       </div>
 
       {activeTab === 'menu' && (
-        <div className="space-y-4 animate-in fade-in duration-500">
-          <Card className="glass-card border-primary/20 bg-primary/5 p-6 text-center">
-             <Trophy className="w-12 h-12 text-primary mx-auto mb-4 opacity-20" />
-             <h3 className="text-sm font-bold uppercase text-white">Career Performance</h3>
-             <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">Official ranking and division data are synchronized at the start of each match window.</p>
+        <div className="space-y-4 animate-in fade-in duration-500 pb-20">
+          <Card className="glass-card border-primary/20 bg-primary/5 p-6">
+             <div className="flex items-center gap-2 mb-4">
+               <Trophy className="w-5 h-5 text-yellow-500" />
+               <h3 className="text-sm font-black uppercase text-white tracking-widest">{t.trophies}</h3>
+             </div>
+             
+             {trophies && trophies.length > 0 ? (
+               <div className="grid grid-cols-1 gap-2">
+                 {trophies.map((trophy: any, idx: number) => (
+                   <div key={idx} className="bg-secondary/30 p-3 rounded-xl border border-white/5 flex items-center justify-between">
+                     <div className="flex items-center gap-3">
+                       <div className="p-2 rounded-lg bg-yellow-500/10"><Medal className="w-4 h-4 text-yellow-500" /></div>
+                       <div>
+                         <p className="text-[10px] font-bold text-white uppercase">{trophy.name}</p>
+                         <p className="text-[8px] text-muted-foreground uppercase">{new Date(trophy.date).toLocaleDateString()}</p>
+                       </div>
+                     </div>
+                     {trophy.reward && <Badge variant="outline" className="text-[8px] text-green-400 border-green-500/30">+{trophy.reward.toLocaleString()} €</Badge>}
+                   </div>
+                 ))}
+               </div>
+             ) : (
+               <div className="py-8 text-center opacity-30 flex flex-col items-center gap-3 border border-dashed border-white/10 rounded-xl">
+                 <Trophy className="w-8 h-8" />
+                 <p className="text-[9px] uppercase font-bold max-w-[180px] leading-relaxed">{t.noTrophies}</p>
+               </div>
+             )}
           </Card>
+
           <div className="grid grid-cols-1 gap-2">
             <Button variant="outline" className="h-12 border-white/5 bg-secondary/20 hover:bg-white/5 justify-between px-4 group" onClick={() => setActiveTab('team')}><div className="flex items-center gap-3"><Shield className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" /><span className="text-[10px] font-black uppercase">Club Infrastructure Overview</span></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Button>
             <Button variant="outline" className="h-12 border-white/5 bg-secondary/20 hover:bg-white/5 justify-between px-4 group"><div className="flex items-center gap-3"><Settings2 className="w-4 h-4 text-accent group-hover:scale-110 transition-transform" /><span className="text-[10px] font-black uppercase">Security & Account Settings</span></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Button>

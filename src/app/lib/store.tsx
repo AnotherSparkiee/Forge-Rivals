@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Глобальное хранилище v76 (Club Identity Sync).
+ * Глобальное хранилище v77 (Trophy & Rewards System).
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -13,6 +13,14 @@ import { doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, query, wher
 export { getLevelThreshold };
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
+
+interface TrophyRecord {
+  id: string;
+  name: string;
+  type: string;
+  date: string;
+  reward?: number;
+}
 
 interface GameState {
   credits: number; crystals: number; experiencePoints: number; managerLevel: number;
@@ -34,6 +42,7 @@ interface GameState {
   isSyncing: boolean; language: string; skillPoints: number;
   isDataReady: boolean; allSeasonMatches: any[]; nextMatch: any | null; isMatchesLoading: boolean;
   lastProcessedSeason: number;
+  trophies: TrophyRecord[];
   version: number;
 
   addCrystals: (amount: number) => void;
@@ -74,6 +83,7 @@ interface GameState {
   payStaffSalaries: () => Promise<void>;
   healPlayer: (playerId: string, type: 'credits' | 'crystals', cost: number) => void;
   launchFanCampaign: (type: 'open_day' | 'autograph' | 'ultras_trip', cost: number, fans: number, loyalty: number) => void;
+  addTrophy: (trophy: TrophyRecord) => void;
   setWorldReady: (isReady: boolean) => void;
   resetProfile: () => Promise<void>;
 }
@@ -92,7 +102,7 @@ const DEFAULT_STATE: GameState = {
   skillPoints: 0, arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, version: 0,
+  lastProcessedSeason: 0, trophies: [], version: 0,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
   setTrainingFocus: () => {}, startDailyPlayerTraining: () => {}, claimDailyPlayerTraining: () => {},
@@ -105,7 +115,7 @@ const DEFAULT_STATE: GameState = {
   accelerateConstruction: () => false, checkConstructions: () => {},
   scoutCandidates: () => {}, recruitCandidate: () => {}, clearScoutingReport: () => {},
   payStaffSalaries: async () => {}, healPlayer: () => {}, launchFanCampaign: () => {},
-  setWorldReady: () => {}, resetProfile: async () => {}
+  addTrophy: () => {}, setWorldReady: () => {}, resetProfile: async () => {}
 };
 
 const GameStateContext = createContext<GameState | undefined>(DEFAULT_STATE);
@@ -138,6 +148,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         activeSeasonNumber: Number(info.activeSeasonNumber),
         seasonNumber: Number(info.seasonNumber), seasonDay: Number(info.seasonDay),
         lastProcessedSeason: Number(data.lastProcessedSeason || 0),
+        trophies: data.trophies || [],
         version: Number(data.version || 0),
         rank: Number(data.rank || 1),
         isLoaded: true
@@ -339,6 +350,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }, { merge: true });
   }, [getRefs]);
 
+  const addTrophy = useCallback((trophy: TrophyRecord) => {
+    const r = getRefs();
+    if (r) updateDoc(r.root, { trophies: arrayUnion(trophy) });
+  }, [getRefs]);
+
   const resetProfile = useCallback(async () => {
     const s = stateRef.current;
     if (!user?.uid) return;
@@ -359,6 +375,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         clubName: null,
         clubLogo: null,
         setupDate: null,
+        trophies: [],
         version: 0 
       });
       window.location.href = '/setup';
@@ -492,8 +509,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries,
     scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, 
     startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen,
-    setWorldReady, resetProfile
-  }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, setWorldReady, resetProfile]);
+    setWorldReady, resetProfile, addTrophy
+  }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, setWorldReady, resetProfile, addTrophy]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
 }
