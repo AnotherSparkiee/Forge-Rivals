@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * @fileOverview ТУРНИР "ЧУГУННЫЙ ЧАЙНИК" v3.6 (Fixed Participation & Identity).
+ * @fileOverview ТУРНИР "ЧУГУННЫЙ ЧАЙНИК" v3.7 (Participants List).
  * 1. Расписание: 10:00, 14:00, 18:00, 22:00 MSK.
- * 2. Уникальные ID сессий предотвращают ложное участие.
- * 3. Приоритет clubName над displayName.
+ * 2. Уникальные ID сессий.
+ * 3. Список реально зарегистрированных участников.
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -76,7 +76,6 @@ export default function IronKettlePage() {
 
   const { data: participants, isLoading: isParticipantsLoading } = useCollection(participantsQuery);
 
-  // Проверка участия строго по ID конкретной сессии
   const isJoined = useMemo(() => {
     if (!profile?.tournaments) return false;
     return profile.tournaments.includes(tournamentInstanceId);
@@ -91,20 +90,30 @@ export default function IronKettlePage() {
       let targetHour = SCHEDULE.find(h => {
         const start = h;
         const visibleFrom = h - 3;
-        // Видим турнир за 3 часа до начала и в течение 90 минут после начала
+        return hourIsInRange(currentHour, currentMin, visibleFrom, start);
+      });
+
+      function hourIsInRange(h: number, m: number, start: number, end: number) {
+        // Упрощенная логика для прототипа
+        return h >= start && (h < end || (h === end && m < 90));
+      }
+
+      const foundHour = SCHEDULE.find(h => {
+        const start = h;
+        const visibleFrom = h - 3;
         return currentHour >= visibleFrom && (currentHour < start || (currentHour === start && currentMin < 90));
       });
 
-      if (targetHour === undefined) {
+      if (foundHour === undefined) {
         setStatus('IDLE');
         setCountdown('--:--:--');
         setActiveTourHour(null);
         return;
       }
 
-      setActiveTourHour(targetHour);
+      setActiveTourHour(foundHour);
       const startTarget = new Date(now);
-      startTarget.setHours(targetHour, 0, 0, 0);
+      startTarget.setHours(foundHour, 0, 0, 0);
       
       const regCloseTarget = new Date(startTarget.getTime() - 15 * 60000);
       const endTarget = new Date(startTarget.getTime() + 90 * 60000);
@@ -141,7 +150,6 @@ export default function IronKettlePage() {
     return getKettleTournamentData(getMoscowDateString(), activeTourHour, participants || [], user.uid, getMoscowTime());
   }, [status, activeTourHour, participants, user]);
 
-  // AUTO-SIMULATION & REWARDS ENGINE
   useEffect(() => {
     if (status !== 'LIVE' || !tournamentData || !isJoined || !user || !tournamentInstanceId) return;
 
@@ -264,13 +272,14 @@ export default function IronKettlePage() {
     regClosed: language === 'ru' ? "РЕГИСТРАЦИЯ ЗАКРЫТА" : "REG CLOSED",
     live: language === 'ru' ? "В ЭФИРЕ" : "LIVE",
     idle: language === 'ru' ? "ОЖИДАНИЕ ЦИКЛА" : "AWAITING CYCLE",
+    participants: language === 'ru' ? "СПИСОК УЧАСТНИКОВ" : "PARTICIPANTS LIST",
     table: { team: "Команда", wl: "В-П", games: "Игр", pts: "Очк" }
   };
 
   if (isParticipantsLoading || isUserLoading || !isLoaded) return <LoadingScreen />;
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-24">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Link href="/tournaments/open">
@@ -299,6 +308,11 @@ export default function IronKettlePage() {
           </div>
           {status === 'REG_OPEN' && !isJoined && (
             <div className="p-4 bg-secondary/20">
+              <div className="flex justify-between text-[8px] font-bold uppercase mb-1">
+                <span>{t.participants}</span>
+                <span>{participants?.length || 0} / {MAX_PARTICIPANTS}</span>
+              </div>
+              <Progress value={((participants?.length || 0) / MAX_PARTICIPANTS) * 100} className="h-1 mb-4" />
               <Button className="w-full h-12 hero-gradient font-black text-xs tracking-widest uppercase shadow-xl" onClick={handleJoin} disabled={isJoining || (participants?.length || 0) >= MAX_PARTICIPANTS}>
                 {isJoining ? <Loader2 className="animate-spin mr-2" /> : <Swords className="w-4 h-4 mr-2" />} 
                 ВСТУПИТЬ ({TOURNAMENT_FEE.toLocaleString()} €)
@@ -312,6 +326,36 @@ export default function IronKettlePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* СПИСОК УЧАСТНИКОВ (ВИДИМ ВО ВРЕМЯ РЕГИСТРАЦИИ) */}
+      {status === 'REG_OPEN' && (
+        <section className="space-y-3 mb-8">
+          <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1 flex items-center gap-2">
+            <Users className="w-3.5 h-3.5" /> {t.participants}
+          </h2>
+          <div className="grid grid-cols-1 gap-2">
+            {participants && participants.length > 0 ? participants.map((p) => (
+              <Card key={p.id} className={cn("glass-card border-white/5 bg-secondary/10", p.id === user?.uid && "border-primary/30 bg-primary/5")}>
+                <CardContent className="p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-background flex items-center justify-center border border-white/10 shrink-0 overflow-hidden">
+                      {p.clubLogo ? <img src={p.clubLogo} alt="" className="w-full h-full object-contain p-1" /> : <User className="w-4 h-4 text-muted-foreground" />}
+                    </div>
+                    <span className={cn("text-xs font-bold uppercase truncate", p.id === user?.uid ? "text-primary font-black" : "text-white")}>
+                      {p.clubName || p.displayName || "Manager"}
+                    </span>
+                  </div>
+                  {p.id === user?.uid && <Badge className="text-[7px] bg-primary text-primary-foreground font-black uppercase">YOU</Badge>}
+                </CardContent>
+              </Card>
+            )) : (
+              <div className="py-8 text-center opacity-30 border border-dashed border-white/5 rounded-2xl">
+                 <p className="text-[9px] font-bold uppercase tracking-widest">No managers registered yet</p>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {tournamentData && (status === 'REG_CLOSED' || status === 'LIVE' || status === 'FINISHED') && (
         <Tabs defaultValue="groups" className="w-full">
@@ -336,7 +380,7 @@ export default function IronKettlePage() {
                     <div key={team.id} className={cn("flex items-center justify-between p-3 border-b border-white/5 last:border-0", team.id === user?.uid && "bg-primary/10 border-l-2 border-l-primary")}>
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <span className="text-[10px] font-black text-muted-foreground w-3">{tIdx + 1}</span>
-                        <span className="text-xs font-bold uppercase text-white truncate">{team.name}</span>
+                        <span className={cn("text-xs font-bold uppercase truncate", team.id === user?.uid ? "text-primary" : "text-white")}>{team.name}</span>
                       </div>
                       <div className="flex gap-4 items-center shrink-0">
                         <span className="w-6 text-center text-[10px] font-mono text-muted-foreground">{team.played}</span>
@@ -381,7 +425,6 @@ export default function IronKettlePage() {
 
 function getKettleTournamentData(dateStr: string, hour: number, participants: any[], userId: string, mskNow: Date) {
   const seedBase = dateStr.split('-').reduce((acc, v) => acc + parseInt(v), 0) + hour;
-  // ПРИОРИТЕТ clubName для всех участников
   const realPlayers = participants.map(p => ({ id: p.id, name: p.clubName || p.displayName || "Manager", isPlayer: true }));
   const botNeeded = Math.max(0, MAX_PARTICIPANTS - realPlayers.length);
   const bots = Array.from({ length: botNeeded }).map((_, i) => {
