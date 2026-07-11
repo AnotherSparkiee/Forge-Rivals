@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -10,7 +11,7 @@ import {
   Loader2, Check, UserPlus,
   GraduationCap, CalendarDays, Medal,
   ArrowRightLeft, 
-  Clock, Radio, Shield, Send
+  Clock, Radio, Shield, Send, Construction, Briefcase, Globe
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -223,10 +224,25 @@ export default function Home() {
     ru: { nextMatch: "Следующий матч", offseason: "ПЕРЕРЫВ", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", startsIn: "НОВЫЙ ЦИКЛ ЧЕРЕЗ:", live: "В ЭФИРЕ: ИДЕТ СРАЖЕНИЕ", preparing: "ПОДГОТОВКА СЕЗОНА", sync: "СИНХРОНИЗАЦИЯ УЗЛОВ..." }
   }[language as 'en' | 'ru'];
 
+  const menuItems = [
+    { label: language === 'ru' ? 'СОСТАВ' : 'ROSTER', href: '/roster', icon: Users }, 
+    { label: language === 'ru' ? 'БАЗА' : 'INFRA', href: '/training', icon: Construction }, 
+    { label: language === 'ru' ? 'РЫНОК' : 'MARKET', href: '/transfers', icon: ArrowRightLeft }, 
+    { label: language === 'ru' ? 'АЛЬЯНС' : 'ALLIANCE', href: '/associations', icon: Shield },
+    { label: language === 'ru' ? 'СЕТЬ' : 'NETWORK', href: '/managers', icon: UserSearch },
+    { label: language === 'ru' ? 'ШОП' : 'SHOP', icon: ShoppingCart, href: '/shop' },
+    { label: language === 'ru' ? 'ШКОЛА' : 'ACADEMY', href: '/youth-academy', icon: GraduationCap },
+    { label: language === 'ru' ? 'ТАБЛИЦЫ' : 'RANKINGS', href: '/rankings', icon: Trophy }, 
+    { label: language === 'ru' ? 'МАТЧИ' : 'MATCHES', href: '/matches', icon: CalendarDays }, 
+    { label: language === 'ru' ? 'ТУРНИРЫ' : 'TOURS', href: '/tournaments', icon: Medal }, 
+    { label: language === 'ru' ? 'СВЯЗЬ' : 'COMMS', href: '/chats', icon: MessageSquare }, 
+    { label: language === 'ru' ? 'ДОСЬЕ' : 'PROFILE', href: '/profile', icon: UserCog } 
+  ];
+
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-4">
       <header className="mb-6 flex flex-col gap-1">
-        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.71</span></div>
+        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.76</span></div>
         <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
           {seasonInfo.isOffseason ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
           {seasonInfo.isOffseason ? tHub.offseason : 'ACTIVE LEAGUE'}
@@ -277,25 +293,19 @@ export default function Home() {
         </Button>
       </Link>
 
-      <div className="space-y-4">
-        <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-accent px-1">{tHub.navTitle}</h2>
-        <div className="grid grid-cols-1 gap-2">
-          {[
-            { label: language === 'ru' ? 'СОСТАВ' : 'ROSTER', href: '/roster', icon: Users, desc: language === 'ru' ? 'Ваши игроки' : 'Squad management' }, 
-            { label: language === 'ru' ? 'ИНФРАСТРУКТУРА' : 'Infrastructure', href: '/training', icon: Zap, desc: language === 'ru' ? 'База клуба' : 'Facility growth' }, 
-            { label: language === 'ru' ? 'ТРАНСФЕРЫ' : 'Transfers', href: '/transfers', icon: ArrowRightLeft, desc: language === 'ru' ? 'Рынок игроков' : 'Asset market' }, 
-            { label: language === 'ru' ? 'АССОЦИАЦИИ' : 'Associations', href: '/associations', icon: Shield, desc: language === 'ru' ? 'Альянсы клубов' : 'Strategic alliances' },
-            { label: language === 'ru' ? 'МЕНЕДЖЕРЫ' : 'Managers', href: '/managers', icon: UserSearch, desc: language === 'ru' ? 'Поиск коллег' : 'Personnel network' },
-            { label: language === 'ru' ? 'МАГАЗИН' : 'Shop', icon: ShoppingCart, href: '/shop', desc: language === 'ru' ? 'Покупка ресурсов' : 'Resource acquisition' },
-            { label: language === 'ru' ? 'ЮНОШЕСКАЯ ШКОЛА' : 'Youth Academy', href: '/youth-academy', icon: GraduationCap, desc: language === 'ru' ? 'Центр талантов' : 'Rising stars' },
-            { label: language === 'ru' ? 'ТАБЛИЦЫ' : 'Rankings', href: '/rankings', icon: Trophy, desc: language === 'ru' ? 'Рейтинги' : 'Standings' }, 
-            { label: language === 'ru' ? 'МАТЧИ' : 'Matches', href: '/matches', icon: CalendarDays, desc: language === 'ru' ? 'Расписание' : 'Schedule' }, 
-            { label: language === 'ru' ? 'ТУРНИРЫ' : 'Tournaments', href: '/tournaments', icon: Medal, desc: language === 'ru' ? 'События' : 'Special events' }, 
-            { label: language === 'ru' ? 'ЧАТЫ' : 'Communications', href: '/chats', icon: MessageSquare, desc: language === 'ru' ? 'Связь' : 'Messaging' }, 
-            { label: language === 'ru' ? 'ПРОФИЛЬ' : 'Profile', href: '/profile', icon: UserCog, desc: language === 'ru' ? 'Настройки' : 'Dossier' } 
-          ].map((item) => (
+      <div className="space-y-4 pb-20">
+        <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-accent px-1 text-center">{tHub.navTitle}</h2>
+        <div className="grid grid-cols-3 gap-2 px-1">
+          {menuItems.map((item) => (
             <Link key={item.label} href={item.href}>
-              <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group"><CardContent className="p-4 flex items-center justify-between"><div className="flex items-center gap-4"><div className="p-2.5 rounded-xl bg-secondary/50 group-hover:bg-primary/20 transition-colors border border-white/5"><item.icon className="w-5 h-5 text-primary" /></div><div><h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{item.label}</h3><p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p></div></div><ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-all" /></CardContent></Card>
+              <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group aspect-square flex flex-col items-center justify-center p-2">
+                <div className="p-2 rounded-xl bg-secondary/50 group-hover:bg-primary/20 transition-colors border border-white/5 mb-2">
+                  <item.icon className="w-5 h-5 text-primary" />
+                </div>
+                <span className="text-[9px] font-black uppercase text-center text-muted-foreground group-hover:text-white transition-colors leading-tight">
+                  {item.label}
+                </span>
+              </Card>
             </Link>
           ))}
         </div>
