@@ -60,8 +60,8 @@ export default function Home() {
   ];
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-12 pb-24">
-      <div className="grid grid-cols-4 gap-2">
+    <div className="max-w-md mx-auto px-4 min-h-[calc(100vh-3.5rem-5rem)] flex items-center justify-center">
+      <div className="grid grid-cols-4 gap-2 w-full py-6">
         {menuItems.map((item) => (
           <Link key={item.label} href={item.href}>
             <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group aspect-square flex flex-col items-center justify-center p-1">

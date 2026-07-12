@@ -11,8 +11,8 @@ import { COUNTRIES } from '@/app/lib/countries-data';
 import Link from 'next/link';
 
 /**
- * Верхняя панель v29.
- * Обновлена идентификация: удалены флаги и скругления логотипов.
+ * Верхняя панель v30.
+ * Исправлен импорт Link и расширена область названия клуба.
  */
 export function TopBar() {
   const pathname = usePathname();
@@ -80,7 +80,7 @@ export function TopBar() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-white/10 h-14 flex items-center">
       <div className="w-full max-lg mx-auto px-4 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-[3] min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             {clubLogo && (
               <div className="w-7 h-7 bg-transparent flex items-center justify-center shrink-0">
@@ -88,16 +88,16 @@ export function TopBar() {
               </div>
             )}
 
-            <div className="flex items-center gap-1 min-w-0">
+            <div className="flex items-center gap-1 overflow-visible">
               <div className={cn(
-                "relative inline-flex items-center min-w-0 max-w-[160px]",
+                "relative inline-flex items-center",
                 isPremium && "border-l-2 border-accent pl-1.5"
               )}>
                 {isPremium && (
                   <div className="absolute inset-0 bg-gradient-to-r from-accent/20 via-accent/5 to-transparent -z-10" />
                 )}
                 <span className={cn(
-                  "text-[10px] font-black uppercase tracking-tight truncate",
+                  "text-[10px] font-black uppercase tracking-tight whitespace-nowrap",
                   isPremium ? "text-white" : "text-primary"
                 )}>
                   {clubName || profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
@@ -105,7 +105,7 @@ export function TopBar() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
              <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
              <RefreshCw className="w-3 h-3 text-muted-foreground/40 animate-spin [animation-duration:4s]" />
           </div>
