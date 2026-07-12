@@ -1,236 +1,44 @@
-
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { useUser, useAuth, useFirestore } from '@/firebase';
 import { useGameState } from './lib/store';
-import { signInWithEmailAndPassword } from 'firebase/auth';
 import { 
-  Users, Trophy, Zap, UserSearch, Swords, ChevronRight,
-  MessageSquare, UserCog, ShoppingCart, 
-  Loader2, Check, UserPlus,
-  GraduationCap, CalendarDays, Medal,
-  ArrowRightLeft, 
-  Clock, Radio, Shield, Send, Construction, Briefcase, Globe,
-  FileText, LineChart, Heart, Newspaper, Settings, Search, Tv, User as UserIcon, UserCheck,
-  Radar, LayoutList
+  Users, MessageSquare, ShoppingCart, 
+  CalendarDays, Medal, ArrowRightLeft, 
+  Shield, Construction, Briefcase, 
+  LineChart, Heart, Newspaper, Settings, Search, Tv, User as UserIcon, UserCheck,
+  Radar, LayoutList, Swords
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import Link from 'next/link';
-import { Badge } from '@/components/ui/badge';
-import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
-import { getMoscowTime, getGlobalSeasonInfo, isMatchLive } from './lib/time-utils';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useUser } from '@/firebase';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
-  const auth = useAuth();
-  const db = useFirestore();
-  const { toast } = useToast();
-  const { 
-    language, setLanguage, isLoaded, 
-    nextMatch, allSeasonMatches, lastSeenMatchDay, matchHistory,
-    isDataReady, isMatchesLoading
-  } = useGameState();
+  const { language, isLoaded, isDataReady, matchHistory, allSeasonMatches, lastSeenMatchDay } = useGameState();
 
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
-  const [isAuthLoading, setIsAuthLoading] = useState(false);
-  const [countdown, setCountdown] = useState('');
-  const [isMatchActive, setIsMatchActive] = useState(false);
+  const unreadMatches = (allSeasonMatches || []).filter(m => 
+    user && (m.homeId === user.uid || m.awayId === user.uid) && 
+    m.isFinished && 
+    Number(m.day) > (lastSeenMatchDay || 0)
+  );
+
+  const historyUnread = (matchHistory || []).filter(m => m.seen === false);
+  const totalUnread = [...unreadMatches, ...historyUnread];
+  const latestUnreadId = totalUnread[0]?.id;
   
-  const seasonInfo = useMemo(() => getGlobalSeasonInfo(), [isLoaded]);
-
-  const isTelegram = typeof window !== 'undefined' && !!(window as any).Telegram?.WebApp?.initData;
-
-  const unreadMatches = useMemo(() => {
-    if (!user || !isLoaded) return [];
-    
-    const leagueUnread = (allSeasonMatches || []).filter(m => 
-      (m.homeId === user.uid || m.awayId === user.uid) && 
-      m.isFinished && 
-      Number(m.day) > (lastSeenMatchDay || 0)
-    );
-
-    const historyUnread = (matchHistory || []).filter(m => m.seen === false);
-    
-    return [...leagueUnread, ...historyUnread].sort((a, b) => {
-      const timeA = new Date(a.playedAt || a.startTime || 0).getTime();
-      const timeB = new Date(b.playedAt || b.startTime || 0).getTime();
-      return timeA - timeB;
-    });
-  }, [allSeasonMatches, user, lastSeenMatchDay, matchHistory, isLoaded]);
-
-  const latestUnreadId = unreadMatches[0]?.id;
-  
-  const lastPlayedId = useMemo(() => {
-    if (matchHistory && matchHistory.length > 0) return matchHistory[matchHistory.length - 1].id;
-    const finishedLeague = (allSeasonMatches || []).filter(m => 
-      (m.homeId === user?.uid || m.awayId === user?.uid) && 
-      m.isFinished
-    ).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-    return finishedLeague[0]?.id || null;
-  }, [matchHistory, allSeasonMatches, user?.uid]);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const info = getGlobalSeasonInfo();
-      const mskNow = getMoscowTime();
-      
-      if (mskNow < info.currentSeasonStart) {
-        setCountdown('PREPARING...');
-        setIsMatchActive(false);
-      } else if (info.isOffseason) {
-        const diff = info.nextSeasonStart.getTime() - mskNow.getTime();
-        const hh = Math.floor(diff / 3600000);
-        const mm = Math.floor((diff % 3600000) / 60000);
-        const ss = Math.floor((diff % 60000) / 1000);
-        setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
-        setIsMatchActive(false);
-      } else if (nextMatch) {
-        const live = isMatchLive(nextMatch.match.startTime);
-        setIsMatchActive(live);
-        if (live) setCountdown('LIVE');
-        else {
-          const diff = new Date(nextMatch.match.startTime).getTime() - mskNow.getTime();
-          if (diff <= 0) {
-            setCountdown('PROCESSING...');
-          } else {
-            const hh = Math.floor(diff / 3600000);
-            const mm = Math.floor((diff % 3600000) / 60000);
-            const ss = Math.floor((diff % 60000) / 1000);
-            setCountdown(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
-          }
-        }
-      } else {
-        setCountdown(isMatchesLoading ? 'SYNCING...' : 'AWAITING DEPLOYMENT');
-      }
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [nextMatch, isMatchesLoading]);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsAuthLoading(true);
-    let emailToUse = identifier;
-    try {
-      if (!identifier.includes('@')) {
-        const q = query(collection(db, 'players_v10'), where('displayName', '==', identifier), limit(1));
-        const snap = await getDocs(q);
-        if (snap.empty) throw new Error(language === 'ru' ? "Клуб не найден" : "Team not found");
-        emailToUse = snap.docs[0].data().email;
-      }
-      await signInWithEmailAndPassword(auth, emailToUse, password);
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Denied", description: error.message });
-    } finally { setIsAuthLoading(false); }
-  };
-
-  if (isUserLoading) return <LoadingScreen />;
-  if (!user) {
-    const tAuth = {
-      en: { 
-        title: authMode === 'login' ? "Sync Credentials" : "Initiate Profile", 
-        userLabel: "Email or Team Name", 
-        passLabel: "Access Key", 
-        submit: authMode === 'login' ? "ESTABLISH LINK" : "INITIALIZE", 
-        toggle: authMode === 'login' ? "New manager? Create profile" : "Already registered? Sync link", 
-        subtitle: "COMMAND CENTER ACCESS",
-        tgSync: "Synchronizing with Telegram..."
-      },
-      ru: { 
-        title: authMode === 'login' ? "Синхронизация" : "Создание профиля", 
-        userLabel: "Почта или Название клуба", 
-        passLabel: "Ключ доступа (Пароль)", 
-        submit: authMode === 'login' ? "УСТАНОВИТЬ СВЯЗЬ" : "СОЗДАТЬ", 
-        toggle: authMode === 'login' ? "Новый менеджер? Создать профиль" : "Есть аккаунт? Войти", 
-        subtitle: "ДОСТУП К КОМАНДНЫЙ ЦЕНТРУ",
-        tgSync: "Синхронизация с Telegram..."
-      }
-    }[language as 'en' | 'ru'] || { title: "Auth", userLabel: "User", passLabel: "Pass", submit: "Connect", toggle: "Switch", subtitle: "ACCESS", tgSync: "Syncing..." };
-    
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-background relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)]" />
-        <div className="fixed top-4 right-4 z-[9999]">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="w-10 h-10 p-0 rounded-full text-xl bg-card/80 backdrop-blur-xl border-white/10">{language === 'en' ? '🇺🇸' : '🇷🇺'}</Button></DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-card/95 backdrop-blur-2xl border-white/10 p-1">
-              <DropdownMenuItem onClick={() => setLanguage('en')} className="flex items-center justify-between py-3 px-4 rounded-lg"><span>🇺🇸 English</span>{language === 'en' && <Check className="w-4 h-4" />}</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLanguage('ru')} className="flex items-center justify-between py-3 px-4 rounded-lg"><span>🇷🇺 Русский</span>{language === 'ru' && <Check className="w-4 h-4" />}</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <div className="w-full max-sm space-y-8 relative z-10">
-          <div className="text-center">
-            <div className="mx-auto w-24 h-24 mb-6 relative"><div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full" /><img src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png" alt="Logo" className="w-full h-full object-contain relative z-10" /></div>
-            <h1 className="text-3xl font-headline font-bold tracking-tighter text-primary">LINES OF ENMITY</h1>
-            <p className="text-muted-foreground mt-2 text-[10px] uppercase tracking-[0.3em] font-black">{tAuth.subtitle}</p>
-          </div>
-          
-          <Card className="glass-card">
-            {isTelegram ? (
-              <CardContent className="p-12 text-center flex flex-col items-center gap-6">
-                <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30 relative">
-                   <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                   <div className="absolute -bottom-2 -right-2 bg-secondary rounded-lg p-1.5 border border-white/10 shadow-xl">
-                     <Send className="w-3 h-3 text-accent" />
-                   </div>
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-sm font-bold uppercase tracking-widest text-white">{tAuth.tgSync}</h3>
-                  <p className="text-[10px] text-muted-foreground uppercase font-medium animate-pulse">Establishing encrypted link...</p>
-                </div>
-              </CardContent>
-            ) : authMode === 'login' ? (
-              <form onSubmit={handleLogin}>
-                <CardHeader><CardTitle className="font-headline text-center uppercase tracking-widest text-accent text-lg">{tAuth.title}</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2"><Label>{tAuth.userLabel}</Label><Input value={identifier} onChange={e => setIdentifier(e.target.value)} required className="bg-secondary/50 h-12" /></div>
-                  <div className="space-y-2"><Label>{tAuth.passLabel}</Label><Input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="bg-secondary/50 h-12" /></div>
-                </CardContent>
-                <CardFooter className="flex flex-col gap-4">
-                  <Button type="submit" className="w-full h-14 hero-gradient font-black text-xs uppercase" disabled={isAuthLoading}>{isAuthLoading ? <Loader2 className="animate-spin" /> : tAuth.submit}</Button>
-                  <button type="button" onClick={() => setAuthMode('register')} className="text-[10px] text-center text-muted-foreground uppercase font-bold hover:text-primary">{tAuth.toggle}</button>
-                </CardFooter>
-              </form>
-            ) : (
-              <div className="p-6 text-center">
-                <CardTitle className="font-headline uppercase tracking-widest text-accent text-lg mb-4">{tAuth.title}</CardTitle>
-                <Link href="/auth/register" className="block w-full"><Button className="w-full h-14 hero-gradient font-black text-xs uppercase"><UserPlus className="w-4 h-4 mr-2" /> К РЕГИСТРАЦИИ</Button></Link>
-                <button onClick={() => setAuthMode('login')} className="mt-4 text-[10px] text-muted-foreground uppercase font-bold hover:text-primary">{tAuth.toggle}</button>
-              </div>
-            )}
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isLoaded || !isDataReady) return <LoadingScreen />;
-
-  const tHub = {
-    en: { nextMatch: "Next Engagement", offseason: "OFFSEASON BREAK", battleBtn: "MATCH OVERVIEW", navTitle: "Operational Terminals", startsIn: "NEXT CYCLE IN:", live: "LIVE: ENGAGEMENT IN PROGRESS", preparing: "PREPARING NEW SEASON", sync: "SYNCING NODES..." },
-    ru: { nextMatch: "Следующий матч", offseason: "ПЕРЕРЫВ", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Операционные Терминалы", startsIn: "НОВЫЙ ЦИКЛ ЧЕРЕЗ:", live: "В ЭФИРЕ: ИДЕТ СРАЖЕНИЕ", preparing: "ПОДГОТОВКА СЕЗОНА", sync: "СИНХРОНИЗАЦИЯ УЗЛОВ..." }
-  }[language as 'en' | 'ru'];
+  const lastPlayedId = (matchHistory && matchHistory.length > 0) 
+    ? matchHistory[matchHistory.length - 1].id 
+    : null;
 
   const matchReviewHref = latestUnreadId ? `/match?id=${latestUnreadId}` : (lastPlayedId ? `/match?id=${lastPlayedId}` : '/matches');
 
+  if (isUserLoading || !isLoaded || !isDataReady) return <LoadingScreen />;
+
   const menuItems = [
-    { label: language === 'ru' ? 'ОБЗОР МАТЧА' : 'OVERVIEW', href: matchReviewHref, icon: Tv, color: 'text-primary' },
-    { label: language === 'ru' ? 'СОСТАВ' : 'ROSTER', href: '/roster/squad', icon: Users, color: 'text-accent' },
+    { label: language === 'ru' ? 'ОБЗОР МАТЧА' : 'MATCH OVERVIEW', href: matchReviewHref, icon: Tv, color: 'text-primary' },
+    { label: language === 'ru' ? 'СОСТАВ КОМАНДЫ' : 'SQUAD', href: '/roster/squad', icon: Users, color: 'text-accent' },
     { label: language === 'ru' ? 'ТРАНСФЕРЫ' : 'TRANSFERS', href: '/transfers', icon: ArrowRightLeft, color: 'text-yellow-500' },
     { label: language === 'ru' ? 'РАЗВИТИЕ' : 'INFRA', href: '/training', icon: Construction, color: 'text-blue-400' },
     { label: language === 'ru' ? 'ПЕРСОНАЛ' : 'STAFF', href: '/staff', icon: Briefcase, color: 'text-orange-400' },
@@ -238,7 +46,7 @@ export default function Home() {
     { label: language === 'ru' ? 'ТАБЛИЦЫ' : 'RANKINGS', href: '/rankings', icon: LayoutList, color: 'text-green-400' },
     { label: language === 'ru' ? 'РАСПИСАНИЕ' : 'SCHEDULE', href: '/matches', icon: CalendarDays, color: 'text-red-400' },
     { label: language === 'ru' ? 'ФИНАНСЫ' : 'FINANCES', href: '/finances', icon: LineChart, color: 'text-emerald-400' },
-    { label: language === 'ru' ? 'ТУРНИРЫ' : 'TOURS', href: '/tournaments', icon: Trophy, color: 'text-yellow-400' },
+    { label: language === 'ru' ? 'ТУРНИРЫ' : 'TOURNAMENTS', href: '/tournaments', icon: Swords, color: 'text-yellow-400' },
     { label: language === 'ru' ? 'ФАН БАЗА' : 'FANBASE', href: '/fanclub', icon: Heart, color: 'text-pink-400' },
     { label: language === 'ru' ? 'ТОП СЕЗОНА' : 'SEASON TOP', href: '/rankings', icon: Medal, color: 'text-amber-500' },
     { label: language === 'ru' ? 'ЧАТЫ' : 'CHATS', href: '/chats', icon: MessageSquare, color: 'text-cyan-400' },
@@ -252,58 +60,20 @@ export default function Home() {
   ];
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-4">
-      <header className="mb-6 flex flex-col gap-1">
-        <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-red-500 animate-pulse" /><span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">System Online: v1.0.76</span></div>
-        <h1 className="text-2xl font-headline font-bold tracking-tighter text-primary uppercase flex items-center gap-2">
-          {seasonInfo.isOffseason ? <Clock className="w-6 h-6 text-accent animate-pulse" /> : <UserSearch className="w-6 h-6 text-accent" />} 
-          {seasonInfo.isOffseason ? tHub.offseason : 'ACTIVE LEAGUE'}
-        </h1>
-      </header>
-
-      <section className="mb-8">
-        <Card className={cn("glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden shadow-xl", isMatchActive && "border-red-500/40 bg-red-500/5")}>
-          <CardContent className="p-6">
-            <div className="text-center space-y-4">
-              <Badge variant="outline" className={cn("text-[8px] font-black uppercase tracking-[0.2em] px-3 h-5", isMatchActive ? "bg-red-500/20 text-white animate-pulse" : "bg-primary/10 text-primary")}>
-                {isMatchActive ? tHub.live : (seasonInfo.isOffseason ? 'CYCLE BREAK' : 'LEAGUE PHASE')}
-              </Badge>
-              {nextMatch && !seasonInfo.isOffseason ? (
-                <div className="flex items-center justify-between gap-4 py-2">
-                  <div className="flex-1 text-right truncate"><p className="text-[10px] font-headline font-bold uppercase italic text-white">{nextMatch.match.homeName}</p></div>
-                  <div className="px-3 py-1 rounded-lg bg-background/60 border border-white/5"><Swords className={cn("w-4 h-4", isMatchActive ? "text-red-500 animate-bounce" : "text-accent")} /></div>
-                  <div className="flex-1 text-left truncate"><p className="text-[10px] font-headline font-bold uppercase italic text-white">{nextMatch.match.awayName}</p></div>
-                </div>
-              ) : <div className="py-6 opacity-30 text-[10px] font-bold uppercase">{tHub.startsIn}</div>}
-              <div className="bg-background/60 py-3 rounded-2xl border border-white/5">
-                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                  {isMatchActive ? 'ENGAGEMENT PHASE' : 'TIME TO DEPLOYMENT'}
-                </p>
-                <p className={cn("text-xl font-headline font-bold tabular-nums tracking-tighter text-white", isMatchActive && "text-red-500 animate-pulse")}>
-                  {countdown === 'SYNCING...' ? tHub.sync : (countdown || 'SYNCING...')}
-                </p>
+    <div className="max-w-md mx-auto px-4 pt-12 pb-24">
+      <div className="grid grid-cols-4 gap-2">
+        {menuItems.map((item) => (
+          <Link key={item.label} href={item.href}>
+            <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group aspect-square flex flex-col items-center justify-center p-1">
+              <div className={cn("p-2 rounded-lg bg-secondary/50 group-hover:bg-primary/10 transition-colors border border-white/5 mb-1.5", item.color)}>
+                <item.icon className="w-5 h-5" />
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      <div className="space-y-4 pb-20">
-        <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-accent px-1 text-center">{tHub.navTitle}</h2>
-        <div className="grid grid-cols-4 gap-2 px-0">
-          {menuItems.map((item) => (
-            <Link key={item.label} href={item.href}>
-              <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group aspect-square flex flex-col items-center justify-center p-1">
-                <div className={cn("p-1.5 rounded-lg bg-secondary/50 group-hover:bg-primary/10 transition-colors border border-white/5 mb-1.5", item.color)}>
-                  <item.icon className="w-5 h-5" />
-                </div>
-                <span className="text-[7px] font-black uppercase text-center text-muted-foreground group-hover:text-white transition-colors leading-tight px-0.5">
-                  {item.label}
-                </span>
-              </Card>
-            </Link>
-          ))}
-        </div>
+              <span className="text-[7px] font-black uppercase text-center text-muted-foreground group-hover:text-white transition-colors leading-tight px-0.5">
+                {item.label}
+              </span>
+            </Card>
+          </Link>
+        ))}
       </div>
     </div>
   );
