@@ -51,7 +51,7 @@ export default function ManagersHubPage() {
       locked: "Locked",
       menu: [
         { label: 'All Managers', desc: 'Find and view other club commanders', icon: Globe, active: true, href: '/managers/all' },
-        { label: 'Friends', desc: 'Your trusted network of managers', icon: UserCheck, active: false },
+        { label: 'Friends', desc: 'Your trusted network of managers', icon: UserCheck, active: true, href: '/managers/friends' },
         { label: 'Friend News', desc: 'Recent activity from your contacts', icon: Newspaper, active: false },
         { label: 'Blacklist', desc: 'Banned and restricted managers', icon: Ban, active: false },
         { label: 'Ignore List', desc: 'Muted transmissions from managers', icon: VolumeX, active: false },
@@ -64,7 +64,7 @@ export default function ManagersHubPage() {
       locked: "Закрыто",
       menu: [
         { label: 'Все менеджеры', desc: 'Поиск и просмотр других командиров', icon: Globe, active: true, href: '/managers/all' },
-        { label: 'Друзья', desc: 'Ваша сеть доверенных менеджеров', icon: UserCheck, active: false },
+        { label: 'Друзья', desc: 'Ваша сеть доверенных менеджеров', icon: UserCheck, active: true, href: '/managers/friends' },
         { label: 'Новости друзей', desc: 'Активность ваших контактов', icon: Newspaper, active: false },
         { label: 'Черный список', desc: 'Заблокированные менеджеры', icon: Ban, active: false },
         { label: 'Игнор-лист', desc: 'Скрытые передачи от менеджеров', icon: VolumeX, active: false },
@@ -101,7 +101,7 @@ export default function ManagersHubPage() {
             >
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="p-2 rounded-lg bg-secondary/50">
+                  <div className={cn("p-2.5 rounded-xl bg-secondary/50", item.color)}>
                     <item.icon className={cn("w-5 h-5", item.active ? "text-primary" : "text-muted-foreground")} />
                   </div>
                   <div>
