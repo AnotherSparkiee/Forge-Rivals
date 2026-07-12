@@ -11,7 +11,8 @@ import {
   Loader2, Check, UserPlus,
   GraduationCap, CalendarDays, Medal,
   ArrowRightLeft, 
-  Clock, Radio, Shield, Send, Construction, Briefcase, Globe
+  Clock, Radio, Shield, Send, Construction, Briefcase, Globe,
+  FileText, LineChart, Heart, Newspaper, Settings, Search, Tv, User as UserIcon, UserCheck
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -220,23 +221,33 @@ export default function Home() {
   if (!isLoaded || !isDataReady) return <LoadingScreen />;
 
   const tHub = {
-    en: { nextMatch: "Next Engagement", offseason: "OFFSEASON BREAK", battleBtn: "MATCH OVERVIEW", navTitle: "Command Terminals", startsIn: "NEXT CYCLE IN:", live: "LIVE: ENGAGEMENT IN PROGRESS", preparing: "PREPARING NEW SEASON", sync: "SYNCING NODES..." },
-    ru: { nextMatch: "Следующий матч", offseason: "ПЕРЕРЫВ", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Командные Терминалы", startsIn: "НОВЫЙ ЦИКЛ ЧЕРЕЗ:", live: "В ЭФИРЕ: ИДЕТ СРАЖЕНИЕ", preparing: "ПОДГОТОВКА СЕЗОНА", sync: "СИНХРОНИЗАЦИЯ УЗЛОВ..." }
+    en: { nextMatch: "Next Engagement", offseason: "OFFSEASON BREAK", battleBtn: "MATCH OVERVIEW", navTitle: "Operational Terminals", startsIn: "NEXT CYCLE IN:", live: "LIVE: ENGAGEMENT IN PROGRESS", preparing: "PREPARING NEW SEASON", sync: "SYNCING NODES..." },
+    ru: { nextMatch: "Следующий матч", offseason: "ПЕРЕРЫВ", battleBtn: "ОБЗОР МАТЧЕЙ", navTitle: "Операционные Терминалы", startsIn: "НОВЫЙ ЦИКЛ ЧЕРЕЗ:", live: "В ЭФИРЕ: ИДЕТ СРАЖЕНИЕ", preparing: "ПОДГОТОВКА СЕЗОНА", sync: "СИНХРОНИЗАЦИЯ УЗЛОВ..." }
   }[language as 'en' | 'ru'];
 
+  const matchReviewHref = latestUnreadId ? `/match?id=${latestUnreadId}` : (lastPlayedId ? `/match?id=${lastPlayedId}` : '/matches');
+
   const menuItems = [
-    { label: language === 'ru' ? 'СОСТАВ' : 'ROSTER', href: '/roster', icon: Users }, 
-    { label: language === 'ru' ? 'БАЗА' : 'INFRA', href: '/training', icon: Construction }, 
-    { label: language === 'ru' ? 'РЫНОК' : 'MARKET', href: '/transfers', icon: ArrowRightLeft }, 
-    { label: language === 'ru' ? 'АЛЬЯНС' : 'ALLIANCE', href: '/associations', icon: Shield },
-    { label: language === 'ru' ? 'СЕТЬ' : 'NETWORK', href: '/managers', icon: UserSearch },
-    { label: language === 'ru' ? 'ШОП' : 'SHOP', icon: ShoppingCart, href: '/shop' },
-    { label: language === 'ru' ? 'ШКОЛА' : 'ACADEMY', href: '/youth-academy', icon: GraduationCap },
-    { label: language === 'ru' ? 'ТАБЛИЦЫ' : 'RANKINGS', href: '/rankings', icon: Trophy }, 
-    { label: language === 'ru' ? 'МАТЧИ' : 'MATCHES', href: '/matches', icon: CalendarDays }, 
-    { label: language === 'ru' ? 'ТУРНИРЫ' : 'TOURS', href: '/tournaments', icon: Medal }, 
-    { label: language === 'ru' ? 'СВЯЗЬ' : 'COMMS', href: '/chats', icon: MessageSquare }, 
-    { label: language === 'ru' ? 'ДОСЬЕ' : 'PROFILE', href: '/profile', icon: UserCog } 
+    { label: language === 'ru' ? 'ОБЗОР МАТЧА' : 'OVERVIEW', href: matchReviewHref, icon: Tv, color: 'text-primary' },
+    { label: language === 'ru' ? 'СОСТАВ' : 'ROSTER', href: '/roster/squad', icon: Users, color: 'text-accent' },
+    { label: language === 'ru' ? 'ТРАНСФЕРЫ' : 'TRANSFERS', href: '/transfers', icon: ArrowRightLeft, color: 'text-yellow-500' },
+    { label: language === 'ru' ? 'РАЗВИТИЕ' : 'INFRA', href: '/training', icon: Construction, color: 'text-blue-400' },
+    { label: language === 'ru' ? 'ПЕРСОНАЛ' : 'STAFF', href: '/staff', icon: Briefcase, color: 'text-orange-400' },
+    { label: language === 'ru' ? 'ПОИСК ТАЛАНТОВ' : 'SCOUTING', href: '/youth-academy/scouting', icon: Radar, color: 'text-purple-400' },
+    { label: language === 'ru' ? 'ТАБЛИЦЫ' : 'RANKINGS', href: '/rankings', icon: LayoutList, color: 'text-green-400' },
+    { label: language === 'ru' ? 'РАСПИСАНИЕ' : 'SCHEDULE', href: '/matches', icon: CalendarDays, color: 'text-red-400' },
+    { label: language === 'ru' ? 'ФИНАНСЫ' : 'FINANCES', href: '/finances', icon: LineChart, color: 'text-emerald-400' },
+    { label: language === 'ru' ? 'ТУРНИРЫ' : 'TOURS', href: '/tournaments', icon: Trophy, color: 'text-yellow-400' },
+    { label: language === 'ru' ? 'ФАН БАЗА' : 'FANBASE', href: '/fanclub', icon: Heart, color: 'text-pink-400' },
+    { label: language === 'ru' ? 'ТОП СЕЗОНА' : 'SEASON TOP', href: '/rankings', icon: Medal, color: 'text-amber-500' },
+    { label: language === 'ru' ? 'ЧАТЫ' : 'CHATS', href: '/chats', icon: MessageSquare, color: 'text-cyan-400' },
+    { label: language === 'ru' ? 'ДРУЗЬЯ' : 'FRIENDS', href: '/managers', icon: UserCheck, color: 'text-indigo-400' },
+    { label: language === 'ru' ? 'О СЕБЕ' : 'PROFILE', href: '/profile', icon: UserIcon, color: 'text-rose-400' },
+    { label: language === 'ru' ? 'АССОЦИАЦИИ' : 'ALLIANCE', href: '/associations', icon: Shield, color: 'text-sky-400' },
+    { label: language === 'ru' ? 'МАГАЗИН' : 'SHOP', href: '/shop', icon: ShoppingCart, color: 'text-lime-400' },
+    { label: language === 'ru' ? 'НОВОСТИ' : 'NEWS', href: '/news', icon: Newspaper, color: 'text-slate-400' },
+    { label: language === 'ru' ? 'СИСТЕМА' : 'SYSTEM', href: '/system', icon: Settings, color: 'text-zinc-400' },
+    { label: language === 'ru' ? 'ПОИСК' : 'SEARCH', href: '/search', icon: Search, color: 'text-blue-500' },
   ];
 
   return (
@@ -276,33 +287,16 @@ export default function Home() {
         </Card>
       </section>
 
-      <Link href={latestUnreadId ? `/match?id=${latestUnreadId}` : (lastPlayedId ? `/match?id=${lastPlayedId}` : '/matches')} className="block relative mb-8">
-        <div className={cn("absolute -inset-1 bg-gradient-to-r from-accent to-primary rounded-2xl blur opacity-30", unreadMatches.length > 0 && "animate-pulse")}></div>
-        <Button className="w-full h-20 bg-accent text-accent-foreground border-none shadow-xl flex items-center justify-center gap-3 relative z-10 group overflow-hidden">
-          <Swords className={cn("w-6 h-6", unreadMatches.length > 0 && "animate-bounce")} />
-          <div className="flex flex-col items-start">
-            <span className="text-xl font-headline font-bold italic uppercase leading-none">{tHub.battleBtn}</span>
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-80 mt-1">{unreadMatches.length > 0 ? (language === 'ru' ? 'НОВЫЕ РЕЗУЛЬТАТЫ' : 'NEW RESULTS') : (language === 'ru' ? 'АРХИВ МАТЧЕЙ' : 'MATCH ARCHIVE')}</span>
-          </div>
-          {unreadMatches.length > 0 && (
-            <div className="ml-auto w-10 h-10 rounded-full bg-red-600 flex items-center justify-center border-2 border-white shadow-lg">
-              <span className="text-sm font-headline font-bold text-white">{unreadMatches.length}</span>
-            </div>
-          )}
-          {unreadMatches.length === 0 && <ChevronRight className="ml-auto w-5 h-5 opacity-40 group-hover:translate-x-1 transition-transform" />}
-        </Button>
-      </Link>
-
       <div className="space-y-4 pb-20">
         <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-accent px-1 text-center">{tHub.navTitle}</h2>
-        <div className="grid grid-cols-3 gap-2 px-1">
+        <div className="grid grid-cols-4 gap-2 px-0">
           {menuItems.map((item) => (
             <Link key={item.label} href={item.href}>
-              <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group aspect-square flex flex-col items-center justify-center p-2">
-                <div className="p-2 rounded-xl bg-secondary/50 group-hover:bg-primary/20 transition-colors border border-white/5 mb-2">
-                  <item.icon className="w-5 h-5 text-primary" />
+              <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group aspect-square flex flex-col items-center justify-center p-1">
+                <div className={cn("p-1.5 rounded-lg bg-secondary/50 group-hover:bg-primary/10 transition-colors border border-white/5 mb-1.5", item.color)}>
+                  <item.icon className="w-5 h-5" />
                 </div>
-                <span className="text-[9px] font-black uppercase text-center text-muted-foreground group-hover:text-white transition-colors leading-tight">
+                <span className="text-[7px] font-black uppercase text-center text-muted-foreground group-hover:text-white transition-colors leading-tight px-0.5">
                   {item.label}
                 </span>
               </Card>
