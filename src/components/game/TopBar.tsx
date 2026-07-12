@@ -3,21 +3,20 @@
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { doc, collection, query, where, limit } from 'firebase/firestore';
-import { Gem, Mail, Home, Radio, Bell, RefreshCw } from 'lucide-react';
+import { Gem, Mail, Home, Bell } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
-import { COUNTRIES } from '@/app/lib/countries-data';
 import Link from 'next/link';
 
 /**
- * Верхняя панель v30.
- * Исправлен импорт Link и расширена область названия клуба.
+ * Верхняя панель v31.
+ * Удалены индикаторы онлайна и стрелки, название команды теперь всегда белое.
  */
 export function TopBar() {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
-  const { credits, crystals, isSyncing, language, isPremium, clubLogo, clubName } = useGameState();
+  const { credits, crystals, language, isPremium, clubLogo, clubName } = useGameState();
   const db = useFirestore();
 
   const userRef = useMemoFirebase(() => (isUserLoading || !user) ? null : doc(db, 'players_v10', user.uid), [db, user, isUserLoading]);
@@ -96,18 +95,11 @@ export function TopBar() {
                 {isPremium && (
                   <div className="absolute inset-0 bg-gradient-to-r from-accent/20 via-accent/5 to-transparent -z-10" />
                 )}
-                <span className={cn(
-                  "text-[10px] font-black uppercase tracking-tight whitespace-nowrap",
-                  isPremium ? "text-white" : "text-primary"
-                )}>
+                <span className="text-[10px] font-black uppercase tracking-tight whitespace-nowrap text-white">
                   {clubName || profile?.displayName || (language === 'ru' ? 'СИНХРОНИЗАЦИЯ...' : 'SYNCING...')}
                 </span>
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-             <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
-             <RefreshCw className="w-3 h-3 text-muted-foreground/40 animate-spin [animation-duration:4s]" />
           </div>
         </div>
 
