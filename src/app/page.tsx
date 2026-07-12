@@ -12,7 +12,8 @@ import {
   GraduationCap, CalendarDays, Medal,
   ArrowRightLeft, 
   Clock, Radio, Shield, Send, Construction, Briefcase, Globe,
-  FileText, LineChart, Heart, Newspaper, Settings, Search, Tv, User as UserIcon, UserCheck
+  FileText, LineChart, Heart, Newspaper, Settings, Search, Tv, User as UserIcon, UserCheck,
+  Radar, LayoutList
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
