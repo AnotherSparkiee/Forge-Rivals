@@ -60,20 +60,26 @@ export default function Home() {
   ];
 
   return (
-    <div className="max-w-md mx-auto px-4 min-h-[calc(100vh-3.5rem-5rem)] flex items-center justify-center">
-      <div className="grid grid-cols-4 gap-2 w-full py-6">
-        {menuItems.map((item) => (
-          <Link key={item.label} href={item.href}>
-            <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group aspect-square flex flex-col items-center justify-center p-1">
-              <div className={cn("p-2 rounded-lg bg-secondary/50 group-hover:bg-primary/10 transition-colors border border-white/5 mb-1.5", item.color)}>
-                <item.icon className="w-5 h-5" />
-              </div>
-              <span className="text-[7px] font-black uppercase text-center text-muted-foreground group-hover:text-white transition-colors leading-tight px-0.5">
-                {item.label}
-              </span>
-            </Card>
-          </Link>
-        ))}
+    <div className="relative min-h-[calc(100vh-3.5rem-5rem)] flex items-center justify-center overflow-hidden">
+      {/* Background Style from Preloader */}
+      <div className="absolute inset-0 bg-[#0a0d14] -z-20" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)] -z-10" />
+      
+      <div className="relative z-10 w-full max-w-md mx-auto px-4 h-full flex items-center justify-center">
+        <div className="grid grid-cols-4 gap-2 w-full py-6">
+          {menuItems.map((item) => (
+            <Link key={item.label} href={item.href}>
+              <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group aspect-square flex flex-col items-center justify-center p-1">
+                <div className={cn("p-2 rounded-lg bg-secondary/50 group-hover:bg-primary/10 transition-colors border border-white/5 mb-1.5", item.color)}>
+                  <item.icon className="w-5 h-5" />
+                </div>
+                <span className="text-[7px] font-black uppercase text-center text-muted-foreground group-hover:text-white transition-colors leading-tight px-0.5">
+                  {item.label}
+                </span>
+              </Card>
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   );
