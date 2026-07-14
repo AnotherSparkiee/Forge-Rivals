@@ -201,7 +201,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsubTeam(); playersUnsub(); unsubStaff(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
-  // Global Matches Listener (v71 Format)
+  // Global Matches Listener
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
     const info = getGlobalSeasonInfo();
@@ -256,7 +256,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const updateLineup = useCallback((updates: Partial<Record<LineupSlot, string | null>>) => {
     const r = getRefs();
-    if (r) setDoc(r.team, { lineup: updates }, { merge: true });
+    if (r) {
+      const dbUpdates: any = {};
+      Object.entries(updates).forEach(([key, val]) => {
+        dbUpdates[`lineup.${key}`] = val;
+      });
+      updateDoc(r.team, dbUpdates);
+    }
   }, [getRefs]);
 
   const updateTactics = useCallback((strategy: string, lineSettings: any) => { const r = getRefs(); if (r) setDoc(r.team, { strategy, lineSettings }, { merge: true }); }, [getRefs]);

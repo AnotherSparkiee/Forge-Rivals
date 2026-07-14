@@ -50,10 +50,11 @@ export default function SquadPage() {
   const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
   const [isTransferring, setIsTransferring] = useState(false);
   const [now, setNow] = useState(Date.now());
-  const [draggedSlot, setDraggedSlot] = useState<LineupSlot | null>(null);
+  const [activeDraggedSlot, setActiveDraggedSlot] = useState<LineupSlot | null>(null);
   const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null);
 
   const pressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const startPosRef = useRef<{ x: number, y: number } | null>(null);
   const isDraggingRef = useRef(false);
 
   const allAvailablePlayers = useMemo(() => {
@@ -165,7 +166,7 @@ export default function SquadPage() {
       clearTimeout(pressTimerRef.current);
       pressTimerRef.current = null;
     }
-    setDraggedSlot(slot);
+    setActiveDraggedSlot(slot);
     e.dataTransfer.setData('sourceSlot', slot);
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -178,58 +179,36 @@ export default function SquadPage() {
   const handleDrop = async (e: React.DragEvent, targetSlot: LineupSlot) => {
     e.preventDefault();
     isDraggingRef.current = false;
-    const sourceSlot = e.dataTransfer.getData('sourceSlot') as LineupSlot;
+    const sourceSlot = activeDraggedSlot || (e.dataTransfer.getData('sourceSlot') as LineupSlot);
+    setActiveDraggedSlot(null);
     
-    if (!sourceSlot || sourceSlot === targetSlot) {
-      setDraggedSlot(null);
-      return;
-    }
+    if (!sourceSlot || sourceSlot === targetSlot) return;
 
     const sourcePlayerId = lineup[sourceSlot];
     const targetPlayerId = lineup[targetSlot];
 
+    if (!sourcePlayerId) return;
+
     const sourcePlayer = getPlayerById(sourcePlayerId);
     const targetPlayer = getPlayerById(targetPlayerId);
 
-    // 1. Проверка перетаскиваемого игрока для нового слота
     if (sourcePlayer && !roleMapping[targetSlot].includes(sourcePlayer.role)) {
-      toast({ 
-        variant: "destructive", 
-        title: t.roleError, 
-        description: language === 'ru' 
-          ? `Игрок ${sourcePlayer.name} (${sourcePlayer.role}) не подходит для слота ${targetSlot}` 
-          : `${sourcePlayer.name} (${sourcePlayer.role}) is not compatible with ${targetSlot}` 
-      });
-      setDraggedSlot(null);
+      toast({ variant: "destructive", title: t.roleError });
       return;
     }
 
-    // 2. Если слот занят, проверка замещаемого игрока для старого слота
     if (targetPlayer && !roleMapping[sourceSlot].includes(targetPlayer.role)) {
-      toast({ 
-        variant: "destructive", 
-        title: t.roleError, 
-        description: language === 'ru' 
-          ? `Игрок ${targetPlayer.name} (${targetPlayer.role}) не может переместиться в слот ${sourceSlot}` 
-          : `${targetPlayer.name} (${targetPlayer.role}) cannot move to ${sourceSlot}` 
-      });
-      setDraggedSlot(null);
+      toast({ variant: "destructive", title: t.roleError });
       return;
     }
 
-    // Выполняем замену
     updateLineup({ [sourceSlot]: targetPlayerId, [targetSlot]: sourcePlayerId });
     toast({ title: t.swapSuccess });
-    setDraggedSlot(null);
   };
 
-  const handleDragEnd = () => {
+  const handlePointerDown = (e: React.PointerEvent, player: Player) => {
     isDraggingRef.current = false;
-    setDraggedSlot(null);
-  };
-
-  const handlePointerDown = (player: Player) => {
-    isDraggingRef.current = false;
+    startPosRef.current = { x: e.clientX, y: e.clientY };
     if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
     pressTimerRef.current = setTimeout(() => {
       if (!isDraggingRef.current) {
@@ -238,11 +217,17 @@ export default function SquadPage() {
     }, 600);
   };
 
-  const handlePointerMove = () => {
-    // Если пошло движение - отменяем Long Press
-    if (pressTimerRef.current) {
-      clearTimeout(pressTimerRef.current);
-      pressTimerRef.current = null;
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (startPosRef.current) {
+      const dx = Math.abs(e.clientX - startPosRef.current.x);
+      const dy = Math.abs(e.clientY - startPosRef.current.y);
+      if (dx > 10 || dy > 10) {
+        isDraggingRef.current = true;
+        if (pressTimerRef.current) {
+          clearTimeout(pressTimerRef.current);
+          pressTimerRef.current = null;
+        }
+      }
     }
   };
 
@@ -254,13 +239,14 @@ export default function SquadPage() {
     if (!profilePlayer && !isDraggingRef.current) {
       setHighlightedPlayerId(prev => prev === player.id ? null : player.id);
     }
+    startPosRef.current = null;
   };
 
   const renderSlot = (slotKey: LineupSlot) => {
     const player = getPlayerById(lineup[slotKey]);
     const roleInfo = (t.roles as any)[slotKey];
     const isHighlighted = player && highlightedPlayerId === player.id;
-    const isBeingDragged = draggedSlot === slotKey;
+    const isBeingDragged = activeDraggedSlot === slotKey;
 
     return (
       <div key={slotKey} className="group relative">
@@ -269,11 +255,11 @@ export default function SquadPage() {
           onDragStart={(e) => handleDragStart(e, slotKey)}
           onDragOver={handleDragOver}
           onDrop={(e) => handleDrop(e, slotKey)}
-          onDragEnd={handleDragEnd}
-          onPointerDown={() => player && handlePointerDown(player)}
+          onDragEnd={() => setActiveDraggedSlot(null)}
+          onPointerDown={(e) => player && handlePointerDown(e, player)}
           onPointerMove={handlePointerMove}
           onPointerUp={() => player && handlePointerUp(player)}
-          onPointerCancel={() => { if (pressTimerRef.current) clearTimeout(pressTimerRef.current); }}
+          onPointerCancel={() => { if (pressTimerRef.current) clearTimeout(pressTimerRef.current); startPosRef.current = null; }}
           onContextMenu={(e) => { if (player) e.preventDefault(); }}
           onClick={() => { if (!player) setManagedSlot(slotKey); }}
           className={cn(
