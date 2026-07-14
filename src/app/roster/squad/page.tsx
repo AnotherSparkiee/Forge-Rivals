@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -399,7 +398,10 @@ export default function SquadPage() {
                 <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{profilePlayer.country?.flag}</span></div>
               </div>
               <div className="space-y-1">
-                <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profilePlayer.name}</h2>
+                <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profilePlayer.name}</DialogTitle>
+                <DialogDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mt-1">
+                  {language === 'ru' ? 'ЛИЧНОЕ ДОСЬЕ ИГРОКА' : 'PLAYER OPERATIONAL DOSSIER'}
+                </DialogDescription>
                 <div className="flex items-center justify-center gap-2 mt-2">
                   <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profilePlayer.role}</Badge>
                 </div>
