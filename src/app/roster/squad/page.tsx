@@ -54,7 +54,6 @@ export default function SquadPage() {
   const [draggedSlot, setDraggedSlot] = useState<LineupSlot | null>(null);
   const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null);
 
-  // Advanced Long Press Logic
   const pressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const longPressTriggered = useRef(false);
 
@@ -99,19 +98,19 @@ export default function SquadPage() {
     roles: {
       carry: { label: language === 'ru' ? "Керри" : "Carry", icon: Sword, color: "text-red-400" },
       mid: { label: language === 'ru' ? "Мидер" : "Midlaner", icon: Sparkles, color: "text-blue-400" },
-      offlane: { label: language === 'ru' ? "Оффлейнер" : "Offlaner", icon: Shield, color: "text-orange-400" },
-      support: { label: language === 'ru' ? "Четверка" : "Support", icon: Zap, color: "text-yellow-400" },
-      full_support: { label: language === 'ru' ? "Пятерка" : "Full Support", icon: HeartPulse, color: "text-green-400" },
-      sub1: { label: language === 'ru' ? "Запасной 1" : "Sub 1", icon: UserPlus, color: "text-muted-foreground" },
-      sub2: { label: language === 'ru' ? "Запасной 2" : "Sub 2", icon: UserPlus, color: "text-muted-foreground" },
-      res1: { label: "Res 1", icon: Users, color: "text-muted-foreground/50" },
-      res2: { label: "Res 2", icon: Users, color: "text-muted-foreground/50" },
-      res3: { label: "Res 3", icon: Users, color: "text-muted-foreground/50" },
-      res4: { label: "Res 4", icon: Users, color: "text-muted-foreground/40" },
-      res5: { label: "Res 5", icon: Users, color: "text-muted-foreground/40" },
-      res6: { label: "Res 6", icon: Users, color: "text-muted-foreground/40" },
-      res7: { label: "Res 7", icon: Users, color: "text-muted-foreground/40" },
-      res8: { label: "Res 8", icon: Users, color: "text-muted-foreground/40" },
+      offlane: { label: language === 'ru' ? "Танк (Off)" : "Offlaner", icon: Shield, color: "text-orange-400" },
+      support: { label: language === 'ru' ? "Лес (Pos 4)" : "Support", icon: Zap, color: "text-yellow-400" },
+      full_support: { label: language === 'ru' ? "Саппорт (Pos 5)" : "Full Support", icon: HeartPulse, color: "text-green-400" },
+      sub1: { label: language === 'ru' ? "Зап. Керри" : "Sub Carry", icon: Sword, color: "text-red-400" },
+      sub2: { label: language === 'ru' ? "Зап. Мидер" : "Sub Midlaner", icon: Sparkles, color: "text-blue-400" },
+      res1: { label: language === 'ru' ? "Рез. Танк" : "Res Offlaner", icon: Shield, color: "text-orange-400" },
+      res2: { label: language === 'ru' ? "Рез. Лес" : "Res Support", icon: Zap, color: "text-yellow-400" },
+      res3: { label: language === 'ru' ? "Рез. Саппорт" : "Res Full Support", icon: HeartPulse, color: "text-green-400" },
+      res4: { label: language === 'ru' ? "Рез. Керри" : "Res Carry", icon: Sword, color: "text-red-400" },
+      res5: { label: language === 'ru' ? "Рез. Мидер" : "Res Midlaner", icon: Sparkles, color: "text-blue-400" },
+      res6: { label: language === 'ru' ? "Рез. Танк" : "Res Offlaner", icon: Shield, color: "text-orange-400" },
+      res7: { label: language === 'ru' ? "Рез. Лес" : "Res Support", icon: Zap, color: "text-yellow-400" },
+      res8: { label: language === 'ru' ? "Рез. Саппорт" : "Res Full Support", icon: HeartPulse, color: "text-green-400" },
     },
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
@@ -129,10 +128,8 @@ export default function SquadPage() {
 
   const roleMapping: Record<LineupSlot, string[]> = {
     carry: ['Carry'], mid: ['Midlaner'], offlane: ['Tank'], support: ['Jungler'], full_support: ['Support'],
-    sub1: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], sub2: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'],
-    res1: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], res2: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], res3: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'],
-    res4: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], res5: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], res6: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'],
-    res7: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'], res8: ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'],
+    sub1: ['Carry'], sub2: ['Midlaner'],
+    res1: ['Tank'], res2: ['Jungler'], res3: ['Support'], res4: ['Carry'], res5: ['Midlaner'], res6: ['Tank'], res7: ['Jungler'], res8: ['Support'],
   };
 
   const getPlayerById = (id: string | null) => allAvailablePlayers.find(p => p.id === id);
@@ -157,21 +154,16 @@ export default function SquadPage() {
     toast({ title: language === 'ru' ? "Состав обновлен" : "Squad Updated" });
   };
 
-  // Drag and Drop with Strict Role Validation
   const handleDragStart = (e: React.DragEvent, slot: LineupSlot) => {
     setDraggedSlot(slot);
     e.dataTransfer.setData('sourceSlot', slot);
-    
-    // Clear long press if drag starts
     if (pressTimerRef.current) {
       clearTimeout(pressTimerRef.current);
       pressTimerRef.current = null;
     }
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); };
 
   const handleDrop = async (e: React.DragEvent, targetSlot: LineupSlot) => {
     e.preventDefault();
@@ -184,32 +176,26 @@ export default function SquadPage() {
     const sourcePlayer = getPlayerById(sourcePlayerId);
     const targetPlayer = getPlayerById(targetPlayerId);
 
-    // 1. Check if source player can go to target slot
     if (sourcePlayer && !roleMapping[targetSlot].includes(sourcePlayer.role)) {
       toast({ variant: "destructive", title: t.roleError, description: language === 'ru' ? `Роль ${sourcePlayer.role} не подходит для этого слота` : `${sourcePlayer.role} role is not compatible with this slot` });
       setDraggedSlot(null);
       return;
     }
 
-    // 2. If swap: Check if target player can go to source slot
     if (targetPlayer && !roleMapping[sourceSlot].includes(targetPlayer.role)) {
       toast({ variant: "destructive", title: t.roleError, description: language === 'ru' ? `Роль ${targetPlayer.role} не может переместиться в прежний слот` : `${targetPlayer.role} cannot move to previous slot` });
       setDraggedSlot(null);
       return;
     }
 
-    updateLineup({
-      [sourceSlot]: targetPlayerId,
-      [targetSlot]: sourcePlayerId
-    });
-
+    updateLineup({ [sourceSlot]: targetPlayerId, [targetSlot]: sourcePlayerId });
     toast({ title: language === 'ru' ? "Позиции изменены" : "Positions Swapped" });
     setDraggedSlot(null);
   };
 
-  // Interaction handlers: Click for highlight, Long Press for dossier
   const handlePointerDown = (player: Player) => {
     longPressTriggered.current = false;
+    if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
     pressTimerRef.current = setTimeout(() => {
       longPressTriggered.current = true;
       setProfilePlayer(player);
@@ -221,8 +207,6 @@ export default function SquadPage() {
       clearTimeout(pressTimerRef.current);
       pressTimerRef.current = null;
     }
-
-    // If it wasn't a long press, it's a click
     if (!longPressTriggered.current) {
       setHighlightedPlayerId(prev => prev === player.id ? null : player.id);
     }
@@ -242,38 +226,32 @@ export default function SquadPage() {
           onDrop={(e) => handleDrop(e, slotKey)}
           onPointerDown={() => player && handlePointerDown(player)}
           onPointerUp={() => player && handlePointerUp(player)}
-          onPointerLeave={() => {
-            if (pressTimerRef.current) {
-              clearTimeout(pressTimerRef.current);
-              pressTimerRef.current = null;
-            }
-          }}
-          onClick={() => {
-            if (!player) {
-              setManagedSlot(slotKey);
-            }
-          }}
+          onPointerCancel={() => { if (pressTimerRef.current) clearTimeout(pressTimerRef.current); }}
+          onContextMenu={(e) => { if (player) e.preventDefault(); }}
+          onClick={() => { if (!player) setManagedSlot(slotKey); }}
           className={cn(
             "glass-card border-white/5 overflow-hidden transition-all cursor-pointer select-none", 
             player ? "bg-primary/5 border-primary/20" : "hover:bg-white/5",
-            isHighlighted && "border-accent ring-1 ring-accent bg-accent/5 animate-pulse shadow-[0_0_15px_rgba(var(--accent),0.2)]",
+            isHighlighted && "border-accent ring-1 ring-accent bg-accent/5 shadow-[0_0_15px_rgba(var(--accent),0.2)]",
             draggedSlot === slotKey && "opacity-50 border-accent/50"
           )}
         >
-          <CardContent className="p-2 flex items-center gap-3 relative">
-            <div className="relative shrink-0">
-              <div className={cn("w-10 h-10 rounded-lg border flex items-center justify-center bg-secondary/50 overflow-hidden", player ? "border-primary/50" : "border-dashed border-muted")}>
-                {player ? <img src={player.image} alt="" className="w-full h-full object-cover" /> : <roleInfo.icon className={cn("w-4 h-4", roleInfo.color)} />}
+          <CardContent className="p-2 flex items-center justify-between gap-3 relative">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="relative shrink-0">
+                <div className={cn("w-10 h-10 rounded-lg border flex items-center justify-center bg-secondary/50 overflow-hidden", player ? "border-primary/50" : "border-dashed border-muted")}>
+                  {player ? <img src={player.image} alt="" className="w-full h-full object-cover" /> : <roleInfo.icon className={cn("w-4 h-4", roleInfo.color)} />}
+                </div>
+                {player && <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-0.5 border border-white/10 shadow-lg"><roleInfo.icon className={cn("w-2 h-2", roleInfo.color)} /></div>}
               </div>
-              {player && <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-0.5 border border-white/10 shadow-lg"><roleInfo.icon className={cn("w-2 h-2", roleInfo.color)} /></div>}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className={cn("text-[7px] uppercase font-black tracking-widest", player ? "text-primary" : "text-muted-foreground")}>{roleInfo.label}</p>
-              <h3 className="text-[11px] font-bold leading-tight truncate">{player ? player.name : t.emptySlot}</h3>
+              <div className="flex-1 min-w-0">
+                <p className={cn("text-[7px] uppercase font-black tracking-widest", player ? "text-primary" : "text-muted-foreground")}>{roleInfo.label}</p>
+                <h3 className="text-[11px] font-bold leading-tight truncate">{player ? player.name : t.emptySlot}</h3>
+              </div>
             </div>
             
             {player && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <div className="flex flex-col items-center justify-center min-w-[35px] border-l border-white/5 pl-2">
                   <p className="text-[6px] font-black text-primary uppercase tracking-widest mb-0.5">ОБЩ</p>
                   <span className="text-lg font-headline font-bold text-accent italic leading-none">{player.overallRating}</span>
@@ -345,31 +323,25 @@ export default function SquadPage() {
                 </div>
              </div>
           </DialogHeader>
-
           <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
             <section className="space-y-3">
               <div className="flex items-center justify-between px-1">
                 <h3 className="text-[9px] font-black uppercase text-accent tracking-widest">{t.availablePlayers}</h3>
                 <Badge variant="outline" className="text-[7px] border-white/10 opacity-50 uppercase">{compatiblePlayers.length} UNIT(S)</Badge>
               </div>
-
               {compatiblePlayers.length > 0 ? (
                 <div className="grid grid-cols-1 gap-2">
                   {compatiblePlayers.map((player) => (
                     <Card key={player.id} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98]" onClick={() => handlePlayerAssign(player)}>
                       <CardContent className="p-3 flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                           <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10 bg-secondary/30">
-                             <img src={player.image} alt="" className="w-full h-full object-cover" />
-                           </div>
+                           <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10 bg-secondary/30"><img src={player.image} alt="" className="w-full h-full object-cover" /></div>
                            <div>
                              <h4 className="text-xs font-bold uppercase text-white truncate max-w-[120px]">{player.name}</h4>
                              <p className="text-[8px] text-muted-foreground uppercase font-black">{player.overallRating} OVR • {player.role}</p>
                            </div>
                         </div>
-                        <Button size="sm" variant="ghost" className="h-8 px-3 text-[8px] font-black uppercase text-primary">
-                          <Plus className="w-3 h-3 mr-1" /> {language === 'ru' ? 'ВЫБРАТЬ' : 'SELECT'}
-                        </Button>
+                        <Button size="sm" variant="ghost" className="h-8 px-3 text-[8px] font-black uppercase text-primary"><Plus className="w-3 h-3 mr-1" /> {language === 'ru' ? 'ВЫБРАТЬ' : 'SELECT'}</Button>
                       </CardContent>
                     </Card>
                   ))}
@@ -382,11 +354,8 @@ export default function SquadPage() {
               )}
             </section>
           </div>
-
           <div className="p-4 bg-secondary/20 border-t border-white/5 shrink-0">
-             <Button variant="outline" className="w-full h-12 uppercase font-black text-[10px] border-white/10" onClick={() => setManagedSlot(null)}>
-               {language === 'ru' ? 'ЗАКРЫТЬ' : 'CLOSE'}
-             </Button>
+             <Button variant="outline" className="w-full h-12 uppercase font-black text-[10px] border-white/10" onClick={() => setManagedSlot(null)}>{language === 'ru' ? 'ЗАКРЫТЬ' : 'CLOSE'}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -404,83 +373,42 @@ export default function SquadPage() {
               </div>
               <div className="space-y-1">
                 <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profilePlayer.name}</DialogTitle>
-                <DialogDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mt-1">
-                  {language === 'ru' ? 'ЛИЧНОЕ ДОСЬЕ ИГРОКА' : 'PLAYER OPERATIONAL DOSSIER'}
-                </DialogDescription>
-                <div className="flex items-center justify-center gap-2 mt-2">
-                  <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profilePlayer.role}</Badge>
-                </div>
+                <DialogDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mt-1">{language === 'ru' ? 'ЛИЧНОЕ ДОСЬЕ ИГРОКА' : 'PLAYER OPERATIONAL DOSSIER'}</DialogDescription>
+                <div className="flex items-center justify-center gap-2 mt-2"><Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profilePlayer.role}</Badge></div>
               </div>
             </div>
-
             <div className="p-4 space-y-8 flex-1 scrollbar-hide">
                 <section className="grid grid-cols-2 gap-3">
                   <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
                     <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{language === 'ru' ? 'ВЛАДЕЛЕЦ' : 'OWNER'}</p>
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="w-3 h-3 text-primary" />
-                      <p className="text-[10px] font-bold uppercase truncate">{displayName || "Manager"}</p>
-                    </div>
+                    <div className="flex items-center gap-2"><ShieldCheck className="w-3 h-3 text-primary" /><p className="text-[10px] font-bold uppercase truncate">{displayName || "Manager"}</p></div>
                   </div>
                   <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
                     <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{language === 'ru' ? 'ПРОДАЖА' : 'SALE'}</p>
-                    <div className="flex items-center gap-2">
-                      <Timer className="w-3 h-3 text-accent animate-pulse" />
-                      <p className="text-[10px] font-mono font-bold text-accent">
-                        {profilePlayer.onTransferUntil ? new Date(profilePlayer.onTransferUntil).toLocaleTimeString() : 'OFF MARKET'}
-                      </p>
-                    </div>
+                    <div className="flex items-center gap-2"><Timer className="w-3 h-3 text-accent animate-pulse" /><p className="text-[10px] font-mono font-bold text-accent">{profilePlayer.onTransferUntil ? new Date(profilePlayer.onTransferUntil).toLocaleTimeString() : 'OFF MARKET'}</p></div>
                   </div>
                 </section>
-
                 <section className="space-y-3">
-                  <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                    <Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}
-                  </h3>
+                  <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Info className="w-3.5 h-3.5" /> {language === 'ru' ? 'ОБЩИЕ ДАННЫЕ' : 'GENERAL INTEL'}</h3>
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
-                       <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</span>
-                       <span className="text-[10px] font-bold">{calculateLiveAge(profilePlayer.baseAge, profilePlayer.hiredAt).display} {language === 'ru' ? 'лет' : 'yrs'}</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
-                       <span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{language === 'ru' ? 'Талант' : 'Talent'}</span>
-                       <div className="flex items-center">
-                         {renderStars(Math.max(...Object.values(profilePlayer.proTalents || {}).map(v => normTalent(v))))}
-                       </div>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
-                       <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Зарплата' : 'Salary'}</span>
-                       <span className="text-[10px] font-bold text-primary">€{(profilePlayer.salary || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
-                       <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
-                       <span className="text-[10px] font-bold uppercase">{profilePlayer.role}</span>
-                    </div>
+                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</span><span className="text-[10px] font-bold">{calculateLiveAge(profilePlayer.baseAge, profilePlayer.hiredAt).display} {language === 'ru' ? 'лет' : 'yrs'}</span></div>
+                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{language === 'ru' ? 'Талант' : 'Talent'}</span><div className="flex items-center">{renderStars(Math.max(...Object.values(profilePlayer.proTalents || {}).map(v => normTalent(v))))}</div></div>
+                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Зарплата' : 'Salary'}</span><span className="text-[10px] font-bold text-primary">€{(profilePlayer.salary || 0).toLocaleString()}</span></div>
+                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span><span className="text-[10px] font-bold uppercase">{profilePlayer.role}</span></div>
                   </div>
                 </section>
-
                 <section>
-                  <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                    <ActivityIcon className="w-3.5 h-3.5" /> {language === 'ru' ? 'НАВЫКИ' : 'SKILLS'}
-                  </h3>
+                  <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><ActivityIcon className="w-3.5 h-3.5" /> {language === 'ru' ? 'НАВЫКИ' : 'SKILLS'}</h3>
                   <div className="space-y-3">
                     {STAT_KEYS.map((key) => { 
                       const Icon = icons[key] || Info;
                       const displayValue = Math.round(Number((profilePlayer.proStats as any)[key]));
                       const talentLimit = normTalent((profilePlayer.proTalents as any)[key] || 10);
-
                       return (
                         <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
                           <div className="flex justify-between items-center px-0.5">
-                            <div className="flex items-center gap-2">
-                              <Icon className="w-4 h-4 text-muted-foreground/60" />
-                              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{(t.proStatsLabels as any)[key] || key.toUpperCase()}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-mono font-bold text-white">{displayValue}</span>
-                              <span className="text-[10px] text-muted-foreground/50">/</span>
-                              <span className="text-xs font-mono font-bold text-primary/70">{talentLimit}</span>
-                            </div>
+                            <div className="flex items-center gap-2"><Icon className="w-4 h-4 text-muted-foreground/60" /><span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{(t.proStatsLabels as any)[key] || key.toUpperCase()}</span></div>
+                            <div className="flex items-center gap-1.5"><span className="text-xs font-mono font-bold text-white">{displayValue}</span><span className="text-[10px] text-muted-foreground/50">/</span><span className="text-xs font-mono font-bold text-primary/70">{talentLimit}</span></div>
                           </div>
                           <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
                         </div>
