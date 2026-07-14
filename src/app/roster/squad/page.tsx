@@ -10,7 +10,7 @@ import {
   Sword, Shield, Sparkles, Plus, 
   ChevronLeft, UserPlus, X,
   ShieldCheck, Zap, HeartPulse,
-  Box, Undo2, Info, ShoppingCart, Loader2,
+  Hammer, Info, ShoppingCart, Loader2,
   Users, Target, Eye, Map, Star, Activity, User, ShieldAlert, Gem, Timer, 
   Activity as ActivityIcon, Brain, TrendingUp, Crosshair, Search
 } from 'lucide-react';
@@ -29,7 +29,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 
 const normTalent = (val: any) => {
@@ -55,7 +54,7 @@ export default function SquadPage() {
   const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null);
 
   const pressTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const longPressTriggered = useRef(false);
+  const isDraggingRef = useRef(false);
 
   const allAvailablePlayers = useMemo(() => {
     return [...ownedPlayers, ...youthAcademyPlayers];
@@ -154,21 +153,27 @@ export default function SquadPage() {
     toast({ title: language === 'ru' ? "Состав обновлен" : "Squad Updated" });
   };
 
+  // Drag and Drop Logic
   const handleDragStart = (e: React.DragEvent, slot: LineupSlot) => {
-    setDraggedSlot(slot);
-    e.dataTransfer.setData('sourceSlot', slot);
+    isDraggingRef.current = true;
     if (pressTimerRef.current) {
       clearTimeout(pressTimerRef.current);
       pressTimerRef.current = null;
     }
+    setDraggedSlot(slot);
+    e.dataTransfer.setData('sourceSlot', slot);
   };
 
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); };
 
   const handleDrop = async (e: React.DragEvent, targetSlot: LineupSlot) => {
     e.preventDefault();
+    isDraggingRef.current = false;
     const sourceSlot = e.dataTransfer.getData('sourceSlot') as LineupSlot;
-    if (!sourceSlot || sourceSlot === targetSlot) return;
+    if (!sourceSlot || sourceSlot === targetSlot) {
+      setDraggedSlot(null);
+      return;
+    }
 
     const sourcePlayerId = lineup[sourceSlot];
     const targetPlayerId = lineup[targetSlot];
@@ -176,6 +181,7 @@ export default function SquadPage() {
     const sourcePlayer = getPlayerById(sourcePlayerId);
     const targetPlayer = getPlayerById(targetPlayerId);
 
+    // Verify compatibility
     if (sourcePlayer && !roleMapping[targetSlot].includes(sourcePlayer.role)) {
       toast({ variant: "destructive", title: t.roleError, description: language === 'ru' ? `Роль ${sourcePlayer.role} не подходит для этого слота` : `${sourcePlayer.role} role is not compatible with this slot` });
       setDraggedSlot(null);
@@ -193,12 +199,19 @@ export default function SquadPage() {
     setDraggedSlot(null);
   };
 
+  const handleDragEnd = () => {
+    isDraggingRef.current = false;
+    setDraggedSlot(null);
+  };
+
+  // Click & Long Press Logic
   const handlePointerDown = (player: Player) => {
-    longPressTriggered.current = false;
+    isDraggingRef.current = false;
     if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
     pressTimerRef.current = setTimeout(() => {
-      longPressTriggered.current = true;
-      setProfilePlayer(player);
+      if (!isDraggingRef.current) {
+        setProfilePlayer(player);
+      }
     }, 600);
   };
 
@@ -207,7 +220,8 @@ export default function SquadPage() {
       clearTimeout(pressTimerRef.current);
       pressTimerRef.current = null;
     }
-    if (!longPressTriggered.current) {
+    // Only toggle highlight if we didn't trigger a long press or start a drag
+    if (!profilePlayer && !isDraggingRef.current) {
       setHighlightedPlayerId(prev => prev === player.id ? null : player.id);
     }
   };
@@ -216,6 +230,7 @@ export default function SquadPage() {
     const player = getPlayerById(lineup[slotKey]);
     const roleInfo = (t.roles as any)[slotKey];
     const isHighlighted = player && highlightedPlayerId === player.id;
+    const isBeingDragged = draggedSlot === slotKey;
 
     return (
       <div key={slotKey} className="group relative">
@@ -224,6 +239,7 @@ export default function SquadPage() {
           onDragStart={(e) => handleDragStart(e, slotKey)}
           onDragOver={handleDragOver}
           onDrop={(e) => handleDrop(e, slotKey)}
+          onDragEnd={handleDragEnd}
           onPointerDown={() => player && handlePointerDown(player)}
           onPointerUp={() => player && handlePointerUp(player)}
           onPointerCancel={() => { if (pressTimerRef.current) clearTimeout(pressTimerRef.current); }}
@@ -233,7 +249,7 @@ export default function SquadPage() {
             "glass-card border-white/5 overflow-hidden transition-all cursor-pointer select-none", 
             player ? "bg-primary/5 border-primary/20" : "hover:bg-white/5",
             isHighlighted && "border-accent ring-1 ring-accent bg-accent/5 shadow-[0_0_15px_rgba(var(--accent),0.2)]",
-            draggedSlot === slotKey && "opacity-50 border-accent/50"
+            isBeingDragged && "opacity-30 scale-95 border-dashed"
           )}
         >
           <CardContent className="p-2 flex items-center justify-between gap-3 relative">
@@ -310,6 +326,7 @@ export default function SquadPage() {
         </section>
       </div>
 
+      {/* POSITION MANAGEMENT DIALOG */}
       <Dialog open={!!managedSlot} onOpenChange={() => setManagedSlot(null)}>
         <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden shadow-2xl h-[85vh] flex flex-col">
           <DialogHeader className="p-6 bg-gradient-to-br from-primary/10 to-transparent border-b border-white/5 shrink-0">
@@ -360,20 +377,26 @@ export default function SquadPage() {
         </DialogContent>
       </Dialog>
 
+      {/* PLAYER DOSSIER DIALOG */}
       <Dialog open={!!profilePlayer} onOpenChange={() => setProfilePlayer(null)}>
         {profilePlayer && (
           <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-y-auto overflow-x-hidden shadow-2xl h-full flex flex-col">
+            <DialogHeader className="hidden">
+              <DialogTitle>{profilePlayer.name} Dossier</DialogTitle>
+              <DialogDescription>Detailed operational player information</DialogDescription>
+            </DialogHeader>
+            
             <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
               <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setProfilePlayer(null)}><X className="w-5 h-5" /></Button>
               <div className="relative mx-auto w-24 h-24 mb-4">
                 <div className={cn("w-full h-full rounded-2xl overflow-hidden border-2 border-primary/50 shadow-2xl bg-secondary/50", profilePlayer.isPro ? "border-yellow-500" : "border-primary/50")}>
                   <img src={profilePlayer.image} alt={profilePlayer.name} className="w-full h-full object-cover" />
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{profilePlayer.country?.flag}</span></div>
+                <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-xl">{profilePlayer.country?.flag}</span></div>
               </div>
               <div className="space-y-1">
-                <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profilePlayer.name}</DialogTitle>
-                <DialogDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mt-1">{language === 'ru' ? 'ЛИЧНОЕ ДОСЬЕ ИГРОКА' : 'PLAYER OPERATIONAL DOSSIER'}</DialogDescription>
+                <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profilePlayer.name}</h2>
+                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mt-1">{language === 'ru' ? 'ЛИЧНОЕ ДОСЬЕ ИГРОКА' : 'PLAYER OPERATIONAL DOSSIER'}</p>
                 <div className="flex items-center justify-center gap-2 mt-2"><Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profilePlayer.role}</Badge></div>
               </div>
             </div>
@@ -416,6 +439,9 @@ export default function SquadPage() {
                     })}
                   </div>
                 </section>
+            </div>
+            <div className="p-4 bg-secondary/20 border-t border-white/5 shrink-0">
+               <Button variant="outline" className="w-full h-12 uppercase font-black text-[10px] border-white/10" onClick={() => setProfilePlayer(null)}>{language === 'ru' ? 'ЗАКРЫТЬ' : 'CLOSE'}</Button>
             </div>
           </DialogContent>
         )}
