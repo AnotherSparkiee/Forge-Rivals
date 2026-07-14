@@ -54,9 +54,9 @@ export default function SquadPage() {
   const [draggedSlot, setDraggedSlot] = useState<LineupSlot | null>(null);
   const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null);
 
-  // Long press refs
+  // Advanced Long Press Logic
   const pressTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const isLongPressRef = useRef(false);
+  const longPressTriggered = useRef(false);
 
   const allAvailablePlayers = useMemo(() => {
     return [...ownedPlayers, ...youthAcademyPlayers];
@@ -95,6 +95,7 @@ export default function SquadPage() {
     onAuction: language === 'ru' ? "ИГРОК НА АУКЦИОНЕ" : "PLAYER ON AUCTION",
     unassign: language === 'ru' ? "ОСВОБОДИТЬ СЛОТ" : "UNASSIGN SLOT",
     noAvailable: language === 'ru' ? "Нет подходящих свободных игроков" : "No suitable free players available",
+    roleError: language === 'ru' ? "Несовместимая роль!" : "Incompatible Role!",
     roles: {
       carry: { label: language === 'ru' ? "Керри" : "Carry", icon: Sword, color: "text-red-400" },
       mid: { label: language === 'ru' ? "Мидер" : "Midlaner", icon: Sparkles, color: "text-blue-400" },
@@ -156,10 +157,16 @@ export default function SquadPage() {
     toast({ title: language === 'ru' ? "Состав обновлен" : "Squad Updated" });
   };
 
-  // Drag and Drop handlers
+  // Drag and Drop with Strict Role Validation
   const handleDragStart = (e: React.DragEvent, slot: LineupSlot) => {
     setDraggedSlot(slot);
     e.dataTransfer.setData('sourceSlot', slot);
+    
+    // Clear long press if drag starts
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -174,6 +181,23 @@ export default function SquadPage() {
     const sourcePlayerId = lineup[sourceSlot];
     const targetPlayerId = lineup[targetSlot];
 
+    const sourcePlayer = getPlayerById(sourcePlayerId);
+    const targetPlayer = getPlayerById(targetPlayerId);
+
+    // 1. Check if source player can go to target slot
+    if (sourcePlayer && !roleMapping[targetSlot].includes(sourcePlayer.role)) {
+      toast({ variant: "destructive", title: t.roleError, description: language === 'ru' ? `Роль ${sourcePlayer.role} не подходит для этого слота` : `${sourcePlayer.role} role is not compatible with this slot` });
+      setDraggedSlot(null);
+      return;
+    }
+
+    // 2. If swap: Check if target player can go to source slot
+    if (targetPlayer && !roleMapping[sourceSlot].includes(targetPlayer.role)) {
+      toast({ variant: "destructive", title: t.roleError, description: language === 'ru' ? `Роль ${targetPlayer.role} не может переместиться в прежний слот` : `${targetPlayer.role} cannot move to previous slot` });
+      setDraggedSlot(null);
+      return;
+    }
+
     updateLineup({
       [sourceSlot]: targetPlayerId,
       [targetSlot]: sourcePlayerId
@@ -183,67 +207,23 @@ export default function SquadPage() {
     setDraggedSlot(null);
   };
 
-  const handleTransferListing = async (player: Player) => {
-    if (!player || !user || !profile || isTransferring) return;
-    setIsTransferring(true);
-    try {
-      const today = getMoscowDateString();
-      const mskNow = getMoscowTime();
-      const expiryTime = new Date(mskNow.getTime() + 12 * 60 * 60 * 1000); 
-      const startPrice = Math.floor((player.overallRating * 15000) + 100000);
-      
-      const agentId = `p_${user.uid}_${Date.now()}`;
-      const agentData = {
-        id: agentId,
-        heroData: JSON.parse(JSON.stringify(player)),
-        currentBid: startPrice,
-        startingPrice: startPrice,
-        highestBidderId: null,
-        highestBidderName: null,
-        bidders: [],
-        sellerId: user.uid,
-        sellerName: profile.displayName || "Manager",
-        expiresAt: expiryTime.toISOString(),
-        dropDate: today,
-        createdAt: serverTimestamp(),
-        isYouth: player.isYouth || false,
-        isPro: player.isPro || false,
-        currency: 'credits'
-      };
-
-      await setDoc(doc(db, 'market_v7', agentId), agentData);
-      updatePlayer(player.id, { 
-        onTransferUntil: expiryTime.toISOString(),
-        transferMarketId: agentId 
-      });
-
-      toast({ title: language === 'ru' ? "Игрок выставлен на аукцион!" : "Player listed on auction!" });
-      setProfilePlayer(null);
-    } catch (e: any) {
-      console.error(e);
-      toast({ variant: "destructive", title: "Action Failed", description: e.message });
-    } finally {
-      setIsTransferring(false);
-    }
-  };
-
-  // Interaction handlers for Click (Highlight) and Long Press (Dossier)
-  const handlePressStart = (player: Player) => {
-    isLongPressRef.current = false;
+  // Interaction handlers: Click for highlight, Long Press for dossier
+  const handlePointerDown = (player: Player) => {
+    longPressTriggered.current = false;
     pressTimerRef.current = setTimeout(() => {
-      isLongPressRef.current = true;
+      longPressTriggered.current = true;
       setProfilePlayer(player);
-    }, 600); // 600ms long press
+    }, 600);
   };
 
-  const handlePressEnd = (player: Player) => {
+  const handlePointerUp = (player: Player) => {
     if (pressTimerRef.current) {
       clearTimeout(pressTimerRef.current);
       pressTimerRef.current = null;
     }
-    
-    // If it wasn't a long press, toggle highlight
-    if (!isLongPressRef.current) {
+
+    // If it wasn't a long press, it's a click
+    if (!longPressTriggered.current) {
       setHighlightedPlayerId(prev => prev === player.id ? null : player.id);
     }
   };
@@ -260,16 +240,14 @@ export default function SquadPage() {
           onDragStart={(e) => handleDragStart(e, slotKey)}
           onDragOver={handleDragOver}
           onDrop={(e) => handleDrop(e, slotKey)}
-          onMouseDown={() => player && handlePressStart(player)}
-          onMouseUp={() => player && handlePressEnd(player)}
-          onMouseLeave={() => {
+          onPointerDown={() => player && handlePointerDown(player)}
+          onPointerUp={() => player && handlePointerUp(player)}
+          onPointerLeave={() => {
             if (pressTimerRef.current) {
               clearTimeout(pressTimerRef.current);
               pressTimerRef.current = null;
             }
           }}
-          onTouchStart={() => player && handlePressStart(player)}
-          onTouchEnd={() => player && handlePressEnd(player)}
           onClick={() => {
             if (!player) {
               setManagedSlot(slotKey);
@@ -278,7 +256,7 @@ export default function SquadPage() {
           className={cn(
             "glass-card border-white/5 overflow-hidden transition-all cursor-pointer select-none", 
             player ? "bg-primary/5 border-primary/20" : "hover:bg-white/5",
-            isHighlighted && "border-accent ring-1 ring-accent bg-accent/5 animate-pulse",
+            isHighlighted && "border-accent ring-1 ring-accent bg-accent/5 animate-pulse shadow-[0_0_15px_rgba(var(--accent),0.2)]",
             draggedSlot === slotKey && "opacity-50 border-accent/50"
           )}
         >
@@ -354,7 +332,6 @@ export default function SquadPage() {
         </section>
       </div>
 
-      {/* SLOT MANAGEMENT DIALOG */}
       <Dialog open={!!managedSlot} onOpenChange={() => setManagedSlot(null)}>
         <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden shadow-2xl h-[85vh] flex flex-col">
           <DialogHeader className="p-6 bg-gradient-to-br from-primary/10 to-transparent border-b border-white/5 shrink-0">
@@ -414,7 +391,6 @@ export default function SquadPage() {
         </DialogContent>
       </Dialog>
 
-      {/* PLAYER DOSSIER DIALOG */}
       <Dialog open={!!profilePlayer} onOpenChange={() => setProfilePlayer(null)}>
         {profilePlayer && (
           <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-y-auto overflow-x-hidden shadow-2xl h-full flex flex-col">
@@ -512,28 +488,6 @@ export default function SquadPage() {
                     })}
                   </div>
                 </section>
-
-                <section className="pt-4 border-t border-white/5">
-                  <h3 className="text-[9px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                    <Gem className="w-3.5 h-3.5" /> {language === 'ru' ? 'ЦЕНА ИГРОКА' : 'UNIT PRICE'}
-                  </h3>
-                  <div className="bg-secondary/30 p-4 rounded-xl border border-white/5">
-                     <p className="text-[8px] font-black text-muted-foreground uppercase">ESTIMATED MARKET VALUE</p>
-                     <p className="text-xl font-headline font-bold text-white italic">€ {(profilePlayer.overallRating * 15000 + 100000).toLocaleString()}</p>
-                  </div>
-                </section>
-                
-                <div className="pt-4 pb-8 flex flex-col gap-2">
-                  <Button 
-                    className="w-full h-14 hero-gradient font-black text-xs uppercase tracking-widest shadow-xl"
-                    onClick={() => handleTransferListing(profilePlayer)}
-                    disabled={isTransferring || (profilePlayer.onTransferUntil && new Date(profilePlayer.onTransferUntil) > now)}
-                  >
-                    {isTransferring ? <Loader2 className="animate-spin mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
-                    {profilePlayer.onTransferUntil && new Date(profilePlayer.onTransferUntil) > now ? (language === 'ru' ? 'УЖЕ НА РЫНКЕ' : 'ALREADY LISTED') : (language === 'ru' ? 'ВЫСТАВИТЬ НА ТРАНСФЕР' : 'LIST ON TRANSFER MARKET')}
-                  </Button>
-                  <Button variant="ghost" className="w-full h-12 text-[9px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setProfilePlayer(null)}>{language === 'ru' ? 'ЗАКРЫТЬ' : 'BACK'}</Button>
-                </div>
             </div>
           </DialogContent>
         )}
