@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useGameState, LineupSlot } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -52,6 +52,11 @@ export default function SquadPage() {
   const [isTransferring, setIsTransferring] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [draggedSlot, setDraggedSlot] = useState<LineupSlot | null>(null);
+  const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null);
+
+  // Long press refs
+  const pressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isLongPressRef = useRef(false);
 
   const allAvailablePlayers = useMemo(() => {
     return [...ownedPlayers, ...youthAcademyPlayers];
@@ -151,13 +156,6 @@ export default function SquadPage() {
     toast({ title: language === 'ru' ? "Состав обновлен" : "Squad Updated" });
   };
 
-  const handleUnassign = () => {
-    if (!managedSlot) return;
-    assignToRole(managedSlot, null);
-    setManagedSlot(null);
-    toast({ title: language === 'ru' ? "Слот освобожден" : "Slot Unassigned" });
-  };
-
   // Drag and Drop handlers
   const handleDragStart = (e: React.DragEvent, slot: LineupSlot) => {
     setDraggedSlot(slot);
@@ -165,7 +163,7 @@ export default function SquadPage() {
   };
 
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault(); // Allow drop
+    e.preventDefault();
   };
 
   const handleDrop = async (e: React.DragEvent, targetSlot: LineupSlot) => {
@@ -176,7 +174,6 @@ export default function SquadPage() {
     const sourcePlayerId = lineup[sourceSlot];
     const targetPlayerId = lineup[targetSlot];
 
-    // Swapping players in the lineup
     updateLineup({
       [sourceSlot]: targetPlayerId,
       [targetSlot]: sourcePlayerId
@@ -230,9 +227,31 @@ export default function SquadPage() {
     }
   };
 
+  // Interaction handlers for Click (Highlight) and Long Press (Dossier)
+  const handlePressStart = (player: Player) => {
+    isLongPressRef.current = false;
+    pressTimerRef.current = setTimeout(() => {
+      isLongPressRef.current = true;
+      setProfilePlayer(player);
+    }, 600); // 600ms long press
+  };
+
+  const handlePressEnd = (player: Player) => {
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+    
+    // If it wasn't a long press, toggle highlight
+    if (!isLongPressRef.current) {
+      setHighlightedPlayerId(prev => prev === player.id ? null : player.id);
+    }
+  };
+
   const renderSlot = (slotKey: LineupSlot) => {
     const player = getPlayerById(lineup[slotKey]);
     const roleInfo = (t.roles as any)[slotKey];
+    const isHighlighted = player && highlightedPlayerId === player.id;
 
     return (
       <div key={slotKey} className="group relative">
@@ -241,16 +260,25 @@ export default function SquadPage() {
           onDragStart={(e) => handleDragStart(e, slotKey)}
           onDragOver={handleDragOver}
           onDrop={(e) => handleDrop(e, slotKey)}
+          onMouseDown={() => player && handlePressStart(player)}
+          onMouseUp={() => player && handlePressEnd(player)}
+          onMouseLeave={() => {
+            if (pressTimerRef.current) {
+              clearTimeout(pressTimerRef.current);
+              pressTimerRef.current = null;
+            }
+          }}
+          onTouchStart={() => player && handlePressStart(player)}
+          onTouchEnd={() => player && handlePressEnd(player)}
           onClick={() => {
-            if (player) {
-              setProfilePlayer(player);
-            } else {
+            if (!player) {
               setManagedSlot(slotKey);
             }
           }}
           className={cn(
             "glass-card border-white/5 overflow-hidden transition-all cursor-pointer select-none", 
-            player ? "bg-primary/5 border-primary/20 hover:border-primary/40" : "hover:bg-white/5",
+            player ? "bg-primary/5 border-primary/20" : "hover:bg-white/5",
+            isHighlighted && "border-accent ring-1 ring-accent bg-accent/5 animate-pulse",
             draggedSlot === slotKey && "opacity-50 border-accent/50"
           )}
         >
@@ -286,7 +314,6 @@ export default function SquadPage() {
   if (!isLoaded) return <LoadingScreen />;
 
   const managedSlotInfo = managedSlot ? (t.roles as any)[managedSlot] : null;
-  const currentOccupant = managedSlot ? getPlayerById(lineup[managedSlot]) : null;
   const compatiblePlayers = managedSlot ? allAvailablePlayers.filter(p => 
     roleMapping[managedSlot].includes(p.role) && 
     !Object.values(lineup).includes(p.id) &&
@@ -327,7 +354,7 @@ export default function SquadPage() {
         </section>
       </div>
 
-      {/* SLOT MANAGEMENT DIALOG (Quick Assign for Empty Slots) */}
+      {/* SLOT MANAGEMENT DIALOG */}
       <Dialog open={!!managedSlot} onOpenChange={() => setManagedSlot(null)}>
         <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden shadow-2xl h-[85vh] flex flex-col">
           <DialogHeader className="p-6 bg-gradient-to-br from-primary/10 to-transparent border-b border-white/5 shrink-0">
@@ -387,7 +414,7 @@ export default function SquadPage() {
         </DialogContent>
       </Dialog>
 
-      {/* PLAYER DOSSIER DIALOG (Portfolio) */}
+      {/* PLAYER DOSSIER DIALOG */}
       <Dialog open={!!profilePlayer} onOpenChange={() => setProfilePlayer(null)}>
         {profilePlayer && (
           <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-y-auto overflow-x-hidden shadow-2xl h-full flex flex-col">
