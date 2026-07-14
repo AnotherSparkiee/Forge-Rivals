@@ -40,7 +40,7 @@ const normTalent = (val: any) => {
 
 export default function SquadPage() {
   const { 
-    ownedPlayers, youthAcademyPlayers, lineup, assignToRole, isLoaded, 
+    ownedPlayers, youthAcademyPlayers, lineup, assignToRole, updateLineup, isLoaded, 
     language, updatePlayer, isPremium, activeLicenseTier, displayName, credits, crystals
   } = useGameState();
   const { user } = useUser();
@@ -51,6 +51,7 @@ export default function SquadPage() {
   const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
   const [isTransferring, setIsTransferring] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [draggedSlot, setDraggedSlot] = useState<LineupSlot | null>(null);
 
   const allAvailablePlayers = useMemo(() => {
     return [...ownedPlayers, ...youthAcademyPlayers];
@@ -157,6 +158,34 @@ export default function SquadPage() {
     toast({ title: language === 'ru' ? "Слот освобожден" : "Slot Unassigned" });
   };
 
+  // Drag and Drop handlers
+  const handleDragStart = (e: React.DragEvent, slot: LineupSlot) => {
+    setDraggedSlot(slot);
+    e.dataTransfer.setData('sourceSlot', slot);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault(); // Allow drop
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetSlot: LineupSlot) => {
+    e.preventDefault();
+    const sourceSlot = e.dataTransfer.getData('sourceSlot') as LineupSlot;
+    if (!sourceSlot || sourceSlot === targetSlot) return;
+
+    const sourcePlayerId = lineup[sourceSlot];
+    const targetPlayerId = lineup[targetSlot];
+
+    // Swapping players in the lineup
+    updateLineup({
+      [sourceSlot]: targetPlayerId,
+      [targetSlot]: sourcePlayerId
+    });
+
+    toast({ title: language === 'ru' ? "Позиции изменены" : "Positions Swapped" });
+    setDraggedSlot(null);
+  };
+
   const handleTransferListing = async (player: Player) => {
     if (!player || !user || !profile || isTransferring) return;
     setIsTransferring(true);
@@ -208,10 +237,21 @@ export default function SquadPage() {
     return (
       <div key={slotKey} className="group relative">
         <Card 
-          onClick={() => setManagedSlot(slotKey)}
+          draggable={!!player}
+          onDragStart={(e) => handleDragStart(e, slotKey)}
+          onDragOver={handleDragOver}
+          onDrop={(e) => handleDrop(e, slotKey)}
+          onClick={() => {
+            if (player) {
+              setProfilePlayer(player);
+            } else {
+              setManagedSlot(slotKey);
+            }
+          }}
           className={cn(
             "glass-card border-white/5 overflow-hidden transition-all cursor-pointer select-none", 
-            player ? "bg-primary/5 border-primary/20" : "hover:bg-white/5"
+            player ? "bg-primary/5 border-primary/20 hover:border-primary/40" : "hover:bg-white/5",
+            draggedSlot === slotKey && "opacity-50 border-accent/50"
           )}
         >
           <CardContent className="p-2 flex items-center gap-3 relative">
@@ -228,17 +268,6 @@ export default function SquadPage() {
             
             {player && (
               <div className="flex items-center gap-2">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-8 w-8 rounded-full hover:bg-primary/20 text-primary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setProfilePlayer(player);
-                  }}
-                >
-                  <Eye className="w-4 h-4" />
-                </Button>
                 <div className="flex flex-col items-center justify-center min-w-[35px] border-l border-white/5 pl-2">
                   <p className="text-[6px] font-black text-primary uppercase tracking-widest mb-0.5">ОБЩ</p>
                   <span className="text-lg font-headline font-bold text-accent italic leading-none">{player.overallRating}</span>
@@ -298,7 +327,7 @@ export default function SquadPage() {
         </section>
       </div>
 
-      {/* SLOT MANAGEMENT DIALOG */}
+      {/* SLOT MANAGEMENT DIALOG (Quick Assign for Empty Slots) */}
       <Dialog open={!!managedSlot} onOpenChange={() => setManagedSlot(null)}>
         <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden shadow-2xl h-[85vh] flex flex-col">
           <DialogHeader className="p-6 bg-gradient-to-br from-primary/10 to-transparent border-b border-white/5 shrink-0">
@@ -314,33 +343,6 @@ export default function SquadPage() {
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
-            {currentOccupant && (
-              <section className="space-y-3">
-                <h3 className="text-[9px] font-black uppercase text-muted-foreground tracking-widest px-1">{language === 'ru' ? 'ТЕКУЩИЙ ИГРОК' : 'CURRENT OCCUPANT'}</h3>
-                <Card className="glass-card border-primary/20 bg-primary/5">
-                  <CardContent className="p-3 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                       <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/10 bg-secondary/50">
-                         <img src={currentOccupant.image} alt="" className="w-full h-full object-cover" />
-                       </div>
-                       <div>
-                         <h4 className="text-sm font-bold uppercase text-white">{currentOccupant.name}</h4>
-                         <p className="text-[9px] text-muted-foreground uppercase font-black">{currentOccupant.overallRating} OVR • {calculateLiveAge(currentOccupant.baseAge, currentOccupant.hiredAt).display} {t.roles.carry.label === 'Керри' ? 'лет' : 'yrs'}</p>
-                       </div>
-                    </div>
-                    <div className="flex gap-2">
-                       <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl border-white/10" onClick={() => setProfilePlayer(currentOccupant)}>
-                         <Eye className="w-4 h-4 text-primary" />
-                       </Button>
-                       <Button variant="destructive" size="icon" className="h-9 w-9 rounded-xl" onClick={handleUnassign}>
-                         <X className="w-4 h-4" />
-                       </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </section>
-            )}
-
             <section className="space-y-3">
               <div className="flex items-center justify-between px-1">
                 <h3 className="text-[9px] font-black uppercase text-accent tracking-widest">{t.availablePlayers}</h3>
@@ -392,7 +394,7 @@ export default function SquadPage() {
             <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
               <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setProfilePlayer(null)}><X className="w-5 h-5" /></Button>
               <div className="relative mx-auto w-24 h-24 mb-4">
-                <div className={cn("w-full h-full rounded-2xl overflow-hidden border-2 shadow-2xl bg-secondary/50", profilePlayer.isPro ? "border-yellow-500" : "border-primary/50")}>
+                <div className={cn("w-full h-full rounded-2xl overflow-hidden border-2 border-primary/50 shadow-2xl bg-secondary/50", profilePlayer.isPro ? "border-yellow-500" : "border-primary/50")}>
                   <img src={profilePlayer.image} alt={profilePlayer.name} className="w-full h-full object-cover" />
                 </div>
                 <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-base">{profilePlayer.country?.flag}</span></div>

@@ -1,8 +1,7 @@
-
 'use client';
 
 /**
- * Глобальное хранилище v77 (Trophy & Rewards System).
+ * Глобальное хранилище v78 (Drag & Drop Support).
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -51,6 +50,7 @@ interface GameState {
   updatePlayer: (id: string, data: Partial<Player>, costCredits?: number, costCrystals?: number) => void;
   removePlayer: (id: string, refund: number) => void;
   assignToRole: (role: LineupSlot, playerId: string | null) => void;
+  updateLineup: (updates: Partial<Record<LineupSlot, string | null>>) => void;
   updateTactics: (strategy: string, lineSettings: any) => void;
   claimReward: (credits: number, crystals: number) => void;
   setLanguage: (lang: string) => void;
@@ -103,8 +103,8 @@ const DEFAULT_STATE: GameState = {
   skillPoints: 0, arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 77,
-  addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateTactics: () => {},
+  lastProcessedSeason: 0, trophies: [], version: 78,
+  addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
   setTrainingFocus: () => {}, startDailyPlayerTraining: () => {}, claimDailyPlayerTraining: () => {},
   recoverAllFatigue: () => false, hireStaffMember: () => {}, trainStaffSkill: () => false,
@@ -249,7 +249,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (refund > 0) setDoc(r.team, { credits: stateRef.current.credits + refund }, { merge: true });
   }, [getRefs]);
 
-  const assignToRole = useCallback((role: LineupSlot, playerId: string | null) => { const r = getRefs(); if (r) setDoc(r.team, { lineup: { [role]: playerId } }, { merge: true }); }, [getRefs]);
+  const assignToRole = useCallback((role: LineupSlot, playerId: string | null) => { 
+    const r = getRefs(); 
+    if (r) setDoc(r.team, { lineup: { [role]: playerId } }, { merge: true }); 
+  }, [getRefs]);
+
+  const updateLineup = useCallback((updates: Partial<Record<LineupSlot, string | null>>) => {
+    const r = getRefs();
+    if (r) setDoc(r.team, { lineup: updates }, { merge: true });
+  }, [getRefs]);
+
   const updateTactics = useCallback((strategy: string, lineSettings: any) => { const r = getRefs(); if (r) setDoc(r.team, { strategy, lineSettings }, { merge: true }); }, [getRefs]);
   
   const claimReward = useCallback((cr: number, cry: number) => { 
@@ -505,13 +514,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     allSeasonMatches: allMatches, 
     nextMatch: nextMatchInfo, 
     isMatchesLoading: !isWorldReady || allMatches.length === 0,
-    addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage,
+    addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage,
     setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, 
     addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries,
     scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, 
     startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen,
     setWorldReady, resetProfile, addTrophy
-  }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, setWorldReady, resetProfile, addTrophy]);
+  }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, setWorldReady, resetProfile, addTrophy]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
 }
