@@ -166,6 +166,7 @@ export function generateVtunePlayer(seed?: string): Player {
     country: { code: 'UA', name: 'Украина', flag: '🇺🇦' },
     isInjured: false,
     isPro: true,
+    isYouth: false,
     proStats: {
       lastHitting: 8, positioning: 7, reflexes: 8, tiltResistance: 7, versatility: 6,
       mapAwareness: 3, manaManagement: 2, objectiveControl: 4, communication: 3, ganking: 4,
@@ -209,6 +210,7 @@ export function generateUniquePlayer(role: Role, index: number, isStarter: boole
     fatigue: 0,
     country: { code, name: country.name, flag: country.flag },
     isInjured: false,
+    isYouth: isStarter ? false : (startAge < 18),
     proStats: {
       lastHitting: getRandomStat(5, 10, rng), mapAwareness: getRandomStat(5, 10, rng),
       positioning: getRandomStat(5, 10, rng), reflexes: getRandomStat(5, 10, rng),
@@ -262,7 +264,6 @@ export function generateBotSquad(targetOvr: number = 22): any[] {
     const val = Math.floor(20 + Math.random() * 6);
     const botIdNum = Math.floor(Math.random() * 9000) + 1000;
     return {
-      // Убрали "Unit", перевели на botID формат
       name: `bot${botIdNum}`,
       role: role,
       overallRating: val,
