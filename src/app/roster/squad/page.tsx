@@ -153,7 +153,6 @@ export default function SquadPage() {
     toast({ title: language === 'ru' ? "Состав обновлен" : "Squad Updated" });
   };
 
-  // Drag and Drop Logic
   const handleDragStart = (e: React.DragEvent, slot: LineupSlot) => {
     isDraggingRef.current = true;
     if (pressTimerRef.current) {
@@ -181,7 +180,6 @@ export default function SquadPage() {
     const sourcePlayer = getPlayerById(sourcePlayerId);
     const targetPlayer = getPlayerById(targetPlayerId);
 
-    // Verify compatibility
     if (sourcePlayer && !roleMapping[targetSlot].includes(sourcePlayer.role)) {
       toast({ variant: "destructive", title: t.roleError, description: language === 'ru' ? `Роль ${sourcePlayer.role} не подходит для этого слота` : `${sourcePlayer.role} role is not compatible with this slot` });
       setDraggedSlot(null);
@@ -204,7 +202,6 @@ export default function SquadPage() {
     setDraggedSlot(null);
   };
 
-  // Click & Long Press Logic
   const handlePointerDown = (player: Player) => {
     isDraggingRef.current = false;
     if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
@@ -220,7 +217,6 @@ export default function SquadPage() {
       clearTimeout(pressTimerRef.current);
       pressTimerRef.current = null;
     }
-    // Only toggle highlight if we didn't trigger a long press or start a drag
     if (!profilePlayer && !isDraggingRef.current) {
       setHighlightedPlayerId(prev => prev === player.id ? null : player.id);
     }
@@ -326,7 +322,6 @@ export default function SquadPage() {
         </section>
       </div>
 
-      {/* POSITION MANAGEMENT DIALOG */}
       <Dialog open={!!managedSlot} onOpenChange={() => setManagedSlot(null)}>
         <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden shadow-2xl h-[85vh] flex flex-col">
           <DialogHeader className="p-6 bg-gradient-to-br from-primary/10 to-transparent border-b border-white/5 shrink-0">
@@ -377,16 +372,10 @@ export default function SquadPage() {
         </DialogContent>
       </Dialog>
 
-      {/* PLAYER DOSSIER DIALOG */}
       <Dialog open={!!profilePlayer} onOpenChange={() => setProfilePlayer(null)}>
         {profilePlayer && (
           <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-y-auto overflow-x-hidden shadow-2xl h-full flex flex-col">
-            <DialogHeader className="hidden">
-              <DialogTitle>{profilePlayer.name} Dossier</DialogTitle>
-              <DialogDescription>Detailed operational player information</DialogDescription>
-            </DialogHeader>
-            
-            <div className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
+            <DialogHeader className="p-4 pt-12 pb-8 bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5 flex flex-col items-center text-center gap-4 relative shrink-0">
               <Button variant="ghost" size="icon" className="absolute left-4 top-10 rounded-full bg-black/20" onClick={() => setProfilePlayer(null)}><X className="w-5 h-5" /></Button>
               <div className="relative mx-auto w-24 h-24 mb-4">
                 <div className={cn("w-full h-full rounded-2xl overflow-hidden border-2 border-primary/50 shadow-2xl bg-secondary/50", profilePlayer.isPro ? "border-yellow-500" : "border-primary/50")}>
@@ -395,11 +384,11 @@ export default function SquadPage() {
                 <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-xl">{profilePlayer.country?.flag}</span></div>
               </div>
               <div className="space-y-1">
-                <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profilePlayer.name}</h2>
-                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mt-1">{language === 'ru' ? 'ЛИЧНОЕ ДОСЬЕ ИГРОКА' : 'PLAYER OPERATIONAL DOSSIER'}</p>
+                <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profilePlayer.name}</DialogTitle>
+                <DialogDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mt-1">{language === 'ru' ? 'ЛИЧНОЕ ДОСЬЕ ИГРОКА' : 'PLAYER OPERATIONAL DOSSIER'}</DialogDescription>
                 <div className="flex items-center justify-center gap-2 mt-2"><Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profilePlayer.role}</Badge></div>
               </div>
-            </div>
+            </DialogHeader>
             <div className="p-4 space-y-8 flex-1 scrollbar-hide">
                 <section className="grid grid-cols-2 gap-3">
                   <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
