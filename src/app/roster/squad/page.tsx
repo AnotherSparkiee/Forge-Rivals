@@ -94,6 +94,7 @@ export default function SquadPage() {
     unassign: language === 'ru' ? "ОСВОБОДИТЬ СЛОТ" : "UNASSIGN SLOT",
     noAvailable: language === 'ru' ? "Нет подходящих свободных игроков" : "No suitable free players available",
     roleError: language === 'ru' ? "Несовместимая роль!" : "Incompatible Role!",
+    swapSuccess: language === 'ru' ? "Замена произведена" : "Replacement Success",
     roles: {
       carry: { label: language === 'ru' ? "Керри" : "Carry", icon: Sword, color: "text-red-400" },
       mid: { label: language === 'ru' ? "Мидер" : "Midlaner", icon: Sparkles, color: "text-blue-400" },
@@ -154,6 +155,11 @@ export default function SquadPage() {
   };
 
   const handleDragStart = (e: React.DragEvent, slot: LineupSlot) => {
+    const player = getPlayerById(lineup[slot]);
+    if (!player) {
+      e.preventDefault();
+      return;
+    }
     isDraggingRef.current = true;
     if (pressTimerRef.current) {
       clearTimeout(pressTimerRef.current);
@@ -161,14 +167,19 @@ export default function SquadPage() {
     }
     setDraggedSlot(slot);
     e.dataTransfer.setData('sourceSlot', slot);
+    e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); };
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
 
   const handleDrop = async (e: React.DragEvent, targetSlot: LineupSlot) => {
     e.preventDefault();
     isDraggingRef.current = false;
     const sourceSlot = e.dataTransfer.getData('sourceSlot') as LineupSlot;
+    
     if (!sourceSlot || sourceSlot === targetSlot) {
       setDraggedSlot(null);
       return;
@@ -180,20 +191,35 @@ export default function SquadPage() {
     const sourcePlayer = getPlayerById(sourcePlayerId);
     const targetPlayer = getPlayerById(targetPlayerId);
 
+    // 1. Проверка перетаскиваемого игрока для нового слота
     if (sourcePlayer && !roleMapping[targetSlot].includes(sourcePlayer.role)) {
-      toast({ variant: "destructive", title: t.roleError, description: language === 'ru' ? `Роль ${sourcePlayer.role} не подходит для этого слота` : `${sourcePlayer.role} role is not compatible with this slot` });
+      toast({ 
+        variant: "destructive", 
+        title: t.roleError, 
+        description: language === 'ru' 
+          ? `Игрок ${sourcePlayer.name} (${sourcePlayer.role}) не подходит для слота ${targetSlot}` 
+          : `${sourcePlayer.name} (${sourcePlayer.role}) is not compatible with ${targetSlot}` 
+      });
       setDraggedSlot(null);
       return;
     }
 
+    // 2. Если слот занят, проверка замещаемого игрока для старого слота
     if (targetPlayer && !roleMapping[sourceSlot].includes(targetPlayer.role)) {
-      toast({ variant: "destructive", title: t.roleError, description: language === 'ru' ? `Роль ${targetPlayer.role} не может переместиться в прежний слот` : `${targetPlayer.role} cannot move to previous slot` });
+      toast({ 
+        variant: "destructive", 
+        title: t.roleError, 
+        description: language === 'ru' 
+          ? `Игрок ${targetPlayer.name} (${targetPlayer.role}) не может переместиться в слот ${sourceSlot}` 
+          : `${targetPlayer.name} (${targetPlayer.role}) cannot move to ${sourceSlot}` 
+      });
       setDraggedSlot(null);
       return;
     }
 
+    // Выполняем замену
     updateLineup({ [sourceSlot]: targetPlayerId, [targetSlot]: sourcePlayerId });
-    toast({ title: language === 'ru' ? "Позиции изменены" : "Positions Swapped" });
+    toast({ title: t.swapSuccess });
     setDraggedSlot(null);
   };
 
@@ -210,6 +236,14 @@ export default function SquadPage() {
         setProfilePlayer(player);
       }
     }, 600);
+  };
+
+  const handlePointerMove = () => {
+    // Если пошло движение - отменяем Long Press
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
   };
 
   const handlePointerUp = (player: Player) => {
@@ -237,6 +271,7 @@ export default function SquadPage() {
           onDrop={(e) => handleDrop(e, slotKey)}
           onDragEnd={handleDragEnd}
           onPointerDown={() => player && handlePointerDown(player)}
+          onPointerMove={handlePointerMove}
           onPointerUp={() => player && handlePointerUp(player)}
           onPointerCancel={() => { if (pressTimerRef.current) clearTimeout(pressTimerRef.current); }}
           onContextMenu={(e) => { if (player) e.preventDefault(); }}
