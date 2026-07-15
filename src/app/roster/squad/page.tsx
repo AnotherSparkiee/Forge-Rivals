@@ -179,7 +179,7 @@ export default function SquadPage() {
   const handleDrop = async (e: React.DragEvent, targetSlot: LineupSlot) => {
     e.preventDefault();
     isDraggingRef.current = false;
-    const sourceSlot = activeDraggedSlot || (e.dataTransfer.getData('sourceSlot') as LineupSlot);
+    const sourceSlot = e.dataTransfer.getData('sourceSlot') as LineupSlot || activeDraggedSlot;
     setActiveDraggedSlot(null);
     
     if (!sourceSlot || sourceSlot === targetSlot) return;
@@ -192,6 +192,7 @@ export default function SquadPage() {
     const sourcePlayer = getPlayerById(sourcePlayerId);
     const targetPlayer = getPlayerById(targetPlayerId);
 
+    // Взаимная проверка ролей для замены
     if (sourcePlayer && !roleMapping[targetSlot].includes(sourcePlayer.role)) {
       toast({ variant: "destructive", title: t.roleError });
       return;
@@ -202,7 +203,12 @@ export default function SquadPage() {
       return;
     }
 
-    updateLineup({ [sourceSlot]: targetPlayerId, [targetSlot]: sourcePlayerId });
+    // Применяем атомарное обновление через updateLineup
+    updateLineup({ 
+      [sourceSlot]: targetPlayerId || null, 
+      [targetSlot]: sourcePlayerId 
+    });
+    
     toast({ title: t.swapSuccess });
   };
 

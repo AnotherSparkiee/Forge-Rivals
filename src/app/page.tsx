@@ -38,7 +38,7 @@ export default function Home() {
 
   const menuItems = [
     { label: language === 'ru' ? 'ОБЗОР МАТЧА' : 'MATCH OVERVIEW', href: matchReviewHref, icon: Tv, color: 'text-primary' },
-    { label: language === 'ru' ? 'СОСТАВ КОМАНДЫ' : 'SQUAD', href: '/roster/squad', icon: Users, color: 'text-accent' },
+    { label: language === 'ru' ? 'СОСТАВ КОМАНДЫ' : 'SQUAD', href: '/roster', icon: Users, color: 'text-accent' },
     { label: language === 'ru' ? 'ТРАНСФЕРЫ' : 'TRANSFERS', href: '/transfers', icon: ArrowRightLeft, color: 'text-yellow-500' },
     { label: language === 'ru' ? 'РАЗВИТИЕ' : 'INFRA', href: '/training', icon: Construction, color: 'text-blue-400' },
     { label: language === 'ru' ? 'ПЕРСОНАЛ' : 'STAFF', href: '/staff', icon: Briefcase, color: 'text-orange-400' },
@@ -61,7 +61,6 @@ export default function Home() {
 
   return (
     <div className="relative min-h-[calc(100vh-3.5rem-5rem)] flex items-center justify-center overflow-hidden">
-      {/* Background Style from Preloader */}
       <div className="absolute inset-0 bg-[#0a0d14] -z-20" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)] -z-10" />
       
