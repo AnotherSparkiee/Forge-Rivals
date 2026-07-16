@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.4.
- * Исправлено отображение пользовательского логотипа и OVR с поддержкой истории.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.5 (Cumulative Analytics Support).
+ * Поддержка отображения суммарных навыков команд в послематчевом анализе.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -137,10 +137,10 @@ function MatchContent() {
       reportTitle: "OFFICIAL MATCH DEBRIEF",
       next: "WATCH TRANSCRIPTION", skip: "SKIP TO STATS", accept: "FINALIZE REVIEW", exit: "EXIT",
       home: "HOME", away: "AWAY", vs: "VS",
-      comparison: "TEAM SKILL ANALYSIS",
+      comparison: "TEAM CUMULATIVE SKILL ANALYSIS",
       progression: "POST-MATCH IMPACT",
       staffInfluence: "STAFF PERFORMANCE CONTRIBUTION",
-      compFarm: "Resource Acquisition", compTactics: "Tactical Execution", compTeam: "Strategic Synergy", compRef: "Combat Reflexes",
+      compFarm: "Total Resource Farm", compTactics: "Tactical Execution", compTeam: "Strategic Unity", compRef: "Combat Reflexes",
       tbdTitle: "TECHNICAL WIN SECURED",
       tbdDesc: "Opponent (TBD) failed to deploy for tactical engagement. Result officially recorded as 2:0."
     },
@@ -148,10 +148,10 @@ function MatchContent() {
       reportTitle: "ОФИЦИАЛЬНЫЙ ОТЧЕТ БОЯ",
       next: "СМОТРЕТЬ ПОВТОР", skip: "К СТАТИСТИКЕ", accept: "ЗАВЕРШИТЬ ПРОСМОТР", exit: "ВЫЙТИ",
       home: "ДОМА", away: "В ГОСТЯХ", vs: "ПРОТИВ",
-      comparison: "АНАЛИЗ НАВЫКОВ КОМАНД",
+      comparison: "АНАЛИЗ СУММАРНЫХ НАВЫКОВ КОМАНД",
       progression: "ПОСЛЕМАТЧЕВЫЙ ОТЧЕТ",
       staffInfluence: "ВКЛАД ПЕРСОНАЛА КЛУБА",
-      compFarm: "Сбор ресурсов", compTactics: "Тактическая точность", compTeam: "Командная синергия", compRef: "Боевые рефлексы",
+      compFarm: "Суммарный фарм", compTactics: "Тактическая точность", compTeam: "Командная синергия", compRef: "Боевые рефлексы",
       tbdTitle: "ТЕХНИЧЕСКАЯ ПОБЕДА",
       tbdDesc: "Соперник (TBD) не явился на поле боя. Результат официально зафиксирован как 2:0."
     }
@@ -226,8 +226,8 @@ function MatchContent() {
                     </div>
                   </div>
                   <div className="h-2 w-full bg-background/50 rounded-full flex overflow-hidden border border-white/5 shadow-inner">
-                    <div className="h-full bg-primary shadow-[0_0_12px_rgba(var(--primary),0.5)] transition-all duration-1000" style={{ width: `${(game.teamComparison[stat.key][0] / (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1])) * 100}%` }} />
-                    <div className="h-full bg-accent shadow-[0_0_12px_rgba(var(--accent),0.5)] transition-all duration-1000" style={{ width: `${(game.teamComparison[stat.key][1] / (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1])) * 100}%` }} />
+                    <div className="h-full bg-primary shadow-[0_0_12px_rgba(var(--primary),0.5)] transition-all duration-1000" style={{ width: `${(game.teamComparison[stat.key][0] / Math.max(1, (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1]))) * 100}%` }} />
+                    <div className="h-full bg-accent shadow-[0_0_12px_rgba(var(--accent),0.5)] transition-all duration-1000" style={{ width: `${(game.teamComparison[stat.key][1] / Math.max(1, (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1]))) * 100}%` }} />
                   </div>
                 </div>
               ))}

@@ -1,11 +1,11 @@
 'use server';
 /**
- * @fileOverview Ядро симуляции матчей Lines of Enmity v5.1 (Tactical Depth & OVR Tracking).
+ * @fileOverview Ядро симуляции матчей Lines of Enmity v5.2 (Cumulative Skill Analysis).
  * 
  * Особенности:
- * 1. Прямое сопоставление навыков (Stat-vs-Stat).
- * 2. Влияние инфраструктуры и персонала на вероятность событий.
- * 3. Передача командного OVR для отображения в превью.
+ * 1. Суммирование всех 10 навыков каждого игрока основы для анализа.
+ * 2. Влияние инфраструктуры и персонала на групповые показатели.
+ * 3. Детерминированный расчет командного OVR.
  */
 
 import {ai} from '@/ai/genkit';
@@ -115,6 +115,7 @@ const ROLE_WEIGHTS: Record<string, Record<keyof z.infer<typeof ProStatsSchema>, 
 function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
   const activeHeroes = (team.heroes || []).filter(h => !h.isSub).slice(0, 5);
   let power = 0;
+  // Суммарные показатели для сравнения команд (кумулятивный учет всех навыков всех игроков)
   const stats = { farm: 0, tactics: 0, teamwork: 0, reflexes: 0 };
 
   if (activeHeroes.length === 0) return { power: 1, stats, teamOvr: 0 };
@@ -126,15 +127,17 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
     let heroContribution = Number(hero.overallRating || 0) * 1.5;
 
     if (hero.proStats) {
+      // Суммируем все 10 характеристик каждого игрока в 4 категории анализа
+      stats.farm += (hero.proStats.lastHitting || 0) + (hero.proStats.manaManagement || 0);
+      stats.tactics += (hero.proStats.mapAwareness || 0) + (hero.proStats.objectiveControl || 0);
+      stats.teamwork += (hero.proStats.communication || 0) + (hero.proStats.versatility || 0) + (hero.proStats.tiltResistance || 0);
+      stats.reflexes += (hero.proStats.reflexes || 0) + (hero.proStats.ganking || 0) + (hero.proStats.positioning || 0);
+
+      // Расчет взвешенного вклада для определения вероятности победы
       Object.entries(hero.proStats).forEach(([key, val]) => {
         const weight = weights[key as keyof typeof weights] || 1.0;
         heroContribution += Number(val || 0) * weight;
       });
-      
-      stats.farm += (hero.proStats.lastHitting + hero.proStats.manaManagement) / 2;
-      stats.tactics += (hero.proStats.mapAwareness + hero.proStats.objectiveControl) / 2;
-      stats.teamwork += (hero.proStats.communication + hero.proStats.versatility) / 2;
-      stats.reflexes += (hero.proStats.reflexes + hero.proStats.ganking) / 2;
     }
 
     if (hero.isPro) heroContribution *= 1.35;
@@ -142,23 +145,20 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
   });
 
   const count = activeHeroes.length;
-  stats.farm = Math.round(stats.farm / count);
-  stats.tactics = Math.round(stats.tactics / count);
-  stats.teamwork = Math.round(stats.teamwork / count);
-  stats.reflexes = Math.round(stats.reflexes / count);
 
-  // Apply Staff Bonuses
-  const coachBonus = Number(team.staffBonus || 0) * 0.7;
-  const analystBonus = Number(team.analystBonus || 0) * 0.7;
-  const infraBonus = Number(team.infraBonus || 0) * 0.5;
+  // Добавляем бонусы персонала и инфраструктуры к общим суммам
+  const coachBonus = Number(team.staffBonus || 0);
+  const analystBonus = Number(team.analystBonus || 0);
+  const infraBonus = Number(team.infraBonus || 0);
   
-  stats.teamwork += coachBonus;
-  stats.tactics += analystBonus;
-  stats.farm += infraBonus;
+  stats.teamwork += Math.round(coachBonus * 3);
+  stats.tactics += Math.round(analystBonus * 3);
+  stats.farm += Math.round(infraBonus * 5);
 
+  // Синергия влияет на итоговую мощь
   const synergyMultiplier = 1 + (Number(team.synergy || 0) * 0.005);
   power *= synergyMultiplier;
-  power += (coachBonus * 12) + (analystBonus * 12) + (infraBonus * 10);
+  power += (coachBonus * 15) + (analystBonus * 15) + (infraBonus * 12);
 
   const strat = (team.strategy || "").toLowerCase();
   if (strat.includes('aggressive')) power *= 1.15; 
@@ -171,20 +171,21 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
 function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'): z.infer<typeof GameStatsSchema> {
   const isTBDAway = input.teamB.name === 'TBD' || input.teamB.name === 'BYE';
   
+  const potA = calculateTeamPotential(input.teamA);
+  const potB = calculateTeamPotential(input.teamB);
+
   if (isTBDAway) {
     return {
       scoreA: 1, scoreB: 0, duration: "00:00", mvp: input.teamA.heroes[0]?.name || "None",
       matchSummary: "Техническая победа (TBD).",
       towersA: 11, towersB: 0, objectivesA: 5, objectivesB: 0,
-      teamAOvr: calculateTeamPotential(input.teamA).teamOvr,
+      teamAOvr: potA.teamOvr,
       teamBOvr: 0,
       isTechnical: true,
-      timeline: [], scoreboard: [], teamComparison: { farm: [100, 0], tactics: [100, 0], teamwork: [100, 0], reflexes: [100, 0] }
+      timeline: [], scoreboard: [], 
+      teamComparison: { farm: [potA.stats.farm, 0], tactics: [potA.stats.tactics, 0], teamwork: [potA.stats.teamwork, 0], reflexes: [potA.stats.reflexes, 0] }
     };
   }
-
-  const potA = calculateTeamPotential(input.teamA);
-  const potB = calculateTeamPotential(input.teamB);
 
   const winProbA = potA.power / (potA.power + potB.power);
   let finalWinner: 'A' | 'B';
