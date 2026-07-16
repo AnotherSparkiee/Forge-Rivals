@@ -258,14 +258,15 @@ export function generateStaffMember(role: StaffRole): StaffMember {
   };
 }
 
-export function generateBotSquad(targetOvr: number = 15): any[] {
+export function generateBotSquad(targetOvr: number = 10): any[] {
   const roles: Role[] = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'];
   return roles.map((role) => {
-    const val = Math.floor(targetOvr - 5 + Math.random() * 6); // Slightly lower and less stable than players
+    // Ослабляем диапазон отклонения для еще большей стабильности слабости
+    const val = Math.floor(targetOvr - 3 + Math.random() * 4); 
     const botIdNum = Math.floor(Math.random() * 9000) + 1000;
     
-    // Bots have skills slightly below their OVR to ensure players have a "small перевес"
-    const skillBase = Math.max(5, val - 3);
+    // Огромный штраф к навыкам относительно OVR (скиллы в 2 раза слабее OVR)
+    const skillBase = Math.max(2, Math.floor(val * 0.4));
 
     return {
       name: `CyberUnit_${botIdNum}`,

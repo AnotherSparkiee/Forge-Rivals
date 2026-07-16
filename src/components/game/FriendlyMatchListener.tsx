@@ -184,11 +184,11 @@ export function FriendlyMatchListener() {
         let challengerLogoB = null;
 
         if (activeLobby.isTrial) {
-          // Trial bots are slightly weakened for player advantage
-          squadB = generateBotSquad(18);
-          infraBonusB = 3;
-          staffBonusB = 3;
-          analystBonusB = 3;
+          // Ослабляем пробного бота до экстремально низкого уровня
+          squadB = generateBotSquad(12);
+          infraBonusB = 1;
+          staffBonusB = 1;
+          analystBonusB = 1;
           challengerLogoB = "https://i.postimg.cc/8cpvcNZ9/logo-lote.png";
         } else {
           const challengerProfileSnap = await getDoc(doc(db, 'players_v10', activeLobby.challengerId));
@@ -225,7 +225,7 @@ export function FriendlyMatchListener() {
           }
         }
 
-        if (squadB.length < 5) squadB = generateBotSquad(15);
+        if (squadB.length < 5) squadB = generateBotSquad(10);
 
         const result = await simulateMobaMatch({
           teamA: { 

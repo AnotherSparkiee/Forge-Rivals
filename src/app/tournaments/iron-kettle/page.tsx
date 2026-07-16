@@ -183,7 +183,7 @@ export default function IronKettlePage() {
 
           const clubIdent = profile?.clubName || profile?.displayName || "My Club";
 
-          // Weakened tournament bot for slight player advantage
+          // Ослабляем турнирного бота до OVR 14
           const simulation = await simulateMobaMatch({
             teamA: { 
               name: clubIdent, 
@@ -191,7 +191,7 @@ export default function IronKettlePage() {
               staffBonus: staff.coach?.skills?.primary || 0,
               infraBonus: (bootcamp.bootcampLevel || 0)
             },
-            teamB: { name: opponent.name, strategy: "Balanced Play", heroes: generateBotSquad(18) },
+            teamB: { name: opponent.name, strategy: "Balanced Play", heroes: generateBotSquad(14) },
             isBo2: false
           });
 
@@ -287,7 +287,7 @@ export default function IronKettlePage() {
         <CardContent className="p-0">
           <div className="p-6 text-center border-b border-white/5">
             <div className="w-24 h-24 mx-auto mb-4 flex items-center justify-center relative">
-               <img src="https://iili.io/Ca1DVf9.md.png" alt="Cup" className={cn("w-full h-full object-contain drop-shadow-[0_0_15px_rgba(var(--primary),0.3)]", status === 'LIVE' && "animate-pulse")} />
+               <img src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png" alt="Cup" className={cn("w-full h-full object-contain drop-shadow-[0_0_15px_rgba(var(--primary),0.3)]", status === 'LIVE' && "animate-pulse")} />
             </div>
             <Badge variant={status === 'LIVE' ? "destructive" : "outline"} className="mb-2 uppercase text-[8px] tracking-widest">
               {status === 'REG_OPEN' ? t.regOpen : status === 'REG_CLOSED' ? t.regClosed : status === 'LIVE' ? t.live : t.idle}
