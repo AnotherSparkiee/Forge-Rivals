@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * @fileOverview МЕДИЦИНСКИЙ ЦЕНТР v2.
- * Реализован интерфейс лечения травмированных игроков и управление объектами.
+ * @fileOverview МЕДИЦИНСКИЙ ЦЕНТР v3.
+ * Удален раздел пациентов, оставлено только управление объектами инфраструктуры.
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,15 +15,14 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { 
   ChevronLeft, Activity, HeartPulse, Brain, FlaskConical, 
-  UserCircle, Hammer, Clock, Loader2, Gem, Zap, 
-  ShieldAlert, User, ShieldCheck, Stethoscope, ChevronRight,
-  Coins
+  UserCircle, Hammer, Clock, Zap, 
+  Stethoscope, 
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { Player } from '../../lib/moba-data';
+import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 const ACCEL_CREWS = [
   { id: 1, multiplier: 2, price: 100, labelRu: 'Малая бригада (2x)', labelEn: 'Small Crew (2x)' },
@@ -33,16 +32,13 @@ const ACCEL_CREWS = [
 
 export default function MedicalPage() {
   const { 
-    medical, credits, crystals, startMedicalConstruction, accelerateConstruction, 
-    checkConstructions, language, isLoaded, ownedPlayers, healPlayer 
+    medical, startMedicalConstruction, accelerateConstruction, 
+    checkConstructions, language, isLoaded 
   } = useGameState();
   const { toast } = useToast();
   
-  const [activeTab, setActiveTab] = useState<'facilities' | 'patients'>('patients');
   const [selectedFacility, setSelectedFacility] = useState<string | null>(null);
   const [acceleratingFacility, setAcceleratingFacility] = useState<string | null>(null);
-  const [selectedPatient, setSelectedPatient] = useState<Player | null>(null);
-  const [isHealing, setIsHealing] = useState(false);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -55,58 +51,50 @@ export default function MedicalPage() {
     }
   }, [isLoaded, checkConstructions]);
 
-  const injuredPlayers = useMemo(() => {
-    return ownedPlayers.filter(h => h.isInjured);
-  }, [ownedPlayers]);
-
   const labels = {
     en: {
       title: "MEDICAL CENTER",
       subtitle: "Rehabilitation and Health Monitoring",
-      patientsTab: "Patients",
-      facilitiesTab: "Facilities",
-      noPatients: "Operational status: CLEAR",
-      noPatientsDesc: "All personnel fit for tactical deployment.",
-      healCredits: "Standard Treatment",
-      healCrystals: "Elite Surgery",
+      facilitiesTitle: "Medical Infrastructure",
       confirm: "Initiate Project",
-      cost: "Medical Costs",
+      cost: "Investment",
       duration: "Timeframe",
       hours: "hours",
       level: "Ур",
       upgrade: "Modernize",
       accelerate: "Accelerate",
+      improving: "Improving...",
       items: {
         physiotherapyLevel: { label: "Physiotherapy", desc: "Improves the physical condition of your players, preventing injuries." },
         massageLevel: { label: "Massage Room", desc: "Speeds up player fatigue recovery between matches." },
         psychiatristLevel: { label: "Psychiatrist", desc: "Reduces player fatigue after matches." },
         labLevel: { label: "Medical Lab", desc: "Speeds up the healing process for all injuries." },
         psychologistLevel: { label: "Psychologist", desc: "Slightly speeds up training in unofficial matches." }
-      }
+      },
+      accelTitle: "Rush Medical Project",
+      accelDesc: "Bring in specialized medical equipment contractors to speed up work."
     },
     ru: {
       title: "МЕДИЦИНСКИЙ ЦЕНТР",
       subtitle: "Реабилитация и мониторинг здоровья",
-      patientsTab: "Пациенты",
-      facilitiesTab: "Объекты",
-      noPatients: "Статус: ЧИСТО",
-      noPatientsDesc: "Весь персонал готов к выполнению боевых задач.",
-      healCredits: "Стационарное лечение",
-      healCrystals: "Элитная хирургия",
+      facilitiesTitle: "Медицинские объекты",
       confirm: "Начать проект",
-      cost: "Затраты",
+      cost: "Инвестиции",
       duration: "Срок",
       hours: "ч",
       level: "Ур",
       upgrade: "Улучшить",
       accelerate: "Ускорить",
+      improving: "Улучшается...",
       items: {
         physiotherapyLevel: { label: "Физиотерапия", desc: "Улучшает физическое состояние игроков, предупреждая травмы." },
         massageLevel: { label: "Массажная", desc: "Ускоряет восстановление усталости между матчами." },
         psychiatristLevel: { label: "Психиатр", desc: "Уменьшает усталость игроков после матчей." },
         labLevel: { label: "Лаборатория", desc: "Значительно ускоряет пассивное лечение всех травм." },
         psychologistLevel: { label: "Психолог", desc: "Ускоряет тренировку в неофициальных матчах." }
-      }
+      },
+      accelTitle: "Ускорение медцентра",
+      accelDesc: "Привлеките профильных специалистов для ускорения работ по отделению."
     }
   };
 
@@ -117,8 +105,10 @@ export default function MedicalPage() {
     const finish = medical.constructionFinishes?.[id];
     if (!finish || !start) return 0;
     const startTime = new Date(start).getTime();
-    const total = new Date(finish).getTime() - startTime;
+    const finishTime = new Date(finish).getTime();
+    const total = finishTime - startTime;
     const elapsed = Date.now() - startTime;
+    if (total <= 0) return 100;
     return Math.min(Math.max((elapsed / total) * 100, 0), 100);
   }, [medical.constructionStarts, medical.constructionFinishes]);
 
@@ -131,21 +121,14 @@ export default function MedicalPage() {
     }
   };
 
-  const handleHeal = (type: 'credits' | 'crystals', cost: number) => {
-    if (!selectedPatient) return;
-    const bal = type === 'credits' ? credits : crystals;
-    if (bal < cost) {
-      toast({ title: t.cost, description: t.healCredits, variant: "destructive" });
-      return;
+  const handleAccelerate = (multiplier: number, price: number) => {
+    if (!acceleratingFacility) return;
+    if (accelerateConstruction('medical', acceleratingFacility, multiplier, price)) {
+      toast({ title: language === 'ru' ? "Медицина ускорена!" : "Medical Rushed!" });
+      setAcceleratingFacility(null);
+    } else {
+      toast({ title: language === 'ru' ? "Лимит: 1 за постройку" : "Limit reached", variant: "destructive" });
     }
-
-    setIsHealing(true);
-    setTimeout(() => {
-      healPlayer(selectedPatient.id, type, cost);
-      toast({ title: language === 'ru' ? "Игрок здоров!" : "Player Recovered!" });
-      setIsHealing(false);
-      setSelectedPatient(null);
-    }, 1000);
   };
 
   const facilityList = [
@@ -160,9 +143,9 @@ export default function MedicalPage() {
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
-      <header className="mb-6 flex items-center gap-4">
+      <header className="mb-8 flex items-center gap-4">
         <Link href="/training">
-          <Button variant="ghost" size="icon" className="rounded-full">
+          <Button variant="ghost" size="icon" className="rounded-full bg-secondary/50 border border-white/5">
             <ChevronLeft className="w-6 h-6" />
           </Button>
         </Link>
@@ -175,139 +158,58 @@ export default function MedicalPage() {
         </div>
       </header>
 
-      <div className="grid grid-cols-2 gap-2 mb-6 bg-secondary/20 p-1 rounded-xl border border-white/5">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => setActiveTab('patients')}
-          className={cn("h-10 text-[10px] font-black uppercase tracking-widest", activeTab === 'patients' ? "bg-white/10 text-primary" : "text-muted-foreground")}
-        >
-          {t.patientsTab} ({injuredPlayers.length})
-        </Button>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => setActiveTab('facilities')}
-          className={cn("h-10 text-[10px] font-black uppercase tracking-widest", activeTab === 'facilities' ? "bg-white/10 text-primary" : "text-muted-foreground")}
-        >
-          {t.facilitiesTab}
-        </Button>
-      </div>
+      <h2 className="text-xs font-headline font-bold text-accent uppercase tracking-[0.2em] mb-4 px-1">{t.facilitiesTitle}</h2>
 
-      {activeTab === 'patients' && (
-        <div className="space-y-3 animate-in fade-in duration-500">
-          {injuredPlayers.length > 0 ? injuredPlayers.map((player) => (
-            <Card key={player.id} className="glass-card border-red-500/20 bg-red-500/5 cursor-pointer hover:bg-red-500/10 transition-all" onClick={() => setSelectedPatient(player)}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl border border-red-500/30 overflow-hidden bg-secondary/50 relative">
-                     <img src={player.image} alt={player.name} className="w-full h-full object-cover opacity-50 grayscale" />
-                     <ShieldAlert className="absolute inset-0 m-auto w-6 h-6 text-red-500 animate-pulse" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold uppercase text-white">{player.name}</h3>
-                    <p className="text-[10px] text-red-400 font-bold uppercase mt-1">Травмирован до: {new Date(player.injuredUntil!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-red-400" />
-              </CardContent>
-            </Card>
-          )) : (
-            <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4 border-2 border-dashed border-white/5 rounded-3xl">
-               <ShieldCheck className="w-16 h-16 text-green-400" />
-               <div>
-                 <h2 className="text-xl font-headline font-bold uppercase text-white">{t.noPatients}</h2>
-                 <p className="text-[10px] uppercase font-bold tracking-widest">{t.noPatientsDesc}</p>
-               </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeTab === 'facilities' && (
-        <div className="space-y-3 animate-in fade-in duration-500">
-          {facilityList.map((item) => {
-            const level = (medical as any)[item.id] || 0;
-            const isConstructing = !!medical.constructionFinishes?.[item.id];
-            const progress = isConstructing ? calculateProgress(item.id) : 0;
-            
-            return (
-              <Card key={item.id} className={cn("glass-card border-white/5", isConstructing && "bg-orange-500/5 border-orange-500/20")}>
-                <CardContent className="p-4 flex items-center justify-between">
+      <div className="space-y-3">
+        {facilityList.map((item) => {
+          const level = (medical as any)[item.id] || 0;
+          const finishTime = medical.constructionFinishes?.[item.id];
+          const isConstructing = !!finishTime;
+          const isAccelerated = medical.isAccelerated?.[item.id];
+          const progress = isConstructing ? calculateProgress(item.id) : 0;
+          
+          return (
+            <Card key={item.id} className={cn(
+              "glass-card border-white/5 overflow-hidden transition-all",
+              isConstructing && "bg-orange-500/5 border-orange-500/20"
+            )}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className={cn("p-2.5 rounded-xl bg-secondary/50", isConstructing ? "text-orange-400 animate-pulse" : item.color)}>
                       {isConstructing ? <Hammer className="w-5 h-5" /> : <item.icon className="w-5 h-5" />}
                     </div>
                     <div>
                       <h3 className="text-sm font-bold uppercase">{t.items[item.id as keyof typeof t.items].label}</h3>
-                      <Badge variant="outline" className="text-[8px] h-4 uppercase mt-1 border-white/10 opacity-60">LVL {level}</Badge>
+                      <Badge variant="secondary" className="text-[9px] h-4 py-0 uppercase mt-1">{t.level} {level}</Badge>
                     </div>
                   </div>
-                  {!isConstructing && (
-                    <Button size="sm" variant="outline" className="h-9 px-4 border-white/10" onClick={() => setSelectedFacility(item.id)}>
-                      <span className="text-[9px] font-black uppercase">{t.upgrade}</span>
+                  {isConstructing && !isAccelerated ? (
+                    <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white font-black text-[9px] h-8 px-3 gap-1.5" onClick={() => setAcceleratingFacility(item.id)}>
+                      <Zap className="w-3 h-3" /> {t.accelerate}
+                    </Button>
+                  ) : isConstructing && isAccelerated ? (
+                    <Badge variant="outline" className="text-[7px] border-orange-500/50 text-orange-400">BOOSTED</Badge>
+                  ) : (
+                    <Button size="sm" variant="outline" className="h-9 px-3" onClick={() => setSelectedFacility(item.id)}>
+                      <span className="text-[9px] uppercase font-bold text-primary">{t.upgrade}</span>
                     </Button>
                   )}
-                </CardContent>
+                </div>
                 {isConstructing && (
-                  <div className="px-4 pb-4 space-y-1">
-                    <div className="flex justify-between text-[7px] font-black uppercase text-orange-400">
-                      <span>IMPROVING...</span>
+                  <div className="mt-3 space-y-1">
+                    <div className="flex justify-between text-[7px] uppercase font-bold text-orange-400">
+                      <span>{t.improving}</span>
                       <span>{Math.floor(progress)}%</span>
                     </div>
-                    <Progress value={progress} className="h-1" />
+                    <Progress value={progress} className="h-1 bg-orange-500/20" />
                   </div>
                 )}
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      {/* PATIENT MODAL */}
-      <Dialog open={!!selectedPatient} onOpenChange={() => setSelectedPatient(null)}>
-        <DialogContent className="max-w-md bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
-          <div className="p-6 text-center bg-gradient-to-br from-red-500/20 via-background to-transparent border-b border-white/5">
-            <div className="w-20 h-20 rounded-2xl mx-auto mb-4 border-2 border-red-500/50 overflow-hidden shadow-xl bg-secondary/50">
-               <img src={selectedPatient?.image} alt="" className="w-full h-full object-cover grayscale" />
-            </div>
-            <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight text-white">{selectedPatient?.name}</DialogTitle>
-            <DialogDescription className="text-[10px] text-red-400 mt-1 font-black uppercase tracking-widest animate-pulse">REHABILITATION PROTOCOL REQUIRED</DialogDescription>
-          </div>
-
-          <div className="p-6 space-y-4">
-            <Card className="glass-card border-yellow-500/20 hover:border-yellow-500/50 transition-all cursor-pointer" onClick={() => handleHeal('credits', 25000)}>
-              <CardContent className="p-5 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-yellow-500/10"><Coins className="w-6 h-6 text-yellow-500" /></div>
-                  <div>
-                    <h3 className="text-sm font-bold uppercase text-white">{t.healCredits}</h3>
-                    <p className="text-[9px] text-muted-foreground uppercase">Интенсивная терапия (24ч)</p>
-                  </div>
-                </div>
-                <Badge className="bg-primary text-primary-foreground font-black">25,000 €</Badge>
               </CardContent>
             </Card>
-
-            <Card className="glass-card border-blue-500/20 hover:border-blue-500/50 transition-all cursor-pointer" onClick={() => handleHeal('crystals', 150)}>
-              <CardContent className="p-5 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-blue-500/10"><Gem className="w-6 h-6 text-blue-400" /></div>
-                  <div>
-                    <h3 className="text-sm font-bold uppercase text-white">{t.healCrystals}</h3>
-                    <p className="text-[9px] text-muted-foreground uppercase">Мгновенное восстановление</p>
-                  </div>
-                </div>
-                <Badge className="bg-accent text-accent-foreground font-black">150 💎</Badge>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="p-4 bg-secondary/20 border-t border-white/5">
-            <Button variant="ghost" className="w-full text-[10px] font-bold uppercase" onClick={() => setSelectedPatient(null)}>ЗАКРЫТЬ</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+          );
+        })}
+      </div>
 
       {/* FACILITY MODAL */}
       <Dialog open={!!selectedFacility} onOpenChange={() => setSelectedFacility(null)}>
@@ -336,6 +238,35 @@ export default function MedicalPage() {
                 {t.confirm}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      {/* ACCELERATION MODAL */}
+      <Dialog open={!!acceleratingFacility} onOpenChange={() => setAcceleratingFacility(null)}>
+        {acceleratingFacility && (
+          <DialogContent className="max-w-md bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
+            <div className="p-6 text-center bg-gradient-to-br from-orange-500/20 via-background to-transparent border-b border-white/5">
+              <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-orange-400 flex items-center justify-center gap-2">
+                <Zap className="w-5 h-5" /> {t.accelTitle}
+              </DialogTitle>
+              <DialogDescription className="text-center text-[10px] mt-2 uppercase font-black tracking-widest opacity-60">
+                {t.accelDesc}
+              </DialogDescription>
+            </div>
+            <div className="p-4 space-y-2">
+              {ACCEL_CREWS.map((crew) => (
+                <Card key={crew.id} className="glass-card border-white/5 hover:border-orange-500/30 cursor-pointer transition-all" onClick={() => handleAccelerate(crew.multiplier, crew.price)}>
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold uppercase text-white">{language === 'ru' ? crew.labelRu : crew.labelEn}</h4>
+                      <p className="text-[8px] text-muted-foreground uppercase font-black mt-1">Остаток времени / {crew.multiplier}</p>
+                    </div>
+                    <Badge className="bg-accent text-accent-foreground font-black h-8 px-3">{crew.price} 💎</Badge>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </DialogContent>
         )}
       </Dialog>
