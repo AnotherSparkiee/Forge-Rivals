@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.1.
- * Отображает обоснованную статистику и командные рейтинги (OVR) в превью.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.2.
+ * Улучшена видимость командного OVR и добавлены логотипы клубов в превью.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -35,7 +35,7 @@ function MatchContent() {
   const db = useFirestore();
   const { 
     language, isLoaded, markMatchIdAsSeen,
-    matchHistory
+    matchHistory, clubLogo: myClubLogo
   } = useGameState();
 
   const matchIdFromUrl = searchParams.get('id');
@@ -310,31 +310,51 @@ function MatchContent() {
           <div className="space-y-6 animate-in fade-in zoom-in-95">
             <Card className="glass-card border-white/10 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden">
               <div className="grid grid-cols-2 divide-x divide-white/5">
-                <div className="p-6 flex flex-col items-center gap-3 text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-primary/30 flex items-center justify-center shadow-xl text-3xl">🛡️</div>
-                  <h3 className="text-[10px] font-headline font-bold uppercase truncate text-white">{matchData.homeName}</h3>
-                  {currentSimulation?.games?.[0]?.teamAOvr && (
-                    <Badge className="bg-primary/20 text-primary border-none text-[8px] font-black h-5 px-3">OVR {currentSimulation.games[0].teamAOvr}</Badge>
-                  )}
+                <div className="p-6 flex flex-col items-center gap-4 text-center">
+                  <div className="w-20 h-20 rounded-2xl bg-secondary/50 border border-primary/30 flex items-center justify-center shadow-xl overflow-hidden p-2">
+                    {matchData.homeId === user.uid ? (
+                      myClubLogo ? <img src={myClubLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">🛡️</div>
+                    ) : (
+                      matchData.homeLogo ? <img src={matchData.homeLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">🛡️</div>
+                    )}
+                  </div>
+                  <div className="space-y-1 w-full">
+                    <h3 className="text-[11px] font-headline font-bold uppercase truncate text-white px-1 leading-tight">{matchData.homeName}</h3>
+                    <div className="bg-primary/20 text-primary border border-primary/30 rounded-xl py-1 mt-2 shadow-[0_0_15px_rgba(var(--primary),0.2)]">
+                      <p className="text-[8px] font-black uppercase tracking-widest opacity-70 leading-none mb-0.5">Rating</p>
+                      <p className="text-xl font-headline font-black italic">{currentSimulation?.games?.[0]?.teamAOvr || '--'}</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="p-6 flex flex-col items-center gap-3 text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center shadow-xl text-3xl">⚔️</div>
-                  <h3 className="text-[10px] font-headline font-bold uppercase truncate text-white">{matchData.awayName}</h3>
-                  {currentSimulation?.games?.[0]?.teamBOvr && (
-                    <Badge className="bg-accent/20 text-accent border-none text-[8px] font-black h-5 px-3">OVR {currentSimulation.games[0].teamBOvr}</Badge>
-                  )}
+
+                <div className="p-6 flex flex-col items-center gap-4 text-center">
+                  <div className="w-20 h-20 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center shadow-xl overflow-hidden p-2">
+                    {matchData.awayId === user.uid ? (
+                      myClubLogo ? <img src={myClubLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">⚔️</div>
+                    ) : (
+                      matchData.awayLogo ? <img src={matchData.awayLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">⚔️</div>
+                    )}
+                  </div>
+                  <div className="space-y-1 w-full">
+                    <h3 className="text-[11px] font-headline font-bold uppercase truncate text-white px-1 leading-tight">{matchData.awayName}</h3>
+                    <div className="bg-accent/20 text-accent border border-accent/30 rounded-xl py-1 mt-2 shadow-[0_0_15px_rgba(var(--accent),0.2)]">
+                      <p className="text-[8px] font-black uppercase tracking-widest opacity-70 leading-none mb-0.5">Rating</p>
+                      <p className="text-xl font-headline font-black italic">{currentSimulation?.games?.[0]?.teamBOvr || '--'}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </Card>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 text-center">
                 <Castle className="w-5 h-5 text-yellow-500 mx-auto mb-2" />
-                <p className="text-[8px] font-black text-muted-foreground uppercase">TOWER CONTROL</p>
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">TOWER CONTROL</p>
                 <p className="text-lg font-headline font-bold text-white">{matchData.scoreA || 0} : {matchData.scoreB || 0}</p>
               </div>
               <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 text-center">
                 <Target className="w-5 h-5 text-accent mx-auto mb-2" />
-                <p className="text-[8px] font-black text-muted-foreground uppercase">TOURNAMENT</p>
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">TOURNAMENT</p>
                 <p className="text-lg font-headline font-bold text-white uppercase">{matchData.type || 'league'}</p>
               </div>
             </div>

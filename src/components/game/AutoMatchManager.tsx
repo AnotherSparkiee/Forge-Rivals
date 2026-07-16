@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v76 (Club Identity Injection).
- * Принудительная инъекция пользовательского названия клуба и логотипа.
+ * @fileOverview Ядро MMO-синхронизации v77 (Club Identity & Logo Injection).
+ * Принудительная инъекция пользовательского названия клуба и логотипа в документы матчей.
  */
 
 import { useEffect, useRef } from 'react';
@@ -15,7 +15,7 @@ import { getGlobalSeasonInfo, isMatchOverdue } from '@/app/lib/time-utils';
 import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/app/lib/leagues-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 
-const SYNC_VERSION = 76; 
+const SYNC_VERSION = 77; 
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
@@ -51,7 +51,7 @@ export function AutoMatchManager() {
       const tableRef = doc(db, 'league_tables_v1', tableId);
 
       try {
-        console.log(`[WORLD SYNC v76] Initiating protocol for: ${tableId}`);
+        console.log(`[WORLD SYNC v77] Initiating protocol for: ${tableId}`);
 
         // 1. АВТОМАТИЧЕСКАЯ ИНИЦИАЛИЗАЦИЯ ТАБЛИЦЫ
         let tableSnap = await getDoc(tableRef);
@@ -96,14 +96,19 @@ export function AutoMatchManager() {
         const matchesSnap = await getDocs(matchesQuery);
 
         if (matchesSnap.empty) {
-          console.log(`[SYNC v76] Generating new calendar for group...`);
+          console.log(`[SYNC v77] Generating new calendar for group...`);
           const batch = writeBatch(db);
           const calendar = generateSeasonCalendar(teamData, currentSeason, lId);
           calendar.forEach(m => {
             const mId = `m_s${currentSeason}_${lId}_t${tier}_g${groupNum}_d${m.day}_h${m.homeId}`;
+            const homeT = teamData.find(t => t.id === m.homeId);
+            const awayT = teamData.find(t => t.id === m.awayId);
+            
             batch.set(doc(db, 'matches_v1', mId), {
               ...m, tableId, season: currentSeason, leagueId: lId, tier, groupId: groupNum,
-              status: 'scheduled', isFinished: false, version: SYNC_VERSION
+              status: 'scheduled', isFinished: false, version: SYNC_VERSION,
+              homeLogo: homeT?.logo || null,
+              awayLogo: awayT?.logo || null
             });
           });
           await batch.commit();
@@ -125,15 +130,26 @@ export function AutoMatchManager() {
               m.awayId = userId; m.awayName = currentClubName; changed = true;
             }
 
-            const correctHome = teamData.find(t => t.id === m.homeId)?.name || m.homeName;
-            const correctAway = teamData.find(t => t.id === m.awayId)?.name || m.awayName;
+            const homeT = teamData.find(t => t.id === m.homeId);
+            const awayT = teamData.find(t => t.id === m.awayId);
+            
+            const correctHome = homeT?.name || m.homeName;
+            const correctAway = awayT?.name || m.awayName;
+            const correctHomeLogo = homeT?.logo || m.homeLogo;
+            const correctAwayLogo = awayT?.logo || m.awayLogo;
             
             if (m.homeName !== correctHome) { m.homeName = correctHome; changed = true; }
             if (m.awayName !== correctAway) { m.awayName = correctAway; changed = true; }
+            if (m.homeLogo !== correctHomeLogo) { m.homeLogo = correctHomeLogo; changed = true; }
+            if (m.awayLogo !== correctAwayLogo) { m.awayLogo = correctAwayLogo; changed = true; }
 
             if (changed) {
               needsUpdate = true;
-              batch.update(d.ref, { homeId: m.homeId, awayId: m.awayId, homeName: m.homeName, awayName: m.awayName });
+              batch.update(d.ref, { 
+                homeId: m.homeId, awayId: m.awayId, 
+                homeName: m.homeName, awayName: m.awayName,
+                homeLogo: m.homeLogo, awayLogo: m.awayLogo
+              });
             }
           });
           if (needsUpdate) await batch.commit();
@@ -203,7 +219,7 @@ export function AutoMatchManager() {
           }
         }
       } catch (e) {
-        console.error("[V76 SYNC ERROR]", e);
+        console.error("[V77 SYNC ERROR]", e);
         setWorldReady(true);
       }
     };
