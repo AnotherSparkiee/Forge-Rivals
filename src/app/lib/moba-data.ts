@@ -258,20 +258,31 @@ export function generateStaffMember(role: StaffRole): StaffMember {
   };
 }
 
-export function generateBotSquad(targetOvr: number = 22): any[] {
+export function generateBotSquad(targetOvr: number = 15): any[] {
   const roles: Role[] = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'];
   return roles.map((role) => {
-    const val = Math.floor(targetOvr - 3 + Math.random() * 7); // Balanced around targetOvr
+    const val = Math.floor(targetOvr - 5 + Math.random() * 6); // Slightly lower and less stable than players
     const botIdNum = Math.floor(Math.random() * 9000) + 1000;
+    
+    // Bots have skills slightly below their OVR to ensure players have a "small перевес"
+    const skillBase = Math.max(5, val - 3);
+
     return {
       name: `CyberUnit_${botIdNum}`,
       role: role,
       overallRating: val,
       image: `https://picsum.photos/seed/bot${botIdNum}/200/200`,
       proStats: { 
-        lastHitting: val, mapAwareness: val, positioning: val, reflexes: val, 
-        manaManagement: val, objectiveControl: val, communication: val, 
-        tiltResistance: val, versatility: val, ganking: val 
+        lastHitting: skillBase, 
+        mapAwareness: skillBase, 
+        positioning: skillBase, 
+        reflexes: skillBase, 
+        manaManagement: skillBase, 
+        objectiveControl: skillBase, 
+        communication: skillBase, 
+        tiltResistance: skillBase, 
+        versatility: skillBase, 
+        ganking: skillBase 
       },
       isSub: false
     };

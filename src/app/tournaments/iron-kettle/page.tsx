@@ -1,3 +1,4 @@
+
 'use client';
 
 /**
@@ -182,6 +183,7 @@ export default function IronKettlePage() {
 
           const clubIdent = profile?.clubName || profile?.displayName || "My Club";
 
+          // Weakened tournament bot for slight player advantage
           const simulation = await simulateMobaMatch({
             teamA: { 
               name: clubIdent, 
@@ -189,7 +191,7 @@ export default function IronKettlePage() {
               staffBonus: staff.coach?.skills?.primary || 0,
               infraBonus: (bootcamp.bootcampLevel || 0)
             },
-            teamB: { name: opponent.name, strategy: "Balanced Play", heroes: generateBotSquad(25) },
+            teamB: { name: opponent.name, strategy: "Balanced Play", heroes: generateBotSquad(18) },
             isBo2: false
           });
 

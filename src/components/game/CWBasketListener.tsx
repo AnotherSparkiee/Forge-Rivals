@@ -12,7 +12,7 @@ import { Swords, Loader2, Timer, Zap, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePathname } from 'next/navigation';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
-import { getRandomStartingSquad } from '@/app/lib/moba-data';
+import { generateBotSquad } from '@/app/lib/moba-data';
 import { getMatchResult } from '@/app/lib/leagues-data';
 
 function sanitizeForFirestore(obj: any) {
@@ -75,11 +75,8 @@ export function CWBasketListener() {
             isSub: h.id === lineup.sub1 || h.id === lineup.sub2
           }));
 
-          const rivalSquad = getRandomStartingSquad().map((h, i) => ({
-            ...h,
-            name: `${h.name} AI`,
-            isSub: i > 4
-          }));
+          // Weakened rival bot for player advantage in CW Basket
+          const rivalSquad = generateBotSquad(18);
 
           // Get rival logo if possible
           let rivalLogo = null;
