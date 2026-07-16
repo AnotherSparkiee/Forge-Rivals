@@ -1,11 +1,11 @@
 'use server';
 /**
- * @fileOverview Ядро симуляции матчей Lines of Enmity v5.0 (Tactical Depth & Staff Awareness).
+ * @fileOverview Ядро симуляции матчей Lines of Enmity v5.1 (Tactical Depth & OVR Tracking).
  * 
  * Особенности:
  * 1. Прямое сопоставление навыков (Stat-vs-Stat).
  * 2. Влияние инфраструктуры и персонала на вероятность событий.
- * 3. Динамическая генерация обоснованного Scoreboard.
+ * 3. Передача командного OVR для отображения в превью.
  */
 
 import {ai} from '@/ai/genkit';
@@ -65,6 +65,8 @@ const GameStatsSchema = z.object({
   towersB: z.number(),
   objectivesA: z.number(),
   objectivesB: z.number(),
+  teamAOvr: z.number().optional(),
+  teamBOvr: z.number().optional(),
   isTechnical: z.boolean().optional(),
   timeline: z.array(z.object({
     time: z.string(),
@@ -174,6 +176,8 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
       scoreA: 1, scoreB: 0, duration: "00:00", mvp: input.teamA.heroes[0]?.name || "None",
       matchSummary: "Техническая победа (TBD).",
       towersA: 11, towersB: 0, objectivesA: 5, objectivesB: 0,
+      teamAOvr: calculateTeamPotential(input.teamA).teamOvr,
+      teamBOvr: 0,
       isTechnical: true,
       timeline: [], scoreboard: [], teamComparison: { farm: [100, 0], tactics: [100, 0], teamwork: [100, 0], reflexes: [100, 0] }
     };
@@ -331,6 +335,8 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
     duration: `${duration}:00`, mvp,
     matchSummary: `Победа ${winnerName} (OVR ${finalWinner === 'A' ? potA.teamOvr : potB.teamOvr}) над ${loserName} за счет превосходства в ${finalWinner === 'A' ? (potA.power > potB.power * 1.2 ? 'общем классе' : 'тактической подготовке') : (potB.power > potA.power * 1.2 ? 'общем классе' : 'тактической подготовке')}.`,
     towersA, towersB, objectivesA, objectivesB,
+    teamAOvr: potA.teamOvr,
+    teamBOvr: potB.teamOvr,
     timeline: timeline.slice(0, 45),
     scoreboard,
     teamComparison: {

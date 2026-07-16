@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.0.
- * Отображает обоснованную статистику, сравнение навыков и детальные рейтинги.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.1.
+ * Отображает обоснованную статистику и командные рейтинги (OVR) в превью.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -313,10 +313,16 @@ function MatchContent() {
                 <div className="p-6 flex flex-col items-center gap-3 text-center">
                   <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-primary/30 flex items-center justify-center shadow-xl text-3xl">🛡️</div>
                   <h3 className="text-[10px] font-headline font-bold uppercase truncate text-white">{matchData.homeName}</h3>
+                  {currentSimulation?.games?.[0]?.teamAOvr && (
+                    <Badge className="bg-primary/20 text-primary border-none text-[8px] font-black h-5 px-3">OVR {currentSimulation.games[0].teamAOvr}</Badge>
+                  )}
                 </div>
                 <div className="p-6 flex flex-col items-center gap-3 text-center">
                   <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center shadow-xl text-3xl">⚔️</div>
                   <h3 className="text-[10px] font-headline font-bold uppercase truncate text-white">{matchData.awayName}</h3>
+                  {currentSimulation?.games?.[0]?.teamBOvr && (
+                    <Badge className="bg-accent/20 text-accent border-none text-[8px] font-black h-5 px-3">OVR {currentSimulation.games[0].teamBOvr}</Badge>
+                  )}
                 </div>
               </div>
             </Card>
