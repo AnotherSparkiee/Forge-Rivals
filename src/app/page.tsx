@@ -31,21 +31,13 @@ export default function Home() {
   
   // Объединяем уникальные ID для точного счета
   const totalUnreadCount = unreadMatches.length + historyUnread.length;
-  
-  const latestUnreadId = unreadMatches[0]?.id || historyUnread[0]?.id;
-  
-  const lastPlayedId = (matchHistory && matchHistory.length > 0) 
-    ? matchHistory[matchHistory.length - 1].id 
-    : null;
-
-  const matchReviewHref = latestUnreadId ? `/match?id=${latestUnreadId}` : (lastPlayedId ? `/match?id=${lastPlayedId}` : '/matches');
 
   if (isUserLoading || !isLoaded || !isDataReady) return <LoadingScreen />;
 
   const menuItems = [
     { 
       label: language === 'ru' ? 'ОБЗОР МАТЧА' : 'MATCH OVERVIEW', 
-      href: matchReviewHref, 
+      href: '/reports', 
       icon: Tv, 
       color: 'text-primary',
       badge: totalUnreadCount > 0 ? totalUnreadCount : null
