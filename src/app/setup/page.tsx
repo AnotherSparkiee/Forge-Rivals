@@ -3,14 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, writeBatch, collection, query, where, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, writeBatch, collection, query, where, getDocs, serverTimestamp, setDoc, limit } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LEAGUES } from '@/app/lib/leagues-data';
 import { COUNTRIES } from '@/app/lib/countries-data';
-import { Loader2, ChevronLeft, ShieldCheck, Trophy, Target, Shield, Edit3 } from 'lucide-react';
+import { Loader2, ChevronLeft, ShieldCheck, Trophy, Target, Shield, Edit3, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useGameState } from '@/app/lib/store';
@@ -43,6 +43,7 @@ export default function SetupPage() {
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [customClubName, setCustomClubName] = useState('');
+  const [nameStatus, setNameStatus] = useState<'idle' | 'checking' | 'taken' | 'available'>('idle');
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
@@ -57,6 +58,41 @@ export default function SetupPage() {
       setCustomClubName(displayName);
     }
   }, [displayName]);
+
+  // Name uniqueness validation logic
+  useEffect(() => {
+    if (step !== 'name' || customClubName.trim().length < 3) {
+      setNameStatus('idle');
+      return;
+    }
+
+    const checkName = async () => {
+      setNameStatus('checking');
+      try {
+        const q = query(
+          collection(db, 'players_v10'), 
+          where('clubName', '==', customClubName.trim()),
+          limit(1)
+        );
+        const snap = await getDocs(q);
+        
+        // Filter out current user's existing record if any
+        const results = snap.docs.filter(d => d.id !== user?.uid);
+        
+        if (results.length > 0) {
+          setNameStatus('taken');
+        } else {
+          setNameStatus('available');
+        }
+      } catch (e) {
+        console.error("Name check error:", e);
+        setNameStatus('idle');
+      }
+    };
+
+    const timer = setTimeout(checkName, 600);
+    return () => clearTimeout(timer);
+  }, [customClubName, step, db, user?.uid]);
 
   const findPlacementClient = async (leagueId: string) => {
     const q = query(collection(db, 'players_v10'), where('selectedLeagueId', '==', leagueId));
@@ -95,7 +131,7 @@ export default function SetupPage() {
   };
 
   const handleCompleteSetup = async () => {
-    if (!user || !selectedLeagueId || !selectedCountryCode || !selectedClubId || customClubName.trim().length < 3) return;
+    if (!user || !selectedLeagueId || !selectedCountryCode || !selectedClubId || customClubName.trim().length < 3 || nameStatus !== 'available') return;
     setIsUpdating(true);
     try {
       const placement = await findPlacementClient(selectedLeagueId);
@@ -179,7 +215,10 @@ export default function SetupPage() {
       protocol: 'Операционный протокол v80',
       msk: 'МСК',
       namePlaceholder: 'Введите название клуба...',
-      nameDesc: 'Это имя будет отображаться в чатах и таблицах.'
+      nameDesc: 'Это имя будет отображаться в чатах и таблицах.',
+      nameChecking: 'Синхронизация с реестром имен...',
+      nameTaken: 'Это название уже занято другим клубом',
+      nameAvailable: 'Название доступно для регистрации'
     },
     en: {
       league: 'MATCH TIME',
@@ -191,7 +230,10 @@ export default function SetupPage() {
       protocol: 'Operational Protocol v80',
       msk: 'MSK',
       namePlaceholder: 'Enter club name...',
-      nameDesc: 'This name will be visible in chats and rankings.'
+      nameDesc: 'This name will be visible in chats and rankings.',
+      nameChecking: 'Syncing with global registry...',
+      nameTaken: 'This callsign is already assigned',
+      nameAvailable: 'Callsign available for deployment'
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
@@ -294,10 +336,34 @@ export default function SetupPage() {
                         value={customClubName} 
                         onChange={(e) => setCustomClubName(e.target.value)} 
                         placeholder={t.namePlaceholder}
-                        className="pl-12 h-14 bg-background/50 border-white/10 text-lg font-bold"
+                        className={cn(
+                          "pl-12 h-14 bg-background/50 border-white/10 text-lg font-bold transition-all",
+                          nameStatus === 'taken' && "border-red-500 ring-1 ring-red-500/20",
+                          nameStatus === 'available' && "border-green-500 ring-1 ring-green-500/20"
+                        )}
                        />
                      </div>
-                     <p className="text-[9px] text-muted-foreground italic px-1">{t.nameDesc}</p>
+                     
+                     <div className="min-h-[20px] px-1 transition-all">
+                       {nameStatus === 'checking' && (
+                         <p className="text-[9px] text-muted-foreground animate-pulse flex items-center gap-1.5 uppercase font-bold">
+                           <Loader2 className="w-3 h-3 animate-spin" /> {t.nameChecking}
+                         </p>
+                       )}
+                       {nameStatus === 'taken' && (
+                         <p className="text-[9px] text-red-500 flex items-center gap-1.5 uppercase font-bold">
+                           <AlertCircle className="w-3 h-3" /> {t.nameTaken}
+                         </p>
+                       )}
+                       {nameStatus === 'available' && (
+                         <p className="text-[9px] text-green-500 flex items-center gap-1.5 uppercase font-bold">
+                           <CheckCircle2 className="w-3 h-3" /> {t.nameAvailable}
+                         </p>
+                       )}
+                       {nameStatus === 'idle' && (
+                         <p className="text-[9px] text-muted-foreground italic">{t.nameDesc}</p>
+                       )}
+                     </div>
                    </div>
                  </div>
                </Card>
@@ -323,7 +389,7 @@ export default function SetupPage() {
                 (step === 'league' && !selectedLeagueId) || 
                 (step === 'country' && !selectedCountryCode) || 
                 (step === 'club' && !selectedClubId) ||
-                (step === 'name' && customClubName.trim().length < 3)
+                (step === 'name' && (customClubName.trim().length < 3 || nameStatus !== 'available'))
               } 
               onClick={() => {
                 if (step === 'league') setStep('country');
