@@ -213,7 +213,8 @@ export function AutoMatchManager() {
                 transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
               }
               transaction.update(mDoc.ref, {
-                scoreA: fSA, scoreB: fSB, status: 'finished', isFinished: true, simulation, finishedAt: serverTimestamp()
+                scoreA: fSA, scoreB: fSB, status: 'finished', isFinished: true, simulation, finishedAt: serverTimestamp(),
+                homeLogo: mData.homeLogo, awayLogo: mData.awayLogo // Ensure logos preserved in finished match
               });
             });
           }

@@ -202,6 +202,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         premiumUntil: d.premiumUntil ?? null,
         isPremium: d.premiumUntil ? new Date(d.premiumUntil) > getMoscowTime() : false,
         rank: d.rank ?? 8, 
+        clubName: d.clubName || prev.clubName,
+        clubLogo: d.clubLogo || prev.clubLogo,
         scoutingCandidates: d.scoutingCandidates || [], 
         lastScoutDate: d.lastScoutDate || null,
         isTeamLoaded: true

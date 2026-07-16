@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.2.
- * Улучшена видимость командного OVR и добавлены логотипы клубов в превью.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.3.
+ * Исправлено отображение пользовательского логотипа и OVR.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -294,6 +294,9 @@ function MatchContent() {
     }
   };
 
+  const isMeHome = matchData.homeId === user?.uid;
+  const isMeAway = matchData.awayId === user?.uid;
+
   return (
     <div className="min-h-screen bg-background text-foreground pb-32 relative overflow-hidden" onClick={() => handleNext()}>
       <div className="max-w-md mx-auto relative z-10 px-4 pt-6">
@@ -312,7 +315,7 @@ function MatchContent() {
               <div className="grid grid-cols-2 divide-x divide-white/5">
                 <div className="p-6 flex flex-col items-center gap-4 text-center">
                   <div className="w-20 h-20 rounded-2xl bg-secondary/50 border border-primary/30 flex items-center justify-center shadow-xl overflow-hidden p-2">
-                    {matchData.homeId === user.uid ? (
+                    {isMeHome ? (
                       myClubLogo ? <img src={myClubLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">🛡️</div>
                     ) : (
                       matchData.homeLogo ? <img src={matchData.homeLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">🛡️</div>
@@ -322,14 +325,14 @@ function MatchContent() {
                     <h3 className="text-[11px] font-headline font-bold uppercase truncate text-white px-1 leading-tight">{matchData.homeName}</h3>
                     <div className="bg-primary/20 text-primary border border-primary/30 rounded-xl py-1 mt-2 shadow-[0_0_15px_rgba(var(--primary),0.2)]">
                       <p className="text-[8px] font-black uppercase tracking-widest opacity-70 leading-none mb-0.5">Rating</p>
-                      <p className="text-xl font-headline font-black italic">{currentSimulation?.games?.[0]?.teamAOvr || '--'}</p>
+                      <p className="text-xl font-headline font-black italic">{currentSimulation?.games?.[0]?.teamAOvr || currentSimulation?.teamAOvr || '--'}</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="p-6 flex flex-col items-center gap-4 text-center">
                   <div className="w-20 h-20 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center shadow-xl overflow-hidden p-2">
-                    {matchData.awayId === user.uid ? (
+                    {isMeAway ? (
                       myClubLogo ? <img src={myClubLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">⚔️</div>
                     ) : (
                       matchData.awayLogo ? <img src={matchData.awayLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">⚔️</div>
@@ -339,7 +342,7 @@ function MatchContent() {
                     <h3 className="text-[11px] font-headline font-bold uppercase truncate text-white px-1 leading-tight">{matchData.awayName}</h3>
                     <div className="bg-accent/20 text-accent border border-accent/30 rounded-xl py-1 mt-2 shadow-[0_0_15px_rgba(var(--accent),0.2)]">
                       <p className="text-[8px] font-black uppercase tracking-widest opacity-70 leading-none mb-0.5">Rating</p>
-                      <p className="text-xl font-headline font-black italic">{currentSimulation?.games?.[0]?.teamBOvr || '--'}</p>
+                      <p className="text-xl font-headline font-black italic">{currentSimulation?.games?.[0]?.teamBOvr || currentSimulation?.teamBOvr || '--'}</p>
                     </div>
                   </div>
                 </div>

@@ -48,6 +48,7 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
     teams[slot - 1] = {
       id: p.id,
       name: p.name || p.displayName || `Manager_${p.id.slice(0, 4)}`,
+      logo: p.logo || null,
       isBot: false,
       rank: slot
     };
@@ -101,8 +102,10 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
           tour,
           homeId: h.id,
           homeName: h.name,
+          homeLogo: h.logo || null,
           awayId: a.id,
           awayName: a.name,
+          awayLogo: a.logo || null,
           startTime: startTime.toISOString(),
           pairKey: [h.id, a.id].sort().join('_vs_')
         };
