@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.3.
- * Исправлено отображение пользовательского логотипа и OVR.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.4.
+ * Исправлено отображение пользовательского логотипа и OVR с поддержкой истории.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -297,6 +297,10 @@ function MatchContent() {
   const isMeHome = matchData.homeId === user?.uid;
   const isMeAway = matchData.awayId === user?.uid;
 
+  // ROBUST LOGO SELECTION
+  const displayHomeLogo = isMeHome ? myClubLogo : matchData.homeLogo;
+  const displayAwayLogo = isMeAway ? myClubLogo : matchData.awayLogo;
+
   return (
     <div className="min-h-screen bg-background text-foreground pb-32 relative overflow-hidden" onClick={() => handleNext()}>
       <div className="max-w-md mx-auto relative z-10 px-4 pt-6">
@@ -315,11 +319,7 @@ function MatchContent() {
               <div className="grid grid-cols-2 divide-x divide-white/5">
                 <div className="p-6 flex flex-col items-center gap-4 text-center">
                   <div className="w-20 h-20 rounded-2xl bg-secondary/50 border border-primary/30 flex items-center justify-center shadow-xl overflow-hidden p-2">
-                    {isMeHome ? (
-                      myClubLogo ? <img src={myClubLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">🛡️</div>
-                    ) : (
-                      matchData.homeLogo ? <img src={matchData.homeLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">🛡️</div>
-                    )}
+                    {displayHomeLogo ? <img src={displayHomeLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">🛡️</div>}
                   </div>
                   <div className="space-y-1 w-full">
                     <h3 className="text-[11px] font-headline font-bold uppercase truncate text-white px-1 leading-tight">{matchData.homeName}</h3>
@@ -332,11 +332,7 @@ function MatchContent() {
 
                 <div className="p-6 flex flex-col items-center gap-4 text-center">
                   <div className="w-20 h-20 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center shadow-xl overflow-hidden p-2">
-                    {isMeAway ? (
-                      myClubLogo ? <img src={myClubLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">⚔️</div>
-                    ) : (
-                      matchData.awayLogo ? <img src={matchData.awayLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">⚔️</div>
-                    )}
+                    {displayAwayLogo ? <img src={displayAwayLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">⚔️</div>}
                   </div>
                   <div className="space-y-1 w-full">
                     <h3 className="text-[11px] font-headline font-bold uppercase truncate text-white px-1 leading-tight">{matchData.awayName}</h3>

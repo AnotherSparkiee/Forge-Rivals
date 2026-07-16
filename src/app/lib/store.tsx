@@ -72,7 +72,7 @@ interface GameState {
   promoteYouthPlayer: (playerId: string) => void;
   updateProfileName: (name: string) => void;
   updateProfileCountry: (country: string) => void;
-  recordMatch: (winner: string, result: any, reward: number, opponentName: string, type: string, playedAt: string, matchId?: string) => void;
+  recordMatch: (winner: string, result: any, reward: number, opponentName: string, type: string, playedAt: string, matchId?: string, extraData?: any) => void;
   markMatchIdAsSeen: (id: string) => void;
   upgradeManagerSkill: (skillKey: keyof GameState['managerSkills']) => void;
   startArenaConstruction: (id: string, cost: number) => boolean;
@@ -460,7 +460,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const payStaffSalaries = async () => {};
 
-  const recordMatch = useCallback((w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string) => {
+  const recordMatch = useCallback((w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string, extra?: any) => {
     const r = getRefs(); if (!r) return; 
     const id = mId || `match_${Date.now()}`;
     const s = stateRef.current;
@@ -478,13 +478,22 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       setDoc(doc(db, 'notifications_v7', `lvl_${s.id}_${newLevel}`), { userId: s.id, title: "Level Up!", description: `Reached level ${newLevel}`, type: 'league', read: false, createdAt: getMoscowTime().toISOString() });
     }
 
+    const historyEntry = { 
+      id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, 
+      opponentName: opp, type: t, playedAt: p, simulation: res, seen: false, isTbdWin: opp === 'TBD',
+      homeId: extra?.homeId || null, 
+      awayId: extra?.awayId || null,
+      homeLogo: extra?.homeLogo || null,
+      awayLogo: extra?.awayLogo || null
+    };
+
     setDoc(r.team, { 
       credits: increment(rew), 
       crystals: increment(bonusCrystals), 
       experiencePoints: newTotalXp,
       managerLevel: newLevel, 
       skillPoints: newSkillPoints, 
-      matchHistory: arrayUnion({ id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, opponentName: opp, type: t, playedAt: p, simulation: res, seen: false, isTbdWin: opp === 'TBD' }) 
+      matchHistory: arrayUnion(historyEntry) 
     }, { merge: true });
   }, [getRefs, db]);
 

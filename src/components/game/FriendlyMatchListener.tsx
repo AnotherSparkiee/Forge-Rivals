@@ -38,7 +38,7 @@ export function FriendlyMatchListener() {
   const pathname = usePathname();
   const { 
     language, strategy, recordMatch, ownedPlayers, lineup, 
-    matchHistory, bootcamp, staff 
+    matchHistory, bootcamp, staff, clubLogo, clubName 
   } = useGameState();
   const { toast } = useToast();
 
@@ -123,7 +123,10 @@ export function FriendlyMatchListener() {
               id: matchUniqueId,
               scoreA: myScoreA, scoreB: myScoreB, status: 'finished', isFinished: true,
               homeName: data.hostName, awayName: data.challengerName, simulation: result,
-              type: matchType, playedAt: new Date().toISOString(), version: 32
+              type: matchType, playedAt: new Date().toISOString(), version: 32,
+              homeId: data.hostId, awayId: data.challengerId,
+              homeLogo: data.hostLogo || null,
+              awayLogo: data.challengerLogo || null
             };
 
             await setDoc(doc(db, 'matches_v1', matchUniqueId), matchRecord, { merge: true });
@@ -131,7 +134,8 @@ export function FriendlyMatchListener() {
             recordMatch(
               myScoreA > myScoreB ? myName : (myScoreA === myScoreB ? "Draw" : opponentName), 
               { ...result.games[0], scoreA: myScoreA, scoreB: myScoreB, seriesScore: `${myScoreA}-${myScoreB}`, games: result.games, homeName: data.hostName, awayName: data.challengerName }, 
-              0, opponentName, matchType, new Date().toISOString(), matchUniqueId
+              0, opponentName, matchType, new Date().toISOString(), matchUniqueId,
+              { homeId: data.hostId, awayId: data.challengerId, homeLogo: data.hostLogo, awayLogo: data.challengerLogo }
             );
             
             toast({ title: language === 'ru' ? "Матч завершен" : "Match Finished" });
@@ -176,16 +180,19 @@ export function FriendlyMatchListener() {
         let infraBonusB = 0;
         let staffBonusB = 0;
         let analystBonusB = 0;
+        let challengerLogoB = null;
 
         if (activeLobby.isTrial) {
           squadB = generateBotSquad(28);
           infraBonusB = 5;
           staffBonusB = 5;
           analystBonusB = 5;
+          challengerLogoB = "https://i.postimg.cc/8cpvcNZ9/logo-lote.png";
         } else {
           const challengerProfileSnap = await getDoc(doc(db, 'players_v10', activeLobby.challengerId));
           if (challengerProfileSnap.exists()) {
             const cp = challengerProfileSnap.data();
+            challengerLogoB = cp.clubLogo || null;
             const info = getGlobalSeasonInfo();
             const seasonId = `season_${info.activeSeasonNumber}`;
             const prefixedGroupId = `${seasonId}_league_${cp.selectedLeagueId}_group_${cp.groupId}`;
@@ -238,7 +245,9 @@ export function FriendlyMatchListener() {
           status: 'accepted', 
           matchResult: sanitizeForFirestore(result), 
           acceptedAt: serverTimestamp(), 
-          updatedAt: serverTimestamp() 
+          updatedAt: serverTimestamp(),
+          hostLogo: clubLogo || null,
+          challengerLogo: challengerLogoB
         });
 
         if (activeLobby.challengerId && !activeLobby.challengerId.startsWith('sys_')) {
@@ -263,6 +272,7 @@ export function FriendlyMatchListener() {
   };
 
   return (
+    <div key="friendly-listener">
     <Dialog open={showChallengeModal} onOpenChange={setShowChallengeModal}>
       <DialogContent className="max-w-xs bg-card border-white/10 p-6">
         <DialogHeader>
@@ -276,5 +286,6 @@ export function FriendlyMatchListener() {
         </div>
       </DialogContent>
     </Dialog>
+    </div>
   );
 }

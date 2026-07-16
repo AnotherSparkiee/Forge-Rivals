@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, deleteDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from '@/components/ui/dialog';
@@ -28,7 +28,7 @@ export function CWBasketListener() {
   const { user } = useUser();
   const db = useFirestore();
   const pathname = usePathname();
-  const { language, strategy, recordMatch, ownedPlayers, lineup, matchHistory } = useGameState();
+  const { language, strategy, recordMatch, ownedPlayers, lineup, matchHistory, clubLogo } = useGameState();
   const { toast } = useToast();
 
   const [showModal, setShowModal] = useState(false);
@@ -81,7 +81,15 @@ export function CWBasketListener() {
             isSub: i > 4
           }));
 
-          // ENFORCE Bo2 FOR BASKET
+          // Get rival logo if possible
+          let rivalLogo = null;
+          if (myEntry.matchedWithId) {
+            const rivalSnap = await getDoc(doc(db, 'players_v10', myEntry.matchedWithId));
+            if (rivalSnap.exists()) {
+              rivalLogo = rivalSnap.data().clubLogo || null;
+            }
+          }
+
           const [finalScoreA, finalScoreB] = getMatchResult(user.uid, myEntry.matchedWithId || "rival", 0, false);
 
           const result = await simulateMobaMatch({
@@ -105,12 +113,13 @@ export function CWBasketListener() {
 
           recordMatch(
             safeResult.winner, 
-            { ...safeResult.games[0], scoreA: winsA, scoreB: winsB, seriesScore: safeResult.seriesScore, games: safeResult.games }, 
+            { ...safeResult.games[0], scoreA: winsA, scoreB: winsB, seriesScore: safeResult.seriesScore, games: safeResult.games, homeName: myEntry.userName, awayName: myEntry.matchedWithName }, 
             0, 
             myEntry.matchedWithName, 
             'basket',
             new Date().toISOString(),
-            currentMatchId
+            currentMatchId,
+            { homeId: user.uid, awayId: myEntry.matchedWithId, homeLogo: clubLogo, awayLogo: rivalLogo }
           );
 
           toast({
@@ -130,7 +139,7 @@ export function CWBasketListener() {
     const timer = setInterval(checkAndSimulate, 10000);
     checkAndSimulate();
     return () => clearInterval(timer);
-  }, [user, myEntry, pathname, strategy, recordMatch, language, db, toast, matchHistory, ownedPlayers, lineup]);
+  }, [user, myEntry, pathname, strategy, recordMatch, language, db, toast, matchHistory, ownedPlayers, lineup, clubLogo]);
 
   const handleAcknowledge = () => {
     setShowModal(false);

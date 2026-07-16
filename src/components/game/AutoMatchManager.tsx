@@ -15,7 +15,7 @@ import { getGlobalSeasonInfo, isMatchOverdue } from '@/app/lib/time-utils';
 import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/app/lib/leagues-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 
-const SYNC_VERSION = 77; 
+const SYNC_VERSION = 80; 
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
@@ -51,7 +51,7 @@ export function AutoMatchManager() {
       const tableRef = doc(db, 'league_tables_v1', tableId);
 
       try {
-        console.log(`[WORLD SYNC v77] Initiating protocol for: ${tableId}`);
+        console.log(`[WORLD SYNC v${SYNC_VERSION}] Initiating protocol for: ${tableId}`);
 
         // 1. АВТОМАТИЧЕСКАЯ ИНИЦИАЛИЗАЦИЯ ТАБЛИЦЫ
         let tableSnap = await getDoc(tableRef);
@@ -79,6 +79,7 @@ export function AutoMatchManager() {
           const mySlotIndex = myRank - 1;
           const mySlot = teamData[mySlotIndex];
           
+          // FORCE SYNC LOGO AND NAME IF MISMATCH
           if (!mySlot || mySlot.id !== userId || mySlot.logo !== clubLogo || mySlot.name !== currentClubName) {
             teamData[mySlotIndex] = {
               id: userId,
@@ -96,7 +97,7 @@ export function AutoMatchManager() {
         const matchesSnap = await getDocs(matchesQuery);
 
         if (matchesSnap.empty) {
-          console.log(`[SYNC v77] Generating new calendar for group...`);
+          console.log(`[SYNC v${SYNC_VERSION}] Generating new calendar for group...`);
           const batch = writeBatch(db);
           const calendar = generateSeasonCalendar(teamData, currentSeason, lId);
           calendar.forEach(m => {
@@ -214,13 +215,13 @@ export function AutoMatchManager() {
               }
               transaction.update(mDoc.ref, {
                 scoreA: fSA, scoreB: fSB, status: 'finished', isFinished: true, simulation, finishedAt: serverTimestamp(),
-                homeLogo: mData.homeLogo, awayLogo: mData.awayLogo // Ensure logos preserved in finished match
+                homeLogo: mData.homeLogo, awayLogo: mData.awayLogo 
               });
             });
           }
         }
       } catch (e) {
-        console.error("[V77 SYNC ERROR]", e);
+        console.error("[SYNC ERROR]", e);
         setWorldReady(true);
       }
     };
