@@ -16,7 +16,8 @@ import { Progress } from '@/components/ui/progress';
 import { 
   ChevronLeft, Activity, HeartPulse, Brain, FlaskConical, 
   UserCircle, Hammer, Clock, Loader2, Gem, Zap, 
-  ShieldAlert, User, ShieldCheck, Stethoscope, ChevronRight
+  ShieldAlert, User, ShieldCheck, Stethoscope, ChevronRight,
+  Coins
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
