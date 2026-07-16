@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ТУРНИРНЫЙ ХАБ v2.0.
- * Исправлена ошибка ReferenceError и оставлены только 5 основных вкладок.
+ * @fileOverview ТУРНИРНЫЙ ХАБ v2.1.
+ * Возвращена вкладка "Пробный матч" под "Открытые турниры".
  */
 
 import { useEffect, useState, useMemo } from 'react';
@@ -15,7 +15,7 @@ import {
   Trophy, Medal, Swords, UserPlus, 
   Search, History, ChevronLeft, 
   ChevronRight, Loader2, XCircle, ShoppingBasket,
-  Globe, Briefcase
+  Globe, Briefcase, Zap
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -57,6 +57,7 @@ export default function TournamentsPage() {
         { id: 'open', label: 'Open Friendlies', desc: 'Browse available challenges', icon: Search, href: '/tournaments/open-friendlies', color: 'text-primary' },
         { id: 'cw', label: 'CW Basket', desc: 'Instant random pairing', icon: ShoppingBasket, href: '/tournaments/cw-basket', color: 'text-green-400' },
         { id: 'list', label: 'Open Tournaments', desc: 'Active competition schedule', icon: Globe, href: '/tournaments/open', color: 'text-blue-400' },
+        { id: 'trial', label: 'Trial Match', desc: 'Instant combat test vs Bot', icon: Zap, color: 'text-yellow-500' },
         { id: 'history', label: 'Tournament History', desc: 'Official record of achievements', icon: History, href: '/tournaments/history', color: 'text-slate-400' }
       ]
     },
@@ -68,6 +69,7 @@ export default function TournamentsPage() {
         { id: 'open', label: 'Открытые тов. матчи', desc: 'Список доступных вызовов', icon: Search, href: '/tournaments/open-friendlies', color: 'text-primary' },
         { id: 'cw', label: 'КВ (Корзина)', desc: 'Мгновенный случайный подбор', icon: ShoppingBasket, href: '/tournaments/cw-basket', color: 'text-green-400' },
         { id: 'list', label: 'Открытые турниры', desc: 'Список активных чемпионатов', icon: Globe, href: '/tournaments/open', color: 'text-blue-400' },
+        { id: 'trial', label: 'Пробный матч', desc: 'Мгновенный тест состава против Бота', icon: Zap, color: 'text-yellow-500' },
         { id: 'history', label: 'История турниров', desc: 'Архив официальных достижений', icon: History, href: '/tournaments/history', color: 'text-slate-400' }
       ]
     }
@@ -94,6 +96,35 @@ export default function TournamentsPage() {
     } finally { setIsActionLoading(false); }
   };
 
+  const handleStartTrial = async () => {
+    if (!user || isActionLoading) return;
+    if (myLobby || myBasket) {
+      toast({ 
+        title: language === 'ru' ? "Завершите текущий поиск" : "Complete active search first", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    setIsActionLoading(true);
+    try {
+      // Создаем лобби, которое уже "бросило вызов" ботом
+      await setDoc(doc(db, 'friendly_lobbies_v3', user.uid), {
+        hostId: user.uid,
+        hostName: displayName || "Manager",
+        status: 'challenged',
+        challengerId: 'sys_training_bot',
+        challengerName: language === 'ru' ? 'Тренировочный Бот' : 'Training Bot',
+        isTrial: true,
+        updatedAt: serverTimestamp()
+      });
+      toast({ title: language === 'ru' ? "Вызов бота инициирован" : "Bot challenge initiated" });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-8 flex items-center gap-4">
@@ -110,10 +141,13 @@ export default function TournamentsPage() {
 
       <div className="space-y-2">
         {t.menu.map((item) => {
+          const isClickAction = item.id === 'schedule' || item.id === 'trial';
+          const clickHandler = item.id === 'schedule' ? handleToggleLobby : (item.id === 'trial' ? handleStartTrial : undefined);
+
           const content = (
             <Card 
               key={item.id}
-              onClick={item.id === 'schedule' ? handleToggleLobby : undefined}
+              onClick={clickHandler}
               className={cn(
                 "glass-card border-white/5 transition-all group overflow-hidden cursor-pointer hover:bg-white/5",
                 item.id === 'schedule' && myLobby && "border-red-500/30 bg-red-500/5"
@@ -122,7 +156,7 @@ export default function TournamentsPage() {
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className={cn("p-2.5 rounded-xl bg-secondary/50 border border-white/5 group-hover:bg-primary/10 transition-colors shadow-inner", item.color)}>
-                    {isActionLoading && item.id === 'schedule' ? <Loader2 className="w-5 h-5 animate-spin" /> : <item.icon className="w-5 h-5" />}
+                    {isActionLoading && (item.id === 'schedule' || item.id === 'trial') ? <Loader2 className="w-5 h-5 animate-spin" /> : <item.icon className="w-5 h-5" />}
                   </div>
                   <div>
                     <h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{item.label}</h3>
@@ -134,7 +168,7 @@ export default function TournamentsPage() {
             </Card>
           );
 
-          if (item.href) {
+          if (item.href && !isClickAction) {
             return <Link key={item.id} href={item.href} className="block">{content}</Link>;
           }
           return content;
