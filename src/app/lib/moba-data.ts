@@ -261,14 +261,18 @@ export function generateStaffMember(role: StaffRole): StaffMember {
 export function generateBotSquad(targetOvr: number = 22): any[] {
   const roles: Role[] = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'];
   return roles.map((role) => {
-    const val = Math.floor(20 + Math.random() * 6);
+    const val = Math.floor(targetOvr - 3 + Math.random() * 7); // Balanced around targetOvr
     const botIdNum = Math.floor(Math.random() * 9000) + 1000;
     return {
-      name: `bot${botIdNum}`,
+      name: `CyberUnit_${botIdNum}`,
       role: role,
       overallRating: val,
       image: `https://picsum.photos/seed/bot${botIdNum}/200/200`,
-      proStats: { lastHitting: val, mapAwareness: val, positioning: val, reflexes: val, manaManagement: val, objectiveControl: val, communication: val, tiltResistance: val, versatility: val, ganking: val },
+      proStats: { 
+        lastHitting: val, mapAwareness: val, positioning: val, reflexes: val, 
+        manaManagement: val, objectiveControl: val, communication: val, 
+        tiltResistance: val, versatility: val, ganking: val 
+      },
       isSub: false
     };
   });

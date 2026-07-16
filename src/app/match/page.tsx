@@ -1,9 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v4.5.
- * Отображает обоснованную статистику, детальные рейтинги и последствия матча для игроков.
- * Добавлена поддержка Technical Win (TBD) и завершение кликом.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.0.
+ * Отображает обоснованную статистику, сравнение навыков и детальные рейтинги.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -83,7 +82,6 @@ function MatchContent() {
   useEffect(() => {
     if (step !== 'live' || !currentSimulation || !currentSimulation.games) return;
     
-    // Если это техническая победа TBD - сразу на стадию статистики
     if (currentSimulation.isTbdWin) {
       setStep('stats');
       return;
@@ -196,10 +194,6 @@ function MatchContent() {
         </div>
         
         <div className={cn("flex items-center gap-2 mt-1 w-full", side === 'right' && "justify-end")}>
-           <div className="flex gap-1 opacity-40">
-             <div className="w-5 h-5 rounded-md bg-background border border-white/5 flex items-center justify-center"><Package className="w-3 h-3" /></div>
-             <div className="w-5 h-5 rounded-md bg-background border border-white/5 flex items-center justify-center"><Zap className="w-3 h-3" /></div>
-           </div>
            <span className="text-[8px] font-black text-muted-foreground/40 uppercase font-mono">{p.cs || 0} CS</span>
         </div>
       </div>
@@ -207,19 +201,8 @@ function MatchContent() {
 
     return (
       <div className="space-y-8">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2.5">
-            <p className="text-[9px] font-black uppercase tracking-widest text-primary mb-3 flex items-center gap-2 px-1 border-l-2 border-primary pl-2"><ShieldCheck className="w-3.5 h-3.5" /> {t.home}</p>
-            {homeHeroes.map(p => renderHeroRow(p, 'left'))}
-          </div>
-          <div className="space-y-2.5">
-            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2 justify-end px-1 border-r-2 border-white/10 pr-2">{t.away} <Swords className="w-3.5 h-3.5" /></p>
-            {awayHeroes.map(p => renderHeroRow(p, 'right'))}
-          </div>
-        </div>
-
         {game.teamComparison && (
-          <section className="space-y-4 pt-4">
+          <section className="space-y-4">
             <h3 className="text-[11px] font-black uppercase tracking-widest text-accent text-center flex items-center justify-center gap-2 bg-accent/5 py-2 rounded-xl">
               <ActivityIcon className="w-4 h-4" /> {t.comparison}
             </h3>
@@ -252,31 +235,16 @@ function MatchContent() {
           </section>
         )}
 
-        <section className="space-y-4 pt-4">
-           <h3 className="text-[11px] font-black uppercase tracking-widest text-primary text-center flex items-center justify-center gap-2 bg-primary/5 py-2 rounded-xl">
-             <GraduationCap className="w-4 h-4" /> {t.progression}
-           </h3>
-           <div className="grid gap-2">
-             {matchData.consequences && matchData.consequences.length > 0 ? matchData.consequences.map((cons: any, idx: number) => (
-               <div key={idx} className="bg-secondary/30 p-3 rounded-2xl border border-white/5 flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase text-white">{cons.name}</span>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1">
-                      <Zap className="w-3 h-3 text-primary" />
-                      <span className="text-[10px] font-black text-primary">+{cons.xp} XP</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <HeartPulse className="w-3 h-3 text-accent" />
-                      <span className="text-[10px] font-black text-accent">+{cons.fatigue}%</span>
-                    </div>
-                    {cons.injured && (
-                      <Badge className="bg-red-600 text-white text-[7px] font-black uppercase px-2 animate-pulse">INJURED</Badge>
-                    )}
-                  </div>
-               </div>
-             )) : <div className="py-8 text-center opacity-30 text-[8px] font-black uppercase tracking-widest">No individual progression data</div>}
-           </div>
-        </section>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2.5">
+            <p className="text-[9px] font-black uppercase tracking-widest text-primary mb-3 flex items-center gap-2 px-1 border-l-2 border-primary pl-2"><ShieldCheck className="w-3.5 h-3.5" /> {t.home}</p>
+            {homeHeroes.map(p => renderHeroRow(p, 'left'))}
+          </div>
+          <div className="space-y-2.5">
+            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2 justify-end px-1 border-r-2 border-white/10 pr-2">{t.away} <Swords className="w-3.5 h-3.5" /></p>
+            {awayHeroes.map(p => renderHeroRow(p, 'right'))}
+          </div>
+        </div>
 
         <section className="space-y-4 pt-4">
            <h3 className="text-[11px] font-black uppercase tracking-widest text-yellow-500 text-center flex items-center justify-center gap-2 bg-yellow-500/5 py-2 rounded-xl">
@@ -289,18 +257,27 @@ function MatchContent() {
                        <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
                        <span className="text-[9px] font-bold text-muted-foreground uppercase">Coach Strategy Bonus</span>
                     </div>
-                    <span className="text-[10px] font-mono font-bold text-blue-400">+ ACTIVE</span>
+                    <Badge variant="outline" className="text-[8px] border-blue-500/30 text-blue-400 uppercase font-black tracking-widest">ACTIVE</Badge>
                  </div>
                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                        <Target className="w-3.5 h-3.5 text-accent" />
                        <span className="text-[9px] font-bold text-muted-foreground uppercase">Analyst Tactical Data</span>
                     </div>
-                    <span className="text-[10px] font-mono font-bold text-accent">+ ACTIVE</span>
+                    <Badge variant="outline" className="text-[8px] border-accent/30 text-accent uppercase font-black tracking-widest">ACTIVE</Badge>
                  </div>
               </CardContent>
            </Card>
         </section>
+
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="p-4 flex gap-4">
+            <Info className="w-5 h-5 text-primary shrink-0" />
+            <p className="text-xs leading-relaxed text-muted-foreground italic">
+              "{game.matchSummary}"
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   };

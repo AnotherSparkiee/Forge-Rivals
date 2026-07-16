@@ -1,12 +1,11 @@
 'use server';
 /**
- * @fileOverview Ядро симуляции матчей Lines of Enmity v4.5 (Staff Integration + TBD Handling).
+ * @fileOverview Ядро симуляции матчей Lines of Enmity v5.0 (Tactical Depth & Staff Awareness).
  * 
  * Особенности:
- * 1. Взвешенная оценка ролей (Carry, Mid, Tank, Jungler, Support).
- * 2. Учет навыков персонала (Coach, Analyst) в реальном времени.
- * 3. Логически обоснованная генерация Scoreboard и MVP.
- * 4. Автоматическая победа над TBD (без наград прогрессии).
+ * 1. Прямое сопоставление навыков (Stat-vs-Stat).
+ * 2. Влияние инфраструктуры и персонала на вероятность событий.
+ * 3. Динамическая генерация обоснованного Scoreboard.
  */
 
 import {ai} from '@/ai/genkit';
@@ -116,11 +115,13 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
   let power = 0;
   const stats = { farm: 0, tactics: 0, teamwork: 0, reflexes: 0 };
 
-  if (activeHeroes.length === 0) return { power: 1, stats };
+  if (activeHeroes.length === 0) return { power: 1, stats, teamOvr: 0 };
 
+  let totalOvr = 0;
   activeHeroes.forEach(hero => {
+    totalOvr += (hero.overallRating || 10);
     const weights = ROLE_WEIGHTS[hero.role] || ROLE_WEIGHTS['Midlaner'];
-    let heroContribution = Number(hero.overallRating || 0) * 2.0;
+    let heroContribution = Number(hero.overallRating || 0) * 1.5;
 
     if (hero.proStats) {
       Object.entries(hero.proStats).forEach(([key, val]) => {
@@ -134,7 +135,7 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
       stats.reflexes += (hero.proStats.reflexes + hero.proStats.ganking) / 2;
     }
 
-    if (hero.isPro) heroContribution *= 1.25;
+    if (hero.isPro) heroContribution *= 1.35;
     power += heroContribution;
   });
 
@@ -145,24 +146,24 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
   stats.reflexes = Math.round(stats.reflexes / count);
 
   // Apply Staff Bonuses
-  const coachBonus = Number(team.staffBonus || 0) * 0.5;
-  const analystBonus = Number(team.analystBonus || 0) * 0.5;
+  const coachBonus = Number(team.staffBonus || 0) * 0.7;
+  const analystBonus = Number(team.analystBonus || 0) * 0.7;
+  const infraBonus = Number(team.infraBonus || 0) * 0.5;
   
   stats.teamwork += coachBonus;
   stats.tactics += analystBonus;
+  stats.farm += infraBonus;
 
-  const infraMultiplier = 1 + (Number(team.infraBonus || 0) * 0.03);
-  const synergyMultiplier = 1 + (Number(team.synergy || 0) * 0.003);
-  
-  power *= (infraMultiplier * synergyMultiplier);
-  power += (coachBonus * 10) + (analystBonus * 10);
+  const synergyMultiplier = 1 + (Number(team.synergy || 0) * 0.005);
+  power *= synergyMultiplier;
+  power += (coachBonus * 12) + (analystBonus * 12) + (infraBonus * 10);
 
   const strat = (team.strategy || "").toLowerCase();
-  if (strat.includes('aggressive')) power *= 1.12; 
-  if (strat.includes('defensive')) power *= 1.05;
-  if (strat.includes('push')) power *= 1.08;
+  if (strat.includes('aggressive')) power *= 1.15; 
+  if (strat.includes('defensive')) power *= 1.08;
+  if (strat.includes('push')) power *= 1.10;
 
-  return { power, stats };
+  return { power, stats, teamOvr: Math.round(totalOvr / count) };
 }
 
 function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'): z.infer<typeof GameStatsSchema> {
@@ -190,7 +191,7 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
     finalWinner = Math.random() < winProbA ? 'A' : 'B';
   }
 
-  const duration = 28 + Math.floor(Math.random() * 14);
+  const duration = 28 + Math.floor(Math.random() * 16);
   const timeline: any[] = [];
   const scoreboardMap = new Map<string, any>();
 
@@ -207,14 +208,15 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
   });
 
   let killsA = 0, killsB = 0;
-  let towersA = finalWinner === 'A' ? 9 + Math.floor(Math.random()*3) : Math.floor(Math.random()*6);
-  let towersB = finalWinner === 'B' ? 9 + Math.floor(Math.random()*3) : Math.floor(Math.random()*6);
+  let towersA = finalWinner === 'A' ? 9 + Math.floor(Math.random()*3) : Math.floor(Math.random()*7);
+  let towersB = finalWinner === 'B' ? 9 + Math.floor(Math.random()*3) : Math.floor(Math.random()*7);
   let objectivesA = 0, objectivesB = 0;
 
   for (let m = 1; m <= duration; m++) {
     const isEarly = m < 12;
-    const isLate = m > 22;
+    const isLate = m > 25;
     
+    // Determine active team for this minute based on power
     const activeTeam = Math.random() < winProbA ? input.teamA : input.teamB;
     const opponentTeam = activeTeam.name === input.teamA.name ? input.teamB : input.teamA;
     const isAActive = activeTeam.name === input.teamA.name;
@@ -228,99 +230,106 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
     const target = targets[Math.floor(Math.random() * targets.length)];
     const roll = Math.random();
 
-    if (isEarly && roll < 0.55 && actor.proStats) {
+    // Resource acquisition (Farm)
+    if (isEarly && roll < 0.60 && actor.proStats) {
       const s = scoreboardMap.get(actor.name);
       if (s) {
-        const gain = Math.floor((actor.proStats.lastHitting / 12) + 7);
+        const gain = Math.floor((actor.proStats.lastHitting / 10) + 8);
         s.cs += gain;
-        s.matchRating += 0.05;
+        s.matchRating += 0.04;
       }
     } 
-    else if (roll > 0.92) {
-      const type = Math.random() > 0.35 ? 'tower' : 'objective';
+    // Global Objectives / Towers
+    else if (roll > 0.93) {
+      const type = Math.random() > 0.4 ? 'tower' : 'objective';
       if (type === 'tower') {
         if (isAActive) towersA++; else towersB++;
         timeline.push({ 
           time: `${m}:00`, type: 'tower', 
-          event: `Команда ${activeTeam.name} прорывает оборону и сносит башню!`,
+          event: `${activeTeam.name} проводит успешную осаду и уничтожает башню!`,
           score: `${killsA}:${killsB}`
         });
       } else {
         if (isAActive) objectivesA++; else objectivesB++;
         timeline.push({ 
           time: `${m}:00`, type: 'objective', 
-          event: `Захват лесного объекта командой ${activeTeam.name}! Экономическое преимущество растет.`,
+          event: `${activeTeam.name} забирает ключевой объект. Преимущество по ресурсам растет.`,
           score: `${killsA}:${killsB}`
         });
       }
       const s = scoreboardMap.get(actor.name);
-      if (s) s.matchRating += 0.45;
+      if (s) s.matchRating += 0.5;
     }
-    else if (roll > 0.70 && actor.proStats && target.proStats) {
-      const atkPower = actor.proStats.reflexes + actor.proStats.ganking;
-      const defPower = target.proStats.positioning + target.proStats.mapAwareness;
+    // Combat Interaction (Kill / Save)
+    else if (roll > 0.75 && actor.proStats && target.proStats) {
+      const atkPower = actor.proStats.reflexes + actor.proStats.ganking + (actor.overallRating / 5);
+      const defPower = target.proStats.positioning + target.proStats.mapAwareness + (target.overallRating / 5);
       
       const diff = atkPower - defPower;
-      const successChance = 0.45 + (diff / 180);
+      const successChance = 0.40 + (diff / 200);
 
       if (Math.random() < successChance) {
-        const support = heroes.find(h => h.role === 'Support');
-        if (support && support.proStats && Math.random() < (support.proStats.communication / 220)) {
+        const support = heroes.find(h => h.role === 'Support' || h.role === 'Jungler');
+        if (support && support.proStats && Math.random() < (support.proStats.communication / 250)) {
            timeline.push({ 
              time: `${m}:00`, type: 'save', 
-             event: `Невероятный сейв! ${support.name} вытаскивает ${actor.name} из-под удара.`,
+             event: `Блестящая реакция! ${support.name} спасает ${actor.name} от верной гибели.`,
              score: `${killsA}:${killsB}`
            });
            const ss = scoreboardMap.get(support.name);
-           if (ss) ss.matchRating += 0.6;
+           if (ss) ss.matchRating += 0.7;
         } else {
           const s = scoreboardMap.get(actor.name);
           const st = scoreboardMap.get(target.name);
           if (s && st) {
             s.kills++; st.deaths++;
-            s.matchRating += 0.85;
-            st.matchRating -= 0.65;
+            s.matchRating += 0.9;
+            st.matchRating -= 0.7;
             if (isAActive) killsA++; else killsB++;
 
             timeline.push({ 
               time: `${m}:00`, type: 'kill', 
-              event: `${actor.name} ликвидирует ${target.name} точным выпадом!`, 
+              event: `${actor.name} исполняет мастерский маневр и ликвидирует ${target.name}!`, 
               score: `${killsA}:${killsB}` 
             });
 
             heroes.filter(h => h.name !== actor.name).slice(0, 2).forEach(ah => {
               const sa = scoreboardMap.get(ah.name);
-              if (sa) { sa.assists++; sa.matchRating += 0.4; }
+              if (sa) { sa.assists++; sa.matchRating += 0.45; }
             });
           }
         }
       }
     }
 
-    if (isLate && roll > 0.94 && actor.proStats && actor.proStats.tiltResistance < 45) {
+    // Mental state (Tilt)
+    if (isLate && roll > 0.95 && actor.proStats && actor.proStats.tiltResistance < 55) {
       timeline.push({ 
         time: `${m}:00`, type: 'tilt', 
-        event: `Ошибка концентрации! ${actor.name} теряет позицию из-за усталости.`, 
+        event: `Нервы на пределе! ${actor.name} допускает позиционную ошибку из-за усталости.`, 
         score: `${killsA}:${killsB}` 
       });
       const s = scoreboardMap.get(actor.name);
-      if (s) s.matchRating -= 0.55;
+      if (s) s.matchRating -= 0.6;
     }
   }
 
   const scoreboard = Array.from(scoreboardMap.values()).map(s => ({
     ...s,
-    matchRating: Math.min(10, Math.max(1, s.matchRating + (s.cs / 250))),
+    matchRating: Math.min(10, Math.max(1, s.matchRating + (s.cs / 300))),
     kdaRatio: ((s.kills + s.assists) / Math.max(1, s.deaths)).toFixed(2)
   }));
 
   const mvp = [...scoreboard].sort((a, b) => b.matchRating - a.matchRating)[0]?.name || "None";
 
+  const winnerName = finalWinner === 'A' ? input.teamA.name : input.teamB.name;
+  const loserName = finalWinner === 'A' ? input.teamB.name : input.teamA.name;
+
   return {
     scoreA: finalWinner === 'A' ? 1 : 0,
     scoreB: finalWinner === 'B' ? 1 : 0,
     duration: `${duration}:00`, mvp,
-    matchSummary: finalWinner === 'A' ? `Доминирование ${input.teamA.name} на всех участках карты.` : `Команда ${input.teamB.name} переиграла оппонента тактически.`,
+    matchSummary: `Победа ${winnerName} (OVR ${finalWinner === 'A' ? potA.teamOvr : potB.teamOvr}) над ${loserName} за счет превосходства в ${finalWinner === 'A' ? (potA.power > potB.power * 1.2 ? 'общем классе' : 'тактической подготовке') : (potB.power > potA.power * 1.2 ? 'общем классе' : 'тактической подготовке')}.`,
     towersA, towersB, objectivesA, objectivesB,
     timeline: timeline.slice(0, 45),
     scoreboard,
