@@ -7,8 +7,8 @@ import { LoadingScreen } from './LoadingScreen';
 import { useGameState } from '@/app/lib/store';
 
 /**
- * STRATEGIC ROUTE GUARD v79 (Atomic Sync Protocol)
- * Forces re-setup if the user version is old to ensure proper initialization.
+ * STRATEGIC ROUTE GUARD v80 (Total Wipe Protocol)
+ * Forces re-setup if the user version is old or empty to ensure proper initialization.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
@@ -35,8 +35,8 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     }
 
     // 2. IF AUTHORIZED
-    // FORCE CLEAN SYNC VERSION 79
-    const needsSetup = !selectedLeagueId || !country || (Number(version || 0) < 79);
+    // FORCE CLEAN SYNC VERSION 80
+    const needsSetup = !selectedLeagueId || !country || (Number(version || 0) < 80);
     
     if (needsSetup) {
       if (!isSetupPage && !isAuthPage) {

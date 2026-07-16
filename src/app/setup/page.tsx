@@ -18,7 +18,7 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-const SETUP_VERSION = 79;
+const SETUP_VERSION = 80;
 
 const CLUBS = [
   { id: 'parivision', name: 'Parivision', logo: 'https://iili.io/CYIAgVa.webp' },
@@ -53,7 +53,7 @@ export default function SetupPage() {
 
   // Pre-fill custom name from display name (which might be TG name)
   useEffect(() => {
-    if (displayName && !customClubName) {
+    if (displayName && !customClubName && displayName !== "Manager") {
       setCustomClubName(displayName);
     }
   }, [displayName]);
@@ -108,6 +108,7 @@ export default function SetupPage() {
       const batch = writeBatch(db);
       const rootRef = doc(db, 'players_v10', user.uid);
       
+      // Update Root Profile
       batch.set(rootRef, {
         selectedLeagueId,
         leagueLevel: Number(placement.tier),
@@ -115,6 +116,7 @@ export default function SetupPage() {
         rank: Number(placement.rank),
         country: selectedCountry?.name || 'International',
         clubName: customClubName.trim(),
+        displayName: customClubName.trim(), // Synchronize Manager Name with Club Name for consistency after reset
         clubLogo: selectedClub?.logo || null,
         setupDate: nowIso,
         lastProcessedSeason: Number(activeSeasonNumber || 1),
@@ -125,9 +127,10 @@ export default function SetupPage() {
       const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${placement.group}`;
       const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(placement.tier), 'groups', prefixedGroupId, 'teams', user.uid);
       
+      // Initialize Team Doc
       batch.set(teamRef, {
         id: user.uid,
-        displayName: displayName || "Manager",
+        displayName: customClubName.trim(),
         clubName: customClubName.trim(),
         clubLogo: selectedClub?.logo || null,
         credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
@@ -156,7 +159,7 @@ export default function SetupPage() {
       setTimeout(() => router.replace('/'), 500);
 
     } catch (e: any) {
-      console.error("[SETUP v79 ERROR]", e);
+      console.error("[SETUP v80 ERROR]", e);
       toast({ variant: "destructive", title: "Setup Failed", description: e.message });
     } finally {
       setIsUpdating(false);
@@ -173,7 +176,7 @@ export default function SetupPage() {
       name: 'НАЗВАНИЕ КЛУБА',
       continue: 'ПРОДОЛЖИТЬ',
       finalize: 'ЗАВЕРШИТЬ ПРОФИЛЬ',
-      protocol: 'Операционный протокол v79',
+      protocol: 'Операционный протокол v80',
       msk: 'МСК',
       namePlaceholder: 'Введите название клуба...',
       nameDesc: 'Это имя будет отображаться в чатах и таблицах.'
@@ -185,7 +188,7 @@ export default function SetupPage() {
       name: 'CLUB NAME',
       continue: 'CONTINUE',
       finalize: 'FINALIZE PROFILE',
-      protocol: 'Operational Protocol v79',
+      protocol: 'Operational Protocol v80',
       msk: 'MSK',
       namePlaceholder: 'Enter club name...',
       nameDesc: 'This name will be visible in chats and rankings.'

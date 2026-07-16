@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Глобальное хранилище v79 (Safe Atomic Transactions).
- * Использование increment для предотвращения потери валюты при синхронизации.
+ * Глобальное хранилище v80 (Hard Reset Protocol).
+ * Реализована полная очистка личности и игровых активов при сбросе профиля.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -12,7 +12,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { 
   doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, 
   query, where, serverTimestamp, arrayUnion, getDoc, updateDoc, 
-  runTransaction, increment 
+  runTransaction, increment, getDocs 
 } from 'firebase/firestore';
 
 export { getLevelThreshold };
@@ -108,7 +108,7 @@ const DEFAULT_STATE: GameState = {
   skillPoints: 0, arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 79,
+  lastProcessedSeason: 0, trophies: [], version: 80,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
   setTrainingFocus: () => {}, startDailyPlayerTraining: () => {}, claimDailyPlayerTraining: () => {},
@@ -416,33 +416,45 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [getRefs]);
 
   const resetProfile = useCallback(async () => {
-    const s = stateRef.current;
     if (!user?.uid) return;
     
     setIsWorldReady(false);
-    
     const r = getRefs();
     if (!r) return;
 
     try {
+      // 1. Delete Team Document in leagues_v2
       await deleteDoc(r.team);
-      await updateDoc(r.root, {
-        selectedLeagueId: null,
-        leagueLevel: null,
-        groupId: null,
-        rank: null,
-        country: null,
-        clubName: null,
-        clubLogo: null,
-        setupDate: null,
-        trophies: [],
-        version: 0 
+      
+      // 2. Clear user notifications to avoid stale context
+      const nq = query(collection(db, 'notifications_v7'), where('userId', '==', user.uid));
+      const nSnap = await getDocs(nq);
+      const batch = writeBatch(db);
+      nSnap.forEach(d => batch.delete(d.ref));
+      
+      // 3. HARD RESET Root Profile Document in players_v10
+      // We overwrite it completely to remove "traces" like old clubName or displayName
+      const rootSnap = await getDoc(r.root);
+      const currentData = rootSnap.exists() ? rootSnap.data() : {};
+      
+      batch.set(r.root, {
+        id: user.uid,
+        email: currentData.email || null,
+        tgId: currentData.tgId || null,
+        displayName: "Manager", // Reset to generic default
+        lastLoginDate: new Date().toISOString(),
+        createdAt: currentData.createdAt || new Date().toISOString(),
+        version: 0 // Force re-setup logic in AuthGuard
       });
+
+      await batch.commit();
+      
+      // Force clear client state and redirect
       window.location.href = '/setup';
     } catch (e) {
-      console.error("Profile reset failed:", e);
+      console.error("Hard profile reset failed:", e);
     }
-  }, [user?.uid, getRefs]);
+  }, [user?.uid, db, getRefs]);
 
   const payStaffSalaries = async () => {};
 
