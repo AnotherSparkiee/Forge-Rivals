@@ -13,20 +13,26 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { Badge } from '@/components/ui/badge';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
   const { language, isLoaded, isDataReady, matchHistory, allSeasonMatches, lastSeenMatchDay } = useGameState();
 
+  // Расчет непросмотренных матчей лиги
   const unreadMatches = (allSeasonMatches || []).filter(m => 
     user && (m.homeId === user.uid || m.awayId === user.uid) && 
     m.isFinished && 
     Number(m.day) > (lastSeenMatchDay || 0)
   );
 
+  // Расчет непросмотренных матчей из истории (дружеские, турниры)
   const historyUnread = (matchHistory || []).filter(m => m.seen === false);
-  const totalUnread = [...unreadMatches, ...historyUnread];
-  const latestUnreadId = totalUnread[0]?.id;
+  
+  // Объединяем уникальные ID для точного счета
+  const totalUnreadCount = unreadMatches.length + historyUnread.length;
+  
+  const latestUnreadId = unreadMatches[0]?.id || historyUnread[0]?.id;
   
   const lastPlayedId = (matchHistory && matchHistory.length > 0) 
     ? matchHistory[matchHistory.length - 1].id 
@@ -37,7 +43,13 @@ export default function Home() {
   if (isUserLoading || !isLoaded || !isDataReady) return <LoadingScreen />;
 
   const menuItems = [
-    { label: language === 'ru' ? 'ОБЗОР МАТЧА' : 'MATCH OVERVIEW', href: matchReviewHref, icon: Tv, color: 'text-primary' },
+    { 
+      label: language === 'ru' ? 'ОБЗОР МАТЧА' : 'MATCH OVERVIEW', 
+      href: matchReviewHref, 
+      icon: Tv, 
+      color: 'text-primary',
+      badge: totalUnreadCount > 0 ? totalUnreadCount : null
+    },
     { label: language === 'ru' ? 'СОСТАВ КОМАНДЫ' : 'SQUAD', href: '/roster', icon: Users, color: 'text-accent' },
     { label: language === 'ru' ? 'ТРАНСФЕРЫ' : 'TRANSFERS', href: '/transfers', icon: ArrowRightLeft, color: 'text-yellow-500' },
     { label: language === 'ru' ? 'РАЗВИТИЕ' : 'INFRA', href: '/training', icon: Construction, color: 'text-blue-400' },
@@ -68,10 +80,22 @@ export default function Home() {
         <div className="grid grid-cols-4 gap-2 w-full py-6">
           {menuItems.map((item) => (
             <Link key={item.label} href={item.href}>
-              <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group aspect-square flex flex-col items-center justify-center p-1">
+              <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group aspect-square flex flex-col items-center justify-center p-1 relative overflow-visible">
                 <div className={cn("p-2 rounded-lg bg-secondary/50 group-hover:bg-primary/10 transition-colors border border-white/5 mb-1.5", item.color)}>
                   <item.icon className="w-5 h-5" />
                 </div>
+                
+                {item.badge && (
+                  <div className="absolute top-1 right-1">
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-20" />
+                      <Badge className="bg-red-500 text-white text-[9px] font-black h-5 min-w-[20px] flex items-center justify-center border-2 border-[#0a0d14] rounded-full px-1 shadow-lg relative z-10">
+                        {item.badge}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
+
                 <span className="text-[7px] font-black uppercase text-center text-muted-foreground group-hover:text-white transition-colors leading-tight px-0.5">
                   {item.label}
                 </span>
