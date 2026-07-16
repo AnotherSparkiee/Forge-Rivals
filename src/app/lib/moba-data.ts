@@ -265,8 +265,8 @@ export function generateBotSquad(targetOvr: number = 10): any[] {
     const val = Math.floor(targetOvr - 3 + Math.random() * 4); 
     const botIdNum = Math.floor(Math.random() * 9000) + 1000;
     
-    // Огромный штраф к навыкам относительно OVR (скиллы в 2 раза слабее OVR)
-    const skillBase = Math.max(2, Math.floor(val * 0.4));
+    // МАКСИМАЛЬНЫЙ ШТРАФ: навыки бота теперь составляют лишь 25% от его OVR
+    const skillBase = Math.max(1, Math.floor(val * 0.25));
 
     return {
       name: `CyberUnit_${botIdNum}`,

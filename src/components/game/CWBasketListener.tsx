@@ -76,8 +76,8 @@ export function CWBasketListener() {
             isSub: h.id === lineup.sub1 || h.id === lineup.sub2
           }));
 
-          // Ослабляем бота в КВ Корзине до OVR 12
-          const rivalSquad = generateBotSquad(12);
+          // Ослабляем бота в КВ Корзине до OVR 10
+          const rivalSquad = generateBotSquad(10);
 
           // Get rival logo if possible
           let rivalLogo = null;

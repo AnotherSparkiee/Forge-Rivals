@@ -183,7 +183,7 @@ export default function IronKettlePage() {
 
           const clubIdent = profile?.clubName || profile?.displayName || "My Club";
 
-          // Ослабляем турнирного бота до OVR 14
+          // Ослабляем турнирного бота до OVR 12
           const simulation = await simulateMobaMatch({
             teamA: { 
               name: clubIdent, 
@@ -191,7 +191,7 @@ export default function IronKettlePage() {
               staffBonus: staff.coach?.skills?.primary || 0,
               infraBonus: (bootcamp.bootcampLevel || 0)
             },
-            teamB: { name: opponent.name, strategy: "Balanced Play", heroes: generateBotSquad(14) },
+            teamB: { name: opponent.name, strategy: "Balanced Play", heroes: generateBotSquad(12) },
             isBo2: false
           });
 

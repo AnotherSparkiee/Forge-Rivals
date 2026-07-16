@@ -184,8 +184,8 @@ export function FriendlyMatchListener() {
         let challengerLogoB = null;
 
         if (activeLobby.isTrial) {
-          // Ослабляем пробного бота до экстремально низкого уровня
-          squadB = generateBotSquad(12);
+          // Ослабляем пробного бота до экстремально низкого уровня OVR 10
+          squadB = generateBotSquad(10);
           infraBonusB = 1;
           staffBonusB = 1;
           analystBonusB = 1;
@@ -225,7 +225,7 @@ export function FriendlyMatchListener() {
           }
         }
 
-        if (squadB.length < 5) squadB = generateBotSquad(10);
+        if (squadB.length < 5) squadB = generateBotSquad(8);
 
         const result = await simulateMobaMatch({
           teamA: { 
