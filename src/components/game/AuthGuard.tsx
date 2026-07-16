@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser } from '@/firebase';
@@ -8,8 +7,8 @@ import { LoadingScreen } from './LoadingScreen';
 import { useGameState } from '@/app/lib/store';
 
 /**
- * STRATEGIC ROUTE GUARD v77 (FMO Protocol)
- * Forces re-setup if the user version is old to ensure squad generation.
+ * STRATEGIC ROUTE GUARD v79 (Atomic Sync Protocol)
+ * Forces re-setup if the user version is old to ensure proper initialization.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
@@ -36,8 +35,8 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     }
 
     // 2. IF AUTHORIZED
-    // FORCE CLEAN SYNC VERSION 77
-    const needsSetup = !selectedLeagueId || !country || (Number(version || 0) < 77);
+    // FORCE CLEAN SYNC VERSION 79
+    const needsSetup = !selectedLeagueId || !country || (Number(version || 0) < 79);
     
     if (needsSetup) {
       if (!isSetupPage && !isAuthPage) {

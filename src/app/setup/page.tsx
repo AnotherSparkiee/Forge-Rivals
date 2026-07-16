@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -19,7 +18,7 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-const SETUP_VERSION = 77;
+const SETUP_VERSION = 79;
 
 const CLUBS = [
   { id: 'parivision', name: 'Parivision', logo: 'https://iili.io/CYIAgVa.webp' },
@@ -157,7 +156,7 @@ export default function SetupPage() {
       setTimeout(() => router.replace('/'), 500);
 
     } catch (e: any) {
-      console.error("[SETUP v77 ERROR]", e);
+      console.error("[SETUP v79 ERROR]", e);
       toast({ variant: "destructive", title: "Setup Failed", description: e.message });
     } finally {
       setIsUpdating(false);
@@ -174,7 +173,7 @@ export default function SetupPage() {
       name: 'НАЗВАНИЕ КЛУБА',
       continue: 'ПРОДОЛЖИТЬ',
       finalize: 'ЗАВЕРШИТЬ ПРОФИЛЬ',
-      protocol: 'Операционный протокол v77',
+      protocol: 'Операционный протокол v79',
       msk: 'МСК',
       namePlaceholder: 'Введите название клуба...',
       nameDesc: 'Это имя будет отображаться в чатах и таблицах.'
@@ -186,7 +185,7 @@ export default function SetupPage() {
       name: 'CLUB NAME',
       continue: 'CONTINUE',
       finalize: 'FINALIZE PROFILE',
-      protocol: 'Operational Protocol v77',
+      protocol: 'Operational Protocol v79',
       msk: 'MSK',
       namePlaceholder: 'Enter club name...',
       nameDesc: 'This name will be visible in chats and rankings.'
