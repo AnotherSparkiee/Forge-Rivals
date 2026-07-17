@@ -37,6 +37,13 @@ const normTalent = (val: any) => {
   return n < 10 ? Math.round(n * 10) : Math.round(n);
 };
 
+const getStatusColor = (val: number) => {
+  if (val >= 100) return "text-white";
+  if (val >= 75) return "text-green-400";
+  if (val >= 35) return "text-yellow-400";
+  return "text-red-500";
+};
+
 export default function SquadPage() {
   const { 
     ownedPlayers, youthAcademyPlayers, lineup, assignToRole, updateLineup, isLoaded, 
@@ -96,6 +103,11 @@ export default function SquadPage() {
     noAvailable: language === 'ru' ? "Нет подходящих свободных игроков" : "No suitable free players available",
     roleError: language === 'ru' ? "Несовместимая роль!" : "Incompatible Role!",
     swapSuccess: language === 'ru' ? "Замена произведена" : "Replacement Success",
+    metrics: {
+      form: language === 'ru' ? 'ФРМ' : 'FRM',
+      fatigue: language === 'ru' ? 'УСТ' : 'UST',
+      overall: language === 'ru' ? 'ОБЩ' : 'OVR',
+    },
     roles: {
       carry: { label: language === 'ru' ? "Керри" : "Carry", icon: Sword, color: "text-red-400" },
       mid: { label: language === 'ru' ? "Мидер" : "Midlaner", icon: Sparkles, color: "text-blue-400" },
@@ -290,9 +302,17 @@ export default function SquadPage() {
             </div>
             
             {player && (
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="flex flex-col items-center justify-center min-w-[35px] border-l border-white/5 pl-2">
-                  <p className="text-[6px] font-black text-primary uppercase tracking-widest mb-0.5">ОБЩ</p>
+              <div className="flex items-center gap-3 shrink-0 border-l border-white/5 pl-3">
+                <div className="flex flex-col items-center min-w-[20px]">
+                  <p className="text-[6px] font-black text-muted-foreground uppercase tracking-tighter mb-0.5">{t.metrics.form}</p>
+                  <span className={cn("text-[10px] font-mono font-bold leading-none", getStatusColor(player.form))}>{player.form}</span>
+                </div>
+                <div className="flex flex-col items-center min-w-[20px]">
+                  <p className="text-[6px] font-black text-muted-foreground uppercase tracking-tighter mb-0.5">{t.metrics.fatigue}</p>
+                  <span className={cn("text-[10px] font-mono font-bold leading-none", getStatusColor(player.fatigue))}>{player.fatigue}</span>
+                </div>
+                <div className="flex flex-col items-center min-w-[28px]">
+                  <p className="text-[6px] font-black text-primary uppercase tracking-widest mb-0.5">{t.metrics.overall}</p>
                   <span className="text-lg font-headline font-bold text-accent italic leading-none">{player.overallRating}</span>
                 </div>
               </div>
@@ -386,7 +406,7 @@ export default function SquadPage() {
                   ))}
                 </div>
               ) : (
-                <div className="py-12 text-center opacity-30 border border-dashed border-white/5 rounded-2xl flex flex-col items-center gap-3">
+                <div className="py-12 text-center opacity-30 border border-dashed border-white/5 rounded-2xl flex flex-col items-center gap-4">
                    <Users className="w-8 h-8" />
                    <p className="text-[9px] font-bold uppercase tracking-widest max-w-[160px] mx-auto">{t.noAvailable}</p>
                 </div>
@@ -408,7 +428,9 @@ export default function SquadPage() {
                 <div className={cn("w-full h-full rounded-2xl overflow-hidden border-2 border-primary/50 shadow-2xl bg-secondary/50", profilePlayer.isPro ? "border-yellow-500" : "border-primary/50")}>
                   <img src={profilePlayer.image} alt={profilePlayer.name} className="w-full h-full object-cover" />
                 </div>
-                <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-background border border-white/10 flex items-center justify-center shadow-xl"><span className="text-xl">{profilePlayer.country?.flag}</span></div>
+                <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-background border border-white/10 flex items-center justify-center shadow-xl">
+                  <span className="text-xl">{profilePlayer.country?.flag}</span>
+                </div>
               </div>
               <div className="space-y-1">
                 <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profilePlayer.name}</DialogTitle>
@@ -434,6 +456,8 @@ export default function SquadPage() {
                     <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{language === 'ru' ? 'Талант' : 'Talent'}</span><div className="flex items-center">{renderStars(Math.max(...Object.values(profilePlayer.proTalents || {}).map(v => normTalent(v))))}</div></div>
                     <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Зарплата' : 'Salary'}</span><span className="text-[10px] font-bold text-primary">€{(profilePlayer.salary || 0).toLocaleString()}</span></div>
                     <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span><span className="text-[10px] font-bold uppercase">{profilePlayer.role}</span></div>
+                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{t.metrics.form}</span><span className={cn("text-xs font-mono font-bold", getStatusColor(profilePlayer.form))}>{profilePlayer.form}</span></div>
+                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{t.metrics.fatigue}</span><span className={cn("text-xs font-mono font-bold", getStatusColor(profilePlayer.fatigue))}>{profilePlayer.fatigue}</span></div>
                   </div>
                 </section>
                 <section>
