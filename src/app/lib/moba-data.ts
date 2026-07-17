@@ -1,4 +1,3 @@
-
 export type Role = 'Tank' | 'Carry' | 'Support' | 'Midlaner' | 'Jungler';
 
 export interface Player {
@@ -260,19 +259,25 @@ export function generateStaffMember(role: StaffRole): StaffMember {
 
 export function generateBotSquad(targetOvr: number = 10): any[] {
   const roles: Role[] = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'];
-  return roles.map((role) => {
-    // Ослабляем диапазон отклонения для еще большей стабильности слабости
+  const countryCodes = Object.keys(COUNTRY_PHOTOS);
+
+  return roles.map((role, idx) => {
     const val = Math.floor(targetOvr - 3 + Math.random() * 4); 
-    const botIdNum = Math.floor(Math.random() * 9000) + 1000;
+    const nameSeed = Math.floor(Math.random() * PLAYER_NAMES.length);
+    const countryIdx = Math.floor(Math.random() * countryCodes.length);
+    const countryCode = countryCodes[countryIdx];
     
-    // МАКСИМАЛЬНЫЙ ШТРАФ: навыки бота теперь составляют лишь 25% от его OVR
+    // Используем реальные имена и фото из реестра
+    const name = PLAYER_NAMES[nameSeed];
+    const image = COUNTRY_PHOTOS[countryCode].url;
+    
     const skillBase = Math.max(1, Math.floor(val * 0.25));
 
     return {
-      name: `CyberUnit_${botIdNum}`,
+      name: `${name} Unit`,
       role: role,
       overallRating: val,
-      image: `https://picsum.photos/seed/bot${botIdNum}/200/200`,
+      image: image,
       proStats: { 
         lastHitting: skillBase, 
         mapAwareness: skillBase, 

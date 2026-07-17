@@ -1,11 +1,11 @@
 'use server';
 /**
- * @fileOverview Ядро симуляции матчей Lines of Enmity v5.5 (Analytical Grounding).
+ * @fileOverview Ядро симуляции матчей Lines of Enmity v5.6 (Analytical Grounding).
  * 
  * Особенности:
  * 1. Детерминированный расчет обоснования победы на основе сравнения кумулятивных навыков.
- * 2. Улучшенная логика формирования резюме матча.
- * 3. Поддержка ничьих в сериях Bo2.
+ * 2. Улучшенная логика формирования резюме матча с поддержкой ничьих.
+ * 3. Исправлен учет победителя в сериях Bo2.
  */
 
 import {ai} from '@/ai/genkit';
@@ -345,6 +345,12 @@ export async function simulateMobaMatch(input: SimulateMobaMatchInput): Promise<
       else if (input.scoreA === 1 && input.scoreB === 1) forced = i === 0 ? 'A' : 'B';
     }
     const g = runSingleGame(input, forced);
+    
+    // Переопределяем резюме для ничьих
+    if (input.isBo2 && i === 1 && ((winsA === 1 && g.scoreB === 1) || (winsB === 1 && g.scoreA === 1))) {
+      g.matchSummary = `Ничья в серии между ${input.teamA.name} и ${input.teamB.name} вследствие равного тактического противостояния.`;
+    }
+    
     games.push(g);
     winsA += g.scoreA;
     winsB += g.scoreB;
