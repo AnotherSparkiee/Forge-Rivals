@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v1.0.
- * Лента тактических сводок по всем завершенным боям.
+ * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v1.1.
+ * Добавлена возможность удаления отчетов и улучшена визуализация команд с логотипами.
  */
 
 import { useGameState } from '@/app/lib/store';
@@ -15,17 +15,21 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   ChevronLeft, Tv, Trophy, Swords, 
-  Clock, ChevronRight, FileText, Bell, CheckCircle2
+  Clock, ChevronRight, FileText, Bell, CheckCircle2, Trash2,
+  Shield
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ReportsPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const { toast } = useToast();
   const { 
     language, isLoaded, isDataReady, matchHistory, 
-    allSeasonMatches, lastSeenMatchDay 
+    allSeasonMatches, lastSeenMatchDay, deleteMatchHistoryEntry, clearMatchHistory,
+    clubLogo: myClubLogo
   } = useGameState();
 
   useEffect(() => {
@@ -70,12 +74,15 @@ export default function ReportsPage() {
       empty: "ОТЧЕТОВ НЕ ОБНАРУЖЕНО",
       emptyDesc: "Завершите матч лиги или турнира, чтобы получить отчет.",
       view: "ПРОСМОТРЕТЬ",
+      clearAll: "ОЧИСТИТЬ ВСЁ",
       history: "Архив",
       league: "Лига",
       tournament: "Турнир",
       friendly: "Товарищеский",
       basket: "КВ Корзина",
-      trial: "Пробный"
+      trial: "Пробный",
+      deleted: "Отчет удален",
+      cleared: "История отчетов очищена"
     },
     en: {
       title: "MATCH OVERVIEW",
@@ -84,30 +91,57 @@ export default function ReportsPage() {
       empty: "NO REPORTS FOUND",
       emptyDesc: "Complete a league or tournament match to receive a report.",
       view: "REVIEW REPORT",
+      clearAll: "CLEAR ALL",
       history: "Archive",
       league: "League",
       tournament: "Tournament",
       friendly: "Friendly",
       basket: "CW Basket",
-      trial: "Trial"
+      trial: "Trial",
+      deleted: "Report deleted",
+      cleared: "Reports history cleared"
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
+  const handleDeleteEntry = (e: React.MouseEvent, id: string, source: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (source === 'history') {
+      deleteMatchHistoryEntry(id);
+      toast({ title: t.deleted });
+    } else {
+      toast({ title: language === 'ru' ? "Матчи лиги нельзя удалить из истории" : "League matches cannot be removed", variant: "destructive" });
+    }
+  };
+
+  const handleClearAll = () => {
+    clearMatchHistory();
+    toast({ title: t.cleared });
+  };
+
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
-      <header className="mb-8 flex items-center gap-4">
-        <Link href="/">
-          <Button variant="ghost" size="icon" className="rounded-full bg-secondary/50 border border-white/5">
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white flex items-center gap-2">
-            <Tv className="w-6 h-6 text-primary" />
-            {t.title}
-          </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50">{t.subtitle}</p>
+      <header className="mb-8 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Link href="/">
+            <Button variant="ghost" size="icon" className="rounded-full bg-secondary/50 border border-white/5">
+              <ChevronLeft className="w-6 h-6" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white flex items-center gap-2">
+              <Tv className="w-6 h-6 text-primary" />
+              {t.title}
+            </h1>
+            <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50">{t.subtitle}</p>
+          </div>
         </div>
+        
+        {allReports.some(r => r.source === 'history') && (
+          <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-300 hover:bg-red-400/10" onClick={handleClearAll}>
+            <Trash2 className="w-5 h-5" />
+          </Button>
+        )}
       </header>
 
       <div className="space-y-3">
@@ -116,10 +150,13 @@ export default function ReportsPage() {
             const isMeHome = report.homeId === user?.uid;
             const isMeAway = report.awayId === user?.uid;
             const typeLabel = (t as any)[report.type] || report.type || t.league;
+            
+            const homeLogo = isMeHome ? myClubLogo : report.homeLogo;
+            const awayLogo = isMeAway ? myClubLogo : report.awayLogo;
 
             return (
               <Card key={report.id || idx} className={cn(
-                "glass-card border-white/5 transition-all overflow-hidden",
+                "glass-card border-white/5 transition-all overflow-hidden group",
                 report.isUnread && "border-primary/40 bg-primary/5 ring-1 ring-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.1)]"
               )}>
                 <CardContent className="p-4">
@@ -134,29 +171,44 @@ export default function ReportsPage() {
                         </Badge>
                       )}
                     </div>
-                    <span className="text-[8px] font-mono font-bold text-muted-foreground">
-                      {new Date(report.playedAt || report.startTime).toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[8px] font-mono font-bold text-muted-foreground">
+                        {new Date(report.playedAt || report.startTime).toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      {report.source === 'history' && (
+                        <button onClick={(e) => handleDeleteEntry(e, report.id, report.source)} className="text-muted-foreground/30 hover:text-red-400 transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-[1fr_40px_1fr] items-center gap-2 mb-4">
-                    <div className="text-right truncate">
+                  <div className="grid grid-cols-[1fr_50px_1fr] items-center gap-3 mb-4">
+                    <div className="flex flex-col items-center gap-2 text-center min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-secondary/50 border border-white/5 flex items-center justify-center overflow-hidden p-1.5 shrink-0">
+                        {homeLogo ? <img src={homeLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-5 h-5 text-muted-foreground/40" />}
+                      </div>
                       <p className={cn(
-                        "text-[11px] font-bold uppercase tracking-tight",
-                        isMeHome ? "text-primary" : "text-white"
+                        "text-[10px] font-bold uppercase tracking-tight truncate w-full px-1",
+                        isMeHome ? "text-primary font-black" : "text-white"
                       )}>
                         {report.homeName}
                       </p>
                     </div>
-                    <div className="flex justify-center">
-                      <span className="text-lg font-headline font-black italic text-white">
+
+                    <div className="flex justify-center shrink-0">
+                      <span className="text-xl font-headline font-black italic text-white shadow-primary/20">
                         {report.scoreA}:{report.scoreB}
                       </span>
                     </div>
-                    <div className="text-left truncate">
+
+                    <div className="flex flex-col items-center gap-2 text-center min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-secondary/50 border border-white/5 flex items-center justify-center overflow-hidden p-1.5 shrink-0">
+                        {awayLogo ? <img src={awayLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-5 h-5 text-muted-foreground/40" />}
+                      </div>
                       <p className={cn(
-                        "text-[11px] font-bold uppercase tracking-tight",
-                        isMeAway ? "text-primary" : "text-white"
+                        "text-[10px] font-bold uppercase tracking-tight truncate w-full px-1",
+                        isMeAway ? "text-primary font-black" : "text-white"
                       )}>
                         {report.awayName}
                       </p>

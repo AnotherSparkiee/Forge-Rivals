@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Глобальное хранилище v80 (Hard Reset Protocol).
- * Реализована полная очистка личности и игровых активов при сбросе профиля.
+ * Глобальное хранилище v81 (Match History Management).
+ * Реализовано удаление отдельных записей и полная очистка истории матчей.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -74,6 +74,8 @@ interface GameState {
   updateProfileCountry: (country: string) => void;
   recordMatch: (winner: string, result: any, reward: number, opponentName: string, type: string, playedAt: string, matchId?: string, extraData?: any) => void;
   markMatchIdAsSeen: (id: string) => void;
+  deleteMatchHistoryEntry: (id: string) => void;
+  clearMatchHistory: () => void;
   upgradeManagerSkill: (skillKey: keyof GameState['managerSkills']) => void;
   startArenaConstruction: (id: string, cost: number) => boolean;
   startHQConstruction: (id: string, cost: number) => boolean;
@@ -115,7 +117,8 @@ const DEFAULT_STATE: GameState = {
   recoverAllFatigue: () => false, hireStaffMember: () => {}, trainStaffSkill: () => false,
   addPlayerDirectly: () => {}, addYouthPlayerDirectly: () => {}, promoteYouthPlayer: () => {},
   updateProfileName: () => {}, updateProfileCountry: () => {}, recordMatch: () => {},
-  markMatchIdAsSeen: () => {}, upgradeManagerSkill: () => {},
+  markMatchIdAsSeen: () => {}, deleteMatchHistoryEntry: () => {}, clearMatchHistory: () => {},
+  upgradeManagerSkill: () => {},
   startArenaConstruction: () => false, startHQConstruction: () => false, startBootcampConstruction: () => false,
   startAcademyConstruction: () => false, startMedicalConstruction: () => false, startCapacityExpansion: () => false,
   accelerateConstruction: () => false, checkConstructions: () => {},
@@ -484,7 +487,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       homeId: extra?.homeId || null, 
       awayId: extra?.awayId || null,
       homeLogo: extra?.homeLogo || null,
-      awayLogo: extra?.awayLogo || null
+      awayLogo: extra?.awayLogo || null,
+      homeName: extra?.homeName || null,
+      awayName: extra?.awayName || null
     };
 
     setDoc(r.team, { 
@@ -504,6 +509,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const newHistory = stateRef.current.matchHistory.map(m => m.id === id ? { ...m, seen: true } : m);
     setDoc(r.team, { matchHistory: newHistory }, { merge: true });
   }, [getRefs, allMatches]);
+
+  const deleteMatchHistoryEntry = useCallback((id: string) => {
+    const r = getRefs();
+    if (!r) return;
+    const newHistory = stateRef.current.matchHistory.filter(m => m.id !== id);
+    updateDoc(r.team, { matchHistory: newHistory });
+  }, [getRefs]);
+
+  const clearMatchHistory = useCallback(() => {
+    const r = getRefs();
+    if (r) updateDoc(r.team, { matchHistory: [] });
+  }, [getRefs]);
 
   const scoutCandidates = useCallback(() => {
     const r = getRefs(); if (!r) return;
@@ -600,8 +617,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries,
     scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, 
     startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen,
-    setWorldReady, resetProfile, addTrophy
-  }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, setWorldReady, resetProfile, addTrophy]);
+    deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy
+  }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
 }
