@@ -267,14 +267,13 @@ export function generateBotSquad(targetOvr: number = 10): any[] {
     const countryIdx = Math.floor(Math.random() * countryCodes.length);
     const countryCode = countryCodes[countryIdx];
     
-    // Используем реальные имена и фото из реестра
     const name = PLAYER_NAMES[nameSeed];
     const image = COUNTRY_PHOTOS[countryCode].url;
     
     const skillBase = Math.max(1, Math.floor(val * 0.25));
 
     return {
-      name: `${name} Unit`,
+      name: name,
       role: role,
       overallRating: val,
       image: image,

@@ -1,9 +1,8 @@
-
 'use client';
 
 /**
- * @fileOverview Слушатель товарищеских и пробных матчей v12.
- * Внедрен учет навыков персонала (Coach, Analyst) в реальном времени.
+ * @fileOverview Слушатель товарищеских и пробных матчей v12.1.
+ * Исправлена передача фотографий игроков в ядро симуляции.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -162,6 +161,7 @@ export function FriendlyMatchListener() {
       if (accept) {
         const squadA = ownedPlayers.filter(p => Object.values(lineup).includes(p.id)).map(p => ({
           name: p.name, role: p.role, overallRating: p.overallRating, proStats: p.proStats,
+          image: p.image,
           isSub: p.id === lineup.sub1 || p.id === lineup.sub2
         }));
 
@@ -184,7 +184,6 @@ export function FriendlyMatchListener() {
         let challengerLogoB = null;
 
         if (activeLobby.isTrial) {
-          // Ослабляем пробного бота до экстремально низкого уровня OVR 10
           squadB = generateBotSquad(10);
           infraBonusB = 1;
           staffBonusB = 1;
@@ -219,6 +218,7 @@ export function FriendlyMatchListener() {
               const allHeroes = heroesSnap.docs.map(d => ({ ...d.data(), id: d.id }));
               squadB = allHeroes.filter(h => Object.values(cLineup).includes(h.id)).map((h: any) => ({
                 name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
+                image: h.image,
                 isSub: h.id === cLineup.sub1 || h.id === cLineup.sub2
               }));
             }

@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.6 (Deep Analytical Review).
- * Добавлен учет ничьих и обоснование результатов в финальном превью.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.7 (Enhanced Identity).
+ * Добавлена визуализация логотипов в блоке счета и исправлено отображение фото.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -19,7 +19,7 @@ import {
   Timer, ChevronRight, Crown,
   Skull, Activity as ActivityIcon, Castle, Radio,
   Package, Sparkles, Flame, HeartPulse, GraduationCap,
-  Microscope, X
+  Microscope, X, Shield
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -394,10 +394,18 @@ function MatchContent() {
         {step === 'stats' && (
           <div className="space-y-6 animate-in slide-in-from-right-4 pb-20">
             <div className="text-center py-4">
-              <div className="text-5xl font-headline font-black italic tracking-tighter flex items-center justify-center gap-4 text-white">
-                <span className={cn(matchData.scoreA > matchData.scoreB && "text-primary")}>{matchData.scoreA}</span>
-                <span className="opacity-20 text-3xl">:</span>
-                <span className={cn(matchData.scoreB > matchData.scoreA && "text-primary")}>{matchData.scoreB}</span>
+              <div className="flex items-center justify-center gap-6 mb-2">
+                <div className="w-12 h-12 rounded-xl bg-secondary/50 border border-white/5 flex items-center justify-center overflow-hidden p-1.5 shrink-0">
+                  {displayHomeLogo ? <img src={displayHomeLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-6 h-6 text-muted-foreground/30" />}
+                </div>
+                <div className="text-5xl font-headline font-black italic tracking-tighter flex items-center justify-center gap-4 text-white">
+                  <span className={cn(matchData.scoreA > matchData.scoreB && "text-primary")}>{matchData.scoreA}</span>
+                  <span className="opacity-20 text-3xl">:</span>
+                  <span className={cn(matchData.scoreB > matchData.scoreA && "text-primary")}>{matchData.scoreB}</span>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-secondary/50 border border-white/5 flex items-center justify-center overflow-hidden p-1.5 shrink-0">
+                  {displayAwayLogo ? <img src={displayAwayLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-6 h-6 text-muted-foreground/30" />}
+                </div>
               </div>
               <Badge className={cn(
                 "mt-4 text-[10px] font-black px-8 py-1 uppercase tracking-widest border-none", 

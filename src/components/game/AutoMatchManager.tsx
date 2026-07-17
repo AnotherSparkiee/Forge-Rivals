@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v77 (Club Identity & Logo Injection).
- * Принудительная инъекция пользовательского названия клуба и логотипа в документы матчей.
+ * @fileOverview Ядро MMO-синхронизации v77.1.
+ * Исправлена передача фотографий игроков в ядро симуляции.
  */
 
 import { useEffect, useRef } from 'react';
@@ -176,6 +176,7 @@ export function AutoMatchManager() {
             if (isMeHome || isMeAway) {
               const squad = ownedPlayers.filter(p => Object.values(lineup).includes(p.id)).map(p => ({
                 name: p.name, role: p.role, overallRating: p.overallRating, proStats: p.proStats,
+                image: p.image,
                 isSub: p.id === lineup.sub1 || p.id === lineup.sub2
               }));
 

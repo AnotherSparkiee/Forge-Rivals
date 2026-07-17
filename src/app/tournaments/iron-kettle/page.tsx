@@ -1,11 +1,8 @@
-
 'use client';
 
 /**
- * @fileOverview ТУРНИР "CYBER ATHLETIC CUP" v3.8.
- * 1. Расписание: 10:00, 14:00, 18:00, 22:00 MSK.
- * 2. Уникальные ID сессий.
- * 3. Список реально зарегистрированных участников.
+ * @fileOverview ТУРНИР "CYBER ATHLETIC CUP" v3.9.
+ * Исправлена передача фотографий игроков в ядро симуляции.
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -178,6 +175,7 @@ export default function IronKettlePage() {
         try {
           const squad = ownedPlayers.filter(p => Object.values(lineup).includes(p.id)).map(p => ({
             name: p.name, role: p.role, overallRating: p.overallRating, proStats: p.proStats,
+            image: p.image,
             isSub: p.id === lineup.sub1 || p.id === lineup.sub2
           }));
 

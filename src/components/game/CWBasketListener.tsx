@@ -1,5 +1,9 @@
-
 'use client';
+
+/**
+ * @fileOverview Слушатель КВ Корзины v12.2.
+ * Исправлена передача фотографий игроков в ядро симуляции.
+ */
 
 import { useState, useEffect, useRef } from 'react';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -72,14 +76,13 @@ export function CWBasketListener() {
         isSimulatingRef.current = true;
         try {
           const squad = ownedPlayers.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
-            ...h,
+            name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
+            image: h.image,
             isSub: h.id === lineup.sub1 || h.id === lineup.sub2
           }));
 
-          // Ослабляем бота в КВ Корзине до OVR 10
           const rivalSquad = generateBotSquad(10);
 
-          // Get rival logo if possible
           let rivalLogo = null;
           if (myEntry.matchedWithId) {
             const rivalSnap = await getDoc(doc(db, 'players_v10', myEntry.matchedWithId));
