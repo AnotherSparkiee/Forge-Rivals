@@ -1,14 +1,14 @@
 'use client';
 
 /**
- * @fileOverview Слушатель КВ Корзины v12.2.
- * Исправлена передача фотографий игроков в ядро симуляции.
+ * @fileOverview Слушатель КВ Корзины v12.3 (Physical Integrity).
+ * Исправлена передача фотографий и характеристик игроков. Добавлено списание энергии.
  */
 
 import { useState, useEffect, useRef } from 'react';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { doc, deleteDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, deleteDoc, serverTimestamp, getDoc, increment, writeBatch } from 'firebase/firestore';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from '@/components/ui/dialog';
@@ -19,6 +19,7 @@ import { usePathname } from 'next/navigation';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
 import { getMatchResult } from '@/app/lib/leagues-data';
+import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 function sanitizeForFirestore(obj: any) {
   if (!obj) return null;
@@ -33,7 +34,10 @@ export function CWBasketListener() {
   const { user } = useUser();
   const db = useFirestore();
   const pathname = usePathname();
-  const { language, strategy, recordMatch, ownedPlayers, lineup, matchHistory, clubLogo } = useGameState();
+  const { 
+    language, strategy, recordMatch, ownedPlayers, lineup, 
+    matchHistory, clubLogo, selectedLeagueId, leagueLevel, groupId, rank 
+  } = useGameState();
   const { toast } = useToast();
 
   const [showModal, setShowModal] = useState(false);
@@ -77,7 +81,7 @@ export function CWBasketListener() {
         try {
           const squad = ownedPlayers.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
             name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
-            image: h.image,
+            image: h.image, form: h.form, fatigue: h.fatigue,
             isSub: h.id === lineup.sub1 || h.id === lineup.sub2
           }));
 
@@ -123,6 +127,22 @@ export function CWBasketListener() {
             { homeId: user.uid, awayId: myEntry.matchedWithId, homeLogo: clubLogo, awayLogo: rivalLogo }
           );
 
+          // СПИСАНИЕ УСТАЛОСТИ
+          const batch = writeBatch(db);
+          const info = getGlobalSeasonInfo();
+          const seasonId = `season_${info.activeSeasonNumber}`;
+          const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
+          const teamRef = doc(db, 'leagues_v2', selectedLeagueId!, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid);
+          
+          const fatigueLoss = 12 + Math.floor(Math.random() * 8);
+          Object.values(lineup).forEach(pId => {
+            if (pId) {
+              const heroRef = doc(teamRef, 'heroes', pId);
+              batch.update(heroRef, { fatigue: increment(-fatigueLoss) });
+            }
+          });
+          await batch.commit();
+
           toast({
             title: language === 'ru' ? "КВ матч завершен" : "CW match finished",
             description: language === 'ru' ? `Результаты боя против ${myEntry.matchedWithName} сохранены.` : `Battle results vs ${myEntry.matchedWithName} archived.`,
@@ -140,7 +160,7 @@ export function CWBasketListener() {
     const timer = setInterval(checkAndSimulate, 10000);
     checkAndSimulate();
     return () => clearInterval(timer);
-  }, [user, myEntry, pathname, strategy, recordMatch, language, db, toast, matchHistory, ownedPlayers, lineup, clubLogo]);
+  }, [user, myEntry, pathname, strategy, recordMatch, language, db, toast, matchHistory, ownedPlayers, lineup, clubLogo, selectedLeagueId, leagueLevel, groupId]);
 
   const handleAcknowledge = () => {
     setShowModal(false);
@@ -160,8 +180,8 @@ export function CWBasketListener() {
     <Dialog open={showModal} onOpenChange={setShowModal}>
       <DialogContent className="max-w-sm bg-card border-white/10 p-0 overflow-hidden shadow-2xl">
         <div className="p-6 text-center bg-gradient-to-br from-primary/20 via-background to-accent/10 border-b border-white/5">
-          <div className="mx-auto w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary shadow-[0_0_20px_rgba(var(--primary),0.3)]">
-            <Swords className="w-8 h-8 text-primary animate-pulse" />
+          <div className="mx-auto w-12 h-12 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary shadow-[0_0_20px_rgba(var(--primary),0.3)]">
+            <Swords className="w-6 h-6 text-primary animate-pulse" />
           </div>
           <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">
             {t.title}

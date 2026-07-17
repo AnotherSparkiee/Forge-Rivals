@@ -1,21 +1,21 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v77.1.
- * Исправлена передача фотографий игроков в ядро симуляции.
+ * @fileOverview Ядро MMO-синхронизации v80.1 (Physical Degradation).
+ * Добавлено списание усталости после завершения матчей.
  */
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore } from '@/firebase';
 import { 
-  doc, getDoc, writeBatch, serverTimestamp, collection, query, where, getDocs, updateDoc, runTransaction, setDoc 
+  doc, getDoc, writeBatch, serverTimestamp, collection, query, where, getDocs, updateDoc, runTransaction, setDoc, increment 
 } from 'firebase/firestore';
 import { getGlobalSeasonInfo, isMatchOverdue } from '@/app/lib/time-utils';
 import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/app/lib/leagues-data';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 
-const SYNC_VERSION = 80; 
+const SYNC_VERSION = 81; 
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
@@ -176,7 +176,7 @@ export function AutoMatchManager() {
             if (isMeHome || isMeAway) {
               const squad = ownedPlayers.filter(p => Object.values(lineup).includes(p.id)).map(p => ({
                 name: p.name, role: p.role, overallRating: p.overallRating, proStats: p.proStats,
-                image: p.image,
+                image: p.image, form: p.form, fatigue: p.fatigue,
                 isSub: p.id === lineup.sub1 || p.id === lineup.sub2
               }));
 
@@ -218,6 +218,26 @@ export function AutoMatchManager() {
                 scoreA: fSA, scoreB: fSB, status: 'finished', isFinished: true, simulation, finishedAt: serverTimestamp(),
                 homeLogo: mData.homeLogo, awayLogo: mData.awayLogo 
               });
+
+              // СПИСАНИЕ УСТАЛОСТИ (ЭНЕРГИИ)
+              if (isMeHome || isMeAway) {
+                const seasonId = `season_${currentSeason}`;
+                const prefixedGroupId = `${seasonId}_league_${lId}_group_${groupNum}`;
+                const teamRef = doc(db, 'leagues_v2', lId, 'divisions', String(tier), 'groups', prefixedGroupId, 'teams', userId);
+                
+                // Теряем 15-25 энергии
+                const fatigueLoss = 15 + Math.floor(Math.random() * 11);
+                
+                Object.values(lineup).forEach(pId => {
+                  if (pId) {
+                    const heroRef = doc(teamRef, 'heroes', pId);
+                    transaction.update(heroRef, { 
+                      fatigue: increment(-fatigueLoss),
+                      form: increment(-1) // Небольшое падение формы от нагрузки
+                    });
+                  }
+                });
+              }
             });
           }
         }

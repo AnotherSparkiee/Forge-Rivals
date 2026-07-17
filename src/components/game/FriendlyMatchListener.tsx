@@ -1,14 +1,14 @@
 'use client';
 
 /**
- * @fileOverview Слушатель товарищеских и пробных матчей v12.1.
- * Исправлена передача фотографий игроков в ядро симуляции.
+ * @fileOverview Слушатель товарищеских и пробных матчей v12.2 (Physical Integrity).
+ * Исправлена передача фотографий и характеристик. Добавлено списание энергии.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { doc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, collection, query, where, setDoc, getDoc, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, collection, query, where, setDoc, getDoc, getDocs, increment, writeBatch } from 'firebase/firestore';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription 
 } from '@/components/ui/dialog';
@@ -38,7 +38,8 @@ export function FriendlyMatchListener() {
   const pathname = usePathname();
   const { 
     language, strategy, recordMatch, ownedPlayers, lineup, 
-    matchHistory, bootcamp, staff, clubLogo, clubName 
+    matchHistory, bootcamp, staff, clubLogo, clubName,
+    selectedLeagueId, leagueLevel, groupId
   } = useGameState();
   const { toast } = useToast();
 
@@ -137,6 +138,22 @@ export function FriendlyMatchListener() {
               0, opponentName, matchType, new Date().toISOString(), matchUniqueId,
               { homeId: data.hostId, awayId: data.challengerId, homeLogo: data.hostLogo, awayLogo: data.challengerLogo }
             );
+
+            // СПИСАНИЕ ЭНЕРГИИ
+            const batch = writeBatch(db);
+            const info = getGlobalSeasonInfo();
+            const seasonId = `season_${info.activeSeasonNumber}`;
+            const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
+            const teamRef = doc(db, 'leagues_v2', selectedLeagueId!, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid);
+            
+            const fatigueLoss = 8 + Math.floor(Math.random() * 5); // Меньше потерь в тов. матчах
+            Object.values(lineup).forEach(pId => {
+              if (pId) {
+                const heroRef = doc(teamRef, 'heroes', pId);
+                batch.update(heroRef, { fatigue: increment(-fatigueLoss) });
+              }
+            });
+            await batch.commit();
             
             toast({ title: language === 'ru' ? "Матч завершен" : "Match Finished" });
             if (isHost) await deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
@@ -151,7 +168,7 @@ export function FriendlyMatchListener() {
       checkAndComplete();
       return () => clearInterval(timer);
     }
-  }, [activeLobby, challengeResult, user, language, recordMatch, db, toast, matchHistory]);
+  }, [activeLobby, challengeResult, user, language, recordMatch, db, toast, matchHistory, selectedLeagueId, leagueLevel, groupId, lineup]);
 
   const handleHostRespond = async (accept: boolean) => {
     if (!activeLobby) return;
@@ -161,7 +178,7 @@ export function FriendlyMatchListener() {
       if (accept) {
         const squadA = ownedPlayers.filter(p => Object.values(lineup).includes(p.id)).map(p => ({
           name: p.name, role: p.role, overallRating: p.overallRating, proStats: p.proStats,
-          image: p.image,
+          image: p.image, form: p.form, fatigue: p.fatigue,
           isSub: p.id === lineup.sub1 || p.id === lineup.sub2
         }));
 
@@ -218,7 +235,7 @@ export function FriendlyMatchListener() {
               const allHeroes = heroesSnap.docs.map(d => ({ ...d.data(), id: d.id }));
               squadB = allHeroes.filter(h => Object.values(cLineup).includes(h.id)).map((h: any) => ({
                 name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
-                image: h.image,
+                image: h.image, form: h.form, fatigue: h.fatigue,
                 isSub: h.id === cLineup.sub1 || h.id === cLineup.sub2
               }));
             }

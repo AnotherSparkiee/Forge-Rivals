@@ -1,11 +1,11 @@
 'use server';
 /**
- * @fileOverview Ядро симуляции матчей Lines of Enmity v5.6 (Analytical Grounding).
+ * @fileOverview Ядро симуляции матчей Lines of Enmity v5.7 (Physical Integrity).
  * 
  * Особенности:
- * 1. Детерминированный расчет обоснования победы на основе сравнения кумулятивных навыков.
- * 2. Улучшенная логика формирования резюме матча с поддержкой ничьих.
- * 3. Исправлен учет победителя в сериях Bo2.
+ * 1. Учет Формы и Усталости (энергии) как множителей силы игрока.
+ * 2. Детерминированный расчет обоснования победы на основе сравнения кумулятивных навыков.
+ * 3. Поддержка ничьих в Bo2 сериях.
  */
 
 import {ai} from '@/ai/genkit';
@@ -33,6 +33,8 @@ const PlayerStatsSchema = z.object({
   isPro: z.boolean().optional(),
   proStats: ProStatsSchema,
   isSub: z.boolean().optional(),
+  form: z.number().optional().default(100),
+  fatigue: z.number().optional().default(100), // Трактуется как Энергия/Стамина
 });
 
 const TeamSchema = z.object({
@@ -123,17 +125,23 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
   activeHeroes.forEach(hero => {
     totalOvr += (hero.overallRating || 10);
     const weights = ROLE_WEIGHTS[hero.role] || ROLE_WEIGHTS['Midlaner'];
+    
+    // Влияние Формы и Усталости (100 - идеал)
+    const formMult = 0.8 + (Number(hero.form || 100) / 500); // 0.8 - 1.0
+    const fatigueMult = 0.7 + (Number(hero.fatigue || 100) / 333); // 0.7 - 1.0
+    const physicalModifier = formMult * fatigueMult;
+
     let heroContribution = Number(hero.overallRating || 0) * 1.5;
 
     if (hero.proStats) {
-      stats.farm += (hero.proStats.lastHitting || 0) + (hero.proStats.manaManagement || 0);
-      stats.tactics += (hero.proStats.mapAwareness || 0) + (hero.proStats.objectiveControl || 0);
-      stats.teamwork += (hero.proStats.communication || 0) + (hero.proStats.versatility || 0) + (hero.proStats.tiltResistance || 0);
-      stats.reflexes += (hero.proStats.reflexes || 0) + (hero.proStats.ganking || 0) + (hero.proStats.positioning || 0);
+      stats.farm += ((hero.proStats.lastHitting || 0) + (hero.proStats.manaManagement || 0)) * physicalModifier;
+      stats.tactics += ((hero.proStats.mapAwareness || 0) + (hero.proStats.objectiveControl || 0)) * physicalModifier;
+      stats.teamwork += ((hero.proStats.communication || 0) + (hero.proStats.versatility || 0) + (hero.proStats.tiltResistance || 0)) * physicalModifier;
+      stats.reflexes += ((hero.proStats.reflexes || 0) + (hero.proStats.ganking || 0) + (hero.proStats.positioning || 0)) * physicalModifier;
 
       Object.entries(hero.proStats).forEach(([key, val]) => {
         const weight = weights[key as keyof typeof weights] || 1.0;
-        heroContribution += Number(val || 0) * weight;
+        heroContribution += (Number(val || 0) * weight) * physicalModifier;
       });
     }
 
@@ -247,8 +255,11 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
       const s = scoreboardMap.get(actor.name);
       if (s) s.matchRating += 0.5;
     } else if (roll > 0.75 && actor.proStats && target.proStats) {
-      const atkPower = actor.proStats.reflexes + actor.proStats.ganking + (actor.overallRating / 5);
-      const defPower = target.proStats.positioning + target.proStats.mapAwareness + (target.overallRating / 5);
+      const actorFormMult = 0.9 + (Number(actor.form || 100) / 1000);
+      const targetFormMult = 0.9 + (Number(target.form || 100) / 1000);
+
+      const atkPower = (actor.proStats.reflexes + actor.proStats.ganking + (actor.overallRating / 5)) * actorFormMult;
+      const defPower = (target.proStats.positioning + target.proStats.mapAwareness + (target.overallRating / 5)) * targetFormMult;
       const diff = atkPower - defPower;
       const successChance = 0.40 + (diff / 200);
 
@@ -313,10 +324,10 @@ function runSingleGame(input: SimulateMobaMatchInput, forcedWinner?: 'A' | 'B'):
     timeline: timeline.slice(0, 45),
     scoreboard,
     teamComparison: {
-      farm: [potA.stats.farm, potB.stats.farm],
-      tactics: [potA.stats.tactics, potB.stats.tactics],
-      teamwork: [potA.stats.teamwork, potB.stats.teamwork],
-      reflexes: [potA.stats.reflexes, potB.stats.reflexes],
+      farm: [Math.round(potA.stats.farm), Math.round(potB.stats.farm)],
+      tactics: [Math.round(potA.stats.tactics), Math.round(potB.stats.tactics)],
+      teamwork: [Math.round(potA.stats.teamwork), Math.round(potB.stats.teamwork)],
+      reflexes: [Math.round(potA.stats.reflexes), Math.round(potB.stats.reflexes)],
     }
   };
 }
