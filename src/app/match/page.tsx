@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.5 (Cumulative Analytics Support).
- * Поддержка отображения суммарных навыков команд в послематчевом анализе.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.6 (Deep Analytical Review).
+ * Добавлен учет ничьих и обоснование результатов в финальном превью.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -142,7 +142,8 @@ function MatchContent() {
       staffInfluence: "STAFF PERFORMANCE CONTRIBUTION",
       compFarm: "Total Resource Farm", compTactics: "Tactical Execution", compTeam: "Strategic Unity", compRef: "Combat Reflexes",
       tbdTitle: "TECHNICAL WIN SECURED",
-      tbdDesc: "Opponent (TBD) failed to deploy for tactical engagement. Result officially recorded as 2:0."
+      tbdDesc: "Opponent (TBD) failed to deploy for tactical engagement. Result officially recorded as 2:0.",
+      victory: "VICTORY:", draw: "MATCH DRAWN"
     },
     ru: {
       reportTitle: "ОФИЦИАЛЬНЫЙ ОТЧЕТ БОЯ",
@@ -153,7 +154,8 @@ function MatchContent() {
       staffInfluence: "ВКЛАД ПЕРСОНАЛА КЛУБА",
       compFarm: "Суммарный фарм", compTactics: "Тактическая точность", compTeam: "Командная синергия", compRef: "Боевые рефлексы",
       tbdTitle: "ТЕХНИЧЕСКАЯ ПОБЕДА",
-      tbdDesc: "Соперник (TBD) не явился на поле боя. Результат официально зафиксирован как 2:0."
+      tbdDesc: "Соперник (TBD) не явился на поле боя. Результат официально зафиксирован как 2:0.",
+      victory: "ПОБЕДА:", draw: "НИЧЬЯ В СЕРИИ"
     }
   }[language as 'en' | 'ru'] || { reportTitle: "Report" };
 
@@ -297,9 +299,10 @@ function MatchContent() {
   const isMeHome = matchData.homeId === user?.uid;
   const isMeAway = matchData.awayId === user?.uid;
 
-  // ROBUST LOGO SELECTION
   const displayHomeLogo = isMeHome ? myClubLogo : matchData.homeLogo;
   const displayAwayLogo = isMeAway ? myClubLogo : matchData.awayLogo;
+
+  const isDraw = currentSimulation.winner === "Ничья" || currentSimulation.winner === "Draw";
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-32 relative overflow-hidden" onClick={() => handleNext()}>
@@ -396,8 +399,11 @@ function MatchContent() {
                 <span className="opacity-20 text-3xl">:</span>
                 <span className={cn(matchData.scoreB > matchData.scoreA && "text-primary")}>{matchData.scoreB}</span>
               </div>
-              <Badge className={cn("mt-4 text-[10px] font-black px-8 py-1 uppercase tracking-widest border-none", currentSimulation.isTbdWin ? "bg-green-500/20 text-green-400" : "bg-primary/20 text-primary")}>
-                {currentSimulation.isTbdWin ? 'TECHNICAL VICTORY' : 'BATTLE CONCLUDED'}
+              <Badge className={cn(
+                "mt-4 text-[10px] font-black px-8 py-1 uppercase tracking-widest border-none", 
+                currentSimulation.isTbdWin ? "bg-green-500/20 text-green-400" : (isDraw ? "bg-secondary text-muted-foreground" : "bg-primary/20 text-primary")
+              )}>
+                {currentSimulation.isTbdWin ? 'TECHNICAL VICTORY' : (isDraw ? t.draw : `${t.victory} ${currentSimulation.winner}`)}
               </Badge>
             </div>
             
