@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * @fileOverview Слушатель товарищеских и пробных матчей v12.2 (Physical Integrity).
- * Исправлена передача фотографий и характеристик. Добавлено списание энергии.
+ * @fileOverview Слушатель товарищеских и пробных матчей v12.3 (Selective Fatigue).
+ * Исправлено: списание энергии только у основы.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
-import { useGameState } from '@/app/lib/store';
+import { useGameState, LineupSlot } from '@/app/lib/store';
 import { doc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, collection, query, where, setDoc, getDoc, getDocs, increment, writeBatch } from 'firebase/firestore';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription 
@@ -139,15 +139,17 @@ export function FriendlyMatchListener() {
               { homeId: data.hostId, awayId: data.challengerId, homeLogo: data.hostLogo, awayLogo: data.challengerLogo }
             );
 
-            // СПИСАНИЕ ЭНЕРГИИ
+            // СПИСАНИЕ ЭНЕРГИИ - ТОЛЬКО ДЛЯ ОСНОВЫ
             const batch = writeBatch(db);
             const info = getGlobalSeasonInfo();
             const seasonId = `season_${info.activeSeasonNumber}`;
             const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
             const teamRef = doc(db, 'leagues_v2', selectedLeagueId!, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid);
             
-            const fatigueLoss = 8 + Math.floor(Math.random() * 5); // Меньше потерь в тов. матчах
-            Object.values(lineup).forEach(pId => {
+            const fatigueLoss = 8 + Math.floor(Math.random() * 5); 
+            const coreSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
+            coreSlots.forEach(slot => {
+              const pId = lineup[slot];
               if (pId) {
                 const heroRef = doc(teamRef, 'heroes', pId);
                 batch.update(heroRef, { fatigue: increment(-fatigueLoss) });
@@ -158,7 +160,7 @@ export function FriendlyMatchListener() {
             toast({ title: language === 'ru' ? "Матч завершен" : "Match Finished" });
             if (isHost) await deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
           } catch (e) { 
-            console.error("Match resolution failed", e); 
+            console.error("Friendly Match Resolution failed", e); 
           } finally { 
             isSimulatingRef.current = false; 
           }

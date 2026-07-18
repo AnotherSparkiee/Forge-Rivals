@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * @fileOverview Слушатель КВ Корзины v12.3 (Physical Integrity).
- * Исправлена передача фотографий и характеристик игроков. Добавлено списание энергии.
+ * @fileOverview Слушатель КВ Корзины v12.4 (Selective Fatigue).
+ * Исправлено: списание энергии только у основы.
  */
 
 import { useState, useEffect, useRef } from 'react';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { useGameState } from '@/app/lib/store';
+import { useGameState, LineupSlot } from '@/app/lib/store';
 import { doc, deleteDoc, serverTimestamp, getDoc, increment, writeBatch } from 'firebase/firestore';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
@@ -127,7 +127,7 @@ export function CWBasketListener() {
             { homeId: user.uid, awayId: myEntry.matchedWithId, homeLogo: clubLogo, awayLogo: rivalLogo }
           );
 
-          // СПИСАНИЕ УСТАЛОСТИ
+          // СПИСАНИЕ УСТАЛОСТИ - ТОЛЬКО ДЛЯ ОСНОВЫ
           const batch = writeBatch(db);
           const info = getGlobalSeasonInfo();
           const seasonId = `season_${info.activeSeasonNumber}`;
@@ -135,7 +135,9 @@ export function CWBasketListener() {
           const teamRef = doc(db, 'leagues_v2', selectedLeagueId!, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid);
           
           const fatigueLoss = 12 + Math.floor(Math.random() * 8);
-          Object.values(lineup).forEach(pId => {
+          const coreSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
+          coreSlots.forEach(slot => {
+            const pId = lineup[slot];
             if (pId) {
               const heroRef = doc(teamRef, 'heroes', pId);
               batch.update(heroRef, { fatigue: increment(-fatigueLoss) });

@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.7 (Enhanced Identity).
- * Добавлена визуализация логотипов в блоке счета и исправлено отображение фото.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.8 (Fix Tabs Bug).
+ * Исправлен баг закрытия отчета при переключении карт. 'Map' заменен на 'Карта'.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -143,7 +143,8 @@ function MatchContent() {
       compFarm: "Total Resource Farm", compTactics: "Tactical Execution", compTeam: "Strategic Unity", compRef: "Combat Reflexes",
       tbdTitle: "TECHNICAL WIN SECURED",
       tbdDesc: "Opponent (TBD) failed to deploy for tactical engagement. Result officially recorded as 2:0.",
-      victory: "VICTORY:", draw: "MATCH DRAWN"
+      victory: "VICTORY:", draw: "MATCH DRAWN",
+      map: "MAP"
     },
     ru: {
       reportTitle: "ОФИЦИАЛЬНЫЙ ОТЧЕТ БОЯ",
@@ -155,9 +156,10 @@ function MatchContent() {
       compFarm: "Суммарный фарм", compTactics: "Тактическая точность", compTeam: "Командная синергия", compRef: "Боевые рефлексы",
       tbdTitle: "ТЕХНИЧЕСКАЯ ПОБЕДА",
       tbdDesc: "Соперник (TBD) не явился на поле боя. Результат официально зафиксирован как 2:0.",
-      victory: "ПОБЕДА:", draw: "НИЧЬЯ В СЕРИИ"
+      victory: "ПОБЕДА:", draw: "НИЧЬЯ В СЕРИИ",
+      map: "КАРТА"
     }
-  }[language as 'en' | 'ru'] || { reportTitle: "Report" };
+  }[language as 'en' | 'ru'] || { reportTitle: "Report", map: "MAP" };
 
   const renderStatsTable = (game: any) => {
     if (currentSimulation.isTbdWin) {
@@ -416,10 +418,10 @@ function MatchContent() {
             </div>
             
             {!currentSimulation.isTbdWin && (
-              <Tabs defaultValue="map1" className="w-full">
-                <TabsList className="bg-secondary/30 w-full grid grid-cols-2 h-12 p-1.5 rounded-2xl mb-6 shadow-lg">
-                  <TabsTrigger value="map1" className="text-[10px] font-black uppercase rounded-xl">MAP 1</TabsTrigger>
-                  <TabsTrigger value="map2" disabled={currentSimulation.games.length < 2} className="text-[10px] font-black uppercase rounded-xl">MAP 2</TabsTrigger>
+              <Tabs defaultValue="map1" className="w-full" onClick={(e) => e.stopPropagation()}>
+                <TabsList className="bg-secondary/30 w-full grid grid-cols-2 h-12 p-1.5 rounded-2xl mb-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+                  <TabsTrigger value="map1" className="text-[10px] font-black uppercase rounded-xl" onClick={(e) => e.stopPropagation()}>{t.map} 1</TabsTrigger>
+                  <TabsTrigger value="map2" disabled={currentSimulation.games.length < 2} className="text-[10px] font-black uppercase rounded-xl" onClick={(e) => e.stopPropagation()}>{t.map} 2</TabsTrigger>
                 </TabsList>
                 {currentSimulation.games.map((game: any, idx: number) => (
                   <TabsContent key={idx} value={`map${idx+1}`} className="space-y-6 animate-in fade-in slide-in-from-bottom-2" onClick={(e) => e.stopPropagation()}>

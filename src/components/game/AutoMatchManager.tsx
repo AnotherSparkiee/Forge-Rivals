@@ -1,12 +1,12 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v80.1 (Physical Degradation).
- * Добавлено списание усталости после завершения матчей.
+ * @fileOverview Ядро MMO-синхронизации v80.2 (Selective Fatigue).
+ * Исправлено: усталость списывается только у игроков основы.
  */
 
 import { useEffect, useRef } from 'react';
-import { useGameState } from '@/app/lib/store';
+import { useGameState, LineupSlot } from '@/app/lib/store';
 import { useUser, useFirestore } from '@/firebase';
 import { 
   doc, getDoc, writeBatch, serverTimestamp, collection, query, where, getDocs, updateDoc, runTransaction, setDoc, increment 
@@ -219,21 +219,23 @@ export function AutoMatchManager() {
                 homeLogo: mData.homeLogo, awayLogo: mData.awayLogo 
               });
 
-              // СПИСАНИЕ УСТАЛОСТИ (ЭНЕРГИИ)
+              // СПИСАНИЕ УСТАЛОСТИ (ЭНЕРГИИ) - ТОЛЬКО ДЛЯ ОСНОВЫ
               if (isMeHome || isMeAway) {
                 const seasonId = `season_${currentSeason}`;
                 const prefixedGroupId = `${seasonId}_league_${lId}_group_${groupNum}`;
                 const teamRef = doc(db, 'leagues_v2', lId, 'divisions', String(tier), 'groups', prefixedGroupId, 'teams', userId);
                 
-                // Теряем 15-25 энергии
                 const fatigueLoss = 15 + Math.floor(Math.random() * 11);
                 
-                Object.values(lineup).forEach(pId => {
+                // Только Core 5 слоты
+                const coreSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
+                coreSlots.forEach(slot => {
+                  const pId = lineup[slot];
                   if (pId) {
                     const heroRef = doc(teamRef, 'heroes', pId);
                     transaction.update(heroRef, { 
                       fatigue: increment(-fatigueLoss),
-                      form: increment(-1) // Небольшое падение формы от нагрузки
+                      form: increment(-1) 
                     });
                   }
                 });
