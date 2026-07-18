@@ -57,16 +57,9 @@ export default function SquadPage() {
   const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
   const [isTransferring, setIsTransferring] = useState(false);
   const [now, setNow] = useState(Date.now());
-  const [activeDraggedSlot, setActiveDraggedSlot] = useState<LineupSlot | null>(null);
-  const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null);
-
-  const pressTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const startPosRef = useRef<{ x: number, y: number } | null>(null);
-  const isDraggingRef = useRef(false);
-
-  const allAvailablePlayers = useMemo(() => {
-    return [...ownedPlayers, ...youthAcademyPlayers];
-  }, [ownedPlayers, youthAcademyPlayers]);
+  
+  // Новая система замен через клик
+  const [selectedSlotForSwap, setSelectedSlotForSwap] = useState<LineupSlot | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -85,6 +78,10 @@ export default function SquadPage() {
     return 7;
   }, [isPremium, activeLicenseTier]);
 
+  const allAvailablePlayers = useMemo(() => {
+    return [...ownedPlayers, ...youthAcademyPlayers];
+  }, [ownedPlayers, youthAcademyPlayers]);
+
   const t = {
     title: language === 'ru' ? "СОСТАВ ИГРОКОВ" : "PLAYER ROSTER",
     subtitle: language === 'ru' ? "Управление активным ростером" : "Direct roster management",
@@ -99,8 +96,6 @@ export default function SquadPage() {
     cancel: language === 'ru' ? "ОТМЕНА" : "CANCEL",
     tooYoung: language === 'ru' ? "Игрок в Академии! Нужно 18 лет." : "In Academy! Needs age 18.",
     onAuction: language === 'ru' ? "ИГРОК НА АУКЦИОНЕ" : "PLAYER ON AUCTION",
-    unassign: language === 'ru' ? "ОСВОБОДИТЬ СЛОТ" : "UNASSIGN SLOT",
-    noAvailable: language === 'ru' ? "Нет подходящих свободных игроков" : "No suitable free players available",
     roleError: language === 'ru' ? "Несовместимая роль!" : "Incompatible Role!",
     swapSuccess: language === 'ru' ? "Замена произведена" : "Replacement Success",
     metrics: {
@@ -154,6 +149,61 @@ export default function SquadPage() {
     return Math.round(activePlayers.reduce((acc, p) => acc + p.overallRating, 0) / activePlayers.length);
   }, [lineup, allAvailablePlayers]);
 
+  // Упрощенная логика замен через клик
+  const handleSlotClick = (slotKey: LineupSlot) => {
+    const currentPlayerId = lineup[slotKey];
+    
+    // Если ничего не выбрано - выбираем текущий слот
+    if (!selectedSlotForSwap) {
+      if (!currentPlayerId) {
+        setManagedSlot(slotKey);
+      } else {
+        setSelectedSlotForSwap(slotKey);
+      }
+      return;
+    }
+
+    // Если нажат тот же слот - отменяем выбор
+    if (selectedSlotForSwap === slotKey) {
+      setSelectedSlotForSwap(null);
+      return;
+    }
+
+    // Попытка обмена между выбранным и текущим слотом
+    const sourcePlayerId = lineup[selectedSlotForSwap];
+    const targetPlayerId = lineup[slotKey];
+
+    if (!sourcePlayerId) {
+      setSelectedSlotForSwap(null);
+      return;
+    }
+
+    const sourcePlayer = getPlayerById(sourcePlayerId);
+    const targetPlayer = getPlayerById(targetPlayerId);
+
+    // Проверка совместимости ролей
+    if (sourcePlayer && !roleMapping[slotKey].includes(sourcePlayer.role)) {
+      toast({ variant: "destructive", title: t.roleError });
+      setSelectedSlotForSwap(null);
+      return;
+    }
+
+    if (targetPlayer && !roleMapping[selectedSlotForSwap].includes(targetPlayer.role)) {
+      toast({ variant: "destructive", title: t.roleError });
+      setSelectedSlotForSwap(null);
+      return;
+    }
+
+    // Атомарное обновление
+    updateLineup({ 
+      [selectedSlotForSwap]: targetPlayerId || null, 
+      [slotKey]: sourcePlayerId 
+    });
+    
+    toast({ title: t.swapSuccess });
+    setSelectedSlotForSwap(null);
+  };
+
   const handlePlayerAssign = (player: Player) => {
     if (!managedSlot) return;
     if (player.onTransferUntil && new Date(player.onTransferUntil) > new Date()) {
@@ -167,124 +217,20 @@ export default function SquadPage() {
     toast({ title: language === 'ru' ? "Состав обновлен" : "Squad Updated" });
   };
 
-  const handleDragStart = (e: React.DragEvent, slot: LineupSlot) => {
-    const player = getPlayerById(lineup[slot]);
-    if (!player) {
-      e.preventDefault();
-      return;
-    }
-    isDraggingRef.current = true;
-    if (pressTimerRef.current) {
-      clearTimeout(pressTimerRef.current);
-      pressTimerRef.current = null;
-    }
-    setActiveDraggedSlot(slot);
-    e.dataTransfer.setData('sourceSlot', slot);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = async (e: React.DragEvent, targetSlot: LineupSlot) => {
-    e.preventDefault();
-    isDraggingRef.current = false;
-    const sourceSlot = e.dataTransfer.getData('sourceSlot') as LineupSlot || activeDraggedSlot;
-    setActiveDraggedSlot(null);
-    
-    if (!sourceSlot || sourceSlot === targetSlot) return;
-
-    const sourcePlayerId = lineup[sourceSlot];
-    const targetPlayerId = lineup[targetSlot];
-
-    if (!sourcePlayerId) return;
-
-    const sourcePlayer = getPlayerById(sourcePlayerId);
-    const targetPlayer = getPlayerById(targetPlayerId);
-
-    // Взаимная проверка ролей для замены
-    if (sourcePlayer && !roleMapping[targetSlot].includes(sourcePlayer.role)) {
-      toast({ variant: "destructive", title: t.roleError });
-      return;
-    }
-
-    if (targetPlayer && !roleMapping[sourceSlot].includes(targetPlayer.role)) {
-      toast({ variant: "destructive", title: t.roleError });
-      return;
-    }
-
-    // Применяем атомарное обновление через updateLineup
-    updateLineup({ 
-      [sourceSlot]: targetPlayerId || null, 
-      [targetSlot]: sourcePlayerId 
-    });
-    
-    toast({ title: t.swapSuccess });
-  };
-
-  const handlePointerDown = (e: React.PointerEvent, player: Player) => {
-    isDraggingRef.current = false;
-    startPosRef.current = { x: e.clientX, y: e.clientY };
-    if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
-    pressTimerRef.current = setTimeout(() => {
-      if (!isDraggingRef.current) {
-        setProfilePlayer(player);
-      }
-    }, 600);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (startPosRef.current) {
-      const dx = Math.abs(e.clientX - startPosRef.current.x);
-      const dy = Math.abs(e.clientY - startPosRef.current.y);
-      if (dx > 10 || dy > 10) {
-        isDraggingRef.current = true;
-        if (pressTimerRef.current) {
-          clearTimeout(pressTimerRef.current);
-          pressTimerRef.current = null;
-        }
-      }
-    }
-  };
-
-  const handlePointerUp = (player: Player) => {
-    if (pressTimerRef.current) {
-      clearTimeout(pressTimerRef.current);
-      pressTimerRef.current = null;
-    }
-    if (!profilePlayer && !isDraggingRef.current) {
-      setHighlightedPlayerId(prev => prev === player.id ? null : player.id);
-    }
-    startPosRef.current = null;
-  };
-
   const renderSlot = (slotKey: LineupSlot) => {
     const player = getPlayerById(lineup[slotKey]);
     const roleInfo = (t.roles as any)[slotKey];
-    const isHighlighted = player && highlightedPlayerId === player.id;
-    const isBeingDragged = activeDraggedSlot === slotKey;
+    const isSelected = selectedSlotForSwap === slotKey;
 
     return (
       <div key={slotKey} className="group relative">
         <Card 
-          draggable={!!player}
-          onDragStart={(e) => handleDragStart(e, slotKey)}
-          onDragOver={handleDragOver}
-          onDrop={(e) => handleDrop(e, slotKey)}
-          onDragEnd={() => setActiveDraggedSlot(null)}
-          onPointerDown={(e) => player && handlePointerDown(e, player)}
-          onPointerMove={handlePointerMove}
-          onPointerUp={() => player && handlePointerUp(player)}
-          onPointerCancel={() => { if (pressTimerRef.current) clearTimeout(pressTimerRef.current); startPosRef.current = null; }}
-          onContextMenu={(e) => { if (player) e.preventDefault(); }}
-          onClick={() => { if (!player) setManagedSlot(slotKey); }}
+          onDoubleClick={() => { if (player) setProfilePlayer(player); }}
+          onClick={() => handleSlotClick(slotKey)}
           className={cn(
             "glass-card border-white/5 overflow-hidden transition-all cursor-pointer select-none", 
             player ? "bg-primary/5 border-primary/20" : "hover:bg-white/5",
-            isHighlighted && "border-accent ring-1 ring-accent bg-accent/5 shadow-[0_0_15px_rgba(var(--accent),0.2)]",
-            isBeingDragged && "opacity-30 scale-95 border-dashed"
+            isSelected && "border-accent ring-2 ring-accent bg-accent/10 shadow-[0_0_20px_rgba(var(--accent),0.3)] animate-pulse"
           )}
         >
           <CardContent className="p-2 flex items-center justify-between gap-3 relative">
@@ -456,8 +402,8 @@ export default function SquadPage() {
                     <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{language === 'ru' ? 'Талант' : 'Talent'}</span><div className="flex items-center">{renderStars(Math.max(...Object.values(profilePlayer.proTalents || {}).map(v => normTalent(v))))}</div></div>
                     <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Зарплата' : 'Salary'}</span><span className="text-[10px] font-bold text-primary">€{(profilePlayer.salary || 0).toLocaleString()}</span></div>
                     <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span><span className="text-[10px] font-bold uppercase">{profilePlayer.role}</span></div>
-                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{t.metrics.form}</span><span className={cn("text-xs font-mono font-bold", getStatusColor(profilePlayer.form))}>{profilePlayer.form}</span></div>
-                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{t.metrics.fatigue}</span><span className={cn("text-xs font-mono font-bold", getStatusColor(profilePlayer.fatigue))}>{profilePlayer.fatigue}</span></div>
+                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'ФРМ' : 'FRM'}</span><span className={cn("text-xs font-mono font-bold", getStatusColor(profilePlayer.form))}>{profilePlayer.form}</span></div>
+                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'УСТ' : 'UST'}</span><span className={cn("text-xs font-mono font-bold", getStatusColor(profilePlayer.fatigue))}>{profilePlayer.fatigue}</span></div>
                   </div>
                 </section>
                 <section>

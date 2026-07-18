@@ -161,7 +161,7 @@ export function generateVtunePlayer(seed?: string): Player {
     careerEndAge: careerEnd,
     salary: 45000,
     form: 95,
-    fatigue: 0,
+    fatigue: 95,
     country: { code: 'UA', name: 'Украина', flag: '🇺🇦' },
     isInjured: false,
     isPro: true,
@@ -190,12 +190,15 @@ export function generateUniquePlayer(role: Role, index: number, isStarter: boole
   const startAge = getRandomStat(isStarter ? 17 : 18, isStarter ? 28 : 32, rng);
   const playerId = seed ? `p_det_${seed}` : `player_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
 
+  // Новая логика OVR для стартового состава: 28-37
+  const baseOvr = isStarter ? getRandomStat(28, 37, rng) : 15;
+
   return {
     id: playerId,
     name,
     role,
     baseStats: { attack: 30, defense: 30, health: 800, abilityPower: 30, speed: 320 },
-    overallRating: isPro ? 60 : (isStarter ? 35 : 15), 
+    overallRating: isPro ? 60 : baseOvr, 
     abilitiesFocus: 'Balanced',
     image: country.url,
     description: `Уникальный талант из страны: ${country.name}.`,
@@ -205,8 +208,8 @@ export function generateUniquePlayer(role: Role, index: number, isStarter: boole
     age: startAge,
     careerEndAge: isPro ? 35 : 38,
     salary: isPro ? 25000 : 2500,
-    form: 90,
-    fatigue: 0,
+    form: isStarter ? 75 : 90,
+    fatigue: isStarter ? 75 : 100,
     country: { code, name: country.name, flag: country.flag },
     isInjured: false,
     isYouth: isStarter ? false : (startAge < 18),
@@ -270,6 +273,7 @@ export function generateBotSquad(targetOvr: number = 10): any[] {
     const name = PLAYER_NAMES[nameSeed];
     const image = COUNTRY_PHOTOS[countryCode].url;
     
+    // Ослабление ботов (коэффициент 0.25 от OVR)
     const skillBase = Math.max(1, Math.floor(val * 0.25));
 
     return {
