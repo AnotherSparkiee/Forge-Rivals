@@ -24,40 +24,51 @@ export default function SynergyPage() {
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
-  const officialMatches = useMemo(() => {
-    if (!profile) return [];
+  const matchStats = useMemo(() => {
+    if (!profile) return { official: 0, unofficial: 0, total: 0 };
     
     const regDate = profile.createdAt ? new Date(profile.createdAt).getTime() : 0;
 
-    return matchHistory.filter(m => {
-      const isOfficial = m.type === 'league' || m.type === 'tournament';
-      const playedDate = m.playedAt ? new Date(m.playedAt).getTime() : 0;
-      const isPostRegistration = playedDate >= regDate;
-      const isRealMatch = m.opponentName !== 'SEEDED' && m.opponentName !== 'WAITING';
+    let official = 0;
+    let unofficial = 0;
 
-      return isOfficial && isPostRegistration && isRealMatch;
+    matchHistory.forEach(m => {
+      const playedDate = m.playedAt ? new Date(m.playedAt).getTime() : 0;
+      if (playedDate < regDate) return;
+      
+      const isRealMatch = m.opponentName !== 'SEEDED' && m.opponentName !== 'WAITING';
+      if (!isRealMatch) return;
+
+      if (m.type === 'league' || m.type === 'tournament') {
+        official++;
+      } else if (m.type === 'friendly' || m.type === 'basket' || m.type === 'trial') {
+        unofficial++;
+      }
     });
+
+    return { official, unofficial, total: official + unofficial };
   }, [matchHistory, profile]);
 
-  const matchCount = officialMatches.length;
-  const synergyScore = Math.min(100, Math.floor((matchCount / 50) * 100));
+  // Formula: Official = 2% per match (50 matches = 100%)
+  // Unofficial = 0.01% per match (100 matches = 1%)
+  const synergyScore = Math.min(100, Math.floor(matchStats.official * 2 + matchStats.unofficial * 0.01));
 
   const t = {
     title: language === 'ru' ? "СЫГРАННОСТЬ" : "TEAM SYNERGY",
     subtitle: language === 'ru' ? "Протокол командного взаимодействия" : "Tactical cohesion protocol",
     mainCard: language === 'ru' ? "УРОВЕНЬ СВЯЗИ ОСНОВЫ" : "CORE COHESION LEVEL",
-    officialOnly: language === 'ru' ? "Учитываются только реальные игры после регистрации" : "Only real games post-registration considered",
-    league: language === 'ru' ? "Матчи Лиги" : "League Matches",
-    cup: language === 'ru' ? "Матчи Кубка" : "Cup Matches",
-    total: language === 'ru' ? "Всего оф. игр" : "Total Official Games",
+    officialOnly: language === 'ru' ? "Учитываются все игры Core 5 после регистрации" : "All Core 5 games post-registration considered",
+    league: language === 'ru' ? "Оф. Матчи" : "Official",
+    cup: language === 'ru' ? "Тренировки" : "Practice",
+    total: language === 'ru' ? "Всего игр" : "Total",
     desc: language === 'ru' 
-      ? "Сыгранность рассчитывается на основе совместных выступлений основной пятерки с момента создания клуба. Технические победы и товарищеские матчи не учитываются."
-      : "Synergy is calculated based on core five appearances since club formation. Technical wins and friendlies do not influence this metric.",
+      ? "Сыгранность рассчитывается на основе совместных выступлений основной пятерки. Официальные игры (Лига/Кубок) дают 2%, тренировочные (КВ/Тов/Пробные) дают 1% за каждые 100 матчей."
+      : "Synergy is calculated based on core five appearances. Official games (League/Cup) grant 2% each, while practice (CW/Friendly/Trial) grant 1% per 100 matches.",
     levels: [
       { min: 0, games: 0, label: language === 'ru' ? "Начальный" : "Initial", color: "text-muted-foreground" },
       { min: 10, games: 5, label: language === 'ru' ? "Низкий" : "Low", color: "text-red-400" },
-      { min: 20, games: 10, label: language === 'ru' ? "Средний" : "Medium", color: "text-yellow-400" },
-      { min: 50, games: 25, label: language === 'ru' ? "Высокий" : "High", color: "text-primary" },
+      { min: 25, games: 15, label: language === 'ru' ? "Средний" : "Medium", color: "text-yellow-400" },
+      { min: 60, games: 35, label: language === 'ru' ? "Высокий" : "High", color: "text-primary" },
       { min: 100, games: 50, label: language === 'ru' ? "Элитный" : "Elite", color: "text-accent" },
     ]
   };
@@ -88,7 +99,10 @@ export default function SynergyPage() {
           <CardContent className="p-8 text-center flex flex-col items-center">
             <div className="relative mb-6">
               <div className="w-32 h-32 rounded-full border-4 border-white/5 flex items-center justify-center relative">
-                <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin [animation-duration:4s]" />
+                <div 
+                  className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin [animation-duration:4s]" 
+                  style={{ opacity: synergyScore > 0 ? 1 : 0.2 }}
+                />
                 <span className="text-5xl font-headline font-bold italic text-primary">{synergyScore}%</span>
               </div>
               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-background px-4 py-1 rounded-full border border-white/10 shadow-xl">
@@ -106,15 +120,15 @@ export default function SynergyPage() {
               <div className="bg-secondary/30 p-4 rounded-xl border border-white/5 grid grid-cols-3 gap-2">
                 <div className="text-center">
                   <p className="text-[7px] font-black text-muted-foreground uppercase mb-1">{t.league}</p>
-                  <p className="text-lg font-headline font-bold text-primary">{officialMatches.filter(m => m.type === 'league').length}</p>
+                  <p className="text-lg font-headline font-bold text-primary">{matchStats.official}</p>
                 </div>
                 <div className="text-center border-x border-white/5">
                   <p className="text-[7px] font-black text-muted-foreground uppercase mb-1">{t.cup}</p>
-                  <p className="text-lg font-headline font-bold text-accent">{officialMatches.filter(m => m.type === 'tournament').length}</p>
+                  <p className="text-lg font-headline font-bold text-accent">{matchStats.unofficial}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-[7px] font-black text-muted-foreground uppercase mb-1">{t.total}</p>
-                  <p className="text-lg font-headline font-bold text-white">{matchCount}</p>
+                  <p className="text-lg font-headline font-bold text-white">{matchStats.total}</p>
                 </div>
               </div>
             </div>
@@ -150,25 +164,25 @@ export default function SynergyPage() {
 
         <section className="space-y-2">
           <div className="flex items-center justify-between px-1">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Synergy Thresholds</h3>
-            <span className="text-[8px] font-mono text-primary">UNIT_LIMIT: 50 GAMES</span>
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cohesion Ranks</h3>
+            <span className="text-[8px] font-mono text-primary">CORE_ACTIVE: 5 UNITS</span>
           </div>
           
           <div className="grid grid-cols-1 gap-2">
-            {t.levels.filter(l => l.games > 0).map((lvl) => (
+            {t.levels.filter(l => l.min > 0).map((lvl) => (
               <div key={lvl.label} className={cn(
                 "p-3 rounded-xl border flex items-center justify-between transition-all",
-                matchCount >= lvl.games ? "bg-white/5 border-white/10" : "bg-transparent border-dashed border-white/5 opacity-30"
+                synergyScore >= lvl.min ? "bg-white/5 border-white/10" : "bg-transparent border-dashed border-white/5 opacity-30"
               )}>
                 <div className="flex items-center gap-3">
-                  <div className={cn("w-2 h-2 rounded-full", matchCount >= lvl.games ? "bg-primary shadow-[0_0_8px_rgba(var(--primary),0.5)]" : "bg-muted")} />
+                  <div className={cn("w-2 h-2 rounded-full", synergyScore >= lvl.min ? "bg-primary shadow-[0_0_8px_rgba(var(--primary),0.5)]" : "bg-muted")} />
                   <div className="flex flex-col">
                     <span className="text-[10px] font-bold uppercase">{lvl.label} Protocol</span>
-                    <span className="text-[7px] text-muted-foreground uppercase">Stability Level {lvl.games === 50 ? 'MAX' : 'INCREMENT'}</span>
+                    <span className="text-[7px] text-muted-foreground uppercase">Threshold: {lvl.min}%</span>
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="text-[9px] font-mono font-bold text-white">{lvl.games} GAMES</span>
+                  <span className="text-[9px] font-mono font-bold text-white">{lvl.min}%</span>
                 </div>
               </div>
             ))}
