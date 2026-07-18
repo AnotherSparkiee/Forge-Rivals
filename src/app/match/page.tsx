@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.9 (UI Fixes).
- * Исправлен баг переключения карт и добавлены названия команд в итоговый счет.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v6.0 (UI & Navigation Fix).
+ * Исправлен механизм вкладок "КАРТА" и улучшено отображение команд в счете.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -120,8 +120,10 @@ function MatchContent() {
     if (e) {
       // Блокируем переход если клик по вкладкам или кнопкам управления внутри контента
       const target = e.target as HTMLElement;
-      if (target.closest('[data-stop-propagation]')) return;
-      e.stopPropagation();
+      if (target.closest('[data-stop-propagation]')) {
+        e.stopPropagation();
+        return;
+      }
     }
     
     if (step === 'preview') {
@@ -165,7 +167,7 @@ function MatchContent() {
       victory: "ПОБЕДА:", draw: "НИЧЬЯ В СЕРИИ",
       map: "КАРТА"
     }
-  }[language as 'en' | 'ru'] || { reportTitle: "Report", map: "MAP" };
+  }[language as 'en' | 'ru'] || { reportTitle: "Report", map: "КАРТА" };
 
   const renderStatsTable = (game: any) => {
     if (currentSimulation.isTbdWin) {
@@ -402,17 +404,17 @@ function MatchContent() {
         {step === 'stats' && (
           <div className="space-y-6 animate-in slide-in-from-right-4 pb-20">
             <div className="text-center py-6">
-              <div className="flex items-center justify-center gap-4 mb-4">
+              <div className="flex items-center justify-center gap-2 mb-4 px-2">
                 {/* Home Team */}
                 <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
                   <div className="w-14 h-14 rounded-2xl bg-secondary/50 border border-white/5 flex items-center justify-center overflow-hidden p-2 shrink-0 shadow-lg">
                     {displayHomeLogo ? <img src={displayHomeLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-6 h-6 text-muted-foreground/30" />}
                   </div>
-                  <p className="text-[10px] font-black uppercase truncate w-full text-center text-white/70">{matchData.homeName}</p>
+                  <p className="text-[9px] font-black uppercase truncate w-full text-center text-white/90 leading-tight">{matchData.homeName}</p>
                 </div>
 
                 {/* Score */}
-                <div className="text-4xl font-headline font-black italic tracking-tighter flex items-center justify-center gap-3 text-white px-2">
+                <div className="text-4xl font-headline font-black italic tracking-tighter flex items-center justify-center gap-2 text-white shrink-0 px-1">
                   <span className={cn(matchData.scoreA > matchData.scoreB && "text-primary")}>{matchData.scoreA}</span>
                   <span className="opacity-20 text-2xl">:</span>
                   <span className={cn(matchData.scoreB > matchData.scoreA && "text-primary")}>{matchData.scoreB}</span>
@@ -423,7 +425,7 @@ function MatchContent() {
                   <div className="w-14 h-14 rounded-2xl bg-secondary/50 border border-white/5 flex items-center justify-center overflow-hidden p-2 shrink-0 shadow-lg">
                     {displayAwayLogo ? <img src={displayAwayLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-6 h-6 text-muted-foreground/30" />}
                   </div>
-                  <p className="text-[10px] font-black uppercase truncate w-full text-center text-white/70">{matchData.awayName}</p>
+                  <p className="text-[9px] font-black uppercase truncate w-full text-center text-white/90 leading-tight">{matchData.awayName}</p>
                 </div>
               </div>
               
@@ -438,9 +440,13 @@ function MatchContent() {
             {!currentSimulation.isTbdWin && (
               <div data-stop-propagation="true" onClick={(e) => e.stopPropagation()}>
                 <Tabs defaultValue="map1" className="w-full">
-                  <TabsList className="bg-secondary/30 w-full grid grid-cols-2 h-12 p-1.5 rounded-2xl mb-6 shadow-lg">
-                    <TabsTrigger value="map1" className="text-[10px] font-black uppercase rounded-xl">{t.map} 1</TabsTrigger>
-                    <TabsTrigger value="map2" disabled={currentSimulation.games.length < 2} className="text-[10px] font-black uppercase rounded-xl">{t.map} 2</TabsTrigger>
+                  <TabsList className="bg-secondary/30 w-full grid grid-cols-2 h-12 p-1.5 rounded-2xl mb-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+                    <TabsTrigger value="map1" className="text-[10px] font-black uppercase rounded-xl" onClick={(e) => e.stopPropagation()}>
+                      {t.map} 1
+                    </TabsTrigger>
+                    <TabsTrigger value="map2" disabled={currentSimulation.games.length < 2} className="text-[10px] font-black uppercase rounded-xl" onClick={(e) => e.stopPropagation()}>
+                      {t.map} 2
+                    </TabsTrigger>
                   </TabsList>
                   {currentSimulation.games.map((game: any, idx: number) => (
                     <TabsContent key={idx} value={`map${idx+1}`} className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
