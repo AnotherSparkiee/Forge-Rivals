@@ -1,13 +1,13 @@
 'use client';
 
-import { useGameState } from '../../lib/store';
+import { useGameState, LineupSlot } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { 
   Link as LinkIcon, ChevronLeft, ShieldCheck, 
   Info, History, Swords, Trophy, Target, AlertTriangle,
-  Zap, Star, Award, ShieldAlert
+  Zap, Star, Award, ShieldAlert, User, ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -15,15 +15,17 @@ import { useMemo } from 'react';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { Badge } from '@/components/ui/badge';
 
 export default function SynergyPage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
-  const { matchHistory, language, isLoaded } = useGameState();
+  const { matchHistory, language, isLoaded, lineup, ownedPlayers } = useGameState();
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
+  // Расчет общей статистики матчей для сыгранности
   const matchStats = useMemo(() => {
     if (!profile) return { official: 0, unofficial: 0, total: 0 };
     
@@ -49,9 +51,38 @@ export default function SynergyPage() {
     return { official, unofficial, total: official + unofficial };
   }, [matchHistory, profile]);
 
-  // Formula: Official = 2% per match (50 matches = 100%)
-  // Unofficial = 0.01% per match (100 matches = 1%)
-  const synergyScore = Math.min(100, Math.floor(matchStats.official * 2 + matchStats.unofficial * 0.01));
+  // Список игроков основы с их статистикой
+  const corePlayers = useMemo(() => {
+    if (!profile) return [];
+    const regDate = profile.createdAt ? new Date(profile.createdAt).getTime() : 0;
+    const slots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
+
+    return slots.map(slot => {
+      const pId = lineup[slot];
+      const player = ownedPlayers.find(p => p.id === pId);
+      if (!player) return null;
+
+      let pMatches = 0;
+      matchHistory.forEach(match => {
+        const playedDate = match.playedAt ? new Date(match.playedAt).getTime() : 0;
+        if (playedDate < regDate) return;
+        
+        // Проверяем, участвовал ли этот конкретный игрок в матче
+        const performance = match.simulation?.games?.[0]?.scoreboard?.find((p: any) => p.name === player.name);
+        if (performance) pMatches++;
+      });
+
+      return { ...player, clubMatches: pMatches, slotLabel: slot };
+    }).filter(Boolean);
+  }, [lineup, ownedPlayers, matchHistory, profile]);
+
+  // Точный расчет сыгранности: 2% за оф. матч, 0.01% за тренировку
+  const synergyValue = useMemo(() => {
+    const raw = (matchStats.official * 2) + (matchStats.unofficial * 0.01);
+    return Math.min(100, raw);
+  }, [matchStats]);
+
+  const synergyDisplay = synergyValue.toFixed(2).replace('.', ',');
 
   const t = {
     title: language === 'ru' ? "СЫГРАННОСТЬ" : "TEAM SYNERGY",
@@ -61,24 +92,29 @@ export default function SynergyPage() {
     league: language === 'ru' ? "Оф. Матчи" : "Official",
     cup: language === 'ru' ? "Тренировки" : "Practice",
     total: language === 'ru' ? "Всего игр" : "Total",
+    coreUnits: language === 'ru' ? "АКТИВНЫЕ ЕДИНИЦЫ ЯДРА" : "ACTIVE CORE UNITS",
+    gamesCount: language === 'ru' ? "игр" : "games",
     desc: language === 'ru' 
       ? "Сыгранность рассчитывается на основе совместных выступлений основной пятерки. Официальные игры (Лига/Кубок) дают 2%, тренировочные (КВ/Тов/Пробные) дают 1% за каждые 100 матчей."
       : "Synergy is calculated based on core five appearances. Official games (League/Cup) grant 2% each, while practice (CW/Friendly/Trial) grant 1% per 100 matches.",
     levels: [
-      { min: 0, games: 0, label: language === 'ru' ? "Начальный" : "Initial", color: "text-muted-foreground" },
-      { min: 10, games: 5, label: language === 'ru' ? "Низкий" : "Low", color: "text-red-400" },
-      { min: 25, games: 15, label: language === 'ru' ? "Средний" : "Medium", color: "text-yellow-400" },
-      { min: 60, games: 35, label: language === 'ru' ? "Высокий" : "High", color: "text-primary" },
-      { min: 100, games: 50, label: language === 'ru' ? "Элитный" : "Elite", color: "text-accent" },
-    ]
+      { min: 0, label: language === 'ru' ? "Начальный" : "Initial", color: "text-muted-foreground" },
+      { min: 10, label: language === 'ru' ? "Низкий" : "Low", color: "text-red-400" },
+      { min: 25, label: language === 'ru' ? "Средний" : "Medium", color: "text-yellow-400" },
+      { min: 60, label: language === 'ru' ? "Высокий" : "High", color: "text-primary" },
+      { min: 100, label: language === 'ru' ? "Элитный" : "Elite", color: "text-accent" },
+    ],
+    rolesRu: {
+      carry: "Керри", mid: "Мидер", offlane: "Танк", support: "Лес", full_support: "Саппорт"
+    }
   };
 
-  const currentLevel = [...t.levels].reverse().find(l => synergyScore >= l.min) || t.levels[0];
+  const currentLevel = [...t.levels].reverse().find(l => synergyValue >= l.min) || t.levels[0];
 
   if (!isLoaded || isUserLoading) return <LoadingScreen />;
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-6">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center gap-4">
         <Link href="/roster">
           <Button variant="ghost" size="icon" className="rounded-full">
@@ -98,16 +134,19 @@ export default function SynergyPage() {
         <Card className="glass-card border-primary/20 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden">
           <CardContent className="p-8 text-center flex flex-col items-center">
             <div className="relative mb-6">
-              <div className="w-32 h-32 rounded-full border-4 border-white/5 flex items-center justify-center relative">
+              <div className="w-36 h-36 rounded-full border-4 border-white/5 flex items-center justify-center relative">
                 <div 
                   className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin [animation-duration:4s]" 
-                  style={{ opacity: synergyScore > 0 ? 1 : 0.2 }}
+                  style={{ opacity: synergyValue > 0 ? 1 : 0.2 }}
                 />
-                <span className="text-5xl font-headline font-bold italic text-primary">{synergyScore}%</span>
+                <div className="flex flex-col items-center">
+                  <span className="text-4xl font-headline font-black italic text-primary">{synergyDisplay}%</span>
+                  <p className="text-[8px] font-black text-primary/60 uppercase tracking-tighter mt-1">PRECISION_SYNC</p>
+                </div>
               </div>
               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-background px-4 py-1 rounded-full border border-white/10 shadow-xl">
                 <p className={cn("text-[10px] font-black uppercase tracking-widest whitespace-nowrap", currentLevel.color)}>
-                  {currentLevel.label}
+                  {currentLevel.label} Protocol
                 </p>
               </div>
             </div>
@@ -135,59 +174,53 @@ export default function SynergyPage() {
           </CardContent>
         </Card>
 
+        {/* СПИСОК ИГРОКОВ ОСНОВЫ */}
         <section className="space-y-3">
-          <div className="flex items-center gap-2 px-1">
-            <ShieldCheck className="w-4 h-4 text-accent" />
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-accent">Protocol Intelligence</h3>
-          </div>
-          
-          <Card className="glass-card bg-secondary/20 border-white/5">
-            <CardContent className="p-4 space-y-4">
-              <div className="flex gap-4">
-                <div className="p-2 rounded-lg bg-accent/10 flex-shrink-0 h-fit">
-                  <Info className="w-4 h-4 text-accent" />
-                </div>
-                <p className="text-xs leading-relaxed text-muted-foreground italic">
-                  "{t.desc}"
-                </p>
-              </div>
-
-              <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 flex items-center gap-3">
-                <Zap className="w-4 h-4 text-primary shrink-0" />
-                <p className="text-[9px] font-bold text-primary uppercase tracking-tight">
-                  {t.officialOnly}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-
-        <section className="space-y-2">
           <div className="flex items-center justify-between px-1">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cohesion Ranks</h3>
-            <span className="text-[8px] font-mono text-primary">CORE_ACTIVE: 5 UNITS</span>
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-accent flex items-center gap-2">
+              <ShieldCheck className="w-3.5 h-3.5" /> {t.coreUnits}
+            </h3>
+            <Badge variant="outline" className="text-[7px] border-white/10 opacity-50 uppercase">Syncing stats...</Badge>
           </div>
-          
-          <div className="grid grid-cols-1 gap-2">
-            {t.levels.filter(l => l.min > 0).map((lvl) => (
-              <div key={lvl.label} className={cn(
-                "p-3 rounded-xl border flex items-center justify-between transition-all",
-                synergyScore >= lvl.min ? "bg-white/5 border-white/10" : "bg-transparent border-dashed border-white/5 opacity-30"
-              )}>
-                <div className="flex items-center gap-3">
-                  <div className={cn("w-2 h-2 rounded-full", synergyScore >= lvl.min ? "bg-primary shadow-[0_0_8px_rgba(var(--primary),0.5)]" : "bg-muted")} />
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-bold uppercase">{lvl.label} Protocol</span>
-                    <span className="text-[7px] text-muted-foreground uppercase">Threshold: {lvl.min}%</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-[9px] font-mono font-bold text-white">{lvl.min}%</span>
-                </div>
+
+          <div className="space-y-2">
+            {corePlayers.length > 0 ? corePlayers.map((player: any) => (
+              <Card key={player.id} className="glass-card border-white/5 bg-secondary/10 overflow-hidden">
+                <CardContent className="p-3 flex items-center justify-between">
+                   <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10 bg-background shrink-0">
+                         <img src={player.image} alt="" className="w-full h-full object-cover" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold uppercase text-white truncate max-w-[120px]">{player.name}</h4>
+                        <p className="text-[8px] text-muted-foreground font-black uppercase tracking-widest">
+                          {(t.rolesRu as any)[player.slotLabel] || player.role}
+                        </p>
+                      </div>
+                   </div>
+                   <div className="text-right">
+                      <p className="text-[10px] font-headline font-bold text-primary italic leading-none">{player.clubMatches}</p>
+                      <p className="text-[7px] font-black text-muted-foreground uppercase mt-0.5 tracking-tighter">{t.gamesCount}</p>
+                   </div>
+                </CardContent>
+              </Card>
+            )) : (
+              <div className="py-10 text-center opacity-30 border border-dashed border-white/5 rounded-2xl flex flex-col items-center gap-4">
+                 <ShieldAlert className="w-8 h-8" />
+                 <p className="text-[9px] font-bold uppercase tracking-widest">No units assigned to core slots</p>
               </div>
-            ))}
+            )}
           </div>
         </section>
+
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="p-4 flex gap-4">
+            <Info className="w-5 h-5 text-primary shrink-0" />
+            <p className="text-[10px] text-muted-foreground leading-relaxed italic">
+              "{t.desc}"
+            </p>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
