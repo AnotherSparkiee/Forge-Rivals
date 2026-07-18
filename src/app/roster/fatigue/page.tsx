@@ -14,25 +14,37 @@ import Link from 'next/link';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { useMemo } from 'react';
 
 export default function RecoverFatiguePage() {
-  const { ownedPlayers, language, isLoaded, credits, crystals, recoverAllFatigue } = useGameState();
+  const { ownedPlayers, lineup, language, isLoaded, credits, crystals, recoverAllFatigue } = useGameState();
   const { toast } = useToast();
+
+  // Фильтруем игроков: только те, кто назначен в любой слот состава (основа, запас или резерв)
+  const squadPlayers = useMemo(() => {
+    const assignedIds = new Set(Object.values(lineup || {}).filter(id => !!id));
+    return ownedPlayers.filter(p => assignedIds.has(p.id));
+  }, [ownedPlayers, lineup]);
+
+  const avgFatigue = useMemo(() => {
+    if (squadPlayers.length === 0) return 0;
+    return Math.round(squadPlayers.reduce((acc, h) => acc + h.fatigue, 0) / squadPlayers.length);
+  }, [squadPlayers]);
 
   if (!isLoaded) return <LoadingScreen />;
 
   const t = {
     title: language === 'ru' ? "ВОССТАНОВЛЕНИЕ" : "RECOVER FATIGUE",
-    subtitle: language === 'ru' ? "Снятие усталости всего состава" : "Squad-wide stamina restoration",
+    subtitle: language === 'ru' ? "Снятие усталости активного состава" : "Active squad stamina restoration",
     massRecover: language === 'ru' ? "МАССОВОЕ ВОССТАНОВЛЕНИЕ" : "MASS RECOVERY",
-    totalHeroes: language === 'ru' ? "Игроков в составе" : "Total Players",
+    totalHeroes: language === 'ru' ? "Игроков в составе" : "Squad Size",
     avgFatigue: language === 'ru' ? "Средняя усталость" : "Avg Fatigue",
     insufficient: language === 'ru' ? "Недостаточно средств" : "Insufficient funds",
     success: language === 'ru' ? "Состав полностью восстановлен!" : "Squad fully recovered!",
     options: {
       euro: {
         label: language === 'ru' ? "Энергетический буст" : "Energy Boost",
-        desc: language === 'ru' ? "Сброс усталости всех игроков до 0%" : "Reset all players' fatigue to 0%",
+        desc: language === 'ru' ? "Сброс усталости всех игроков до 0%" : "Reset squad fatigue to 0%",
         cost: "75,000 €"
       },
       gems: {
@@ -42,8 +54,8 @@ export default function RecoverFatiguePage() {
       }
     },
     desc: language === 'ru' 
-      ? "Высокая усталость снижает боевую эффективность в матчах. Используйте массовое восстановление, чтобы быстро вернуть команду в оптимальную форму."
-      : "High fatigue reduces combat efficiency in matches. Use mass recovery to quickly return your team to peak performance."
+      ? "Усталость снижает боевую эффективность в матчах. Только игроки, назначенные в состав, подвержены износу."
+      : "Fatigue reduces combat efficiency. Only players assigned to the squad are subject to physical wear."
   };
 
   const handleRecover = (type: 'credits' | 'crystals') => {
@@ -59,8 +71,6 @@ export default function RecoverFatiguePage() {
       });
     }
   };
-
-  const avgFatigue = Math.round(ownedPlayers.reduce((acc, h) => acc + h.fatigue, 0) / Math.max(1, ownedPlayers.length));
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
@@ -85,7 +95,7 @@ export default function RecoverFatiguePage() {
           <Card className="glass-card bg-primary/5 border-primary/20">
             <CardContent className="p-4 text-center">
               <p className="text-[8px] text-muted-foreground uppercase font-black tracking-widest mb-1">{t.totalHeroes}</p>
-              <p className="text-2xl font-headline font-bold text-primary">{ownedPlayers.length}</p>
+              <p className="text-2xl font-headline font-bold text-primary">{squadPlayers.length}</p>
             </CardContent>
           </Card>
           <Card className="glass-card bg-accent/5 border-accent/20">
@@ -151,8 +161,8 @@ export default function RecoverFatiguePage() {
 
         {/* CURRENT SQUAD LIST MINI */}
         <div className="space-y-2">
-          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Current Status</h2>
-          {ownedPlayers.map(player => (
+          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Status Report</h2>
+          {squadPlayers.length > 0 ? squadPlayers.map(player => (
             <div key={player.id} className="flex items-center gap-3 bg-secondary/20 p-2 rounded-lg border border-white/5">
               <div className="w-8 h-8 rounded overflow-hidden bg-secondary/50 shrink-0">
                 <img src={player.image} alt={player.name} className="w-full h-full object-cover" />
@@ -167,7 +177,11 @@ export default function RecoverFatiguePage() {
                 </div>
               </div>
             </div>
-          ))}
+          )) : (
+            <div className="py-10 text-center opacity-30 border border-dashed border-white/10 rounded-xl">
+               <p className="text-[8px] font-black uppercase tracking-widest">No players assigned to squad</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
