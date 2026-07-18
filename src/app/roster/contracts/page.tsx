@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -19,7 +18,7 @@ import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Player } from '../../lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { getMoscowDateString, getMoscowTime, calculateLiveAge } from '@/app/lib/time-utils';
 import { renderStars, STAT_KEYS } from '@/app/transfers/quick-search/page';
 
@@ -51,7 +50,7 @@ export default function ContractsPage() {
   const t = {
     title: language === 'ru' ? "КОНТРАКТЫ" : "CONTRACTS",
     subtitle: language === 'ru' ? "Администрирование состава" : "Squad administration",
-    recoverEuro: language === 'ru' ? "СНЯТЬ УСТАЛОСТЬ (ЕВРО)" : "REMOVE FATIGUE (EURO)",
+    recoverEuro: language === 'ru' ? "ВОССТАНОВИТЬ ЭНЕРГИЮ (+25%)" : "RESTORE ENERGY (+25%)",
     boostForm: language === 'ru' ? "ПОДНЯТЬ ФОРМУ" : "BOOST FORM",
     insufficient: language === 'ru' ? "Недостаточно средств" : "Insufficient funds",
     years: language === 'ru' ? "лет" : "yrs",
@@ -89,8 +88,9 @@ export default function ContractsPage() {
     switch (action) {
       case 'recoverEuro':
         if (credits >= 5000) {
-          updatePlayer(profilePlayer.id, { fatigue: Math.max(0, profilePlayer.fatigue - 25) }, 5000, 0);
-          setProfilePlayer(prev => prev ? { ...prev, fatigue: Math.max(0, prev.fatigue - 25) } : null);
+          const newEnergy = Math.min(100, profilePlayer.fatigue + 25);
+          updatePlayer(profilePlayer.id, { fatigue: newEnergy }, 5000, 0);
+          setProfilePlayer(prev => prev ? { ...prev, fatigue: newEnergy } : null);
         } else toast({ title: t.insufficient, variant: "destructive" });
         break;
       case 'boostForm':
@@ -220,7 +220,7 @@ export default function ContractsPage() {
               <section className="space-y-3">
                 <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1"><Scroll className="w-3.5 h-3.5" /> {language === 'ru' ? 'КОНТРАКТНЫЕ ДЕЙСТВИЯ' : 'CONTRACT ACTIONS'}</h3>
                 <div className="grid grid-cols-1 gap-2">
-                  <Button variant="outline" className="justify-start h-12 border-white/5 bg-secondary/20" onClick={() => handleAction('recoverEuro')}><Coins className="w-4 h-4 mr-3 text-yellow-500" /><div className="text-left"><p className="text-[9px] font-bold uppercase">{t.recoverEuro}</p><p className="text-[8px] text-muted-foreground">-25% Fatigue | 5,000 €</p></div></Button>
+                  <Button variant="outline" className="justify-start h-12 border-white/5 bg-secondary/20" onClick={() => handleAction('recoverEuro')}><Coins className="w-4 h-4 mr-3 text-yellow-500" /><div className="text-left"><p className="text-[9px] font-bold uppercase">{t.recoverEuro}</p><p className="text-[8px] text-muted-foreground">+25% Energy | 5,000 €</p></div></Button>
                   <Button variant="outline" className="justify-start h-12 border-white/5 bg-secondary/20" onClick={() => handleAction('boostForm')}><ActivityIcon className="w-4 h-4 mr-3 text-primary" /><div className="text-left"><p className="text-[9px] font-bold uppercase">{t.boostForm}</p><p className="text-[8px] text-muted-foreground">+15% Form | 10,000 €</p></div></Button>
                 </div>
               </section>

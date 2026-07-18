@@ -26,7 +26,7 @@ export default function RecoverFatiguePage() {
     return ownedPlayers.filter(p => assignedIds.has(p.id));
   }, [ownedPlayers, lineup]);
 
-  const avgFatigue = useMemo(() => {
+  const avgEnergy = useMemo(() => {
     if (squadPlayers.length === 0) return 0;
     return Math.round(squadPlayers.reduce((acc, h) => acc + h.fatigue, 0) / squadPlayers.length);
   }, [squadPlayers]);
@@ -34,28 +34,28 @@ export default function RecoverFatiguePage() {
   if (!isLoaded) return <LoadingScreen />;
 
   const t = {
-    title: language === 'ru' ? "ВОССТАНОВЛЕНИЕ" : "RECOVER FATIGUE",
-    subtitle: language === 'ru' ? "Снятие усталости активного состава" : "Active squad stamina restoration",
+    title: language === 'ru' ? "ВОССТАНОВЛЕНИЕ" : "RECOVER ENERGY",
+    subtitle: language === 'ru' ? "Наполнение энергии активного состава" : "Active squad stamina restoration",
     massRecover: language === 'ru' ? "МАССОВОЕ ВОССТАНОВЛЕНИЕ" : "MASS RECOVERY",
     totalHeroes: language === 'ru' ? "Игроков в составе" : "Squad Size",
-    avgFatigue: language === 'ru' ? "Средняя усталость" : "Avg Fatigue",
+    avgEnergy: language === 'ru' ? "Средняя энергия" : "Avg Energy",
     insufficient: language === 'ru' ? "Недостаточно средств" : "Insufficient funds",
     success: language === 'ru' ? "Состав полностью восстановлен!" : "Squad fully recovered!",
     options: {
       euro: {
         label: language === 'ru' ? "Энергетический буст" : "Energy Boost",
-        desc: language === 'ru' ? "Сброс усталости всех игроков до 0%" : "Reset squad fatigue to 0%",
+        desc: language === 'ru' ? "Восстановление энергии до 100%" : "Restore energy to 100%",
         cost: "75,000 €"
       },
       gems: {
         label: language === 'ru' ? "Полная регенерация" : "Full Regeneration",
-        desc: language === 'ru' ? "Мгновенное восстановление сил всех игроков" : "Instant squad-wide stamina reset",
+        desc: language === 'ru' ? "Мгновенное восстановление сил до 100%" : "Instant stamina reset to 100%",
         cost: "150 Gems"
       }
     },
     desc: language === 'ru' 
-      ? "Усталость снижает боевую эффективность в матчах. Только игроки, назначенные в состав, подвержены износу."
-      : "Fatigue reduces combat efficiency. Only players assigned to the squad are subject to physical wear."
+      ? "Низкая энергия снижает боевую эффективность в матчах. Только игроки, назначенные в состав, подвержены износу."
+      : "Low energy reduces combat efficiency. Only players assigned to the squad are subject to physical wear."
   };
 
   const handleRecover = (type: 'credits' | 'crystals') => {
@@ -100,9 +100,9 @@ export default function RecoverFatiguePage() {
           </Card>
           <Card className="glass-card bg-accent/5 border-accent/20">
             <CardContent className="p-4 text-center">
-              <p className="text-[8px] text-muted-foreground uppercase font-black tracking-widest mb-1">{t.avgFatigue}</p>
-              <p className={cn("text-2xl font-headline font-bold", avgFatigue > 50 ? "text-red-400" : "text-accent")}>
-                {avgFatigue}%
+              <p className="text-[8px] text-muted-foreground uppercase font-black tracking-widest mb-1">{t.avgEnergy}</p>
+              <p className={cn("text-2xl font-headline font-bold", avgEnergy < 50 ? "text-red-400" : "text-accent")}>
+                {avgEnergy}%
               </p>
             </CardContent>
           </Card>
@@ -171,7 +171,7 @@ export default function RecoverFatiguePage() {
                 <p className="text-[9px] font-bold uppercase truncate">{player.name}</p>
                 <div className="flex items-center gap-2">
                   <Progress value={player.fatigue} className="h-1 flex-1 bg-white/5" />
-                  <span className={cn("text-[8px] font-mono font-bold w-6 text-right", player.fatigue > 50 ? "text-red-400" : "text-accent")}>
+                  <span className={cn("text-[8px] font-mono font-bold w-6 text-right", player.fatigue < 50 ? "text-red-400" : "text-accent")}>
                     {player.fatigue}%
                   </span>
                 </div>

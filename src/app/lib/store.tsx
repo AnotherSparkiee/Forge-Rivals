@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Глобальное хранилище v81 (Match History Management).
- * Реализовано удаление отдельных записей и полная очистка истории матчей.
+ * Глобальное хранилище v82 (Energy/Stamina Logic).
+ * Реализовано наполнение энергии до 100% при восстановлении.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -347,8 +347,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if ((type === 'credits' && s.credits < cost) || (type === 'crystals' && s.crystals < cost)) return false;
 
     const batch = writeBatch(db);
+    // НАПОЛНЕНИЕ ДО 100
     s.ownedPlayers.forEach(p => {
-      batch.update(doc(collection(r.team, 'heroes'), p.id), { fatigue: 0 });
+      batch.update(doc(collection(r.team, 'heroes'), p.id), { fatigue: 100 });
     });
     batch.update(r.team, { [type]: increment(-cost) });
     batch.commit();
