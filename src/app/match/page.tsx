@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v6.0 (UI & Navigation Fix).
- * Исправлен механизм вкладок "КАРТА" и улучшено отображение команд в счете.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v6.1 (UI & Localization Fix).
+ * Исправлены названия вкладок на "КАРТА" и добавлены названия команд в итоговый счет.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -118,7 +118,6 @@ function MatchContent() {
 
   const handleNext = (e?: React.MouseEvent) => {
     if (e) {
-      // Блокируем переход если клик по вкладкам или кнопкам управления внутри контента
       const target = e.target as HTMLElement;
       if (target.closest('[data-stop-propagation]')) {
         e.stopPropagation();
@@ -167,7 +166,7 @@ function MatchContent() {
       victory: "ПОБЕДА:", draw: "НИЧЬЯ В СЕРИИ",
       map: "КАРТА"
     }
-  }[language as 'en' | 'ru'] || { reportTitle: "Report", map: "КАРТА" };
+  }[language === 'ru' ? 'ru' : 'en'];
 
   const renderStatsTable = (game: any) => {
     if (currentSimulation.isTbdWin) {
