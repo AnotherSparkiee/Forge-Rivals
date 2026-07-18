@@ -95,7 +95,7 @@ export default function RecoverFatiguePage() {
                 {avgFatigue}%
               </p>
             </CardContent>
-          </div>
+          </Card>
         </div>
 
         {/* INFO */}
