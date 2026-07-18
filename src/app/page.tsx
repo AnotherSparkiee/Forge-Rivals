@@ -6,18 +6,39 @@ import {
   CalendarDays, Medal, ArrowRightLeft, 
   Shield, Construction, Briefcase, 
   LineChart, Heart, Newspaper, Settings, Search, Tv, User as UserIcon, UserCheck,
-  Radar, LayoutList, Swords
+  Radar, LayoutList, Swords, Timer, ShieldAlert
 } from 'lucide-react';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
+import { useState, useEffect } from 'react';
+import { getMoscowTime } from './lib/time-utils';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
-  const { language, isLoaded, isDataReady, matchHistory, allSeasonMatches, lastSeenMatchDay } = useGameState();
+  const { 
+    language, isLoaded, isDataReady, matchHistory, 
+    allSeasonMatches, lastSeenMatchDay, nextMatch 
+  } = useGameState();
+
+  const [now, setNow] = useState(getMoscowTime());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(getMoscowTime()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const getCountdown = (startTimeIso: string) => {
+    const diff = new Date(startTimeIso).getTime() - now.getTime();
+    if (diff <= 0) return '00:00:00';
+    const hh = Math.floor(diff / 3600000);
+    const mm = Math.floor((diff % 3600000) / 60000);
+    const ss = Math.floor((diff % 60000) / 1000);
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+  };
 
   // Расчет непросмотренных матчей лиги
   const unreadMatches = (allSeasonMatches || []).filter(m => 
@@ -64,37 +85,84 @@ export default function Home() {
   ];
 
   return (
-    <div className="relative min-h-[calc(100vh-3.5rem-5rem)] flex items-center justify-center overflow-hidden">
-      <div className="absolute inset-0 bg-[#0a0d14] -z-20" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)] -z-10" />
+    <div className="relative h-[calc(100dvh-3.5rem-5rem)] flex flex-col overflow-hidden bg-[#0a0d14]">
+      {/* Background Decor */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)] -z-10" />
       
-      <div className="relative z-10 w-full max-w-md mx-auto px-4 h-full flex items-center justify-center">
-        <div className="grid grid-cols-4 gap-2 w-full py-6">
-          {menuItems.map((item) => (
-            <Link key={item.label} href={item.href}>
-              <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group aspect-square flex flex-col items-center justify-center p-1 relative overflow-visible">
-                <div className={cn("p-2 rounded-lg bg-secondary/50 group-hover:bg-primary/10 transition-colors border border-white/5 mb-1.5", item.color)}>
-                  <item.icon className="w-5 h-5" />
+      <div className="flex-1 w-full max-w-md mx-auto px-4 flex flex-col pt-4 overflow-hidden">
+        
+        {/* NEXT OPPONENT BLOCK */}
+        {nextMatch ? (
+          <Card className="glass-card mb-4 border-primary/30 bg-primary/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
+            <CardContent className="p-3 flex items-center justify-between">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-secondary/50 border border-primary/20 flex items-center justify-center p-1.5 shrink-0 shadow-lg">
+                  {nextMatch.match.homeId === user?.uid ? 
+                    (nextMatch.match.awayLogo ? <img src={nextMatch.match.awayLogo} className="w-full h-full object-contain" alt="" /> : <Swords className="w-5 h-5 text-accent" />) :
+                    (nextMatch.match.homeLogo ? <img src={nextMatch.match.homeLogo} className="w-full h-full object-contain" alt="" /> : <Swords className="w-5 h-5 text-accent" />)
+                  }
                 </div>
-                
-                {item.badge && (
-                  <div className="absolute top-1 right-1">
-                    <div className="relative">
-                      <div className="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-20" />
-                      <Badge className="bg-red-500 text-white text-[9px] font-black h-5 min-w-[20px] flex items-center justify-center border-2 border-[#0a0d14] rounded-full px-1 shadow-lg relative z-10">
-                        {item.badge}
-                      </Badge>
-                    </div>
-                  </div>
-                )}
+                <div className="min-w-0">
+                  <p className="text-[8px] font-black text-primary uppercase tracking-[0.2em] leading-none mb-1">
+                    {language === 'ru' ? 'СЛЕДУЮЩИЙ СОПЕРНИК' : 'NEXT OPPONENT'}
+                  </p>
+                  <h3 className="text-[11px] font-bold uppercase truncate text-white leading-none">
+                    {nextMatch.opponentName}
+                  </h3>
+                </div>
+              </div>
+              <div className="text-right border-l border-white/5 pl-4 shrink-0 flex flex-col justify-center">
+                <div className="flex items-center justify-end gap-1 mb-0.5 text-muted-foreground">
+                  <Timer className="w-2.5 h-2.5" />
+                  <span className="text-[7px] font-black uppercase tracking-tighter">DEPLOYS_IN</span>
+                </div>
+                <p className="text-lg font-headline font-black text-primary italic tabular-nums leading-none">
+                  {getCountdown(nextMatch.match.startTime)}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="glass-card mb-4 border-white/5 bg-secondary/5 opacity-50 shrink-0">
+            <CardContent className="p-3 flex items-center justify-center gap-3">
+               <ShieldAlert className="w-4 h-4 text-muted-foreground" />
+               <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                 {language === 'ru' ? 'ОЖИДАНИЕ НОВОГО ЦИКЛА МАТЧЕЙ' : 'AWAITING NEW MATCH CYCLE'}
+               </p>
+            </CardContent>
+          </Card>
+        )}
 
-                <span className="text-[7px] font-black uppercase text-center text-muted-foreground group-hover:text-white transition-colors leading-tight px-0.5">
-                  {item.label}
-                </span>
-              </Card>
-            </Link>
-          ))}
+        {/* MENU GRID */}
+        <div className="flex-1 flex items-center justify-center overflow-hidden">
+          <div className="grid grid-cols-4 gap-2 w-full max-h-full py-2">
+            {menuItems.map((item) => (
+              <Link key={item.label} href={item.href}>
+                <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group aspect-square flex flex-col items-center justify-center p-1 relative overflow-visible">
+                  <div className={cn("p-2 rounded-lg bg-secondary/50 group-hover:bg-primary/10 transition-colors border border-white/5 mb-1.5", item.color)}>
+                    <item.icon className="w-5 h-5" />
+                  </div>
+                  
+                  {item.badge && (
+                    <div className="absolute top-1 right-1">
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-20" />
+                        <Badge className="bg-red-500 text-white text-[9px] font-black h-5 min-w-[20px] flex items-center justify-center border-2 border-[#0a0d14] rounded-full px-1 shadow-lg relative z-10">
+                          {item.badge}
+                        </Badge>
+                      </div>
+                    </div>
+                  )}
+
+                  <span className="text-[7px] font-black uppercase text-center text-muted-foreground group-hover:text-white transition-colors leading-tight px-0.5">
+                    {item.label}
+                  </span>
+                </Card>
+              </Link>
+            ))}
+          </div>
         </div>
+
       </div>
     </div>
   );
