@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { 
   Link as LinkIcon, ChevronLeft, ShieldCheck, 
   Info, History, Swords, Trophy, Target, AlertTriangle,
-  Zap, Star, Award, ShieldAlert, User, ChevronRight
+  Zap, Star, Award, ShieldAlert, User, ChevronRight, Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -51,13 +51,19 @@ export default function SynergyPage() {
     return { official, unofficial, total: official + unofficial };
   }, [matchHistory, profile]);
 
-  // Список игроков основы с их статистикой
-  const corePlayers = useMemo(() => {
+  // Список ВСЕХ игроков состава с их статистикой
+  const squadPlayers = useMemo(() => {
     if (!profile) return [];
     const regDate = profile.createdAt ? new Date(profile.createdAt).getTime() : 0;
-    const slots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
+    
+    // Все возможные слоты состава
+    const allSlots: LineupSlot[] = [
+      'carry', 'mid', 'offlane', 'support', 'full_support',
+      'sub1', 'sub2',
+      'res1', 'res2', 'res3', 'res4', 'res5', 'res6', 'res7', 'res8'
+    ];
 
-    return slots.map(slot => {
+    return allSlots.map(slot => {
       const pId = lineup[slot];
       const player = ownedPlayers.find(p => p.id === pId);
       if (!player) return null;
@@ -69,7 +75,7 @@ export default function SynergyPage() {
         const playedDate = match.playedAt ? new Date(match.playedAt).getTime() : 0;
         if (playedDate < regDate) return;
         
-        // Проверяем, участвовал ли этот конкретный игрок в матче
+        // Проверяем участие игрока в конкретном матче через scoreboard
         const performance = match.simulation?.games?.[0]?.scoreboard?.find((p: any) => p.name === player.name);
         if (performance) {
           if (match.type === 'league' || match.type === 'tournament') {
@@ -85,7 +91,8 @@ export default function SynergyPage() {
         clubMatches: pOfficial + pTraining, 
         officialMatches: pOfficial,
         trainingMatches: pTraining,
-        slotLabel: slot 
+        slotLabel: slot,
+        isCore: ['carry', 'mid', 'offlane', 'support', 'full_support'].includes(slot)
       };
     }).filter(Boolean);
   }, [lineup, ownedPlayers, matchHistory, profile]);
@@ -106,7 +113,7 @@ export default function SynergyPage() {
     league: language === 'ru' ? "Оф. Матчи" : "Official",
     cup: language === 'ru' ? "Тренировки" : "Practice",
     total: language === 'ru' ? "Всего игр" : "Total",
-    coreUnits: language === 'ru' ? "АКТИВНЫЕ ЕДИНИЦЫ ЯДРА" : "ACTIVE CORE UNITS",
+    squadUnits: language === 'ru' ? "ЕДИНИЦЫ СОСТАВА" : "SQUAD UNITS",
     gamesCount: language === 'ru' ? "игр" : "games",
     offShort: language === 'ru' ? "ОФ" : "OFF",
     trnShort: language === 'ru' ? "ТРН" : "TRN",
@@ -121,7 +128,8 @@ export default function SynergyPage() {
       { min: 100, label: language === 'ru' ? "Элитный" : "Elite", color: "text-accent" },
     ],
     rolesRu: {
-      carry: "Керри", mid: "Мидер", offlane: "Танк", support: "Лес", full_support: "Саппорт"
+      carry: "Керри", mid: "Мидер", offlane: "Танк", support: "Лес", full_support: "Саппорт",
+      sub1: "Запас 1", sub2: "Запас 2", res1: "Резерв", res2: "Резерв", res3: "Резерв", res4: "Резерв"
     }
   };
 
@@ -190,25 +198,31 @@ export default function SynergyPage() {
           </CardContent>
         </Card>
 
-        {/* СПИСОК ИГРОКОВ ОСНОВЫ */}
+        {/* СПИСОК ВСЕХ ИГРОКОВ СОСТАВА */}
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-accent flex items-center gap-2">
-              <ShieldCheck className="w-3.5 h-3.5" /> {t.coreUnits}
+              <Users className="w-3.5 h-3.5" /> {t.squadUnits}
             </h3>
-            <Badge variant="outline" className="text-[7px] border-white/10 opacity-50 uppercase">Syncing stats...</Badge>
+            <Badge variant="outline" className="text-[7px] border-white/10 opacity-50 uppercase">Syncing roster stats...</Badge>
           </div>
 
           <div className="space-y-2">
-            {corePlayers.length > 0 ? corePlayers.map((player: any) => (
-              <Card key={player.id} className="glass-card border-white/5 bg-secondary/10 overflow-hidden">
+            {squadPlayers.length > 0 ? squadPlayers.map((player: any) => (
+              <Card key={`${player.id}-${player.slotLabel}`} className={cn(
+                "glass-card border-white/5 transition-all overflow-hidden",
+                player.isCore ? "bg-primary/5 border-primary/20" : "bg-secondary/10"
+              )}>
                 <CardContent className="p-3 flex items-center justify-between">
                    <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10 bg-background shrink-0">
                          <img src={player.image} alt="" className="w-full h-full object-cover" />
                       </div>
-                      <div>
-                        <h4 className="text-xs font-bold uppercase text-white truncate max-w-[120px]">{player.name}</h4>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-bold uppercase text-white truncate max-w-[100px]">{player.name}</h4>
+                          {player.isCore && <Badge className="text-[6px] h-3 px-1 bg-primary text-primary-foreground font-black">CORE</Badge>}
+                        </div>
                         <p className="text-[8px] text-muted-foreground font-black uppercase tracking-widest">
                           {(t.rolesRu as any)[player.slotLabel] || player.role}
                         </p>
@@ -233,7 +247,7 @@ export default function SynergyPage() {
             )) : (
               <div className="py-10 text-center opacity-30 border border-dashed border-white/5 rounded-2xl flex flex-col items-center gap-4">
                  <ShieldAlert className="w-8 h-8" />
-                 <p className="text-[9px] font-bold uppercase tracking-widest">No units assigned to core slots</p>
+                 <p className="text-[9px] font-bold uppercase tracking-widest">No units assigned to squad slots</p>
               </div>
             )}
           </div>
