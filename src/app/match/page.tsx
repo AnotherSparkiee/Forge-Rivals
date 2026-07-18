@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.8 (Fix Tabs Bug).
- * Исправлен баг закрытия отчета при переключении карт. 'Map' заменен на 'Карта'.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v5.9 (UI Fixes).
+ * Исправлен баг переключения карт и добавлены названия команд в итоговый счет.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -117,7 +117,13 @@ function MatchContent() {
   }, [step, activeGameIdx, currentSimulation]);
 
   const handleNext = (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation(); 
+    if (e) {
+      // Блокируем переход если клик по вкладкам или кнопкам управления внутри контента
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-stop-propagation]')) return;
+      e.stopPropagation();
+    }
+    
     if (step === 'preview') {
       if (currentSimulation?.isTbdWin) setStep('stats');
       else setStep('live');
@@ -204,7 +210,7 @@ function MatchContent() {
     );
 
     return (
-      <div className="space-y-8">
+      <div className="space-y-8" data-stop-propagation="true" onClick={(e) => e.stopPropagation()}>
         {game.teamComparison && (
           <section className="space-y-4">
             <h3 className="text-[11px] font-black uppercase tracking-widest text-accent text-center flex items-center justify-center gap-2 bg-accent/5 py-2 rounded-xl">
@@ -307,7 +313,7 @@ function MatchContent() {
   const isDraw = currentSimulation.winner === "Ничья" || currentSimulation.winner === "Draw";
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-32 relative overflow-hidden" onClick={() => handleNext()}>
+    <div className="min-h-screen bg-background text-foreground pb-32 relative overflow-hidden" onClick={handleNext}>
       <div className="max-w-md mx-auto relative z-10 px-4 pt-6">
         <header className="text-center space-y-4 mb-8">
           <h1 className="text-sm font-headline font-bold text-white uppercase tracking-tighter">{t.reportTitle}</h1>
@@ -395,22 +401,34 @@ function MatchContent() {
 
         {step === 'stats' && (
           <div className="space-y-6 animate-in slide-in-from-right-4 pb-20">
-            <div className="text-center py-4">
-              <div className="flex items-center justify-center gap-6 mb-2">
-                <div className="w-12 h-12 rounded-xl bg-secondary/50 border border-white/5 flex items-center justify-center overflow-hidden p-1.5 shrink-0">
-                  {displayHomeLogo ? <img src={displayHomeLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-6 h-6 text-muted-foreground/30" />}
+            <div className="text-center py-6">
+              <div className="flex items-center justify-center gap-4 mb-4">
+                {/* Home Team */}
+                <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
+                  <div className="w-14 h-14 rounded-2xl bg-secondary/50 border border-white/5 flex items-center justify-center overflow-hidden p-2 shrink-0 shadow-lg">
+                    {displayHomeLogo ? <img src={displayHomeLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-6 h-6 text-muted-foreground/30" />}
+                  </div>
+                  <p className="text-[10px] font-black uppercase truncate w-full text-center text-white/70">{matchData.homeName}</p>
                 </div>
-                <div className="text-5xl font-headline font-black italic tracking-tighter flex items-center justify-center gap-4 text-white">
+
+                {/* Score */}
+                <div className="text-4xl font-headline font-black italic tracking-tighter flex items-center justify-center gap-3 text-white px-2">
                   <span className={cn(matchData.scoreA > matchData.scoreB && "text-primary")}>{matchData.scoreA}</span>
-                  <span className="opacity-20 text-3xl">:</span>
+                  <span className="opacity-20 text-2xl">:</span>
                   <span className={cn(matchData.scoreB > matchData.scoreA && "text-primary")}>{matchData.scoreB}</span>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-secondary/50 border border-white/5 flex items-center justify-center overflow-hidden p-1.5 shrink-0">
-                  {displayAwayLogo ? <img src={displayAwayLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-6 h-6 text-muted-foreground/30" />}
+
+                {/* Away Team */}
+                <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
+                  <div className="w-14 h-14 rounded-2xl bg-secondary/50 border border-white/5 flex items-center justify-center overflow-hidden p-2 shrink-0 shadow-lg">
+                    {displayAwayLogo ? <img src={displayAwayLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-6 h-6 text-muted-foreground/30" />}
+                  </div>
+                  <p className="text-[10px] font-black uppercase truncate w-full text-center text-white/70">{matchData.awayName}</p>
                 </div>
               </div>
+              
               <Badge className={cn(
-                "mt-4 text-[10px] font-black px-8 py-1 uppercase tracking-widest border-none", 
+                "mt-2 text-[10px] font-black px-8 py-1 uppercase tracking-widest border-none", 
                 currentSimulation.isTbdWin ? "bg-green-500/20 text-green-400" : (isDraw ? "bg-secondary text-muted-foreground" : "bg-primary/20 text-primary")
               )}>
                 {currentSimulation.isTbdWin ? 'TECHNICAL VICTORY' : (isDraw ? t.draw : `${t.victory} ${currentSimulation.winner}`)}
@@ -418,29 +436,31 @@ function MatchContent() {
             </div>
             
             {!currentSimulation.isTbdWin && (
-              <Tabs defaultValue="map1" className="w-full" onClick={(e) => e.stopPropagation()}>
-                <TabsList className="bg-secondary/30 w-full grid grid-cols-2 h-12 p-1.5 rounded-2xl mb-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
-                  <TabsTrigger value="map1" className="text-[10px] font-black uppercase rounded-xl" onClick={(e) => e.stopPropagation()}>{t.map} 1</TabsTrigger>
-                  <TabsTrigger value="map2" disabled={currentSimulation.games.length < 2} className="text-[10px] font-black uppercase rounded-xl" onClick={(e) => e.stopPropagation()}>{t.map} 2</TabsTrigger>
-                </TabsList>
-                {currentSimulation.games.map((game: any, idx: number) => (
-                  <TabsContent key={idx} value={`map${idx+1}`} className="space-y-6 animate-in fade-in slide-in-from-bottom-2" onClick={(e) => e.stopPropagation()}>
-                    <div className="grid grid-cols-2 gap-3">
-                       <div className="bg-background/40 p-4 rounded-2xl border border-white/5 flex flex-col items-center shadow-inner">
-                          <Castle className="w-5 h-5 text-yellow-500 mb-1" />
-                          <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Destroyed Towers</span>
-                          <span className="text-xl font-headline font-bold text-white">{game.towersA} : {game.towersB}</span>
-                       </div>
-                       <div className="bg-background/40 p-4 rounded-2xl border border-white/5 flex flex-col items-center shadow-inner">
-                          <Activity className="w-5 h-5 text-accent mb-1" />
-                          <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Forest Objectives</span>
-                          <span className="text-xl font-headline font-bold text-white">{game.objectivesA} : {game.objectivesB}</span>
-                       </div>
-                    </div>
-                    {renderStatsTable(game)}
-                  </TabsContent>
-                ))}
-              </Tabs>
+              <div data-stop-propagation="true" onClick={(e) => e.stopPropagation()}>
+                <Tabs defaultValue="map1" className="w-full">
+                  <TabsList className="bg-secondary/30 w-full grid grid-cols-2 h-12 p-1.5 rounded-2xl mb-6 shadow-lg">
+                    <TabsTrigger value="map1" className="text-[10px] font-black uppercase rounded-xl">{t.map} 1</TabsTrigger>
+                    <TabsTrigger value="map2" disabled={currentSimulation.games.length < 2} className="text-[10px] font-black uppercase rounded-xl">{t.map} 2</TabsTrigger>
+                  </TabsList>
+                  {currentSimulation.games.map((game: any, idx: number) => (
+                    <TabsContent key={idx} value={`map${idx+1}`} className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                      <div className="grid grid-cols-2 gap-3">
+                         <div className="bg-background/40 p-4 rounded-2xl border border-white/5 flex flex-col items-center shadow-inner">
+                            <Castle className="w-5 h-5 text-yellow-500 mb-1" />
+                            <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Destroyed Towers</span>
+                            <span className="text-xl font-headline font-bold text-white">{game.towersA} : {game.towersB}</span>
+                         </div>
+                         <div className="bg-background/40 p-4 rounded-2xl border border-white/5 flex flex-col items-center shadow-inner">
+                            <Activity className="w-5 h-5 text-accent mb-1" />
+                            <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Forest Objectives</span>
+                            <span className="text-xl font-headline font-bold text-white">{game.objectivesA} : {game.objectivesB}</span>
+                         </div>
+                      </div>
+                      {renderStatsTable(game)}
+                    </TabsContent>
+                  ))}
+                </Tabs>
+              </div>
             )}
 
             {currentSimulation.isTbdWin && (
@@ -449,8 +469,8 @@ function MatchContent() {
                </div>
             )}
 
-            <div className="pt-10">
-               <Button className="w-full h-16 hero-gradient font-black text-sm tracking-widest uppercase shadow-2xl active:scale-95 transition-all rounded-2xl" onClick={handleNext}>
+            <div className="pt-10" data-stop-propagation="true">
+               <Button className="w-full h-16 hero-gradient font-black text-sm tracking-widest uppercase shadow-2xl active:scale-95 transition-all rounded-2xl" onClick={() => handleNext()}>
                  <Check className="w-5 h-5 mr-2" /> {t.accept}
                </Button>
             </div>
@@ -459,9 +479,9 @@ function MatchContent() {
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-t border-white/10 h-24 flex items-center px-6">
-        <div className="w-full max-md mx-auto flex gap-3">
+        <div className="w-full max-md mx-auto flex gap-3" data-stop-propagation="true">
           <Button variant="outline" className="flex-1 h-12 uppercase font-black text-[10px] border-white/10 rounded-xl" onClick={(e) => { e.stopPropagation(); router.push('/'); }}>{t.exit}</Button>
-          <Button className="flex-[2] h-12 hero-gradient font-black text-[10px] uppercase shadow-xl rounded-xl" onClick={handleNext}>
+          <Button className="flex-[2] h-12 hero-gradient font-black text-[10px] uppercase shadow-xl rounded-xl" onClick={() => handleNext()}>
             {step === 'stats' ? <Check className="w-4 h-4 mr-2" /> : <ArrowRight className="w-4 h-4 mr-2" />}
             {step === 'preview' ? t.next : (step === 'live' ? t.skip : t.accept)}
           </Button>
