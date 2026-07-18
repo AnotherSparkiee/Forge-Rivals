@@ -58,7 +58,6 @@ export default function SquadPage() {
   const [isTransferring, setIsTransferring] = useState(false);
   const [now, setNow] = useState(Date.now());
   
-  // Новая система замен через клик
   const [selectedSlotForSwap, setSelectedSlotForSwap] = useState<LineupSlot | null>(null);
 
   useEffect(() => {
@@ -134,10 +133,12 @@ export default function SquadPage() {
     }
   };
 
+  const ALL_ROLES = ['Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'];
+
   const roleMapping: Record<LineupSlot, string[]> = {
     carry: ['Carry'], mid: ['Midlaner'], offlane: ['Tank'], support: ['Jungler'], full_support: ['Support'],
     sub1: ['Carry'], sub2: ['Midlaner'],
-    res1: ['Tank'], res2: ['Jungler'], res3: ['Support'], res4: ['Carry'], res5: ['Midlaner'], res6: ['Tank'], res7: ['Jungler'], res8: ['Support'],
+    res1: ALL_ROLES, res2: ALL_ROLES, res3: ALL_ROLES, res4: ALL_ROLES, res5: ALL_ROLES, res6: ALL_ROLES, res7: ALL_ROLES, res8: ALL_ROLES,
   };
 
   const getPlayerById = (id: string | null) => allAvailablePlayers.find(p => p.id === id);
@@ -149,11 +150,9 @@ export default function SquadPage() {
     return Math.round(activePlayers.reduce((acc, p) => acc + p.overallRating, 0) / activePlayers.length);
   }, [lineup, allAvailablePlayers]);
 
-  // Упрощенная логика замен через клик
   const handleSlotClick = (slotKey: LineupSlot) => {
     const currentPlayerId = lineup[slotKey];
     
-    // Если ничего не выбрано - выбираем текущий слот
     if (!selectedSlotForSwap) {
       if (!currentPlayerId) {
         setManagedSlot(slotKey);
@@ -163,13 +162,11 @@ export default function SquadPage() {
       return;
     }
 
-    // Если нажат тот же слот - отменяем выбор
     if (selectedSlotForSwap === slotKey) {
       setSelectedSlotForSwap(null);
       return;
     }
 
-    // Попытка обмена между выбранным и текущим слотом
     const sourcePlayerId = lineup[selectedSlotForSwap];
     const targetPlayerId = lineup[slotKey];
 
@@ -181,7 +178,6 @@ export default function SquadPage() {
     const sourcePlayer = getPlayerById(sourcePlayerId);
     const targetPlayer = getPlayerById(targetPlayerId);
 
-    // Проверка совместимости ролей
     if (sourcePlayer && !roleMapping[slotKey].includes(sourcePlayer.role)) {
       toast({ variant: "destructive", title: t.roleError });
       setSelectedSlotForSwap(null);
@@ -194,7 +190,6 @@ export default function SquadPage() {
       return;
     }
 
-    // Атомарное обновление
     updateLineup({ 
       [selectedSlotForSwap]: targetPlayerId || null, 
       [slotKey]: sourcePlayerId 
@@ -249,13 +244,13 @@ export default function SquadPage() {
             
             {player && (
               <div className="flex items-center gap-3 shrink-0 border-l border-white/5 pl-3">
-                <div className="flex flex-col items-center min-w-[20px]">
+                <div className="flex flex-col items-center min-w-[24px]">
                   <p className="text-[6px] font-black text-muted-foreground uppercase tracking-tighter mb-0.5">{t.metrics.form}</p>
-                  <span className={cn("text-[10px] font-mono font-bold leading-none", getStatusColor(player.form))}>{player.form}</span>
+                  <span className={cn("text-lg font-headline font-bold italic leading-none", getStatusColor(player.form))}>{player.form}</span>
                 </div>
-                <div className="flex flex-col items-center min-w-[20px]">
+                <div className="flex flex-col items-center min-w-[24px]">
                   <p className="text-[6px] font-black text-muted-foreground uppercase tracking-tighter mb-0.5">{t.metrics.fatigue}</p>
-                  <span className={cn("text-[10px] font-mono font-bold leading-none", getStatusColor(player.fatigue))}>{player.fatigue}</span>
+                  <span className={cn("text-lg font-headline font-bold italic leading-none", getStatusColor(player.fatigue))}>{player.fatigue}</span>
                 </div>
                 <div className="flex flex-col items-center min-w-[28px]">
                   <p className="text-[6px] font-black text-primary uppercase tracking-widest mb-0.5">{t.metrics.overall}</p>
@@ -381,7 +376,7 @@ export default function SquadPage() {
               <div className="space-y-1">
                 <DialogTitle className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profilePlayer.name}</DialogTitle>
                 <DialogDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mt-1">{language === 'ru' ? 'ЛИЧНОЕ ДОСЬЕ ИГРОКА' : 'PLAYER OPERATIONAL DOSSIER'}</DialogDescription>
-                <div className="flex items-center justify-center gap-2 mt-2"><Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profilePlayer.role}</Badge></div>
+                <div className="flex items-center justify-center gap-2 mt-2"><Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{rolesRu[profilePlayer.role] || profilePlayer.role}</Badge></div>
               </div>
             </DialogHeader>
             <div className="p-4 space-y-8 flex-1 scrollbar-hide">
@@ -401,9 +396,9 @@ export default function SquadPage() {
                     <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</span><span className="text-[10px] font-bold">{calculateLiveAge(profilePlayer.baseAge, profilePlayer.hiredAt).display} {language === 'ru' ? 'лет' : 'yrs'}</span></div>
                     <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{language === 'ru' ? 'Талант' : 'Talent'}</span><div className="flex items-center">{renderStars(Math.max(...Object.values(profilePlayer.proTalents || {}).map(v => normTalent(v))))}</div></div>
                     <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Зарплата' : 'Salary'}</span><span className="text-[10px] font-bold text-primary">€{(profilePlayer.salary || 0).toLocaleString()}</span></div>
-                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span><span className="text-[10px] font-bold uppercase">{profilePlayer.role}</span></div>
-                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'ФРМ' : 'FRM'}</span><span className={cn("text-xs font-mono font-bold", getStatusColor(profilePlayer.form))}>{profilePlayer.form}</span></div>
-                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'УСТ' : 'UST'}</span><span className={cn("text-xs font-mono font-bold", getStatusColor(profilePlayer.fatigue))}>{profilePlayer.fatigue}</span></div>
+                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span><span className="text-[10px] font-bold uppercase">{rolesRu[profilePlayer.role] || profilePlayer.role}</span></div>
+                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'ФРМ' : 'FRM'}</span><span className={cn("text-lg font-headline font-bold italic", getStatusColor(profilePlayer.form))}>{profilePlayer.form}</span></div>
+                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'УСТ' : 'UST'}</span><span className={cn("text-lg font-headline font-bold italic", getStatusColor(profilePlayer.fatigue))}>{profilePlayer.fatigue}</span></div>
                   </div>
                 </section>
                 <section>
