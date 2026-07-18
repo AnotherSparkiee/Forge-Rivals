@@ -1,9 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Слушатель товарищеских и пробных матчей v12.4 (Selective Fatigue).
- * Исправлено: списание энергии только у основы.
- * Пробный матч теперь длится 5 минут.
+ * @fileOverview Слушатель товарищеских и пробных матчей v12.5 (Next Opponent Sync).
+ * Пробный матч теперь имеет 5-минутную задержку и отображается в главном меню.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -22,7 +21,7 @@ import { usePathname } from 'next/navigation';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 const FRIENDLY_DURATION_MS = 60 * 1000; 
-const TRIAL_DURATION_MS = 5 * 60 * 1000; // 5 минут
+const TRIAL_DURATION_MS = 5 * 60 * 1000; 
 
 function sanitizeForFirestore(obj: any) {
   if (!obj) return null;
@@ -105,11 +104,6 @@ export function FriendlyMatchListener() {
       const checkAndComplete = async () => {
         if (isSimulatingRef.current) return;
         if (Date.now() >= finishTime) {
-          if (matchHistory.some(m => m.id === matchUniqueId)) {
-            if (isHost) await deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
-            return;
-          }
-
           isSimulatingRef.current = true;
           try {
             const result = data.matchResult;
@@ -121,17 +115,12 @@ export function FriendlyMatchListener() {
             const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
             const myName = isHost ? data.hostName : data.challengerName;
             
-            const matchRecord = {
-              id: matchUniqueId,
-              scoreA: myScoreA, scoreB: myScoreB, status: 'finished', isFinished: true,
-              homeName: data.hostName, awayName: data.challengerName, simulation: result,
-              type: matchType, playedAt: new Date().toISOString(), version: 32,
-              homeId: data.hostId, awayId: data.challengerId,
-              homeLogo: data.hostLogo || null,
-              awayLogo: data.challengerLogo || null
-            };
-
-            await setDoc(doc(db, 'matches_v1', matchUniqueId), matchRecord, { merge: true });
+            // Update scheduled match to finished
+            const mRef = doc(db, 'matches_v1', matchUniqueId);
+            await updateDoc(mRef, {
+              scoreA: myScoreA, scoreB: myScoreB, status: 'finished', isFinished: true, simulation: result,
+              finishedAt: serverTimestamp()
+            });
 
             recordMatch(
               myScoreA > myScoreB ? myName : (myScoreA === myScoreB ? "Draw" : opponentName), 
@@ -140,7 +129,6 @@ export function FriendlyMatchListener() {
               { homeId: data.hostId, awayId: data.challengerId, homeLogo: data.hostLogo, awayLogo: data.challengerLogo }
             );
 
-            // СПИСАНИЕ ЭНЕРГИИ - ТОЛЬКО ДЛЯ ОСНОВЫ
             const batch = writeBatch(db);
             const info = getGlobalSeasonInfo();
             const seasonId = `season_${info.activeSeasonNumber}`;
@@ -263,6 +251,28 @@ export function FriendlyMatchListener() {
           isBo2: true
         });
         
+        const now = Date.now();
+        const delay = activeLobby.isTrial ? TRIAL_DURATION_MS : FRIENDLY_DURATION_MS;
+        const matchStartTime = new Date(now + delay).toISOString();
+        const matchUniqueId = `${activeLobby.isTrial ? 'trial' : 'friendly'}_${activeLobby.id}_${now}`;
+
+        // Create scheduled entry in matches_v1 for main menu visibility
+        await setDoc(doc(db, 'matches_v1', matchUniqueId), {
+          id: matchUniqueId,
+          status: 'scheduled',
+          isFinished: false,
+          homeId: activeLobby.hostId,
+          awayId: activeLobby.challengerId || 'sys_bot',
+          homeName: activeLobby.hostName,
+          awayName: activeLobby.challengerName || (language === 'ru' ? 'Тренировочный Бот' : 'Training Bot'),
+          homeLogo: clubLogo || null,
+          awayLogo: challengerLogoB,
+          startTime: matchStartTime,
+          participants: [activeLobby.hostId, activeLobby.challengerId || 'sys_bot'],
+          type: activeLobby.isTrial ? 'trial' : 'friendly',
+          version: 84
+        });
+
         await updateDoc(lobbyRef, { 
           status: 'accepted', 
           matchResult: sanitizeForFirestore(result), 

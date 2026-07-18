@@ -1,14 +1,13 @@
 'use client';
 
 /**
- * @fileOverview Слушатель КВ Корзины v12.4 (Selective Fatigue).
- * Исправлено: списание энергии только у основы.
+ * @fileOverview Слушатель КВ Корзины v12.5 (Next Opponent Sync).
  */
 
 import { useState, useEffect, useRef } from 'react';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useGameState, LineupSlot } from '@/app/lib/store';
-import { doc, deleteDoc, serverTimestamp, getDoc, increment, writeBatch } from 'firebase/firestore';
+import { doc, deleteDoc, serverTimestamp, getDoc, increment, writeBatch, setDoc } from 'firebase/firestore';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from '@/components/ui/dialog';
@@ -36,7 +35,7 @@ export function CWBasketListener() {
   const pathname = usePathname();
   const { 
     language, strategy, recordMatch, ownedPlayers, lineup, 
-    matchHistory, clubLogo, selectedLeagueId, leagueLevel, groupId, rank 
+    matchHistory, clubLogo, selectedLeagueId, leagueLevel, groupId 
   } = useGameState();
   const { toast } = useToast();
 
@@ -54,11 +53,41 @@ export function CWBasketListener() {
       return;
     }
 
-    const currentMatchId = myEntry.matchStartTime;
+    const currentMatchId = `basket_${myEntry.matchStartTime}`;
 
     if (notifiedMatchIdRef.current !== currentMatchId) {
-      const alreadyRecorded = matchHistory.some(m => m.id === currentMatchId);
-      if (pathname !== '/tournaments/cw-basket' && !alreadyRecorded) {
+      // Create scheduled entry in matches_v1 if it doesn't exist
+      const createScheduled = async () => {
+        const mRef = doc(db, 'matches_v1', currentMatchId);
+        const mSnap = await getDoc(mRef);
+        if (!mSnap.exists()) {
+          let rivalLogo = null;
+          if (myEntry.matchedWithId) {
+            const rSnap = await getDoc(doc(db, 'players_v10', myEntry.matchedWithId));
+            if (rSnap.exists()) rivalLogo = rSnap.data().clubLogo || null;
+          }
+
+          await setDoc(mRef, {
+            id: currentMatchId,
+            status: 'scheduled',
+            isFinished: false,
+            homeId: user.uid,
+            awayId: myEntry.matchedWithId,
+            homeName: myEntry.userName,
+            awayName: myEntry.matchedWithName,
+            homeLogo: clubLogo,
+            awayLogo: rivalLogo,
+            startTime: myEntry.matchStartTime,
+            participants: [user.uid, myEntry.matchedWithId],
+            type: 'basket',
+            version: 84
+          });
+        }
+      };
+      
+      createScheduled();
+
+      if (pathname !== '/tournaments/cw-basket') {
         setShowModal(true);
       }
       notifiedMatchIdRef.current = currentMatchId;
@@ -71,12 +100,6 @@ export function CWBasketListener() {
       const now = Date.now();
 
       if (now >= startTime) {
-        const alreadyRecorded = matchHistory.some(m => m.id === currentMatchId);
-        if (alreadyRecorded) {
-          await deleteDoc(doc(db, 'cw_basket_v2', user.uid));
-          return;
-        }
-
         isSimulatingRef.current = true;
         try {
           const squad = ownedPlayers.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
@@ -86,15 +109,6 @@ export function CWBasketListener() {
           }));
 
           const rivalSquad = generateBotSquad(10);
-
-          let rivalLogo = null;
-          if (myEntry.matchedWithId) {
-            const rivalSnap = await getDoc(doc(db, 'players_v10', myEntry.matchedWithId));
-            if (rivalSnap.exists()) {
-              rivalLogo = rivalSnap.data().clubLogo || null;
-            }
-          }
-
           const [finalScoreA, finalScoreB] = getMatchResult(user.uid, myEntry.matchedWithId || "rival", 0, false);
 
           const result = await simulateMobaMatch({
@@ -116,6 +130,16 @@ export function CWBasketListener() {
           const winsA = parseInt(seriesScoreParts[0]);
           const winsB = parseInt(seriesScoreParts[1]);
 
+          // Update the scheduled match to finished
+          const mRef = doc(db, 'matches_v1', currentMatchId);
+          const mSnap = await getDoc(mRef);
+          const mData = mSnap.data() || {};
+
+          await updateDoc(mRef, {
+            scoreA: winsA, scoreB: winsB, status: 'finished', isFinished: true, simulation: safeResult,
+            finishedAt: serverTimestamp()
+          });
+
           recordMatch(
             safeResult.winner, 
             { ...safeResult.games[0], scoreA: winsA, scoreB: winsB, seriesScore: safeResult.seriesScore, games: safeResult.games, homeName: myEntry.userName, awayName: myEntry.matchedWithName }, 
@@ -124,10 +148,9 @@ export function CWBasketListener() {
             'basket',
             new Date().toISOString(),
             currentMatchId,
-            { homeId: user.uid, awayId: myEntry.matchedWithId, homeLogo: clubLogo, awayLogo: rivalLogo }
+            { homeId: user.uid, awayId: myEntry.matchedWithId, homeLogo: mData.homeLogo, awayLogo: mData.awayLogo }
           );
 
-          // СПИСАНИЕ УСТАЛОСТИ - ТОЛЬКО ДЛЯ ОСНОВЫ
           const batch = writeBatch(db);
           const info = getGlobalSeasonInfo();
           const seasonId = `season_${info.activeSeasonNumber}`;
@@ -147,7 +170,6 @@ export function CWBasketListener() {
 
           toast({
             title: language === 'ru' ? "КВ матч завершен" : "CW match finished",
-            description: language === 'ru' ? `Результаты боя против ${myEntry.matchedWithName} сохранены.` : `Battle results vs ${myEntry.matchedWithName} archived.`,
           });
 
           await deleteDoc(doc(db, 'cw_basket_v2', user.uid));

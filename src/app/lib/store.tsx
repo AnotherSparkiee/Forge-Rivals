@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Глобальное хранилище v82 (Energy/Stamina Logic).
- * Реализовано наполнение энергии до 100% при восстановлении.
+ * Глобальное хранилище v84 (Universal Match Sync).
+ * Реализовано отслеживание всех типов матчей (Лига, ТОВ, Пробные, КВ) для таймера в главном меню.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -229,24 +229,45 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsubTeam(); playersUnsub(); unsubStaff(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
 
-  // Global Matches Listener
+  // Global Matches Listener (League + Universal Personal)
   useEffect(() => {
-    if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
-    const info = getGlobalSeasonInfo();
-    const tableId = `s${info.activeSeasonNumber}_l${state.selectedLeagueId}_t${state.leagueLevel}_g${state.groupId}`;
+    if (isUserLoading || !user?.uid || !state.isLoaded || !state.id) return;
     
-    const q = query(
+    const info = getGlobalSeasonInfo();
+    const currentTableId = `s${info.activeSeasonNumber}_l${state.selectedLeagueId}_t${state.leagueLevel}_g${state.groupId}`;
+    
+    // We listen to both group matches and any matches where current user is a participant (friendly, trial, basket)
+    const qGroup = query(
       collection(db, 'matches_v1'), 
-      where('tableId', '==', tableId)
+      where('tableId', '==', currentTableId)
+    );
+
+    const qPersonal = query(
+      collection(db, 'matches_v1'),
+      where('participants', 'array-contains', user.uid)
     );
 
     let active = true;
-    const unsub = onSnapshot(q, (snapshot) => {
+    const groupMatches = new Map();
+    const personalMatches = new Map();
+
+    const unsubGroup = onSnapshot(qGroup, (snapshot) => {
       if (!active) return;
-      const loaded = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
-      setAllMatches(loaded);
+      snapshot.docs.forEach(d => groupMatches.set(d.id, { ...d.data(), id: d.id }));
+      setAllMatches(Array.from(new Map([...groupMatches, ...personalMatches]).values()));
     });
-    return () => { active = false; unsub(); };
+
+    const unsubPersonal = onSnapshot(qPersonal, (snapshot) => {
+      if (!active) return;
+      snapshot.docs.forEach(d => personalMatches.set(d.id, { ...d.data(), id: d.id }));
+      setAllMatches(Array.from(new Map([...groupMatches, ...personalMatches]).values()));
+    });
+
+    return () => { 
+      active = false; 
+      unsubGroup(); 
+      unsubPersonal(); 
+    };
   }, [db, state.id, state.selectedLeagueId, state.groupId, state.leagueLevel, state.isLoaded, isUserLoading, user?.uid]);
 
   const getRefs = useCallback(() => {
@@ -347,7 +368,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if ((type === 'credits' && s.credits < cost) || (type === 'crystals' && s.crystals < cost)) return false;
 
     const batch = writeBatch(db);
-    // НАПОЛНЕНИЕ ДО 100
     s.ownedPlayers.forEach(p => {
       batch.update(doc(collection(r.team, 'heroes'), p.id), { fatigue: 100 });
     });
@@ -429,17 +449,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!r) return;
 
     try {
-      // 1. Delete Team Document in leagues_v2
       await deleteDoc(r.team);
-      
-      // 2. Clear user notifications to avoid stale context
       const nq = query(collection(db, 'notifications_v7'), where('userId', '==', user.uid));
       const nSnap = await getDocs(nq);
       const batch = writeBatch(db);
       nSnap.forEach(d => batch.delete(d.ref));
       
-      // 3. HARD RESET Root Profile Document in players_v10
-      // We overwrite it completely to remove "traces" like old clubName or displayName
       const rootSnap = await getDoc(r.root);
       const currentData = rootSnap.exists() ? rootSnap.data() : {};
       
@@ -447,15 +462,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         id: user.uid,
         email: currentData.email || null,
         tgId: currentData.tgId || null,
-        displayName: "Manager", // Reset to generic default
+        displayName: "Manager",
         lastLoginDate: new Date().toISOString(),
         createdAt: currentData.createdAt || new Date().toISOString(),
-        version: 0 // Force re-setup logic in AuthGuard
+        version: 0
       });
 
       await batch.commit();
-      
-      // Force clear client state and redirect
       window.location.href = '/setup';
     } catch (e) {
       console.error("Hard profile reset failed:", e);

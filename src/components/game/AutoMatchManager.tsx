@@ -1,8 +1,7 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v80.2 (Selective Fatigue).
- * Исправлено: усталость списывается только у игроков основы.
+ * @fileOverview Ядро MMO-синхронизации v80.3 (Participants Logic).
  */
 
 import { useEffect, useRef } from 'react';
@@ -32,7 +31,6 @@ export function AutoMatchManager() {
     if (isUserLoading || !user?.uid || !isLoaded || !selectedLeagueId) return;
 
     const syncSharedWorld = async () => {
-      // Небольшая задержка для стабильности сессии
       await new Promise(resolve => setTimeout(resolve, 500));
 
       const info = getGlobalSeasonInfo();
@@ -51,9 +49,6 @@ export function AutoMatchManager() {
       const tableRef = doc(db, 'league_tables_v1', tableId);
 
       try {
-        console.log(`[WORLD SYNC v${SYNC_VERSION}] Initiating protocol for: ${tableId}`);
-
-        // 1. АВТОМАТИЧЕСКАЯ ИНИЦИАЛИЗАЦИЯ ТАБЛИЦЫ
         let tableSnap = await getDoc(tableRef);
         let teamData = [];
 
@@ -79,7 +74,6 @@ export function AutoMatchManager() {
           const mySlotIndex = myRank - 1;
           const mySlot = teamData[mySlotIndex];
           
-          // FORCE SYNC LOGO AND NAME IF MISMATCH
           if (!mySlot || mySlot.id !== userId || mySlot.logo !== clubLogo || mySlot.name !== currentClubName) {
             teamData[mySlotIndex] = {
               id: userId,
@@ -92,12 +86,10 @@ export function AutoMatchManager() {
           }
         }
 
-        // 2. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ
         const matchesQuery = query(collection(db, 'matches_v1'), where('tableId', '==', tableId));
         const matchesSnap = await getDocs(matchesQuery);
 
         if (matchesSnap.empty) {
-          console.log(`[SYNC v${SYNC_VERSION}] Generating new calendar for group...`);
           const batch = writeBatch(db);
           const calendar = generateSeasonCalendar(teamData, currentSeason, lId);
           calendar.forEach(m => {
@@ -109,7 +101,8 @@ export function AutoMatchManager() {
               ...m, tableId, season: currentSeason, leagueId: lId, tier, groupId: groupNum,
               status: 'scheduled', isFinished: false, version: SYNC_VERSION,
               homeLogo: homeT?.logo || null,
-              awayLogo: awayT?.logo || null
+              awayLogo: awayT?.logo || null,
+              participants: [m.homeId, m.awayId] // Critical for Universal Sync
             });
           });
           await batch.commit();
@@ -144,12 +137,16 @@ export function AutoMatchManager() {
             if (m.homeLogo !== correctHomeLogo) { m.homeLogo = correctHomeLogo; changed = true; }
             if (m.awayLogo !== correctAwayLogo) { m.awayLogo = correctAwayLogo; changed = true; }
 
+            // Ensure participants array exists
+            if (!m.participants) { m.participants = [m.homeId, m.awayId]; changed = true; }
+
             if (changed) {
               needsUpdate = true;
               batch.update(d.ref, { 
                 homeId: m.homeId, awayId: m.awayId, 
                 homeName: m.homeName, awayName: m.awayName,
-                homeLogo: m.homeLogo, awayLogo: m.awayLogo
+                homeLogo: m.homeLogo, awayLogo: m.awayLogo,
+                participants: m.participants
               });
             }
           });
@@ -158,7 +155,6 @@ export function AutoMatchManager() {
 
         setWorldReady(true);
 
-        // 3. ФОНОВЫЙ РЕЗОЛВЕР ПРОШЕДШИХ МАТЧЕЙ
         const pendingQuery = query(
           collection(db, 'matches_v1'),
           where('tableId', '==', tableId),
@@ -215,11 +211,9 @@ export function AutoMatchManager() {
                 transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
               }
               transaction.update(mDoc.ref, {
-                scoreA: fSA, scoreB: fSB, status: 'finished', isFinished: true, simulation, finishedAt: serverTimestamp(),
-                homeLogo: mData.homeLogo, awayLogo: mData.awayLogo 
+                scoreA: fSA, scoreB: fSB, status: 'finished', isFinished: true, simulation, finishedAt: serverTimestamp()
               });
 
-              // СПИСАНИЕ УСТАЛОСТИ (ЭНЕРГИИ) - ТОЛЬКО ДЛЯ ОСНОВЫ
               if (isMeHome || isMeAway) {
                 const seasonId = `season_${currentSeason}`;
                 const prefixedGroupId = `${seasonId}_league_${lId}_group_${groupNum}`;
@@ -227,7 +221,6 @@ export function AutoMatchManager() {
                 
                 const fatigueLoss = 15 + Math.floor(Math.random() * 11);
                 
-                // Только Core 5 слоты
                 const coreSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
                 coreSlots.forEach(slot => {
                   const pId = lineup[slot];
