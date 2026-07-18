@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * @fileOverview Слушатель товарищеских и пробных матчей v12.3 (Selective Fatigue).
+ * @fileOverview Слушатель товарищеских и пробных матчей v12.4 (Selective Fatigue).
  * Исправлено: списание энергии только у основы.
+ * Пробный матч теперь длится 5 минут.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -13,7 +14,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription 
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Swords, Loader2, XCircle, ShieldCheck } from 'lucide-react';
+import { Swords, Loader2, XCircle, ShieldCheck, Clock } from 'lucide-react';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
@@ -21,7 +22,7 @@ import { usePathname } from 'next/navigation';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 const FRIENDLY_DURATION_MS = 60 * 1000; 
-const TRIAL_DURATION_MS = 1000;
+const TRIAL_DURATION_MS = 5 * 60 * 1000; // 5 минут
 
 function sanitizeForFirestore(obj: any) {
   if (!obj) return null;
@@ -286,9 +287,15 @@ export function FriendlyMatchListener() {
     }
   };
 
+  const isTrial = activeLobby?.isTrial;
+
   const t = {
-    hostTitle: language === 'ru' ? "ПОЛУЧЕН ВЫЗОВ" : "CHALLENGE RECEIVED",
-    hostDesc: language === 'ru' ? `Менеджер ${activeLobby?.challengerName} запрашивает тактическую проверку.` : `Manager ${activeLobby?.challengerName} requests tactical verification.`,
+    hostTitle: isTrial 
+      ? (language === 'ru' ? "ПРОБНЫЙ МАТЧ" : "TRIAL MATCH")
+      : (language === 'ru' ? "ПОЛУЧЕН ВЫЗОВ" : "CHALLENGE RECEIVED"),
+    hostDesc: isTrial
+      ? (language === 'ru' ? "Тренировочный бот готов к спаррингу. Подготовка займет 5 минут." : "Training bot is ready for sparring. Deployment takes 5 minutes.")
+      : (language === 'ru' ? `Менеджер ${activeLobby?.challengerName} запрашивает тактическую проверку.` : `Manager ${activeLobby?.challengerName} requests tactical verification.`),
     accept: language === 'ru' ? "ПРИНЯТЬ" : "ACCEPT", decline: language === 'ru' ? "ОТКЛОНИТЬ" : "DECLINE",
   };
 
@@ -297,7 +304,9 @@ export function FriendlyMatchListener() {
     <Dialog open={showChallengeModal} onOpenChange={setShowChallengeModal}>
       <DialogContent className="max-w-xs bg-card border-white/10 p-6">
         <DialogHeader>
-          <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 border border-primary/20"><Swords className="w-8 h-8 text-primary animate-pulse" /></div>
+          <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 border border-primary/20">
+            {isTrial ? <Clock className="w-8 h-8 text-primary animate-pulse" /> : <Swords className="w-8 h-8 text-primary animate-pulse" />}
+          </div>
           <DialogTitle className="text-center font-headline font-bold uppercase text-primary">{t.hostTitle}</DialogTitle>
           <DialogDescription className="text-center text-xs text-muted-foreground mt-2">{t.hostDesc}</DialogDescription>
         </DialogHeader>
