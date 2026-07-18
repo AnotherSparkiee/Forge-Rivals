@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * @fileOverview Слушатель КВ Корзины v12.5 (Next Opponent Sync).
+ * @fileOverview Слушатель КВ Корзины v12.6 (Auto-Resolution & Time Sync).
  */
 
 import { useState, useEffect, useRef } from 'react';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useGameState, LineupSlot } from '@/app/lib/store';
-import { doc, deleteDoc, serverTimestamp, getDoc, increment, writeBatch, setDoc } from 'firebase/firestore';
+import { doc, deleteDoc, serverTimestamp, getDoc, increment, writeBatch, setDoc, updateDoc } from 'firebase/firestore';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from '@/components/ui/dialog';
@@ -18,7 +18,7 @@ import { usePathname } from 'next/navigation';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
 import { getMatchResult } from '@/app/lib/leagues-data';
-import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
+import { getGlobalSeasonInfo, getMoscowTime } from '@/app/lib/time-utils';
 
 function sanitizeForFirestore(obj: any) {
   if (!obj) return null;
@@ -41,7 +41,7 @@ export function CWBasketListener() {
 
   const [showModal, setShowModal] = useState(false);
   const notifiedMatchIdRef = useRef<string | null>(null);
-  const isSimulatingRef = useRef(false);
+  const simInProgressRef = useRef<string | null>(null);
 
   const myEntryRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v2', user.uid) : null, [db, user]);
   const { data: myEntry } = useDoc(myEntryRef);
@@ -53,10 +53,9 @@ export function CWBasketListener() {
       return;
     }
 
-    const currentMatchId = `basket_${myEntry.matchStartTime}`;
+    const currentMatchId = `basket_${myEntry.matchStartTime}_u${user.uid}`;
 
     if (notifiedMatchIdRef.current !== currentMatchId) {
-      // Create scheduled entry in matches_v1 if it doesn't exist
       const createScheduled = async () => {
         const mRef = doc(db, 'matches_v1', currentMatchId);
         const mSnap = await getDoc(mRef);
@@ -66,41 +65,22 @@ export function CWBasketListener() {
             const rSnap = await getDoc(doc(db, 'players_v10', myEntry.matchedWithId));
             if (rSnap.exists()) rivalLogo = rSnap.data().clubLogo || null;
           }
-
           await setDoc(mRef, {
-            id: currentMatchId,
-            status: 'scheduled',
-            isFinished: false,
-            homeId: user.uid,
-            awayId: myEntry.matchedWithId,
-            homeName: myEntry.userName,
-            awayName: myEntry.matchedWithName,
-            homeLogo: clubLogo,
-            awayLogo: rivalLogo,
-            startTime: myEntry.matchStartTime,
-            participants: [user.uid, myEntry.matchedWithId],
-            type: 'basket',
-            version: 84
+            id: currentMatchId, status: 'scheduled', isFinished: false, homeId: user.uid, awayId: myEntry.matchedWithId, homeName: myEntry.userName, awayName: myEntry.matchedWithName, homeLogo: clubLogo, awayLogo: rivalLogo, startTime: myEntry.matchStartTime, participants: [user.uid, myEntry.matchedWithId], type: 'basket', version: 85
           });
         }
       };
-      
       createScheduled();
-
-      if (pathname !== '/tournaments/cw-basket') {
-        setShowModal(true);
-      }
+      if (pathname !== '/tournaments/cw-basket') setShowModal(true);
       notifiedMatchIdRef.current = currentMatchId;
     }
 
     const startTime = new Date(myEntry.matchStartTime).getTime();
     
     const checkAndSimulate = async () => {
-      if (!user || isSimulatingRef.current) return;
-      const now = Date.now();
-
-      if (now >= startTime) {
-        isSimulatingRef.current = true;
+      const now = getMoscowTime().getTime();
+      if (now >= startTime && simInProgressRef.current !== currentMatchId) {
+        simInProgressRef.current = currentMatchId;
         try {
           const squad = ownedPlayers.filter(h => Object.values(lineup).includes(h.id)).map(h => ({
             name: h.name, role: h.role, overallRating: h.overallRating, proStats: h.proStats,
@@ -113,42 +93,25 @@ export function CWBasketListener() {
 
           const result = await simulateMobaMatch({
             teamA: { name: myEntry.userName || "My Team", strategy, heroes: squad },
-            teamB: { 
-              name: myEntry.matchedWithName || "Rival Manager", 
-              strategy: "Balanced Play", 
-              heroes: rivalSquad
-            },
-            isBo2: true,
-            scoreA: finalScoreA,
-            scoreB: finalScoreB
+            teamB: { name: myEntry.matchedWithName || "Rival Manager", strategy: "Balanced Play", heroes: rivalSquad },
+            isBo2: true, scoreA: finalScoreA, scoreB: finalScoreB
           });
 
           const safeResult = sanitizeForFirestore(result);
           if (!safeResult) throw new Error("Simulation failed");
 
-          const seriesScoreParts = safeResult.seriesScore.split('-');
-          const winsA = parseInt(seriesScoreParts[0]);
-          const winsB = parseInt(seriesScoreParts[1]);
+          const scoreParts = safeResult.seriesScore.split('-');
+          const winsA = parseInt(scoreParts[0]);
+          const winsB = parseInt(scoreParts[1]);
 
-          // Update the scheduled match to finished
           const mRef = doc(db, 'matches_v1', currentMatchId);
-          const mSnap = await getDoc(mRef);
-          const mData = mSnap.data() || {};
-
-          await updateDoc(mRef, {
-            scoreA: winsA, scoreB: winsB, status: 'finished', isFinished: true, simulation: safeResult,
-            finishedAt: serverTimestamp()
-          });
+          await updateDoc(mRef, { scoreA: winsA, scoreB: winsB, status: 'finished', isFinished: true, simulation: safeResult, finishedAt: serverTimestamp() });
 
           recordMatch(
             safeResult.winner, 
             { ...safeResult.games[0], scoreA: winsA, scoreB: winsB, seriesScore: safeResult.seriesScore, games: safeResult.games, homeName: myEntry.userName, awayName: myEntry.matchedWithName }, 
-            0, 
-            myEntry.matchedWithName, 
-            'basket',
-            new Date().toISOString(),
-            currentMatchId,
-            { homeId: user.uid, awayId: myEntry.matchedWithId, homeLogo: mData.homeLogo, awayLogo: mData.awayLogo }
+            0, myEntry.matchedWithName, 'basket', new Date().toISOString(), currentMatchId,
+            { homeId: user.uid, awayId: myEntry.matchedWithId, homeLogo: clubLogo, awayLogo: null }
           );
 
           const batch = writeBatch(db);
@@ -163,32 +126,24 @@ export function CWBasketListener() {
             const pId = lineup[slot];
             if (pId) {
               const heroRef = doc(teamRef, 'heroes', pId);
-              batch.update(heroRef, { fatigue: increment(-fatigueLoss) });
+              batch.update(heroRef, { fatigue: increment(-fatigueLoss), form: increment(-1) });
             }
           });
           await batch.commit();
 
-          toast({
-            title: language === 'ru' ? "КВ матч завершен" : "CW match finished",
-          });
-
+          toast({ title: language === 'ru' ? "КВ матч завершен" : "CW match finished" });
           await deleteDoc(doc(db, 'cw_basket_v2', user.uid));
         } catch (e) {
           console.error("CW Auto-sim failed", e);
-        } finally {
-          isSimulatingRef.current = false;
+          simInProgressRef.current = null;
         }
       }
     };
 
-    const timer = setInterval(checkAndSimulate, 10000);
+    const timer = setInterval(checkAndSimulate, 3000);
     checkAndSimulate();
     return () => clearInterval(timer);
-  }, [user, myEntry, pathname, strategy, recordMatch, language, db, toast, matchHistory, ownedPlayers, lineup, clubLogo, selectedLeagueId, leagueLevel, groupId]);
-
-  const handleAcknowledge = () => {
-    setShowModal(false);
-  };
+  }, [user, myEntry, pathname, strategy, recordMatch, language, db, toast, ownedPlayers, lineup, clubLogo, selectedLeagueId, leagueLevel, groupId]);
 
   const t = {
     title: language === 'ru' ? "БОЙ ЗАПЛАНИРОВАН" : "ENGAGEMENT SCHEDULED",
@@ -207,20 +162,13 @@ export function CWBasketListener() {
           <div className="mx-auto w-12 h-12 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border-2 border-primary shadow-[0_0_20px_rgba(var(--primary),0.3)]">
             <Swords className="w-6 h-6 text-primary animate-pulse" />
           </div>
-          <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">
-            {t.title}
-          </DialogTitle>
-          <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">
-            {t.desc}
-          </DialogDescription>
+          <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-primary">{t.title}</DialogTitle>
+          <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest font-bold">{t.desc}</DialogDescription>
         </div>
-
         <div className="p-6 space-y-4">
           <div className="bg-secondary/30 rounded-xl border border-white/5 p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/20">
-                <User className="w-4 h-4 text-primary" />
-              </div>
+              <div className="p-2 rounded-lg bg-primary/20"><User className="w-4 h-4 text-primary" /></div>
               <div>
                 <p className="text-[8px] uppercase font-black text-muted-foreground">{t.opponent}</p>
                 <p className="text-sm font-headline font-bold text-white uppercase italic">{myEntry.matchedWithName}</p>
@@ -228,20 +176,13 @@ export function CWBasketListener() {
             </div>
             <Zap className="w-4 h-4 text-accent animate-bounce" />
           </div>
-
           <div className="p-3 bg-accent/5 rounded-lg border border-accent/20 flex items-center justify-center gap-2">
             <Timer className="w-4 h-4 text-accent" />
             <span className="text-[10px] font-black text-accent uppercase tracking-widest">{t.time}</span>
           </div>
         </div>
-
         <DialogFooter className="p-4 bg-secondary/20 border-t border-white/5">
-          <Button 
-            className="w-full h-12 hero-gradient font-black text-xs tracking-widest" 
-            onClick={handleAcknowledge}
-          >
-            {t.close}
-          </Button>
+          <Button className="w-full h-12 hero-gradient font-black text-xs tracking-widest" onClick={() => setShowModal(false)}>{t.close}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

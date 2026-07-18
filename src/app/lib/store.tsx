@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Глобальное хранилище v84 (Universal Match Sync).
- * Реализовано отслеживание всех типов матчей (Лига, ТОВ, Пробные, КВ) для таймера в главном меню.
+ * Глобальное хранилище v85 (Universal Match Sync & Server Time).
+ * Реализовано прецизионное отслеживание всех типов матчей с учетом серверного времени.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -12,7 +12,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { 
   doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, 
   query, where, serverTimestamp, arrayUnion, getDoc, updateDoc, 
-  runTransaction, increment, getDocs 
+  runTransaction, increment, getDocs, orderBy, limit 
 } from 'firebase/firestore';
 
 export { getLevelThreshold };
@@ -110,7 +110,7 @@ const DEFAULT_STATE: GameState = {
   skillPoints: 0, arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 80,
+  lastProcessedSeason: 0, trophies: [], version: 85,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
   setTrainingFocus: () => {}, startDailyPlayerTraining: () => {}, claimDailyPlayerTraining: () => {},
@@ -236,38 +236,25 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const info = getGlobalSeasonInfo();
     const currentTableId = `s${info.activeSeasonNumber}_l${state.selectedLeagueId}_t${state.leagueLevel}_g${state.groupId}`;
     
-    // We listen to both group matches and any matches where current user is a participant (friendly, trial, basket)
-    const qGroup = query(
-      collection(db, 'matches_v1'), 
-      where('tableId', '==', currentTableId)
-    );
-
-    const qPersonal = query(
-      collection(db, 'matches_v1'),
-      where('participants', 'array-contains', user.uid)
-    );
+    const qGroup = query(collection(db, 'matches_v1'), where('tableId', '==', currentTableId));
+    const qPersonal = query(collection(db, 'matches_v1'), where('participants', 'array-contains', user.uid));
 
     let active = true;
-    const groupMatches = new Map();
-    const personalMatches = new Map();
+    const matchMap = new Map();
 
     const unsubGroup = onSnapshot(qGroup, (snapshot) => {
       if (!active) return;
-      snapshot.docs.forEach(d => groupMatches.set(d.id, { ...d.data(), id: d.id }));
-      setAllMatches(Array.from(new Map([...groupMatches, ...personalMatches]).values()));
+      snapshot.docs.forEach(d => matchMap.set(d.id, { ...d.data(), id: d.id }));
+      setAllMatches(Array.from(matchMap.values()));
     });
 
     const unsubPersonal = onSnapshot(qPersonal, (snapshot) => {
       if (!active) return;
-      snapshot.docs.forEach(d => personalMatches.set(d.id, { ...d.data(), id: d.id }));
-      setAllMatches(Array.from(new Map([...groupMatches, ...personalMatches]).values()));
+      snapshot.docs.forEach(d => matchMap.set(d.id, { ...d.data(), id: d.id }));
+      setAllMatches(Array.from(matchMap.values()));
     });
 
-    return () => { 
-      active = false; 
-      unsubGroup(); 
-      unsubPersonal(); 
-    };
+    return () => { active = false; unsubGroup(); unsubPersonal(); };
   }, [db, state.id, state.selectedLeagueId, state.groupId, state.leagueLevel, state.isLoaded, isUserLoading, user?.uid]);
 
   const getRefs = useCallback(() => {
@@ -307,9 +294,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const r = getRefs();
     if (r) {
       const dbUpdates: any = {};
-      Object.entries(updates).forEach(([key, val]) => {
-        dbUpdates[`lineup.${key}`] = val;
-      });
+      Object.entries(updates).forEach(([key, val]) => { dbUpdates[`lineup.${key}`] = val; });
       updateDoc(r.team, dbUpdates);
     }
   }, [getRefs]);
@@ -321,9 +306,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (r) {
       const crystalGain = stateRef.current.isPremium ? cry + 50 : cry;
       setDoc(r.team, { 
-        credits: increment(cr), 
-        crystals: increment(crystalGain), 
-        lastRewardClaimDate: getMoscowDateString(), 
+        credits: increment(cr), crystals: increment(crystalGain), lastRewardClaimDate: getMoscowDateString(), 
         rewardDay: (stateRef.current.rewardDay % 30) + 1 
       }, { merge: true }); 
     }
@@ -366,11 +349,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const s = stateRef.current;
     const cost = type === 'credits' ? 75000 : 150;
     if ((type === 'credits' && s.credits < cost) || (type === 'crystals' && s.crystals < cost)) return false;
-
     const batch = writeBatch(db);
-    s.ownedPlayers.forEach(p => {
-      batch.update(doc(collection(r.team, 'heroes'), p.id), { fatigue: 100 });
-    });
+    s.ownedPlayers.forEach(p => { batch.update(doc(collection(r.team, 'heroes'), p.id), { fatigue: 100 }); });
     batch.update(r.team, { [type]: increment(-cost) });
     batch.commit();
     return true;
@@ -425,54 +405,32 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const launchFanCampaign = useCallback((type: string, cost: number, fans: number, loyalty: number) => {
     const r = getRefs(); if (!r) return;
-    const s = stateRef.current;
     setDoc(r.team, { 
       credits: increment(-cost),
-      fanclub: {
-        fanCount: increment(fans),
-        loyalty: increment(loyalty),
-        lastCampaignDate: getMoscowDateString()
-      }
+      fanclub: { fanCount: increment(fans), loyalty: increment(loyalty), lastCampaignDate: getMoscowDateString() }
     }, { merge: true });
   }, [getRefs]);
 
   const addTrophy = useCallback((trophy: TrophyRecord) => {
-    const r = getRefs();
-    if (r) updateDoc(r.root, { trophies: arrayUnion(trophy) });
+    const r = getRefs(); if (r) updateDoc(r.root, { trophies: arrayUnion(trophy) });
   }, [getRefs]);
 
   const resetProfile = useCallback(async () => {
     if (!user?.uid) return;
-    
     setIsWorldReady(false);
-    const r = getRefs();
-    if (!r) return;
-
+    const r = getRefs(); if (!r) return;
     try {
       await deleteDoc(r.team);
       const nq = query(collection(db, 'notifications_v7'), where('userId', '==', user.uid));
       const nSnap = await getDocs(nq);
       const batch = writeBatch(db);
       nSnap.forEach(d => batch.delete(d.ref));
-      
       const rootSnap = await getDoc(r.root);
       const currentData = rootSnap.exists() ? rootSnap.data() : {};
-      
-      batch.set(r.root, {
-        id: user.uid,
-        email: currentData.email || null,
-        tgId: currentData.tgId || null,
-        displayName: "Manager",
-        lastLoginDate: new Date().toISOString(),
-        createdAt: currentData.createdAt || new Date().toISOString(),
-        version: 0
-      });
-
+      batch.set(r.root, { id: user.uid, email: currentData.email || null, tgId: currentData.tgId || null, displayName: "Manager", lastLoginDate: new Date().toISOString(), createdAt: currentData.createdAt || new Date().toISOString(), version: 0 });
       await batch.commit();
       window.location.href = '/setup';
-    } catch (e) {
-      console.error("Hard profile reset failed:", e);
-    }
+    } catch (e) { console.error("Hard profile reset failed:", e); }
   }, [user?.uid, db, getRefs]);
 
   const payStaffSalaries = async () => {};
@@ -481,12 +439,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const r = getRefs(); if (!r) return; 
     const id = mId || `match_${Date.now()}`;
     const s = stateRef.current;
-    
-    let newLevel = s.managerLevel;
-    let newSkillPoints = s.skillPoints;
-    let bonusCrystals = 0;
-    let newTotalXp = s.experiencePoints;
-
+    let newLevel = s.managerLevel; let newSkillPoints = s.skillPoints; let bonusCrystals = 0; let newTotalXp = s.experiencePoints;
     const managerXpGain = t === 'league' ? 200 : (t === 'tournament' ? 250 : 50);
     newTotalXp += managerXpGain;
     const threshold = getLevelThreshold(s.managerLevel);
@@ -494,26 +447,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       newLevel++; newSkillPoints += 2; bonusCrystals = 50;
       setDoc(doc(db, 'notifications_v7', `lvl_${s.id}_${newLevel}`), { userId: s.id, title: "Level Up!", description: `Reached level ${newLevel}`, type: 'league', read: false, createdAt: getMoscowTime().toISOString() });
     }
-
-    const historyEntry = { 
-      id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, 
-      opponentName: opp, type: t, playedAt: p, simulation: res, seen: false, isTbdWin: opp === 'TBD',
-      homeId: extra?.homeId || null, 
-      awayId: extra?.awayId || null,
-      homeLogo: extra?.homeLogo || null,
-      awayLogo: extra?.awayLogo || null,
-      homeName: extra?.homeName || null,
-      awayName: extra?.awayName || null
-    };
-
-    setDoc(r.team, { 
-      credits: increment(rew), 
-      crystals: increment(bonusCrystals), 
-      experiencePoints: newTotalXp,
-      managerLevel: newLevel, 
-      skillPoints: newSkillPoints, 
-      matchHistory: arrayUnion(historyEntry) 
-    }, { merge: true });
+    const historyEntry = { id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, opponentName: opp, type: t, playedAt: p, simulation: res, seen: false, isTbdWin: opp === 'TBD', homeId: extra?.homeId || null, awayId: extra?.awayId || null, homeLogo: extra?.homeLogo || null, awayLogo: extra?.awayLogo || null, homeName: extra?.homeName || null, awayName: extra?.awayName || null };
+    setDoc(r.team, { credits: increment(rew), crystals: increment(bonusCrystals), experiencePoints: newTotalXp, managerLevel: newLevel, skillPoints: newSkillPoints, matchHistory: arrayUnion(historyEntry) }, { merge: true });
   }, [getRefs, db]);
 
   const markMatchIdAsSeen = useCallback((id: string) => { 
@@ -525,15 +460,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [getRefs, allMatches]);
 
   const deleteMatchHistoryEntry = useCallback((id: string) => {
-    const r = getRefs();
-    if (!r) return;
+    const r = getRefs(); if (!r) return;
     const newHistory = stateRef.current.matchHistory.filter(m => m.id !== id);
     updateDoc(r.team, { matchHistory: newHistory });
   }, [getRefs]);
 
   const clearMatchHistory = useCallback(() => {
-    const r = getRefs();
-    if (r) updateDoc(r.team, { matchHistory: [] });
+    const r = getRefs(); if (r) updateDoc(r.team, { matchHistory: [] });
   }, [getRefs]);
 
   const scoutCandidates = useCallback(() => {
@@ -554,10 +487,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   
   const upgradeManagerSkill = useCallback((key: keyof GameState['managerSkills']) => {
     const r = getRefs(); if (!r || stateRef.current.skillPoints <= 0) return;
-    setDoc(r.team, { 
-      managerSkills: { [key]: increment(1) }, 
-      skillPoints: increment(-1) 
-    }, { merge: true });
+    setDoc(r.team, { managerSkills: { [key]: increment(1) }, skillPoints: increment(-1) }, { merge: true });
   }, [getRefs]);
 
   const startArenaConstruction = useCallback((id: string, cost: number) => startConstruction('arena', id, cost), [addCredits, getRefs]);
@@ -606,13 +536,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (updateFound) setDoc(r.team, newTeamData, { merge: true });
   }, [getRefs]);
 
-  const setWorldReady = useCallback((ready: boolean) => {
-    setIsWorldReady(ready);
-  }, []);
+  const setWorldReady = useCallback((ready: boolean) => { setIsWorldReady(ready); }, []);
 
   const nextMatchInfo = useMemo(() => {
     if (!user?.uid || !allMatches || allMatches.length === 0) return null;
-    const futureMatches = allMatches.filter(m => (m.homeId === user.uid || m.awayId === user.uid) && !m.isFinished);
+    const mskNow = getMoscowTime().getTime();
+    const futureMatches = allMatches.filter(m => 
+      (m.homeId === user.uid || m.awayId === user.uid) && 
+      !m.isFinished &&
+      new Date(m.startTime).getTime() > mskNow - (1000 * 60 * 2) // Прячем через 2 минуты после начала, если не зафинишен
+    );
     if (futureMatches.length === 0) return null;
     const sorted = [...futureMatches].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
     const next = sorted[0];
@@ -620,18 +553,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [allMatches, user?.uid]);
 
   const value = useMemo(() => ({
-    ...state, 
-    isDataReady: isWorldReady && state.isLoaded && state.isTeamLoaded, 
-    isTeamLoaded: state.isTeamLoaded,
-    allSeasonMatches: allMatches, 
-    nextMatch: nextMatchInfo, 
-    isMatchesLoading: !isWorldReady || allMatches.length === 0,
-    addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage,
-    setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, 
-    addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries,
-    scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, 
-    startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen,
-    deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy
+    ...state, isDataReady: isWorldReady && state.isLoaded && state.isTeamLoaded, isTeamLoaded: state.isTeamLoaded, allSeasonMatches: allMatches, nextMatch: nextMatchInfo, isMatchesLoading: !isWorldReady || allMatches.length === 0, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy
   }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;

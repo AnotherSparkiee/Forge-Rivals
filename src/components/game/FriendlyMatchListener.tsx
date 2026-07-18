@@ -1,8 +1,7 @@
 'use client';
 
 /**
- * @fileOverview Слушатель товарищеских и пробных матчей v12.5 (Next Opponent Sync).
- * Пробный матч теперь имеет 5-минутную задержку и отображается в главном меню.
+ * @fileOverview Слушатель товарищеских и пробных матчей v12.6 (Auto-Resolution & Time Sync).
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -18,10 +17,10 @@ import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
 import { useToast } from '@/hooks/use-toast';
 import { usePathname } from 'next/navigation';
-import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
+import { getGlobalSeasonInfo, getMoscowTime } from '@/app/lib/time-utils';
 
-const FRIENDLY_DURATION_MS = 60 * 1000; 
-const TRIAL_DURATION_MS = 5 * 60 * 1000; 
+const FRIENDLY_DELAY_MS = 60 * 1000; 
+const TRIAL_DELAY_MS = 5 * 60 * 1000; 
 
 function sanitizeForFirestore(obj: any) {
   if (!obj) return null;
@@ -49,7 +48,7 @@ export function FriendlyMatchListener() {
   const [showChallengeModal, setShowChallengeModal] = useState(false);
   
   const handledChallengeIdRef = useRef<string | null>(null);
-  const isSimulatingRef = useRef(false);
+  const simInProgressRef = useRef<string | null>(null);
 
   const sendNotification = useCallback((targetUserId: string, title: string, description: string) => {
     addDocumentNonBlocking(collection(db, 'notifications_v7'), {
@@ -90,76 +89,73 @@ export function FriendlyMatchListener() {
 
   useEffect(() => {
     const data = activeLobby || challengeResult;
-    if (!data || !user) return;
+    if (!data || !user || data.status !== 'accepted' || !data.matchResult || !data.matchStartTime) return;
 
+    const matchType = data.isTrial ? 'trial' : 'friendly';
+    const matchUniqueId = data.matchUniqueId || `${matchType}_${data.id}`;
+    const startTime = new Date(data.matchStartTime).getTime();
     const isHost = data.hostId === user.uid;
 
-    if (data.status === 'accepted' && data.matchResult) {
-      const acceptedAt = data.acceptedAt?.toMillis() || Date.now(); 
-      const matchType = data.isTrial ? 'trial' : 'friendly';
-      const matchUniqueId = `${matchType}_${data.id}_${acceptedAt}`;
-      const duration = data.isTrial ? TRIAL_DURATION_MS : FRIENDLY_DURATION_MS;
-      const finishTime = acceptedAt + duration;
-      
-      const checkAndComplete = async () => {
-        if (isSimulatingRef.current) return;
-        if (Date.now() >= finishTime) {
-          isSimulatingRef.current = true;
-          try {
-            const result = data.matchResult;
-            const seriesScoreParts = result.seriesScore.split('-');
-            const winsA = parseInt(seriesScoreParts[0]);
-            const winsB = parseInt(seriesScoreParts[1]);
-            const myScoreA = isHost ? winsA : winsB;
-            const myScoreB = isHost ? winsB : winsA;
-            const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
-            const myName = isHost ? data.hostName : data.challengerName;
-            
-            // Update scheduled match to finished
-            const mRef = doc(db, 'matches_v1', matchUniqueId);
-            await updateDoc(mRef, {
-              scoreA: myScoreA, scoreB: myScoreB, status: 'finished', isFinished: true, simulation: result,
-              finishedAt: serverTimestamp()
-            });
+    const checkAndComplete = async () => {
+      const now = getMoscowTime().getTime();
+      if (now >= startTime && simInProgressRef.current !== matchUniqueId) {
+        simInProgressRef.current = matchUniqueId;
+        try {
+          const mRef = doc(db, 'matches_v1', matchUniqueId);
+          const mSnap = await getDoc(mRef);
+          if (!mSnap.exists() || mSnap.data().isFinished) return;
 
-            recordMatch(
-              myScoreA > myScoreB ? myName : (myScoreA === myScoreB ? "Draw" : opponentName), 
-              { ...result.games[0], scoreA: myScoreA, scoreB: myScoreB, seriesScore: `${myScoreA}-${myScoreB}`, games: result.games, homeName: data.hostName, awayName: data.challengerName }, 
-              0, opponentName, matchType, new Date().toISOString(), matchUniqueId,
-              { homeId: data.hostId, awayId: data.challengerId, homeLogo: data.hostLogo, awayLogo: data.challengerLogo }
-            );
+          const result = data.matchResult;
+          const seriesScoreParts = result.seriesScore.split('-');
+          const winsA = parseInt(seriesScoreParts[0]);
+          const winsB = parseInt(seriesScoreParts[1]);
+          const myScoreA = isHost ? winsA : winsB;
+          const myScoreB = isHost ? winsB : winsA;
+          const opponentName = isHost ? (data.challengerName || "Rival") : (data.hostName || "Host");
+          const myName = isHost ? data.hostName : data.challengerName;
 
-            const batch = writeBatch(db);
-            const info = getGlobalSeasonInfo();
-            const seasonId = `season_${info.activeSeasonNumber}`;
-            const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
-            const teamRef = doc(db, 'leagues_v2', selectedLeagueId!, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid);
-            
-            const fatigueLoss = 8 + Math.floor(Math.random() * 5); 
-            const coreSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
-            coreSlots.forEach(slot => {
-              const pId = lineup[slot];
-              if (pId) {
-                const heroRef = doc(teamRef, 'heroes', pId);
-                batch.update(heroRef, { fatigue: increment(-fatigueLoss) });
-              }
-            });
-            await batch.commit();
-            
-            toast({ title: language === 'ru' ? "Матч завершен" : "Match Finished" });
-            if (isHost) await deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
-          } catch (e) { 
-            console.error("Friendly Match Resolution failed", e); 
-          } finally { 
-            isSimulatingRef.current = false; 
-          }
+          await updateDoc(mRef, {
+            scoreA: myScoreA, scoreB: myScoreB, status: 'finished', isFinished: true, simulation: result,
+            finishedAt: serverTimestamp()
+          });
+
+          recordMatch(
+            myScoreA > myScoreB ? myName : (myScoreA === myScoreB ? "Draw" : opponentName), 
+            { ...result.games[0], scoreA: myScoreA, scoreB: myScoreB, seriesScore: `${myScoreA}-${myScoreB}`, games: result.games, homeName: data.hostName, awayName: data.challengerName }, 
+            0, opponentName, matchType, new Date().toISOString(), matchUniqueId,
+            { homeId: data.hostId, awayId: data.challengerId, homeLogo: data.hostLogo, awayLogo: data.challengerLogo }
+          );
+
+          const batch = writeBatch(db);
+          const info = getGlobalSeasonInfo();
+          const seasonId = `season_${info.activeSeasonNumber}`;
+          const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${groupId}`;
+          const teamRef = doc(db, 'leagues_v2', selectedLeagueId!, 'divisions', String(leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid);
+          
+          const fatigueLoss = 8 + Math.floor(Math.random() * 5); 
+          const coreSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
+          coreSlots.forEach(slot => {
+            const pId = lineup[slot];
+            if (pId) {
+              const heroRef = doc(teamRef, 'heroes', pId);
+              batch.update(heroRef, { fatigue: increment(-fatigueLoss), form: increment(-1) });
+            }
+          });
+          await batch.commit();
+          
+          toast({ title: language === 'ru' ? "Матч завершен" : "Match Finished" });
+          if (isHost) await deleteDoc(doc(db, 'friendly_lobbies_v3', data.id)).catch(() => {});
+        } catch (e) {
+          console.error("Resolution Error:", e);
+          simInProgressRef.current = null;
         }
-      };
-      const timer = setInterval(checkAndComplete, 2000);
-      checkAndComplete();
-      return () => clearInterval(timer);
-    }
-  }, [activeLobby, challengeResult, user, language, recordMatch, db, toast, matchHistory, selectedLeagueId, leagueLevel, groupId, lineup]);
+      }
+    };
+
+    const timer = setInterval(checkAndComplete, 3000);
+    checkAndComplete();
+    return () => clearInterval(timer);
+  }, [activeLobby, challengeResult, user, language, recordMatch, db, toast, selectedLeagueId, leagueLevel, groupId, lineup]);
 
   const handleHostRespond = async (accept: boolean) => {
     if (!activeLobby) return;
@@ -217,11 +213,9 @@ export function FriendlyMatchListener() {
               const td = teamSnap.data();
               strategyB = td.strategy || "Balanced Play";
               infraBonusB = (td.bootcamp?.bootcampLevel || 0) + (td.bootcamp?.tacticsHallLevel || 0);
-              
               const staffDocs = staffSnap.docs.map(d => d.data());
               staffBonusB = staffDocs.find(s => s.role === 'coach')?.skills?.primary || 0;
               analystBonusB = staffDocs.find(s => s.role === 'analyst')?.skills?.primary || 0;
-
               const cLineup = td.lineup || {};
               const allHeroes = heroesSnap.docs.map(d => ({ ...d.data(), id: d.id }));
               squadB = allHeroes.filter(h => Object.values(cLineup).includes(h.id)).map((h: any) => ({
@@ -236,50 +230,22 @@ export function FriendlyMatchListener() {
         if (squadB.length < 5) squadB = generateBotSquad(8);
 
         const result = await simulateMobaMatch({
-          teamA: { 
-            name: activeLobby.hostName, strategy, heroes: squadA, 
-            infraBonus: infraBonusA, 
-            staffBonus: coachA?.skills?.primary || 0,
-            analystBonus: analystA?.skills?.primary || 0
-          },
-          teamB: { 
-            name: activeLobby.challengerName || "Rival", strategy: strategyB, heroes: squadB, 
-            infraBonus: infraBonusB, 
-            staffBonus: staffBonusB,
-            analystBonus: analystBonusB
-          },
+          teamA: { name: activeLobby.hostName, strategy, heroes: squadA, infraBonus: infraBonusA, staffBonus: coachA?.skills?.primary || 0, analystBonus: analystA?.skills?.primary || 0 },
+          teamB: { name: activeLobby.challengerName || "Rival", strategy: strategyB, heroes: squadB, infraBonus: infraBonusB, staffBonus: staffBonusB, analystBonus: analystBonusB },
           isBo2: true
         });
         
-        const now = Date.now();
-        const delay = activeLobby.isTrial ? TRIAL_DURATION_MS : FRIENDLY_DURATION_MS;
-        const matchStartTime = new Date(now + delay).toISOString();
-        const matchUniqueId = `${activeLobby.isTrial ? 'trial' : 'friendly'}_${activeLobby.id}_${now}`;
+        const nowMs = getMoscowTime().getTime();
+        const delay = activeLobby.isTrial ? TRIAL_DELAY_MS : FRIENDLY_DELAY_MS;
+        const matchStartTime = new Date(nowMs + delay).toISOString();
+        const matchUniqueId = `${activeLobby.isTrial ? 'trial' : 'friendly'}_${activeLobby.id}_${nowMs}`;
 
-        // Create scheduled entry in matches_v1 for main menu visibility
         await setDoc(doc(db, 'matches_v1', matchUniqueId), {
-          id: matchUniqueId,
-          status: 'scheduled',
-          isFinished: false,
-          homeId: activeLobby.hostId,
-          awayId: activeLobby.challengerId || 'sys_bot',
-          homeName: activeLobby.hostName,
-          awayName: activeLobby.challengerName || (language === 'ru' ? 'Тренировочный Бот' : 'Training Bot'),
-          homeLogo: clubLogo || null,
-          awayLogo: challengerLogoB,
-          startTime: matchStartTime,
-          participants: [activeLobby.hostId, activeLobby.challengerId || 'sys_bot'],
-          type: activeLobby.isTrial ? 'trial' : 'friendly',
-          version: 84
+          id: matchUniqueId, status: 'scheduled', isFinished: false, homeId: activeLobby.hostId, awayId: activeLobby.challengerId || 'sys_bot', homeName: activeLobby.hostName, awayName: activeLobby.challengerName || (language === 'ru' ? 'Тренировочный Бот' : 'Training Bot'), homeLogo: clubLogo || null, awayLogo: challengerLogoB, startTime: matchStartTime, participants: [activeLobby.hostId, activeLobby.challengerId || 'sys_bot'], type: activeLobby.isTrial ? 'trial' : 'friendly', version: 85
         });
 
         await updateDoc(lobbyRef, { 
-          status: 'accepted', 
-          matchResult: sanitizeForFirestore(result), 
-          acceptedAt: serverTimestamp(), 
-          updatedAt: serverTimestamp(),
-          hostLogo: clubLogo || null,
-          challengerLogo: challengerLogoB
+          status: 'accepted', matchResult: sanitizeForFirestore(result), acceptedAt: serverTimestamp(), updatedAt: serverTimestamp(), hostLogo: clubLogo || null, challengerLogo: challengerLogoB, matchStartTime, matchUniqueId
         });
 
         if (activeLobby.challengerId && !activeLobby.challengerId.startsWith('sys_')) {
@@ -289,7 +255,7 @@ export function FriendlyMatchListener() {
         await updateDoc(lobbyRef, { status: 'rejected', updatedAt: serverTimestamp() });
       }
     } catch (e) {
-      console.error("Friendly Match Engine failed", e);
+      console.error("Match Engine failed", e);
       toast({ variant: "destructive", title: "Match Sync Failed" });
     } finally { 
       setIsActionLoading(false); 
@@ -300,17 +266,12 @@ export function FriendlyMatchListener() {
   const isTrial = activeLobby?.isTrial;
 
   const t = {
-    hostTitle: isTrial 
-      ? (language === 'ru' ? "ПРОБНЫЙ МАТЧ" : "TRIAL MATCH")
-      : (language === 'ru' ? "ПОЛУЧЕН ВЫЗОВ" : "CHALLENGE RECEIVED"),
-    hostDesc: isTrial
-      ? (language === 'ru' ? "Тренировочный бот готов к спаррингу. Подготовка займет 5 минут." : "Training bot is ready for sparring. Deployment takes 5 minutes.")
-      : (language === 'ru' ? `Менеджер ${activeLobby?.challengerName} запрашивает тактическую проверку.` : `Manager ${activeLobby?.challengerName} requests tactical verification.`),
+    hostTitle: isTrial ? (language === 'ru' ? "ПРОБНЫЙ МАТЧ" : "TRIAL MATCH") : (language === 'ru' ? "ПОЛУЧЕН ВЫЗОВ" : "CHALLENGE RECEIVED"),
+    hostDesc: isTrial ? (language === 'ru' ? "Тренировочный бот готов к спаррингу. Подготовка займет 5 минут." : "Training bot is ready for sparring. Deployment takes 5 minutes.") : (language === 'ru' ? `Менеджер ${activeLobby?.challengerName} запрашивает тактическую проверку.` : `Manager ${activeLobby?.challengerName} requests tactical verification.`),
     accept: language === 'ru' ? "ПРИНЯТЬ" : "ACCEPT", decline: language === 'ru' ? "ОТКЛОНИТЬ" : "DECLINE",
   };
 
   return (
-    <div key="friendly-listener">
     <Dialog open={showChallengeModal} onOpenChange={setShowChallengeModal}>
       <DialogContent className="max-w-xs bg-card border-white/10 p-6">
         <DialogHeader>
@@ -326,6 +287,5 @@ export function FriendlyMatchListener() {
         </div>
       </DialogContent>
     </Dialog>
-    </div>
   );
 }
