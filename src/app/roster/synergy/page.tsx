@@ -62,17 +62,31 @@ export default function SynergyPage() {
       const player = ownedPlayers.find(p => p.id === pId);
       if (!player) return null;
 
-      let pMatches = 0;
+      let pOfficial = 0;
+      let pTraining = 0;
+
       matchHistory.forEach(match => {
         const playedDate = match.playedAt ? new Date(match.playedAt).getTime() : 0;
         if (playedDate < regDate) return;
         
         // Проверяем, участвовал ли этот конкретный игрок в матче
         const performance = match.simulation?.games?.[0]?.scoreboard?.find((p: any) => p.name === player.name);
-        if (performance) pMatches++;
+        if (performance) {
+          if (match.type === 'league' || match.type === 'tournament') {
+            pOfficial++;
+          } else {
+            pTraining++;
+          }
+        }
       });
 
-      return { ...player, clubMatches: pMatches, slotLabel: slot };
+      return { 
+        ...player, 
+        clubMatches: pOfficial + pTraining, 
+        officialMatches: pOfficial,
+        trainingMatches: pTraining,
+        slotLabel: slot 
+      };
     }).filter(Boolean);
   }, [lineup, ownedPlayers, matchHistory, profile]);
 
@@ -94,6 +108,8 @@ export default function SynergyPage() {
     total: language === 'ru' ? "Всего игр" : "Total",
     coreUnits: language === 'ru' ? "АКТИВНЫЕ ЕДИНИЦЫ ЯДРА" : "ACTIVE CORE UNITS",
     gamesCount: language === 'ru' ? "игр" : "games",
+    offShort: language === 'ru' ? "ОФ" : "OFF",
+    trnShort: language === 'ru' ? "ТРН" : "TRN",
     desc: language === 'ru' 
       ? "Сыгранность рассчитывается на основе совместных выступлений основной пятерки. Официальные игры (Лига/Кубок) дают 2%, тренировочные (КВ/Тов/Пробные) дают 1% за каждые 100 матчей."
       : "Synergy is calculated based on core five appearances. Official games (League/Cup) grant 2% each, while practice (CW/Friendly/Trial) grant 1% per 100 matches.",
@@ -198,9 +214,19 @@ export default function SynergyPage() {
                         </p>
                       </div>
                    </div>
-                   <div className="text-right">
-                      <p className="text-[10px] font-headline font-bold text-primary italic leading-none">{player.clubMatches}</p>
-                      <p className="text-[7px] font-black text-muted-foreground uppercase mt-0.5 tracking-tighter">{t.gamesCount}</p>
+                   <div className="text-right flex items-center gap-4">
+                      <div className="flex flex-col items-end">
+                        <p className="text-[7px] font-black text-muted-foreground uppercase tracking-tighter leading-none mb-1">{t.offShort}</p>
+                        <p className="text-xs font-headline font-bold text-primary italic leading-none">{player.officialMatches}</p>
+                      </div>
+                      <div className="flex flex-col items-end border-l border-white/5 pl-4">
+                        <p className="text-[7px] font-black text-muted-foreground uppercase tracking-tighter leading-none mb-1">{t.trnShort}</p>
+                        <p className="text-xs font-headline font-bold text-accent italic leading-none">{player.trainingMatches}</p>
+                      </div>
+                      <div className="flex flex-col items-end border-l border-white/5 pl-4">
+                        <p className="text-[7px] font-black text-primary uppercase tracking-tighter leading-none mb-1">{t.total}</p>
+                        <p className="text-sm font-headline font-black text-white italic leading-none">{player.clubMatches}</p>
+                      </div>
                    </div>
                 </CardContent>
               </Card>
