@@ -110,7 +110,7 @@ const DEFAULT_STATE: GameState = {
   skillPoints: 0, arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 85,
+  lastProcessedSeason: 0, trophies: [], version: 0,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
   setTrainingFocus: () => {}, startDailyPlayerTraining: () => {}, claimDailyPlayerTraining: () => {},

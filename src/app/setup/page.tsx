@@ -94,17 +94,24 @@ export default function SetupPage() {
     return () => clearTimeout(timer);
   }, [customClubName, step, db, user?.uid]);
 
+  /**
+   * Находит первое свободное место (занятое ботом) в иерархии лиги.
+   * Приоритет: Дивизион 1 -> Дивизион 9.
+   */
   const findPlacementClient = async (leagueId: string) => {
     const q = query(collection(db, 'players_v10'), where('selectedLeagueId', '==', leagueId));
     const snap = await getDocs(q);
     
     const occupiedIndices = new Set<number>();
+    
     snap.forEach(d => {
       const data = d.data();
-      if (Number(data.version || 0) >= 71) {
+      // Учитываем только тех, кто прошел сброс v80
+      if (Number(data.version || 0) >= 80) {
         const tier = Number(data.leagueLevel);
         const group = Number(data.groupId);
         const rank = Number(data.rank);
+        
         if (tier && group && rank) {
           const groupsBefore = Math.pow(2, tier - 1) - 1;
           const globalIndex = (groupsBefore * 8) + (group - 1) * 8 + (rank - 1);
@@ -114,6 +121,7 @@ export default function SetupPage() {
     });
 
     let foundIndex = 0;
+    // Максимум 4088 слотов в лиге (9 уровней)
     for (let i = 0; i < 4088; i++) {
       if (!occupiedIndices.has(i)) {
         foundIndex = i;
@@ -144,26 +152,32 @@ export default function SetupPage() {
       const batch = writeBatch(db);
       const rootRef = doc(db, 'players_v10', user.uid);
       
-      // Update Root Profile
+      // Обновляем корневой профиль (сбрасываем старые связи)
       batch.set(rootRef, {
+        id: user.uid,
+        email: profile?.email || null,
+        tgId: profile?.tgId || null,
         selectedLeagueId,
         leagueLevel: Number(placement.tier),
         groupId: Number(placement.group),
         rank: Number(placement.rank),
         country: selectedCountry?.name || 'International',
         clubName: customClubName.trim(),
-        displayName: customClubName.trim(), // Synchronize Manager Name with Club Name for consistency after reset
+        displayName: customClubName.trim(), 
         clubLogo: selectedClub?.logo || null,
         setupDate: nowIso,
         lastProcessedSeason: Number(activeSeasonNumber || 1),
+        trophies: [],
+        lastSeenMatchDay: 0,
+        createdAt: profile?.createdAt || nowIso,
         version: SETUP_VERSION
-      }, { merge: true });
+      }, { merge: false }); // Полная перезапись для чистого сброса
 
       const seasonId = `season_${activeSeasonNumber || 1}`;
       const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${placement.group}`;
       const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(placement.tier), 'groups', prefixedGroupId, 'teams', user.uid);
       
-      // Initialize Team Doc
+      // Инициализируем документ команды
       batch.set(teamRef, {
         id: user.uid,
         displayName: customClubName.trim(),
@@ -183,16 +197,18 @@ export default function SetupPage() {
         matchHistory: [],
         createdAt: nowIso,
         version: SETUP_VERSION
-      }, { merge: true });
+      });
 
       uniqueSquad.forEach(hero => {
         const heroRef = doc(collection(teamRef, 'heroes'), hero.id);
-        batch.set(heroRef, JSON.parse(JSON.stringify({ ...hero, isYouth: false })), { merge: true });
+        batch.set(heroRef, JSON.parse(JSON.stringify({ ...hero, isYouth: false })));
       });
 
       await batch.commit();
       toast({ title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!" });
-      setTimeout(() => router.replace('/'), 500);
+      
+      // Мгновенная перезагрузка для подхвата новых данных в store
+      window.location.href = '/';
 
     } catch (e: any) {
       console.error("[SETUP v80 ERROR]", e);

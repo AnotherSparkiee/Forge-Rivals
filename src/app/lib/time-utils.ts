@@ -10,7 +10,7 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-// Начало времен: 29 июня 2026 00:00 MSK
+// Начало времен: 29 июня 2026 00:00 MSK (Воскресенье 21:00 UTC)
 export const GLOBAL_EPOCH_ISO = '2026-06-28T21:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
