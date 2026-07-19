@@ -1,7 +1,7 @@
 /**
- * @fileOverview Ядро времени v70 (Stable Infinite Season Engine). 
+ * @fileOverview Ядро времени v86 (Infinite Season Sync). 
  * Глобальная синхронизация цикла (15 дней).
- * Начало времен: 1 января 2025 года (Стабильная эпоха).
+ * Стабильная эпоха: 1 января 2025 года.
  */
 
 let syncPoint = {

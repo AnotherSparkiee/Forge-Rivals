@@ -18,7 +18,7 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-const SETUP_VERSION = 80;
+const SETUP_VERSION = 86;
 
 const CLUBS = [
   { id: 'parivision', name: 'Parivision', logo: 'https://iili.io/CYIAgVa.webp' },
@@ -191,7 +191,7 @@ export default function SetupPage() {
       toast({ title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!" });
       window.location.href = '/';
     } catch (e: any) {
-      console.error("[SETUP v80 ERROR]", e);
+      console.error("[SETUP v86 ERROR]", e);
       toast({ variant: "destructive", title: "Setup Failed", description: e.message });
     } finally {
       setIsUpdating(false);
@@ -208,7 +208,7 @@ export default function SetupPage() {
       name: 'НАЗВАНИЕ КЛУБА',
       continue: 'ПРОДОЛЖИТЬ',
       finalize: 'ЗАВЕРШИТЬ ПРОФИЛЬ',
-      protocol: 'Операционный протокол v80',
+      protocol: 'Операционный протокол v86',
       msk: 'МСК',
       namePlaceholder: 'Введите название клуба...',
       nameDesc: 'Это имя будет отображаться в чатах и таблицах.',
@@ -223,7 +223,7 @@ export default function SetupPage() {
       name: 'CLUB NAME',
       continue: 'CONTINUE',
       finalize: 'FINALIZE PROFILE',
-      protocol: 'Operational Protocol v80',
+      protocol: 'Operational Protocol v86',
       msk: 'MSK',
       namePlaceholder: 'Enter club name...',
       nameDesc: 'This name will be visible in chats and rankings.',

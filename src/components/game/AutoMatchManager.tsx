@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v85 (Resilient Season Sync).
+ * @fileOverview Ядро MMO-синхронизации v86 (Infinite Season Cycle).
  * Оптимизировано для мгновенного доступа и предотвращения исчезновения данных групп.
  */
 
@@ -16,7 +16,7 @@ import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/a
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
 
-const SYNC_VERSION = 85; 
+const SYNC_VERSION = 86; 
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
