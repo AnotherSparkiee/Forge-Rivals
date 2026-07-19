@@ -24,26 +24,31 @@ const GIFT_POOL = [
 ];
 
 export function GiftGenerationManager() {
-  const { isLoaded, activeLicenseTier, lastGiftGenDate, generateDailyGifts, language } = useGameState();
+  const { isLoaded, activeLicenseTier, lastGiftGenDate, generateDailyGifts, language, availableGiftsToSend = [] } = useGameState();
 
   useEffect(() => {
-    if (isLoaded && activeLicenseTier === 1) {
-      const today = getMoscowDateString();
-      if (lastGiftGenDate !== today) {
-        // Generate 1 random gift (Updated from 3 to 1)
-        const random = GIFT_POOL[Math.floor(Math.random() * GIFT_POOL.length)];
-        const generated: Gift = {
-          id: `g_${Date.now()}_0`,
-          type: random.type as any,
-          value: random.value,
-          label: language === 'ru' ? random.labelRu : random.labelEn,
-          createdAt: new Date().toISOString(),
-          claimed: false
-        };
-        generateDailyGifts([generated]);
-      }
+    if (!isLoaded || activeLicenseTier !== 1) return;
+
+    const today = getMoscowDateString();
+    
+    // Case 1: Daily refresh (or first time)
+    if (lastGiftGenDate !== today) {
+      const random = GIFT_POOL[Math.floor(Math.random() * GIFT_POOL.length)];
+      const generated: Gift = {
+        id: `g_${Date.now()}_0`,
+        type: random.type as any,
+        value: random.value,
+        label: language === 'ru' ? random.labelRu : random.labelEn,
+        createdAt: new Date().toISOString(),
+        claimed: false
+      };
+      generateDailyGifts([generated]);
+    } 
+    // Case 2: Stale data enforcement (ensure strictly 1 gift max)
+    else if (availableGiftsToSend.length > 1) {
+      generateDailyGifts([availableGiftsToSend[0]]);
     }
-  }, [isLoaded, activeLicenseTier, lastGiftGenDate, generateDailyGifts, language]);
+  }, [isLoaded, activeLicenseTier, lastGiftGenDate, generateDailyGifts, language, availableGiftsToSend.length]);
 
   return null;
 }

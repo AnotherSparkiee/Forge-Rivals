@@ -63,7 +63,7 @@ interface GameState {
   country: string | null; isPremium: boolean; premiumUntil: string | null;
   activeSeasonNumber: number; activeLicenseTier: number | null;
   rank: number; seasonDay: number; seasonNumber: number;
-  isSyncing: boolean; language: string; skillPoints: number;
+  isSyncing: boolean; language: string; languageSet: (lang: string) => void; 
   isDataReady: boolean; isTeamLoaded: boolean; allSeasonMatches: any[]; nextMatch: any | null; isMatchesLoading: boolean;
   lastProcessedSeason: number;
   trophies: TrophyRecord[];
@@ -169,6 +169,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
+
+  const { language } = state;
 
   const staticSeasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
@@ -542,13 +544,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return true;
   }, [getRefs, addCredits]);
 
-  const accelerateConstruction = useCallback((type: string, id: string, mult: number, price: number) => {
+  const accelerateConstruction = useCallback((type: string, id: string, multiplier: number, price: number) => {
     const r = getRefs(); if (!r || stateRef.current.crystals < price) return false;
     const data = (stateRef.current as any)[type];
     if (data.isAccelerated?.[id]) return false;
     const remaining = new Date(data.constructionFinishes[id]).getTime() - getMoscowTime().getTime();
     addCrystals(-price);
-    setDoc(r.team, { [type]: { constructionFinishes: { [id]: new Date(getMoscowTime().getTime() + (remaining / mult)).toISOString() }, isAccelerated: { [id]: true } } }, { merge: true });
+    setDoc(r.team, { [type]: { constructionFinishes: { [id]: new Date(getMoscowTime().getTime() + (remaining / multiplier)).toISOString() }, isAccelerated: { [id]: true } } }, { merge: true });
     return true;
   }, [getRefs, addCrystals]);
 
@@ -601,16 +603,17 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const sendGift = useCallback(async (giftId: string, friendId: string, friendName: string) => {
     if (!user) return false;
-    const r = getRefs();
-    if (!r) return false;
+    const myRootRef = doc(db, 'players_v10', user.uid);
+    const friendRootRef = doc(db, 'players_v10', friendId);
     
-    const giftIndex = stateRef.current.availableGiftsToSend.findIndex(g => g.id === giftId);
+    const currentAvailable = stateRef.current.availableGiftsToSend || [];
+    const giftIndex = currentAvailable.findIndex(g => g.id === giftId);
     if (giftIndex === -1) return false;
-    const gift = stateRef.current.availableGiftsToSend[giftIndex];
+    const gift = currentAvailable[giftIndex];
     
     try {
-      // Add gift to friend's subcollection
-      const friendGiftRef = doc(collection(doc(db, 'players_v10', friendId), 'received_gifts'));
+      // 1. Add to friend's received_gifts
+      const friendGiftRef = doc(collection(friendRootRef, 'received_gifts'));
       await setDoc(friendGiftRef, {
         ...gift,
         id: friendGiftRef.id,
@@ -620,15 +623,17 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         claimed: false
       });
       
-      // Remove from my available gifts
-      const newAvailable = stateRef.current.availableGiftsToSend.filter(g => g.id !== giftId);
-      await updateDoc(r.root, { availableGiftsToSend: newAvailable });
+      // 2. Remove from my available list
+      const newAvailable = currentAvailable.filter(g => g.id !== giftId);
+      await updateDoc(myRootRef, { availableGiftsToSend: newAvailable });
       
-      // Notify friend
-      addDocumentNonBlocking(collection(db, 'notifications_v7'), {
+      // 3. Notify friend
+      await addDocumentNonBlocking(collection(db, 'notifications_v7'), {
         userId: friendId,
-        title: "Gift Received!",
-        description: `Manager ${stateRef.current.displayName} sent you: ${gift.label}`,
+        title: language === 'ru' ? "Получен подарок!" : "Gift Received!",
+        description: language === 'ru' 
+          ? `Менеджер ${stateRef.current.displayName} прислал вам: ${gift.label}`
+          : `Manager ${stateRef.current.displayName} sent you: ${gift.label}`,
         type: 'social',
         read: false,
         createdAt: new Date().toISOString()
@@ -636,10 +641,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       
       return true;
     } catch (e) {
-      console.error("Failed to send gift", e);
+      console.error("Critical: Send gift failed", e);
       return false;
     }
-  }, [user, getRefs, db]);
+  }, [user, db, language]);
 
   const claimGift = useCallback(async (gift: Gift) => {
     if (!user) return false;
@@ -710,7 +715,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     isMatchesLoading: !isWorldReady || allMatches.length === 0, 
     addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy,
     sendGift, claimGift, generateDailyGifts
-  }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy, sendGift, claimGift, generateDailyGifts]);
+  }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy, sendGift, claimGift, generateDailyGifts, language]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
 }
