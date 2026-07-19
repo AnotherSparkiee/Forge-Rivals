@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * Глобальное хранилище v88 (Gift Protocol).
+ * Глобальное хранилище v88 (Gift Protocol Fixed).
  * Внедрена система подарков для S-tier лицензий.
- * Исправлена ошибка STAT_KEYS и инициализация списков.
+ * Исправлена отправка подарков и лимиты.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -15,6 +15,7 @@ import {
   query, where, serverTimestamp, arrayUnion, getDoc, updateDoc, 
   runTransaction, increment, getDocs, orderBy, limit 
 } from 'firebase/firestore';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 export { getLevelThreshold };
 
@@ -603,10 +604,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const r = getRefs();
     if (!r) return false;
     
-    const gift = stateRef.current.availableGiftsToSend.find(g => g.id === giftId);
-    if (!gift) return false;
+    const giftIndex = stateRef.current.availableGiftsToSend.findIndex(g => g.id === giftId);
+    if (giftIndex === -1) return false;
+    const gift = stateRef.current.availableGiftsToSend[giftIndex];
     
     try {
+      // Add gift to friend's subcollection
       const friendGiftRef = doc(collection(doc(db, 'players_v10', friendId), 'received_gifts'));
       await setDoc(friendGiftRef, {
         ...gift,
@@ -617,9 +620,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         claimed: false
       });
       
+      // Remove from my available gifts
       const newAvailable = stateRef.current.availableGiftsToSend.filter(g => g.id !== giftId);
       await updateDoc(r.root, { availableGiftsToSend: newAvailable });
       
+      // Notify friend
       addDocumentNonBlocking(collection(db, 'notifications_v7'), {
         userId: friendId,
         title: "Gift Received!",

@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { useGameState, Gift } from '@/app/lib/store';
 import { getMoscowDateString } from '@/app/lib/time-utils';
 
@@ -31,20 +30,17 @@ export function GiftGenerationManager() {
     if (isLoaded && activeLicenseTier === 1) {
       const today = getMoscowDateString();
       if (lastGiftGenDate !== today) {
-        // Generate 3 random gifts
-        const generated: Gift[] = [];
-        for (let i = 0; i < 3; i++) {
-          const random = GIFT_POOL[Math.floor(Math.random() * GIFT_POOL.length)];
-          generated.push({
-            id: `g_${Date.now()}_${i}`,
-            type: random.type as any,
-            value: random.value,
-            label: language === 'ru' ? random.labelRu : random.labelEn,
-            createdAt: new Date().toISOString(),
-            claimed: false
-          });
-        }
-        generateDailyGifts(generated);
+        // Generate 1 random gift (Updated from 3 to 1)
+        const random = GIFT_POOL[Math.floor(Math.random() * GIFT_POOL.length)];
+        const generated: Gift = {
+          id: `g_${Date.now()}_0`,
+          type: random.type as any,
+          value: random.value,
+          label: language === 'ru' ? random.labelRu : random.labelEn,
+          createdAt: new Date().toISOString(),
+          claimed: false
+        };
+        generateDailyGifts([generated]);
       }
     }
   }, [isLoaded, activeLicenseTier, lastGiftGenDate, generateDailyGifts, language]);
