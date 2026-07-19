@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview МАТЧ-ЦЕНТР v64.
- * Исправлена ошибка дублирования ключей при объединении архива и текущих матчей.
+ * @fileOverview МАТЧ-ЦЕНТР v65.
+ * Добавлена визуализация туров и статусов календаря.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -55,9 +55,9 @@ export default function MatchesPage() {
       backToMenu: "В меню матчей",
       empty: "МАТЧЕЙ НЕ ОБНАРУЖЕНО",
       menu: [
-        { id: 'next', label: 'Следующий соперник', desc: 'Ближайшее сражение', icon: Target, color: 'text-primary' },
-        { id: 'my_future', label: 'Мои будущие матчи', desc: 'Личный календарь на сезон', icon: CalendarClock, color: 'text-accent' },
-        { id: 'my_history', label: 'Мои сыгранные матчи', desc: 'Архив всех сражений клуба', icon: History, color: 'text-green-400' },
+        { id: 'next', label: 'Следующий тур', desc: 'Ближайшее сражение лиги', icon: Target, color: 'text-primary' },
+        { id: 'my_future', label: 'Мой календарь', desc: 'Ваше расписание на 14 дней', icon: CalendarClock, color: 'text-accent' },
+        { id: 'my_history', label: 'Мои результаты', desc: 'Архив всех сражений клуба', icon: History, color: 'text-green-400' },
         { id: 'league_future', label: 'Календарь лиги', desc: 'Расписание всей группы', icon: LayoutList, color: 'text-blue-400' },
         { id: 'league_history', label: 'Результаты лиги', desc: 'Итоги всех сражений', icon: ListChecks, color: 'text-yellow-500' },
       ]
@@ -68,9 +68,9 @@ export default function MatchesPage() {
       backToMenu: "Back to menu",
       empty: "NO MATCHES DETECTED",
       menu: [
-        { id: 'next', label: 'Next Opponent', desc: 'Nearest tactical engagement', icon: Target, color: 'text-primary' },
-        { id: 'my_future', label: 'My Future Matches', desc: 'Your personal season schedule', icon: CalendarClock, color: 'text-accent' },
-        { id: 'my_history', label: 'My Played Matches', desc: 'Full club battle archive', icon: History, color: 'text-green-400' },
+        { id: 'next', label: 'Next Tour', desc: 'Nearest tactical engagement', icon: Target, color: 'text-primary' },
+        { id: 'my_future', label: 'My Schedule', desc: 'Your 14-day season plan', icon: CalendarClock, color: 'text-accent' },
+        { id: 'my_history', label: 'My Results', desc: 'Full club battle archive', icon: History, color: 'text-green-400' },
         { id: 'league_future', label: 'League Calendar', desc: 'Schedule of all group teams', icon: LayoutList, color: 'text-blue-400' },
         { id: 'league_history', label: 'League Results', desc: 'Outcomes of all group battles', icon: ListChecks, color: 'text-yellow-500' },
       ]
@@ -104,9 +104,9 @@ export default function MatchesPage() {
           <div className="flex justify-between items-center mb-3">
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-[7px] font-black h-4 px-1.5 uppercase border-white/10 opacity-70">
-                {m.type?.toUpperCase() || (m.tour ? `TOUR ${m.tour}` : 'BATTLE')}
+                {m.type === 'league' ? `ТУР ${m.tour}` : (m.type?.toUpperCase() || 'BATTLE')}
               </Badge>
-              {isFinished && m.seen === false && (
+              {isFinished && m.seen === false && isMeHome || isMeAway && (
                 <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
               )}
             </div>
@@ -194,10 +194,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_history':
-        // Объединяем матчи лиги и матчи из архива (КВ, Турниры, Пробные)
         const leagueHistory = validMatches.filter(m => (m.homeId === user?.uid || m.awayId === user?.uid) && m.isFinished);
-        
-        // Дедупликация по ID для устранения ошибки дублирования ключей
         const uniqueHistoryMap = new Map();
         [...leagueHistory, ...matchHistory].forEach(m => {
           if (m.id) {
@@ -206,13 +203,11 @@ export default function MatchesPage() {
             }
           }
         });
-
         const unifiedHistory = Array.from(uniqueHistoryMap.values()).sort((a, b) => {
           const timeA = new Date(a.startTime || a.playedAt).getTime();
           const timeB = new Date(b.startTime || b.playedAt).getTime();
-          return timeB - timeA; // Новые сверху
+          return timeB - timeA;
         });
-
         return (
           <div className="animate-in fade-in">
             <Button variant="ghost" size="icon" onClick={() => setView('menu')} className="mb-4 h-8 w-8 text-primary"><ChevronLeft className="w-4 h-4" /></Button>
@@ -260,7 +255,7 @@ export default function MatchesPage() {
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center gap-4">
         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => view === 'menu' ? router.push('/') : setView('menu')}><ChevronLeft className="w-6 h-6" /></Button>
-        <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">Active Operations Cycle</p></div>
+        <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest">Active Season {activeSeasonNumber}</p></div>
       </header>
       {renderContent()}
     </div>

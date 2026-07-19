@@ -48,7 +48,7 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
     teams[slot - 1] = {
       id: p.id,
       name: p.name || p.displayName || `Manager_${p.id.slice(0, 4)}`,
-      logo: p.logo || null,
+      logo: p.logo || p.clubLogo || null,
       isBot: false,
       rank: slot
     };
@@ -88,6 +88,7 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
 
   const pool = Array.from({ length: n }, (_, i) => i);
 
+  // Календарь на 14 дней: Круг 1 (дни 1-7) и Круг 2 (дни 8-14)
   for (let round = 0; round < rounds; round++) {
     for (let i = 0; i < n / 2; i++) {
       const homeIdx = pool[i];
@@ -96,6 +97,7 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
       const createMatch = (day: number, hIdx: number, aIdx: number, tour: number) => {
         const h = teams[hIdx];
         const a = teams[aIdx];
+        // Время матча фиксировано для лиги
         const startTime = new Date(seasonStartMs + (day - 1) * dayMs + hh * 60 * 60 * 1000 + mm * 60 * 1000);
         return {
           day,
@@ -111,13 +113,13 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
         };
       };
 
-      // Round 1 (Days 1-7)
+      // Первый круг
       matches.push(createMatch(round + 1, homeIdx, awayIdx, round + 1));
-      // Round 2 (Days 8-14)
+      // Второй круг (реванш)
       matches.push(createMatch(round + 8, awayIdx, homeIdx, round + 8));
     }
     
-    // Berger rotation
+    // Вращение Бергера
     const last = pool.pop()!;
     pool.splice(1, 0, last);
   }
@@ -126,10 +128,10 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
 }
 
 /**
- * Deterministically generates a match result based on input parameters.
+ * Детерминированный расчет результата для фоновых матчей ботов (Bo2).
  */
-export function getMatchResult(idA: string, idB: string, seed1: any, seed2: any): [number, number] {
-  const combinedKey = `${idA}-${idB}-${seed1}-${seed2}`;
+export function getMatchResult(idA: string, idB: string, season: number, tour: number): [number, number] {
+  const combinedKey = `${idA}-${idB}-${season}-${tour}`;
   
   let hash = 0;
   for (let i = 0; i < combinedKey.length; i++) {
@@ -138,16 +140,10 @@ export function getMatchResult(idA: string, idB: string, seed1: any, seed2: any)
   }
   
   const absHash = Math.abs(hash);
-  const rawScoreA = absHash % 3;
-  const rawScoreB = (absHash >> 2) % 3;
+  const roll = absHash % 100;
   
-  // Bo2 Logic for League (seed2 is false/drawAllowed)
-  if (seed2 === false) {
-    if (rawScoreA === rawScoreB) return [1, 1];
-    return rawScoreA > rawScoreB ? [2, 0] : [0, 2];
-  }
-  
-  // Bracket Logic for Cup (no draws)
-  if (rawScoreA === rawScoreB) return [rawScoreA + 1, rawScoreB];
-  return [rawScoreA, rawScoreB];
+  // 30% - Победа A, 30% - Победа B, 40% - Ничья
+  if (roll < 30) return [2, 0];
+  if (roll < 60) return [0, 2];
+  return [1, 1];
 }
