@@ -4,12 +4,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { useGameState } from '@/app/lib/store';
+import { useGameState, Gift } from '@/app/lib/store';
 import { collection, query, where, doc, onSnapshot, limit } from 'firebase/firestore';
 import { 
   ChevronLeft, UserCheck, Shield, User,
   Mail, MessageSquare, ChevronRight, Loader2,
-  UserMinus, History, Search, Filter
+  UserMinus, History, Search, Filter, Gift as GiftIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,14 +24,19 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter
 } from "@/components/ui/dialog";
 
 export default function FriendsListPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const db = useFirestore();
-  const { language, isLoaded } = useGameState();
+  const { language, isLoaded, activeLicenseTier, availableGiftsToSend, sendGift } = useGameState();
   const [selectedFriend, setSelectedFriend] = useState<{id: string, name: string} | null>(null);
+  const [showGiftModal, setShowGiftModal] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+
+  const isSTier = activeLicenseTier === 1;
 
   // Query for accepted requests where current user is a participant
   const outgoingQuery = useMemoFirebase(() => {
@@ -72,11 +77,28 @@ export default function FriendsListPage() {
     }
   }, [user, isUserLoading, router]);
 
+  const handleSendGiftToFriend = async (giftId: string) => {
+    if (!selectedFriend || isSending) return;
+    setIsSending(true);
+    const success = await sendGift(giftId, selectedFriend.id, selectedFriend.name);
+    if (success) {
+      setShowGiftModal(false);
+      setSelectedFriend(null);
+    }
+    setIsSending(false);
+  };
+
+  const handlePrivateMessage = () => {
+    if (selectedFriend) {
+      router.push(`/chats/private?uid=${selectedFriend.id}&name=${encodeURIComponent(selectedFriend.name)}`);
+    }
+  };
+
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
 
-  const translations = {
+  const t = {
     en: {
       title: "MY FRIENDS",
       subtitle: "Trusted Alliance Network",
@@ -86,9 +108,15 @@ export default function FriendsListPage() {
       userMenuDesc: "Direct command options for",
       pm: "Private Messages",
       pmDesc: "Direct encrypted transmission",
+      gift: "Send Gift",
+      giftDesc: "S-Tier exclusive diplomat cargo",
       profile: "Manager Profile",
       profileDesc: "Operational statistics",
-      close: "CLOSE"
+      close: "CLOSE",
+      giftTitle: "DIPLOMATIC CARGO",
+      giftSub: "Select a gift to send to",
+      noGifts: "No gifts available today",
+      noGiftsDesc: "Gifts reset every 24 hours at 00:00 MSK."
     },
     ru: {
       title: "МОИ ДРУЗЬЯ",
@@ -99,19 +127,17 @@ export default function FriendsListPage() {
       userMenuDesc: "Команды взаимодействия с",
       pm: "Личные сообщения",
       pmDesc: "Прямая зашифрованная связь",
+      gift: "Отправить подарок",
+      giftDesc: "Дипломатический груз S-Tier",
       profile: "Профиль менеджера",
       profileDesc: "Оперативная статистика",
-      close: "ЗАКРЫТЬ"
+      close: "ЗАКРЫТЬ",
+      giftTitle: "ДИПЛОМАТИЧЕСКИЙ ГРУЗ",
+      giftSub: "Выберите подарок для",
+      noGifts: "На сегодня подарков нет",
+      noGiftsDesc: "Подарки выдаются каждые 24 часа в 00:00 МСК."
     }
-  };
-
-  const t = translations[language as keyof typeof translations] || translations.ru;
-
-  const handlePrivateMessage = () => {
-    if (selectedFriend) {
-      router.push(`/chats/private?uid=${selectedFriend.id}&name=${encodeURIComponent(selectedFriend.name)}`);
-    }
-  };
+  }[language as 'en' | 'ru'];
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-20">
@@ -175,7 +201,7 @@ export default function FriendsListPage() {
         )}
       </div>
 
-      <Dialog open={!!selectedFriend} onOpenChange={() => setSelectedFriend(null)}>
+      <Dialog open={!!selectedFriend && !showGiftModal} onOpenChange={() => setSelectedFriend(null)}>
         <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden shadow-2xl">
           <div className="p-6 bg-gradient-to-br from-primary/10 to-transparent border-b border-white/5">
             <div className="flex items-center gap-4">
@@ -194,6 +220,26 @@ export default function FriendsListPage() {
           </div>
 
           <div className="p-4 space-y-2">
+            {isSTier && (
+              <Card 
+                className="glass-card border-accent/20 bg-accent/5 hover:bg-accent/10 cursor-pointer transition-all active:scale-[0.98]"
+                onClick={() => setShowGiftModal(true)}
+              >
+                <CardContent className="p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 rounded-lg bg-accent/20">
+                      <GiftIcon className="w-5 h-5 text-accent" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold uppercase text-accent">{t.gift}</h3>
+                      <p className="text-[9px] text-muted-foreground leading-tight">{t.giftDesc}</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                </CardContent>
+              </Card>
+            )}
+
             <Card 
               className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98]"
               onClick={handlePrivateMessage}
@@ -225,20 +271,6 @@ export default function FriendsListPage() {
                 </div>
               </CardContent>
             </Card>
-
-            <Card className="glass-card border-white/5 opacity-30 cursor-not-allowed">
-              <CardContent className="p-3 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-2 rounded-lg bg-secondary/50">
-                    <UserMinus className="w-5 h-5 text-red-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold uppercase">Remove Friend</h3>
-                    <p className="text-[9px] text-muted-foreground leading-tight">Terminate alliance protocol</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
           <div className="p-4 bg-secondary/20 border-t border-white/5">
@@ -249,6 +281,59 @@ export default function FriendsListPage() {
             >
               {t.close}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showGiftModal} onOpenChange={setShowGiftModal}>
+        <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden shadow-2xl flex flex-col h-[70vh]">
+          <div className="p-6 text-center bg-gradient-to-br from-accent/20 via-background to-transparent border-b border-white/5 flex-shrink-0">
+             <div className="mx-auto w-12 h-12 rounded-full bg-secondary/50 flex items-center justify-center mb-4 border border-accent/40 shadow-[0_0_15px_rgba(var(--accent),0.2)]">
+               <GiftIcon className="w-6 h-6 text-accent animate-bounce" />
+             </div>
+             <DialogTitle className="text-xl font-headline font-bold uppercase tracking-tight text-white">{t.giftTitle}</DialogTitle>
+             <DialogDescription className="text-[10px] text-muted-foreground mt-2 uppercase font-black tracking-widest">{t.giftSub} {selectedFriend?.name}</DialogDescription>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-hide">
+            {availableGiftsToSend.length > 0 ? availableGiftsToSend.map((gift) => (
+              <Card 
+                key={gift.id} 
+                className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98]"
+                onClick={() => handleSendGiftToFriend(gift.id)}
+              >
+                <CardContent className="p-4 flex items-center justify-between">
+                   <div className="flex items-center gap-4">
+                      <div className="p-2 rounded-lg bg-accent/10">
+                        <GiftIcon className="w-5 h-5 text-accent" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold uppercase text-white">{gift.label}</h4>
+                        <p className="text-[8px] text-muted-foreground uppercase font-black mt-0.5">READY FOR SHIPMENT</p>
+                      </div>
+                   </div>
+                   {isSending ? <Loader2 className="w-4 h-4 animate-spin text-accent" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                </CardContent>
+              </Card>
+            )) : (
+              <div className="py-12 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 px-6">
+                 <History className="w-10 h-10" />
+                 <div>
+                   <p className="text-sm font-bold uppercase text-white">{t.noGifts}</p>
+                   <p className="text-[9px] font-black uppercase mt-1 leading-relaxed">{t.noGiftsDesc}</p>
+                 </div>
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 bg-secondary/20 border-t border-white/5 flex-shrink-0">
+             <Button 
+               variant="ghost" 
+               className="w-full text-[10px] uppercase font-bold text-muted-foreground"
+               onClick={() => setShowGiftModal(false)}
+             >
+               {language === 'ru' ? 'ОТМЕНА' : 'CANCEL'}
+             </Button>
           </div>
         </DialogContent>
       </Dialog>

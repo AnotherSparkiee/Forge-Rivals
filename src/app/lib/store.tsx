@@ -1,9 +1,9 @@
+
 'use client';
 
 /**
- * Глобальное хранилище v86 (Robust Sync Protocol).
- * Интерфейс разблокируется сразу после загрузки профиля.
- * Исправлена проблема мерцания и исчезновения групп за счет стабильного расчета сезона.
+ * Глобальное хранилище v87 (Gift Protocol).
+ * Внедрена система подарков для S-tier лицензий.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -19,6 +19,17 @@ import {
 export { getLevelThreshold };
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
+
+export interface Gift {
+  id: string;
+  type: 'architect' | 'teambuilding' | 'grant' | 'shard' | 'curse' | 'secret';
+  value: number;
+  label: string;
+  senderId?: string;
+  senderName?: string;
+  createdAt: string;
+  claimed: boolean;
+}
 
 interface TrophyRecord {
   id: string;
@@ -50,6 +61,11 @@ interface GameState {
   lastProcessedSeason: number;
   trophies: TrophyRecord[];
   version: number;
+  
+  // Gifting System
+  availableGiftsToSend: Gift[];
+  receivedGifts: Gift[];
+  lastGiftGenDate: string | null;
 
   addCrystals: (amount: number) => void;
   addCredits: (amount: number) => void;
@@ -95,6 +111,11 @@ interface GameState {
   addTrophy: (trophy: TrophyRecord) => void;
   setWorldReady: (isReady: boolean) => void;
   resetProfile: () => Promise<void>;
+  
+  // Gift Actions
+  sendGift: (giftId: string, friendId: string, friendName: string) => Promise<boolean>;
+  claimGift: (gift: Gift) => Promise<boolean>;
+  generateDailyGifts: (gifts: Gift[]) => void;
 }
 
 const DEFAULT_STATE: GameState = {
@@ -112,6 +133,7 @@ const DEFAULT_STATE: GameState = {
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
   lastProcessedSeason: 0, trophies: [], version: 0,
+  availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
   setTrainingFocus: () => {}, startDailyPlayerTraining: () => {}, claimDailyPlayerTraining: () => {},
@@ -125,7 +147,8 @@ const DEFAULT_STATE: GameState = {
   accelerateConstruction: () => false, checkConstructions: () => {},
   scoutCandidates: () => {}, recruitCandidate: () => {}, clearScoutingReport: () => {},
   payStaffSalaries: async () => {}, healPlayer: () => {}, launchFanCampaign: () => {},
-  addTrophy: () => {}, setWorldReady: () => {}, resetProfile: async () => {}
+  addTrophy: () => {}, setWorldReady: () => {}, resetProfile: async () => {},
+  sendGift: async () => false, claimGift: async () => false, generateDailyGifts: () => {}
 };
 
 const GameStateContext = createContext<GameState | undefined>(DEFAULT_STATE);
@@ -140,7 +163,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
-  // Стабильный расчет сезона при загрузке
   const staticSeasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
   // Profile Listener
@@ -163,6 +185,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         trophies: data.trophies || [],
         version: Number(data.version || 0),
         rank: Number(data.rank || 1),
+        lastGiftGenDate: data.lastGiftGenDate || null,
+        availableGiftsToSend: data.availableGiftsToSend || [],
         isLoaded: true
       }));
     });
@@ -228,8 +252,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       sSnap.docs.forEach(doc => { const m = doc.data() as StaffMember; staffObj[m.role] = m; });
       setState(prev => ({ ...prev, staff: staffObj }));
     });
+    
+    const unsubGifts = onSnapshot(collection(doc(db, 'players_v10', user.uid), 'received_gifts'), (snap) => {
+      if (!active) return;
+      const gifts = snap.docs.map(d => ({ ...d.data(), id: d.id } as Gift));
+      setState(prev => ({ ...prev, receivedGifts: gifts }));
+    });
 
-    return () => { active = false; unsubTeam(); playersUnsub(); unsubStaff(); };
+    return () => { active = false; unsubTeam(); playersUnsub(); unsubStaff(); unsubGifts(); };
   }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid, staticSeasonInfo.activeSeasonNumber]);
 
   // Global Matches Listener
@@ -552,6 +582,113 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const next = sorted[0];
     return { match: next, opponentName: next.homeId === user.uid ? next.awayName : next.homeName, isHome: next.homeId === user.uid };
   }, [allMatches, user?.uid]);
+  
+  const generateDailyGifts = useCallback((gifts: Gift[]) => {
+    const r = getRefs();
+    if (!r) return;
+    updateDoc(r.root, { 
+      availableGiftsToSend: gifts, 
+      lastGiftGenDate: getMoscowDateString() 
+    });
+  }, [getRefs]);
+
+  const sendGift = useCallback(async (giftId: string, friendId: string, friendName: string) => {
+    if (!user) return false;
+    const r = getRefs();
+    if (!r) return false;
+    
+    const gift = stateRef.current.availableGiftsToSend.find(g => g.id === giftId);
+    if (!gift) return false;
+    
+    try {
+      const friendGiftRef = doc(collection(doc(db, 'players_v10', friendId), 'received_gifts'));
+      await setDoc(friendGiftRef, {
+        ...gift,
+        id: friendGiftRef.id,
+        senderId: user.uid,
+        senderName: stateRef.current.displayName || "Manager",
+        createdAt: new Date().toISOString(),
+        claimed: false
+      });
+      
+      const newAvailable = stateRef.current.availableGiftsToSend.filter(g => g.id !== giftId);
+      await updateDoc(r.root, { availableGiftsToSend: newAvailable });
+      
+      addDocumentNonBlocking(collection(db, 'notifications_v7'), {
+        userId: friendId,
+        title: "Gift Received!",
+        description: `Manager ${stateRef.current.displayName} sent you: ${gift.label}`,
+        type: 'social',
+        read: false,
+        createdAt: new Date().toISOString()
+      });
+      
+      return true;
+    } catch (e) {
+      console.error("Failed to send gift", e);
+      return false;
+    }
+  }, [user, getRefs, db]);
+
+  const claimGift = useCallback(async (gift: Gift) => {
+    if (!user) return false;
+    const r = getRefs();
+    if (!r) return false;
+    
+    try {
+      if (gift.type === 'grant') {
+        addCredits(gift.value);
+      } else if (gift.type === 'shard') {
+        addCrystals(gift.value);
+      } else if (gift.type === 'architect') {
+        const cats = ['arena', 'hq', 'bootcamp', 'academy', 'medical'];
+        let applied = false;
+        for (const cat of cats) {
+          const data = (stateRef.current as any)[cat];
+          if (data?.constructionFinishes) {
+             const activeBuilding = Object.entries(data.constructionFinishes).find(([_, finish]) => !!finish);
+             if (activeBuilding) {
+                const [bId, finishIso]: [string, any] = activeBuilding;
+                const newFinish = new Date(new Date(finishIso).getTime() - (gift.value * 3600000)).toISOString();
+                const updates: any = {};
+                updates[`${cat}.constructionFinishes.${bId}`] = newFinish;
+                await updateDoc(r.team, updates);
+                applied = true;
+                break;
+             }
+          }
+        }
+        if (!applied) return false;
+      } else if (gift.type === 'teambuilding') {
+        const staffRoles: StaffRole[] = ['coach', 'analyst', 'scout', 'doctor', 'financier'];
+        const activeStaff = staffRoles.map(role => stateRef.current.staff[role]).filter(Boolean) as StaffMember[];
+        if (activeStaff.length === 0) return false;
+        const target = activeStaff[0];
+        await updateDoc(doc(collection(r.team, 'staff'), target.id), { 
+          'skills.primary': increment(gift.value) 
+        });
+      } else if (gift.type === 'curse') {
+        if (stateRef.current.youthAcademyPlayers.length === 0) return false;
+        const target = stateRef.current.youthAcademyPlayers[0];
+        const keys = STAT_KEYS;
+        const randomKey = keys[Math.floor(Math.random() * keys.length)];
+        const updates: any = {};
+        updates[`proStats.${randomKey}`] = increment(gift.value);
+        await updateDoc(doc(collection(r.team, 'heroes'), target.id), updates);
+      } else if (gift.type === 'secret') {
+        const types = ['grant', 'shard'] as const;
+        const randomType = types[Math.floor(Math.random() * types.length)];
+        if (randomType === 'grant') addCredits(2000000);
+        else addCrystals(200);
+      }
+      
+      await deleteDoc(doc(doc(db, 'players_v10', user.uid), 'received_gifts', gift.id));
+      return true;
+    } catch (e) {
+      console.error("Failed to claim gift", e);
+      return false;
+    }
+  }, [user, getRefs, db, addCredits, addCrystals]);
 
   const value = useMemo(() => ({
     ...state, 
@@ -560,8 +697,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     allSeasonMatches: allMatches, 
     nextMatch: nextMatchInfo, 
     isMatchesLoading: !isWorldReady || allMatches.length === 0, 
-    addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy
-  }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy]);
+    addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy,
+    sendGift, claimGift, generateDailyGifts
+  }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy, sendGift, claimGift, generateDailyGifts]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
 }

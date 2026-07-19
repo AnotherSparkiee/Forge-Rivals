@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useGameState, getLevelThreshold } from '../lib/store';
+import { useGameState, getLevelThreshold, Gift } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -11,7 +12,8 @@ import {
   Award, ScrollText, CircleDollarSign, 
   UserCog, HeartPulse, GraduationCap, 
   TrendingUp, BarChart3, Building2, MapPin,
-  Shield, Activity, Settings2, Info, AlertTriangle, Trash2, Medal
+  Shield, Activity, Settings2, Info, AlertTriangle, Trash2, Medal,
+  Gift as GiftIcon, Package, CheckCircle2, Clock
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -32,7 +34,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-type ProfileTab = 'menu' | 'team' | 'daily';
+type ProfileTab = 'menu' | 'team' | 'gifts';
 
 export default function ProfilePage() {
   const { 
@@ -40,7 +42,7 @@ export default function ProfilePage() {
     credits, crystals, leagueLevel, 
     experiencePoints, activeLicenseTier, hq, managerLevel,
     skillPoints, managerSkills, upgradeManagerSkill, arena, bootcamp, academy, medical,
-    isPremium, premiumUntil, resetProfile, trophies
+    isPremium, premiumUntil, resetProfile, trophies, receivedGifts, claimGift
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
@@ -51,6 +53,7 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<ProfileTab>('menu');
   const [isResetting, setIsResetting] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [isClaiming, setIsClaiming] = useState<string | null>(null);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -121,8 +124,18 @@ export default function ProfilePage() {
       },
       tabs: {
         team: "MY TEAM",
-        daily: "BONUSES",
+        gifts: "GIFTS",
         menu: "DASHBOARD"
+      },
+      gifts: {
+        title: "DIPLOMATIC STORAGE",
+        received: "Incoming Shipments",
+        activate: "ACTIVATE",
+        noGifts: "Storage empty",
+        noGiftsDesc: "Connect with S-Tier allies to receive support packages.",
+        success: "Bonus Applied!",
+        fail: "No targets available",
+        failDesc: "Ensure you have active construction, staff, or youth players."
       }
     },
     ru: {
@@ -149,8 +162,18 @@ export default function ProfilePage() {
       },
       tabs: {
         team: "МОЯ КОМАНДА",
-        daily: "БОНУСЫ",
+        gifts: "ПОДАРКИ",
         menu: "ГЛАВНАЯ"
+      },
+      gifts: {
+        title: "СКЛАД ПОДАРКОВ",
+        received: "Входящие грузы",
+        activate: "АКТИВИРОВАТЬ",
+        noGifts: "Склад пуст",
+        noGiftsDesc: "Дружите с игроками ранга S-Tier, чтобы получать поддержку.",
+        success: "Бонус применен!",
+        fail: "Нет цели для бонуса",
+        failDesc: "Убедитесь, что у вас есть активная постройка, персонал или юниоры."
       }
     }
   };
@@ -169,6 +192,72 @@ export default function ProfilePage() {
       setShowResetDialog(false);
     }
   };
+
+  const handleClaimGiftAction = async (gift: Gift) => {
+    setIsClaiming(gift.id);
+    const success = await claimGift(gift);
+    if (success) {
+      toast({ title: t.gifts.success });
+    } else {
+      toast({ 
+        variant: "destructive", 
+        title: t.gifts.fail, 
+        description: t.gifts.failDesc 
+      });
+    }
+    setIsClaiming(null);
+  };
+
+  const renderGiftsView = () => (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+      <Card className="glass-card border-accent/20 bg-accent/5 overflow-hidden">
+        <CardContent className="p-6 text-center">
+          <GiftIcon className="w-12 h-12 text-accent mx-auto mb-4 animate-bounce" />
+          <h2 className="text-xl font-headline font-bold uppercase tracking-tight text-white">{t.gifts.title}</h2>
+          <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mt-1">Operational Support Terminal</p>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-3">
+        <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">{t.gifts.received}</h3>
+        {receivedGifts.length > 0 ? (
+          <div className="grid grid-cols-1 gap-2">
+            {receivedGifts.map((gift) => (
+              <Card key={gift.id} className="glass-card border-white/5 bg-secondary/10 overflow-hidden">
+                <CardContent className="p-4 flex items-center justify-between">
+                   <div className="flex items-center gap-4">
+                      <div className="p-2.5 rounded-xl bg-accent/10 border border-accent/20">
+                        <Package className="w-5 h-5 text-accent" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold uppercase text-white leading-tight">{gift.label}</h4>
+                        <p className="text-[9px] text-muted-foreground uppercase font-black mt-1">From: {gift.senderName || 'Unknown'}</p>
+                      </div>
+                   </div>
+                   <Button 
+                    size="sm" 
+                    className="hero-gradient font-black text-[9px] h-9 px-4 uppercase tracking-widest shadow-lg shadow-primary/20"
+                    onClick={() => handleClaimGiftAction(gift)}
+                    disabled={isClaiming === gift.id}
+                   >
+                     {isClaiming === gift.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : t.gifts.activate}
+                   </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 px-10">
+             <Package className="w-12 h-12" />
+             <div>
+               <p className="text-sm font-bold uppercase text-white">{t.gifts.noGifts}</p>
+               <p className="text-[9px] font-black uppercase mt-1 leading-relaxed">{t.gifts.noGiftsDesc}</p>
+             </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   const renderTeamView = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-6">
@@ -314,7 +403,25 @@ export default function ProfilePage() {
       </header>
 
       <div className="grid grid-cols-3 gap-2 mb-8 bg-secondary/20 p-1 rounded-xl border border-white/5">
-        {(['menu', 'team', 'daily'] as const).map((tab) => (<Button key={tab} variant="ghost" size="sm" onClick={() => setActiveTab(tab)} className={cn("h-10 text-[10px] font-black uppercase tracking-widest transition-all", activeTab === tab ? "bg-white/10 text-primary shadow-inner" : "text-muted-foreground hover:text-white")}>{t.tabs[tab]}</Button>))}
+        {(['menu', 'team', 'gifts'] as const).map((tab) => (
+          <Button 
+            key={tab} 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setActiveTab(tab)} 
+            className={cn(
+              "relative h-10 text-[10px] font-black uppercase tracking-widest transition-all", 
+              activeTab === tab ? "bg-white/10 text-primary shadow-inner" : "text-muted-foreground hover:text-white"
+            )}
+          >
+            {t.tabs[tab]}
+            {tab === 'gifts' && receivedGifts.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[8px] font-black animate-pulse">
+                {receivedGifts.length}
+              </span>
+            )}
+          </Button>
+        ))}
       </div>
 
       {activeTab === 'menu' && (
@@ -366,19 +473,8 @@ export default function ProfilePage() {
       )}
 
       {activeTab === 'team' && renderTeamView()}
+      {activeTab === 'gifts' && renderGiftsView()}
       
-      {activeTab === 'daily' && (
-        <div className="animate-in fade-in duration-500 py-20 text-center">
-          <div className="bg-secondary/20 p-8 rounded-2xl border border-white/5 max-w-[280px] mx-auto flex flex-col items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center border border-white/10">
-              <Trophy className="w-8 h-8 text-primary opacity-20" />
-            </div>
-            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-relaxed">Daily Deployment Node Sync in Progress...</p>
-            <Button variant="ghost" className="mt-2 text-[10px] font-black uppercase text-primary" onClick={() => setActiveTab('menu')}>Return to Dashboard</Button>
-          </div>
-        </div>
-      )}
-
       <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
         <DialogContent className="max-w-xs bg-card border-white/10 p-6">
           <DialogHeader>
@@ -388,9 +484,7 @@ export default function ProfilePage() {
             <DialogTitle className="text-center font-headline font-bold uppercase text-red-500">
               {t.resetTitle}
             </DialogTitle>
-            <DialogDescription className="text-center text-xs text-muted-foreground mt-2">
-              {t.resetDesc}
-            </DialogDescription>
+            <DialogDescription className="text-center text-xs text-muted-foreground mt-2">{t.resetDesc}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2 mt-6">
             <Button 

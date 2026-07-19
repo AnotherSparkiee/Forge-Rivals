@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Metadata } from 'next';
@@ -12,6 +13,7 @@ import { FriendlyMatchListener } from "@/components/game/FriendlyMatchListener";
 import { CWBasketListener } from "@/components/game/CWBasketListener";
 import { DailyRewardManager } from "@/components/game/DailyRewardManager";
 import { TransferResolver } from "@/components/game/TransferResolver";
+import { GiftGenerationManager } from "@/components/game/GiftGenerationManager";
 import { TelegramSyncHandler } from "@/components/game/TelegramSyncHandler";
 import { AuthGuard } from "@/components/game/AuthGuard";
 import { Suspense } from 'react';
@@ -52,6 +54,7 @@ function GameInterface({ children }: { children: React.ReactNode }) {
               <CWBasketListener />
               <DailyRewardManager />
               <TransferResolver />
+              <GiftGenerationManager />
             </>
           )}
           
