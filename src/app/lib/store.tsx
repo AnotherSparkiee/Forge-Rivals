@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Глобальное хранилище v85 (Universal Match Sync & Server Time).
- * Реализовано прецизионное отслеживание всех типов матчей с учетом серверного времени.
+ * Глобальное хранилище v85.1 (Universal Match Sync & Server Time).
+ * Исправлена логика isDataReady для предотвращения зависаний при инициализации.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -553,7 +553,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [allMatches, user?.uid]);
 
   const value = useMemo(() => ({
-    ...state, isDataReady: isWorldReady && state.isLoaded && state.isTeamLoaded, isTeamLoaded: state.isTeamLoaded, allSeasonMatches: allMatches, nextMatch: nextMatchInfo, isMatchesLoading: !isWorldReady || allMatches.length === 0, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy
+    ...state, 
+    // ДЛЯ НОВЫХ ПОЛЬЗОВАТЕЛЕЙ: Если профиль загружен, мы можем показывать интерфейс, 
+    // не дожидаясь идеальной синхронизации всех данных, AutoMatchManager подтянет остальное.
+    isDataReady: state.isLoaded && (isWorldReady || state.isTeamLoaded), 
+    isTeamLoaded: state.isTeamLoaded, 
+    allSeasonMatches: allMatches, 
+    nextMatch: nextMatchInfo, 
+    isMatchesLoading: !isWorldReady || allMatches.length === 0, 
+    addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy
   }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;

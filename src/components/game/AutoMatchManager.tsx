@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v82.0 (Fast Initial Sync).
+ * @fileOverview Ядро MMO-синхронизации v82.5 (Fast Initial Sync).
  * Оптимизировано для мгновенного доступа к таблицам при создании профиля.
  */
 
@@ -30,15 +30,16 @@ export function AutoMatchManager() {
   const syncInProgressRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Ждем, пока загрузится и профиль, и данные команды
-    if (isUserLoading || !user?.uid || !isLoaded || !isTeamLoaded || !selectedLeagueId) return;
+    // Ждем базовую информацию из профиля. 
+    // Нам НЕ обязательно ждать isTeamLoaded для начала синхронизации таблицы.
+    if (isUserLoading || !user?.uid || !isLoaded || !selectedLeagueId) return;
 
     const syncSharedWorld = async () => {
       const info = getGlobalSeasonInfo();
       const currentSeason = Number(info.activeSeasonNumber);
       const lId = String(selectedLeagueId);
-      const tier = Number(leagueLevel);
-      const groupNum = Number(groupId);
+      const tier = Number(leagueLevel || 1);
+      const groupNum = Number(groupId || 1);
       const myRank = Number(rank || 1);
 
       const tableId = `s${currentSeason}_l${lId}_t${tier}_g${groupNum}`;
@@ -75,11 +76,11 @@ export function AutoMatchManager() {
           const data = tableSnap.data();
           teamData = data.teamData || [];
           
-          // Проверяем, на месте ли данные нашего клуба
-          const mySlotIndex = myRank - 1;
+          // Проверяем, на месте ли данные нашего клуба (замена бота)
+          const mySlotIndex = Math.max(0, myRank - 1);
           const mySlot = teamData[mySlotIndex];
           
-          if (!mySlot || mySlot.id !== userId || mySlot.logo !== clubLogo || mySlot.name !== currentClubName) {
+          if (!mySlot || mySlot.id !== userId) {
             teamData[mySlotIndex] = {
               id: userId,
               name: currentClubName,
@@ -88,7 +89,7 @@ export function AutoMatchManager() {
               isBot: false
             };
             await updateDoc(tableRef, { teamData, updatedAt: serverTimestamp() });
-            console.log(`[SYNC] Updated player info in Table: ${tableId}`);
+            console.log(`[SYNC] Substituted player into Table: ${tableId}`);
           }
         }
 
@@ -116,88 +117,90 @@ export function AutoMatchManager() {
           console.log(`[SYNC] Generated calendar for: ${tableId}`);
         }
 
-        // ВАЖНО: Мы готовы показывать интерфейс сразу после того, как таблица создана/найдена
+        // ПОДТВЕРЖДЕНИЕ ГОТОВНОСТИ МИРА
         setWorldReady(true);
 
-        // ПРОВЕРКА И ПРОВЕДЕНИЕ МАТЧЕЙ (Heartbeat)
-        const pendingQuery = query(
-          collection(db, 'matches_v1'),
-          where('tableId', '==', tableId),
-          where('isFinished', '==', false)
-        );
-        const pendingSnap = await getDocs(pendingQuery);
+        // ПРОВЕРКА И ПРОВЕДЕНИЕ МАТЧЕЙ (в фоновом режиме)
+        if (isTeamLoaded) {
+          const pendingQuery = query(
+            collection(db, 'matches_v1'),
+            where('tableId', '==', tableId),
+            where('isFinished', '==', false)
+          );
+          const pendingSnap = await getDocs(pendingQuery);
 
-        for (const mDoc of pendingSnap.docs) {
-          const mData = mDoc.data();
-          if (isMatchOverdue(mData.startTime)) {
-            const isMeHome = mData.homeId === userId;
-            const isMeAway = mData.awayId === userId;
-            let simulation;
-
-            if (isMeHome || isMeAway) {
-              const squad = ownedPlayers.filter(p => Object.values(lineup).includes(p.id)).map(p => ({
-                name: p.name, role: p.role, overallRating: p.overallRating, proStats: p.proStats,
-                image: p.image, form: p.form, fatigue: p.fatigue,
-                isSub: p.id === lineup.sub1 || p.id === lineup.sub2
-              }));
-
-              simulation = await simulateMobaMatch({
-                teamA: isMeHome ? { name: currentClubName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.homeName, strategy: "Balanced Play", heroes: generateBotSquad(15) },
-                teamB: isMeAway ? { name: currentClubName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.awayName, strategy: "Balanced Play", heroes: generateBotSquad(15) },
-                isBo2: true
-              });
-            } else {
-              const [sA, sB] = getMatchResult(mData.homeId, mData.awayId, currentSeason, mData.tour);
-              simulation = { 
-                winner: sA > sB ? mData.homeName : (sB > sA ? mData.awayName : "Ничья"), 
-                seriesScore: `${sA}-${sB}`, 
-                games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 0 ? 1 : 0, duration: "30:00", mvp: "Bot System", matchSummary: "FMO Core Resolution." }] 
-              };
-            }
-
-            const scoreParts = simulation.seriesScore.split('-');
-            const fSA = parseInt(scoreParts[0]);
-            const fSB = parseInt(scoreParts[1]);
-
-            await runTransaction(db, async (transaction) => {
-              const tCurrentSnap = await transaction.get(tableRef);
-              if (tCurrentSnap.exists()) {
-                const stats = tCurrentSnap.data().stats || {};
-                const updateStat = (tid: string, s: number, os: number) => {
-                  if (!stats[tid]) stats[tid] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
-                  stats[tid].matchesPlayed++;
-                  if (s > os) { stats[tid].wins++; stats[tid].points += 3; }
-                  else if (s === os) { stats[tid].draws++; stats[tid].points += 1; }
-                  else { stats[tid].losses++; }
-                  stats[tid].diff += (s - os);
-                };
-                updateStat(mData.homeId, fSA, fSB);
-                updateStat(mData.awayId, fSB, fSA);
-                transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
-              }
-              transaction.update(mDoc.ref, {
-                scoreA: fSA, scoreB: fSB, status: 'finished', isFinished: true, simulation, finishedAt: serverTimestamp()
-              });
+          for (const mDoc of pendingSnap.docs) {
+            const mData = mDoc.data();
+            if (isMatchOverdue(mData.startTime)) {
+              const isMeHome = mData.homeId === userId;
+              const isMeAway = mData.awayId === userId;
+              let simulation;
 
               if (isMeHome || isMeAway) {
-                const seasonId = `season_${currentSeason}`;
-                const prefixedGroupId = `${seasonId}_league_${lId}_group_${groupNum}`;
-                const teamRef = doc(db, 'leagues_v2', lId, 'divisions', String(tier), 'groups', prefixedGroupId, 'teams', userId);
-                
-                const fatigueLoss = 15 + Math.floor(Math.random() * 11);
-                const coreSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
-                coreSlots.forEach(slot => {
-                  const pId = lineup[slot];
-                  if (pId) {
-                    const heroRef = doc(teamRef, 'heroes', pId);
-                    transaction.update(heroRef, { 
-                      fatigue: increment(-fatigueLoss),
-                      form: increment(-1) 
-                    });
-                  }
+                const squad = ownedPlayers.filter(p => Object.values(lineup).includes(p.id)).map(p => ({
+                  name: p.name, role: p.role, overallRating: p.overallRating, proStats: p.proStats,
+                  image: p.image, form: p.form, fatigue: p.fatigue,
+                  isSub: p.id === lineup.sub1 || p.id === lineup.sub2
+                }));
+
+                simulation = await simulateMobaMatch({
+                  teamA: isMeHome ? { name: currentClubName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.homeName, strategy: "Balanced Play", heroes: generateBotSquad(15) },
+                  teamB: isMeAway ? { name: currentClubName, strategy, heroes: squad, staffBonus: staff.coach?.skills?.primary, infraBonus: (bootcamp.bootcampLevel || 0) } : { name: mData.awayName, strategy: "Balanced Play", heroes: generateBotSquad(15) },
+                  isBo2: true
                 });
+              } else {
+                const [sA, sB] = getMatchResult(mData.homeId, mData.awayId, currentSeason, mData.tour);
+                simulation = { 
+                  winner: sA > sB ? mData.homeName : (sB > sA ? mData.awayName : "Ничья"), 
+                  seriesScore: `${sA}-${sB}`, 
+                  games: [{ scoreA: sA > 0 ? 1 : 0, scoreB: sB > 0 ? 1 : 0, duration: "30:00", mvp: "Bot System", matchSummary: "FMO Core Resolution." }] 
+                };
               }
-            });
+
+              const scoreParts = simulation.seriesScore.split('-');
+              const fSA = parseInt(scoreParts[0]);
+              const fSB = parseInt(scoreParts[1]);
+
+              await runTransaction(db, async (transaction) => {
+                const tCurrentSnap = await transaction.get(tableRef);
+                if (tCurrentSnap.exists()) {
+                  const stats = tCurrentSnap.data().stats || {};
+                  const updateStat = (tid: string, s: number, os: number) => {
+                    if (!stats[tid]) stats[tid] = { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, diff: 0 };
+                    stats[tid].matchesPlayed++;
+                    if (s > os) { stats[tid].wins++; stats[tid].points += 3; }
+                    else if (s === os) { stats[tid].draws++; stats[tid].points += 1; }
+                    else { stats[tid].losses++; }
+                    stats[tid].diff += (s - os);
+                  };
+                  updateStat(mData.homeId, fSA, fSB);
+                  updateStat(mData.awayId, fSB, fSA);
+                  transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
+                }
+                transaction.update(mDoc.ref, {
+                  scoreA: fSA, scoreB: fSB, status: 'finished', isFinished: true, simulation, finishedAt: serverTimestamp()
+                });
+
+                if (isMeHome || isMeAway) {
+                  const seasonId = `season_${currentSeason}`;
+                  const prefixedGroupId = `${seasonId}_league_${lId}_group_${groupNum}`;
+                  const teamRef = doc(db, 'leagues_v2', lId, 'divisions', String(tier), 'groups', prefixedGroupId, 'teams', userId);
+                  
+                  const fatigueLoss = 15 + Math.floor(Math.random() * 11);
+                  const coreSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
+                  coreSlots.forEach(slot => {
+                    const pId = lineup[slot];
+                    if (pId) {
+                      const heroRef = doc(teamRef, 'heroes', pId);
+                      transaction.update(heroRef, { 
+                        fatigue: increment(-fatigueLoss),
+                        form: increment(-1) 
+                      });
+                    }
+                  });
+                }
+              });
+            }
           }
         }
       } catch (e) {
