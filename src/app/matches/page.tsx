@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview МАТЧ-ЦЕНТР v63.
- * Объединенное отображение календаря лиги и всех сыгранных матчей из архива.
+ * @fileOverview МАТЧ-ЦЕНТР v64.
+ * Исправлена ошибка дублирования ключей при объединении архива и текущих матчей.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -86,7 +86,7 @@ export default function MatchesPage() {
     return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
   }, [now]);
 
-  const renderMatchCard = useCallback((m: any) => {
+  const renderMatchCard = useCallback((m: any, idx: number) => {
     const isLive = isMatchLive(m.startTime || m.playedAt);
     const isFinished = m.isFinished;
     const isMeHome = m.homeId === user?.uid;
@@ -96,15 +96,20 @@ export default function MatchesPage() {
     const awayLogo = isMeAway ? myClubLogo : m.awayLogo;
 
     return (
-      <Card key={m.id} className={cn(
+      <Card key={`${m.id || 'm'}-${idx}`} className={cn(
         "glass-card border-white/5 transition-all overflow-hidden mb-2",
         isLive && "border-primary/40 bg-primary/5"
       )}>
         <CardContent className="p-3">
           <div className="flex justify-between items-center mb-3">
-            <Badge variant="outline" className="text-[7px] font-black h-4 px-1.5 uppercase border-white/10 opacity-70">
-              {m.type?.toUpperCase() || (m.tour ? `TOUR ${m.tour}` : 'BATTLE')}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-[7px] font-black h-4 px-1.5 uppercase border-white/10 opacity-70">
+                {m.type?.toUpperCase() || (m.tour ? `TOUR ${m.tour}` : 'BATTLE')}
+              </Badge>
+              {isFinished && m.seen === false && (
+                <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              )}
+            </div>
             <span className="text-[8px] font-mono font-bold text-muted-foreground">
               {new Date(m.startTime || m.playedAt).toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
             </span>
@@ -158,14 +163,20 @@ export default function MatchesPage() {
                  <div className="grid grid-cols-[1fr_60px_1fr] items-center gap-4">
                     <div className="text-center space-y-3">
                       <div className="w-16 h-16 rounded-2xl bg-secondary/50 flex items-center justify-center mx-auto overflow-hidden p-2">
-                        {currentNextMatch.homeLogo ? <img src={currentNextMatch.homeLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-8 h-8 text-muted-foreground/20" />}
+                        {currentNextMatch.homeId === user?.uid ? 
+                          (myClubLogo ? <img src={myClubLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-8 h-8 text-muted-foreground/20" />) :
+                          (currentNextMatch.homeLogo ? <img src={currentNextMatch.homeLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-8 h-8 text-muted-foreground/20" />)
+                        }
                       </div>
                       <p className="text-[10px] font-bold uppercase text-white truncate">{currentNextMatch.homeName}</p>
                     </div>
                     <div className="text-center"><Swords className="w-8 h-8 text-accent opacity-50 mx-auto" /><p className="text-[10px] font-mono font-bold text-primary mt-2">{getCountdown(currentNextMatch.startTime)}</p></div>
                     <div className="text-center space-y-3">
                       <div className="w-16 h-16 rounded-2xl bg-secondary/50 flex items-center justify-center mx-auto overflow-hidden p-2">
-                        {currentNextMatch.awayLogo ? <img src={currentNextMatch.awayLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-8 h-8 text-muted-foreground/20" />}
+                        {currentNextMatch.awayId === user?.uid ? 
+                          (myClubLogo ? <img src={myClubLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-8 h-8 text-muted-foreground/20" />) :
+                          (currentNextMatch.awayLogo ? <img src={currentNextMatch.awayLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-8 h-8 text-muted-foreground/20" />)
+                        }
                       </div>
                       <p className="text-[10px] font-bold uppercase text-white truncate">{currentNextMatch.awayName}</p>
                     </div>
@@ -175,17 +186,28 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_future':
-        const myFuture = validMatches.filter(m => (m.homeId === user?.uid || m.awayId === user?.uid) && !m.isFinished).sort((a, b) => a.tour - b.tour);
+        const myFuture = validMatches.filter(m => (m.homeId === user?.uid || m.awayId === user?.uid) && !m.isFinished).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         return (
           <div className="animate-in fade-in">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>
-            {myFuture.length > 0 ? myFuture.map(renderMatchCard) : <div className="py-20 text-center opacity-30 text-[10px] font-bold uppercase">{t.empty}</div>}
+            {myFuture.length > 0 ? myFuture.map((m, i) => renderMatchCard(m, i)) : <div className="py-20 text-center opacity-30 text-[10px] font-bold uppercase">{t.empty}</div>}
           </div>
         );
       case 'my_history':
         // Объединяем матчи лиги и матчи из архива (КВ, Турниры, Пробные)
         const leagueHistory = validMatches.filter(m => (m.homeId === user?.uid || m.awayId === user?.uid) && m.isFinished);
-        const unifiedHistory = [...leagueHistory, ...matchHistory].sort((a, b) => {
+        
+        // Дедупликация по ID для устранения ошибки дублирования ключей
+        const uniqueHistoryMap = new Map();
+        [...leagueHistory, ...matchHistory].forEach(m => {
+          if (m.id) {
+            if (!uniqueHistoryMap.has(m.id) || leagueHistory.some(lh => lh.id === m.id)) {
+               uniqueHistoryMap.set(m.id, m);
+            }
+          }
+        });
+
+        const unifiedHistory = Array.from(uniqueHistoryMap.values()).sort((a, b) => {
           const timeA = new Date(a.startTime || a.playedAt).getTime();
           const timeB = new Date(b.startTime || b.playedAt).getTime();
           return timeB - timeA; // Новые сверху
@@ -193,31 +215,31 @@ export default function MatchesPage() {
 
         return (
           <div className="animate-in fade-in">
-            <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>
-            {unifiedHistory.length > 0 ? unifiedHistory.map(renderMatchCard) : <div className="py-20 text-center opacity-30 text-[10px] font-bold uppercase">{t.empty}</div>}
+            <Button variant="ghost" size="icon" onClick={() => setView('menu')} className="mb-4 h-8 w-8 text-primary"><ChevronLeft className="w-4 h-4" /></Button>
+            {unifiedHistory.length > 0 ? unifiedHistory.map((m, i) => renderMatchCard(m, i)) : <div className="py-20 text-center opacity-30 text-[10px] font-bold uppercase">{t.empty}</div>}
           </div>
         );
       case 'league_future':
-        const lFuture = validMatches.filter(m => !m.isFinished).sort((a, b) => a.tour - b.tour);
+        const lFuture = validMatches.filter(m => !m.isFinished).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         return (
           <div className="animate-in fade-in">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>
-            {lFuture.length > 0 ? lFuture.map(renderMatchCard) : <div className="py-20 text-center opacity-30 text-[10px] font-bold uppercase">{t.empty}</div>}
+            {lFuture.length > 0 ? lFuture.map((m, i) => renderMatchCard(m, i)) : <div className="py-20 text-center opacity-30 text-[10px] font-bold uppercase">{t.empty}</div>}
           </div>
         );
       case 'league_history':
-        const lHistory = validMatches.filter(m => m.isFinished).sort((a, b) => a.tour - b.tour);
+        const lHistory = validMatches.filter(m => m.isFinished).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         return (
           <div className="animate-in fade-in">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>
-            {lHistory.length > 0 ? lHistory.map(renderMatchCard) : <div className="py-20 text-center opacity-30 text-[10px] font-bold uppercase">{t.empty}</div>}
+            {lHistory.length > 0 ? lHistory.map((m, i) => renderMatchCard(m, i)) : <div className="py-20 text-center opacity-30 text-[10px] font-bold uppercase">{t.empty}</div>}
           </div>
         );
       default:
         return (
           <div className="space-y-2 animate-in fade-in">
             {t.menu.map((item) => (
-              <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98]" onClick={() => setView(item.id as MatchView)}>
+              <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer active:scale-[0.98]" onClick={() => setView(item.id as MatchView)}>
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className={cn("p-2.5 rounded-xl bg-secondary/50", item.color)}><item.icon className="w-5 h-5" /></div>

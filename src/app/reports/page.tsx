@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v1.1.
- * Добавлена возможность удаления отчетов и улучшена визуализация команд с логотипами.
+ * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v1.2.
+ * Исправлена ошибка дублирования ключей React при объединении локальной истории и глобальных матчей.
  */
 
 import { useGameState } from '@/app/lib/store';
@@ -56,8 +56,22 @@ export default function ReportsPage() {
         source: 'league'
       }));
 
-    // Объединяем и сортируем по дате (новые сверху)
-    return [...historyReports, ...leagueReports].sort((a, b) => {
+    // Объединяем
+    const combined = [...historyReports, ...leagueReports];
+    
+    // Дедупликация по ID (используем Map для сохранения последней версии)
+    const uniqueMap = new Map();
+    combined.forEach(report => {
+      if (report.id) {
+        // Если ID уже есть, сохраняем версию из history (так как в ней надежнее хранятся локальные флаги seen)
+        if (!uniqueMap.has(report.id) || report.source === 'history') {
+          uniqueMap.set(report.id, report);
+        }
+      }
+    });
+
+    // Сортируем по дате (новые сверху)
+    return Array.from(uniqueMap.values()).sort((a, b) => {
       const timeA = a.playedAt ? new Date(a.playedAt).getTime() : (a.startTime ? new Date(a.startTime).getTime() : 0);
       const timeB = b.playedAt ? new Date(b.playedAt).getTime() : (b.startTime ? new Date(b.startTime).getTime() : 0);
       return timeB - timeA;
@@ -155,7 +169,7 @@ export default function ReportsPage() {
             const awayLogo = isMeAway ? myClubLogo : report.awayLogo;
 
             return (
-              <Card key={report.id || idx} className={cn(
+              <Card key={`${report.id || 'idx'}-${idx}`} className={cn(
                 "glass-card border-white/5 transition-all overflow-hidden group",
                 report.isUnread && "border-primary/40 bg-primary/5 ring-1 ring-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.1)]"
               )}>
