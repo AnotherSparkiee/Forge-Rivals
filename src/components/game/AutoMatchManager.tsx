@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v81.0 (Full Automatic League Sync).
+ * @fileOverview Ядро MMO-синхронизации v82.0 (Fast Initial Sync).
+ * Оптимизировано для мгновенного доступа к таблицам при создании профиля.
  */
 
 import { useEffect, useRef } from 'react';
@@ -15,12 +16,12 @@ import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/a
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
 
-const SYNC_VERSION = 81; 
+const SYNC_VERSION = 82; 
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
   const { 
-    isLoaded, id: userId, displayName, selectedLeagueId, 
+    isLoaded, isTeamLoaded, id: userId, displayName, selectedLeagueId, 
     leagueLevel, groupId, setWorldReady, rank, clubLogo, clubName,
     ownedPlayers, lineup, strategy, staff, bootcamp
   } = useGameState();
@@ -29,7 +30,8 @@ export function AutoMatchManager() {
   const syncInProgressRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (isUserLoading || !user?.uid || !isLoaded || !selectedLeagueId) return;
+    // Ждем, пока загрузится и профиль, и данные команды
+    if (isUserLoading || !user?.uid || !isLoaded || !isTeamLoaded || !selectedLeagueId) return;
 
     const syncSharedWorld = async () => {
       const info = getGlobalSeasonInfo();
@@ -45,6 +47,8 @@ export function AutoMatchManager() {
       if (syncInProgressRef.current === syncKey) return;
       syncInProgressRef.current = syncKey;
 
+      console.log(`[SYNC v${SYNC_VERSION}] Checking Table: ${tableId}`);
+
       const tableRef = doc(db, 'league_tables_v1', tableId);
       const currentClubName = clubName || displayName || "Manager";
 
@@ -53,7 +57,7 @@ export function AutoMatchManager() {
         let teamData = [];
 
         if (!tableSnap.exists()) {
-          // Инициализация таблицы и состава группы
+          // Инициализация новой таблицы
           teamData = getStableGroupTeams(tier, groupNum, lId, [{
             id: userId,
             name: currentClubName,
@@ -66,11 +70,12 @@ export function AutoMatchManager() {
             tableId, season: currentSeason, leagueId: lId, tier, group: groupNum,
             teamData, stats: {}, createdAt: serverTimestamp(), version: SYNC_VERSION
           });
+          console.log(`[SYNC] Created new Table: ${tableId}`);
         } else {
           const data = tableSnap.data();
           teamData = data.teamData || [];
           
-          // Актуализация данных игрока в таблице
+          // Проверяем, на месте ли данные нашего клуба
           const mySlotIndex = myRank - 1;
           const mySlot = teamData[mySlotIndex];
           
@@ -83,10 +88,11 @@ export function AutoMatchManager() {
               isBot: false
             };
             await updateDoc(tableRef, { teamData, updatedAt: serverTimestamp() });
+            console.log(`[SYNC] Updated player info in Table: ${tableId}`);
           }
         }
 
-        // Синхронизация календаря матчей
+        // Синхронизация календаря матчей (если еще нет)
         const matchesQuery = query(collection(db, 'matches_v1'), where('tableId', '==', tableId));
         const matchesSnap = await getDocs(matchesQuery);
 
@@ -107,8 +113,10 @@ export function AutoMatchManager() {
             });
           });
           await batch.commit();
+          console.log(`[SYNC] Generated calendar for: ${tableId}`);
         }
 
+        // ВАЖНО: Мы готовы показывать интерфейс сразу после того, как таблица создана/найдена
         setWorldReady(true);
 
         // ПРОВЕРКА И ПРОВЕДЕНИЕ МАТЧЕЙ (Heartbeat)
@@ -126,7 +134,6 @@ export function AutoMatchManager() {
             const isMeAway = mData.awayId === userId;
             let simulation;
 
-            // Если в матче участвует текущий пользователь - делаем полную симуляцию через AI
             if (isMeHome || isMeAway) {
               const squad = ownedPlayers.filter(p => Object.values(lineup).includes(p.id)).map(p => ({
                 name: p.name, role: p.role, overallRating: p.overallRating, proStats: p.proStats,
@@ -140,7 +147,6 @@ export function AutoMatchManager() {
                 isBo2: true
               });
             } else {
-              // Для матчей бот-бот используем быстрый детерминированный расчет
               const [sA, sB] = getMatchResult(mData.homeId, mData.awayId, currentSeason, mData.tour);
               simulation = { 
                 winner: sA > sB ? mData.homeName : (sB > sA ? mData.awayName : "Ничья"), 
@@ -173,7 +179,6 @@ export function AutoMatchManager() {
                 scoreA: fSA, scoreB: fSB, status: 'finished', isFinished: true, simulation, finishedAt: serverTimestamp()
               });
 
-              // Снятие усталости только для реального игрока
               if (isMeHome || isMeAway) {
                 const seasonId = `season_${currentSeason}`;
                 const prefixedGroupId = `${seasonId}_league_${lId}_group_${groupNum}`;
@@ -197,14 +202,15 @@ export function AutoMatchManager() {
         }
       } catch (e) {
         console.error("[AUTO-MATCH ERROR]", e);
+        // Даже если симуляция упала, мы не должны блокировать UI
         setWorldReady(true);
       }
     };
 
-    const heartbeat = setInterval(syncSharedWorld, 60000); // Проверка каждую минуту
+    const heartbeat = setInterval(syncSharedWorld, 60000); 
     syncSharedWorld();
     return () => clearInterval(heartbeat);
-  }, [isLoaded, userId, displayName, selectedLeagueId, leagueLevel, groupId, rank, clubLogo, clubName, ownedPlayers, lineup, strategy, staff, bootcamp, db, isUserLoading, user, setWorldReady]);
+  }, [isLoaded, isTeamLoaded, userId, displayName, selectedLeagueId, leagueLevel, groupId, rank, clubLogo, clubName, ownedPlayers, lineup, strategy, staff, bootcamp, db, isUserLoading, user, setWorldReady]);
 
   return null;
 }

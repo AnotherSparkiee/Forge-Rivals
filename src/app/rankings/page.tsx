@@ -1,8 +1,7 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v67 (Club Identity Protocol). 
- * Добавлен доступ к Кубку Пирамиды.
+ * @fileOverview Страница рейтингов v68 (Sync Reliability Fix). 
  */
 
 import { useState, useMemo } from 'react';
@@ -44,8 +43,17 @@ export default function RankingsPage() {
   const contextLevel = isMyLeagueTab ? Number(leagueLevel || 1) : Number(navLevel || leagueLevel || 1);
   const contextGroup = isMyLeagueTab ? Number(navGroup || (isMyLeagueTab ? groupId : 1) || 1) : Number(navGroup || 1);
 
-  const tableId = `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
-  const tableRef = useMemoFirebase(() => doc(db, 'league_tables_v1', tableId), [db, tableId]);
+  // Генерируем tableId с защитой от null
+  const safeTableId = useMemo(() => {
+    if (!activeSeasonNumber || !contextLeagueId) return 'temp';
+    return `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
+  }, [activeSeasonNumber, contextLeagueId, contextLevel, contextGroup]);
+
+  const tableRef = useMemoFirebase(() => {
+    if (safeTableId === 'temp') return null;
+    return doc(db, 'league_tables_v1', safeTableId);
+  }, [db, safeTableId]);
+
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
   const standings = useMemo(() => {
@@ -152,7 +160,7 @@ export default function RankingsPage() {
              <span className="text-[10px] font-mono text-muted-foreground uppercase">LIVE STANDINGS</span>
            </div>
            
-           {(isTableLoading || !tableData) ? (
+           {(isTableLoading || !tableData || safeTableId === 'temp') ? (
              <div className="py-20 text-center opacity-50 flex flex-col items-center gap-4">
                <Loader2 className="w-8 h-8 animate-spin text-primary" />
                <p className="text-[10px] uppercase font-black tracking-widest">{t.syncing}</p>
