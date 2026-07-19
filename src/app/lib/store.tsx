@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Глобальное хранилище v85.1 (Universal Match Sync & Server Time).
- * Исправлена логика isDataReady для предотвращения зависаний при инициализации.
+ * Глобальное хранилище v85.5 (Fast UI Unlock Protocol).
+ * Интерфейс разблокируется сразу после загрузки профиля, не дожидаясь синхронизации мира.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -544,7 +544,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const futureMatches = allMatches.filter(m => 
       (m.homeId === user.uid || m.awayId === user.uid) && 
       !m.isFinished &&
-      new Date(m.startTime).getTime() > mskNow - (1000 * 60 * 2) // Прячем через 2 минуты после начала, если не зафинишен
+      new Date(m.startTime).getTime() > mskNow - (1000 * 60 * 2) 
     );
     if (futureMatches.length === 0) return null;
     const sorted = [...futureMatches].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
@@ -554,9 +554,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({
     ...state, 
-    // ДЛЯ НОВЫХ ПОЛЬЗОВАТЕЛЕЙ: Если профиль загружен, мы можем показывать интерфейс, 
-    // не дожидаясь идеальной синхронизации всех данных, AutoMatchManager подтянет остальное.
-    isDataReady: state.isLoaded && (isWorldReady || state.isTeamLoaded), 
+    // ГЛАВНОЕ ИСПРАВЛЕНИЕ: Разблокируем интерфейс сразу после загрузки профиля (isLoaded).
+    // Все остальные данные (команда, мир) подгрузятся в процессе.
+    isDataReady: state.isLoaded, 
     isTeamLoaded: state.isTeamLoaded, 
     allSeasonMatches: allMatches, 
     nextMatch: nextMatchInfo, 

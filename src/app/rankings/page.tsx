@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Страница рейтингов v68.1 (Sync Reliability Fix). 
- * Исправлена обработка отсутствующих таблиц при создании профиля.
+ * @fileOverview Страница рейтингов v69 (Infinite Loading Fix). 
+ * Добавлена устойчивость к медленной синхронизации Firestone.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -38,22 +38,24 @@ export default function RankingsPage() {
   const [navLeague, setNavLeague] = useState<string | null>(null);
   const [navLevel, setNavLevel] = useState<number | null>(null);
   const [navGroup, setNavGroup] = useState<number | null>(null);
-  const [showTimeoutMessage, setShowTimeoutMessage] = useState(false);
+  const [syncTimeout, setSyncTimeout] = useState(false);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (!isUserLoading && user && (activeTab === 'my_league' || navGroup)) {
-      timer = setTimeout(() => setShowTimeoutMessage(true), 10000);
+    if (activeTab !== 'menu') {
+      timer = setTimeout(() => setSyncTimeout(true), 12000);
     }
-    return () => clearTimeout(timer);
-  }, [isUserLoading, user, activeTab, navGroup]);
+    return () => {
+      clearTimeout(timer);
+      setSyncTimeout(false);
+    };
+  }, [activeTab, navGroup, navLevel, navLeague]);
 
   const isMyLeagueTab = activeTab === 'my_league';
   const contextLeagueId = isMyLeagueTab ? String(selectedLeagueId || "ALPHA") : String(navLeague || selectedLeagueId || "ALPHA");
   const contextLevel = isMyLeagueTab ? Number(leagueLevel || 1) : Number(navLevel || leagueLevel || 1);
   const contextGroup = isMyLeagueTab ? Number(navGroup || (isMyLeagueTab ? groupId : 1) || 1) : Number(navGroup || 1);
 
-  // Генерируем tableId с защитой от null
   const safeTableId = useMemo(() => {
     if (!activeSeasonNumber || !contextLeagueId || contextLeagueId === "null") return 'temp';
     return `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
@@ -82,7 +84,7 @@ export default function RankingsPage() {
       title: "RANKINGS HUB", subtitle: "Global Competitive Terminals",
       pts: "PTS", winLoss: "W-D-L", m: "M", back: "Back",
       syncing: "Synchronizing group data...",
-      timeout: "Initial synchronization takes a bit longer for new groups. Please wait or refresh.",
+      timeout: "Initial sync is taking longer than usual. Please refresh the command center.",
       noData: "Establishing Link with League Server...",
       promotion: "Promotion Zone", relegation: "Relegation Danger",
       menu: [
@@ -96,7 +98,7 @@ export default function RankingsPage() {
       title: "ТАБЛИЦЫ РЕЙТИНГА", subtitle: "Терминалы глобальных соревнований",
       pts: "О", winLoss: "В-Н-П", m: "И", back: "Назад",
       syncing: "Синхронизация данных группы...",
-      timeout: "Первичная синхронизация новой группы может занять до 20 секунд. Пожалуйста, подождите или обновите страницу.",
+      timeout: "Первичная синхронизация занимает больше времени. Пожалуйста, обновите терминал.",
       noData: "Установка связи с сервером лиги...",
       promotion: "Зона повышения", relegation: "Зона вылета",
       menu: [
@@ -109,7 +111,7 @@ export default function RankingsPage() {
   }[language === 'ru' ? 'ru' : 'en'];
 
   const handleBack = () => {
-    if (activeTab === 'my_league') { setActiveTab('menu'); setShowTimeoutMessage(false); return; }
+    if (activeTab === 'my_league') { setActiveTab('menu'); return; }
     if (activeTab === 'my_pyramid' || activeTab === 'all_pyramids') {
       if (navGroup) { setNavGroup(null); return; }
       if (navLevel) { setNavLevel(null); return; }
@@ -176,10 +178,8 @@ export default function RankingsPage() {
              <div className="py-20 text-center opacity-50 flex flex-col items-center gap-4">
                <Loader2 className="w-8 h-8 animate-spin text-primary" />
                <p className="text-[10px] uppercase font-black tracking-widest">{t.syncing}</p>
-               {showTimeoutMessage && (
-                 <p className="text-[9px] text-muted-foreground max-w-[220px] leading-relaxed italic animate-in fade-in duration-1000">
-                   {t.timeout}
-                 </p>
+               {syncTimeout && (
+                 <p className="text-[9px] text-red-400 font-bold uppercase italic animate-in fade-in">{t.timeout}</p>
                )}
              </div>
            ) : standings.length === 0 ? (
