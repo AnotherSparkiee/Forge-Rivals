@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState, getLevelThreshold, Gift } from '../lib/store';
@@ -13,7 +12,7 @@ import {
   UserCog, HeartPulse, GraduationCap, 
   TrendingUp, BarChart3, Building2, MapPin,
   Shield, Activity, Settings2, Info, AlertTriangle, Trash2, Medal,
-  Gift as GiftIcon, Package, CheckCircle2, Clock
+  Gift as GiftIcon, Package, CheckCircle2, Clock, Crown
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -42,7 +41,7 @@ export default function ProfilePage() {
     credits, crystals, leagueLevel, 
     experiencePoints, activeLicenseTier, hq, managerLevel,
     skillPoints, managerSkills, upgradeManagerSkill, arena, bootcamp, academy, medical,
-    isPremium, premiumUntil, resetProfile, trophies, receivedGifts, claimGift
+    isPremium, premiumUntil, resetProfile, trophies, receivedGifts = [], claimGift
   } = useGameState();
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
@@ -220,7 +219,7 @@ export default function ProfilePage() {
 
       <div className="space-y-3">
         <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">{t.gifts.received}</h3>
-        {receivedGifts.length > 0 ? (
+        {(receivedGifts?.length || 0) > 0 ? (
           <div className="grid grid-cols-1 gap-2">
             {receivedGifts.map((gift) => (
               <Card key={gift.id} className="glass-card border-white/5 bg-secondary/10 overflow-hidden">
@@ -415,7 +414,7 @@ export default function ProfilePage() {
             )}
           >
             {t.tabs[tab]}
-            {tab === 'gifts' && receivedGifts.length > 0 && (
+            {tab === 'gifts' && (receivedGifts?.length || 0) > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[8px] font-black animate-pulse">
                 {receivedGifts.length}
               </span>

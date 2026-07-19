@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -31,7 +30,7 @@ export default function FriendsListPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const db = useFirestore();
-  const { language, isLoaded, activeLicenseTier, availableGiftsToSend, sendGift } = useGameState();
+  const { language, isLoaded, activeLicenseTier, availableGiftsToSend = [], sendGift } = useGameState();
   const [selectedFriend, setSelectedFriend] = useState<{id: string, name: string} | null>(null);
   const [showGiftModal, setShowGiftModal] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -296,7 +295,7 @@ export default function FriendsListPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-hide">
-            {availableGiftsToSend.length > 0 ? availableGiftsToSend.map((gift) => (
+            {(availableGiftsToSend?.length || 0) > 0 ? availableGiftsToSend.map((gift) => (
               <Card 
                 key={gift.id} 
                 className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98]"

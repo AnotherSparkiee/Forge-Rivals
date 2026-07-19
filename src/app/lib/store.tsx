@@ -1,9 +1,9 @@
-
 'use client';
 
 /**
- * Глобальное хранилище v87 (Gift Protocol).
+ * Глобальное хранилище v88 (Gift Protocol).
  * Внедрена система подарков для S-tier лицензий.
+ * Исправлена ошибка STAT_KEYS и инициализация списков.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -17,6 +17,12 @@ import {
 } from 'firebase/firestore';
 
 export { getLevelThreshold };
+
+export const STAT_KEYS = [
+  'lastHitting', 'mapAwareness', 'positioning', 'reflexes',
+  'manaManagement', 'objectiveControl', 'communication',
+  'tiltResistance', 'versatility', 'ganking'
+];
 
 export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
